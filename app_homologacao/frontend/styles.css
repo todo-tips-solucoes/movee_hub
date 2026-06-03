@@ -1,0 +1,253 @@
+/* Estilos Globais Homologacao*/
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f1f4f8;
+    font-size: 11px;
+    height: 100vh;
+    margin: 0;
+}
+
+/* Estilo para login-section e register-section */
+#login-section, #register-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%; /* Garante que a seção ocupe a altura total da página */
+    width: 100%;  /* Ocupa a largura total */
+}
+
+.card {
+    max-width: 1170px;
+    width: 100%;
+    margin: 0 auto;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilos do Header */
+.card-header {
+    font-size: 24px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Botão Upload */
+#uploadBtn {
+    margin-left: auto; /* Garante que o botão seja empurrado para a direita */
+}
+
+/* Avatar no header */
+.avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+}
+
+.table-responsive {
+    max-height: calc(100vh - 350px); /* Ajuste o valor com base na altura do header, footer ou outros elementos */
+    overflow-x: auto;
+    position: relative; /* Para o posicionamento correto do cabeçalho fixo */
+}
+
+ol { 
+    counter-reset: item;
+    list-style-type: none;
+}
+
+li { 
+    display: block; 
+}
+
+
+/* Mantém a largura da tabela sem rolagem horizontal */
+.table {
+    width: 100%;
+    table-layout: fixed; /* Ajusta a tabela automaticamente para as colunas caberem na tela */
+    border-collapse: collapse;
+    word-wrap: break-word;
+}
+
+
+/* Definindo larguras personalizadas para algumas colunas */
+.table th:nth-child(1), .table td:nth-child(1) {
+    width: 5%; /* Aumenta a coluna para "Selecionado" */
+}
+
+.table th:nth-child(2), .table td:nth-child(2) {
+    width: 11%; /* Aumenta a coluna para "Número" */
+}
+
+.table th:nth-child(3), .table td:nth-child(3) {
+    width: 17%; /* Aumenta a coluna para "Nome" */
+}
+
+.table th:nth-child(4), .table td:nth-child(4) {
+    width: 10%; /* Aumenta a coluna para "Valor" */
+}
+
+.table th:nth-child(5), .table td:nth-child(5) {
+    width: 7%; /* Aumenta a coluna para "Enviado" */
+}
+
+.table th:nth-child(6), .table td:nth-child(6) {
+    width: 7%; /* Aumenta a coluna para "Sucesso" */
+}
+
+.table th:nth-child(7), .table td:nth-child(7) {
+    width: 10%; /* Aumenta a coluna para "Num. Nota" */
+}
+
+.table th:nth-child(8), .table td:nth-child(8) {
+    width: 7%; /* Aumenta a coluna para "XML" */
+}
+
+.table th:nth-child(9), .table td:nth-child(9) {
+    width: 10%; /* Aumenta a coluna para "Data Emissão" */
+}
+
+.table th:nth-child(10), .table td:nth-child(10) {
+    width: 7%; /* Aumenta a coluna para "Validação" */
+}
+
+.table th:nth-child(11), .table td:nth-child(11) {
+    width: 9%; /* Ajusta a coluna "Ações" */
+}
+
+/* Ajuste de bordas e padding para mais espaço */
+.table th, .table td {
+    text-align: center;
+    vertical-align: middle;
+    font-size: 11px;
+    padding: 8px; /* Aumenta o padding para mais espaço visual */
+    word-wrap: break-word; /* Permite a quebra de linha no conteúdo */
+    border: 1px solid #ddd; /* Adiciona bordas entre as células */
+}
+
+/* Filtros */
+.table th input[type="text"] {
+    width: 90%; /* Filtros de texto ocupam a maior parte da célula */
+}
+
+/* Estilo ao passar o mouse nas linhas da tabela */
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Estilo dos checkboxes */
+#selecao {
+    transform: scale(1.2);
+    margin: 0 auto;
+}
+
+/* Estilo dos checkboxes */
+#naoselecao {
+    transform: scale(1.2);
+    margin: 0 auto;
+    pointer-events: none;
+}
+
+/* Estilo dos checkboxes */
+.table th input[type="checkbox"] {
+    transform: scale(1.2);
+    margin: 0 auto;
+    /*pointer-events: none;*/
+}
+
+/* Estilo do botão de upload na card-header */
+.actions button {
+    padding: 5px;
+    font-size: 16px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Centralização dos botões de ações */
+.actions {
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+#loadingAnimation {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(255, 255, 255, 0.8);
+    z-index: 9999;
+    flex-direction: column;
+}
+
+#lblNomeEmpresa {
+    font-size: 22px;
+}
+
+#exportFile {
+    margin-right: 6px;
+}
+
+#closeMov {
+    margin-right: 6px;
+}
+
+#stop {
+    margin-right: 6px;
+}
+
+#play {
+    margin-right: 6px;
+}
+
+#downloadXmlMov {
+    margin-left: 6px;
+}
+
+#lblXMLEnviado{
+    margin-right: 6px;
+    color: #006A4E;
+    font-weight: bold;
+}
+
+#lblXMLErro{
+    color: #AA0000;
+    font-weight: bold;
+}
+
+#lblErroMsgEnviada{
+    margin-right: 10px;
+    color: #AA0000;
+    font-weight: bold;
+}
+
+#lblEnviadoMsgEnviada{
+    margin-right: 6px;
+    color: #006A4E;
+    font-weight: bold;
+}
+
+#lblTotal {
+    margin-right: 6px;
+    font-weight: bold;
+}
+
+/* Estilos para o Datepicker */
+.ui-datepicker {
+    background: #fff;
+    border: 1px solid #555;
+    padding: 10px;
+    z-index: 9999;
+}
+
+.ui-datepicker-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+}
+
+#uploadForm {
+    padding-top: 7px;

@@ -1,0 +1,105 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { EnvioMassa } from '@/types';
+import { toast } from 'sonner';
+
+interface EditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  record: EnvioMassa | null;
+  onSave: (id: number, data: Record<string, unknown>) => Promise<void>;
+}
+
+export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogProps) {
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    number: '',
+    nome: '',
+    valor: '',
+    cnpj_tomador: '',
+    cnpj_prestador: '',
+    mensagem1: '',
+    mensagem2: '',
+  });
+
+  useEffect(() => {
+    if (record) {
+      setForm({
+        number: record.number || '',
+        nome: record.nome || '',
+        valor: String(record.valor || ''),
+        cnpj_tomador: record.cnpj_tomador || '',
+        cnpj_prestador: record.cnpj_prestador || '',
+        mensagem1: record.mensagem1 || '',
+        mensagem2: record.mensagem2 || '',
+      });
+    }
+  }, [record]);
+
+  const handleSave = async () => {
+    if (!record) return;
+    try {
+      setLoading(true);
+      await onSave(record.id, form);
+      toast.success('Registro atualizado com sucesso!');
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar registro');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fields = [
+    { key: 'number', label: 'Numero' },
+    { key: 'nome', label: 'Nome' },
+    { key: 'valor', label: 'Valor' },
+    { key: 'cnpj_tomador', label: 'CNPJ Tomador' },
+    { key: 'cnpj_prestador', label: 'CNPJ Prestador' },
+    { key: 'mensagem1', label: 'Mensagem 1' },
+    { key: 'mensagem2', label: 'Mensagem 2' },
+  ] as const;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar Registro</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3 py-4 max-h-[60vh] overflow-y-auto pr-1">
+          {fields.map(({ key, label }) => (
+            <div key={key} className="grid gap-1.5">
+              <Label htmlFor={key} className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</Label>
+              <Input
+                id={key}
+                value={form[key]}
+                onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

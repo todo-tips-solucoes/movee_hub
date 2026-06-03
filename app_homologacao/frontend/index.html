@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Envio em Massa Homologacao</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- FontAwesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <!-- jQuery UI CSS para o Datepicker -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+</head>
+<body>
+    <!-- Login Section -->
+    <div id="login-section" class="container">
+        <div class="col-md-6 row justify-content-center">
+            <div class="col-md-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h3 class="text-center">Login</h3>
+                        <form id="loginForm">
+                            <div class="form-group">
+                                <label for="email">Email</label>
+                                <input type="email" class="form-control" id="emailLogin" placeholder="Digite seu email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="password">Senha</label>
+                                <input type="password" class="form-control" id="passwordLogin" placeholder="Digite sua senha" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+                        </form>
+                        <hr>
+                        <p class="text-center">Não tem uma conta? <a href="#" id="showRegister">Cadastre-se</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Section -->
+    <div id="register-section" class="container d-none">
+        <div class="col-md-6 row justify-content-center">
+            <div class="col-md-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h3 class="text-center">Cadastro</h3>
+                        <form id="registerForm">
+                            <div class="form-group">
+                                <label for="nomeEmpresa">Nome da Empresa</label>
+                                <input type="text" class="form-control" id="nomeEmpresa" placeholder="Nome da empresa" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="emailCadastro">Email</label>
+                                <input type="email" class="form-control" id="emailCadastro" placeholder="Digite seu email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="senhaCadastro">Senha</label>
+                                <input type="password" class="form-control" id="senhaCadastro" placeholder="Digite sua senha" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="confirmSenhaCadastro">Confirmar Senha</label>
+                                <input type="password" class="form-control" id="confirmSenhaCadastro" placeholder="Confirme sua senha" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">Cadastrar</button>
+                        </form>
+                        <hr>
+                        <p class="text-center">Já tem uma conta? <a href="#" id="showLogin">Entrar</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--Crud Section-->
+    <div id="crud-section" class="container d-none">
+        <!-- Header -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0"></h4>
+                        <div class="d-flex align-items-center">
+                            <div class="d-none d-md-block">
+                                <div class="mr-4">
+                                    <span id="lblNomeEmpresa"><!-- Nome Empresa --></span>
+                                    <button id="logoutBtn" class="btn btn-danger ml-2">Sair</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Section -->
+       <div class="row">
+            <div class="col-12 mt-4">
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">Envio em Massa</h4>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <button id="play" for="playEnvio" class="btn btn-outline-primary btn-sm">▶️</button>
+                            <button id="stop" for="stopEnvio" class="btn btn-outline-primary btn-sm" disabled>⏹️</button>
+                            <button id="closeMov" for="closeMovimento" class="btn btn-primary btn-sm">Fechar Movimento</button>
+                            <button id="exportFile" for="fileExport" class="btn btn-primary btn-sm">Exportar Arquivo</button>
+                            <form id="uploadForm" enctype="multipart/form-data">
+                                <label for="fileInput" class="btn btn-primary btn-sm">Importar Arquivo</label>
+                                <input type="file" id="fileInput" name="file" accept=".xlsx, .xls" style="display: none;" />
+                            </form>
+                            <button id="downloadXmlMov" class="btn btn-outline-secondary btn-sm" title="Baixar XMLs do movimento em aberto">
+                              <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <p>Detalhes dos envios em massa listados abaixo.</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <p>
+                                    <div id="lblTotal">Total: 0</div>
+                                </p>
+                                <p>
+                                    <div id="lblEnviadoMsgEnviada">Mensagem Enviada: 0</div><div id="lblErroMsgEnviada">Mensagem Erro: 0</div>
+                                </p>
+                                <p>
+                                    <div id="lblXMLEnviado">XML Enviado: 0</div><div id="lblXMLErro">XML Erro: 0</div>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Table -->
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th><input type="checkbox" id="filterSelected" /></th>
+                                        <th>Número <input type="text" id="filterNumero" placeholder="Filtrar por Número" /></th>
+                                        <th>Nome <input type="text" id="filterNome" placeholder="Filtrar por Nome" /></th>
+                                        <th>Valor <input type="text" id="filterValor" placeholder="Filtrar por Valor" /></th>
+                                        <th>Enviado <br><input type="checkbox" id="filterEnviado" /></th>
+                                        <th>Erro <br><input type="checkbox" id="filterSucesso" /></th>
+                                        <th>Num. Nota <input type="text" id="filterNumNota" placeholder="Filtrar por Num. Nota" /></th>
+                                        <th>XML </th>
+                                        <th>Data Emissão <input type="text" id="filterDataEmissao" placeholder="Filtrar por Data Emissão" /></th>
+                                        <th>Erro Validação <br><input type="checkbox" id="filterValidacao" /></th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="envioMassaTable">
+                                    <!-- Conteúdo da tabela gerado dinamicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Paginação e seleção de quantidade por página -->
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <label for="recordsPerPage">Registros por página:</label>
+                                <select id="recordsPerPage" class="form-control" style="width: 100px;">
+                                    <option value="10">10</option>
+                                    <option value="30">30</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="all">Todas</option>
+                                </select>
+                            </div>
+
+                            <div id="paginationControls" class="d-flex align-items-center">
+                                <button id="prevPage" class="btn btn-secondary mr-2">Anterior</button>
+                                <span id="currentPage" class="mr-2">1</span>
+                                <button id="nextPage" class="btn btn-secondary">Próximo</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Animação de Aguardando -->
+    <div id="loadingAnimation" class="d-none">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Aguardando...</span>
+        </div>
+        <p class="text-center mt-2">Carregando, por favor aguarde...</p>
+    </div>
+
+    <!-- jQuery e jQuery UI JS para o Datepicker -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Custom Script -->
+    <script src="script.js"></script>
+</body>
+</html>

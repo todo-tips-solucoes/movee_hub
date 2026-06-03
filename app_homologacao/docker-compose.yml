@@ -1,0 +1,60 @@
+version: "3.7"
+services:
+  backend_homologacao:
+    image: registry.todo-tips.com/envio-massa-backend:homologacao
+    environment:
+      - NODE_ENV=production
+      - POSTGREST_URL=${POSTGREST_URL}
+      - POSTGREST_API_KEY=${POSTGREST_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - N8N_API_TOKEN=${N8N_API_TOKEN}
+    networks:
+      - app_homologacao_default
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=app_homologacao_default"
+        - "traefik.http.routers.backendapphomologacao.rule=Host(`envmassapihomologacao.todo-tips.com`)"
+        - "traefik.http.routers.backendapphomologacao.entrypoints=web,websecure"
+        - "traefik.http.routers.backendapphomologacao.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.backendapphomologacao.service=backendapphomologacao"
+        - "traefik.http.services.backendapphomologacao.loadbalancer.server.port=3000"
+
+  frontend_homologacao:
+    image: registry.todo-tips.com/envio-massa-frontend:homologacao
+    networks:
+      - app_homologacao_default
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=app_homologacao_default"
+        - "traefik.http.routers.frontendapphomologacao.rule=Host(`envmasshomologacao.todo-tips.com`)"
+        - "traefik.http.routers.frontendapphomologacao.entrypoints=web,websecure"
+        - "traefik.http.routers.frontendapphomologacao.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.frontendapphomologacao.service=frontendapphomologacao"
+        - "traefik.http.services.frontendapphomologacao.loadbalancer.server.port=80"
+
+  frontend_v2_homologacao:
+    image: registry.todo-tips.com/envio-massa-frontend-v2:homologacao
+    environment:
+      - BACKEND_URL=https://envmassapihomologacao.todo-tips.com
+    networks:
+      - app_homologacao_default
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=app_homologacao_default"
+        - "traefik.http.routers.frontendv2apphomologacao.rule=Host(`envmassv2.todo-tips.com`)"
+        - "traefik.http.routers.frontendv2apphomologacao.entrypoints=web,websecure"
+        - "traefik.http.routers.frontendv2apphomologacao.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.frontendv2apphomologacao.service=frontendv2apphomologacao"
+        - "traefik.http.services.frontendv2apphomologacao.loadbalancer.server.port=3000"
+
+networks:
+  app_homologacao_default:
+    external: true
+    name: app_homologacao_default

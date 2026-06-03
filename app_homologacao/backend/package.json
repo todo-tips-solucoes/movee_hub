@@ -1,0 +1,24 @@
+{
+  "name": "backend_homologacao",
+  "version": "1.0.0",
+  "description": "Backend para a aplicação Envio Massa CRUD",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "archiver": "^6.0.0",
+    "axios": "^1.0.0",
+    "bcrypt": "^5.0.1",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "json2csv": "^5.0.7",
+    "jsonwebtoken": "^8.5.1",
+    "multer": "^1.4.4-lts.1",
+    "xlsx": "^0.18.5",
+    "xml2js": "^0.4.23"
+  }
+}
