@@ -24,18 +24,18 @@ frontend Next.js PWA (`frontend_motorista`, Serwist) + serviço novo no
 
 Ref: data-model.md §Entity Motorista; research.md Decision 3; spec FR-001/FR-002
 
-- [ ] 1.1.1 Escrever SQL idempotente `CREATE TABLE IF NOT EXISTS Motorista` (id, cnpj_prestador UNIQUE NOT NULL, senha, nome, ativo default true, created_at)
-- [ ] 1.1.2 Conceder permissões PostgREST (role `authenticated`) coerentes com o padrão da tabela `Empresa`
-- [ ] 1.1.3 Criar script de seed de 1 motorista de teste (CNPJ + senha bcrypt) para homologação
+- [x] 1.1.1 Escrever SQL idempotente `CREATE TABLE IF NOT EXISTS Motorista` (id, cnpj_prestador UNIQUE NOT NULL, senha, nome, ativo default true, created_at)
+- [x] 1.1.2 Conceder permissões PostgREST (role `authenticated`) coerentes com o padrão da tabela `Empresa`
+- [x] 1.1.3 Criar script de seed de 1 motorista de teste (CNPJ + senha bcrypt) para homologação
 - [ ] 1.1.4 Validar via PostgREST que `Motorista?cnpj_prestador=eq.{x}` retorna o registro seedado
 
 ### 1.2 Confirmar colunas de persistência na EnvioMassa `[A]`
 
 Ref: data-model.md §EnvioMassa; spec FR-010
 
-- [ ] 1.2.1 Confirmar empiricamente que `nota_ok` e `erro_validacao` existem na `EnvioMassa` (query PostgREST)
-- [ ] 1.2.2 Documentar tipos reais das colunas (bool/text) e ajustar o mapper do backend ao tipo encontrado
-- [ ] 1.2.3 Se ausentes, escrever migração aditiva (somente então) — caso contrário, registrar "sem migração"
+- [x] 1.2.1 Confirmar empiricamente que `nota_ok` e `erro_validacao` existem na `EnvioMassa` (query PostgREST)
+- [x] 1.2.2 Documentar tipos reais das colunas (bool/text) e ajustar o mapper do backend ao tipo encontrado
+- [x] 1.2.3 Se ausentes, escrever migração aditiva (somente então) — caso contrário, registrar "sem migração"
 
 ---
 
@@ -45,29 +45,29 @@ Ref: data-model.md §EnvioMassa; spec FR-010
 
 Ref: contracts/motorista-api.md; research.md Decision 1; spec FR-001/FR-002/FR-015
 
-- [ ] 2.1.1 Criar módulo de auth do motorista replicando o padrão de `authenticateToken` (lê cookie `accessToken`, valida `JWT_SECRET`)
-- [ ] 2.1.2 Definir claim do token: `cnpjPrestador` (+ `nome`); garantir que NÃO carrega senha
-- [ ] 2.1.3 Rejeitar token de Empresa em rotas de motorista e vice-versa (separação de audiência)
+- [x] 2.1.1 Criar módulo de auth do motorista replicando o padrão de `authenticateToken` (lê cookie `accessToken`, valida `JWT_SECRET`)
+- [x] 2.1.2 Definir claim do token: `cnpjPrestador` (+ `nome`); garantir que NÃO carrega senha
+- [x] 2.1.3 Rejeitar token de Empresa em rotas de motorista e vice-versa (separação de audiência)
 - [ ] 2.1.4 Teste unit: token válido passa; ausente/expirado/empresa → 401
 
 ### 2.2 Rotas de sessão `/motorista/login|refresh|logout|verify-auth` `[C]`
 
 Ref: contracts/motorista-api.md; spec FR-001; quickstart Cenários 1, 2
 
-- [ ] 2.2.1 `POST /motorista/login`: busca `Motorista?cnpj_prestador=eq.{}`, `bcrypt.compare`, checa `ativo`; emite cookies httpOnly (15m/7d, SameSite=Strict, Secure prod)
-- [ ] 2.2.2 `POST /motorista/token/refresh`: valida `refreshToken` (claim cnpjPrestador) e reemite `accessToken`
-- [ ] 2.2.3 `POST /motorista/logout`: limpa cookies; `GET /motorista/verify-auth`: confirma sessão
-- [ ] 2.2.4 Mensagens de erro pt-BR sem revelar campo (401 "Credenciais inválidas."; 403 inativa; 400 corpo)
+- [x] 2.2.1 `POST /motorista/login`: busca `Motorista?cnpj_prestador=eq.{}`, `bcrypt.compare`, checa `ativo`; emite cookies httpOnly (15m/7d, SameSite=Strict, Secure prod)
+- [x] 2.2.2 `POST /motorista/token/refresh`: valida `refreshToken` (claim cnpjPrestador) e reemite `accessToken`
+- [x] 2.2.3 `POST /motorista/logout`: limpa cookies; `GET /motorista/verify-auth`: confirma sessão
+- [x] 2.2.4 Mensagens de erro pt-BR sem revelar campo (401 "Credenciais inválidas."; 403 inativa; 400 corpo)
 - [ ] 2.2.5 Teste integração: login ok emite cookies; login inválido 401; refresh renova; verify-auth reflete estado
 
 ### 2.3 Auto-cadastro do motorista `[C]`
 
 Ref: contracts/motorista-api.md §register; research.md Decision 3 (R-2); spec FR-017
 
-- [ ] 2.3.1 `POST /motorista/register`: valida corpo (CNPJ, nome, senha ≥ 8) e tamanho da senha
-- [ ] 2.3.2 Guard: `cnpj_prestador` deve existir em `EnvioMassa` e não ter conta em `Motorista` (senão 409)
-- [ ] 2.3.3 Criar `Motorista` com senha em bcrypt (`ativo=true`); resposta 201
-- [ ] 2.3.4 Mensagens de erro sem virar oráculo de enumeração (não revelar se o CNPJ existe)
+- [x] 2.3.1 `POST /motorista/register`: valida corpo (CNPJ, nome, senha ≥ 8) e tamanho da senha
+- [x] 2.3.2 Guard: `cnpj_prestador` deve existir em `EnvioMassa` e não ter conta em `Motorista` (senão 409)
+- [x] 2.3.3 Criar `Motorista` com senha em bcrypt (`ativo=true`); resposta 201
+- [x] 2.3.4 Mensagens de erro sem virar oráculo de enumeração (não revelar se o CNPJ existe)
 - [ ] 2.3.5 Teste integração: cadastro elegível cria conta; CNPJ desconhecido 409; CNPJ já cadastrado 409; senha curta 400
 
 ---
@@ -78,32 +78,32 @@ Ref: contracts/motorista-api.md §register; research.md Decision 3 (R-2); spec F
 
 Ref: contracts/motorista-api.md §movimento-aberto; spec FR-003/FR-004; quickstart 3, 4, 10
 
-- [ ] 3.1.1 `GET /motorista/movimento-aberto`: query `EnvioMassa?cnpj_prestador=eq.{token}&mov_fechado=eq.false&order=created_at.desc&limit=1`
-- [ ] 3.1.2 Mapper snake_case→camelCase (valor, dtInicial, dtFinal, nome, cnpjTomador, cnpjPrestador, tribnac, notaOk, erroValidacao)
-- [ ] 3.1.3 Estado vazio: retornar `{ movimento: null }` quando não há movimento aberto (FR-004)
-- [ ] 3.1.4 Garantir escopo por token (nunca por id do cliente) — Constituição II
+- [x] 3.1.1 `GET /motorista/movimento-aberto`: query `EnvioMassa?cnpj_prestador=eq.{token}&mov_fechado=eq.false&order=created_at.desc&limit=1`
+- [x] 3.1.2 Mapper snake_case→camelCase (valor, dtInicial, dtFinal, nome, cnpjTomador, cnpjPrestador, tribnac, notaOk, erroValidacao)
+- [x] 3.1.3 Estado vazio: retornar `{ movimento: null }` quando não há movimento aberto (FR-004)
+- [x] 3.1.4 Garantir escopo por token (nunca por id do cliente) — Constituição II
 - [ ] 3.1.5 Teste integração: motorista A não vê dados de B; sem auth → 401; empty state correto
 
 ### 3.2 Módulo de validação NFS-e (proxy server-side) `[C]`
 
 Ref: contracts/motorista-api.md §validar-nota; research.md Decision 5; spec FR-006/FR-012/FR-015
 
-- [ ] 3.2.1 Função `callValidacaoNfse(filename, xmlUtf8)`: monta `xml_input=JSON.stringify([{filename,data}])`, `validar_descricao_servico=false`, `nexus=false`, header `FASTAPI_VALIDATION_TOKEN`
-- [ ] 3.2.2 Parser da resposta (array `[{valid, details}]`) tolerante a formato inesperado → erro temporário (FR-012)
-- [ ] 3.2.3 Módulo mapper flag→mensagem pt-BR (7 flags) — data-model.md §ResultadoValidacao
-- [ ] 3.2.4 Timeout/erro do serviço externo → 502/503 sem alterar `nota_ok`/`erro_validacao` (FR-012)
+- [x] 3.2.1 Função `callValidacaoNfse(filename, xmlUtf8)`: monta `xml_input=JSON.stringify([{filename,data}])`, `validar_descricao_servico=false`, `nexus=false`, header `FASTAPI_VALIDATION_TOKEN`
+- [x] 3.2.2 Parser da resposta (array `[{valid, details}]`) tolerante a formato inesperado → erro temporário (FR-012)
+- [x] 3.2.3 Módulo mapper flag→mensagem pt-BR (7 flags) — data-model.md §ResultadoValidacao
+- [x] 3.2.4 Timeout/erro do serviço externo → 502/503 sem alterar `nota_ok`/`erro_validacao` (FR-012)
 - [ ] 3.2.5 Teste unit do mapper e do parser (válida, inválida com N flags, resposta corrompida)
 
 ### 3.3 Rota de upload + validação + persistência `[C]`
 
 Ref: contracts/motorista-api.md §validar-nota; spec FR-005/FR-007/FR-008/FR-009/FR-010/FR-011; quickstart 5-8
 
-- [ ] 3.3.1 `POST /motorista/validar-nota` com `multer.single('file')`; ler conteúdo UTF-8 do XML
-- [ ] 3.3.2 Pré-condição: parse `xml2js`; rejeitar não-XML → 400 (FR-011) sem chamar a validação
-- [ ] 3.3.3 Pré-condição: existe movimento aberto (senão 409) e ainda não `notaOk` (senão 409, bloqueio FR-008)
-- [ ] 3.3.4 Chamar `callValidacaoNfse`; se válida → PATCH `nota_ok` no movimento; resposta de sucesso (FR-007)
-- [ ] 3.3.5 Se inválida → PATCH `erro_validacao`; resposta com `camposInvalidos` + instrução (FR-009)
-- [ ] 3.3.6 Idempotência do reenvio garantida no servidor (duplo toque não cria 2 aprovações)
+- [x] 3.3.1 `POST /motorista/validar-nota` com `multer.single('file')`; ler conteúdo UTF-8 do XML
+- [x] 3.3.2 Pré-condição: parse `xml2js`; rejeitar não-XML → 400 (FR-011) sem chamar a validação
+- [x] 3.3.3 Pré-condição: existe movimento aberto (senão 409) e ainda não `notaOk` (senão 409, bloqueio FR-008)
+- [x] 3.3.4 Chamar `callValidacaoNfse`; se válida → PATCH `nota_ok` no movimento; resposta de sucesso (FR-007)
+- [x] 3.3.5 Se inválida → PATCH `erro_validacao`; resposta com `camposInvalidos` + instrução (FR-009)
+- [x] 3.3.6 Idempotência do reenvio garantida no servidor (duplo toque não cria 2 aprovações)
 - [ ] 3.3.7 Teste integração: válida bloqueia reenvio; inválida lista campos; não-XML 400; serviço fora 502 sem mudar estado
 
 ---
