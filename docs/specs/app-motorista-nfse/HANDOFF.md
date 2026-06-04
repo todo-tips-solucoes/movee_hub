@@ -62,21 +62,35 @@ No `frontend_motorista/.env`:
 - [ ] **R1** (tarefa 7.1.1): com backend + PostgREST reais, `GET /api/motorista/movimento-aberto`
   e conferir que o payload sai em camelCase conforme o contrato.
 
-## 4. Deploy (Docker + Traefik) — Constituição V (aditivo, sem afetar produção)
+## 4. Deploy (Docker **Swarm** + Traefik) — Constituição V (aditivo, sem afetar produção)
 
-- [ ] **Criar DNS** `appmotorista.todo-tips.com` → IP da VPS (para o Traefik emitir TLS). (R-3)
-- [ ] **Validar o compose sem subir** (tarefa 6.2.3): `docker compose config` e conferir
-  que **nenhum** container de produção precisa reiniciar.
-- [ ] **Build + push da imagem** (tarefas 6.1.2/6.1.3):
+> ⚠️ **O ambiente roda em Docker Swarm**, não `docker compose`. O stack
+> `envio-massa-homologacao` é atualizado com `docker stack deploy` (re-deploy
+> idempotente: adiciona o serviço novo sem recriar os existentes que não mudaram).
+> O nome da imagem é o **referenciado no compose**:
+> `registry.todo-tips.com/app-motorista-frontend:homologacao` (porta interna 3000).
+> A imagem do motorista **já foi buildada** localmente na VPS em 2026-06-04
+> (`docker images` confirma) — falta só o `push` + `stack deploy` (ações de infra
+> que exigem autorização explícita; o classifier as bloqueia por padrão).
+
+- [ ] **Criar DNS** `appmotorista.todo-tips.com` → **178.156.254.243** (IP da VPS, mesmo
+  dos demais hosts homologação) para o Traefik emitir o TLS Let's Encrypt. (R-3) — **pré-condição estrita**.
+- [ ] **Push da imagem** (já buildada; tarefa 6.1.3):
   ```bash
-  cd app_homologacao/frontend_motorista
-  docker build -t registry.todo-tips.com/envio-massa-motorista:homologacao .
-  docker push registry.todo-tips.com/envio-massa-motorista:homologacao
+  docker push registry.todo-tips.com/app-motorista-frontend:homologacao
   ```
-- [ ] **Subir o serviço novo** e validar acesso externo pelo host novo (tarefa 6.2.5):
-  `docker compose up -d frontend_motorista_homologacao`.
-- [ ] Garantir que o backend foi redeployado com as rotas `/motorista/*` (o serviço
-  `backend_homologacao` precisa da imagem atualizada).
+  Se precisar rebuildar: `cd app_homologacao/frontend_motorista && docker build -t registry.todo-tips.com/app-motorista-frontend:homologacao .`
+- [ ] **Backend**: rebuildar + push `registry.todo-tips.com/envio-massa-backend:homologacao`
+  com as rotas `/motorista/*` (o build vem de `app_homologacao/backend/`).
+- [ ] **Deploy do stack** (aditivo — só adiciona o serviço novo e atualiza o backend):
+  ```bash
+  cd app_homologacao
+  docker stack deploy -c docker-compose.yml envio-massa-homologacao --with-registry-auth
+  ```
+  Conferir antes que **nenhum** serviço de produção não relacionado seja recriado
+  (só `frontend_motorista_homologacao` novo + `backend_homologacao` atualizado).
+- [ ] Validar acesso externo por `https://appmotorista.todo-tips.com` após o DNS propagar
+  e o Traefik emitir o certificado.
 
 ## 5. Validações manuais de UI/PWA
 
