@@ -114,10 +114,10 @@ Ref: contracts/motorista-api.md §validar-nota; spec FR-005/FR-007/FR-008/FR-009
 
 Ref: plan.md §Project Structure; research.md Decision 2
 
-- [ ] 4.1.1 Criar `app_homologacao/frontend_motorista/` (Next 16 + TS + Tailwind 4 + shadcn), mobile-first
-- [ ] 4.1.2 Copiar/adaptar do `frontend_v2`: proxy `app/api/[...path]/route.ts` (BACKEND_URL), `lib/api-client.ts` (credentials:'include', AbortController)
-- [ ] 4.1.3 Adaptar `contexts/auth-context.tsx` para o fluxo do motorista (`/api/motorista/*`, refresh a cada 10min)
-- [ ] 4.1.4 `.env.example` com `BACKEND_URL`; `next.config.mjs` com `output: standalone`
+- [x] 4.1.1 Criar `app_homologacao/frontend_motorista/` (Next 16 + TS + Tailwind 4 + shadcn), mobile-first
+- [x] 4.1.2 Copiar/adaptar do `frontend_v2`: proxy `app/api/[...path]/route.ts` (BACKEND_URL), `lib/api-client.ts` (credentials:'include', AbortController)
+- [x] 4.1.3 Adaptar `contexts/auth-context.tsx` para o fluxo do motorista (`/api/motorista/*`, refresh a cada 10min)
+- [x] 4.1.4 `.env.example` com `BACKEND_URL`; `next.config.mjs` com `output: standalone`
 - [ ] 4.1.5 Teste smoke: app sobe local, proxy alcança o backend, login devolve cookies
 
 ### 4.2 PWA (Serwist) `[A]`
@@ -125,8 +125,8 @@ Ref: plan.md §Project Structure; research.md Decision 2
 Ref: spec FR-014/US5; research.md Decision 2; quickstart 9
 
 - [ ] 4.2.1 Instalar e configurar `@serwist/next`; criar `app/sw.ts` (precache do app shell)
-- [ ] 4.2.2 Criar `public/manifest.json` (nome, ícones, `display: standalone`, `theme_color`, `start_url`)
-- [ ] 4.2.3 Linkar manifest no layout; ícones maskable (192/512)
+- [x] 4.2.2 Criar `public/manifest.json` (nome, ícones, `display: standalone`, `theme_color`, `start_url`)
+- [x] 4.2.3 Linkar manifest no layout; ícones maskable (192/512)
 - [ ] 4.2.4 Teste manual: Lighthouse PWA installable; instala na tela inicial e abre standalone
 
 ---
@@ -137,30 +137,30 @@ Ref: spec FR-014/US5; research.md Decision 2; quickstart 9
 
 Ref: spec US1; contracts §login; quickstart 1, 2
 
-- [ ] 5.1.1 Form de login (CNPJ prestador + senha), mobile-first, via `auth-context`
-- [ ] 5.1.2 Erros pt-BR (credencial inválida, conta inativa, campos vazios); estados de loading
-- [ ] 5.1.3 Redirecionar autenticado → movimento; proteger rotas privadas (redirect ao login se 401)
-- [ ] 5.1.4 Tela de cadastro (CNPJ prestador + nome + senha) chamando `/api/motorista/register`; link login↔cadastro (FR-017)
-- [ ] 5.1.5 Cadastro: sucesso → leva ao login; erros pt-BR (409 não elegível/já existe, 400 senha curta)
+- [x] 5.1.1 Form de login (CNPJ prestador + senha), mobile-first, via `auth-context`
+- [x] 5.1.2 Erros pt-BR (credencial inválida, conta inativa, campos vazios); estados de loading
+- [x] 5.1.3 Redirecionar autenticado → movimento; proteger rotas privadas (redirect ao login se 401)
+- [x] 5.1.4 Tela de cadastro (CNPJ prestador + nome + senha) chamando `/api/motorista/register`; link login↔cadastro (FR-017)
+- [x] 5.1.5 Cadastro: sucesso → leva ao login; erros pt-BR (409 não elegível/já existe, 400 senha curta)
 - [ ] 5.1.6 Teste: login ok navega; login inválido mostra erro; cadastro elegível conclui; inelegível mostra erro
 
 ### 5.2 Tela do Movimento Aberto `[A]`
 
 Ref: spec US2; contracts §movimento-aberto; quickstart 3, 4
 
-- [ ] 5.2.1 Card com valor, período (dtInicial/dtFinal), nome, cnpjTomador, cnpjPrestador, tribnac
-- [ ] 5.2.2 Estado vazio ("Nenhum movimento em aberto") e estado de erro com botão "tentar novamente"
-- [ ] 5.2.3 Botão de atalho → `https://www.nfse.gov.br` (`target=_blank rel=noopener`) — FR-013
+- [x] 5.2.1 Card com valor, período (dtInicial/dtFinal), nome, cnpjTomador, cnpjPrestador, tribnac
+- [x] 5.2.2 Estado vazio ("Nenhum movimento em aberto") e estado de erro com botão "tentar novamente"
+- [x] 5.2.3 Botão de atalho → `https://www.nfse.gov.br` (`target=_blank rel=noopener`) — FR-013
 - [ ] 5.2.4 Teste: render dos campos; empty state; atalho abre URL correta
 
 ### 5.3 Tela de Upload e Validação `[C]`
 
 Ref: spec US3; contracts §validar-nota; quickstart 5-8
 
-- [ ] 5.3.1 Seleção de arquivo XML + botão "Validar"; chamar `/api/motorista/validar-nota` (uploadFile)
-- [ ] 5.3.2 Sucesso ("Nota ok!") + bloqueio do botão de reenvio; estado de bloqueio lido de `notaOk` ao carregar (FR-008/FR-010)
-- [ ] 5.3.3 Falha de validação: listar `camposInvalidos[].mensagem` + instrução de cancelar/reemitir (FR-009)
-- [ ] 5.3.4 Erros: não-XML (400), serviço fora (502) com mensagens pt-BR e permissão de retry
+- [x] 5.3.1 Seleção de arquivo XML + botão "Validar"; chamar `/api/motorista/validar-nota` (uploadFile)
+- [x] 5.3.2 Sucesso ("Nota ok!") + bloqueio do botão de reenvio; estado de bloqueio lido de `notaOk` ao carregar (FR-008/FR-010)
+- [x] 5.3.3 Falha de validação: listar `camposInvalidos[].mensagem` + instrução de cancelar/reemitir (FR-009)
+- [x] 5.3.4 Erros: não-XML (400), serviço fora (502) com mensagens pt-BR e permissão de retry
 - [ ] 5.3.5 Teste: fluxo ok bloqueia; inválido lista campos; não-XML rejeita; serviço fora permite retry
 
 ---
@@ -171,7 +171,7 @@ Ref: spec US3; contracts §validar-nota; quickstart 5-8
 
 Ref: research.md Decision 7; plan.md §V; constitution §V
 
-- [ ] 6.1.1 Dockerfile (Node 20-alpine, multi-stage, `output: standalone`) espelhando o do `frontend_v2`
+- [x] 6.1.1 Dockerfile (Node 20-alpine, multi-stage, `output: standalone`) espelhando o do `frontend_v2`
 - [ ] 6.1.2 Build local da imagem e teste de subida do container isolado
 - [ ] 6.1.3 Tag/push para `registry.todo-tips.com/envio-massa-motorista:homologacao`
 
@@ -179,10 +179,10 @@ Ref: research.md Decision 7; plan.md §V; constitution §V
 
 Ref: research.md Decision 7; constitution §V (aditivo, sem disputar 80/443)
 
-- [ ] 6.2.1 Adicionar serviço `frontend_motorista_homologacao` ao `app_homologacao/docker-compose.yml` (rede + `BACKEND_URL`)
-- [ ] 6.2.2 Labels Traefik para host próprio (ex.: `appmotorista.todo-tips.com`), porta 3000, TLS Let's Encrypt
+- [x] 6.2.1 Adicionar serviço `frontend_motorista_homologacao` ao `app_homologacao/docker-compose.yml` (rede + `BACKEND_URL`)
+- [x] 6.2.2 Labels Traefik para host próprio (ex.: `appmotorista.todo-tips.com`), porta 3000, TLS Let's Encrypt
 - [ ] 6.2.3 `docker compose config` valida; conferir `No containers need to be restarted` para os serviços em produção
-- [ ] 6.2.4 Registrar pendência de infra: criar DNS `appmotorista.todo-tips.com` → VPS (R-3)
+- [x] 6.2.4 Registrar pendência de infra: criar DNS `appmotorista.todo-tips.com` → VPS (R-3)
 - [ ] 6.2.5 Subir e validar acesso externo (login + fluxo) pelo host novo
 
 ---
