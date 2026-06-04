@@ -13,10 +13,20 @@
 > - TLS Let's Encrypt emitido; `https://appmotorista.todo-tips.com/` → 200, PWA standalone.
 > - Proxy → backend validado: `/api/motorista/verify-auth` → 401 (middleware ativo).
 >
-> **TRAVA FUNCIONAL RESTANTE**: a tabela `Motorista` ainda **não foi aplicada** no
-> PostgREST (§1). Sem ela, login/auto-cadastro retornam erro de DB. **É o único passo
-> que falta para o app ficar 100% utilizável.** Requer autorização de escrita no
-> banco de produção.
+> ### ✅ Tabela aplicada + validação E2E (2026-06-04)
+> - Tabela `Motorista` aplicada no schema `public` (mesmo da `Empresa`).
+> - **PEGADINHA**: PostgREST mantém um *schema cache*; após criar a tabela é
+>   obrigatório recarregar, senão dá `PGRST205 Could not find table public.Motorista`.
+>   Reload sem downtime: `docker kill -s SIGUSR1 $(docker ps -q -f name=pgadmin_postgrest)`
+>   (ou `NOTIFY pgrst, 'reload schema';` no DB do EnvioMassa).
+> - **Fluxo autenticado validado** pelo app público: login → cookies httpOnly →
+>   `GET /api/motorista/movimento-aberto` (200, escopo por cnpj do token) → verify-auth.
+> - **Guard anti-enumeração confirmado**: CNPJ inexistente → 409; só passa cnpj já
+>   presente na `EnvioMassa`.
+>
+> **Pendência restante (menor)**: roundtrip empírico do `validade_nfse` com XML real
+> (§3) — o code path multipart está cabeado, mas não foi exercido com uma nota real
+> (precisa de um motorista com movimento aberto).
 
 > Implementado e commitado: backend (`/motorista/*`), frontend PWA (`frontend_motorista`,
 > Serwist), tabela `Motorista` (SQL), serviço no `docker-compose.yml`, 45 testes verdes,
