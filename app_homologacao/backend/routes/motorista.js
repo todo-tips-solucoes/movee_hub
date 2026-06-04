@@ -15,7 +15,10 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const axios = require('axios');
 const xml2js = require('xml2js');
-// FormData disponível globalmente no Node 18+ (sem import extra)
+// O backend roda em Node 14 (Dockerfile FROM node:14), que NÃO tem FormData
+// global (só Node 18+). Usa o pacote `form-data` (compatível e suportado pelo
+// axios via getHeaders() para o boundary do multipart/form-data).
+const FormData = require('form-data');
 
 const router = express.Router();
 
@@ -402,7 +405,7 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
     // Ref: research.md Decision 5 / contracts §validar-nota
     // OWASP fix: API FastAPI espera multipart/form-data (schema OpenAPI confirmado).
     // URLSearchParams (x-www-form-urlencoded) causava falha silenciosa — corrigido
-    // para FormData nativo (Node 18+).
+    // para multipart via pacote `form-data` (Node 14 não tem FormData global).
     const xmlInput = JSON.stringify([{ filename: req.file.originalname, data: xmlContent }]);
     const formPayload = new FormData();
     formPayload.append('xml_input', xmlInput);
@@ -417,8 +420,9 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
         {
           headers: {
             Authorization: process.env.FASTAPI_VALIDATION_TOKEN,
-            // Content-Type (multipart/form-data com boundary) é setado automaticamente
-            // pelo axios ao detectar FormData — NÃO sobrescrever manualmente.
+            // Boundary do multipart/form-data: o pacote `form-data` o gera e
+            // expõe via getHeaders() (Content-Type: multipart/form-data; boundary=...).
+            ...formPayload.getHeaders(),
           },
           timeout: 30000,
         }
