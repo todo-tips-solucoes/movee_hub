@@ -1,0 +1,4 @@
+
+# Serwist (service worker gerado em build)
+public/sw.js
+public/swe-worker-*.js

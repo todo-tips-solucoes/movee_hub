@@ -92,7 +92,7 @@ export default function MovimentoPage() {
             Atualizar
           </button>
         </div>
-      ) : (
+      ) : movimento != null ? (
         /* Movimento aberto */
         <div className="space-y-4">
           {/* Card principal — Valor */}
@@ -180,7 +180,7 @@ export default function MovimentoPage() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </main>
   );
 }
