@@ -13,9 +13,11 @@ import { api } from '@/lib/api-client';
 import { formatCurrency, formatDate, formatCNPJ, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { CountUp } from '@/components/ui/count-up';
 import { Wordmark } from '@/components/brand/wordmark';
+import { Aurora } from '@/components/brand/aurora';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 interface Movimento {
@@ -31,13 +33,20 @@ interface Movimento {
   erroValidacao: string | null;
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'M';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+
 export default function MovimentoPage() {
   const { user, logout } = useAuth();
   const [movimento, setMovimento] = useState<Movimento | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchMovimento = useCallback(async () => {
-    setLoading(true);
+  const fetchMovimento = useCallback(async (soft = false) => {
+    soft ? setRefreshing(true) : setLoading(true);
     try {
       const data = await api.get<{ movimento: Movimento | null }>('/motorista/movimento-aberto');
       setMovimento(data.movimento);
@@ -46,6 +55,7 @@ export default function MovimentoPage() {
       setMovimento(null);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -59,96 +69,148 @@ export default function MovimentoPage() {
     movimento?.notaOk === 'sim' ||
     movimento?.notaOk === '1';
 
+  const nome = user?.nome || formatCNPJ(user?.cnpjPrestador ?? '');
+  const valorNum =
+    movimento?.valor != null && movimento.valor !== ''
+      ? typeof movimento.valor === 'string'
+        ? parseFloat(movimento.valor)
+        : movimento.valor
+      : NaN;
+
   return (
-    <main className="flex min-h-dvh flex-col bg-muted/40">
-      {/* App bar */}
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-primary px-4 pb-3.5 pt-[max(0.875rem,env(safe-area-inset-top))] text-primary-foreground shadow-sm">
+    <main className="relative flex min-h-dvh flex-col bg-muted/40">
+      {/* App bar — glass */}
+      <header className="glass sticky top-0 z-20 flex items-center justify-between rounded-none border-x-0 border-t-0 px-4 pb-3 pt-[max(0.85rem,env(safe-area-inset-top))]">
         <Wordmark className="text-xl" />
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <ThemeToggle />
           <Button
             variant="ghost"
             size="sm"
             onClick={() => logout()}
-            className="text-primary-foreground/90 hover:bg-white/15 hover:text-primary-foreground"
+            className="gap-1.5 text-muted-foreground"
           >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17l5-5-5-5M20 12H9M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+            </svg>
             Sair
           </Button>
         </div>
       </header>
 
-      <div className="flex-1 px-4 py-5">
-        <p className="mb-4 text-sm text-muted-foreground">
-          Olá,{' '}
-          <span className="font-display font-semibold text-foreground">
-            {user?.nome || formatCNPJ(user?.cnpjPrestador ?? '')}
+      <div className="mx-auto w-full max-w-md flex-1 px-4 pb-10 pt-5">
+        {/* Saudação com avatar */}
+        <div className="animate-fade-up mb-5 flex items-center gap-3">
+          <span className="bg-gradient-warm-rich flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-display text-base font-bold text-white shadow-[0_8px_18px_-8px_color-mix(in_oklab,var(--warm-3)_70%,transparent)]">
+            {initials(nome)}
           </span>
-        </p>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">Bem-vindo de volta</p>
+            <p className="truncate font-display text-lg font-bold leading-tight">{nome}</p>
+          </div>
+        </div>
 
         {loading ? (
-          <div className="flex flex-1 items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          /* Skeletons no formato do conteúdo real */
+          <div className="space-y-4">
+            <Skeleton className="h-44 rounded-3xl" />
+            <Skeleton className="h-40 rounded-2xl" />
+            <Skeleton className="h-12 rounded-xl" />
           </div>
         ) : movimento == null ? (
           /* Estado vazio — FR-004 */
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <div className="rounded-2xl bg-secondary p-4">
-              <svg className="h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="animate-fade-up flex flex-col items-center justify-center gap-4 py-16 text-center">
+            <div className="animate-float-soft relative flex h-24 w-24 items-center justify-center">
+              <span className="absolute inset-0 rounded-[2rem] bg-secondary" />
+              <svg className="relative h-10 w-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <p className="font-display font-semibold">Nenhum movimento aberto</p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-              Quando houver um movimento em aberto, ele aparecerá aqui.
-            </p>
-            <Button variant="outline" size="sm" onClick={fetchMovimento} className="mt-1">
+            <div>
+              <p className="font-display text-lg font-bold">Nenhum movimento aberto</p>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                Quando houver um movimento em aberto, ele aparecerá aqui automaticamente.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => fetchMovimento(true)} disabled={refreshing} className="mt-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={cn('h-4 w-4', refreshing && 'spinner')}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-2.64-6.36M21 3v6h-6" />
+              </svg>
               Atualizar
             </Button>
           </div>
         ) : (
           /* Movimento aberto */
           <div className="space-y-4">
-            {/* Card principal — Valor */}
-            <div className="bg-gradient-blue relative overflow-hidden rounded-2xl p-5 text-white shadow-md shadow-primary/20">
-              <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/10" />
-              <p className="text-xs font-medium uppercase tracking-wider text-white/80">
-                Valor da nota fiscal
-              </p>
-              <p className="font-display mt-1.5 text-[2rem] font-extrabold leading-none tracking-tight">
-                {formatCurrency(movimento.valor)}
-              </p>
-              <div className="bg-gradient-warm mt-3 h-1 w-14 rounded-full" />
-              <div className="mt-3 flex flex-wrap gap-x-4 text-xs text-white/85">
-                <span>De: {formatDate(movimento.dtInicial)}</span>
-                <span>Até: {formatDate(movimento.dtFinal)}</span>
+            {/* Hero — Valor */}
+            <div
+              className="bg-gradient-blue shine shine-sweep animate-scale-in relative overflow-hidden rounded-3xl p-6 text-white shadow-[0_24px_50px_-24px_var(--primary)]"
+            >
+              <Aurora className="opacity-60" />
+              <div className="relative">
+                <div className="flex items-center justify-between">
+                  <p className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-wider text-white/90 backdrop-blur-sm">
+                    <span className="h-1.5 w-1.5 rounded-full bg-warm-1 pulse-ring" />
+                    Movimento aberto
+                  </p>
+                </div>
+                <p className="mt-4 text-xs font-medium uppercase tracking-[0.18em] text-white/75">
+                  Valor da nota fiscal
+                </p>
+                <p className="font-display mt-1 text-[2.6rem] font-extrabold leading-none tracking-tight tabular-nums [text-shadow:0_2px_18px_rgba(0,0,0,0.18)]">
+                  {isNaN(valorNum) ? (
+                    formatCurrency(movimento.valor)
+                  ) : (
+                    <CountUp value={valorNum} format={formatCurrency} />
+                  )}
+                </p>
+                <div className="bg-gradient-warm-rich animate-gradient mt-4 h-1.5 w-16 rounded-full" />
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/12 px-2.5 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 opacity-80">
+                      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
+                    </svg>
+                    {formatDate(movimento.dtInicial)}
+                  </span>
+                  <span className="flex items-center text-white/50">→</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/12 px-2.5 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 opacity-80">
+                      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
+                    </svg>
+                    {formatDate(movimento.dtFinal)}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Dados fiscais */}
-            <Card className="p-5">
-              <h2 className="font-display mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {/* Dados fiscais — glass */}
+            <div className="glass animate-fade-up stagger rounded-2xl p-5" style={{ ['--d' as string]: '90ms' }}>
+              <h2 className="font-display mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
                 Dados Fiscais
               </h2>
-              <dl className="divide-y divide-border text-sm">
+              <dl className="divide-y divide-border/70 text-sm">
                 {movimento.nome && (
-                  <div className="flex justify-between gap-3 py-2 first:pt-0">
+                  <div className="flex items-center justify-between gap-3 py-2.5">
                     <dt className="text-muted-foreground">Nome</dt>
                     <dd className="font-display text-right font-semibold">{movimento.nome}</dd>
                   </div>
                 )}
                 {movimento.cnpjTomador && (
-                  <div className="flex justify-between gap-3 py-2">
+                  <div className="flex items-center justify-between gap-3 py-2.5">
                     <dt className="text-muted-foreground">CNPJ Tomador</dt>
-                    <dd className="font-display font-semibold">{formatCNPJ(movimento.cnpjTomador)}</dd>
+                    <dd className="font-display font-semibold tabular-nums">{formatCNPJ(movimento.cnpjTomador)}</dd>
                   </div>
                 )}
                 {movimento.tribnac && (
-                  <div className="flex justify-between gap-3 py-2">
+                  <div className="flex items-center justify-between gap-3 py-2.5">
                     <dt className="text-muted-foreground">TribNac</dt>
                     <dd className="font-display font-semibold">{movimento.tribnac}</dd>
                   </div>
                 )}
-                <div className="flex items-center justify-between gap-3 py-2 last:pb-0">
+                <div className="flex items-center justify-between gap-3 py-2.5">
                   <dt className="text-muted-foreground">Status da NF</dt>
                   <dd>
                     {notaAprovada ? (
@@ -159,21 +221,24 @@ export default function MovimentoPage() {
                   </dd>
                 </div>
               </dl>
-            </Card>
+            </div>
 
             {/* Status detalhado */}
             {notaAprovada ? (
-              <div className="flex items-center gap-2.5 rounded-xl border border-success/30 bg-success/10 p-4">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success text-white">
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              <div className="animate-fade-up stagger flex items-center gap-3 rounded-2xl border border-success/30 bg-success/10 p-4" style={{ ['--d' as string]: '150ms' }}>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success text-white shadow-[0_6px_16px_-6px_var(--success)]">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeDasharray="24" strokeDashoffset="24" style={{ animation: 'mv-draw 0.5s ease 0.2s forwards' }} d="M5 13l4 4L19 7" />
                   </svg>
                 </span>
                 <p className="text-sm font-medium text-success">Nota aprovada. Reenvio bloqueado.</p>
               </div>
             ) : movimento.erroValidacao ? (
-              <div className="rounded-xl border border-warm-2/30 bg-warm-2/10 p-4">
-                <p className="font-display text-sm font-semibold text-warm-3">
+              <div className="animate-fade-up stagger rounded-2xl border border-warm-2/30 bg-warm-2/10 p-4" style={{ ['--d' as string]: '150ms' }}>
+                <p className="font-display flex items-center gap-2 text-sm font-semibold text-warm-3">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.3 3.86l-8.06 14A2 2 0 004 21h16a2 2 0 001.74-3.14l-8.06-14a2 2 0 00-3.48 0z" />
+                  </svg>
                   Última validação: campos reprovados
                 </p>
                 <p className="mt-1 text-xs text-warm-3/90">{movimento.erroValidacao}</p>
@@ -181,9 +246,12 @@ export default function MovimentoPage() {
             ) : null}
 
             {/* Ações */}
-            <div className="space-y-2.5 pt-1">
+            <div className="animate-fade-up stagger space-y-2.5 pt-1" style={{ ['--d' as string]: '210ms' }}>
               {!notaAprovada && (
                 <Link href="/validar" className={cn(buttonVariants({ variant: 'warm', size: 'lg' }), 'w-full')}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                   Validar minha NFS-e
                 </Link>
               )}
@@ -194,11 +262,17 @@ export default function MovimentoPage() {
                 rel="noopener noreferrer"
                 className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'w-full')}
               >
-                Portal NFS-e Nacional ↗
+                Portal NFS-e Nacional
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M9 7h8v8" />
+                </svg>
               </a>
 
-              <Button variant="ghost" onClick={fetchMovimento} className="w-full">
-                Atualizar
+              <Button variant="ghost" onClick={() => fetchMovimento(true)} disabled={refreshing} className="w-full">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={cn('h-4 w-4', refreshing && 'spinner')}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-2.64-6.36M21 3v6h-6" />
+                </svg>
+                {refreshing ? 'Atualizando…' : 'Atualizar'}
               </Button>
             </div>
           </div>

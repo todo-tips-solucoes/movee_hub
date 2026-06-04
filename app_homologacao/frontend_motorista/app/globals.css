@@ -138,14 +138,185 @@ body {
   background-image: linear-gradient(90deg, var(--warm-1), var(--warm-2), var(--warm-3));
 }
 .bg-gradient-blue {
-  background-image: linear-gradient(160deg, #2e6bf0, #1a4fc4);
+  background-image:
+    radial-gradient(120% 120% at 0% 0%, #3f7bff 0%, rgba(63, 123, 255, 0) 55%),
+    radial-gradient(120% 120% at 100% 0%, #1e58e0 0%, rgba(30, 88, 224, 0) 50%),
+    linear-gradient(160deg, #2e6bf0, #143fa6);
 }
 .dark .bg-gradient-blue {
-  background-image: linear-gradient(160deg, #1f3d8a, #142a63);
+  background-image:
+    radial-gradient(120% 120% at 0% 0%, #244a9e 0%, rgba(36, 74, 158, 0) 55%),
+    radial-gradient(120% 120% at 100% 0%, #16306e 0%, rgba(22, 48, 110, 0) 50%),
+    linear-gradient(160deg, #16234a, #0c1631);
+}
+
+/* gradiente quente "líquido" — usado no hero/CTAs, anima quando .is-animated */
+.bg-gradient-warm-rich {
+  background-image: linear-gradient(
+    115deg,
+    var(--warm-1) 0%,
+    var(--warm-2) 42%,
+    var(--warm-3) 78%,
+    #d8261a 100%
+  );
+  background-size: 200% 200%;
+}
+.text-gradient-warm-rich {
+  background-image: linear-gradient(115deg, var(--warm-1), var(--warm-2) 55%, var(--warm-3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* foco acessível consistente */
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* ============================================================================
+   Motion · "Movimento" — entrada encenada, profundidade e microinterações.
+   Tudo cai para estático sob prefers-reduced-motion (acessibilidade).
+   ========================================================================== */
+@keyframes mv-fade-up {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes mv-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes mv-scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes mv-float {
+  0%, 100% { transform: translateY(0) translateX(0) scale(1); }
+  50%      { transform: translateY(-18px) translateX(8px) scale(1.04); }
+}
+@keyframes mv-float-soft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@keyframes mv-gradient-pan {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes mv-shimmer {
+  0%   { background-position: -150% 0; }
+  100% { background-position: 250% 0; }
+}
+@keyframes mv-shine {
+  0%   { transform: translateX(-130%) skewX(-18deg); opacity: 0; }
+  18%  { opacity: 0.85; }
+  100% { transform: translateX(230%) skewX(-18deg); opacity: 0; }
+}
+@keyframes mv-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes mv-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-7px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(3px); }
+}
+@keyframes mv-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--ring) 45%, transparent); }
+  70%  { box-shadow: 0 0 0 12px color-mix(in oklab, var(--ring) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--ring) 0%, transparent); }
+}
+@keyframes mv-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* utilitários de entrada — `both` preserva o estado final/inicial */
+.animate-fade-up   { animation: mv-fade-up 0.62s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in   { animation: mv-fade-in 0.5s ease both; }
+.animate-scale-in  { animation: mv-scale-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-float     { animation: mv-float 9s ease-in-out infinite; }
+.animate-float-soft{ animation: mv-float-soft 4.5s ease-in-out infinite; }
+.animate-shake     { animation: mv-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+.animate-gradient  { animation: mv-gradient-pan 7s ease infinite; }
+
+/* stagger: aplique style={{ ['--d']: '120ms' }} no item */
+.stagger { animation-delay: var(--d, 0ms); }
+
+/* glassmorfismo — cartão translúcido com blur e brilho de borda */
+.glass {
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, #fff 60%, transparent) inset,
+    0 18px 40px -22px rgba(14, 26, 43, 0.45);
+}
+.dark .glass {
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, #fff 8%, transparent) inset,
+    0 22px 48px -24px rgba(0, 0, 0, 0.7);
+}
+
+/* skeleton com shimmer */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--muted) 88%, var(--foreground) 4%);
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in oklab, var(--card) 85%, #fff 30%) 45%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: mv-shimmer 1.5s linear infinite;
+}
+
+/* varredura de brilho — pseudo-elemento; aplique .shine no contêiner relative */
+.shine { position: relative; overflow: hidden; isolation: isolate; }
+.shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    color-mix(in oklab, #fff 55%, transparent) 50%,
+    transparent 70%
+  );
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+}
+.shine-sweep::after { animation: mv-shine 4.5s ease-in-out 1.2s infinite; }
+.shine-once::after  { animation: mv-shine 1.1s ease-out 0.25s 1; }
+
+/* orbe decorativo da aurora */
+.aurora-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+  opacity: 0.85;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.pulse-ring { animation: mv-pulse-ring 1.8s ease-out infinite; }
+
+/* spinner suave reutilizável */
+.spinner { animation: mv-spin 0.7s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .animate-fade-up,
+  .animate-scale-in,
+  .animate-fade-in { opacity: 1 !important; transform: none !important; }
 }

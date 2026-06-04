@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api-client';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -34,12 +35,23 @@ export default function ValidarPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ValidacaoResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0] ?? null;
+  function pickFile(selected: File | null) {
     setFile(selected);
     setResult(null);
     setError(null);
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    pickFile(e.target.files?.[0] ?? null);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) pickFile(dropped);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -79,14 +91,14 @@ export default function ValidarPage() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col bg-muted/40">
-      {/* App bar */}
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-primary px-3 pb-3.5 pt-[max(0.875rem,env(safe-area-inset-top))] text-primary-foreground shadow-sm">
+    <main className="relative flex min-h-dvh flex-col bg-muted/40">
+      {/* App bar — glass */}
+      <header className="glass sticky top-0 z-20 flex items-center justify-between rounded-none border-x-0 border-t-0 px-3 pb-3 pt-[max(0.85rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-1">
           <Link
             href="/movimento"
             aria-label="Voltar"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted active:scale-90"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -97,34 +109,64 @@ export default function ValidarPage() {
         <ThemeToggle />
       </header>
 
-      <div className="flex-1 px-4 py-5">
-        <h2 className="font-display text-lg font-bold">Envie sua nota</h2>
-        <p className="mb-4 mt-0.5 text-sm text-muted-foreground">
-          Anexe o XML da NFS-e para validação.
-        </p>
+      <div className="mx-auto w-full max-w-md flex-1 px-4 pb-10 pt-6">
+        <div className="animate-fade-up">
+          <h2 className="font-display text-2xl font-bold tracking-tight">Envie sua nota</h2>
+          <p className="mb-5 mt-1 text-sm text-muted-foreground">
+            Anexe o XML da NFS-e para validação automática.
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="animate-fade-up stagger space-y-4" style={{ ['--d' as string]: '80ms' }}>
           {/* Dropzone */}
           <div
             role="button"
             tabIndex={0}
             onClick={() => fileInputRef.current?.click()}
             onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
-            className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-input bg-card p-8 text-center transition-colors hover:border-primary hover:bg-secondary/40"
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            className={cn(
+              'group relative flex cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-3xl border-2 border-dashed p-9 text-center transition-all duration-300',
+              dragging
+                ? 'scale-[1.02] border-primary bg-secondary/60 shadow-[0_0_0_6px_color-mix(in_oklab,var(--primary)_12%,transparent)]'
+                : file
+                  ? 'border-success/50 bg-success/5'
+                  : 'border-input bg-card/60 hover:border-primary/60 hover:bg-secondary/40'
+            )}
           >
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-primary">
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+            <span
+              className={cn(
+                'flex h-16 w-16 items-center justify-center rounded-2xl transition-all duration-300',
+                file ? 'bg-success/15 text-success' : 'bg-secondary text-primary group-hover:scale-110'
+              )}
+            >
+              {file ? (
+                <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ) : (
+                <svg className={cn('h-7 w-7 transition-transform', dragging && 'animate-float-soft')} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6 4.5 4.5 0 0118 14.5M12 12v9m0-9l-3 3m3-3l3 3" />
+                </svg>
+              )}
             </span>
             {file ? (
               <div>
                 <p className="font-display font-semibold text-foreground">{file.name}</p>
-                <p className="text-sm text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
+                <p className="text-sm text-muted-foreground">
+                  {(file.size / 1024).toFixed(1)} KB · toque para trocar
+                </p>
               </div>
             ) : (
               <div>
-                <p className="font-display font-semibold">Toque para escolher o XML</p>
+                <p className="font-display font-semibold">
+                  {dragging ? 'Solte o arquivo aqui' : 'Toque ou arraste o XML'}
+                </p>
                 <p className="text-sm text-muted-foreground">somente arquivos .xml</p>
               </div>
             )}
@@ -138,47 +180,60 @@ export default function ValidarPage() {
           </div>
 
           {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+            <p className="animate-shake flex items-center gap-2 rounded-xl bg-destructive/10 px-3.5 py-2.5 text-sm font-medium text-destructive">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0">
+                <circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 8v4m0 4h.01" />
+              </svg>
               {error}
             </p>
           )}
 
-          <Button type="submit" size="lg" disabled={loading || !file} className="w-full">
-            {loading ? 'Validando...' : 'Enviar para validação'}
+          <Button type="submit" variant="warm" size="lg" disabled={loading || !file} className="w-full">
+            {loading ? (
+              <>
+                <span className="spinner h-4 w-4 rounded-full border-2 border-white/40 border-t-white" />
+                Validando…
+              </>
+            ) : (
+              'Enviar para validação'
+            )}
           </Button>
         </form>
 
-        {/* Resultado */}
+        {/* Resultado — aprovada */}
         {result && result.valid && (
-          <div className="mt-6 rounded-2xl border border-success/30 bg-success/10 p-5">
-            <div className="flex items-start gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success text-white">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </span>
-              <div>
-                <p className="font-display font-bold text-success">{result.mensagem || 'Nota aprovada!'}</p>
-                <p className="mt-1 text-sm text-success/90">Reenvio bloqueado.</p>
-                <Button
-                  variant="link"
-                  onClick={() => router.replace('/movimento')}
-                  className="mt-2 h-auto p-0 text-success underline"
-                >
-                  Voltar ao movimento
-                </Button>
-              </div>
-            </div>
+          <div className="animate-scale-in mt-6 overflow-hidden rounded-3xl border border-success/30 bg-success/10 p-6 text-center">
+            <span className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-success text-white shadow-[0_10px_24px_-8px_var(--success)]">
+              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeDasharray="24" strokeDashoffset="24" style={{ animation: 'mv-draw 0.55s cubic-bezier(0.65,0,0.45,1) 0.15s forwards' }} d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+            <p className="font-display text-lg font-bold text-success">{result.mensagem || 'Nota aprovada!'}</p>
+            <p className="mt-1 text-sm text-success/90">Reenvio bloqueado.</p>
+            <Button
+              variant="success"
+              size="lg"
+              onClick={() => router.replace('/movimento')}
+              className="mt-4 w-full"
+            >
+              Voltar ao movimento
+            </Button>
           </div>
         )}
 
+        {/* Resultado — inválida */}
         {result && !result.valid && (
-          <div className="mt-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-5">
-            <p className="font-display font-bold text-destructive">Nota inválida</p>
+          <div className="animate-fade-up mt-6 rounded-3xl border border-destructive/30 bg-destructive/10 p-5">
+            <p className="font-display flex items-center gap-2 text-base font-bold text-destructive">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                <circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 8v4m0 4h.01" />
+              </svg>
+              Nota inválida
+            </p>
             {result.camposInvalidos && result.camposInvalidos.length > 0 && (
-              <ul className="mt-2 space-y-1.5">
+              <ul className="mt-3 space-y-2">
                 {result.camposInvalidos.map((c) => (
-                  <li key={c.campo} className="flex items-start gap-2 text-sm text-destructive">
+                  <li key={c.campo} className="flex items-start gap-2.5 text-sm text-destructive">
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-destructive" />
                     {c.mensagem}
                   </li>
@@ -186,7 +241,9 @@ export default function ValidarPage() {
               </ul>
             )}
             {result.instrucao && (
-              <p className="mt-3 text-sm font-medium text-destructive">{result.instrucao}</p>
+              <p className="mt-3 rounded-xl bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+                {result.instrucao}
+              </p>
             )}
           </div>
         )}

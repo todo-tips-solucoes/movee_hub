@@ -77,8 +77,8 @@ no chat com o prefixo `!`. Não contorne guardrails.
    loading skeleton, telas adicionais, acessibilidade, e/ou estender o design system ao frontend_v2.
 
 ## O que eu quero agora
-[DESCREVA AQUI a próxima alteração: ex. "ajuste o ícone para puxar mais o vermelho", ou
-"adicione tela X", ou "estenda o design system ao frontend_v2", etc.]
+Quero que melhor o uI. Deixe ele bem bonito e moderno. Ele esta muito simples. Coloque movimento, quero que a 
+interface fique incrivel e bonita. Uma tela extremamente prazerosa de se navegar. 
 
 Antes de codar: leia os arquivos relevantes, rode `npm run build` para validar, e só então
 build+push+`service update --force`. Ao final, valide no ar (https://appmotorista.todo-tips.com) e
