@@ -1,9 +1,22 @@
 # Handoff Operacional — App Motorista (PWA)
 
 **Feature**: `app-motorista-nfse` | **Date**: 2026-06-04
-**Status do código/docs**: COMPLETO (ondas 1–4). **Pendências abaixo**: exigem
-ambiente real (PostgREST/containers ativos, DNS, rede externa, dispositivo) e **não
-podem ser executadas/validadas a partir da worktree de desenvolvimento**.
+**Status do código/docs**: COMPLETO (ondas 1–4).
+**Status do DEPLOY**: ✅ **NO AR** em `https://appmotorista.todo-tips.com` (2026-06-04).
+
+> ### ✅ Deploy realizado (2026-06-04)
+> - Imagens buildadas e enviadas ao registry: `app-motorista-frontend:homologacao`
+>   e `envio-massa-backend:homologacao` (com rotas `/motorista/*` + fix `form-data`).
+> - Backend atualizado via `docker service update --image` (preservou as 7 envs).
+> - Serviço `frontend_motorista_homologacao` criado no stack swarm `envio-massa-homologacao`
+>   (deploy aditivo, sem `--prune`; os 3 serviços existentes não foram tocados).
+> - TLS Let's Encrypt emitido; `https://appmotorista.todo-tips.com/` → 200, PWA standalone.
+> - Proxy → backend validado: `/api/motorista/verify-auth` → 401 (middleware ativo).
+>
+> **TRAVA FUNCIONAL RESTANTE**: a tabela `Motorista` ainda **não foi aplicada** no
+> PostgREST (§1). Sem ela, login/auto-cadastro retornam erro de DB. **É o único passo
+> que falta para o app ficar 100% utilizável.** Requer autorização de escrita no
+> banco de produção.
 
 > Implementado e commitado: backend (`/motorista/*`), frontend PWA (`frontend_motorista`,
 > Serwist), tabela `Motorista` (SQL), serviço no `docker-compose.yml`, 45 testes verdes,

@@ -9,6 +9,13 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - N8N_API_TOKEN=${N8N_API_TOKEN}
+      # Necessário para a validação NFS-e (validate-xml-batch e /motorista/validar-nota).
+      # O backend EM PRODUÇÃO já tem essa env; estava ausente deste arquivo (deriva).
+      # ATENÇÃO: `docker stack deploy` interpola do SHELL, não do .env — um deploy do
+      # arquivo COMPLETO sem TODAS as 6 envs no ambiente apaga segredos do backend.
+      # Para bump de imagem do backend, prefira `docker service update --image ...`
+      # (preserva env/labels). Ver docs/specs/app-motorista-nfse/HANDOFF.md §4.
+      - FASTAPI_VALIDATION_TOKEN=${FASTAPI_VALIDATION_TOKEN}
     networks:
       - app_homologacao_default
     deploy:
