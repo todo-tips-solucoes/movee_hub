@@ -11,6 +11,11 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { formatCNPJ, unformatCNPJ } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Wordmark } from '@/components/brand/wordmark';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function LoginPage() {
   const { login, user } = useAuth();
@@ -21,7 +26,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ cnpj?: string; senha?: string; geral?: string }>({});
 
-  // Se já autenticado, redirecionar
   if (user) {
     router.replace('/movimento');
     return null;
@@ -49,90 +53,89 @@ export default function LoginPage() {
       router.replace('/movimento');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao fazer login.';
-      // Mapear mensagens do backend para pt-BR amigável
+      let geral = 'Erro ao conectar. Tente novamente.';
       if (msg.includes('Não autorizado') || msg.includes('Credenciais')) {
-        setErrors({ geral: 'CNPJ ou senha incorretos.' });
+        geral = 'CNPJ ou senha incorretos.';
       } else if (msg.includes('inativa') || msg.includes('403')) {
-        setErrors({ geral: 'Conta inativa. Entre em contato com o suporte.' });
-      } else {
-        setErrors({ geral: 'Erro ao conectar. Tente novamente.' });
+        geral = 'Conta inativa. Entre em contato com o suporte.';
       }
-      toast.error(errors.geral ?? 'Erro ao fazer login.');
+      setErrors({ geral });
+      toast.error(geral);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">App Motorista</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Entre com seu CNPJ de prestador</p>
-        </div>
+    <main className="bg-gradient-blue flex min-h-dvh flex-col text-white">
+      <div className="flex justify-end px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+        <ThemeToggle />
+      </div>
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {/* CNPJ */}
-          <div className="space-y-1">
-            <label htmlFor="cnpj" className="text-sm font-medium">
-              CNPJ do Prestador
-            </label>
-            <input
-              id="cnpj"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="username"
-              value={cnpj}
-              onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
-              placeholder="00.000.000/0000-00"
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={loading}
-            />
-            {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj}</p>}
-          </div>
-
-          {/* Senha */}
-          <div className="space-y-1">
-            <label htmlFor="senha" className="text-sm font-medium">
-              Senha
-            </label>
-            <input
-              id="senha"
-              type="password"
-              autoComplete="current-password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              placeholder="Sua senha"
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={loading}
-            />
-            {errors.senha && <p className="text-sm text-destructive">{errors.senha}</p>}
-          </div>
-
-          {/* Erro geral */}
-          {errors.geral && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {errors.geral}
-            </p>
-          )}
-
-          {/* Botão */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        {/* Link para cadastro (FR-017) */}
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Primeira vez?{' '}
-          <Link href="/cadastro" className="font-medium text-primary underline-offset-4 hover:underline">
-            Criar conta
-          </Link>
+      {/* Hero */}
+      <div className="flex flex-col items-center px-6 pb-8 pt-6 text-center">
+        <Wordmark className="text-5xl" />
+        <p className="mt-1 text-xs font-medium uppercase tracking-[0.2em] text-white/80">
+          Soluções Logísticas
         </p>
+      </div>
+
+      {/* Card */}
+      <div className="flex-1 rounded-t-[28px] bg-background px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8 text-foreground shadow-[0_-10px_30px_-12px_rgba(14,26,43,0.25)]">
+        <div className="mx-auto w-full max-w-sm">
+          <h1 className="font-display text-xl font-bold">Bem-vindo, motorista</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Entre com seu CNPJ de prestador</p>
+
+          <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="cnpj">CNPJ do Prestador</Label>
+              <Input
+                id="cnpj"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="username"
+                value={cnpj}
+                onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
+                placeholder="00.000.000/0000-00"
+                aria-invalid={!!errors.cnpj}
+                disabled={loading}
+              />
+              {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="senha">Senha</Label>
+              <Input
+                id="senha"
+                type="password"
+                autoComplete="current-password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="Sua senha"
+                aria-invalid={!!errors.senha}
+                disabled={loading}
+              />
+              {errors.senha && <p className="text-sm text-destructive">{errors.senha}</p>}
+            </div>
+
+            {errors.geral && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+                {errors.geral}
+              </p>
+            )}
+
+            <Button type="submit" size="lg" disabled={loading} className="w-full">
+              {loading ? 'Entrando...' : 'Entrar'}
+            </Button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Primeira vez?{' '}
+            <Link href="/cadastro" className="font-semibold text-primary underline-offset-4 hover:underline">
+              Criar conta
+            </Link>
+          </p>
+        </div>
       </div>
     </main>
   );

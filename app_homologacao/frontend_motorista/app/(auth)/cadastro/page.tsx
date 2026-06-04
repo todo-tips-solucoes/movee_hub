@@ -11,6 +11,11 @@ import Link from 'next/link';
 import { api } from '@/lib/api-client';
 import { formatCNPJ, unformatCNPJ } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Wordmark } from '@/components/brand/wordmark';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -19,12 +24,7 @@ export default function CadastroPage() {
   const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{
-    cnpj?: string;
-    nome?: string;
-    senha?: string;
-    geral?: string;
-  }>({});
+  const [errors, setErrors] = useState<{ cnpj?: string; nome?: string; senha?: string; geral?: string }>({});
 
   function validate() {
     const errs: typeof errors = {};
@@ -54,7 +54,6 @@ export default function CadastroPage() {
       router.replace('/login');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
-      // 409: CNPJ não elegível ou já cadastrado (mensagem anti-enumeração)
       if (msg.includes('409') || msg.includes('elegível') || msg.includes('já possui')) {
         setErrors({ geral: 'CNPJ não elegível para cadastro ou já possui conta.' });
       } else if (msg.includes('400') || msg.includes('8 caracteres')) {
@@ -68,92 +67,89 @@ export default function CadastroPage() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">Criar conta</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Informe o CNPJ do seu cadastro como prestador
+    <main className="bg-gradient-blue flex min-h-dvh flex-col text-white">
+      <div className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+        <Link href="/login" aria-label="Voltar" className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </Link>
+        <ThemeToggle />
+      </div>
+
+      <div className="flex flex-col items-center px-6 pb-6 pt-2 text-center">
+        <Wordmark className="text-4xl" />
+      </div>
+
+      <div className="flex-1 rounded-t-[28px] bg-background px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8 text-foreground shadow-[0_-10px_30px_-12px_rgba(14,26,43,0.25)]">
+        <div className="mx-auto w-full max-w-sm">
+          <h1 className="font-display text-xl font-bold">Criar conta</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Informe o CNPJ do seu cadastro como prestador</p>
+
+          <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="cnpj">CNPJ do Prestador</Label>
+              <Input
+                id="cnpj"
+                type="tel"
+                inputMode="numeric"
+                value={cnpj}
+                onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
+                placeholder="00.000.000/0000-00"
+                aria-invalid={!!errors.cnpj}
+                disabled={loading}
+              />
+              {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="nome">Seu nome</Label>
+              <Input
+                id="nome"
+                type="text"
+                autoComplete="name"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Nome completo"
+                aria-invalid={!!errors.nome}
+                disabled={loading}
+              />
+              {errors.nome && <p className="text-sm text-destructive">{errors.nome}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="senha">Criar senha</Label>
+              <Input
+                id="senha"
+                type="password"
+                autoComplete="new-password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                aria-invalid={!!errors.senha}
+                disabled={loading}
+              />
+              {errors.senha && <p className="text-sm text-destructive">{errors.senha}</p>}
+            </div>
+
+            {errors.geral && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+                {errors.geral}
+              </p>
+            )}
+
+            <Button type="submit" size="lg" disabled={loading} className="w-full">
+              {loading ? 'Criando conta...' : 'Criar conta'}
+            </Button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Já tem conta?{' '}
+            <Link href="/login" className="font-semibold text-primary underline-offset-4 hover:underline">
+              Entrar
+            </Link>
           </p>
         </div>
-
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {/* CNPJ */}
-          <div className="space-y-1">
-            <label htmlFor="cnpj" className="text-sm font-medium">
-              CNPJ do Prestador
-            </label>
-            <input
-              id="cnpj"
-              type="tel"
-              inputMode="numeric"
-              value={cnpj}
-              onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
-              placeholder="00.000.000/0000-00"
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={loading}
-            />
-            {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj}</p>}
-          </div>
-
-          {/* Nome */}
-          <div className="space-y-1">
-            <label htmlFor="nome" className="text-sm font-medium">
-              Seu nome
-            </label>
-            <input
-              id="nome"
-              type="text"
-              autoComplete="name"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome completo"
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={loading}
-            />
-            {errors.nome && <p className="text-sm text-destructive">{errors.nome}</p>}
-          </div>
-
-          {/* Senha */}
-          <div className="space-y-1">
-            <label htmlFor="senha" className="text-sm font-medium">
-              Criar senha
-            </label>
-            <input
-              id="senha"
-              type="password"
-              autoComplete="new-password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              placeholder="Mínimo 8 caracteres"
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={loading}
-            />
-            {errors.senha && <p className="text-sm text-destructive">{errors.senha}</p>}
-          </div>
-
-          {/* Erro geral */}
-          {errors.geral && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {errors.geral}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? 'Criando conta...' : 'Criar conta'}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Já tem conta?{' '}
-          <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
-            Entrar
-          </Link>
-        </p>
       </div>
     </main>
   );

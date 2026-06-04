@@ -3,26 +3,73 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================================
+   Movee · Design System — App Motorista
+   Identidade: azul royal (base) + gradiente quente assinatura (amarelo→laranja
+   →vermelho) + menta (sucesso). Tipografia Poppins (títulos) / Inter (corpo).
+   ========================================================================== */
+
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
+  --background: #ffffff;
+  --foreground: #0e1a2b;
+  --card: #ffffff;
+  --card-foreground: #0e1a2b;
+  --popover: #ffffff;
+  --popover-foreground: #0e1a2b;
+
+  --primary: #1f63eb;
+  --primary-foreground: #ffffff;
+  --secondary: #eaf1fe;
+  --secondary-foreground: #1a4fc4;
+
+  --muted: #f2f5fb;
+  --muted-foreground: #5a6b85;
+  --accent: #eaf1fe;
+  --accent-foreground: #1a4fc4;
+
+  --success: #16a375;
+  --success-foreground: #ffffff;
+  --destructive: #ee3b26;
+  --destructive-foreground: #ffffff;
+
+  --border: #e3e9f4;
+  --input: #e3e9f4;
+  --ring: #1f63eb;
+
+  /* gradiente quente assinatura Movee */
+  --warm-1: #ffc020;
+  --warm-2: #ff7a18;
+  --warm-3: #f23a20;
+
+  --radius: 0.875rem;
+}
+
+.dark {
+  --background: #0b1220;
+  --foreground: #e6ecf6;
+  --card: #121c2e;
+  --card-foreground: #e6ecf6;
+  --popover: #121c2e;
+  --popover-foreground: #e6ecf6;
+
+  --primary: #4f8bff;
+  --primary-foreground: #06122b;
+  --secondary: #1b2740;
+  --secondary-foreground: #cfe0ff;
+
+  --muted: #16223a;
+  --muted-foreground: #9aaac6;
+  --accent: #1b2740;
+  --accent-foreground: #cfe0ff;
+
+  --success: #2bbf92;
+  --success-foreground: #06231a;
+  --destructive: #ff5a43;
+  --destructive-foreground: #1a0603;
+
+  --border: #243352;
+  --input: #243352;
+  --ring: #4f8bff;
 }
 
 @theme inline {
@@ -30,6 +77,8 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -38,10 +87,20 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-warm-1: var(--warm-1);
+  --color-warm-2: var(--warm-2);
+  --color-warm-3: var(--warm-3);
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-poppins), var(--font-inter), system-ui, sans-serif;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -52,15 +111,41 @@
   box-sizing: border-box;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Mobile-first: viewport height sem barra de endereço */
 html, body {
   height: 100%;
   min-height: 100dvh;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* respeita notch/safe-area no PWA instalado */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ---- Utilitários de marca ------------------------------------------------- */
+.font-display { font-family: var(--font-display); }
+
+.text-gradient-warm {
+  background-image: linear-gradient(90deg, var(--warm-1), var(--warm-2), var(--warm-3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.bg-gradient-warm {
+  background-image: linear-gradient(90deg, var(--warm-1), var(--warm-2), var(--warm-3));
+}
+.bg-gradient-blue {
+  background-image: linear-gradient(160deg, #2e6bf0, #1a4fc4);
+}
+.dark .bg-gradient-blue {
+  background-image: linear-gradient(160deg, #1f3d8a, #142a63);
+}
+
+/* foco acessível consistente */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
