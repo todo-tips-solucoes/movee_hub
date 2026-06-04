@@ -6,9 +6,11 @@ O projeto é composto por três serviços, orquestrados via Docker Swarm + Traef
 
 | Serviço | Stack | Descrição | Host (homologação) |
 |---|---|---|---|
-| `backend` | Node.js / Express | API REST: autenticação, CRUD de envios, upload, processamento e validação de XML | `envmassapihomologacao.todo-tips.com` |
+| [`backend`](app_homologacao/backend/README.md) | Node.js / Express | API REST: autenticação, CRUD de envios, upload, processamento e validação de XML | `envmassapihomologacao.todo-tips.com` |
 | `frontend` | HTML/CSS/JS + Nginx | Frontend legado (v1), estático | `envmasshomologacao.todo-tips.com` |
-| `frontend_v2` | Next.js 16 + React 19 + Tailwind/shadcn | Frontend atual (v2) | `envmassv2.todo-tips.com` |
+| [`frontend_v2`](app_homologacao/frontend_v2/README.md) | Next.js 16 + React 19 + Tailwind/shadcn | Frontend atual (v2) | `envmassv2.todo-tips.com` |
+
+> 📚 **Documentação por módulo:** [Backend (API e endpoints)](app_homologacao/backend/README.md) · [Frontend v2](app_homologacao/frontend_v2/README.md)
 
 ## Estrutura
 
@@ -28,6 +30,8 @@ API Express (`app_homologacao/backend/server.js`) que persiste dados via **Postg
 - **Envios em massa:** `GET /envio-massa`, `PATCH /update-envio-massa/:id`, `DELETE /envio-massa/:id`, `GET /export-envio-massa`
 - **Upload e processamento:** `POST /upload`, `POST /start-process`, `POST /stop-process`, `GET /process-status`
 - **Movimentos / XML:** `POST /close-movimento`, `GET /download-xml-movimento`, `POST /validate-xml-batch`
+
+📖 Documentação completa dos endpoints (payloads, auth por cookie, respostas): **[app_homologacao/backend/README.md](app_homologacao/backend/README.md)**.
 
 Principais dependências: `express`, `jsonwebtoken`, `bcrypt`, `multer`, `xml2js`, `xlsx`, `json2csv`, `archiver`, `axios`.
 
@@ -49,6 +53,8 @@ npm run dev            # http://localhost:3000
 ```
 
 Configure `BACKEND_URL` em `.env.local` apontando para a API.
+
+📖 Arquitetura, rotas, hooks e componentes: **[app_homologacao/frontend_v2/README.md](app_homologacao/frontend_v2/README.md)**.
 
 ## Variáveis de ambiente
 
