@@ -124,7 +124,7 @@ Ref: plan.md §Project Structure; research.md Decision 2
 
 Ref: spec FR-014/US5; research.md Decision 2; quickstart 9
 
-- [ ] 4.2.1 Instalar e configurar `@serwist/next`; criar `app/sw.ts` (precache do app shell)
+- [x] 4.2.1 Instalar e configurar `@serwist/next`; criar `app/sw.ts` (precache do app shell) <!-- onda-004: build validado -->
 - [x] 4.2.2 Criar `public/manifest.json` (nome, ícones, `display: standalone`, `theme_color`, `start_url`)
 - [x] 4.2.3 Linkar manifest no layout; ícones maskable (192/512)
 - [ ] 4.2.4 Teste manual: Lighthouse PWA installable; instala na tela inicial e abre standalone
@@ -211,7 +211,7 @@ Ref: constitution §I/§IV; spec FR-001/FR-002/FR-011/FR-015
 
 Ref: spec §Success Criteria; quickstart
 
-- [ ] 7.3.1 Rodar `analyze` (cross-check spec/plan/tasks) e resolver inconsistências
+- [x] 7.3.1 Rodar `analyze` (cross-check spec/plan/tasks) e resolver inconsistências <!-- onda-004: 17/17 FRs, 0 CRITICAL -->
 - [ ] 7.3.2 Executar os 10 cenários do quickstart (manual) e registrar resultados vs SC-001..SC-006
 - [x] 7.3.3 Atualizar `backend/README.md` com as rotas `/motorista/*` (Constituição III — README é contrato vivo)
 - [ ] 7.3.4 Commits Conventional + abrir PR para `main`
@@ -275,3 +275,14 @@ flowchart TD
 | EX-3 | Histórico de validações em tabela própria | Estado em colunas da EnvioMassa basta para o bloqueio |
 | EX-4 | Criação do registro DNS do host novo | Tarefa de infra fora do código (R-3) — apenas registrada |
 | EX-5 | Fila offline de uploads (sync em background) | Além do MVP; PWA cobre shell offline, não envio offline |
+
+## Nota de Handoff (onda-004)
+
+Os checkboxes ainda `[ ]` acima estão **bloqueados por ambiente** e não podem ser
+executados/validados a partir da worktree de desenvolvimento (exigem PostgREST/containers
+ativos, DNS `appmotorista.todo-tips.com`, rede externa para o roundtrip real, dispositivo
+para Lighthouse, ou credencial de push para o PR). Cada um tem procedimento/comando exato
+em **`HANDOFF.md`** (mesma pasta). A parte implementável (código, testes, docs) está
+**completa**: 45 testes verdes, `analyze` 17/17 FRs sem issue CRITICAL, build do PWA
+validado. O PR (7.3.4) foi deixado como commit local — comando de abertura em `HANDOFF.md §6`
+(sem push automático por ser ação externa).
