@@ -15,6 +15,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const axios = require('axios');
 const xml2js = require('xml2js');
+// FormData disponível globalmente no Node 18+ (sem import extra)
 
 const router = express.Router();
 
@@ -112,8 +113,9 @@ function setAuthCookies(res, accessToken, refreshToken) {
 }
 
 function clearAuthCookies(res) {
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
+  // OWASP: especificar path para garantir limpeza correta do cookie
+  res.clearCookie('accessToken', { path: '/' });
+  res.clearCookie('refreshToken', { path: '/' });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -329,8 +331,26 @@ router.get('/movimento-aberto', authenticateMotorista, async (req, res) => {
 // ──────────────────────────────────────────────────────────────────────────────
 // ROTA: POST /motorista/validar-nota  (autenticado, multipart/form-data)
 // Ref: tarefa 3.2 + 3.3 / contracts §validar-nota / spec FR-006..FR-012/FR-015
+// OWASP: usar wrapper que captura erros de multer (fileSize/fileFilter) antes do handler
+// para evitar que o express default error handler exponha stack trace.
 // ──────────────────────────────────────────────────────────────────────────────
-router.post('/validar-nota', authenticateMotorista, uploadMemory.single('file'), async (req, res) => {
+function uploadSingle(req, res, next) {
+  uploadMemory.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      // Erro de upload do multer (ex: limite de tamanho excedido)
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Arquivo muito grande. Limite: 2 MB.' });
+      }
+      return res.status(400).json({ error: `Erro no upload: ${err.message}` });
+    } else if (err) {
+      // fileFilter rejeitou (tipo inválido)
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}
+
+router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, res) => {
   try {
     const cnpj = req.motorista.cnpjPrestador;
 
@@ -340,9 +360,13 @@ router.post('/validar-nota', authenticateMotorista, uploadMemory.single('file'),
     }
 
     // Pré-condição 3: XML bem-formado (FR-011)
+    // Segurança XXE: xml2js ^0.4.x NÃO resolve entidades externas (DOCTYPE/ENTITY)
+    // por design — não usa libxml2 nem expat com resolução de rede.
+    // Referência: https://github.com/Leonidas-from-XIV/node-xml2js/issues/159
+    // strict:true rejeita XML malformado; explicitCharkey:false é o default seguro.
     const xmlContent = req.file.buffer.toString('utf-8');
     try {
-      await xml2js.parseStringPromise(xmlContent, { strict: true });
+      await xml2js.parseStringPromise(xmlContent, { strict: true, explicitCharkey: false });
     } catch (_parseErr) {
       return res.status(400).json({ error: 'Arquivo inválido: envie um XML de NFS-e válido.' });
     }
@@ -376,22 +400,25 @@ router.post('/validar-nota', authenticateMotorista, uploadMemory.single('file'),
 
     // Chamar serviço de validação externo (server-side — FR-015)
     // Ref: research.md Decision 5 / contracts §validar-nota
+    // OWASP fix: API FastAPI espera multipart/form-data (schema OpenAPI confirmado).
+    // URLSearchParams (x-www-form-urlencoded) causava falha silenciosa — corrigido
+    // para FormData nativo (Node 18+).
     const xmlInput = JSON.stringify([{ filename: req.file.originalname, data: xmlContent }]);
-    const formPayload = new URLSearchParams({
-      xml_input: xmlInput,
-      validar_descricao_servico: 'false',
-      nexus: 'false',
-    });
+    const formPayload = new FormData();
+    formPayload.append('xml_input', xmlInput);
+    formPayload.append('validar_descricao_servico', 'false');
+    formPayload.append('nexus', 'false');
 
     let apiData;
     try {
       const apiResponse = await axios.post(
         'https://fastapihomologacaonexus.todo-tips.com/validade_nfse',
-        formPayload.toString(),
+        formPayload,
         {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
             Authorization: process.env.FASTAPI_VALIDATION_TOKEN,
+            // Content-Type (multipart/form-data com boundary) é setado automaticamente
+            // pelo axios ao detectar FormData — NÃO sobrescrever manualmente.
           },
           timeout: 30000,
         }

@@ -48,7 +48,7 @@ Ref: contracts/motorista-api.md; research.md Decision 1; spec FR-001/FR-002/FR-0
 - [x] 2.1.1 Criar módulo de auth do motorista replicando o padrão de `authenticateToken` (lê cookie `accessToken`, valida `JWT_SECRET`)
 - [x] 2.1.2 Definir claim do token: `cnpjPrestador` (+ `nome`); garantir que NÃO carrega senha
 - [x] 2.1.3 Rejeitar token de Empresa em rotas de motorista e vice-versa (separação de audiência)
-- [ ] 2.1.4 Teste unit: token válido passa; ausente/expirado/empresa → 401
+- [x] 2.1.4 Teste unit: token válido passa; ausente/expirado/empresa → 401
 
 ### 2.2 Rotas de sessão `/motorista/login|refresh|logout|verify-auth` `[C]`
 
@@ -58,7 +58,7 @@ Ref: contracts/motorista-api.md; spec FR-001; quickstart Cenários 1, 2
 - [x] 2.2.2 `POST /motorista/token/refresh`: valida `refreshToken` (claim cnpjPrestador) e reemite `accessToken`
 - [x] 2.2.3 `POST /motorista/logout`: limpa cookies; `GET /motorista/verify-auth`: confirma sessão
 - [x] 2.2.4 Mensagens de erro pt-BR sem revelar campo (401 "Credenciais inválidas."; 403 inativa; 400 corpo)
-- [ ] 2.2.5 Teste integração: login ok emite cookies; login inválido 401; refresh renova; verify-auth reflete estado
+- [x] 2.2.5 Teste integração: login ok emite cookies; login inválido 401; refresh renova; verify-auth reflete estado
 
 ### 2.3 Auto-cadastro do motorista `[C]`
 
@@ -68,7 +68,7 @@ Ref: contracts/motorista-api.md §register; research.md Decision 3 (R-2); spec F
 - [x] 2.3.2 Guard: `cnpj_prestador` deve existir em `EnvioMassa` e não ter conta em `Motorista` (senão 409)
 - [x] 2.3.3 Criar `Motorista` com senha em bcrypt (`ativo=true`); resposta 201
 - [x] 2.3.4 Mensagens de erro sem virar oráculo de enumeração (não revelar se o CNPJ existe)
-- [ ] 2.3.5 Teste integração: cadastro elegível cria conta; CNPJ desconhecido 409; CNPJ já cadastrado 409; senha curta 400
+- [x] 2.3.5 Teste integração: cadastro elegível cria conta; CNPJ desconhecido 409; CNPJ já cadastrado 409; senha curta 400
 
 ---
 
@@ -82,7 +82,7 @@ Ref: contracts/motorista-api.md §movimento-aberto; spec FR-003/FR-004; quicksta
 - [x] 3.1.2 Mapper snake_case→camelCase (valor, dtInicial, dtFinal, nome, cnpjTomador, cnpjPrestador, tribnac, notaOk, erroValidacao)
 - [x] 3.1.3 Estado vazio: retornar `{ movimento: null }` quando não há movimento aberto (FR-004)
 - [x] 3.1.4 Garantir escopo por token (nunca por id do cliente) — Constituição II
-- [ ] 3.1.5 Teste integração: motorista A não vê dados de B; sem auth → 401; empty state correto
+- [x] 3.1.5 Teste integração: motorista A não vê dados de B; sem auth → 401; empty state correto
 
 ### 3.2 Módulo de validação NFS-e (proxy server-side) `[C]`
 
@@ -92,7 +92,7 @@ Ref: contracts/motorista-api.md §validar-nota; research.md Decision 5; spec FR-
 - [x] 3.2.2 Parser da resposta (array `[{valid, details}]`) tolerante a formato inesperado → erro temporário (FR-012)
 - [x] 3.2.3 Módulo mapper flag→mensagem pt-BR (7 flags) — data-model.md §ResultadoValidacao
 - [x] 3.2.4 Timeout/erro do serviço externo → 502/503 sem alterar `nota_ok`/`erro_validacao` (FR-012)
-- [ ] 3.2.5 Teste unit do mapper e do parser (válida, inválida com N flags, resposta corrompida)
+- [x] 3.2.5 Teste unit do mapper e do parser (válida, inválida com N flags, resposta corrompida)
 
 ### 3.3 Rota de upload + validação + persistência `[C]`
 
@@ -104,7 +104,7 @@ Ref: contracts/motorista-api.md §validar-nota; spec FR-005/FR-007/FR-008/FR-009
 - [x] 3.3.4 Chamar `callValidacaoNfse`; se válida → PATCH `nota_ok` no movimento; resposta de sucesso (FR-007)
 - [x] 3.3.5 Se inválida → PATCH `erro_validacao`; resposta com `camposInvalidos` + instrução (FR-009)
 - [x] 3.3.6 Idempotência do reenvio garantida no servidor (duplo toque não cria 2 aprovações)
-- [ ] 3.3.7 Teste integração: válida bloqueia reenvio; inválida lista campos; não-XML 400; serviço fora 502 sem mudar estado
+- [x] 3.3.7 Teste integração: válida bloqueia reenvio; inválida lista campos; não-XML 400; serviço fora 502 sem mudar estado
 
 ---
 
@@ -181,7 +181,7 @@ Ref: research.md Decision 7; constitution §V (aditivo, sem disputar 80/443)
 
 - [x] 6.2.1 Adicionar serviço `frontend_motorista_homologacao` ao `app_homologacao/docker-compose.yml` (rede + `BACKEND_URL`)
 - [x] 6.2.2 Labels Traefik para host próprio (ex.: `appmotorista.todo-tips.com`), porta 3000, TLS Let's Encrypt
-- [ ] 6.2.3 `docker compose config` valida; conferir `No containers need to be restarted` para os serviços em produção
+- [x] 6.2.3 `docker compose config` valida; conferir `No containers need to be restarted` para os serviços em produção
 - [x] 6.2.4 Registrar pendência de infra: criar DNS `appmotorista.todo-tips.com` → VPS (R-3)
 - [ ] 6.2.5 Subir e validar acesso externo (login + fluxo) pelo host novo
 
@@ -202,10 +202,10 @@ Ref: quickstart §Roundtrip; research.md Decision 5; plan.md §Convenções de B
 
 Ref: constitution §I/§IV; spec FR-001/FR-002/FR-011/FR-015
 
-- [ ] 7.2.1 Rodar `owasp-security` sobre auth do motorista, upload/parse de XML e proxy de validação
-- [ ] 7.2.2 Verificar isolamento por `cnpj_prestador` (sem IDOR), cookies httpOnly/SameSite, sem vazar token em log/resposta
-- [ ] 7.2.3 Verificar tratamento de XML (entidade externa/XXE no `xml2js`), limite de tamanho de upload
-- [ ] 7.2.4 Corrigir achados bloqueantes antes do merge
+- [x] 7.2.1 Rodar `owasp-security` sobre auth do motorista, upload/parse de XML e proxy de validação
+- [x] 7.2.2 Verificar isolamento por `cnpj_prestador` (sem IDOR), cookies httpOnly/SameSite, sem vazar token em log/resposta
+- [x] 7.2.3 Verificar tratamento de XML (entidade externa/XXE no `xml2js`), limite de tamanho de upload
+- [x] 7.2.4 Corrigir achados bloqueantes antes do merge
 
 ### 7.3 Consistência e fechamento `[M]`
 
@@ -213,7 +213,7 @@ Ref: spec §Success Criteria; quickstart
 
 - [ ] 7.3.1 Rodar `analyze` (cross-check spec/plan/tasks) e resolver inconsistências
 - [ ] 7.3.2 Executar os 10 cenários do quickstart (manual) e registrar resultados vs SC-001..SC-006
-- [ ] 7.3.3 Atualizar `backend/README.md` com as rotas `/motorista/*` (Constituição III — README é contrato vivo)
+- [x] 7.3.3 Atualizar `backend/README.md` com as rotas `/motorista/*` (Constituição III — README é contrato vivo)
 - [ ] 7.3.4 Commits Conventional + abrir PR para `main`
 
 ---

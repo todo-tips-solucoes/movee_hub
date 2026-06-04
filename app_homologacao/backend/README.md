@@ -137,6 +137,102 @@ Para cada XML extrai os campos da NFSe (`xml2js`) — `cnpj_prestador`, `data_em
 
 ---
 
+---
+
+## App Motorista — Rotas `/motorista/*`
+
+> Feature: `app-motorista-nfse` — PWA para motoristas consultarem valor de NF e validarem XML.
+> Ref: `docs/specs/app-motorista-nfse/` (spec, contracts, research).
+
+A autenticação do motorista usa cookies httpOnly **separados** dos cookies de Empresa. O claim `aud: 'motorista'` no JWT impede que tokens de Empresa funcionem nessas rotas e vice-versa.
+
+**Variável de ambiente adicional:**
+
+| Variável | Descrição |
+|---|---|
+| `JWT_SECRET` | Compartilhado com Empresa (audiência diferencia os escopos) |
+| `JWT_REFRESH_SECRET` | Compartilhado com Empresa (idem) |
+| `FASTAPI_VALIDATION_TOKEN` | Já existente — reutilizado aqui |
+
+### Sessão do motorista
+
+#### `POST /motorista/login`
+Body JSON: `{ "cnpjPrestador": string, "senha": string }` (CNPJ aceita pontuação — normalizado internamente).
+Busca `Motorista?cnpj_prestador=eq.{cnpj}` via PostgREST, valida senha bcrypt, checa `ativo`.
+- **200** → `{ cnpjPrestador, nome }` + cookies `accessToken` (15min) / `refreshToken` (7d) httpOnly SameSite=Strict
+- **400** campos ausentes · **401** credenciais inválidas (mensagem genérica — anti-enumeração) · **403** conta inativa
+
+#### `POST /motorista/register` — auto-cadastro com guard
+Body JSON: `{ "cnpjPrestador": string, "nome": string, "senha": string }` (senha ≥ 8 chars).
+Guard 1: CNPJ deve existir em `EnvioMassa`. Guard 2: CNPJ não pode ter conta `Motorista` existente.
+- **201** criado · **400** campos inválidos/senha curta · **409** CNPJ não elegível ou já cadastrado (mensagem idêntica — anti-enumeração)
+
+#### `POST /motorista/token/refresh`
+Lê cookie `refreshToken` de motorista, valida audiência `motorista`, emite novo `accessToken`.
+- **200** `{ message: "Token renovado." }` · **401** token ausente · **403** inválido
+
+#### `POST /motorista/logout` 🔒
+Limpa cookies `accessToken` e `refreshToken`. **200** `{ message: "Logout bem-sucedido." }`.
+
+#### `GET /motorista/verify-auth` 🔒
+Confirma sessão ativa.
+- **200** → `{ authenticated: true, nome, cnpjPrestador }` · **401** sem/inválido token
+
+---
+
+### Movimento e validação
+
+#### `GET /motorista/movimento-aberto` 🔒
+Consulta `EnvioMassa?cnpj_prestador=eq.{token}&mov_fechado=eq.false` (escopo exclusivo pelo token — Constituição II: nunca por parâmetro externo).
+- **200** → `{ movimento: { id, valor, dtInicial, dtFinal, nome, cnpjTomador, cnpjPrestador, tribnac, notaOk, erroValidacao } }` ou `{ movimento: null }` quando sem movimento aberto.
+- **401** sem auth · **500** erro de servidor
+
+#### `POST /motorista/validar-nota` 🔒 — `multipart/form-data`
+Campo: **`file`** — XML de NFSe (limite: 2 MB; apenas `text/xml`/`application/xml`/`.xml`).
+
+Fluxo:
+1. Valida XML bem-formado via `xml2js` (segurança XXE: xml2js ^0.4.x não resolve entidades externas por design).
+2. Verifica existência de movimento aberto no escopo do token.
+3. Bloqueia reenvio se nota já aprovada (`nota_ok = sim`) — FR-008.
+4. Chama `POST https://fastapihomologacaonexus.todo-tips.com/validade_nfse` (multipart/form-data) com `xml_input=JSON.stringify([{filename,data}])`, `validar_descricao_servico=false`, `nexus=false`.
+5. Persiste resultado em `EnvioMassa` (`nota_ok` / `erro_validacao`).
+
+Respostas de sucesso:
+- **200 valid:true** → `{ valid: true, notaOk: true, mensagem: "Nota ok! ..." }`
+- **200 valid:false** → `{ valid: false, notaOk: false, camposInvalidos: [{campo, mensagem}], instrucao: "Cancele..." }`
+
+Campos de `camposInvalidos` em pt-BR: `valid_cnpj_prestador`, `valid_cnpj`, `valid_descricao_servico`, `valid_valor`, `valid_trib_nac`, `valid_trib_mun`, `valid_dCompet`.
+
+Erros:
+- **400** sem arquivo ou XML inválido · **401** sem auth · **409** nota já aprovada ou sem movimento aberto · **502** serviço externo indisponível · **413** arquivo > 2 MB
+
+---
+
+### Tabela `Motorista` (PostgREST)
+
+```sql
+CREATE TABLE IF NOT EXISTS "Motorista" (
+  id BIGSERIAL PRIMARY KEY,
+  cnpj_prestador VARCHAR(14) UNIQUE NOT NULL,
+  senha TEXT NOT NULL,              -- bcrypt hash
+  nome TEXT,
+  ativo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+---
+
+## Testes
+
+```bash
+npm test              # unit + integração (node:test nativo, sem jest)
+npm run test:unit     # só unitários (23 testes)
+npm run test:integration  # só integração (22 testes, mocks para PostgREST/FastAPI)
+```
+
+---
+
 ## Modelo de dados (resumo)
 
 - **`Empresa`** — empresas/usuários (`id`, `email`, `senha` hash, `nome_empresa`, `workflow_id`, `sender`, `tk`, `connection_id`).

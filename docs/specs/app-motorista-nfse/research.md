@@ -117,12 +117,11 @@ crua, parâmetro `id_empresa`, e troca a URL entre `fastapihomologacao` e
 `fastapihomologacaonexus` conforme `tribnac`). Ou seja, há **dois contratos
 aparentes** para o mesmo serviço.
 
-**Plano de reconciliação**: a função do App Motorista (`callValidacaoNfse`) implementa
-o contrato confirmado pelo solicitante. Durante `execute-task`, executar o **cenário
-roundtrip real** do `quickstart.md` (chamada de verdade ao `validade_nfse` com um XML
-de exemplo) e comparar a resposta ao shape declarado antes de fixar o parser. Se a API
-rejeitar o `xml_input` no formato `[{filename,data}]`, cair para o formato que a rota
-existente já usa em produção, registrando a decisão.
+**Reconciliação parcial (onda-003, 2026-06-04)**:
+- Schema OpenAPI da API confirmado: endpoint `POST /validade_nfse` aceita `multipart/form-data` com campo `xml_input: string | null`. Confirmado via `GET /openapi.json` — sem necessidade de token para ler o schema.
+- **Bug corrigido**: o código original enviava `application/x-www-form-urlencoded` (via `URLSearchParams`), mas a API espera `multipart/form-data`. Corrigido para `FormData` nativo (Node 18+) em `routes/motorista.js`.
+- **Roundtrip com payload real**: bloqueado pelo classificador de segurança do harness (chamada curl externa bloqueada). Procedimento documentado no quickstart para execução manual — ver `7.1 Roundtrip` em `tasks.md`.
+- **Decisão final**: manter o contrato confirmado pelo solicitante (`xml_input=JSON.stringify([{filename,data}])`), com `multipart/form-data` como Content-Type (schema OpenAPI confirma). O shape da resposta `[{valid, details}]` é mantido como declarado.
 
 **Rationale**: seguir a fonte que o solicitante autorizou explicitamente, mas tratar a
 divergência como risco conhecido e validá-la empiricamente (evita o tipo de drift de
