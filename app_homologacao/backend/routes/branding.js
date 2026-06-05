@@ -18,14 +18,15 @@
 
 const express = require('express');
 const multer = require('multer');
-const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
 
-// Multer: logo em memória, limite 512 KB, mimetype allowlist (dec-017, CHK006)
+// Logo é guardado como data-URI base64 na própria coluna Branding.logo_url
+// (infra é PostgreSQL + PostgREST puro — sem Supabase Storage). Logos pequenos,
+// usáveis direto em <img src>. Multer em memória, mimetype allowlist (dec-017, CHK006).
 const uploadLogo = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 512 * 1024 }, // 512 KB
+  limits: { fileSize: 256 * 1024 }, // 256 KB (data-URI infla ~+33%)
   fileFilter: (_req, file, cb) => {
     const ALLOWED = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
     if (ALLOWED.includes(file.mimetype)) {
@@ -40,19 +41,9 @@ const uploadLogo = multer({
 // Dependências injetadas pelo server.js
 // ──────────────────────────────────────────────────────────────────────────────
 let _postgrestRequest;
-let _supabase;
 
 function init({ postgrestRequest }) {
   _postgrestRequest = postgrestRequest;
-
-  // Inicializar Supabase Storage (lazy — só se as vars existirem)
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (supabaseUrl && supabaseKey) {
-    _supabase = createClient(supabaseUrl, supabaseKey);
-  } else {
-    console.warn('[branding] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausentes — upload de logo desabilitado.');
-  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -66,39 +57,12 @@ function isValidHex(c) {
 }
 
 /**
- * Faz upload do logo para Supabase Storage e retorna a URL pública.
- * Path: branding/logo/<id_grupo>/<sha8>.<ext>
- * Retorna null se Supabase não estiver configurado (fail-safe).
+ * Converte o arquivo de logo (buffer + mimetype) num data-URI base64,
+ * guardado diretamente em Branding.logo_url (sem storage externo).
+ * Ex.: "data:image/png;base64,iVBORw0KGgo...". Usável direto em <img src>.
  */
-async function uploadLogoToStorage(idGrupo, fileBuffer, mimetype) {
-  if (!_supabase) return null;
-
-  const ext = mimetype === 'image/svg+xml' ? 'svg'
-    : mimetype === 'image/png' ? 'png'
-    : 'jpg';
-
-  // Nome determinístico via timestamp — sem sha256 para manter Node 14 simples
-  const ts = Date.now();
-  const filePath = `logo/${idGrupo}/${ts}.${ext}`;
-  const bucket = process.env.SUPABASE_BRANDING_BUCKET || 'branding';
-
-  const { error } = await _supabase.storage
-    .from(bucket)
-    .upload(filePath, fileBuffer, {
-      contentType: mimetype,
-      upsert: true, // sobrescreve logo anterior do mesmo grupo
-    });
-
-  if (error) {
-    console.error('[branding] Erro no upload para Supabase Storage:', error.message);
-    return null;
-  }
-
-  const { data: publicData } = _supabase.storage
-    .from(bucket)
-    .getPublicUrl(filePath);
-
-  return publicData ? publicData.publicUrl : null;
+function fileToDataUri(fileBuffer, mimetype) {
+  return `data:${mimetype};base64,${fileBuffer.toString('base64')}`;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -202,19 +166,9 @@ router.put('/', uploadLogo.single('logo'), async (req, res) => {
       update.logo_url = null;
     }
 
-    // Upload de logo (se arquivo enviado e remove_logo não ativo)
+    // Logo enviado (e remove_logo não ativo): grava como data-URI em logo_url
     if (req.file && !removeLogo) {
-      const logoUrl = await uploadLogoToStorage(
-        idGrupoInt,
-        req.file.buffer,
-        req.file.mimetype
-      );
-      if (logoUrl) {
-        update.logo_url = logoUrl;
-      } else {
-        // Supabase indisponível: aceitar sem logo (não bloquear o upsert)
-        console.warn('[PUT /empresa/branding] Upload de logo falhou — prosseguindo sem atualizar logo_url.');
-      }
+      update.logo_url = fileToDataUri(req.file.buffer, req.file.mimetype);
     }
 
     // Sem campos para atualizar (exceto logo): ainda assim fazer upsert com updated_at
