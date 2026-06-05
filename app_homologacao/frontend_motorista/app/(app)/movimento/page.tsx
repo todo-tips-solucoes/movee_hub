@@ -16,6 +16,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CountUp } from '@/components/ui/count-up';
+import { CopyButton } from '@/components/ui/copy-button';
 import { Wordmark } from '@/components/brand/wordmark';
 import { Aurora } from '@/components/brand/aurora';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -202,32 +203,45 @@ export default function MovimentoPage() {
                       </p>
                     )}
                     {movimento.cnpjTomador && (
-                      <p className="tabular mt-0.5 text-sm text-muted-foreground">
-                        {formatCNPJ(movimento.cnpjTomador)}
-                      </p>
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <p className="tabular text-sm text-muted-foreground">
+                          {formatCNPJ(movimento.cnpjTomador)}
+                        </p>
+                        <CopyButton value={formatCNPJ(movimento.cnpjTomador)} label="CNPJ copiado" className="-my-2" />
+                      </div>
                     )}
                     {(movimento.tomador?.endereco || movimento.tomador?.email) && (
-                      <div className="mt-3 space-y-1.5 border-t border-border/60 pt-3 text-sm text-muted-foreground">
+                      <div className="mt-3 space-y-1 border-t border-border/60 pt-3 text-sm text-muted-foreground">
                         {movimento.tomador?.endereco && (
-                          <p className="flex items-start gap-2">
-                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" />
-                            <span>
-                              {movimento.tomador.endereco}
-                              {movimento.tomador.numero ? `, ${movimento.tomador.numero}` : ''}
-                              {movimento.tomador.cep ? (
-                                <>
-                                  {' — CEP '}
-                                  <span className="tabular">{movimento.tomador.cep}</span>
-                                </>
-                              ) : null}
-                            </span>
-                          </p>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="flex items-start gap-2">
+                              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" />
+                              <span>
+                                {movimento.tomador.endereco}
+                                {movimento.tomador.numero ? `, ${movimento.tomador.numero}` : ''}
+                                {movimento.tomador.cep ? (
+                                  <>
+                                    {' — CEP '}
+                                    <span className="tabular">{movimento.tomador.cep}</span>
+                                  </>
+                                ) : null}
+                              </span>
+                            </p>
+                            <CopyButton
+                              value={`${movimento.tomador.endereco}${movimento.tomador.numero ? `, ${movimento.tomador.numero}` : ''}${movimento.tomador.cep ? ` - CEP ${movimento.tomador.cep}` : ''}`}
+                              label="Endereço copiado"
+                              className="-my-2"
+                            />
+                          </div>
                         )}
                         {movimento.tomador?.email && (
-                          <p className="flex items-center gap-2">
-                            <Mail className="h-4 w-4 shrink-0 text-primary/70" />
-                            <span className="break-all">{movimento.tomador.email}</span>
-                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="flex min-w-0 items-center gap-2">
+                              <Mail className="h-4 w-4 shrink-0 text-primary/70" />
+                              <span className="break-all">{movimento.tomador.email}</span>
+                            </p>
+                            <CopyButton value={movimento.tomador.email} label="E-mail copiado" className="-my-2" />
+                          </div>
                         )}
                       </div>
                     )}
@@ -237,7 +251,7 @@ export default function MovimentoPage() {
                 {movimento.tribnac && (
                   <div className="glass col-span-2 rounded-2xl p-4">
                     <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                      TribNac
+                      Tributação Nacional
                     </p>
                     <p className="tabular mt-1 text-xl font-semibold">{movimento.tribnac}</p>
                   </div>

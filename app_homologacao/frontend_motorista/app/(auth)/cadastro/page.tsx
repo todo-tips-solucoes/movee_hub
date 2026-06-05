@@ -25,8 +25,9 @@ export default function CadastroPage() {
   const [cnpj, setCnpj] = useState('');
   const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
+  const [confirmaSenha, setConfirmaSenha] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ cnpj?: string; nome?: string; senha?: string; geral?: string }>({});
+  const [errors, setErrors] = useState<{ cnpj?: string; nome?: string; senha?: string; confirmaSenha?: string; geral?: string }>({});
 
   function validate() {
     const errs: typeof errors = {};
@@ -34,6 +35,8 @@ export default function CadastroPage() {
     if (!cnpjDigits || cnpjDigits.length !== 14) errs.cnpj = 'CNPJ inválido. Informe os 14 dígitos.';
     if (!nome.trim()) errs.nome = 'Informe seu nome.';
     if (!senha || senha.length < 8) errs.senha = 'A senha deve ter pelo menos 8 caracteres.';
+    if (!confirmaSenha) errs.confirmaSenha = 'Confirme a senha.';
+    else if (senha !== confirmaSenha) errs.confirmaSenha = 'As senhas não coincidem.';
     return errs;
   }
 
@@ -144,6 +147,21 @@ export default function CadastroPage() {
                   disabled={loading}
                 />
                 {errors.senha && <p className="text-sm text-destructive">{errors.senha}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="confirmaSenha">Confirmar senha</Label>
+                <Input
+                  id="confirmaSenha"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmaSenha}
+                  onChange={(e) => setConfirmaSenha(e.target.value)}
+                  placeholder="Repita a senha"
+                  aria-invalid={!!errors.confirmaSenha}
+                  disabled={loading}
+                />
+                {errors.confirmaSenha && <p className="text-sm text-destructive">{errors.confirmaSenha}</p>}
               </div>
 
               {errors.geral && (
