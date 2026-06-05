@@ -69,7 +69,7 @@ export function DataTable({
           data.map((item) => {
             const xmlUrl = getXmlUrl(item.nota_ok);
             return (
-              <div key={item.id} className={`rounded-lg border p-3 space-y-2 ${item.enviado === 'erro' ? 'border-red-500/30 bg-red-500/5' : ''}`}>
+              <div key={item.id} className={`rounded-lg border p-3 space-y-2 ${item.enviado === 'erro' ? 'border-destructive/30 bg-destructive/5' : ''}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <Checkbox
@@ -94,9 +94,9 @@ export function DataTable({
                   <span className="font-mono font-medium">{formatBRL(item.valor)}</span>
                   <span className="flex items-center gap-1">
                     {item.enviado === 'ok' ? (
-                      <><Check className="h-3.5 w-3.5 text-green-500" /> Enviado</>
+                      <><Check className="h-3.5 w-3.5 text-success" /> Enviado</>
                     ) : item.enviado === 'erro' ? (
-                      <><X className="h-3.5 w-3.5 text-red-500" /> Erro</>
+                      <><X className="h-3.5 w-3.5 text-destructive" /> Erro</>
                     ) : (
                       <span className="text-muted-foreground">Nao enviado</span>
                     )}
@@ -104,7 +104,7 @@ export function DataTable({
                   {item.numnota && <span className="text-muted-foreground">Nota: {item.numnota}</span>}
                   {item.data_emissao && <span className="text-muted-foreground">{formatDateBR(item.data_emissao)}</span>}
                   {item.erro_validacao && (
-                    <span className="flex items-center gap-1 text-red-500">
+                    <span className="flex items-center gap-1 text-destructive">
                       <AlertCircle className="h-3.5 w-3.5" /> Erro val.
                     </span>
                   )}
@@ -167,14 +167,14 @@ export function DataTable({
                     <TableCell className="font-mono">{formatBRL(item.valor)}</TableCell>
                     <TableCell className="text-center">
                       {item.enviado === 'ok' ? (
-                        <Check className="mx-auto h-4 w-4 text-green-500" />
+                        <Check className="mx-auto h-4 w-4 text-success" />
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
                       {item.enviado === 'erro' ? (
-                        <X className="mx-auto h-4 w-4 text-red-500" />
+                        <X className="mx-auto h-4 w-4 text-destructive" />
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
@@ -199,7 +199,7 @@ export function DataTable({
                       {item.erro_validacao ? (
                         <Tooltip>
                           <TooltipTrigger>
-                            <AlertCircle className="mx-auto h-4 w-4 text-red-500" />
+                            <AlertCircle className="mx-auto h-4 w-4 text-destructive" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs">
                             <p>{item.erro_validacao}</p>

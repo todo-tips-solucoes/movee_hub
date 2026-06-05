@@ -106,7 +106,7 @@ export default function GrupoPage() {
   if (!isGrupoPai) {
     return (
       <div className="max-w-xl mx-auto mt-8 p-6 rounded-lg border bg-card text-card-foreground">
-        <h1 className="text-xl font-semibold mb-2">Grupo de CNPJs</h1>
+        <h1 className="font-display text-xl font-semibold mb-2">Grupo de CNPJs</h1>
         <p className="text-muted-foreground text-sm">
           O gerenciamento de filhos está disponível apenas para o administrador do grupo.
         </p>
@@ -117,7 +117,7 @@ export default function GrupoPage() {
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Grupo de CNPJs</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Grupo de CNPJs</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Vincule e gerencie as empresas filhas do seu grupo. Máximo de 100 filhos.
         </p>
@@ -154,7 +154,7 @@ export default function GrupoPage() {
           <p className="text-sm text-destructive">{vinculoErro}</p>
         )}
         {vinculoSucesso && (
-          <p className="text-sm text-green-600 dark:text-green-400">Empresa vinculada com sucesso.</p>
+          <p className="text-sm text-success">Empresa vinculada com sucesso.</p>
         )}
       </div>
 
@@ -191,7 +191,7 @@ export default function GrupoPage() {
               <div key={f.id} className="flex items-center justify-between px-4 py-3 bg-card hover:bg-muted/50 transition-colors">
                 <div>
                   <p className="text-sm font-medium">{f.nome_empresa}</p>
-                  <p className="text-xs text-muted-foreground">ID: {f.id}{f.email ? ` · ${f.email}` : ''}</p>
+                  <p className="text-xs text-muted-foreground">ID: <span className="tabular">{f.id}</span>{f.email ? ` · ${f.email}` : ''}</p>
                 </div>
                 <button
                   type="button"

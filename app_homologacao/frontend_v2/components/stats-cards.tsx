@@ -9,12 +9,14 @@ interface StatsCardsProps {
   stats: StatsData;
 }
 
+// Identidade Movee — status mapeados a tokens semânticos (primary/success/
+// destructive). A distinção entre cards positivos/negativos vem do ícone + label.
 const cards = [
-  { key: 'total' as const, label: 'Total de Registros', icon: FileText, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-  { key: 'msgEnviada' as const, label: 'Mensagens Enviadas', icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10' },
-  { key: 'msgErro' as const, label: 'Mensagens com Erro', icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10' },
-  { key: 'xmlEnviado' as const, label: 'XMLs Enviados', icon: FileCheck, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-  { key: 'xmlErro' as const, label: 'XMLs com Erro', icon: FileX, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+  { key: 'total' as const, label: 'Total de Registros', icon: FileText, color: 'text-primary', bg: 'bg-primary/10' },
+  { key: 'msgEnviada' as const, label: 'Mensagens Enviadas', icon: CheckCircle, color: 'text-success', bg: 'bg-success/10' },
+  { key: 'msgErro' as const, label: 'Mensagens com Erro', icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/10' },
+  { key: 'xmlEnviado' as const, label: 'XMLs Enviados', icon: FileCheck, color: 'text-success', bg: 'bg-success/10' },
+  { key: 'xmlErro' as const, label: 'XMLs com Erro', icon: FileX, color: 'text-destructive', bg: 'bg-destructive/10' },
 ];
 
 export function StatsCards({ stats }: StatsCardsProps) {
@@ -39,7 +41,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-baseline gap-1.5">
-                    <p className="text-2xl font-bold tabular-nums">{stats[card.key]}</p>
+                    <p className="tabular text-2xl font-bold">{stats[card.key]}</p>
                     {percentage !== null && (
                       <span className="text-xs text-muted-foreground">({percentage}%)</span>
                     )}

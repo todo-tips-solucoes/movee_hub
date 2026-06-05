@@ -23,7 +23,7 @@ export function ProcessControls({ isActive, isLoading, onStart, onStop }: Proces
           <Button
             size="sm"
             variant={isActive ? 'outline' : 'default'}
-            className={`gap-1.5 ${!isActive && !isLoading ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+            className={`gap-1.5 ${!isActive && !isLoading ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`}
             onClick={onStart}
             disabled={isActive || isLoading}
           />
@@ -42,7 +42,7 @@ export function ProcessControls({ isActive, isLoading, onStart, onStop }: Proces
           <Button
             size="sm"
             variant="outline"
-            className={`gap-1.5 ${isActive ? 'border-red-500/50 text-red-500 hover:bg-red-500/10 hover:text-red-500' : ''}`}
+            className={`gap-1.5 ${isActive ? 'border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive' : ''}`}
             onClick={onStop}
             disabled={!isActive || isLoading}
           />
@@ -57,10 +57,10 @@ export function ProcessControls({ isActive, isLoading, onStart, onStop }: Proces
         <TooltipContent>Parar processamento</TooltipContent>
       </Tooltip>
       {isActive && (
-        <span className="flex items-center gap-1.5 text-sm font-medium text-green-500">
+        <span className="flex items-center gap-1.5 text-sm font-medium text-success">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-success" />
           </span>
           Processando...
         </span>

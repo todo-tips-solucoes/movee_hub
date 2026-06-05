@@ -39,7 +39,7 @@ export function CloseMovementDialog({ onConfirm }: CloseMovementDialogProps) {
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button size="sm" variant="outline" className="gap-1.5 text-orange-500 hover:text-orange-600" />}>
+      <AlertDialogTrigger render={<Button size="sm" variant="outline" className="gap-1.5 text-warm-2 hover:text-warm-3" />}>
         <Lock className="h-4 w-4" />
         Fechar Movimento
       </AlertDialogTrigger>

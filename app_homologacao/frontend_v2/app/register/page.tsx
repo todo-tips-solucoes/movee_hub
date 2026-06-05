@@ -31,11 +31,11 @@ function PasswordStrength({ password }: { password: string }) {
       {rules.map((r) => (
         <div key={r.label} className="flex items-center gap-1.5 text-xs">
           {r.ok ? (
-            <Check className="h-3 w-3 text-green-500" />
+            <Check className="h-3 w-3 text-success" />
           ) : (
             <X className="h-3 w-3 text-muted-foreground" />
           )}
-          <span className={r.ok ? 'text-green-500' : 'text-muted-foreground'}>{r.label}</span>
+          <span className={r.ok ? 'text-success' : 'text-muted-foreground'}>{r.label}</span>
         </div>
       ))}
     </motion.div>
@@ -76,26 +76,34 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-br from-background via-background to-muted/50">
-      <div className="absolute top-4 right-4">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10">
+      {/* Hero Movee — superfície base + aurora quente assinatura */}
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-background" />
+      <div className="aurora-orb bg-gradient-warm -right-24 -top-24 h-72 w-72 animate-float" aria-hidden />
+      <div
+        className="aurora-orb bg-gradient-blue -bottom-32 -left-24 h-80 w-80 animate-float-soft"
+        aria-hidden
+      />
+      <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
       </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
+        className="w-full max-w-sm"
       >
-        <Card className="w-full max-w-sm shadow-lg">
+        <Card className="glass w-full border-0 shadow-none">
           <CardHeader className="text-center">
             <motion.div
-              className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10"
+              className="shine shine-once mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-warm-rich text-white shadow-lg"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
             >
-              <Send className="h-7 w-7 text-primary" />
+              <Send className="h-7 w-7" />
             </motion.div>
-            <CardTitle className="text-2xl">Criar Conta</CardTitle>
+            <CardTitle className="font-display text-2xl">Criar Conta</CardTitle>
             <CardDescription>Preencha os dados para se registrar</CardDescription>
           </CardHeader>
           <CardContent>

@@ -202,11 +202,11 @@ export function XmlValidationCard() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Card size="sm">
                 <CardContent className="flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-                    <FileText className="h-5 w-5 text-blue-500" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <FileText className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{data.stats.total}</p>
+                    <p className="tabular text-2xl font-bold">{data.stats.total}</p>
                     <p className="text-xs text-muted-foreground">Notas Validadas</p>
                   </div>
                 </CardContent>
@@ -214,11 +214,11 @@ export function XmlValidationCard() {
 
               <Card size="sm">
                 <CardContent className="flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10">
+                    <CheckCircle2 className="h-5 w-5 text-success" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{data.stats.success}</p>
+                    <p className="tabular text-2xl font-bold text-success">{data.stats.success}</p>
                     <p className="text-xs text-muted-foreground">Sucesso</p>
                   </div>
                 </CardContent>
@@ -226,11 +226,11 @@ export function XmlValidationCard() {
 
               <Card size="sm">
                 <CardContent className="flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10">
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">{data.stats.errors}</p>
+                    <p className="tabular text-2xl font-bold text-destructive">{data.stats.errors}</p>
                     <p className="text-xs text-muted-foreground">Erros</p>
                   </div>
                 </CardContent>
@@ -269,19 +269,19 @@ export function XmlValidationCard() {
                     </thead>
                     <tbody>
                       {paginatedResults.map((row, i) => (
-                        <tr key={i} className={`border-b last:border-0 ${row.valid ? '' : 'bg-red-500/5'}`}>
+                        <tr key={i} className={`border-b last:border-0 ${row.valid ? '' : 'bg-destructive/5'}`}>
                           <td className="py-2 pr-3 max-w-[180px] truncate" title={row.filename}>{row.filename}</td>
                           <td className="py-2 pr-3 font-mono">{row.cnpj_prestador}</td>
                           <td className="py-2 pr-3 max-w-[150px] truncate" title={row.razao_social}>{row.razao_social}</td>
                           <td className="py-2 pr-3">R$ {row.valor_nota}</td>
                           <td className="py-2 pr-3">{row.data_emissao ? new Date(row.data_emissao).toLocaleDateString('pt-BR') : ''}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" /> : <FileX2 className="h-4 w-4 text-red-500 mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_cnpj_prestador ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" /> : <FileX2 className="h-4 w-4 text-red-500 mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_cnpj ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" /> : <FileX2 className="h-4 w-4 text-red-500 mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_descricao_servico ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" /> : <FileX2 className="h-4 w-4 text-red-500 mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_valor ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" /> : <FileX2 className="h-4 w-4 text-red-500 mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_trib_nac ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" /> : <FileX2 className="h-4 w-4 text-red-500 mx-auto" />}</td>
-                          <td className="py-2 text-center">{row.valid_dCompet ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" /> : <FileX2 className="h-4 w-4 text-red-500 mx-auto" />}</td>
+                          <td className="py-2 pr-3 text-center">{row.valid ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
+                          <td className="py-2 pr-3 text-center">{row.valid_cnpj_prestador ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
+                          <td className="py-2 pr-3 text-center">{row.valid_cnpj ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
+                          <td className="py-2 pr-3 text-center">{row.valid_descricao_servico ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
+                          <td className="py-2 pr-3 text-center">{row.valid_valor ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
+                          <td className="py-2 pr-3 text-center">{row.valid_trib_nac ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
+                          <td className="py-2 text-center">{row.valid_dCompet ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
                         </tr>
                       ))}
                     </tbody>

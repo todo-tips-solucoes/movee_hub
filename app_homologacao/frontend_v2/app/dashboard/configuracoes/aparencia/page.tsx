@@ -21,8 +21,8 @@ import { useTenantTheme } from '@/contexts/tenant-theme-context';
 import { useAuth } from '@/contexts/auth-context';
 
 const MOVEE_DEFAULTS = {
-  cor_primaria: '#E97316',
-  cor_destaque: '#F59E0B',
+  cor_primaria: '#1F63EB',
+  cor_destaque: '#FF7A18',
   nome_exibicao: 'Movee',
 };
 
@@ -121,7 +121,7 @@ export default function AparenciaPage() {
   if (!isGrupoPai) {
     return (
       <div className="max-w-xl mx-auto mt-8 p-6 rounded-lg border bg-card text-card-foreground">
-        <h1 className="text-xl font-semibold mb-2">Aparência</h1>
+        <h1 className="font-display text-xl font-semibold mb-2">Aparência</h1>
         <p className="text-muted-foreground text-sm">
           A personalização de aparência está disponível apenas para o administrador do grupo de CNPJs.
         </p>
@@ -132,7 +132,7 @@ export default function AparenciaPage() {
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Aparência</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Aparência</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Personalize a identidade visual exibida no painel e no App Motorista.
         </p>
@@ -205,7 +205,7 @@ export default function AparenciaPage() {
                 if (/^#[0-9a-fA-F]{0,6}$/.test(v)) handleCorChange('cor_primaria', v);
               }}
               className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
-              placeholder="#E97316"
+              placeholder="#1F63EB"
             />
             <span className="text-xs text-muted-foreground">Botões, links, destaque principal</span>
           </div>
@@ -233,7 +233,7 @@ export default function AparenciaPage() {
                 if (/^#[0-9a-fA-F]{0,6}$/.test(v)) handleCorChange('cor_destaque', v);
               }}
               className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
-              placeholder="#F59E0B"
+              placeholder="#FF7A18"
             />
             <span className="text-xs text-muted-foreground">Gradiente, badges, acentos</span>
           </div>
@@ -281,7 +281,7 @@ export default function AparenciaPage() {
         </div>
       )}
       {success && (
-        <div className="rounded-md border border-green-500/50 bg-green-500/10 px-4 py-3 text-sm text-green-600 dark:text-green-400">
+        <div className="rounded-md border border-success/50 bg-success/10 px-4 py-3 text-sm text-success">
           Aparência salva com sucesso.
         </div>
       )}

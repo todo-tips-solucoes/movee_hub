@@ -52,9 +52,12 @@ export interface TenantThemeContextValue {
 // Campos non-nullable de propósito: Required<> só remove `?` (undefined), não
 // `null` — tipar explicitamente como string garante que primary/accent abaixo
 // nunca sejam string|null (corrige type check do hexToOklch).
+// Identidade Movee real: primária azul royal + destaque do gradiente quente
+// (warm-2). Consistente com os defaults do globals.css (:root). A branding do
+// tenant continua sobrescrevendo estes valores em runtime.
 const MOVEE_DEFAULTS: { cor_primaria: string; cor_destaque: string; nome_exibicao: string } = {
-  cor_primaria: '#E97316',
-  cor_destaque: '#F59E0B',
+  cor_primaria: '#1F63EB',
+  cor_destaque: '#FF7A18',
   nome_exibicao: 'Movee',
 };
 
