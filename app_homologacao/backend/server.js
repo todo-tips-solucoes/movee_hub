@@ -18,6 +18,9 @@ const xml2js = require('xml2js');
 // App Motorista — rotas /motorista/*
 const motoristaRoutes = require('./routes/motorista');
 
+// config-ui-tenant — rotas /grupo/* + helper resolveScope
+const grupoRoutes = require('./routes/grupo');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 
@@ -139,7 +142,37 @@ app.post('/login', async (req, res) => {
     if (!isValidPassword) {
       return res.status(400).json({ error: 'Email ou senha incorretos' });
     }
-    const payload = { empresaId: user.id, nome_empresa: user.nome_empresa, workflow_id: user.workflow_id, sender: user.sender, tk: user.tk,  connection_id: user.connection_id};
+    // config-ui-tenant: enriquecer o payload com id_grupo e is_grupo_pai
+    // (lidos da tabela Empresa + Grupo — sem alterar campos existentes)
+    let idGrupo = user.id_grupo || null;
+    let isGrupoPai = false;
+    if (user.id_grupo) {
+      // Verificar se esta empresa é a administradora (pai) do grupo
+      try {
+        const grupoCheck = await postgrestRequest(
+          `Grupo?id_empresa_pai=eq.${user.id}&select=id`
+        );
+        if (grupoCheck && grupoCheck.length > 0) {
+          isGrupoPai = true;
+          idGrupo = grupoCheck[0].id;
+        }
+      } catch (_e) {
+        // Falha ao checar grupo: degradar para sem-grupo (fail-safe)
+        idGrupo = null;
+        isGrupoPai = false;
+      }
+    }
+    const payload = {
+      empresaId: user.id,
+      nome_empresa: user.nome_empresa,
+      workflow_id: user.workflow_id,
+      sender: user.sender,
+      tk: user.tk,
+      connection_id: user.connection_id,
+      // config-ui-tenant: claims de grupo (Princípio II v1.1.0)
+      id_grupo: idGrupo,
+      is_grupo_pai: isGrupoPai,
+    };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
@@ -1759,6 +1792,10 @@ app.post('/logout', (req, res) => {
 // App Motorista — injetar dependências e montar rotas /motorista/*
 motoristaRoutes.init({ postgrestRequest, generatePostgrestJWT });
 app.use('/motorista', motoristaRoutes.router);
+
+// config-ui-tenant — injetar dependências e montar rotas /grupo/*
+grupoRoutes.init({ postgrestRequest });
+app.use('/grupo', authenticateToken, grupoRoutes.router);
 
 // Iniciar o servidor
 app.listen(3000, () => {
