@@ -10,6 +10,21 @@ Sync Impact Report
   - CLAUDE.md: AUSENTE (criar futuramente para refletir estes princípios) — pendente
   - README.md (raiz/backend/frontend_v2): já alinhados (auth por cookie, segredos fora do git)
 - TODOs pendentes: nenhum
+
+Amendment v1.1.0 — 2026-06-05
+- Version: 1.0.0 → 1.1.0
+- Tipo de bump: MINOR (expansão material do Princípio II)
+- Feature: config-ui-tenant (White-label por Tenant + Grupo de CNPJs)
+- Princípio ampliado: II. Isolamento Multi-Tenant por Empresa
+- Mudança semântica: suporte a Grupos de CNPJs (pai + filhos). O invariante crítico
+  é preservado — escopo resolvido server-side a partir do token, nunca do corpo da
+  requisição. Tokens de filhos continuam vendo apenas a própria empresa; apenas tokens
+  marcados como is_grupo_pai operam sobre o conjunto de filhos.
+- Artefatos que precisam atualização manual:
+  - docs/specs/config-ui-tenant/ — spec/plan/tasks já gerados para esta feature
+  - app_homologacao/backend/ — implementação das rotas de Grupo e Branding
+  - frontend_v2/ e frontend_motorista/ — TenantThemeProvider
+- TODOs pendentes: aplicar DDL aditivo (docs/sql/) no banco após geração
 -->
 
 # Movee Hub — Envio em Massa — Constitution
@@ -41,6 +56,14 @@ homologação. Estes princípios são o gate de qualquer spec, plan, task ou PR.
   *(Why: previne acesso cruzado entre empresas — falha de tenant isolation é crítica.)*
 - **MUST**: endpoints que mutam ou leem dados de negócio exigem o middleware
   `authenticateToken`. Rotas públicas se limitam a `login`, `register`, `token/refresh`.
+
+> **Amendment MINOR v1.1.0 (feature config-ui-tenant):** o escopo multi-tenant
+> expande-se para suportar Grupos de CNPJs. O invariante crítico (escopo resolvido
+> server-side a partir do token, nunca do corpo da requisição) é preservado. Tokens
+> de filhos continuam vendo apenas a própria empresa; apenas tokens marcados como
+> `is_grupo_pai` operam sobre o conjunto de filhos via o helper `resolveScope`
+> (próprio + filhos diretos, sem recursão). O campo `id_grupo` é lido do token JWT,
+> nunca do corpo da requisição.
 
 ### III. Contratos de API & Proxy de Cookies
 
@@ -101,4 +124,4 @@ homologação. Estes princípios são o gate de qualquer spec, plan, task ou PR.
 - Conflitos entre princípios são resolvidos promovendo um a MUST e rebaixando o outro a
   SHOULD com trade-off documentado.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-03 | **Last Amended**: 2026-06-03
+**Version**: 1.1.0 | **Ratified**: 2026-06-03 | **Last Amended**: 2026-06-05
