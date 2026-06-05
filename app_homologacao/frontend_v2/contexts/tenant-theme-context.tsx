@@ -49,7 +49,10 @@ export interface TenantThemeContextValue {
 
 // ── Defaults Movee (dec-028, CHK057) ────────────────────────────────────────
 
-const MOVEE_DEFAULTS: Required<Pick<BrandingPayload, 'cor_primaria' | 'cor_destaque' | 'nome_exibicao'>> = {
+// Campos non-nullable de propósito: Required<> só remove `?` (undefined), não
+// `null` — tipar explicitamente como string garante que primary/accent abaixo
+// nunca sejam string|null (corrige type check do hexToOklch).
+const MOVEE_DEFAULTS: { cor_primaria: string; cor_destaque: string; nome_exibicao: string } = {
   cor_primaria: '#E97316',
   cor_destaque: '#F59E0B',
   nome_exibicao: 'Movee',
