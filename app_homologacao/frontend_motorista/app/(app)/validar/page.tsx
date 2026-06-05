@@ -159,7 +159,7 @@ export default function ValidarPage() {
               <div>
                 <p className="font-display font-semibold text-foreground">{file.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {(file.size / 1024).toFixed(1)} KB · toque para trocar
+                  <span className="tabular">{(file.size / 1024).toFixed(1)} KB</span> · toque para trocar
                 </p>
               </div>
             ) : (

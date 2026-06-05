@@ -157,7 +157,7 @@ export default function MovimentoPage() {
                 <p className="mt-4 text-xs font-medium uppercase tracking-[0.18em] text-white/75">
                   Valor da nota fiscal
                 </p>
-                <p className="font-display mt-1 text-[2.6rem] font-extrabold leading-none tracking-tight tabular-nums [text-shadow:0_2px_18px_rgba(0,0,0,0.18)]">
+                <p className="tabular mt-1.5 text-[2.7rem] font-bold leading-none tracking-tight [text-shadow:0_2px_22px_rgba(0,0,0,0.22)]">
                   {isNaN(valorNum) ? (
                     formatCurrency(movimento.valor)
                   ) : (
@@ -165,62 +165,71 @@ export default function MovimentoPage() {
                   )}
                 </p>
                 <div className="bg-gradient-warm-rich animate-gradient mt-4 h-1.5 w-16 rounded-full" />
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/12 px-2.5 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 opacity-80">
                       <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
                     </svg>
-                    {formatDate(movimento.dtInicial)}
+                    <span className="tabular">{formatDate(movimento.dtInicial)}</span>
                   </span>
                   <span className="flex items-center text-white/50">→</span>
                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/12 px-2.5 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 opacity-80">
                       <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
                     </svg>
-                    {formatDate(movimento.dtFinal)}
+                    <span className="tabular">{formatDate(movimento.dtFinal)}</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Dados fiscais — glass */}
-            <div className="glass animate-fade-up stagger rounded-2xl p-5" style={{ ['--d' as string]: '90ms' }}>
-              <h2 className="font-display mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {/* Dados fiscais — bento grid */}
+            <div className="animate-fade-up stagger" style={{ ['--d' as string]: '90ms' }}>
+              <h2 className="font-display mb-2.5 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 Dados Fiscais
               </h2>
-              <dl className="divide-y divide-border/70 text-sm">
-                {movimento.nome && (
-                  <div className="flex items-center justify-between gap-3 py-2.5">
-                    <dt className="text-muted-foreground">Nome</dt>
-                    <dd className="font-display text-right font-semibold">{movimento.nome}</dd>
+              <div className="grid grid-cols-2 gap-3">
+                {(movimento.nome || movimento.cnpjTomador) && (
+                  <div className="glass col-span-2 rounded-2xl p-4">
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Tomador
+                    </p>
+                    {movimento.nome && (
+                      <p className="font-display mt-1 font-semibold leading-snug">{movimento.nome}</p>
+                    )}
+                    {movimento.cnpjTomador && (
+                      <p className="tabular mt-0.5 text-sm text-muted-foreground">
+                        {formatCNPJ(movimento.cnpjTomador)}
+                      </p>
+                    )}
                   </div>
                 )}
-                {movimento.cnpjTomador && (
-                  <div className="flex items-center justify-between gap-3 py-2.5">
-                    <dt className="text-muted-foreground">CNPJ Tomador</dt>
-                    <dd className="font-display font-semibold tabular-nums">{formatCNPJ(movimento.cnpjTomador)}</dd>
-                  </div>
-                )}
+
                 {movimento.tribnac && (
-                  <div className="flex items-center justify-between gap-3 py-2.5">
-                    <dt className="text-muted-foreground">TribNac</dt>
-                    <dd className="font-display font-semibold">{movimento.tribnac}</dd>
+                  <div className="glass rounded-2xl p-4">
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                      TribNac
+                    </p>
+                    <p className="tabular mt-1 text-xl font-semibold">{movimento.tribnac}</p>
                   </div>
                 )}
-                <div className="flex items-center justify-between gap-3 py-2.5">
-                  <dt className="text-muted-foreground">Status da NF</dt>
-                  <dd>
+
+                <div className={cn('glass flex flex-col justify-between rounded-2xl p-4', !movimento.tribnac && 'col-span-2')}>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Status da NF
+                  </p>
+                  <div className="mt-2">
                     {notaAprovada ? (
                       <Badge variant="success">● Aprovada</Badge>
                     ) : (
                       <Badge variant="warning">● Pendente</Badge>
                     )}
-                  </dd>
+                  </div>
                 </div>
-              </dl>
+              </div>
             </div>
 
             {/* Status detalhado */}
@@ -248,12 +257,14 @@ export default function MovimentoPage() {
             {/* Ações */}
             <div className="animate-fade-up stagger space-y-2.5 pt-1" style={{ ['--d' as string]: '210ms' }}>
               {!notaAprovada && (
-                <Link href="/validar" className={cn(buttonVariants({ variant: 'warm', size: 'lg' }), 'w-full')}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Validar minha NFS-e
-                </Link>
+                <div className="glow-warm relative">
+                  <Link href="/validar" className={cn(buttonVariants({ variant: 'warm', size: 'lg' }), 'relative z-10 w-full')}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Validar minha NFS-e
+                  </Link>
+                </div>
               )}
 
               <a

@@ -1,0 +1,46 @@
+Utilize a Skill ui-ux-pro-max-skill para construir essa landing page
+
+Desenvolva uma landing page altamente profissional em React para um construtor de sites com inteligência artificial (produto fictício).
+
+A interface deve transmitir qualidade premium e foco em conversão, com estética comparável a startups SaaS de alto nível.
+
+Direção de design:
+- Estilo SaaS sofisticado
+- Visual moderno e minimalista
+- Estrutura limpa com uso inteligente de espaços em branco
+- Tipografia refinada e bem escolhida
+- Uso sutil de gradientes (sem exageros)
+- Aparência visual de alto padrão
+- Ícones e identidade visual baseados em preto e branco
+- Nome da marca: RodriSaas
+
+Estrutura da página
+
+Organize a landing page com as seguintes seções:
+
+Hero section com:
+- Headline forte e direta
+- Subtítulo persuasivo
+- CTA principal
+- CTA secundário
+- Prova social (ex: logos ou “confiável por”)
+- Seção de benefícios
+- Explicação de funcionamento em 3 etapas simples
+- Destaque das principais funcionalidades
+- Depoimentos de usuários
+- Planos e preços
+- FAQ (perguntas frequentes)
+- Seção final de conversão (call to action)
+- Rodapé completo
+
+Requisitos de qualidade:
+- Estrutura visual com hierarquia bem definida
+- Alinhamento e espaçamento extremamente bem ajustados
+- Aplicar boas práticas modernas de UI/UX
+- Layout totalmente responsivo (mobile + desktop)
+- Evitar aparência genérica ou “template padrão”
+- O resultado deve parecer um produto real e pronto para produção
+
+Objetivo final
+
+Criar uma landing page com nível visual e percepção de valor equivalente a um projeto profissional na faixa de R$10.000.

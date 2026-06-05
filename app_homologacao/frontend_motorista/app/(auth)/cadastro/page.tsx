@@ -103,6 +103,7 @@ export default function CadastroPage() {
                 placeholder="00.000.000/0000-00"
                 aria-invalid={!!errors.cnpj}
                 disabled={loading}
+                className="tabular"
               />
               {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj}</p>}
             </div>

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Poppins } from 'next/font/google';
+import { Inter, Poppins, JetBrains_Mono } from 'next/font/google';
 import { AuthProvider } from '@/contexts/auth-context';
 import { Toaster } from 'sonner';
 import './globals.css';
@@ -9,6 +9,13 @@ const poppins = Poppins({
   subsets: ['latin'],
   weight: ['500', '600', '700', '800'],
   variable: '--font-poppins',
+  display: 'swap',
+});
+// Mono para dados numéricos (valor, CNPJ, datas) — precisão "fintech"
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-jetbrains',
   display: 'swap',
 });
 
@@ -46,7 +53,7 @@ const themeScript = `(function(){try{var t=localStorage.getItem('theme');var d=t
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${poppins.variable}`} suppressHydrationWarning>
+    <html lang="pt-BR" className={`${inter.variable} ${poppins.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

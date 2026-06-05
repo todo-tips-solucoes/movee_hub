@@ -1,0 +1,53 @@
+Utilize a Skill ui-ux-pro-max para redesenhar este aplicativo móvel
+
+Redesenhe a interface do "App Motorista Movee" — um PWA mobile-first (Next.js 16 + React 19 + Tailwind 4 + Serwist) usado por motoristas/prestadores para: consultar o valor da Nota Fiscal do movimento aberto e validar o XML da NFS-e.
+
+IMPORTANTE — escopo: altere APENAS o design (visual, layout, motion, hierarquia, microinterações). NÃO mude funcionalidades, rotas, contratos de API, nomes de campos, lógica de negócio nem o fluxo de telas. É um refinamento puramente estético/UX sobre o app que já existe.
+
+A interface atual está pouco atrativa e simples demais. Quero uma experiência premium, moderna e extremamente prazerosa de navegar — nível de produto real de mercado, comparável aos melhores apps de logística/fintech.
+
+Identidade visual (MANTER EXATAMENTE estas cores e tipografia):
+- Azul royal base: #1F63EB
+- Gradiente quente assinatura da marca (amarelo → laranja → vermelho): #FFC020 → #FF7A18 → #F23A20
+- Verde menta (sucesso): #16A375
+- Vermelho (erro/destrutivo): #EE3B26
+- Tipografia: Poppins (títulos/display) + Inter (corpo)
+- Suporte obrigatório a tema claro E escuro (dark mode), com tokens semânticos
+- Marca "Movee" como wordmark com o gradiente quente assinatura
+- Ícones em SVG (nunca emoji)
+
+Direção de design:
+- Estética premium e contemporânea, com profundidade e camadas (glassmorphism sutil, sombras suaves de marca, gradientes vivos porém elegantes — sem exageros)
+- "Movimento": motion encenado e fluido (entradas em cascata/stagger, transições de 150–300ms, microinterações em toques e estados, contagem animada de valores), sempre respeitando prefers-reduced-motion
+- Hierarquia visual forte e leitura instantânea: o valor da nota é o elemento herói
+- Espaços em branco inteligentes, grid de 8px, alinhamento impecável
+- Mobile-first de verdade: alvos de toque ≥ 44×44px, respeito a safe-area (notch), instalável como PWA
+- Skeletons com shimmer no carregamento (nada de spinners genéricos)
+- Estados vazios, de erro e de sucesso bem desenhados e com personalidade
+- Evitar aparência genérica ou "template padrão"
+
+Telas a redesenhar (manter o conteúdo/função de cada uma):
+1. Splash / carregamento — marca em destaque com identidade de marca
+2. Login — CNPJ do prestador + senha; link para cadastro
+3. Cadastro (auto-cadastro) — CNPJ + nome + senha
+4. Movimento aberto (tela principal):
+   - Card herói com o VALOR da nota fiscal (protagonista, com destaque máximo)
+   - Período (data inicial → data final)
+   - Dados fiscais (nome, CNPJ do tomador, TribNac)
+   - Status da NF (aprovada / pendente) com tratamento visual claro
+   - Ações: "Validar minha NFS-e", abrir o Portal NFS-e Nacional, atualizar
+   - Estado vazio quando não há movimento aberto
+5. Validar NFS-e:
+   - Área de upload/dropzone do XML (toque e arrastar-soltar) com estados
+   - Botão de envio com feedback de carregamento
+   - Resultado de sucesso (nota aprovada) e de erro (campos inválidos)
+
+Requisitos de qualidade:
+- Acessibilidade: contraste mínimo 4.5:1, foco visível, aria-labels, navegação por teclado
+- Animações com significado (não decorativas), suaves, com fallback de reduced-motion
+- Layout totalmente responsivo e consistente entre tema claro e escuro
+- Componentização limpa reaproveitando os primitivos existentes (Button, Input, Card, Badge etc.)
+- Resultado pronto para produção, coeso e polido em todos os detalhes (espaçamento, sombras, raios, estados)
+
+Objetivo final:
+Entregar um app móvel com percepção de valor de um produto profissional de alto padrão — bonito, moderno e prazeroso de usar — preservando 100% da funcionalidade atual e usando exclusivamente a paleta e a tipografia da marca Movee acima.
