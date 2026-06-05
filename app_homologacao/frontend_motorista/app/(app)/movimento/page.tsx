@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
+import { useTenantTheme } from '@/contexts/tenant-theme-context';
 import { api } from '@/lib/api-client';
 import { formatCurrency, formatDate, formatCNPJ, cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -53,6 +54,7 @@ function initials(name: string): string {
 
 export default function MovimentoPage() {
   const { user, logout } = useAuth();
+  const { applyBrandingForMovimento } = useTenantTheme();
   const [movimento, setMovimento] = useState<Movimento | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,6 +64,15 @@ export default function MovimentoPage() {
     try {
       const data = await api.get<{ movimento: Movimento | null }>('/motorista/movimento-aberto');
       setMovimento(data.movimento);
+      // config-ui-tenant: aplicar branding do tomador após carregar o movimento
+      // Cache Map<cnpj_tomador, payload> TTL=sessão (dec-031, CHK066).
+      // Timeout 3000ms server-side (dec-024, CHK038). Fail-silent: não bloqueia a tela.
+      if (data.movimento?.id) {
+        applyBrandingForMovimento(
+          data.movimento.id,
+          data.movimento.cnpjTomador ?? null
+        ).catch(() => { /* fail-silent — branding é progressivo */ });
+      }
     } catch {
       toast.error('Erro ao carregar movimento. Tente novamente.');
       setMovimento(null);
@@ -69,7 +80,7 @@ export default function MovimentoPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [applyBrandingForMovimento]);
 
   useEffect(() => {
     fetchMovimento();

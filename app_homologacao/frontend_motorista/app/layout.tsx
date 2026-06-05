@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Poppins, JetBrains_Mono } from 'next/font/google';
 import { AuthProvider } from '@/contexts/auth-context';
+import { TenantThemeProvider } from '@/contexts/tenant-theme-context';
 import { Toaster } from 'sonner';
 import { SwUpdater } from '@/components/sw-updater';
 import './globals.css';
@@ -60,7 +61,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <AuthProvider>
-          {children}
+          <TenantThemeProvider>
+            {children}
+          </TenantThemeProvider>
           <Toaster position="top-center" richColors />
         </AuthProvider>
         <SwUpdater />
