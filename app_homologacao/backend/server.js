@@ -21,6 +21,9 @@ const motoristaRoutes = require('./routes/motorista');
 // config-ui-tenant — rotas /grupo/* + helper resolveScope
 const grupoRoutes = require('./routes/grupo');
 
+// config-ui-tenant — rotas /empresa/branding + /motorista/branding-tomador
+const brandingRoutes = require('./routes/branding');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 
@@ -1796,6 +1799,15 @@ app.use('/motorista', motoristaRoutes.router);
 // config-ui-tenant — injetar dependências e montar rotas /grupo/*
 grupoRoutes.init({ postgrestRequest });
 app.use('/grupo', authenticateToken, grupoRoutes.router);
+
+// config-ui-tenant — injetar dependências e montar rotas de branding
+brandingRoutes.init({ postgrestRequest });
+// GET/PUT /empresa/branding (auth empresa — token empresa)
+app.use('/empresa/branding', authenticateToken, brandingRoutes.router);
+// GET /motorista/branding-tomador (auth motorista — já montado no motoristaRoutes,
+// mas o handler está em brandingRoutes.brandingTomadorRouter para separação de módulo)
+// Injetamos no router do motorista via uso direto do sub-router:
+motoristaRoutes.router.use('/', brandingRoutes.brandingTomadorRouter);
 
 // Iniciar o servidor
 app.listen(3000, () => {
