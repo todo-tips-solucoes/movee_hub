@@ -27,6 +27,9 @@ export interface EnvioMassa {
 export interface AuthUser {
   authenticated: boolean;
   nome_empresa: string;
+  // config-ui-tenant: claims de grupo expostos pelo /verify-auth
+  is_grupo_pai?: boolean;
+  id_grupo?: number | null;
 }
 
 export interface ProcessStatus {
