@@ -19,7 +19,16 @@ import { CountUp } from '@/components/ui/count-up';
 import { Wordmark } from '@/components/brand/wordmark';
 import { Aurora } from '@/components/brand/aurora';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { LogOut, RefreshCw, Calendar, FileText, AlertTriangle, ArrowUpRight, Inbox } from '@/components/ui/icons';
+import { LogOut, RefreshCw, Calendar, FileText, AlertTriangle, ArrowUpRight, Inbox, MapPin, Mail, Info } from '@/components/ui/icons';
+
+interface Tomador {
+  razaoSocial: string | null;
+  endereco: string | null;
+  numero: string | null;
+  cep: string | null;
+  email: string | null;
+  observacao: string | null;
+}
 
 interface Movimento {
   id: number;
@@ -32,6 +41,7 @@ interface Movimento {
   tribnac: string | null;
   notaOk: string | boolean | null;
   erroValidacao: string | null;
+  tomador: Tomador | null;
 }
 
 function initials(name: string): string {
@@ -181,24 +191,51 @@ export default function MovimentoPage() {
                 Dados Fiscais
               </h2>
               <div className="grid grid-cols-2 gap-3">
-                {(movimento.nome || movimento.cnpjTomador) && (
+                {(movimento.tomador?.razaoSocial || movimento.nome || movimento.cnpjTomador) && (
                   <div className="glass col-span-2 rounded-2xl p-4">
                     <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
                       Tomador
                     </p>
-                    {movimento.nome && (
-                      <p className="font-display mt-1 font-semibold leading-snug">{movimento.nome}</p>
+                    {(movimento.tomador?.razaoSocial || movimento.nome) && (
+                      <p className="font-display mt-1 font-semibold leading-snug">
+                        {movimento.tomador?.razaoSocial || movimento.nome}
+                      </p>
                     )}
                     {movimento.cnpjTomador && (
                       <p className="tabular mt-0.5 text-sm text-muted-foreground">
                         {formatCNPJ(movimento.cnpjTomador)}
                       </p>
                     )}
+                    {(movimento.tomador?.endereco || movimento.tomador?.email) && (
+                      <div className="mt-3 space-y-1.5 border-t border-border/60 pt-3 text-sm text-muted-foreground">
+                        {movimento.tomador?.endereco && (
+                          <p className="flex items-start gap-2">
+                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" />
+                            <span>
+                              {movimento.tomador.endereco}
+                              {movimento.tomador.numero ? `, ${movimento.tomador.numero}` : ''}
+                              {movimento.tomador.cep ? (
+                                <>
+                                  {' — CEP '}
+                                  <span className="tabular">{movimento.tomador.cep}</span>
+                                </>
+                              ) : null}
+                            </span>
+                          </p>
+                        )}
+                        {movimento.tomador?.email && (
+                          <p className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 shrink-0 text-primary/70" />
+                            <span className="break-all">{movimento.tomador.email}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {movimento.tribnac && (
-                  <div className="glass rounded-2xl p-4">
+                  <div className="glass col-span-2 rounded-2xl p-4">
                     <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
                       TribNac
                     </p>
@@ -206,11 +243,11 @@ export default function MovimentoPage() {
                   </div>
                 )}
 
-                <div className={cn('glass flex flex-col justify-between rounded-2xl p-4', !movimento.tribnac && 'col-span-2')}>
+                <div className="glass col-span-2 flex items-center justify-between gap-3 rounded-2xl p-4">
                   <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
                     Status da NF
                   </p>
-                  <div className="mt-2">
+                  <div>
                     {notaAprovada ? (
                       <Badge variant="success">● Aprovada</Badge>
                     ) : (
@@ -220,6 +257,19 @@ export default function MovimentoPage() {
                 </div>
               </div>
             </div>
+
+            {/* Observação de emissão da NFS-e — orienta o motorista (código de serviço etc.) */}
+            {movimento.tomador?.observacao && (
+              <div className="animate-fade-up stagger rounded-2xl border border-primary/25 bg-primary/5 p-4" style={{ ['--d' as string]: '120ms' }}>
+                <p className="font-display flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                  <Info className="h-4 w-4" />
+                  Como emitir sua NFS-e
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground/80">
+                  {movimento.tomador.observacao}
+                </p>
+              </div>
+            )}
 
             {/* Status detalhado */}
             {notaAprovada ? (

@@ -310,6 +310,31 @@ router.get('/movimento-aberto', authenticateMotorista, async (req, res) => {
 
     const m = movimentos[0];
 
+    // Dados do tomador (Empresa dona do movimento, via id_empresa) para auxiliar
+    // o motorista na emissão da NFS-e: razão social, endereço e observações.
+    // Tolerante a falha/colunas ausentes — nunca bloqueia o movimento.
+    let tomador = null;
+    try {
+      if (m.id_empresa != null) {
+        const empresas = await _postgrestRequest(
+          `Empresa?id=eq.${encodeURIComponent(m.id_empresa)}&limit=1`
+        );
+        if (empresas && empresas.length > 0) {
+          const e = empresas[0];
+          tomador = {
+            razaoSocial: e.nome_empresa || null,
+            endereco: e.endereco || null,
+            numero: e.numero || null,
+            cep: e.cep || null,
+            email: e.email_nota || null,
+            observacao: e.observacao || null,
+          };
+        }
+      }
+    } catch (e) {
+      console.error('[motorista/movimento-aberto] busca do tomador falhou:', e.message);
+    }
+
     // Mapper snake_case → camelCase (tarefa 3.1.2)
     const movimento = {
       id: m.id,
@@ -322,6 +347,7 @@ router.get('/movimento-aberto', authenticateMotorista, async (req, res) => {
       tribnac: m.tribnac,
       notaOk: m.nota_ok,
       erroValidacao: m.erro_validacao,
+      tomador,
     };
 
     return res.json({ movimento });
