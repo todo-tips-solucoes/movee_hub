@@ -13,6 +13,17 @@
    Movee · Design System — App Motorista
    Identidade: azul royal (base) + gradiente quente assinatura (amarelo→laranja
    →vermelho) + menta (sucesso). Tipografia Poppins (títulos) / Inter (corpo).
+   ============================================================================
+
+   config-ui-tenant — tokens dinâmicos de branding (task 5.3)
+   O TenantThemeProvider (contexts/tenant-theme-context.tsx) sobrescreve em runtime:
+     --primary  → cor_primaria do tomador (HEX direto)
+     --ring     → mesma cor_primaria
+     --warm-2   → cor_destaque do tomador (ponto médio do gradiente Movee)
+   Fallback (MOVEE_DEFAULTS): #1f63eb (primary) / #ff7a18 (warm-2) / "Movee"
+   Logo dimensões: h-6 max-w-24 (dec-030, CHK062)
+   Cache TTL=sessão por cnpj_tomador (dec-031, CHK066)
+   Timeout: 3000ms (dec-024, CHK038)
    ========================================================================== */
 
 :root {
