@@ -85,6 +85,18 @@ CREATE TABLE IF NOT EXISTS "Branding" (
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
+-- 4.5. GRANTs para o papel do PostgREST (OBRIGATÓRIO — sem isto, toda query
+--      nas tabelas novas retorna 42501 "permission denied", e o login degrada
+--      is_grupo_pai para false silenciosamente). O backend assina o JWT do
+--      PostgREST com role='authenticated'. Tabelas pré-existentes (Empresa,
+--      EnvioMassa) já têm GRANT; as novas precisam ser concedidas explicitamente.
+-- ---------------------------------------------------------------------------
+GRANT SELECT, INSERT, UPDATE, DELETE ON "Grupo"    TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON "Branding" TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE "Grupo_id_seq"    TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE "Branding_id_seq" TO authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 5. NOTIFY pgrst — recarregar schema do PostgREST após aplicar o DDL
 --    Alternativa se NOTIFY não funcionar: docker kill -s SIGUSR1 <container_postgrest>
 --    Confirmar nome do container: docker ps | grep -i pgrst
