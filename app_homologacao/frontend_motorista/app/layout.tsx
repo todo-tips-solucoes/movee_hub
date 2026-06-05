@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, Poppins, JetBrains_Mono } from 'next/font/google';
 import { AuthProvider } from '@/contexts/auth-context';
 import { Toaster } from 'sonner';
+import { SwUpdater } from '@/components/sw-updater';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <Toaster position="top-center" richColors />
         </AuthProvider>
+        <SwUpdater />
       </body>
     </html>
   );
