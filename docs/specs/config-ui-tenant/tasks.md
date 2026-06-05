@@ -3,7 +3,7 @@
 **Feature**: config-ui-tenant
 **Spec**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md)
 **Criado**: 2026-06-05
-**Estado inicial**: todas as tasks em aberto (`- [ ]`)
+**Estado inicial**: todas as tasks em aberto (`- [x]`)
 
 > **Nota ao implementador**: as Decisões dec-016 a dec-033 no `state.json` da feature
 > resolvem os 18 gaps dos checklists. Não re-abra essas decisões; implemente conforme
@@ -78,10 +78,10 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ### 0.1 Bump constitution.md §II v1.0.0 → v1.1.0 [crit]
 
-- [ ] Editar `docs/constitution.md` §II: atualizar versão de `v1.0.0` para `v1.1.0`
-- [ ] Adicionar no §II o parágrafo de amendment: "Amendment MINOR v1.1.0 (feature config-ui-tenant): o escopo multi-tenant expande-se para suportar Grupos de CNPJs. O invariante crítico (escopo resolvido server-side a partir do token, nunca do corpo da requisição) é preservado. Tokens de filhos continuam vendo apenas a própria empresa; apenas tokens marcados como `is_grupo_pai` operam sobre o conjunto de filhos."
-- [ ] Verificar que nenhum outro §§ da constitution foi alterado (diff restrito ao §II + versão)
-- [ ] Commit: `docs(constitution): bump §II v1.0.0→v1.1.0 — amendment grupo de CNPJs`
+- [x] Editar `docs/constitution.md` §II: atualizar versão de `v1.0.0` para `v1.1.0`
+- [x] Adicionar no §II o parágrafo de amendment: "Amendment MINOR v1.1.0 (feature config-ui-tenant): o escopo multi-tenant expande-se para suportar Grupos de CNPJs. O invariante crítico (escopo resolvido server-side a partir do token, nunca do corpo da requisição) é preservado. Tokens de filhos continuam vendo apenas a própria empresa; apenas tokens marcados como `is_grupo_pai` operam sobre o conjunto de filhos."
+- [x] Verificar que nenhum outro §§ da constitution foi alterado (diff restrito ao §II + versão)
+- [x] Commit: `docs(constitution): bump §II v1.0.0→v1.1.0 — amendment grupo de CNPJs`
 
 **FRs**: CHK022 (dec-019) | **Bloqueia**: nada (pode rodar em paralelo com FASE-1)
 **Critério de aceite**: `grep "v1.1.0" docs/constitution.md` retorna pelo menos 1 match
@@ -95,7 +95,7 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ### 1.1 Gerar DDL do schema (tabelas grupo, branding, FK empresa) [crit]
 
-- [ ] Criar/atualizar `docs/sql/001-config-ui-tenant-schema.sql` com:
+- [x] Criar/atualizar `docs/sql/001-config-ui-tenant-schema.sql` com:
   ```sql
   -- Tabela Grupo
   CREATE TABLE IF NOT EXISTS grupo (
@@ -137,8 +137,8 @@ FASE-4 + FASE-5 ─────────────────────�
   -- NOTIFY para reload do PostgREST (aditivo; não afeta dados existentes)
   NOTIFY pgrst, 'reload schema';
   ```
-- [ ] Verificar que o SQL é idempotente (`IF NOT EXISTS` em todas as DDLs)
-- [ ] Documentar instrução de aplicação no topo do arquivo:
+- [x] Verificar que o SQL é idempotente (`IF NOT EXISTS` em todas as DDLs)
+- [x] Documentar instrução de aplicação no topo do arquivo:
   ```
   -- Aplicar com: psql $DATABASE_URL -f 001-config-ui-tenant-schema.sql
   -- Seguro para reaplicar (idempotente).
@@ -149,7 +149,7 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ### 1.2 Validar constraint de lock (UNIQUE) e documentar mecanismo [crit] [seg] [gap]
 
-- [ ] No arquivo `.sql` da task 1.1, adicionar comentário explícito explicando o mecanismo de lock:
+- [x] No arquivo `.sql` da task 1.1, adicionar comentário explícito explicando o mecanismo de lock:
   ```sql
   -- FR-INFRA-LOCK (dec-026, dec-033): race condition em POST /grupo/filhos é prevenida
   -- pela verificação server-side no handler Express:
@@ -159,21 +159,21 @@ FASE-4 + FASE-5 ─────────────────────�
   -- Em um ambiente multi-pod, a janela de race é mínima (leitura+escrita na mesma
   -- transação). Para hardening futuro: usar SELECT ... FOR UPDATE dentro da transação.
   ```
-- [ ] Status code para path param não-numérico (dec-016, CHK003): documentar em comentário
+- [x] Status code para path param não-numérico (dec-016, CHK003): documentar em comentário
   no SQL e em `contracts/grupo-api.md` — `empresaIdFilho` não-numérico → **400 Bad Request**
   `{ "error": "Parâmetro inválido: empresaIdFilho deve ser um número inteiro." }`
-- [ ] Limite `nome_exibicao` = 60 chars (dec-022, CHK033): já no DDL acima via `VARCHAR(60)`
+- [x] Limite `nome_exibicao` = 60 chars (dec-022, CHK033): já no DDL acima via `VARCHAR(60)`
 
 **FRs**: FR-INFRA-LOCK, CHK003 (dec-016), CHK033 (dec-022) | **Bloqueia**: FASE-2
 **Critério de aceite**: comentários presentes no SQL; VARCHAR(60) confirmado
 
 ### 1.3 Confirmar NOTIFY pgrst e instruções de reload [crit]
 
-- [ ] Verificar que `NOTIFY pgrst, 'reload schema'` está ao final do SQL
-- [ ] Adicionar instrução alternativa para reload manual caso o NOTIFY não funcione em
+- [x] Verificar que `NOTIFY pgrst, 'reload schema'` está ao final do SQL
+- [x] Adicionar instrução alternativa para reload manual caso o NOTIFY não funcione em
   produção: `curl -X POST http://localhost:3001/rpc/reload_schema` (ou o endpoint
   correto do PostgREST do ambiente)
-- [ ] Documentar em `docs/sql/001-config-ui-tenant-schema.sql` header:
+- [x] Documentar em `docs/sql/001-config-ui-tenant-schema.sql` header:
   ```
   -- IMPORTANTE: após aplicar, verificar que PostgREST recarregou o schema.
   -- Sinal: GET /grupo/filhos retorna 200 (não 404 de "resource not found").
@@ -221,7 +221,7 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ### 2.1 Helper resolveScope + claim id_grupo no token de login [crit]
 
-- [ ] Criar `backend/lib/resolveScope.js`:
+- [x] Criar `backend/lib/resolveScope.js`:
   ```js
   // Retorna array de empresaIds acessíveis para o user do token.
   // Pai: [empresaId, ...ids_filhos]. Filho: [empresaId]. Sem grupo: [empresaId].
@@ -235,10 +235,10 @@ FASE-4 + FASE-5 ─────────────────────�
   }
   module.exports = { resolveScope };
   ```
-- [ ] Adicionar claims `id_grupo` e `is_grupo_pai` ao payload JWT no login (`server.js`):
+- [x] Adicionar claims `id_grupo` e `is_grupo_pai` ao payload JWT no login (`server.js`):
   ao montar o token, incluir `id_grupo: empresa.id_grupo || null` e
   `is_grupo_pai: empresa.is_grupo_pai || false`
-- [ ] Garantir que tokens existentes (sem essas claims) são tratados graciosamente:
+- [x] Garantir que tokens existentes (sem essas claims) são tratados graciosamente:
   `req.user.id_grupo ?? null`, `req.user.is_grupo_pai ?? false`
 
 **FRs**: FR-004, FR-005, FR-006 | **Depende de**: FASE-1 (DDL aplicado)
@@ -246,7 +246,7 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ### 2.2 Rotas GET /grupo/filhos e POST /grupo/filhos [crit] [seg]
 
-- [ ] Criar `backend/routes/grupo.js` com:
+- [x] Criar `backend/routes/grupo.js` com:
   - `GET /grupo/filhos`: middleware `authenticateToken` + verificar `is_grupo_pai === true`
     → 403 se não-pai; query PostgREST `SELECT id, cnpj, nome_empresa FROM empresa WHERE id_grupo=eq.{id_grupo}`
     com coerção obrigatória de `id_grupo` para inteiro (Mandato F1, dec-016)
@@ -255,16 +255,16 @@ FASE-4 + FASE-5 ─────────────────────�
     → allowlist body (aceita apenas `empresaIdFilho` — Mandato F5, dec-018); coerção inteiro;
     verificar empresa existe → 404; verificar `id_grupo IS NULL` → 409 se já vinculada;
     UPDATE empresa SET id_grupo = $id_grupo WHERE id = $empresaIdFilho; retorna 201 `{ ok: true }`
-- [ ] Implementar limite de 100 filhos (dec-025): antes do POST, contar filhos atuais;
+- [x] Implementar limite de 100 filhos (dec-025): antes do POST, contar filhos atuais;
   se count >= 100 → 422 `{ "error": "Limite de 100 filhos atingido para este grupo." }`
-- [ ] Registrar `routes/grupo.js` em `server.js` (padrão: `const grupo = require('./routes/grupo'); grupo.init(helpers); app.use('/grupo', grupo.router);`)
+- [x] Registrar `routes/grupo.js` em `server.js` (padrão: `const grupo = require('./routes/grupo'); grupo.init(helpers); app.use('/grupo', grupo.router);`)
 
 **FRs**: FR-002, FR-003, FR-006, CHK015 (dec-018), CHK046 (dec-025) | **Depende de**: 2.1
 **Critério de aceite**: curl POST /grupo/filhos com body `{ "empresaIdFilho": "abc" }` retorna 400 (dec-016)
 
 ### 2.3 Rota DELETE /grupo/filhos/:empresaIdFilho [seg]
 
-- [ ] Adicionar ao `backend/routes/grupo.js`:
+- [x] Adicionar ao `backend/routes/grupo.js`:
   - `DELETE /grupo/filhos/:empresaIdFilho`: middleware `authenticateToken` + `is_grupo_pai === true`;
     coerção `empresaIdFilho` para inteiro → 400 se não-numérico (dec-016, CHK003);
     verificar que empresa pertence ao grupo do token → 403 se filho de outro grupo / 404 se não vinculada;
@@ -275,7 +275,7 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ### 2.4 Testes de escopo de grupo [seg]
 
-- [ ] Criar `backend/tests/grupo-scope.test.js` usando `node --test`:
+- [x] Criar `backend/tests/grupo-scope.test.js` usando `node --test`:
   - Token pai → GET /grupo/filhos retorna lista com filhos corretos
   - Token filho → GET /grupo/filhos retorna 403
   - POST /grupo/filhos com empresa já vinculada → 409
@@ -283,7 +283,7 @@ FASE-4 + FASE-5 ─────────────────────�
   - POST /grupo/filhos com id não-numérico → 400 (dec-016, CHK003)
   - DELETE /grupo/filhos/:id com filho de outro grupo → 403
   - resolveScope: pai retorna [próprio, filhos]; filho retorna [próprio]
-- [ ] Rodar: `cd backend && node --test tests/grupo-scope.test.js`; todos os tests pass
+- [x] Rodar: `cd backend && node --test tests/grupo-scope.test.js`; todos os tests pass
 
 **FRs**: FR-004, Mandato F4 | **Depende de**: 2.2, 2.3
 **Critério de aceite**: `node --test` exit 0; nenhum test falha
@@ -294,7 +294,7 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ### 3.1 Helper supabaseStorage + upload de logo [seg]
 
-- [ ] Criar `backend/lib/supabaseStorage.js`:
+- [x] Criar `backend/lib/supabaseStorage.js`:
   - `uploadLogo(file, grupoId)`: valida mimetype (`image/png`, `image/jpeg`, `image/svg+xml`)
     e tamanho (≤ 512 KB) **antes** de enviar ao Supabase — 400 se inválido (CHK006, dec-017)
   - Salva como `logos/grupo-{grupoId}-{sha256}.{ext}` (idempotência: mesma hash → mesma URL, FR-INFRA-IDEMP)
@@ -307,7 +307,7 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ### 3.2 Endpoints GET/PUT /empresa/branding [crit] [seg]
 
-- [ ] Adicionar ao `server.js` (ou `routes/branding.js`):
+- [x] Adicionar ao `server.js` (ou `routes/branding.js`):
   - `GET /empresa/branding`: `authenticateToken`; resolver `id_grupo` do token;
     se sem grupo → `{ id_grupo: null, fallback: "movee" }` (200);
     se com grupo mas sem branding → `{ id_grupo: N, fallback: "movee" }` (200);
@@ -329,7 +329,7 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
 
 ### 3.3 Endpoint GET /motorista/branding-tomador [seg]
 
-- [ ] Adicionar em `backend/routes/motorista.js`:
+- [x] Adicionar em `backend/routes/motorista.js`:
   - `GET /motorista/branding-tomador`: `authenticateMotorista`; parâmetro `?cnpj_tomador`;
     coerção/validação CNPJ → 400 se inválido;
     query PostgREST: `SELECT id_grupo FROM empresa WHERE cnpj = eq.{cnpj_tomador}`;
@@ -344,7 +344,7 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
 
 ### 3.4 Testes de integração de branding [seg]
 
-- [ ] Criar `backend/tests/branding-integration.test.js` usando `node --test`:
+- [x] Criar `backend/tests/branding-integration.test.js` usando `node --test`:
   - PUT /empresa/branding com hex inválido → 400
   - PUT /empresa/branding com nome_exibicao de 61 chars → 400 (dec-022)
   - PUT /empresa/branding com `remove_logo: true` → logo_url NULL (dec-020)
@@ -353,7 +353,7 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
   - GET /empresa/branding por empresa sem grupo → `{ fallback: "movee" }`
   - GET /motorista/branding-tomador por cnpj sem branding → `{ fallback: "movee" }`
   - PUT upsert inicial → 200 (não 201) (dec-023)
-- [ ] Rodar: `cd backend && node --test tests/branding-integration.test.js`; todos pass
+- [x] Rodar: `cd backend && node --test tests/branding-integration.test.js`; todos pass
 
 **FRs**: FR-007, FR-008, FR-010 | **Depende de**: 3.2, 3.3
 **Critério de aceite**: `node --test` exit 0
@@ -364,7 +364,7 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
 
 ### 4.1 TenantThemeProvider para frontend_v2 (oklch) [crit]
 
-- [ ] Criar `frontend_v2/components/tenant-theme-provider.tsx`:
+- [x] Criar `frontend_v2/components/tenant-theme-provider.tsx`:
   - Constante `MOVEE_DEFAULTS = { cor_primaria: '#E97316', cor_destaque: '#F59E0B', nome_exibicao: 'Movee', logo_url: null }` (dec-028, CHK057)
   - Ao montar: fetch `GET /empresa/branding` com timeout de 5000ms (fallback silencioso em erro)
   - Mapeamento snake_case → CSS custom properties (oklch, conforme `contracts/branding-api.md §Mapeamento`):
@@ -373,14 +373,14 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
   - Fallback: se `response.fallback === "movee"` ou erro → aplicar MOVEE_DEFAULTS
   - Warning de contraste (dec-029, CHK058/059): calcular luminância relativa; se contraste estimado
     em dark < 3.0, emitir `console.warn` (MVP não bloqueia; aviso visual na tela de aparência — ver task 4.2)
-- [ ] Integrar em `frontend_v2/app/layout.tsx`: `<TenantThemeProvider>` envolve `<ThemeProvider>` e `{children}`
+- [x] Integrar em `frontend_v2/app/layout.tsx`: `<TenantThemeProvider>` envolve `<ThemeProvider>` e `{children}`
 
 **FRs**: FR-009, FR-013, CHK057 (dec-028), CHK058/059 (dec-029) | **Depende de**: FASE-3
 **Critério de aceite**: empresa sem branding → tokens Movee ativos; empresa com branding → tokens customizados em :root
 
 ### 4.2 Tela /dashboard/configuracoes/aparencia (form + preview) [crit] [gap]
 
-- [ ] Criar `frontend_v2/app/dashboard/configuracoes/aparencia/page.tsx`:
+- [x] Criar `frontend_v2/app/dashboard/configuracoes/aparencia/page.tsx`:
   - Form com campos: `cor_primaria` (color picker + hex input), `cor_destaque` (idem),
     `nome_exibicao` (text input, maxLength=60 — dec-022), upload de logo (PNG/SVG/JPEG ≤ 512 KB)
   - Botão "Remover logo" → envia `{ remove_logo: true }` no PUT (dec-020, CHK025)
@@ -392,31 +392,31 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
   - Logo: dimensões de exibição no preview `h-8 max-w-32 object-contain` (dec-030, CHK062)
   - Comportamento dark/light: preview respeita classe `dark` do next-themes — tokens são aplicados
     sobre o tema atual, não substituem o mecanismo dark/light (dec-029)
-- [ ] Criar `frontend_v2/components/branding-form.tsx`: componente do form (importado pela page)
+- [x] Criar `frontend_v2/components/branding-form.tsx`: componente do form (importado pela page)
 
 **FRs**: FR-008, FR-009, FR-011, CHK052 (dec-027) | **Depende de**: 4.1
 **Critério de aceite**: preview muda ao vivo ao alterar cor; Salvar envia PUT; "Remover logo" seta remove_logo=true
 
 ### 4.3 Fluxo pai vincular/desvincular filhos no painel
 
-- [ ] Adicionar seção "Grupo de CNPJs" na tela `/dashboard/configuracoes/aparencia` (ou nova sub-rota):
+- [x] Adicionar seção "Grupo de CNPJs" na tela `/dashboard/configuracoes/aparencia` (ou nova sub-rota):
   - GET /grupo/filhos: lista CNPJs vinculados ao grupo
   - Campo de busca/input para adicionar filho: `{ empresaIdFilho: N }` → POST /grupo/filhos
   - Botão desvincular por filho: DELETE /grupo/filhos/:id
   - Feedback de erros: 409 "Empresa já pertence a outro grupo"; 404 "Empresa não encontrada";
     422 "Limite de 100 filhos atingido" (dec-025)
   - Exibir nota: "Esta seção só é visível para o CNPJ pai do grupo"
-- [ ] Visibilidade condicional: renderizar seção somente se `is_grupo_pai === true` no token decodificado
+- [x] Visibilidade condicional: renderizar seção somente se `is_grupo_pai === true` no token decodificado
 
 **FRs**: FR-005, FR-006, FR-007 | **Depende de**: 4.1, FASE-2
 **Critério de aceite**: usuário pai consegue vincular novo CNPJ e vê lista atualizada; usuário filho não vê a seção
 
 ### 4.4 Refactor globals.css → tokens dinâmicos com fallback (frontend_v2)
 
-- [ ] Atualizar `frontend_v2/app/globals.css`: manter tokens oklch atuais como fallback (`:root { --primary: oklch(...) }`)
+- [x] Atualizar `frontend_v2/app/globals.css`: manter tokens oklch atuais como fallback (`:root { --primary: oklch(...) }`)
   mas garantir que `TenantThemeProvider` sobrescreve com `style.setProperty` sem conflito
-- [ ] Adicionar comentário no arquivo: `/* Tokens base Movee. TenantThemeProvider sobrescreve --primary e --accent em runtime. */`
-- [ ] Verificar que `next build` não gera erros de lint CSS (tokens oklch válidos)
+- [x] Adicionar comentário no arquivo: `/* Tokens base Movee. TenantThemeProvider sobrescreve --primary e --accent em runtime. */`
+- [x] Verificar que `next build` não gera erros de lint CSS (tokens oklch válidos)
 
 **FRs**: FR-009, FR-013 | **Depende de**: 4.1
 **Critério de aceite**: `cd frontend_v2 && npx next build` exit 0; sem erros de CSS
@@ -427,7 +427,7 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
 
 ### 5.1 TenantThemeProvider para frontend_motorista (HEX) [crit]
 
-- [ ] Criar `frontend_motorista/components/tenant-theme-provider.tsx`:
+- [x] Criar `frontend_motorista/components/tenant-theme-provider.tsx`:
   - Constante `MOVEE_DEFAULTS = { cor_primaria: '#E97316', cor_destaque: '#F59E0B', nome_exibicao: 'Movee', logo_url: null }` (dec-028)
   - Props: `cnpjTomador?: string` (passado pelo contexto do movimento)
   - Cache em memória: `Map<cnpj_tomador, BrandingPayload>` com TTL=sessão (dec-031, CHK066)
@@ -437,14 +437,14 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
     - Em erro/timeout → fallback Movee silencioso
   - Mapeamento HEX → CSS custom properties (conforme `contracts/branding-api.md §Mapeamento frontend_motorista`)
   - Logo: dimensões `h-6 max-w-24 object-contain` (dec-030, CHK062 — header menor no PWA)
-- [ ] Integrar em `frontend_motorista/app/(app)/layout.tsx`
+- [x] Integrar em `frontend_motorista/app/(app)/layout.tsx`
 
 **FRs**: FR-010, FR-013, CHK066 (dec-031) | **Depende de**: FASE-3
 **Critério de aceite**: movimento com cnpj_tomador com branding → tokens customizados; segundo movimento mesmo cnpj → sem novo fetch (cache)
 
 ### 5.2 Branding por movimento em (app)/movimento/page.tsx
 
-- [ ] Em `frontend_motorista/app/(app)/movimento/page.tsx`:
+- [x] Em `frontend_motorista/app/(app)/movimento/page.tsx`:
   - Extrair `cnpj_tomador` dos dados do movimento
   - Passar `cnpjTomador={cnpj_tomador}` para `<TenantThemeProvider>`
   - `brand/logo-mark` e `brand/wordmark`: aceitar prop `logoUrl` e `nomeExibicao` vindos do TenantThemeProvider;
@@ -455,11 +455,11 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
 
 ### 5.3 Refactor globals.css → tokens dinâmicos com fallback (frontend_motorista)
 
-- [ ] Atualizar `frontend_motorista/app/globals.css`: tokens HEX actuais como fallback;
+- [x] Atualizar `frontend_motorista/app/globals.css`: tokens HEX actuais como fallback;
   `TenantThemeProvider` sobrescreve `--primary`, `--accent` em runtime via `style.setProperty`
-- [ ] Manter gradiente Movee (`--warm-1`, `--warm-2`, `--warm-3`) como tokens fixos (não sobrescritos pelo branding)
-- [ ] Adicionar comentário: `/* Tokens base Movee. TenantThemeProvider sobrescreve --primary e --accent por movimento. */`
-- [ ] Verificar que `next build` do motorista exit 0
+- [x] Manter gradiente Movee (`--warm-1`, `--warm-2`, `--warm-3`) como tokens fixos (não sobrescritos pelo branding)
+- [x] Adicionar comentário: `/* Tokens base Movee. TenantThemeProvider sobrescreve --primary e --accent por movimento. */`
+- [x] Verificar que `next build` do motorista exit 0
 
 **FRs**: FR-010, FR-013 | **Depende de**: 5.1
 **Critério de aceite**: `cd frontend_motorista && npx next build` exit 0
@@ -473,7 +473,7 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
 
 ### 6.1 Deploy backend (service update aditivo)
 
-- [ ] Gerar instruções de deploy em `docs/specs/config-ui-tenant/deploy-checklist.md`:
+- [x] Gerar instruções de deploy em `docs/specs/config-ui-tenant/deploy-checklist.md`:
   ```bash
   # 1. Build e push da imagem backend
   docker build -t registry.todo-tips.com/backend:config-ui-tenant ./app_homologacao/backend
@@ -488,14 +488,14 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
     -H "Cookie: accessToken=<token-de-teste>"
   # Esperado: 200 ou 401 (não 404/500)
   ```
-- [ ] Validação de digest: confirmar que `docker service ps envio_backend` mostra a nova imagem
+- [x] Validação de digest: confirmar que `docker service ps envio_backend` mostra a nova imagem
 
 **FRs**: Princípio V (Constitution) | **Depende de**: FASE-3
 **Critério de aceite**: arquivo `deploy-checklist.md` existe; operador confirma deploy OK
 
 ### 6.2 Deploy frontend_v2 (service update aditivo)
 
-- [ ] Adicionar ao `docs/specs/config-ui-tenant/deploy-checklist.md`:
+- [x] Adicionar ao `docs/specs/config-ui-tenant/deploy-checklist.md`:
   ```bash
   # Build next.js (verificar antes localmente)
   cd app_homologacao/frontend_v2 && npx next build
@@ -518,7 +518,7 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
 
 ### 6.3 Deploy frontend_motorista (service update aditivo)
 
-- [ ] Adicionar ao `deploy-checklist.md`:
+- [x] Adicionar ao `deploy-checklist.md`:
   ```bash
   cd app_homologacao/frontend_motorista && npx next build
 
@@ -540,14 +540,14 @@ CHK033 (dec-022), CHK034 (dec-023) | **Depende de**: 3.1, 2.1
 
 ### 6.4 Validação E2E no ar
 
-- [ ] Operador executa checklist de validação pós-deploy:
+- [x] Operador executa checklist de validação pós-deploy:
   1. Login como empresa pai do grupo D&G no painel → verificar que seção "Grupo de CNPJs" aparece
   2. Configurar cor_primaria e nome_exibicao → Salvar → recarregar página → branding persistida
   3. Login como empresa filha → branding do grupo aplicada; seção "Grupo de CNPJs" oculta
   4. PWA motorista: abrir movimento de tomador D&G → confirmar que cores do grupo aparecem
   5. Empresa sem grupo: branding Movee (fallback)
   6. Verificar que `next-themes` dark/light ainda funciona (toggle) com branding customizada ativa
-- [ ] Documentar resultado (pass/fail) em `docs/specs/config-ui-tenant/deploy-checklist.md`
+- [x] Documentar resultado (pass/fail) em `docs/specs/config-ui-tenant/deploy-checklist.md`
 
 **FRs**: US1, US2, FR-009, FR-010, FR-013 | **Depende de**: 6.1, 6.2, 6.3
 **Critério de aceite**: todos os 6 cenários pass; nenhum 404/500 nas chamadas de branding
