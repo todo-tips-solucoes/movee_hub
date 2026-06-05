@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Wordmark } from '@/components/brand/wordmark';
 import { LogoMark } from '@/components/brand/logo-mark';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { ArrowLeft } from '@/components/ui/icons';
+import { ArrowLeft, Check, AlertCircle } from '@/components/ui/icons';
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -28,6 +28,10 @@ export default function CadastroPage() {
   const [confirmaSenha, setConfirmaSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ cnpj?: string; nome?: string; senha?: string; confirmaSenha?: string; geral?: string }>({});
+
+  // Comparação visual ao vivo das senhas (só após o usuário começar a confirmar)
+  const senhasCoincidem = confirmaSenha.length > 0 && senha === confirmaSenha;
+  const senhasDivergem = confirmaSenha.length > 0 && senha !== confirmaSenha;
 
   function validate() {
     const errs: typeof errors = {};
@@ -158,10 +162,25 @@ export default function CadastroPage() {
                   value={confirmaSenha}
                   onChange={(e) => setConfirmaSenha(e.target.value)}
                   placeholder="Repita a senha"
-                  aria-invalid={!!errors.confirmaSenha}
+                  aria-invalid={!!errors.confirmaSenha || senhasDivergem}
                   disabled={loading}
                 />
-                {errors.confirmaSenha && <p className="text-sm text-destructive">{errors.confirmaSenha}</p>}
+                {/* Feedback visual ao vivo da comparação */}
+                {senhasCoincidem && (
+                  <p className="animate-fade-up flex items-center gap-1.5 text-sm font-medium text-success">
+                    <Check className="h-4 w-4" />
+                    As senhas coincidem
+                  </p>
+                )}
+                {senhasDivergem && (
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    As senhas não coincidem
+                  </p>
+                )}
+                {!confirmaSenha && errors.confirmaSenha && (
+                  <p className="text-sm text-destructive">{errors.confirmaSenha}</p>
+                )}
               </div>
 
               {errors.geral && (
