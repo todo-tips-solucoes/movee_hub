@@ -4,7 +4,10 @@
   "description": "Backend para a aplicação Envio Massa CRUD",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test tests/motorista-unit.test.js && node --test tests/motorista-integration.test.js",
+    "test:unit": "node --test tests/motorista-unit.test.js",
+    "test:integration": "node --test tests/motorista-integration.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",
@@ -15,6 +18,7 @@
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
+    "form-data": "^4.0.0",
     "json2csv": "^5.0.7",
     "jsonwebtoken": "^8.5.1",
     "multer": "^1.4.4-lts.1",

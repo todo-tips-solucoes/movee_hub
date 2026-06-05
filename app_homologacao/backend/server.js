@@ -15,6 +15,9 @@ const backendUrl = 'https://envmassapihomologacao.todo-tips.com'; // URL do back
 const archiver = require('archiver');
 const xml2js = require('xml2js');
 
+// App Motorista — rotas /motorista/*
+const motoristaRoutes = require('./routes/motorista');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 
@@ -23,6 +26,7 @@ app.use(cookieParser());
 const allowedOrigins = [
   'https://envmasshomologacao.todo-tips.com',
   'https://envmassv2.todo-tips.com',
+  'https://appmotorista.todo-tips.com', // App Motorista PWA
 ];
 app.use(cors({
   origin: allowedOrigins,
@@ -1751,6 +1755,10 @@ app.post('/logout', (req, res) => {
   res.clearCookie('refreshToken');
   res.json({ message: 'Logout bem-sucedido' });
 });
+
+// App Motorista — injetar dependências e montar rotas /motorista/*
+motoristaRoutes.init({ postgrestRequest, generatePostgrestJWT });
+app.use('/motorista', motoristaRoutes.router);
 
 // Iniciar o servidor
 app.listen(3000, () => {
