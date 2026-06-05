@@ -184,33 +184,26 @@ FASE-4 + FASE-5 ─────────────────────�
 
 ---
 
-## FASE-1b — Migração D&G (BLOQUEADA)
+## FASE-1b — Migração D&G (DESBLOQUEADA — .sql entregue ao operador)
 
-### 1b.1 Migração de CNPJs D&G existentes [bloq] [crit]
+### 1b.1 Migração de CNPJs D&G existentes [crit]
 
-> **BLOQUEADA**: depende de o operador rodar `docs/sql/dg-levantamento.sql` e confirmar
-> a lista de CNPJs do grupo D&G. Não implementar até desbloqueio.
+> **DESBLOQUEADA** (2026-06-05, dec-035): operador confirmou os ids da D&G. O .sql
+> `docs/sql/002-config-ui-tenant-dg-vinculo.sql` foi gerado alinhado ao **schema real**
+> (`Grupo.id_empresa_pai`, `Empresa.id_grupo` — NÃO `is_grupo_pai`). Resta só o operador
+> APLICAR o .sql no banco (classifier bloqueia acesso direto).
 
-- [ ] Confirmar lista de CNPJs: operador executa `docs/sql/dg-levantamento.sql` e
-  compartilha o resultado (lista de `empresa.id` + `cnpj` que devem pertencer ao grupo D&G)
-- [ ] Criar `docs/sql/002-config-ui-tenant-dg-vinculo.sql` com migração parametrizada:
-  ```sql
-  -- Migração D&G: criar grupo pai e vincular CNPJs confirmados
-  -- SUBSTITUIR os IDs abaixo pelos confirmados no levantamento
-  BEGIN;
-    -- 1. Criar grupo
-    INSERT INTO grupo DEFAULT VALUES RETURNING id;
-    -- 2. Marcar empresa pai
-    UPDATE empresa SET id_grupo = :id_grupo_novo, is_grupo_pai = true WHERE id = :id_empresa_pai;
-    -- 3. Vincular filhos (um UPDATE por CNPJ filho confirmado)
-    UPDATE empresa SET id_grupo = :id_grupo_novo WHERE id IN (:ids_filhos);
-  COMMIT;
-  ```
-- [ ] Verificar idempotência: re-executar não cria grupo duplicado (usar transação + check EXISTS)
-- [ ] Documentar instrução: `psql $DATABASE_URL -f 002-config-ui-tenant-dg-vinculo.sql`
+- [x] Confirmar lista de CNPJs (operador): ids **2,3,4,5,7,8** — pai = **id 2**
+  "D&G EXPRESS LTDA"; filiais SBC(3), Campinas(4), Santo André(5), BH(7), Curitiba(8)
+- [x] Criar `docs/sql/002-config-ui-tenant-dg-vinculo.sql` — versão final usa o schema
+  real: cria `Grupo(nome,id_empresa_pai=2)` e `UPDATE Empresa SET id_grupo` para os 6 ids
+- [x] Idempotência: `INSERT ... WHERE NOT EXISTS` (id_empresa_pai UNIQUE) + UPDATE só toca
+  empresa sem grupo ou já no grupo D&G (não rouba de outro grupo — FR-004)
+- [x] Documentar instrução: `psql $DATABASE_URL -f docs/sql/002-config-ui-tenant-dg-vinculo.sql`
+- [ ] **(operador)** APLICAR o 002 no banco, APÓS aplicar o 001 (schema)
 
-**FRs**: FR-002, Estratégia de Migração D&G (plan.md) | **Desbloqueio**: operador confirma lista de CNPJs
-**Critério de aceite**: arquivo `.sql` gerado e revisado pelo operador antes de executar
+**FRs**: FR-002, Estratégia de Migração D&G (plan.md) | **Desbloqueado por**: dec-035
+**Critério de aceite**: `.sql` gerado e revisado; aplicação no banco é ação do operador
 
 ---
 
