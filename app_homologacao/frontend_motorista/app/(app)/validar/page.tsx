@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ArrowLeft, UploadCloud, CheckCircle, AlertCircle } from '@/components/ui/icons';
 
 interface CampoInvalido {
   campo: string;
@@ -100,9 +101,7 @@ export default function ValidarPage() {
             aria-label="Voltar"
             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted active:scale-90"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
+            <ArrowLeft className="h-5 w-5" />
           </Link>
           <h1 className="font-display text-base font-semibold">Validar NFS-e</h1>
         </div>
@@ -146,13 +145,9 @@ export default function ValidarPage() {
               )}
             >
               {file ? (
-                <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <CheckCircle className="h-7 w-7" />
               ) : (
-                <svg className={cn('h-7 w-7 transition-transform', dragging && 'animate-float-soft')} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6 4.5 4.5 0 0118 14.5M12 12v9m0-9l-3 3m3-3l3 3" />
-                </svg>
+                <UploadCloud className={cn('h-7 w-7 transition-transform', dragging && 'animate-float-soft')} />
               )}
             </span>
             {file ? (
@@ -181,9 +176,7 @@ export default function ValidarPage() {
 
           {error && (
             <p className="animate-shake flex items-center gap-2 rounded-xl bg-destructive/10 px-3.5 py-2.5 text-sm font-medium text-destructive">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0">
-                <circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 8v4m0 4h.01" />
-              </svg>
+              <AlertCircle className="h-4 w-4 shrink-0" />
               {error}
             </p>
           )}
@@ -225,9 +218,7 @@ export default function ValidarPage() {
         {result && !result.valid && (
           <div className="animate-fade-up mt-6 rounded-3xl border border-destructive/30 bg-destructive/10 p-5">
             <p className="font-display flex items-center gap-2 text-base font-bold text-destructive">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
-                <circle cx="12" cy="12" r="9" /><path strokeLinecap="round" d="M12 8v4m0 4h.01" />
-              </svg>
+              <AlertCircle className="h-5 w-5" />
               Nota inválida
             </p>
             {result.camposInvalidos && result.camposInvalidos.length > 0 && (

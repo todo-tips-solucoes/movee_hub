@@ -19,6 +19,7 @@ import { CountUp } from '@/components/ui/count-up';
 import { Wordmark } from '@/components/brand/wordmark';
 import { Aurora } from '@/components/brand/aurora';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { LogOut, RefreshCw, Calendar, FileText, AlertTriangle, ArrowUpRight, Inbox } from '@/components/ui/icons';
 
 interface Movimento {
   id: number;
@@ -90,9 +91,7 @@ export default function MovimentoPage() {
             onClick={() => logout()}
             className="gap-1.5 text-muted-foreground"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17l5-5-5-5M20 12H9M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-            </svg>
+            <LogOut className="h-4 w-4" />
             Sair
           </Button>
         </div>
@@ -122,9 +121,7 @@ export default function MovimentoPage() {
           <div className="animate-fade-up flex flex-col items-center justify-center gap-4 py-16 text-center">
             <div className="animate-float-soft relative flex h-24 w-24 items-center justify-center">
               <span className="absolute inset-0 rounded-[2rem] bg-secondary" />
-              <svg className="relative h-10 w-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+              <Inbox className="relative h-10 w-10 text-primary" />
             </div>
             <div>
               <p className="font-display text-lg font-bold">Nenhum movimento aberto</p>
@@ -133,9 +130,7 @@ export default function MovimentoPage() {
               </p>
             </div>
             <Button variant="outline" onClick={() => fetchMovimento(true)} disabled={refreshing} className="mt-1">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={cn('h-4 w-4', refreshing && 'spinner')}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-2.64-6.36M21 3v6h-6" />
-              </svg>
+              <RefreshCw className={cn('h-4 w-4', refreshing && 'spinner')} />
               Atualizar
             </Button>
           </div>
@@ -167,16 +162,12 @@ export default function MovimentoPage() {
                 <div className="bg-gradient-warm-rich animate-gradient mt-4 h-1.5 w-16 rounded-full" />
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/12 px-2.5 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 opacity-80">
-                      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
-                    </svg>
+                    <Calendar className="h-3.5 w-3.5 opacity-80" />
                     <span className="tabular">{formatDate(movimento.dtInicial)}</span>
                   </span>
                   <span className="flex items-center text-white/50">→</span>
                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/12 px-2.5 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 opacity-80">
-                      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
-                    </svg>
+                    <Calendar className="h-3.5 w-3.5 opacity-80" />
                     <span className="tabular">{formatDate(movimento.dtFinal)}</span>
                   </span>
                 </div>
@@ -186,9 +177,7 @@ export default function MovimentoPage() {
             {/* Dados fiscais — bento grid */}
             <div className="animate-fade-up stagger" style={{ ['--d' as string]: '90ms' }}>
               <h2 className="font-display mb-2.5 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                <FileText className="h-3.5 w-3.5" />
                 Dados Fiscais
               </h2>
               <div className="grid grid-cols-2 gap-3">
@@ -245,9 +234,7 @@ export default function MovimentoPage() {
             ) : movimento.erroValidacao ? (
               <div className="animate-fade-up stagger rounded-2xl border border-warm-2/30 bg-warm-2/10 p-4" style={{ ['--d' as string]: '150ms' }}>
                 <p className="font-display flex items-center gap-2 text-sm font-semibold text-warm-3">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.3 3.86l-8.06 14A2 2 0 004 21h16a2 2 0 001.74-3.14l-8.06-14a2 2 0 00-3.48 0z" />
-                  </svg>
+                  <AlertTriangle className="h-4 w-4" />
                   Última validação: campos reprovados
                 </p>
                 <p className="mt-1 text-xs text-warm-3/90">{movimento.erroValidacao}</p>
@@ -259,9 +246,7 @@ export default function MovimentoPage() {
               {!notaAprovada && (
                 <div className="glow-warm relative">
                   <Link href="/validar" className={cn(buttonVariants({ variant: 'warm', size: 'lg' }), 'relative z-10 w-full')}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                    <FileText className="h-5 w-5" />
                     Validar minha NFS-e
                   </Link>
                 </div>
@@ -274,15 +259,11 @@ export default function MovimentoPage() {
                 className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'w-full')}
               >
                 Portal NFS-e Nacional
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M9 7h8v8" />
-                </svg>
+                <ArrowUpRight className="h-4 w-4" />
               </a>
 
               <Button variant="ghost" onClick={() => fetchMovimento(true)} disabled={refreshing} className="w-full">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={cn('h-4 w-4', refreshing && 'spinner')}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-2.64-6.36M21 3v6h-6" />
-                </svg>
+                <RefreshCw className={cn('h-4 w-4', refreshing && 'spinner')} />
                 {refreshing ? 'Atualizando…' : 'Atualizar'}
               </Button>
             </div>
