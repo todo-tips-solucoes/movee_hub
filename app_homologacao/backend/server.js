@@ -202,8 +202,14 @@ app.post('/login', async (req, res) => {
 
 app.get('/verify-auth', authenticateToken, (req, res) => {
   if (req.user) {
-    // Se o token JWT for válido, retornar as informações do usuário
-    res.json({ authenticated: true, nome_empresa: req.user.nome_empresa });
+    // Se o token JWT for válido, retornar as informações do usuário.
+    // config-ui-tenant: expor claims de grupo p/ o frontend (gate de admin + nav).
+    res.json({
+      authenticated: true,
+      nome_empresa: req.user.nome_empresa,
+      is_grupo_pai: req.user.is_grupo_pai === true,
+      id_grupo: req.user.id_grupo ?? null,
+    });
   } else {
     res.status(401).json({ authenticated: false, error: 'Usuário não autenticado' });
   }
@@ -221,8 +227,27 @@ app.post('/token/refresh', async (req, res) => {
     // Validar o refresh token
     const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
-    // Gerar um novo JWT
-    const newAccessToken = generateAccessToken({ empresaId: payload.empresaId, nome_empresa: payload.nome_empresa, workflow_id: payload.workflow_id, sender: payload.sender, tk: payload.tk, connection_id: payload.connection_id });
+    // config-ui-tenant: re-derivar claims de grupo do banco (não confiar no token
+    // antigo — refresh tokens emitidos antes da feature não os carregam).
+    let idGrupo = null;
+    let isGrupoPai = false;
+    try {
+      const emp = await postgrestRequest(`Empresa?id=eq.${payload.empresaId}&select=id_grupo`);
+      if (emp && emp.length > 0 && emp[0].id_grupo) {
+        idGrupo = emp[0].id_grupo;
+        const grupoCheck = await postgrestRequest(`Grupo?id_empresa_pai=eq.${payload.empresaId}&select=id`);
+        if (grupoCheck && grupoCheck.length > 0) {
+          isGrupoPai = true;
+          idGrupo = grupoCheck[0].id;
+        }
+      }
+    } catch (_e) {
+      idGrupo = null;
+      isGrupoPai = false;
+    }
+
+    // Gerar um novo JWT (preservando os claims de grupo)
+    const newAccessToken = generateAccessToken({ empresaId: payload.empresaId, nome_empresa: payload.nome_empresa, workflow_id: payload.workflow_id, sender: payload.sender, tk: payload.tk, connection_id: payload.connection_id, id_grupo: idGrupo, is_grupo_pai: isGrupoPai });
 
     // Enviar o novo JWT no cookie
     res.cookie('accessToken', newAccessToken, {

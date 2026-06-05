@@ -1,6 +1,6 @@
 'use client';
 
-import { LogOut, Send, FileCheck } from 'lucide-react';
+import { LogOut, Send, FileCheck, Palette, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { ThemeToggle } from './theme-toggle';
 import { Button } from '@/components/ui/button';
@@ -62,6 +62,33 @@ export function Header() {
               <FileCheck className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Validacao XML</span>
             </Link>
+            {/* config-ui-tenant: visíveis só para o administrador do grupo (is_grupo_pai) */}
+            {user?.is_grupo_pai && (
+              <>
+                <Link
+                  href="/dashboard/configuracoes/aparencia"
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    pathname === '/dashboard/configuracoes/aparencia'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <Palette className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Aparência</span>
+                </Link>
+                <Link
+                  href="/dashboard/configuracoes/grupo"
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    pathname === '/dashboard/configuracoes/grupo'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Grupo</span>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
 
