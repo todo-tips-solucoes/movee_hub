@@ -81,3 +81,19 @@ curl -s -o /dev/null -w "%{http_code}\n" https://appmotorista.todo-tips.com/
 6. Toggle dark/light (next-themes) continua funcionando com branding custom ativa.
 
 **Critério**: nenhum 404/500 nas chamadas de branding; cenários 1–6 pass.
+
+---
+
+## Resultado do deploy (2026-06-05, executado)
+
+Os 3 serviços atualizados via `service update --with-registry-auth --force --image @sha256` (aditivo, envs preservadas):
+
+| Serviço | Digest | Replicas | Validação no ar |
+|---|---|---|---|
+| backend | `sha256:1220…ac25` | 1/1 | `/empresa/branding` `/grupo/filhos` `/motorista/branding-tomador` → **401** (existem, exigem auth) |
+| frontend_v2 | `sha256:1eca…d773` | 1/1 | `/dashboard/configuracoes/aparencia` e `/grupo` → **200** |
+| frontend_motorista | `sha256:9fdb…32ef` | 1/1 | `/`, `/login`, `/movimento` → **200** |
+
+- Nenhum 404/500 nas rotas de branding/grupo. Rollover gerou 1 `502` transitório em `aparencia`, resolvido na convergência (200 estável).
+- **Pendência**: `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_BRANDING_BUCKET` NÃO foram adicionadas ao backend → **upload de logo desabilitado** (cores/nome funcionam). Para habilitar: `docker service update --env-add ... envio-massa-homologacao_backend_homologacao`.
+- Validação E2E autenticada (login pai D&G → branding → herança filho → PWA marca do tomador): pendente (precisa de sessão/credencial).
