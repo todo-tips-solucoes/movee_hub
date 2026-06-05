@@ -2,6 +2,27 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/*
+ * config-ui-tenant — tokens dinâmicos de branding (task 4.4)
+ *
+ * O TenantThemeProvider (contexts/tenant-theme-context.tsx) sobrescreve
+ * --primary, --accent, --ring, --sidebar-primary e --sidebar-accent via
+ * style.setProperty em runtime quando há branding configurada pelo grupo.
+ *
+ * Fallback (MOVEE_DEFAULTS, dec-028): quando não há branding, os valores
+ * abaixo permanecem — são os tokens shadcn/ui padrão definidos em :root/.dark.
+ *
+ * Para adicionar novos tokens de tenant, registre em applyBrandingTokens()
+ * em tenant-theme-context.tsx e adicione o alias aqui como referência.
+ *
+ * Tokens sobrescritos pelo TenantThemeProvider:
+ *   --primary          → cor_primaria do branding (oklch)
+ *   --ring             → mesma cor_primaria
+ *   --sidebar-primary  → mesma cor_primaria
+ *   --accent           → cor_destaque do branding (oklch)
+ *   --sidebar-accent   → mesma cor_destaque
+ */
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
