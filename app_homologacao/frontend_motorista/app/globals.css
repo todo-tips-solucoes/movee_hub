@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Fontes explícitas p/ a geração de utilitárias — necessário porque a worktree
+   fica sob `.claude/` (gitignored) e a auto-detecção do Tailwind v4 respeita o
+   .gitignore, o que zeraria as utilitárias no build local. */
+@source "../app";
+@source "../components";
+
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================================
