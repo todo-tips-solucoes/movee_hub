@@ -79,6 +79,9 @@ export default function ValidarPage() {
         setError('Nota já aprovada. Reenvio bloqueado.');
         toast.info('Nota já aprovada. Nenhuma ação necessária.');
         setTimeout(() => router.replace('/movimento'), 2000);
+      } else if (msg.toLowerCase().includes('cnpj') || msg.includes('não pertence')) {
+        // XML de prestador diferente do motorista logado (mensagem clara do backend)
+        setError(msg);
       } else if (msg.includes('400') || msg.includes('inválido')) {
         setError('Arquivo inválido. Envie um XML de NFS-e válido.');
       } else if (msg.includes('502') || msg.includes('503') || msg.includes('indisponível')) {
