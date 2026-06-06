@@ -41,14 +41,16 @@ export default function RootLayout({
     >
       <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <TenantThemeProvider>
-            <TooltipProvider>
-              <AuthProvider>
+          {/* AuthProvider acima do TenantThemeProvider: este reage ao login/
+              logout/troca de tenant para re-buscar o branding sem hard refresh. */}
+          <AuthProvider>
+            <TenantThemeProvider>
+              <TooltipProvider>
                 {children}
                 <Toaster richColors position="top-right" />
-              </AuthProvider>
-            </TooltipProvider>
-          </TenantThemeProvider>
+              </TooltipProvider>
+            </TenantThemeProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

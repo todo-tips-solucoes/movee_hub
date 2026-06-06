@@ -24,6 +24,7 @@ import React, {
   useCallback,
   type ReactNode,
 } from 'react';
+import { useAuth } from './auth-context';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,10 @@ const TenantThemeContext = createContext<TenantThemeContextValue | null>(null);
 export function TenantThemeProvider({ children }: { children: ReactNode }) {
   const [branding, setBranding] = useState<BrandingPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  // Identidade do tenant logado — muda em login/logout/troca de empresa.
+  // Usada como dep do fetch p/ reaplicar o branding sem exigir hard refresh.
+  const authKey = user ? `${user.id_grupo ?? ''}|${user.nome_empresa ?? ''}` : 'anon';
 
   const fetchBranding = useCallback(async () => {
     setLoading(true);
@@ -210,9 +215,11 @@ export function TenantThemeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Re-busca o branding no mount E sempre que o tenant logado muda
+  // (login/logout/troca de empresa), aplicando as cores sem hard refresh.
   useEffect(() => {
     fetchBranding();
-  }, [fetchBranding]);
+  }, [fetchBranding, authKey]);
 
   // Preview client-only (dec-027, CHK052): atualiza CSS sem persistir
   const previewBranding = useCallback((patch: Partial<BrandingPayload>) => {
