@@ -432,32 +432,39 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
     // OWASP fix: API FastAPI espera multipart/form-data (schema OpenAPI confirmado).
     // URLSearchParams (x-www-form-urlencoded) causava falha silenciosa — corrigido
     // para multipart via pacote `form-data` (Node 14 não tem FormData global).
-    const xmlInput = JSON.stringify([{ filename: req.file.originalname, data: xmlContent }]);
-    const formPayload = new FormData();
-    formPayload.append('xml_input', xmlInput);
-    formPayload.append('validar_descricao_servico', 'false');
-    formPayload.append('nexus', 'false');
-    // FastAPI exige id_empresa quando nexus=false (usado p/ validar o valor da
-    // nota contra o movimento/tomador). É o id_empresa do movimento em aberto.
-    if (movimento.id_empresa != null) {
-      formPayload.append('id_empresa', String(movimento.id_empresa));
+    // Espelha a validação em massa (server.js) que funciona em produção:
+    // - xml_input é um OBJETO único (não array) — senão o FastAPI faz
+    //   payload.get() sobre uma lista e estoura 500 (main.py:499).
+    // - empresa 6 usa o endpoint NÃO-nexus com id_empresa; as demais usam o
+    //   endpoint nexus com nexus=true. Body como x-www-form-urlencoded.
+    const xmlInput = JSON.stringify({ filename: req.file.originalname, data: xmlContent });
+
+    let url, payload;
+    if (Number(movimento.id_empresa) === 6) {
+      url = 'https://fastapihomologacao.todo-tips.com/validade_nfse';
+      payload = new URLSearchParams({
+        xml_input: xmlInput,
+        id_empresa: '6',
+        validar_descricao_servico: 'false',
+      });
+    } else {
+      url = 'https://fastapihomologacaonexus.todo-tips.com/validade_nfse';
+      payload = new URLSearchParams({
+        xml_input: xmlInput,
+        nexus: 'true',
+        validar_descricao_servico: 'false',
+      });
     }
 
     let apiData;
     try {
-      const apiResponse = await axios.post(
-        'https://fastapihomologacaonexus.todo-tips.com/validade_nfse',
-        formPayload,
-        {
-          headers: {
-            Authorization: process.env.FASTAPI_VALIDATION_TOKEN,
-            // Boundary do multipart/form-data: o pacote `form-data` o gera e
-            // expõe via getHeaders() (Content-Type: multipart/form-data; boundary=...).
-            ...formPayload.getHeaders(),
-          },
-          timeout: 30000,
-        }
-      );
+      const apiResponse = await axios.post(url, payload.toString(), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: process.env.FASTAPI_VALIDATION_TOKEN,
+        },
+        timeout: 30000,
+      });
       apiData = Array.isArray(apiResponse.data) ? apiResponse.data[0] : apiResponse.data;
     } catch (apiErr) {
       // Diagnóstico: além da mensagem, logar status e corpo da resposta do
