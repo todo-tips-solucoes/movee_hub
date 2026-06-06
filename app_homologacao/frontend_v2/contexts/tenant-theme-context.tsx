@@ -144,6 +144,16 @@ function applyBrandingTokens(b: BrandingPayload): void {
     root.style.setProperty('--sidebar-accent', accentOklch);
   }
 
+  // Gradiente quente assinatura segue a cor de destaque do tenant:
+  // --warm-2 = cor de destaque; --warm-1/--warm-3 derivadas por luminosidade
+  // (mais clara / mais escura) para um gradiente coerente com qualquer cor.
+  // Usa o HEX direto (color-mix aceita hex) — sem precisar de oklch aqui.
+  if (/^#[0-9a-fA-F]{6}$/.test(accent)) {
+    root.style.setProperty('--warm-2', accent);
+    root.style.setProperty('--warm-1', `color-mix(in oklab, ${accent}, #ffffff 30%)`);
+    root.style.setProperty('--warm-3', `color-mix(in oklab, ${accent}, #000000 22%)`);
+  }
+
   // dec-029, CHK058/059: warning se contraste < 3.0 (não bloqueia)
   const bgDark = '#242424';
   const cr = contrastRatio(primary, bgDark);
@@ -162,6 +172,10 @@ function clearBrandingTokens(): void {
   root.style.removeProperty('--sidebar-primary');
   root.style.removeProperty('--accent');
   root.style.removeProperty('--sidebar-accent');
+  // volta ao gradiente-assinatura Movee (amarelo→laranja→vermelho do globals.css)
+  root.style.removeProperty('--warm-1');
+  root.style.removeProperty('--warm-2');
+  root.style.removeProperty('--warm-3');
 }
 
 // ── Context ──────────────────────────────────────────────────────────────────
