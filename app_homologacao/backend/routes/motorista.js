@@ -455,7 +455,22 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
       );
       apiData = Array.isArray(apiResponse.data) ? apiResponse.data[0] : apiResponse.data;
     } catch (apiErr) {
-      console.error('[motorista/validar-nota] Serviço externo falhou:', apiErr.message);
+      // Diagnóstico: além da mensagem, logar status e corpo da resposta do
+      // serviço de validação (NÃO loga o header Authorization — só a resposta).
+      let respBody;
+      try {
+        respBody = typeof apiErr.response?.data === 'object'
+          ? JSON.stringify(apiErr.response.data)
+          : String(apiErr.response?.data);
+      } catch {
+        respBody = '<não serializável>';
+      }
+      console.error(
+        '[motorista/validar-nota] Serviço externo falhou:',
+        apiErr.message,
+        '| status:', apiErr.response?.status,
+        '| body:', respBody
+      );
       // Falha temporária: não altera nota_ok/erro_validacao (FR-012)
       return res.status(502).json({
         error: 'Serviço de validação indisponível. Tente novamente em instantes.',
