@@ -2,6 +2,7 @@
 
 import { LogOut, Send, FileCheck, Palette, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
+import { useTenantTheme } from '@/contexts/tenant-theme-context';
 import { ThemeToggle } from './theme-toggle';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,8 +16,13 @@ import { toast } from 'sonner';
 
 export function Header() {
   const { user, logout } = useAuth();
+  const { branding } = useTenantTheme();
   const router = useRouter();
   const pathname = usePathname();
+
+  // White-label: marca/logo do tenant (fallback p/ identidade Movee/EnvioMassa)
+  const brandName = branding?.nome_exibicao || 'Envio em Massa';
+  const logoUrl = branding?.logo_url || null;
 
   const handleLogout = async () => {
     try {
@@ -35,10 +41,17 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-4 md:px-6">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Send className="h-4 w-4 text-primary-foreground" />
-          </div>
-          <span className="font-semibold text-lg">Envio em Massa</span>
+          {/* dec-030: logo do tenant h-8 max-w-32; fallback p/ ícone + nome */}
+          {logoUrl ? (
+            <img src={logoUrl} alt={brandName} className="h-8 max-w-32 object-contain" />
+          ) : (
+            <>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                <Send className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <span className="font-display font-semibold text-lg truncate max-w-[12rem]">{brandName}</span>
+            </>
+          )}
           <nav className="ml-6 flex items-center gap-1">
             <Link
               href="/dashboard"
