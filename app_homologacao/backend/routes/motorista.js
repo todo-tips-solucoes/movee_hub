@@ -411,14 +411,13 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
 
     const movimento = movimentos[0];
 
-    // Pré-condição 2: bloqueio de reenvio — nota já aprovada (FR-008)
+    // Pré-condição 2: bloqueio de reenvio — só se já APROVADA de verdade.
+    // O serviço de validação grava nota_ok = URL do XML mesmo quando a nota é
+    // REPROVADA; portanto "aprovada" = ter nota_ok preenchido E erro_validacao
+    // vazio. Assim uma nota reprovada pode ser reenviada após correção.
     const notaOkFlag = movimento.nota_ok;
-    const jaAprovada =
-      notaOkFlag === true ||
-      notaOkFlag === 'true' ||
-      notaOkFlag === 'sim' ||
-      notaOkFlag === '1' ||
-      notaOkFlag === 1;
+    const temNotaOk = notaOkFlag != null && String(notaOkFlag).trim() !== '';
+    const jaAprovada = temNotaOk && !((movimento.erro_validacao || '').trim());
 
     if (jaAprovada) {
       return res.status(409).json({
@@ -489,13 +488,6 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
       });
     }
 
-    if (!apiData || typeof apiData.valid === 'undefined') {
-      console.error('[motorista/validar-nota] Resposta inesperada do serviço:', apiData);
-      return res.status(503).json({
-        error: 'Serviço de validação indisponível. Tente novamente em instantes.',
-      });
-    }
-
     // Mapeamento campo → mensagem pt-BR (data-model.md §ResultadoValidacao / FR-009)
     const FIELD_MESSAGES = {
       valid_cnpj_prestador: 'CNPJ do prestador (você) está incorreto na nota.',
@@ -507,32 +499,41 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
       valid_dCompet: 'Data de competência (dCompet) está incorreta.',
     };
 
-    if (apiData.valid) {
-      // Nota válida: persistir nota_ok (FR-007)
-      await _postgrestRequest(
-        `EnvioMassa?id=eq.${movimento.id}`,
-        'PATCH',
-        { nota_ok: 'sim' }
+    // Fonte de verdade: o serviço de validação grava o resultado DIRETO na
+    // EnvioMassa (nota_ok = URL do XML salvo; erro_validacao = campos reprovados,
+    // ex.: "valid_valor,valid_cnpj"). Relemos o registro do movimento e
+    // decidimos por erro_validacao — não pelo status HTTP nem pelo JSON imediato.
+    // O backend NÃO regrava nota_ok/erro_validacao (evita sobrescrever a URL).
+    let registro;
+    try {
+      const refreshed = await _postgrestRequest(
+        `EnvioMassa?id=eq.${movimento.id}&select=nota_ok,erro_validacao`
       );
+      registro = refreshed && refreshed[0];
+    } catch (_e) {
+      registro = null;
+    }
 
+    const notaOkGravado =
+      registro && registro.nota_ok != null && String(registro.nota_ok).trim() !== '';
+    const erroValidacao = ((registro && registro.erro_validacao) || '').trim();
+
+    if (notaOkGravado && !erroValidacao) {
+      // Aprovada — resultado já persistido pelo serviço de validação
       return res.json({
         valid: true,
         notaOk: true,
         mensagem: 'Nota ok! Validação aprovada.',
       });
-    } else {
-      // Nota inválida: persistir erro_validacao (FR-009)
-      const details = apiData.details || {};
-      const camposInvalidos = Object.entries(FIELD_MESSAGES)
-        .filter(([flag]) => details[flag] === false)
-        .map(([campo, mensagem]) => ({ campo, mensagem }));
+    }
 
-      const erroValidacaoStr = camposInvalidos.map(c => c.campo).join(',');
-      await _postgrestRequest(
-        `EnvioMassa?id=eq.${movimento.id}`,
-        'PATCH',
-        { erro_validacao: erroValidacaoStr }
-      );
+    if (erroValidacao) {
+      // Reprovada — campos vêm de erro_validacao gravado na EnvioMassa
+      const camposInvalidos = erroValidacao
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(campo => ({ campo, mensagem: FIELD_MESSAGES[campo] || 'Campo inválido na nota.' }));
 
       return res.json({
         valid: false,
@@ -541,6 +542,15 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
         instrucao: 'Cancele esta nota e emita uma nova com os campos corrigidos.',
       });
     }
+
+    // Sem resultado gravado: o serviço respondeu mas não persistiu o resultado.
+    console.error(
+      '[motorista/validar-nota] Sem resultado gravado na EnvioMassa pós-validação. apiData:',
+      JSON.stringify(apiData)
+    );
+    return res.status(503).json({
+      error: 'Serviço de validação indisponível. Tente novamente em instantes.',
+    });
   } catch (err) {
     console.error('[motorista/validar-nota] Erro inesperado:', err.message);
     return res.status(500).json({ error: 'Erro no servidor.' });
