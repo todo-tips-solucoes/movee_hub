@@ -400,6 +400,21 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
       return res.status(400).json({ error: 'Arquivo inválido: envie um XML de NFS-e válido.' });
     }
 
+    // Pré-condição: o XML tem que ser do CNPJ do motorista logado.
+    // O serviço de validação localiza o movimento pelo <prest><CNPJ> de DENTRO
+    // do XML (não pelo login). Se o XML for de outro prestador, ele gravaria o
+    // resultado no movimento alheio e o app não acharia o do motorista. Por isso
+    // recusamos aqui, com mensagem clara, antes de chamar o serviço.
+    const cnpjMotorista = String(cnpj).replace(/\D/g, '');
+    const prestBloco = xmlContent.match(/<prest\b[^>]*>([\s\S]*?)<\/prest>/i);
+    const cnpjXmlMatch = prestBloco && prestBloco[1].match(/<CNPJ\b[^>]*>\s*([\d./-]+)\s*<\/CNPJ>/i);
+    const cnpjXml = cnpjXmlMatch ? cnpjXmlMatch[1].replace(/\D/g, '') : '';
+    if (cnpjXml && cnpjXml !== cnpjMotorista) {
+      return res.status(400).json({
+        error: 'Este XML não pertence ao seu CNPJ. Envie a nota fiscal emitida com o seu CNPJ de prestador.',
+      });
+    }
+
     // Pré-condição 1: existe movimento aberto para este CNPJ
     const movimentos = await _postgrestRequest(
       `EnvioMassa?cnpj_prestador=eq.${encodeURIComponent(cnpj)}&mov_fechado=eq.false&order=created_at.desc&limit=1`
