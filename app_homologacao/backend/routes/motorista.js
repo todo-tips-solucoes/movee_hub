@@ -437,6 +437,11 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
     formPayload.append('xml_input', xmlInput);
     formPayload.append('validar_descricao_servico', 'false');
     formPayload.append('nexus', 'false');
+    // FastAPI exige id_empresa quando nexus=false (usado p/ validar o valor da
+    // nota contra o movimento/tomador). É o id_empresa do movimento em aberto.
+    if (movimento.id_empresa != null) {
+      formPayload.append('id_empresa', String(movimento.id_empresa));
+    }
 
     let apiData;
     try {
