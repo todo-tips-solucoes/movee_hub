@@ -499,37 +499,27 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
       valid_dCompet: 'Data de competência (dCompet) está incorreta.',
     };
 
-    // O serviço de validação retorna o resultado por nota em apiData.details
-    // (flags valid_*). O FastAPI NÃO persiste nota_ok/erro_validacao nesta
-    // chamada, então é o backend que grava na EnvioMassa — a tabela é a fonte
-    // de verdade do app e do painel:
-    //   nota_ok        = conteúdo do XML da nota (o painel sabe baixá-lo a
-    //                    partir do conteúdo quando nota_ok inicia com "<");
-    //   erro_validacao = campos reprovados ("valid_valor,valid_cnpj"); vazio = ok.
-    // Salvaguarda: resposta sem details/valid não é confiável → 503.
-    if (!apiData || (typeof apiData.valid === 'undefined' && !apiData.details)) {
-      console.error('[motorista/validar-nota] Resposta inesperada do serviço:', JSON.stringify(apiData));
-      return res.status(503).json({
-        error: 'Serviço de validação indisponível. Tente novamente em instantes.',
-      });
+    // Fonte de verdade: o serviço de validação grava o resultado DIRETO na
+    // EnvioMassa (nota_ok = URL do XML salvo; erro_validacao = campos reprovados,
+    // ex.: "valid_valor,valid_cnpj"). Relemos o registro do movimento e
+    // decidimos por erro_validacao — não pelo status HTTP nem pelo JSON imediato.
+    // O backend NÃO regrava nota_ok/erro_validacao (evita sobrescrever a URL).
+    let registro;
+    try {
+      const refreshed = await _postgrestRequest(
+        `EnvioMassa?id=eq.${movimento.id}&select=nota_ok,erro_validacao`
+      );
+      registro = refreshed && refreshed[0];
+    } catch (_e) {
+      registro = null;
     }
 
-    const details = apiData.details || {};
-    const camposInvalidos = Object.entries(FIELD_MESSAGES)
-      .filter(([flag]) => details[flag] === false)
-      .map(([campo, mensagem]) => ({ campo, mensagem }));
-    const erroValidacaoStr = camposInvalidos.map(c => c.campo).join(',');
+    const notaOkGravado =
+      registro && registro.nota_ok != null && String(registro.nota_ok).trim() !== '';
+    const erroValidacao = ((registro && registro.erro_validacao) || '').trim();
 
-    // Persiste o resultado na EnvioMassa (nota_ok preenchida + erro_validacao)
-    await _postgrestRequest(
-      `EnvioMassa?id=eq.${movimento.id}`,
-      'PATCH',
-      { nota_ok: xmlContent, erro_validacao: erroValidacaoStr }
-    );
-
-    // Decisão pela regra de negócio sobre o que ficou gravado na tabela:
-    // erro_validacao vazio → válida; preenchido → inválida (mostra os campos).
-    if (!erroValidacaoStr) {
+    if (notaOkGravado && !erroValidacao) {
+      // Aprovada — resultado já persistido pelo serviço de validação
       return res.json({
         valid: true,
         notaOk: true,
@@ -537,11 +527,29 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
       });
     }
 
-    return res.json({
-      valid: false,
-      notaOk: false,
-      camposInvalidos,
-      instrucao: 'Cancele esta nota e emita uma nova com os campos corrigidos.',
+    if (erroValidacao) {
+      // Reprovada — campos vêm de erro_validacao gravado na EnvioMassa
+      const camposInvalidos = erroValidacao
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(campo => ({ campo, mensagem: FIELD_MESSAGES[campo] || 'Campo inválido na nota.' }));
+
+      return res.json({
+        valid: false,
+        notaOk: false,
+        camposInvalidos,
+        instrucao: 'Cancele esta nota e emita uma nova com os campos corrigidos.',
+      });
+    }
+
+    // Sem resultado gravado: o serviço respondeu mas não persistiu o resultado.
+    console.error(
+      '[motorista/validar-nota] Sem resultado gravado na EnvioMassa pós-validação. apiData:',
+      JSON.stringify(apiData)
+    );
+    return res.status(503).json({
+      error: 'Serviço de validação indisponível. Tente novamente em instantes.',
     });
   } catch (err) {
     console.error('[motorista/validar-nota] Erro inesperado:', err.message);
