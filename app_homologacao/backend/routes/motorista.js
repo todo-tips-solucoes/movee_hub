@@ -523,4 +523,4 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
 // ──────────────────────────────────────────────────────────────────────────────
 // Exportar router + função init (injeção de dependências)
 // ──────────────────────────────────────────────────────────────────────────────
-module.exports = { router, init };
+module.exports = { router, init, authenticateMotorista };

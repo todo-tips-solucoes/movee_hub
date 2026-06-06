@@ -1831,8 +1831,10 @@ brandingRoutes.init({ postgrestRequest });
 app.use('/empresa/branding', authenticateToken, brandingRoutes.router);
 // GET /motorista/branding-tomador (auth motorista — já montado no motoristaRoutes,
 // mas o handler está em brandingRoutes.brandingTomadorRouter para separação de módulo)
-// Injetamos no router do motorista via uso direto do sub-router:
-motoristaRoutes.router.use('/', brandingRoutes.brandingTomadorRouter);
+// Injetamos no router do motorista via uso direto do sub-router, COM o middleware
+// authenticateMotorista — senão req.motorista nunca é setado e o handler retorna
+// 401 mesmo com sessão válida (fix: branding-tomador 401 no app motorista).
+motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, brandingRoutes.brandingTomadorRouter);
 
 // Iniciar o servidor
 app.listen(3000, () => {
