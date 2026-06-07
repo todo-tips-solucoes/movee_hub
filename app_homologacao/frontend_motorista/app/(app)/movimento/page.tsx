@@ -86,11 +86,14 @@ export default function MovimentoPage() {
     fetchMovimento();
   }, [fetchMovimento]);
 
-  const notaAprovada =
-    movimento?.notaOk === true ||
-    movimento?.notaOk === 'true' ||
-    movimento?.notaOk === 'sim' ||
-    movimento?.notaOk === '1';
+  // Regra: nota_ok preenchido (o serviço grava a URL/conteúdo do XML) E
+  // erro_validacao vazio = APROVADA. nota_ok preenchido + erro_validacao
+  // preenchido = reprovada (cai no bloco de erro). nota_ok vazio = pendente.
+  const temNotaOk =
+    movimento?.notaOk != null && String(movimento.notaOk).trim() !== '';
+  const semErroValidacao =
+    !movimento?.erroValidacao || String(movimento.erroValidacao).trim() === '';
+  const notaAprovada = temNotaOk && semErroValidacao;
 
   const nome = user?.nome || formatCNPJ(user?.cnpjPrestador ?? '');
   const valorNum =
