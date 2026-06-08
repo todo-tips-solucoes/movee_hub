@@ -5,7 +5,7 @@
  * Ref: tarefa 5.1.1 / spec US1 / contracts §login / quickstart 1, 2
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
@@ -27,10 +27,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ cnpj?: string; senha?: string; geral?: string }>({});
 
-  if (user) {
-    router.replace('/movimento');
-    return null;
-  }
+  // Redirect de usuário já autenticado em efeito (não durante o render) —
+  // evita "update durante render". O return null abaixo só impede o flash.
+  useEffect(() => {
+    if (user) router.replace('/movimento');
+  }, [user, router]);
+
+  if (user) return null;
 
   function validate() {
     const errs: typeof errors = {};
