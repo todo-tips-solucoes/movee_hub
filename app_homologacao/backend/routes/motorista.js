@@ -48,6 +48,20 @@ function init({ postgrestRequest, generatePostgrestJWT }) {
   _generatePostgrestJWT = generatePostgrestJWT;
 }
 
+// A EnvioMassa armazena cnpj_prestador em DOIS formatos (só-dígitos e com
+// máscara XX.XXX.XXX/XXXX-XX). Buscar por eq.<só-dígitos> não casa os registros
+// pontuados → 409 falso no cadastro e "sem movimento" no app. Este helper gera
+// um filtro PostgREST in.(...) que casa ambos os formatos.
+function cnpjEnvioMassaFilter(cnpj) {
+  const d = String(cnpj || '').replace(/\D/g, '');
+  const valores = [d];
+  if (d.length === 14) {
+    valores.push(`${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`);
+  }
+  const lista = valores.map((v) => `"${v}"`).join(',');
+  return `cnpj_prestador=in.(${encodeURIComponent(lista)})`;
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Geração de tokens JWT (audiência: motorista)
 // Separação de audiência: claim `aud: 'motorista'` impede que tokens de Empresa
@@ -198,7 +212,7 @@ router.post('/register', async (req, res) => {
 
     // Guard 1: verificar se CNPJ existe na EnvioMassa (anti-enumeração)
     const movimentos = await _postgrestRequest(
-      `EnvioMassa?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}&limit=1`
+      `EnvioMassa?${cnpjEnvioMassaFilter(cnpjNorm)}&limit=1`
     );
 
     // Resposta anti-enumeração: mesma mensagem se CNPJ não existe ou já tem conta
@@ -300,7 +314,7 @@ router.get('/movimento-aberto', authenticateMotorista, async (req, res) => {
 
     // Escopo sempre por token — nunca por parâmetro externo (Constituição II)
     const movimentos = await _postgrestRequest(
-      `EnvioMassa?cnpj_prestador=eq.${encodeURIComponent(cnpj)}&mov_fechado=eq.false&order=created_at.desc&limit=1`
+      `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}&mov_fechado=eq.false&order=created_at.desc&limit=1`
     );
 
     if (!movimentos || movimentos.length === 0) {
@@ -417,7 +431,7 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
 
     // Pré-condição 1: existe movimento aberto para este CNPJ
     const movimentos = await _postgrestRequest(
-      `EnvioMassa?cnpj_prestador=eq.${encodeURIComponent(cnpj)}&mov_fechado=eq.false&order=created_at.desc&limit=1`
+      `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}&mov_fechado=eq.false&order=created_at.desc&limit=1`
     );
 
     if (!movimentos || movimentos.length === 0) {
