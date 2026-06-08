@@ -10,83 +10,94 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================================
-   Movee · Design System — App Motorista
-   Identidade: azul royal (base) + gradiente quente assinatura (amarelo→laranja
-   →vermelho) + menta (sucesso). Tipografia Poppins (títulos) / Inter (corpo).
+   EntreGô · Design System — App Motorista (Guia de Marca EntreGô 2.0)
+   Identidade: azul #2C67EA (primária) + azul-marinho #0F1849 + verde menta
+   #2CEABC + amarelo #FFB72A; fundo creme #F9F2E8. Gradiente assinatura FRIO
+   (azul→menta). Tipografia única: Plus Jakarta Sans. Ícones: Material Symbols
+   Rounded. Estilo flat, leve e amigável.
    ============================================================================
 
-   config-ui-tenant — tokens dinâmicos de branding (task 5.3)
+   config-ui-tenant — tokens dinâmicos de branding por tenant.
    O TenantThemeProvider (contexts/tenant-theme-context.tsx) sobrescreve em runtime:
      --primary  → cor_primaria do tomador (HEX direto)
      --ring     → mesma cor_primaria
-     --warm-2   → cor_destaque do tomador (ponto médio do gradiente Movee)
-   Fallback (MOVEE_DEFAULTS): #1f63eb (primary) / #ff7a18 (warm-2) / "Movee"
-   Logo dimensões: h-6 max-w-24 (dec-030, CHK062)
-   Cache TTL=sessão por cnpj_tomador (dec-031, CHK066)
-   Timeout: 3000ms (dec-024, CHK038)
+     --warm-2   → cor_destaque do tomador (ponto médio do gradiente assinatura)
+   Fallback (defaults): #2c67ea (primary) / #2ceabc (destaque) / "EntreGô".
+
+   Nota: os tokens/classes mantêm o nome legado "warm-*" por compatibilidade
+   com os componentes, mas representam o gradiente assinatura FRIO do EntreGô
+   (azul → menta → verde).
    ========================================================================== */
 
 :root {
-  --background: #ffffff;
-  --foreground: #0e1a2b;
+  --background: #f9f2e8;          /* creme */
+  --foreground: #0f1849;          /* azul-marinho */
   --card: #ffffff;
-  --card-foreground: #0e1a2b;
+  --card-foreground: #0f1849;
   --popover: #ffffff;
-  --popover-foreground: #0e1a2b;
+  --popover-foreground: #0f1849;
 
-  --primary: #1f63eb;
+  --primary: #2c67ea;
   --primary-foreground: #ffffff;
-  --secondary: #eaf1fe;
-  --secondary-foreground: #1a4fc4;
+  --secondary: #b4e4ff;          /* azul claro */
+  --secondary-foreground: #1b3fac;
 
-  --muted: #f2f5fb;
-  --muted-foreground: #5a6b85;
-  --accent: #eaf1fe;
-  --accent-foreground: #1a4fc4;
+  --muted: #efe6d6;              /* creme mais fechado p/ superfícies muted */
+  --muted-foreground: #5a6a87;   /* marinho dessaturado */
+  --accent: #b4ffed;            /* verde-água claro */
+  --accent-foreground: #0f4938;
 
-  --success: #16a375;
+  --success: #009b7f;           /* verde do guia */
   --success-foreground: #ffffff;
-  --destructive: #ee3b26;
+  --warning: #ffb72a;           /* amarelo do guia (atenção/destaque) */
+  --warning-foreground: #0f1849;
+  --destructive: #e5484d;       /* vermelho FUNCIONAL (guia não define erro) */
   --destructive-foreground: #ffffff;
 
-  --border: #e3e9f4;
-  --input: #e3e9f4;
-  --ring: #1f63eb;
+  --border: #e7ddcd;            /* borda sobre creme */
+  --input: #e7ddcd;
+  --ring: #2c67ea;
 
-  /* gradiente quente assinatura Movee */
-  --warm-1: #ffc020;
-  --warm-2: #ff7a18;
-  --warm-3: #f23a20;
+  /* gradiente assinatura EntreGô (frio): azul → menta → verde */
+  --warm-1: #2c67ea;
+  --warm-2: #2ceabc;
+  --warm-3: #009b7f;
 
   --radius: 0.875rem;
 }
 
 .dark {
-  --background: #0b1220;
-  --foreground: #e6ecf6;
-  --card: #121c2e;
-  --card-foreground: #e6ecf6;
-  --popover: #121c2e;
-  --popover-foreground: #e6ecf6;
+  --background: #0a1130;        /* marinho bem escuro */
+  --foreground: #e9eefb;
+  --card: #141d44;
+  --card-foreground: #e9eefb;
+  --popover: #141d44;
+  --popover-foreground: #e9eefb;
 
-  --primary: #4f8bff;
-  --primary-foreground: #06122b;
-  --secondary: #1b2740;
-  --secondary-foreground: #cfe0ff;
+  --primary: #5b8df2;          /* azul clareado p/ contraste no escuro */
+  --primary-foreground: #07112e;
+  --secondary: #1b2a55;
+  --secondary-foreground: #b9d2ff;
 
-  --muted: #16223a;
-  --muted-foreground: #9aaac6;
-  --accent: #1b2740;
-  --accent-foreground: #cfe0ff;
+  --muted: #16204a;
+  --muted-foreground: #9aa8cf;
+  --accent: #173a44;
+  --accent-foreground: #2ceabc;
 
-  --success: #2bbf92;
+  --success: #2ceabc;
   --success-foreground: #06231a;
-  --destructive: #ff5a43;
-  --destructive-foreground: #1a0603;
+  --warning: #ffc555;
+  --warning-foreground: #2a1c00;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #2a0606;
 
-  --border: #243352;
-  --input: #243352;
-  --ring: #4f8bff;
+  --border: #283566;
+  --input: #283566;
+  --ring: #5b8df2;
+
+  --warm-1: #5b8df2;
+  --warm-2: #2ceabc;
+  --warm-3: #2bbf92;
 }
 
 @theme inline {
@@ -106,6 +117,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -115,9 +128,10 @@
   --color-warm-2: var(--warm-2);
   --color-warm-3: var(--warm-3);
 
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-display: var(--font-poppins), var(--font-inter), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Tipografia única do guia: Plus Jakarta Sans */
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+  --font-display: var(--font-jakarta), system-ui, sans-serif;
+  --font-mono: var(--font-jakarta), ui-monospace, "SF Mono", Menlo, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -144,14 +158,33 @@ body {
 }
 
 /* ---- Utilitários de marca ------------------------------------------------- */
-.font-display { font-family: var(--font-display); }
-/* dígitos mono com largura fixa — precisão "fintech" para valores/CNPJ/datas */
+.font-display { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.01em; }
+/* dígitos tabulares na própria fonte do guia (sem fonte mono — fonte única) */
 .tabular {
-  font-family: var(--font-mono);
-  font-feature-settings: "tnum" 1, "ss01" 1;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
   letter-spacing: -0.01em;
 }
+
+/* ---- Ícones: Material Symbols Rounded (guia EntreGô) ---------------------- */
+/* A classe base .material-symbols-rounded vem do CSS do Google (<link> no
+   layout). Aqui centralizamos o glifo e mapeamos os tamanhos h-* (Tailwind)
+   para font-size, já que ícones em fonte dimensionam por font-size. */
+.material-symbols-rounded {
+  font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 40;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+.material-symbols-rounded.h-3\.5 { font-size: 0.875rem; }
+.material-symbols-rounded.h-4   { font-size: 1rem; }
+.material-symbols-rounded.h-5   { font-size: 1.25rem; }
+.material-symbols-rounded.h-6   { font-size: 1.5rem; }
+.material-symbols-rounded.h-7   { font-size: 1.75rem; }
+.material-symbols-rounded.h-8   { font-size: 2rem; }
+.material-symbols-rounded.h-10  { font-size: 2.5rem; }
 
 /* glow de acento — halo radial atrás de elemento herói (use em wrapper relative) */
 .glow-warm::before,
@@ -184,30 +217,29 @@ body {
 }
 .bg-gradient-blue {
   background-image:
-    radial-gradient(120% 120% at 0% 0%, #3f7bff 0%, rgba(63, 123, 255, 0) 55%),
-    radial-gradient(120% 120% at 100% 0%, #1e58e0 0%, rgba(30, 88, 224, 0) 50%),
-    linear-gradient(160deg, #2e6bf0, #143fa6);
+    radial-gradient(120% 120% at 0% 0%, #4f86ff 0%, rgba(79, 134, 255, 0) 55%),
+    radial-gradient(120% 120% at 100% 0%, #2c67ea 0%, rgba(44, 103, 234, 0) 50%),
+    linear-gradient(160deg, #2c67ea, #1b3fac);
 }
 .dark .bg-gradient-blue {
   background-image:
-    radial-gradient(120% 120% at 0% 0%, #244a9e 0%, rgba(36, 74, 158, 0) 55%),
+    radial-gradient(120% 120% at 0% 0%, #2a4a9e 0%, rgba(42, 74, 158, 0) 55%),
     radial-gradient(120% 120% at 100% 0%, #16306e 0%, rgba(22, 48, 110, 0) 50%),
-    linear-gradient(160deg, #16234a, #0c1631);
+    linear-gradient(160deg, #16234a, #0a1130);
 }
 
-/* gradiente quente "líquido" — usado no hero/CTAs, anima quando .is-animated */
+/* gradiente assinatura "líquido" — usado no hero/CTAs, anima quando .animate-gradient */
 .bg-gradient-warm-rich {
   background-image: linear-gradient(
     115deg,
     var(--warm-1) 0%,
-    var(--warm-2) 42%,
-    var(--warm-3) 78%,
-    #d8261a 100%
+    var(--warm-2) 55%,
+    var(--warm-3) 100%
   );
   background-size: 200% 200%;
 }
 .text-gradient-warm-rich {
-  background-image: linear-gradient(115deg, var(--warm-1), var(--warm-2) 55%, var(--warm-3));
+  background-image: linear-gradient(115deg, var(--warm-1), var(--warm-2) 60%, var(--warm-3));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -220,7 +252,7 @@ body {
 }
 
 /* ============================================================================
-   Motion · "Movimento" — entrada encenada, profundidade e microinterações.
+   Motion · entrada encenada, profundidade e microinterações.
    Tudo cai para estático sob prefers-reduced-motion (acessibilidade).
    ========================================================================== */
 @keyframes mv-fade-up {
@@ -296,7 +328,7 @@ body {
   border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   box-shadow:
     0 1px 0 0 color-mix(in oklab, #fff 60%, transparent) inset,
-    0 18px 40px -22px rgba(14, 26, 43, 0.45);
+    0 18px 40px -22px rgba(15, 24, 73, 0.4);
 }
 .dark .glass {
   box-shadow:

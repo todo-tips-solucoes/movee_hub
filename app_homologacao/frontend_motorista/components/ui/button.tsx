@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 /**
- * Botão do design system Movee. `buttonVariants` é exportado para aplicar o
+ * Botão do design system EntreGô. `buttonVariants` é exportado para aplicar o
  * mesmo estilo em <Link>/<a> (sem depender de @radix-ui/react-slot).
  */
 export const buttonVariants = cva(

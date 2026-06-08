@@ -10,7 +10,7 @@
  * Diferença do frontend_v2: este provider usa HEX diretamente (globals.css usa HEX,
  * não oklch). Cache Map<cnpj_tomador, payload> com TTL=sessão (dec-031, CHK066).
  * Timeout client-side: 3000ms (dec-024, CHK038).
- * Fallback: { fallback: "movee" } → aplica MOVEE_DEFAULTS sem sobrescrever tokens.
+ * Fallback: { fallback: "movee" } (sentinela da API) → aplica ENTREGO_DEFAULTS sem sobrescrever tokens.
  *
  * Logo: h-6 max-w-24 (dec-030, CHK062 — dimensões para o header do motorista).
  */
@@ -43,28 +43,30 @@ export interface TenantThemeContextValue {
     movimentoId: number,
     cnpjTomador: string | null
   ) => Promise<BrandingPayload | null>;
-  /** Limpa o branding atual e volta aos defaults Movee */
+  /** Limpa o branding atual e volta aos defaults EntreGô */
   clearBranding: () => void;
 }
 
-// ── Defaults Movee (dec-028, CHK057) ────────────────────────────────────────
+// ── Defaults EntreGô (substituem os antigos Movee) ──────────────────────────
+// Identidade padrão do app conforme Guia de Marca EntreGô 2.0. A branding do
+// tenant (tomador) continua sobrescrevendo estes valores em runtime.
 
-const MOVEE_DEFAULTS: BrandingPayload = {
-  cor_primaria: '#1f63eb',
-  cor_destaque: '#ff7a18',
-  nome_exibicao: 'Movee',
+const ENTREGO_DEFAULTS: BrandingPayload = {
+  cor_primaria: '#2c67ea',
+  cor_destaque: '#2ceabc',
+  nome_exibicao: 'EntreGô',
 };
 
 // ── Injeção de CSS custom properties (HEX direto — globals.css usa HEX) ─────
 
 function applyTokensHex(b: BrandingPayload): void {
   const root = document.documentElement;
-  const primary = b.cor_primaria || MOVEE_DEFAULTS.cor_primaria!;
-  const accent = b.cor_destaque || MOVEE_DEFAULTS.cor_destaque!;
+  const primary = b.cor_primaria || ENTREGO_DEFAULTS.cor_primaria!;
+  const accent = b.cor_destaque || ENTREGO_DEFAULTS.cor_destaque!;
 
   root.style.setProperty('--primary', primary);
   root.style.setProperty('--ring', primary);
-  // warm-2 é o ponto médio do gradiente assinatura Movee
+  // warm-2 é o ponto médio do gradiente assinatura (azul→menta)
   root.style.setProperty('--warm-2', accent);
 }
 

@@ -1,11 +1,11 @@
 {
-  "name": "Movee — App Motorista",
-  "short_name": "Movee",
+  "name": "EntreGô — App Motorista",
+  "short_name": "EntreGô",
   "description": "Consulte o valor da sua Nota Fiscal e envie o XML para validação.",
   "start_url": "/movimento",
   "display": "standalone",
-  "background_color": "#1f63eb",
-  "theme_color": "#1f63eb",
+  "background_color": "#f9f2e8",
+  "theme_color": "#2c67ea",
   "orientation": "portrait-primary",
   "icons": [
     {
