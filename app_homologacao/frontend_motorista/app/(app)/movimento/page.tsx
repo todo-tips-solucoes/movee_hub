@@ -52,6 +52,18 @@ function initials(name: string): string {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
 
+// Mapa código → mensagem pt-BR dos campos reprovados na validação (mesmos
+// nomes gravados em erro_validacao pelo serviço; espelha FIELD_MESSAGES do backend).
+const VALIDACAO_MENSAGENS: Record<string, string> = {
+  valid_cnpj_prestador: 'CNPJ do prestador (você) está incorreto na nota.',
+  valid_cnpj: 'CNPJ do tomador está incorreto na nota.',
+  valid_descricao_servico: 'Descrição do serviço está incorreta.',
+  valid_valor: 'Valor da nota não confere com o valor do movimento.',
+  valid_trib_nac: 'Tributação nacional (TribNac) está incorreta.',
+  valid_trib_mun: 'Tributação municipal está incorreta.',
+  valid_dCompet: 'Data de competência (dCompet) está incorreta.',
+};
+
 export default function MovimentoPage() {
   const { user, logout } = useAuth();
   const { applyBrandingForMovimento } = useTenantTheme();
@@ -315,7 +327,18 @@ export default function MovimentoPage() {
                   <AlertTriangle className="h-4 w-4" />
                   Última validação: campos reprovados
                 </p>
-                <p className="mt-1 text-xs text-warm-3/90">{movimento.erroValidacao}</p>
+                <ul className="mt-2 space-y-1.5">
+                  {movimento.erroValidacao
+                    .split(',')
+                    .map((c) => c.trim())
+                    .filter(Boolean)
+                    .map((campo) => (
+                      <li key={campo} className="flex items-start gap-2 text-xs text-warm-3/90">
+                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warm-3/70" />
+                        {VALIDACAO_MENSAGENS[campo] || 'Campo inválido na nota.'}
+                      </li>
+                    ))}
+                </ul>
               </div>
             ) : null}
 
