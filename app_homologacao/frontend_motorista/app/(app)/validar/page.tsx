@@ -28,6 +28,10 @@ interface ValidacaoResult {
   instrucao?: string;
 }
 
+// Limite alinhado ao backend (multer: 2 MB). Validado no client p/ feedback
+// imediato — tanto no seletor quanto no arrastar-soltar.
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+
 export default function ValidarPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,8 +43,28 @@ export default function ValidarPage() {
   const [dragging, setDragging] = useState(false);
 
   function pickFile(selected: File | null) {
-    setFile(selected);
     setResult(null);
+    if (!selected) {
+      setFile(null);
+      setError(null);
+      return;
+    }
+    // Tipo: extensão .xml ou mimetype XML (o drag-drop nem sempre traz mimetype)
+    const isXml =
+      /\.xml$/i.test(selected.name) ||
+      selected.type === 'text/xml' ||
+      selected.type === 'application/xml';
+    if (!isXml) {
+      setFile(null);
+      setError('Arquivo inválido: envie o arquivo .xml da NFS-e.');
+      return;
+    }
+    if (selected.size > MAX_UPLOAD_BYTES) {
+      setFile(null);
+      setError('Arquivo muito grande. O limite é 2 MB.');
+      return;
+    }
+    setFile(selected);
     setError(null);
   }
 
