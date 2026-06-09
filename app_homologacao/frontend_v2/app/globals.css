@@ -9,125 +9,128 @@
 @source "../components";
 
 /* ============================================================================
-   Movee · Design System — Painel EnvioMassa (frontend_v2)
-   Portado do App Motorista (frontend_motorista/app/globals.css).
-   Identidade: azul royal (base) + gradiente quente assinatura (amarelo→laranja
-   →vermelho) + menta (sucesso). Tipografia Poppins (títulos) / Inter (corpo) /
-   JetBrains Mono (dados numéricos).
+   EntreGô · Design System — Painel EnvioMassa (frontend_v2)
+   Guia de Marca EntreGô 2.0. Identidade: azul #2C67EA + azul-marinho #0F1849 +
+   verde menta #2CEABC + amarelo #FFB72A; fundo creme #F9F2E8. Gradiente
+   assinatura FRIO (azul→menta). Tipografia única Plus Jakarta Sans.
    ============================================================================
 
    config-ui-tenant — tokens dinâmicos de branding (white-label)
    O TenantThemeProvider (contexts/tenant-theme-context.tsx) sobrescreve em
    runtime, via style.setProperty no <html>, convertendo HEX→oklch:
-     --primary          → cor_primaria do branding
-     --ring             → mesma cor_primaria
-     --sidebar-primary  → mesma cor_primaria
-     --accent           → cor_destaque do branding
-     --sidebar-accent   → mesma cor_destaque
-   Os valores Movee abaixo são os DEFAULTS; a branding do tenant continua
+     --primary / --ring / --sidebar-primary → cor_primaria do branding
+     --accent / --sidebar-accent            → cor_destaque do branding
+   Os valores EntreGô abaixo são os DEFAULTS; a branding do tenant continua
    sobrescrevendo em runtime (NÃO hardcodar de forma que impeça o override).
-   Fallback (MOVEE_DEFAULTS, tenant-theme-context.tsx): #1f63eb / #ff7a18 / "Movee".
+   Fallback (ENTREGO_DEFAULTS, tenant-theme-context.tsx): #2c67ea / #2ceabc / "EntreGô".
+
+   Nota: tokens/classes mantêm o nome legado "warm-*", mas representam o
+   gradiente assinatura FRIO do EntreGô (azul → menta → verde).
    ========================================================================== */
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #0e1a2b;
+  --background: #f9f2e8;          /* creme */
+  --foreground: #0f1849;          /* azul-marinho */
   --card: #ffffff;
-  --card-foreground: #0e1a2b;
+  --card-foreground: #0f1849;
   --popover: #ffffff;
-  --popover-foreground: #0e1a2b;
+  --popover-foreground: #0f1849;
 
-  --primary: #1f63eb;
+  --primary: #2c67ea;
   --primary-foreground: #ffffff;
-  --secondary: #eaf1fe;
-  --secondary-foreground: #1a4fc4;
+  --secondary: #b4e4ff;
+  --secondary-foreground: #1b3fac;
 
-  --muted: #f2f5fb;
-  --muted-foreground: #5a6b85;
-  --accent: #eaf1fe;
-  --accent-foreground: #1a4fc4;
+  --muted: #efe6d6;
+  --muted-foreground: #5a6a87;
+  --accent: #b4ffed;
+  --accent-foreground: #0f4938;
 
-  --success: #16a375;
+  --success: #009b7f;
   --success-foreground: #ffffff;
-  --destructive: #ee3b26;
+  --warning: #ffb72a;
+  --warning-foreground: #0f1849;
+  --destructive: #e5484d;         /* vermelho FUNCIONAL (guia não define erro) */
   --destructive-foreground: #ffffff;
 
-  --border: #e3e9f4;
-  --input: #e3e9f4;
-  --ring: #1f63eb;
+  --border: #e7ddcd;
+  --input: #e7ddcd;
+  --ring: #2c67ea;
 
-  /* gradiente quente assinatura Movee */
-  --warm-1: #ffc020;
-  --warm-2: #ff7a18;
-  --warm-3: #f23a20;
+  /* gradiente assinatura EntreGô (frio): azul → menta → verde */
+  --warm-1: #2c67ea;
+  --warm-2: #2ceabc;
+  --warm-3: #009b7f;
 
-  /* charts — paleta Movee */
-  --chart-1: #1f63eb;
-  --chart-2: #16a375;
-  --chart-3: #ff7a18;
-  --chart-4: #ffc020;
-  --chart-5: #f23a20;
+  /* charts — paleta EntreGô */
+  --chart-1: #2c67ea;
+  --chart-2: #2ceabc;
+  --chart-3: #009b7f;
+  --chart-4: #ffb72a;
+  --chart-5: #1b3fac;
 
   --radius: 0.875rem;
 
-  /* sidebar — superfície azulada levemente distinta do card */
-  --sidebar: #f7f9fe;
-  --sidebar-foreground: #0e1a2b;
-  --sidebar-primary: #1f63eb;
+  /* sidebar — superfície creme levemente distinta do card */
+  --sidebar: #f3ece0;
+  --sidebar-foreground: #0f1849;
+  --sidebar-primary: #2c67ea;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eaf1fe;
-  --sidebar-accent-foreground: #1a4fc4;
-  --sidebar-border: #e3e9f4;
-  --sidebar-ring: #1f63eb;
+  --sidebar-accent: #b4ffed;
+  --sidebar-accent-foreground: #0f4938;
+  --sidebar-border: #e7ddcd;
+  --sidebar-ring: #2c67ea;
 }
 
 .dark {
-  --background: #0b1220;
-  --foreground: #e6ecf6;
-  --card: #121c2e;
-  --card-foreground: #e6ecf6;
-  --popover: #121c2e;
-  --popover-foreground: #e6ecf6;
+  --background: #0a1130;          /* marinho bem escuro */
+  --foreground: #e9eefb;
+  --card: #141d44;
+  --card-foreground: #e9eefb;
+  --popover: #141d44;
+  --popover-foreground: #e9eefb;
 
-  --primary: #4f8bff;
-  --primary-foreground: #06122b;
-  --secondary: #1b2740;
-  --secondary-foreground: #cfe0ff;
+  --primary: #5b8df2;
+  --primary-foreground: #07112e;
+  --secondary: #1b2a55;
+  --secondary-foreground: #b9d2ff;
 
-  --muted: #16223a;
-  --muted-foreground: #9aaac6;
-  --accent: #1b2740;
-  --accent-foreground: #cfe0ff;
+  --muted: #16204a;
+  --muted-foreground: #9aa8cf;
+  --accent: #173a44;
+  --accent-foreground: #2ceabc;
 
-  --success: #2bbf92;
+  --success: #2ceabc;
   --success-foreground: #06231a;
-  --destructive: #ff5a43;
-  --destructive-foreground: #1a0603;
+  --warning: #ffc555;
+  --warning-foreground: #2a1c00;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #2a0606;
 
-  --border: #243352;
-  --input: #243352;
-  --ring: #4f8bff;
+  --border: #283566;
+  --input: #283566;
+  --ring: #5b8df2;
 
-  --warm-1: #ffc020;
-  --warm-2: #ff7a18;
-  --warm-3: #f23a20;
+  --warm-1: #5b8df2;
+  --warm-2: #2ceabc;
+  --warm-3: #2bbf92;
 
-  --chart-1: #4f8bff;
-  --chart-2: #2bbf92;
-  --chart-3: #ff7a18;
-  --chart-4: #ffc020;
-  --chart-5: #ff5a43;
+  --chart-1: #5b8df2;
+  --chart-2: #2ceabc;
+  --chart-3: #2bbf92;
+  --chart-4: #ffc555;
+  --chart-5: #7aa0ff;
 
-  --sidebar: #0e1626;
-  --sidebar-foreground: #e6ecf6;
-  --sidebar-primary: #4f8bff;
-  --sidebar-primary-foreground: #06122b;
-  --sidebar-accent: #1b2740;
-  --sidebar-accent-foreground: #cfe0ff;
-  --sidebar-border: #243352;
-  --sidebar-ring: #4f8bff;
+  --sidebar: #0e1838;
+  --sidebar-foreground: #e9eefb;
+  --sidebar-primary: #5b8df2;
+  --sidebar-primary-foreground: #07112e;
+  --sidebar-accent: #173a44;
+  --sidebar-accent-foreground: #2ceabc;
+  --sidebar-border: #283566;
+  --sidebar-ring: #5b8df2;
 }
 
 @theme inline {
@@ -147,6 +150,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -171,10 +176,11 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-display: var(--font-poppins), var(--font-inter), system-ui, sans-serif;
-  --font-heading: var(--font-poppins), var(--font-inter), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Tipografia única do guia: Plus Jakarta Sans */
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+  --font-display: var(--font-jakarta), system-ui, sans-serif;
+  --font-heading: var(--font-jakarta), system-ui, sans-serif;
+  --font-mono: var(--font-jakarta), ui-monospace, "SF Mono", Menlo, monospace;
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -202,12 +208,11 @@
 }
 
 /* ---- Utilitários de marca ------------------------------------------------- */
-.font-display { font-family: var(--font-display); }
-/* dígitos mono com largura fixa — precisão "fintech" para valores/CNPJ/datas */
+.font-display { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.01em; }
+/* dígitos tabulares na própria fonte do guia (sem fonte mono — fonte única) */
 .tabular {
-  font-family: var(--font-mono);
-  font-feature-settings: "tnum" 1, "ss01" 1;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
   letter-spacing: -0.01em;
 }
 
@@ -242,30 +247,29 @@
 }
 .bg-gradient-blue {
   background-image:
-    radial-gradient(120% 120% at 0% 0%, #3f7bff 0%, rgba(63, 123, 255, 0) 55%),
-    radial-gradient(120% 120% at 100% 0%, #1e58e0 0%, rgba(30, 88, 224, 0) 50%),
-    linear-gradient(160deg, #2e6bf0, #143fa6);
+    radial-gradient(120% 120% at 0% 0%, #4f86ff 0%, rgba(79, 134, 255, 0) 55%),
+    radial-gradient(120% 120% at 100% 0%, #2c67ea 0%, rgba(44, 103, 234, 0) 50%),
+    linear-gradient(160deg, #2c67ea, #1b3fac);
 }
 .dark .bg-gradient-blue {
   background-image:
-    radial-gradient(120% 120% at 0% 0%, #244a9e 0%, rgba(36, 74, 158, 0) 55%),
+    radial-gradient(120% 120% at 0% 0%, #2a4a9e 0%, rgba(42, 74, 158, 0) 55%),
     radial-gradient(120% 120% at 100% 0%, #16306e 0%, rgba(22, 48, 110, 0) 50%),
-    linear-gradient(160deg, #16234a, #0c1631);
+    linear-gradient(160deg, #16234a, #0a1130);
 }
 
-/* gradiente quente "líquido" — usado no hero/CTAs, anima quando .animate-gradient */
+/* gradiente assinatura "líquido" — usado no hero/CTAs, anima quando .animate-gradient */
 .bg-gradient-warm-rich {
   background-image: linear-gradient(
     115deg,
     var(--warm-1) 0%,
-    var(--warm-2) 42%,
-    var(--warm-3) 78%,
-    #d8261a 100%
+    var(--warm-2) 55%,
+    var(--warm-3) 100%
   );
   background-size: 200% 200%;
 }
 .text-gradient-warm-rich {
-  background-image: linear-gradient(115deg, var(--warm-1), var(--warm-2) 55%, var(--warm-3));
+  background-image: linear-gradient(115deg, var(--warm-1), var(--warm-2) 60%, var(--warm-3));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -278,7 +282,7 @@
 }
 
 /* ============================================================================
-   Motion · "Movimento" — entrada encenada, profundidade e microinterações.
+   Motion · entrada encenada, profundidade e microinterações.
    Tudo cai para estático sob prefers-reduced-motion (acessibilidade).
    ========================================================================== */
 @keyframes mv-fade-up {
@@ -351,7 +355,7 @@
   border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   box-shadow:
     0 1px 0 0 color-mix(in oklab, #fff 60%, transparent) inset,
-    0 18px 40px -22px rgba(14, 26, 43, 0.45);
+    0 18px 40px -22px rgba(15, 24, 73, 0.4);
 }
 .dark .glass {
   box-shadow:

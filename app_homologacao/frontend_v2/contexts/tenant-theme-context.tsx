@@ -12,7 +12,7 @@
  * Respeita o dark mode do next-themes (a injeção é no <html>, que tem a
  * class "dark" gerenciada pelo ThemeProvider).
  *
- * MOVEE_DEFAULTS (dec-028, CHK057): cores padrão usadas quando não há branding.
+ * ENTREGO_DEFAULTS (dec-028, CHK057): cores padrão usadas quando não há branding.
  * Preview client-only (dec-027, CHK052): estado React, não persiste até Salvar.
  */
 
@@ -53,13 +53,13 @@ export interface TenantThemeContextValue {
 // Campos non-nullable de propósito: Required<> só remove `?` (undefined), não
 // `null` — tipar explicitamente como string garante que primary/accent abaixo
 // nunca sejam string|null (corrige type check do hexToOklch).
-// Identidade Movee real: primária azul royal + destaque do gradiente quente
-// (warm-2). Consistente com os defaults do globals.css (:root). A branding do
-// tenant continua sobrescrevendo estes valores em runtime.
-const MOVEE_DEFAULTS: { cor_primaria: string; cor_destaque: string; nome_exibicao: string } = {
-  cor_primaria: '#1F63EB',
-  cor_destaque: '#FF7A18',
-  nome_exibicao: 'Movee',
+// Identidade EntreGô (Guia de Marca 2.0): primária azul + destaque menta.
+// Consistente com os defaults do globals.css (:root). A branding do tenant
+// continua sobrescrevendo estes valores em runtime.
+const ENTREGO_DEFAULTS: { cor_primaria: string; cor_destaque: string; nome_exibicao: string } = {
+  cor_primaria: '#2C67EA',
+  cor_destaque: '#2CEABC',
+  nome_exibicao: 'EntreGô',
 };
 
 // ── Conversão HEX → oklch ────────────────────────────────────────────────────
@@ -129,8 +129,8 @@ function contrastRatio(hex1: string, hex2: string): number {
 
 function applyBrandingTokens(b: BrandingPayload): void {
   const root = document.documentElement;
-  const primary = b.cor_primaria || MOVEE_DEFAULTS.cor_primaria;
-  const accent = b.cor_destaque || MOVEE_DEFAULTS.cor_destaque;
+  const primary = b.cor_primaria || ENTREGO_DEFAULTS.cor_primaria;
+  const accent = b.cor_destaque || ENTREGO_DEFAULTS.cor_destaque;
 
   const primaryOklch = hexToOklch(primary);
   const accentOklch = hexToOklch(accent);
@@ -173,7 +173,7 @@ function clearBrandingTokens(): void {
   root.style.removeProperty('--sidebar-primary');
   root.style.removeProperty('--accent');
   root.style.removeProperty('--sidebar-accent');
-  // volta ao gradiente-assinatura Movee (amarelo→laranja→vermelho do globals.css)
+  // volta ao gradiente-assinatura EntreGô (azul→menta do globals.css)
   root.style.removeProperty('--warm-1');
   root.style.removeProperty('--warm-2');
   root.style.removeProperty('--warm-3');

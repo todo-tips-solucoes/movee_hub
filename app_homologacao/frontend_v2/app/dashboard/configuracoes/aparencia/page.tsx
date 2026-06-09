@@ -21,9 +21,9 @@ import { useTenantTheme } from '@/contexts/tenant-theme-context';
 import { useAuth } from '@/contexts/auth-context';
 
 const MOVEE_DEFAULTS = {
-  cor_primaria: '#1F63EB',
-  cor_destaque: '#FF7A18',
-  nome_exibicao: 'Movee',
+  cor_primaria: '#2C67EA',
+  cor_destaque: '#2CEABC',
+  nome_exibicao: 'EntreGô',
 };
 
 export default function AparenciaPage() {
@@ -205,7 +205,7 @@ export default function AparenciaPage() {
                 if (/^#[0-9a-fA-F]{0,6}$/.test(v)) handleCorChange('cor_primaria', v);
               }}
               className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
-              placeholder="#1F63EB"
+              placeholder="#2C67EA"
             />
             <span className="text-xs text-muted-foreground">Botões, links, destaque principal</span>
           </div>
@@ -233,7 +233,7 @@ export default function AparenciaPage() {
                 if (/^#[0-9a-fA-F]{0,6}$/.test(v)) handleCorChange('cor_destaque', v);
               }}
               className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
-              placeholder="#FF7A18"
+              placeholder="#2CEABC"
             />
             <span className="text-xs text-muted-foreground">Gradiente, badges, acentos</span>
           </div>

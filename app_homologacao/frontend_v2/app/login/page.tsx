@@ -49,7 +49,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10">
-      {/* Hero Movee — superfície base + aurora quente assinatura */}
+      {/* Hero EntreGô — superfície base + aurora assinatura (azul→menta) */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-background" />
       <div className="aurora-orb bg-gradient-warm -left-24 -top-24 h-72 w-72 animate-float" aria-hidden />
       <div

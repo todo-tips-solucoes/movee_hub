@@ -41,16 +41,16 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-4 md:px-6">
         <div className="flex items-center gap-2.5">
-          {/* dec-030: logo do tenant h-8 max-w-32; fallback p/ ícone + nome */}
+          {/* dec-030: logo do tenant h-8 max-w-32; fallback = logo oficial EntreGô */}
           {logoUrl ? (
             <img src={logoUrl} alt={brandName} className="h-8 max-w-32 object-contain" />
           ) : (
-            <>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Send className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <span className="font-display font-semibold text-lg truncate max-w-[12rem]">{brandName}</span>
-            </>
+            <img
+              src="/brand/logo-entrego-96h.png"
+              srcSet="/brand/logo-entrego-48h.png 1x, /brand/logo-entrego-96h.png 2x, /brand/logo-entrego-192h.png 3x"
+              alt="EntreGô"
+              className="h-7 w-auto object-contain dark:brightness-0 dark:invert"
+            />
           )}
           <nav className="ml-6 flex items-center gap-1">
             <Link
