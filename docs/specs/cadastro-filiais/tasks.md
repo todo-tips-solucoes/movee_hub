@@ -102,14 +102,14 @@ Em `app/dashboard/configuracoes/grupo/page.tsx`: remover card de vínculo-por-ID
 adicionar formulário completo. Reaproveitar `PasswordStrength` do `register/page.tsx`.
 Manter lista de filiais, botão desvincular e gate `isGrupoPai` intactos.
 
-- [ ] 3.1.1 Remover bloco do card "vincular por ID" do `page.tsx`
-- [ ] 3.1.2 Adicionar campos obrigatórios: `nome_empresa` (label "Nome da empresa"), `email` (label "E-mail"), `senha` (label "Senha"), `cnpj` (label "CNPJ")
-- [ ] 3.1.3 Adicionar seção "Dados fiscais" com campos opcionais: `endereco`, `numero`, `cep`, `email_nota`, `observacao` — visivelmente separada dos obrigatórios
-- [ ] 3.1.4 Campo senha: toggle show/hide (ícone), componente `PasswordStrength` visível ao digitar
-- [ ] 3.1.5 Indicação visual de campos obrigatórios (asterisco ou nota de rodapé)
-- [ ] 3.1.6 Botão "Cadastrar filial": desabilitado + spinner durante loading
-- [ ] 3.1.7 Gate `isGrupoPai` mantido (formulário oculto para não-admins; exibir mensagem informativa)
-- [ ] 3.1.8 Lista de filiais (`GET /grupo/filhos`) e botão desvincular (`DELETE`) preservados sem alteração
+- [x] 3.1.1 Remover bloco do card "vincular por ID" do `page.tsx`
+- [x] 3.1.2 Adicionar campos obrigatórios: `nome_empresa` (label "Nome da empresa"), `email` (label "E-mail"), `senha` (label "Senha"), `cnpj` (label "CNPJ")
+- [x] 3.1.3 Adicionar seção "Dados fiscais" com campos opcionais: `endereco`, `numero`, `cep`, `email_nota`, `observacao` — visivelmente separada dos obrigatórios
+- [x] 3.1.4 Campo senha: toggle show/hide (ícone), componente `PasswordStrength` visível ao digitar
+- [x] 3.1.5 Indicação visual de campos obrigatórios (asterisco ou nota de rodapé)
+- [x] 3.1.6 Botão "Cadastrar filial": desabilitado + spinner durante loading
+- [x] 3.1.7 Gate `isGrupoPai` mantido (formulário oculto para não-admins; exibir mensagem informativa)
+- [x] 3.1.8 Lista de filiais (`GET /grupo/filhos`) e botão desvincular (`DELETE`) preservados sem alteração
 
 ### 3.2 Integrar `POST /api/grupo/empresas` + recarregar lista pós-criar `[C]`
 
@@ -118,14 +118,14 @@ Ref: spec FR-002, FR-008, FR-009, contracts/grupo-empresas-api.md, quickstart ce
 Conectar o formulário ao endpoint backend. O proxy `/api/[...path]/route.ts` já
 encaminha `/api/grupo/empresas` sem mudança.
 
-- [ ] 3.2.1 Implementar handler `handleCadastrarFilial(e)` com `fetch('POST /api/grupo/empresas')` e `credentials: 'include'`
-- [ ] 3.2.2 Body em snake_case; `id_grupo` ausente do payload enviado
-- [ ] 3.2.3 Sucesso (201): limpar formulário, exibir toast/banner de sucesso, recarregar lista via `GET /grupo/filhos` sem reload
-- [ ] 3.2.4 Erro 400: exibir mensagem por campo (e-mail inválido/duplicado, CNPJ formato, senha fraca, nome ausente)
-- [ ] 3.2.5 Erro 409: exibir "CNPJ já cadastrado" abaixo do campo CNPJ
-- [ ] 3.2.6 Erro 422: exibir mensagem de limite de filiais atingido (banner geral)
-- [ ] 3.2.7 Foco automático no primeiro campo inválido após erro 400 (FR-008)
-- [ ] 3.2.8 Botão desabilitado durante a request (evitar duplo envio — ux CHK013)
+- [x] 3.2.1 Implementar handler `handleCadastrarFilial(e)` com `fetch('POST /api/grupo/empresas')` e `credentials: 'include'`
+- [x] 3.2.2 Body em snake_case; `id_grupo` ausente do payload enviado
+- [x] 3.2.3 Sucesso (201): limpar formulário, exibir toast/banner de sucesso, recarregar lista via `GET /grupo/filhos` sem reload
+- [x] 3.2.4 Erro 400: exibir mensagem por campo (e-mail inválido/duplicado, CNPJ formato, senha fraca, nome ausente)
+- [x] 3.2.5 Erro 409: exibir "CNPJ já cadastrado" abaixo do campo CNPJ
+- [x] 3.2.6 Erro 422: exibir mensagem de limite de filiais atingido (banner geral)
+- [x] 3.2.7 Foco automático no primeiro campo inválido após erro 400 (FR-008)
+- [x] 3.2.8 Botão desabilitado durante a request (evitar duplo envio — ux CHK013)
 
 ### 3.3 Acabamento a11y/UX via `/ui-ux-pro-max` (EntreGô 2.0) `[M]`
 
@@ -134,18 +134,18 @@ Ref: checklists/a11y.md CHK007-CHK014, checklists/ux.md CHK009/CHK015/CHK017, pl
 Itens SHOULD de acessibilidade e UX copy aplicados após formulário funcional.
 Usar skill `/ui-ux-pro-max` para conformidade com identidade EntreGô 2.0.
 
-- [ ] 3.3.1 `aria-live="polite"` ou `role="alert"` nas mensagens de erro (a11y CHK007)
-- [ ] 3.3.2 `aria-describedby` associando mensagem de erro ao campo (a11y CHK008)
-- [ ] 3.3.3 `aria-invalid="true"` nos campos com erro (a11y CHK009)
-- [ ] 3.3.4 Atributos semânticos: `type="email"`, `type="password"`, `inputmode="numeric"` no CNPJ (a11y CHK012, CHK013)
-- [ ] 3.3.5 Autocomplete semântico: `autocomplete="organization"` no nome, `autocomplete="email"` no e-mail (a11y CHK011)
-- [ ] 3.3.6 Touch targets >= 44px no botão "Cadastrar filial" e botão de desvincular (a11y CHK014)
-- [ ] 3.3.7 Tab order visual de cima para baixo nos campos (a11y CHK005)
-- [ ] 3.3.8 Foco em `nome_empresa` ao montar o formulário (a11y CHK006)
-- [ ] 3.3.9 Spinner com `aria-label="Salvando..."` durante loading (a11y CHK010)
-- [ ] 3.3.10 Copy estado vazio: "Nenhuma filial cadastrada. Preencha o formulário para adicionar a primeira." (ux CHK015)
-- [ ] 3.3.11 Copy não-admin: "Apenas administradores de grupo podem cadastrar filiais." (ux CHK017)
-- [ ] 3.3.12 Medidor de senha visível em tempo real ao digitar (ux CHK009)
+- [x] 3.3.1 `aria-live="polite"` ou `role="alert"` nas mensagens de erro (a11y CHK007)
+- [x] 3.3.2 `aria-describedby` associando mensagem de erro ao campo (a11y CHK008)
+- [x] 3.3.3 `aria-invalid="true"` nos campos com erro (a11y CHK009)
+- [x] 3.3.4 Atributos semânticos: `type="email"`, `type="password"`, `inputmode="numeric"` no CNPJ (a11y CHK012, CHK013)
+- [x] 3.3.5 Autocomplete semântico: `autocomplete="organization"` no nome, `autocomplete="email"` no e-mail (a11y CHK011)
+- [x] 3.3.6 Touch targets >= 44px no botão "Cadastrar filial" e botão de desvincular (a11y CHK014)
+- [x] 3.3.7 Tab order visual de cima para baixo nos campos (a11y CHK005)
+- [x] 3.3.8 Foco em `nome_empresa` ao montar o formulário (a11y CHK006)
+- [x] 3.3.9 Spinner com `aria-label="Salvando..."` durante loading (a11y CHK010)
+- [x] 3.3.10 Copy estado vazio: "Nenhuma filial cadastrada. Preencha o formulário para adicionar a primeira." (ux CHK015)
+- [x] 3.3.11 Copy não-admin: "Apenas administradores de grupo podem cadastrar filiais." (ux CHK017)
+- [x] 3.3.12 Medidor de senha visível em tempo real ao digitar (ux CHK009)
 
 ---
 
