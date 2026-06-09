@@ -248,6 +248,32 @@ router.post('/register', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// ROTA: GET /motorista/empresas-proprietarias  (público — usado na tela de login)
+// Retorna os nomes das empresas do grupo PROPRIETÁRIO deste app/container,
+// definido pela env GRUPO_PROPRIETARIO. Cada tenant tem seu container/app, então
+// a identidade do proprietário é fixada por deploy (não depende de login).
+// Sem env válida → lista vazia (a UI degrada para o texto padrão).
+// ──────────────────────────────────────────────────────────────────────────────
+router.get('/empresas-proprietarias', async (req, res) => {
+  try {
+    const grupoId = parseInt(process.env.GRUPO_PROPRIETARIO || '', 10);
+    if (!Number.isInteger(grupoId) || grupoId <= 0) {
+      return res.json({ grupo: null, empresas: [] });
+    }
+    const rows = await _postgrestRequest(
+      `Empresa?id_grupo=eq.${grupoId}&select=nome_empresa&order=id.asc`
+    );
+    const empresas = (rows || [])
+      .map((e) => (e && e.nome_empresa ? String(e.nome_empresa).trim() : ''))
+      .filter(Boolean);
+    return res.json({ grupo: grupoId, empresas });
+  } catch (err) {
+    console.error('[motorista/empresas-proprietarias] Erro:', err.message);
+    return res.json({ grupo: null, empresas: [] });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // ROTA: POST /motorista/token/refresh  (cookie refreshToken)
 // Ref: tarefa 2.2.2 / contracts §refresh
 // ──────────────────────────────────────────────────────────────────────────────

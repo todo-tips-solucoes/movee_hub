@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
+import { api } from '@/lib/api-client';
 import { formatCNPJ, unformatCNPJ } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -25,12 +26,21 @@ export default function LoginPage() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ cnpj?: string; senha?: string; geral?: string }>({});
+  const [empresas, setEmpresas] = useState<string[]>([]);
 
   // Redirect de usuário já autenticado em efeito (não durante o render) —
   // evita "update durante render". O return null abaixo só impede o flash.
   useEffect(() => {
     if (user) router.replace('/movimento');
   }, [user, router]);
+
+  // Empresas proprietárias do app (grupo deste tenant/container) — exibidas no login.
+  useEffect(() => {
+    api
+      .get<{ empresas?: string[] }>('/motorista/empresas-proprietarias')
+      .then((d) => setEmpresas(Array.isArray(d?.empresas) ? d.empresas : []))
+      .catch(() => setEmpresas([]));
+  }, []);
 
   if (user) return null;
 
@@ -86,9 +96,19 @@ export default function LoginPage() {
           {/* Marca */}
           <div className="mb-8 flex flex-col items-center text-center">
             <Wordmark className="h-12" />
-            <p className="mt-3 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
-              Soluções logísticas
-            </p>
+            {empresas.length > 0 ? (
+              <div className="mt-3 space-y-0.5">
+                {empresas.map((nome) => (
+                  <p key={nome} className="text-xs font-medium text-muted-foreground">
+                    {nome}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+                Soluções logísticas
+              </p>
+            )}
           </div>
 
           {/* Card */}
