@@ -1,0 +1,29 @@
+<!-- ============================================================ -->
+<!--  ÍCONES ENTREGÔ — cole isto dentro do <head> do seu site     -->
+<!--  Coloque os arquivos da pasta /favicon na raiz do site       -->
+<!-- ============================================================ -->
+
+<!-- Favicon (aba do navegador) -->
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="icon" href="/favicon.ico"><!-- fallback navegadores antigos -->
+
+<!-- Ícone ao salvar na tela inicial do iPhone/iPad -->
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<!-- App Web / PWA (Android, instalar app) -->
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#2C67EA">
+
+
+<!-- ============================================================ -->
+<!--  LOGO NO CABEÇALHO DO SITE                                   -->
+<!--  (use os PNGs da pasta /logo-completo)                       -->
+<!-- ============================================================ -->
+
+<!-- Wordmark completo (fundos claros). srcset = nitidez em telas retina -->
+<img
+  src="logo-entrego-48h.png"
+  srcset="logo-entrego-48h.png 1x, logo-entrego-96h.png 2x"
+  alt="EntreGô"
+  height="32">

@@ -1,0 +1,71 @@
+┌─────────────────────────────────────────────────────────────┐
+│  ÍCONES DO LOGO ENTREGÔ — favicon, app icon e logo do site    │
+└─────────────────────────────────────────────────────────────┘
+
+Gerados a partir da imagem que você enviou (Versão Principal +
+Versão Reduzida). Fundo transparente, com o branco interno da
+seta preservado.
+
+═══════════════════════════════════════════════════════════════
+ PASTAS
+═══════════════════════════════════════════════════════════════
+
+/favicon/   → tudo que vai na raiz do site e no <head>
+   favicon.ico              (16/32/48 — fallback)
+   favicon-16/32/48/96.png
+   apple-touch-icon.png     (180px, fundo branco — iPhone/iPad)
+   icon-192.png, icon-512.png        (PWA, transparente)
+   site.webmanifest         (já configurado: cor #2C67EA)
+
+/app-icon/  → ícone de aplicativo (PWA / lojas)
+   apple-touch-icon.png     (180, fundo branco)
+   icon-192.png / icon-512.png             (transparente)
+   icon-192-maskable.png / icon-512-maskable.png  (fundo branco,
+                                            zona segura Android)
+   app-icon-1024.png        (alta, fundo branco — lojas)
+
+/logo-completo/  → wordmark "EntreGô" para o cabeçalho (transparente)
+   logo-entrego-48h / 96h / 192h / 384h .png   (alturas em px)
+
+/logo-simbolo/   → só o símbolo "GO" (transparente)
+   go-64 / 128 / 256 / 512 .png
+
+codigo-html.txt  → trecho pronto pra colar no <head>
+
+═══════════════════════════════════════════════════════════════
+ PASSO A PASSO
+═══════════════════════════════════════════════════════════════
+
+1. Copie os arquivos de /favicon para a RAIZ do seu site
+   (mesmo nível do index.html).
+2. Cole no <head> o conteúdo de codigo-html.txt.
+3. No cabeçalho, use o wordmark de /logo-completo.
+   • Fundo claro → use o wordmark colorido (como está).
+   • Fundo escuro/azul → a versão colorida tem pouco contraste;
+     use a versão branca da marca (peça que eu gero, ou use o
+     arquivo original).
+
+═══════════════════════════════════════════════════════════════
+ QUAL ÍCONE PRA QUÊ
+═══════════════════════════════════════════════════════════════
+  Favicon (aba) ............. favicon-32.png / favicon.ico
+  Tela inicial iPhone ....... apple-touch-icon.png
+  Instalar como app (PWA) ... icon-192/512 + maskable + manifest
+  Loja de apps .............. app-icon-1024.png
+  Logo do site (header) ..... logo-completo/logo-entrego-*h.png
+
+═══════════════════════════════════════════════════════════════
+ ⚠ IMPORTANTE SOBRE QUALIDADE
+═══════════════════════════════════════════════════════════════
+A imagem enviada era pequena (476×155 px). Para favicon e tamanhos
+até ~192px o resultado fica bom. Nos tamanhos grandes (512 e 1024px)
+a imagem fica um pouco macia/borrada por causa da ampliação.
+
+Para ícones perfeitamente nítidos em qualquer tamanho, o ideal é
+gerar a partir do ARQUIVO VETORIAL ORIGINAL do logo (SVG, AI, EPS
+ou PDF). O próprio guia de marca recomenda usar sempre os arquivos
+originais. Se você conseguir o SVG do logo, me mande que eu refaço
+tudo em altíssima qualidade.
+
+(Os ícones aqui foram processados a partir da sua imagem, sem
+redesenhar o logo, mantendo a composição original.)

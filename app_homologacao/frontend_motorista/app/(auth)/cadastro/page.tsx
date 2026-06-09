@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Wordmark } from '@/components/brand/wordmark';
-import { LogoMark } from '@/components/brand/logo-mark';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ArrowLeft, Check, AlertCircle } from '@/components/ui/icons';
 
@@ -97,8 +96,7 @@ export default function CadastroPage() {
         <div className="animate-fade-up w-full max-w-sm">
           {/* Marca */}
           <div className="mb-7 flex flex-col items-center text-center">
-            <LogoMark className="h-14 w-14 text-[1.6rem]" />
-            <Wordmark className="mt-4 text-3xl" />
+            <Wordmark className="h-12" />
           </div>
 
           {/* Card */}

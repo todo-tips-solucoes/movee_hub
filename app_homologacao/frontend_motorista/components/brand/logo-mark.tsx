@@ -1,20 +1,17 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Monograma da marca EntreGô — quadrado arredondado com gradiente azul e "E"
- * branco. Usado em cabeçalhos (login, app bar) como âncora visual consistente.
- * Tamanho via className (h/w + text-*). Placeholder até o logo oficial EntreGô.
+ * Símbolo oficial da marca EntreGô (monograma "Gô" — asset da marca). Colorido
+ * em fundos claros; branco no dark (dark:invert). Tamanho via altura (h-*).
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        'bg-gradient-blue inline-flex h-12 w-12 items-center justify-center rounded-2xl font-display text-2xl font-extrabold text-white shadow-[0_10px_24px_-10px_var(--primary)] ring-1 ring-white/15',
-        className
-      )}
-      aria-hidden="true"
-    >
-      E
-    </span>
+    <img
+      src="/brand/go-256.png"
+      srcSet="/brand/go-128.png 1x, /brand/go-256.png 2x, /brand/go-512.png 3x"
+      alt="EntreGô"
+      draggable={false}
+      className={cn('h-12 w-auto select-none object-contain dark:brightness-0 dark:invert', className)}
+    />
   );
 }

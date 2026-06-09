@@ -24,8 +24,12 @@ export const metadata: Metadata = {
     title: 'EntreGô Motorista',
   },
   icons: {
-    icon: '/icons/icon-192x192.png',
-    apple: '/icons/apple-touch-icon.png',
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon-16.png', type: 'image/png', sizes: '16x16' },
+    ],
+    apple: '/apple-touch-icon.png',
   },
   formatDetection: { telephone: false },
 };

@@ -119,7 +119,7 @@ export default function MovimentoPage() {
     <main className="relative flex min-h-dvh flex-col bg-muted/40">
       {/* App bar — glass */}
       <header className="glass sticky top-0 z-20 flex items-center justify-between rounded-none border-x-0 border-t-0 px-4 pb-3 pt-[max(0.85rem,env(safe-area-inset-top))]">
-        <Wordmark className="text-xl" />
+        <Wordmark className="h-7" />
         <div className="flex items-center gap-0.5">
           <ThemeToggle />
           <Button

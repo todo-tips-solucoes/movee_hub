@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Wordmark } from '@/components/brand/wordmark';
-import { LogoMark } from '@/components/brand/logo-mark';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function LoginPage() {
@@ -86,9 +85,8 @@ export default function LoginPage() {
         <div className="animate-fade-up w-full max-w-sm">
           {/* Marca */}
           <div className="mb-8 flex flex-col items-center text-center">
-            <LogoMark className="h-14 w-14 text-[1.6rem]" />
-            <Wordmark className="mt-4 text-3xl" />
-            <p className="mt-1.5 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+            <Wordmark className="h-12" />
+            <p className="mt-3 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
               Soluções logísticas
             </p>
           </div>

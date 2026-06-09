@@ -28,7 +28,7 @@ export default function RootPage() {
     <div className="bg-gradient-blue relative flex min-h-dvh flex-col items-center justify-center gap-7 overflow-hidden text-white">
       <Aurora />
       <span className="animate-float-soft relative z-10">
-        <Wordmark className="text-6xl drop-shadow-[0_8px_24px_rgba(0,0,0,0.25)]" />
+        <Wordmark className="h-16 brightness-0 invert drop-shadow-[0_8px_24px_rgba(0,0,0,0.25)]" />
       </span>
       <div className="spinner relative z-10 h-7 w-7 rounded-full border-4 border-white/30 border-t-white" />
     </div>
