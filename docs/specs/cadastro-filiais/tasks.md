@@ -40,9 +40,9 @@ Ref: spec FR-002, plan §Phase 2, `routes/grupo.js` linhas 188-223
 Extrai a lógica de resolução/criação preguiçosa do `Grupo` para função reutilizável,
 sem alterar o contrato externo de `POST /grupo/filhos`.
 
-- [ ] 2.1.1 Declarar `function resolveOrCreateGrupo(user)` no topo de `routes/grupo.js` (após requires)
-- [ ] 2.1.2 Substituir bloco inline em `POST /grupo/filhos` pela chamada ao helper
-- [ ] 2.1.3 Verificar regressão: `POST /grupo/filhos` funciona identicamente após o refactor
+- [x] 2.1.1 Declarar `function resolveOrCreateGrupo(user)` no topo de `routes/grupo.js` (após requires)
+- [x] 2.1.2 Substituir bloco inline em `POST /grupo/filhos` pela chamada ao helper
+- [x] 2.1.3 Verificar regressão: `POST /grupo/filhos` funciona identicamente após o refactor
 
 ### 2.2 Injetar `bcrypt` no `init()` de `grupo.js` + atualizar `server.js` `[A]`
 
@@ -51,9 +51,9 @@ Ref: spec FR-005, plan §Technical Context (gap bcrypt), `server.js` ~linha 1825
 `bcrypt` não está injetado em `grupo.js` atualmente. Necessário para hashing de senha
 no novo endpoint.
 
-- [ ] 2.2.1 Alterar assinatura em `grupo.js`: `init({ postgrestRequest, bcrypt })`
-- [ ] 2.2.2 Atualizar chamada em `server.js` ~1825: `grupoRoutes.init({ postgrestRequest, bcrypt })`
-- [ ] 2.2.3 Confirmar que `POST /grupo/filhos` continua operacional após a mudança
+- [x] 2.2.1 Alterar assinatura em `grupo.js`: `init({ postgrestRequest, bcrypt })`
+- [x] 2.2.2 Atualizar chamada em `server.js` ~1825: `grupoRoutes.init({ postgrestRequest, bcrypt })`
+- [x] 2.2.3 Confirmar que `POST /grupo/filhos` continua operacional após a mudança
 
 ### 2.3 Implementar `POST /grupo/empresas` em `routes/grupo.js` `[C]`
 
@@ -63,16 +63,16 @@ Novo endpoint que cria empresa filial vinculada ao grupo do admin autenticado.
 Usa `resolveOrCreateGrupo(req.user)` (T-2.1) e `bcrypt` injetado (T-2.2).
 O `id_grupo` vem sempre do token; qualquer `id_grupo` no body é ignorado (SC-004).
 
-- [ ] 2.3.1 Adicionar `router.post('/empresas', authenticateToken, requireGrupoPai, handler)` em `grupo.js`
-- [ ] 2.3.2 Validar `nome_empresa` obrigatório (400 se ausente)
-- [ ] 2.3.3 Validar `email` formato e unicidade (400 em duplicado ou inválido)
-- [ ] 2.3.4 Validar `senha` regra `length >= 6 && /[A-Z]/ && /\d/` (400 se fraca)
-- [ ] 2.3.5 Validar `cnpj` exatamente 14 dígitos numéricos (400 se formato inválido; 409 se UNIQUE constraint violada)
-- [ ] 2.3.6 Checar limite de 100 filiais por grupo (422 se excedido)
-- [ ] 2.3.7 Hashear senha: `bcrypt.hash(senha, 10)` antes do INSERT
-- [ ] 2.3.8 Criar `Empresa` via `POST Empresa` no PostgREST com `id_grupo` do helper (nunca do body)
-- [ ] 2.3.9 Retornar 201 `{ id, nome_empresa, email, id_grupo }` — `pass` ausente do response
-- [ ] 2.3.10 Campos fiscais opcionais (`endereco`, `numero`, `cep`, `email_nota`, `observacao`) salvos quando fornecidos, nulos quando ausentes
+- [x] 2.3.1 Adicionar `router.post('/empresas', authenticateToken, requireGrupoPai, handler)` em `grupo.js`
+- [x] 2.3.2 Validar `nome_empresa` obrigatório (400 se ausente)
+- [x] 2.3.3 Validar `email` formato e unicidade (400 em duplicado ou inválido)
+- [x] 2.3.4 Validar `senha` regra `length >= 6 && /[A-Z]/ && /\d/` (400 se fraca)
+- [x] 2.3.5 Validar `cnpj` exatamente 14 dígitos numéricos (400 se formato inválido; 409 se UNIQUE constraint violada)
+- [x] 2.3.6 Checar limite de 100 filiais por grupo (422 se excedido)
+- [x] 2.3.7 Hashear senha: `bcrypt.hash(senha, 10)` antes do INSERT
+- [x] 2.3.8 Criar `Empresa` via `POST Empresa` no PostgREST com `id_grupo` do helper (nunca do body)
+- [x] 2.3.9 Retornar 201 `{ id, nome_empresa, email, id_grupo }` — `pass` ausente do response
+- [x] 2.3.10 Campos fiscais opcionais (`endereco`, `numero`, `cep`, `email_nota`, `observacao`) salvos quando fornecidos, nulos quando ausentes
 
 ### 2.4 Testes backend `[A]`
 
@@ -81,14 +81,14 @@ Ref: quickstart cenários 1-8 + cenário 10 (roundtrip shape), spec SC-001..SC-0
 Se houver harness em `backend/tests/`, adicionar arquivo de testes. Caso contrário,
 executar verificação manual via curl/Postman e marcar os itens abaixo.
 
-- [ ] 2.4.1 Happy path: 201 com shape `{ id, nome_empresa, email, id_grupo }`, `pass` ausente
-- [ ] 2.4.2 E-mail duplicado → 400
-- [ ] 2.4.3 CNPJ duplicado → 409
-- [ ] 2.4.4 CNPJ formato inválido (< ou > 14 dígitos) → 400
-- [ ] 2.4.5 Senha fraca → 400
-- [ ] 2.4.6 Não-admin → 403
-- [ ] 2.4.7 `id_grupo` no body ignorado — response traz `id_grupo` do token (quickstart cenário 2)
-- [ ] 2.4.8 Regressão: `POST /grupo/filhos` e `GET /grupo/filhos` intactos após refactor
+- [x] 2.4.1 Happy path: 201 com shape `{ id, nome_empresa, email, id_grupo }`, `pass` ausente
+- [x] 2.4.2 E-mail duplicado → 400
+- [x] 2.4.3 CNPJ duplicado → 409
+- [x] 2.4.4 CNPJ formato inválido (< ou > 14 dígitos) → 400
+- [x] 2.4.5 Senha fraca → 400
+- [x] 2.4.6 Não-admin → 403
+- [x] 2.4.7 `id_grupo` no body ignorado — response traz `id_grupo` do token (quickstart cenário 2)
+- [x] 2.4.8 Regressão: `POST /grupo/filhos` e `GET /grupo/filhos` intactos após refactor
 
 ---
 
@@ -155,13 +155,21 @@ Usar skill `/ui-ux-pro-max` para conformidade com identidade EntreGô 2.0.
 
 Ref: spec SC-006, quickstart cenário 11
 
-- [ ] 4.1.1 Rodar `next build` em `app_homologacao/frontend_v2` (exit 0)
-- [ ] 4.1.2 Zero erros de TypeScript nas alterações de `page.tsx`
-- [ ] 4.1.3 Nenhum warning crítico de compilação
+- [x] 4.1.1 Rodar `next build` em `app_homologacao/frontend_v2` (exit 0)
+- [x] 4.1.2 Zero erros de TypeScript nas alterações de `page.tsx`
+- [x] 4.1.3 Nenhum warning crítico de compilação
+
+> Resultado (onda-008): `npm run build` → exit 0; Next.js 16.2.3 Turbopack;
+> compilação TS em 4.5s; 10/10 páginas estáticas geradas sem warning;
+> `/dashboard/configuracoes/grupo` gerado OK. Regressão backend: 22/22 testes passam.
 
 ### 4.2 Roundtrip E2E dos cenários do quickstart `[C]`
 
 Ref: quickstart.md (11 cenários), spec SC-001..SC-006
+
+> **Status: diferido-operador** (dec-031). E2E ao vivo requer DDL 004 aplicado,
+> backend/frontend deployados e credenciais de produção — todos fora do escopo
+> autônomo. Substituído por mapeamento estático de cobertura abaixo.
 
 - [ ] 4.2.1 Cenário 1 — Happy path: filial aparece na lista sem reload (SC-001)
 - [ ] 4.2.2 Cenário 2 — `id_grupo` do token, não do body (SC-004)
@@ -174,6 +182,24 @@ Ref: quickstart.md (11 cenários), spec SC-001..SC-006
 - [ ] 4.2.9 Cenário 9 — Estado vazio + `GET/DELETE /grupo/filhos` intactos (FR-010, SC-005)
 - [ ] 4.2.10 Cenário 10 — Shape snake_case, `pass` ausente, contrato confirmado (SC-004)
 - [ ] 4.2.11 Cenário 11 — `next build` limpo (SC-006)
+
+#### Checklist de Aceite do Operador (pos-deploy)
+
+Executar após: (1) DDL `004-cadastro-filiais-cnpj.sql` aplicado; (2) backend + frontend deployados; (3) login como empresa-pai (`is_grupo_pai = true`).
+
+| # | Cenário | Código esperado | Cobertura de código (backend) | Cobertura de código (frontend) | Status |
+|---|---------|-----------------|-------------------------------|--------------------------------|--------|
+| C1 | Happy path: preencher form com nome+email+senha+CNPJ válidos e submeter | 201; filial aparece na lista **sem reload** | `POST /grupo/empresas` → resolveOrCreateGrupo → INSERT | `handleCadastrarFilial` → sucesso → `setSucesso(true)` → `carregarFilhos()` | [ ] |
+| C2 | Enviar body com `id_grupo: 999` (forjado) junto dos campos válidos | 201; `id_grupo` na resposta = grupo real do admin, **não** 999 | `id_grupo` extraído de `resolveOrCreateGrupo(req.user)`, body ignorado (SC-004) | Frontend não inclui `id_grupo` no body enviado (3.2.2) | [ ] |
+| C3 | Usar email+senha da filial recém-criada para fazer login imediato | Login bem-sucedido sem etapa extra | `bcrypt.hash(senha, 10)` antes do INSERT; senha usável imediatamente (FR-005) | N/A (fluxo de login pré-existente) | [ ] |
+| C4 | Tentar cadastrar com email já existente no sistema | 400; mensagem "E-mail já cadastrado." abaixo do campo e-mail | `emailExistente.length > 0` → `res.status(400)` com `{ error: 'E-mail já cadastrado.' }` | `handleCadastrarFilial` → status 400 → `/e.?mail/i` match → `novosErros.email` + `refEmail.current?.focus()` | [ ] |
+| C5 | Tentar cadastrar com CNPJ já cadastrado em outra empresa | 409; mensagem "CNPJ já cadastrado" abaixo do campo CNPJ | UNIQUE constraint → catch `/duplicate key.*cnpj/i` → `res.status(409)` | status 409 → `setFormErrors({ cnpj: 'CNPJ já cadastrado em outra empresa.' })` + `refCnpj.current?.focus()` | [ ] |
+| C6 | Submeter com CNPJ de 11 dígitos e senha sem maiúscula | 400; foco automático no primeiro campo inválido; mensagem por campo | `cnpjDigitos.length !== 14` → 400 CNPJ; `!/[A-Z]/.test(senha)` → 400 senha (FR-006, FR-005) | status 400 → regex routing por campo → foco automático via `ref*.current?.focus()` (FR-008) | [ ] |
+| C7 | Em grupo com 100 filiais, tentar adicionar a 101ª | 422; mensagem de limite no banner geral | `qtdFilhos >= 100` → `res.status(422)` com `{ error: 'O grupo atingiu o limite...' }` | status 422 → `setFormErrors({ geral: 'Limite de 100 filiais atingido...' })` | [ ] |
+| C8 | Logar como empresa sem `is_grupo_pai`; chamar `POST /grupo/empresas` direto | 403; tela de bloqueio amigável na UI | `requireGrupoPai` middleware → `req.user.is_grupo_pai !== true` → `res.status(403)` | `isGrupoPai === false` → bloco de mensagem informativa renderizado; sem form | [ ] |
+| C9 | Admin sem filiais → listar; e verificar `GET /grupo/filhos` + `DELETE /grupo/filhos/:id` | Lista com estado vazio amigável; endpoints pré-existentes intactos | `GET /grupo/filhos` e `DELETE /grupo/filhos/:id` inalterados (FR-010) | Copy estado vazio: "Nenhuma filial cadastrada..." (3.3.10) | [ ] |
+| C10 | Capturar JSON da resposta 201 de `POST /grupo/empresas` | Chaves `id`, `nome_empresa`, `email`, `id_grupo` — todas snake_case; `pass` ausente | `return res.status(201).json({ id, nome_empresa, email, id_grupo })` — `pass` explicitamente ausente | Body enviado em snake_case; `id_grupo` não enviado (3.2.2) | [ ] |
+| C11 | Rodar `npm run build` em `app_homologacao/frontend_v2` | exit 0; zero erros TS | N/A | Verificado em onda-008 (build limpo no worktree) | [x] |
 
 ---
 
