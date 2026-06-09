@@ -1821,8 +1821,8 @@ app.post('/logout', (req, res) => {
 motoristaRoutes.init({ postgrestRequest, generatePostgrestJWT });
 app.use('/motorista', motoristaRoutes.router);
 
-// config-ui-tenant — injetar dependências e montar rotas /grupo/*
-grupoRoutes.init({ postgrestRequest });
+// config-ui-tenant + cadastro-filiais — injetar dependências e montar rotas /grupo/*
+grupoRoutes.init({ postgrestRequest, bcrypt });
 app.use('/grupo', authenticateToken, grupoRoutes.router);
 
 // config-ui-tenant — injetar dependências e montar rotas de branding
