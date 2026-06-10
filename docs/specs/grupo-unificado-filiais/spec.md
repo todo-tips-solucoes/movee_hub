@@ -275,6 +275,17 @@ selecionada.
   `docs/sql/007-*` será gerado para este módulo.
   *(CL-003 = Sem DDL — RESOLVIDO)*
 
+- **FR-019**: A empresa-pai do grupo (matriz) DEVE ser editável via a aba de
+  gestão de grupo, listada junto com as filiais com o atributo `is_pai: true`.
+  O endpoint `GET /grupo/filhos` DEVE incluir a empresa-pai na listagem.
+  O endpoint `PUT /grupo/empresas/:id` NÃO DEVE bloquear edição da própria
+  empresa-pai — a proteção cross-grupo (`empresa.id_grupo === token.id_grupo`)
+  permanece; somente a restrição de editar a si mesmo é relaxada para a matriz.
+  O login único NÃO é afetado: a empresa-pai continua sendo a única credencial
+  válida para o grupo. O frontend exibe a matriz com rótulo "Matriz" e sem
+  o botão de desvincular.
+  *(Decisão do operador durante execução — dec-030, 2026-06-10)*
+
 ### Key Entities
 
 | Entidade | Papel nesta feature |

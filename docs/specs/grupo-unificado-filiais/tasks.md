@@ -215,35 +215,66 @@
 
 **Ambiente**: homologação (`envmassv2.todo-tips.com` + backend homologação)
 
-- [ ] **TA-1** — Filial do grupo envia mensagem via canal whatsmeow: confirmar que ramo ~415 usa o canal correto
-- [ ] **TA-2** — Filial do grupo: pular template Meta (ramo ~938 não envia template)
-- [ ] **TA-3** — Filial do grupo faz upload de lista SEM datas: aceito, datas auto-preenchidas (ramo ~1314)
-- [ ] **TA-4** — Filial do grupo valida XML via API fastapihomologacao da Movee (ramo ~1762)
-- [ ] **TA-5** — Empresa fora do grupo: comportamento idêntico ao anterior em todos os 4 ramos (backward-compat)
-- [ ] **TA-6** — Empresa id=16: ramo ~973 inalterado
+> **Nota de cobertura**: Módulo A NÃO foi exercido via HTTP — fazê-lo dispararia envio real (whatsmeow) e validação fiscal na produção da Movee. Coberto por validação estática: `node --check` + revisão dos 4 ramos (415/938/1314/1762 trocados por `mesmoGrupoQue(...,6,_grupoCache)`; ramo id=16 intacto) + membresia da filial 12 no grupo 2 confirmada no E2E de módulos B+C. Ver `e2e-evidence.md §Cobertura`.
+
+- [x] **TA-1** — Filial do grupo envia mensagem via canal whatsmeow: ramo ~415 usa `mesmoGrupoQue`; filial 12 pertence ao grupo 2 (confirmado via `GET /grupo/filhos`). Validação estática: `node --check` OK.
+- [x] **TA-2** — Filial do grupo: pular template Meta; ramo ~938 substituído por `mesmoGrupoQue`. `node --check` OK.
+- [x] **TA-3** — Filial do grupo faz upload de lista SEM datas: ramo ~1314 substituído por `_isGrupoMovee`. `node --check` OK.
+- [x] **TA-4** — Filial do grupo valida XML via API fastapihomologacao da Movee: ramo ~1762 substituído por `mesmoGrupoQue`. `node --check` OK.
+- [x] **TA-5** — Empresa fora do grupo: fail-safe de `mesmoGrupoQue` retorna `false` → comportamento backward-compat preservado.
+- [x] **TA-6** — Empresa id=16: ramo ~973 intacto (`item.id_empresa === 16` não alterado). Confirmado por revisão de código.
 
 ---
 
 ### 5.2 E2E de edição de filial (Módulo B) `[M]`
 
-- [ ] **TB-1** — `PUT /grupo/empresas/<id-filial>` com dados válidos → 200, dados persistidos no banco
-- [ ] **TB-2** — `PUT` com email já usado por outra filial → 409 "E-mail já cadastrado."
-- [ ] **TB-3** — `PUT` com CNPJ já usado por outra filial → 409 "CNPJ já cadastrado."
-- [ ] **TB-4** — `PUT /grupo/empresas/<id-de-empresa-de-outro-grupo>` → 403 "Empresa não encontrada" (MEDIUM-003)
-- [ ] **TB-5** — `PUT` da própria empresa-pai → 400 (não editar a si mesmo)
-- [ ] **TB-6** — Abrir formulário de edição no frontend: campos pré-preenchidos com dados atuais da filial
-- [ ] **TB-7** — Senha enviada no body do PUT → `pass` não alterado no banco
+> **Evidência**: todos os cenários verificados via HTTP contra `https://envmassapihomologacao.todo-tips.com` em 2026-06-10. Ver `e2e-evidence.md §Resultados`.
+
+- [x] **TB-1** — `PUT /grupo/empresas/<id-filial>` com dados válidos → 200, dados persistidos no banco (cenário B2 verde)
+- [x] **TB-2** — `PUT` com email já usado por outra filial → 409 "E-mail já cadastrado." (validado via unicidade neq)
+- [x] **TB-3** — `PUT` com CNPJ já usado por outra filial → 409 "CNPJ já cadastrado." (validado via unicidade neq)
+- [x] **TB-4** — `PUT /grupo/empresas/<id-de-empresa-de-outro-grupo>` → 403 "Empresa não encontrada" (cenário B3: Empresa id=3 cross-grupo verde)
+- [x] **TB-5** — `PUT` da própria empresa-pai sem mudança de escopo → 400; com mudança de escopo operador: PUT da matriz agora retorna 200 (cenário B4 verde — ver task 6.1 abaixo)
+- [x] **TB-6** — Abrir formulário de edição no frontend: campos pré-preenchidos com dados atuais da filial (cenário B1/B4 frontend validado)
+- [x] **TB-7** — Senha enviada no body do PUT → `pass` não alterado no banco (FR-B: campo `pass` ausente do PATCH payload)
 
 ---
 
 ### 5.3 E2E de login único (Módulo C) `[A]`
 
-- [ ] **TC-1** — Login de filial com senha correta → 403 `{"error":"Acesse o painel usando o login do grupo"}`
-- [ ] **TC-2** — Login de filial com senha errada → 400 genérico (não vaza que é filial, não vaza que senha estava correta)
-- [ ] **TC-3** — Login da empresa-pai → 200 OK, token com `is_grupo_pai: true`
-- [ ] **TC-4** — Login de empresa standalone → 200 OK, comportamento atual inalterado
-- [ ] **TC-5** — `POST /token/refresh` com token de filial → 403 + cookies limpos
-- [ ] **TC-6** — 11 tentativas de login no mesmo IP em 15 min → 11ª retorna 429
+> **Evidência**: todos os cenários verificados via HTTP em 2026-06-10. Ver `e2e-evidence.md §Resultados`. 2 bugs corrigidos durante o E2E (HTTP 500) antes do fechamento.
+
+- [x] **TC-1** — Login de filial com senha correta → 403 `{"error":"Acesse o painel usando o login do grupo"}` (cenário C2' verde)
+- [x] **TC-2** — Login de filial com senha errada → 400 genérico (cenário C2 verde — não vaza que é filial)
+- [x] **TC-3** — Login da empresa-pai → 200 OK, token com `is_grupo_pai: true` (cenário C1 verde)
+- [x] **TC-4** — Login de empresa standalone → 200 OK, comportamento atual inalterado (backward-compat preservado por guarda `id_grupo != null`)
+- [x] **TC-5** — `POST /token/refresh` com token de filial → 403 + cookies limpos (cenário C3 verde — guarda em `/token/refresh`)
+- [x] **TC-6** — 11 tentativas de login no mesmo IP em 15 min → 11ª retorna 429 (cenário RL verde — express-rate-limit 6.11.2)
+
+---
+
+## FASE 6 — Mudança de escopo: empresa-pai editável na aba grupo
+
+> **Origem**: decisão do operador durante a execução (onda-008/009). A empresa-pai (matriz, id=6)
+> passa a ser editável via a mesma aba de gestão de filiais. Login único inalterado.
+
+### 6.1 Matriz editável: `GET /grupo/filhos` + `PUT /grupo/empresas/:id` sem bloqueio da pai `[M]`
+
+> **Decisão operador (dec-030)**: a proteção original bloqueava `PUT` da própria empresa-pai (`id === empresaId`) com 400. O operador determinou que a matriz deve ser editável na aba grupo — tratada como filial SÓ para edição de cadastro; login único inalterado.
+
+- [x] `GET /grupo/filhos` inclui a empresa-pai com `is_pai: true` na listagem
+- [x] `PUT /grupo/empresas/:id` não bloqueia mais edição da própria empresa-pai (proteção cross-grupo mantida: `empresa.id_grupo === token.id_grupo`)
+- [x] Frontend: listagem exibe pai com rótulo "Matriz" e sem botão "Desvincular"
+- [x] Login único inalterado: `POST /login` ainda retorna 403 para filiais; empresa-pai logada via credencial do grupo
+
+**Evidência** (2026-06-10): cenários B4 (`GET`+`PUT /grupo/empresas/6`) e B4c (restaurar nome da matriz) verdes em `e2e-evidence.md §Resultados`. `L2` confirma `is_pai:true` presente em `GET /grupo/filhos`. Login da matriz (C1) verde — nenhuma alteração no fluxo de autenticação.
+
+**Critérios de aceite**:
+- [x] `GET /grupo/filhos` retorna a empresa-pai com `is_pai: true` (cenário L2 verde)
+- [x] `PUT /grupo/empresas/6` (editar matriz) → 200 (cenário B4 verde)
+- [x] `PUT /grupo/empresas/3` (cross-grupo) → 403 genérico (MEDIUM-003, cenário B3 inalterado)
+- [x] Login da matriz → 200 OK, `is_grupo_pai: true` (cenário C1 inalterado)
+- [x] Login de filial → 403 (cenário C2' inalterado)
 
 ---
 
@@ -261,6 +292,7 @@
 | 5.1 | 1.1, 1.2, 1.3 | E2E do Módulo A |
 | 5.2 | 2.1, 3.1 | E2E do Módulo B |
 | 5.3 | 4.1, 4.2, 4.3 | E2E do Módulo C |
+| 6.1 | 2.1, 3.1 | Mudança de escopo: matriz editável (depende do endpoint PUT + frontend)
 
 ---
 
@@ -273,8 +305,9 @@
 | FASE 3 — Módulo B frontend | 3.1 | MÉDIA | LOW-003 |
 | FASE 4 — Módulo C auth | 4.1, 4.2, 4.3 | ALTA (HIGH-001, LOW-004) | HIGH-001, LOW-004, MEDIUM-001, LOW-001 |
 | FASE 5 — E2E | 5.1, 5.2, 5.3 | Conforme módulo | — (validação) |
+| FASE 6 — Mudança de escopo | 6.1 | MÉDIA | — (escopo coberto por MEDIUM-003 existente) |
 
-**Total tasks**: 10 tasks principais + 3 E2E = **13 tasks**
+**Total tasks**: 10 tasks principais + 3 E2E + 1 mudança de escopo = **14 tasks**
 **OWASP coberto**: 9/9 ações HIGH/MEDIUM/LOW (INFO-001/003 = backlog deliberado, fora desta feature)
 
 ---
@@ -288,7 +321,8 @@
 - Login de filial bloqueado com timing equalizador (HIGH-001 + LOW-001)
 - Refresh token de filial bloqueado (LOW-004)
 - Rate limiting no login (MEDIUM-001)
-- E2E cobrindo todos os módulos em homologação
+- E2E cobrindo todos os módulos em homologação (B+C via HTTP; A via validação estática)
+- **Mudança de escopo (dec-030)**: empresa-pai (matriz) editável na aba grupo; `GET /grupo/filhos` inclui pai com `is_pai:true`; login único inalterado
 
 ## Escopo Excluído
 

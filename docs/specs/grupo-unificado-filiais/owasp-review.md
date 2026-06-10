@@ -50,6 +50,27 @@ Guarda de filial inserida ANTES do `bcrypt.compare` cria timing observável (fil
 
 ---
 
+## Nota pós-execução: mudança de escopo — matriz editável (dec-030)
+
+A restrição original do `PUT /grupo/empresas/:id` bloqueava edição da própria empresa-pai
+(`if (id === req.empresa.id) return 400`). Por decisão do operador (dec-030), essa restrição foi
+removida para permitir edição da matriz na aba grupo.
+
+**Análise OWASP — esta remoção NÃO reabre vulnerabilidade de BOLA (MEDIUM-003)**:
+- A checagem de autorização cross-grupo permanece intacta: `empresa.id_grupo === tokenIdGrupo`;
+  qualquer empresa de outro grupo ainda recebe 403 genérico.
+- A proteção de campos sensíveis permanece: `PUT` não toca `pass`/hash em hipótese alguma
+  (FR-B — campo `pass` ausente do payload PATCH para PostgREST).
+- O `parseInt + Number.isInteger + >0` (HIGH-002) permanece: path injection impossível.
+- O login único não é afetado: guarda de filial no `POST /login` checa `id_grupo != null &&
+  is_grupo_pai === false` — a empresa-pai (is_grupo_pai=true) continua autenticando normalmente.
+- **Superfície de ataque**: token da empresa-pai já podia editar filiais; agora também edita a si
+  mesma — não é ampliação de superfície cruzada, apenas remoção de restrição intra-grupo.
+
+**Veredito**: remoção segura. Constitution Princípio II (multi-tenant) preservado.
+
+---
+
 ## Constitution check (segurança)
 
 | Princípio | Status |
