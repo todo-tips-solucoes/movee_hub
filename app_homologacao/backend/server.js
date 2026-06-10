@@ -161,6 +161,14 @@ app.post('/login', loginRateLimiter, async (req, res) => {
     const { email, password } = req.body;
 
     // grupo-unificado-filiais — Task 4.1: OWASP HIGH-001 (CWE-208 anti-enumeração)
+    // Passo 0: validar presença dos campos ANTES de qualquer bcrypt.compare.
+    // bcrypt.compare(undefined, hash) lança "data and hash arguments required" → 500.
+    // Resposta genérica (não vaza qual campo faltou); não compromete o anti-enumeração
+    // porque um atacante sempre envia ambos os campos preenchidos.
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email ou senha incorretos' });
+    }
+
     // Passo 1: buscar empresa por email
     const users = await postgrestRequest(`Empresa?email=eq.${email}`);
 
@@ -172,8 +180,11 @@ app.post('/login', loginRateLimiter, async (req, res) => {
 
     const user = users[0];
 
-    // Passo 3: bcrypt.compare SEMPRE, mesmo antes de qualquer outra checagem
-    const isValidPassword = await bcrypt.compare(password, user.pass);
+    // Passo 3: bcrypt.compare SEMPRE, mesmo antes de qualquer outra checagem.
+    // Filial criada sob FR-B não tem senha gravada (user.pass null/vazio): comparar
+    // contra o dummy hash evita o crash bcrypt "data and hash arguments required" e
+    // ainda equaliza o timing — resulta em senha inválida (400), sem vazar o motivo.
+    const isValidPassword = await bcrypt.compare(password, user.pass || BCRYPT_DUMMY_HASH);
 
     if (!isValidPassword) {
       return res.status(400).json({ error: 'Email ou senha incorretos' });
