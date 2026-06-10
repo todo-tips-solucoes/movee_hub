@@ -492,8 +492,122 @@ router.delete('/filhos/:empresaIdFilho', requireGrupoPai, async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Exportar router + init + resolveScope + resolveOrCreateGrupo
+// Helper interno: _resolveScopeStrict(user)
+//
+// Variante de resolveScope SEM degradação silenciosa:
+//   - Propaga qualquer exceção de banco (em vez de engolir e retornar [empresaId]).
+//   - Usada EXCLUSIVAMENTE por resolveEmpresaAlvo (CHK014-SEC: fail-closed).
+//   - resolveScope público permanece com seu comportamento de degradação para
+//     uso nos handlers existentes (contextos onde fail-open é preferível a falhar).
+//
+// Não exportada — artefato interno de resolveEmpresaAlvo.
+// ──────────────────────────────────────────────────────────────────────────────
+async function _resolveScopeStrict(user) {
+  const { empresaId, id_grupo, is_grupo_pai } = user;
+
+  // Sem grupo ou é filho: escopo individual — sem chamada ao banco, sem risco
+  if (!id_grupo || !is_grupo_pai) {
+    return [empresaId];
+  }
+
+  // Pai: coerce id_grupo para inteiro (mesma proteção de resolveScope)
+  const idGrupoInt = parseInt(id_grupo, 10);
+  if (!Number.isInteger(idGrupoInt) || idGrupoInt <= 0) {
+    return [empresaId];
+  }
+
+  // CHK014-SEC: NÃO capturar exceção aqui — propagar para resolveEmpresaAlvo
+  // que a traduz em 503 (escopo indisponível).
+  const filhos = await _postgrestRequest(
+    `Empresa?id_grupo=eq.${idGrupoInt}&select=id`,
+    'GET'
+  );
+  const idFilhos = (filhos || [])
+    .map(f => f.id)
+    .filter(id => id !== empresaId);
+
+  return [empresaId, ...idFilhos];
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Helper: resolveEmpresaAlvo(user, requestedId, endpoint)
+//
+// Contrato (contracts/grupo-escopo-api.md §Helper):
+//   Input : user       — req.user { empresaId, id_grupo, is_grupo_pai, id, ... }
+//           requestedId — empresa_id solicitado pelo cliente (query/body);
+//                         null/undefined/'' → usa user.empresaId (backward-compat)
+//           endpoint   — string identificando o handler chamador (para log CHK019)
+//   Output: empresaId (inteiro) que deve ser usado no filtro da query.
+//
+//   Comportamentos:
+//     1. requestedId null/undefined/'' → retorna user.empresaId  (sem 403)
+//     2. requestedId não-numérico (parseInt = NaN) → lança { status:403 }
+//     3. requestedId ∉ _resolveScopeStrict(user) → lança { status:403 }
+//     4. _resolveScopeStrict lança exceção (ex: erro de banco) → lança { status:503 }
+//        CHK014-SEC FAIL-CLOSED: NUNCA defaultar para user.empresaId silenciosamente
+//
+//   CHK019-SEC: registra console.warn com user_id + empresa_id + endpoint em todo 403.
+//   CHK016-SEC: valida que requestedId coerce para inteiro via parseInt+isInteger.
+//
+//   Invariante (Princípio II): IDs saem exclusivamente do token (via _resolveScopeStrict).
+//   NUNCA aceitar empresaId de fora do escopo sem validação.
+// ──────────────────────────────────────────────────────────────────────────────
+async function resolveEmpresaAlvo(user, requestedId, endpoint) {
+  // Caso 1: sem preferência de empresa → usar empresa do próprio token (backward-compat)
+  if (requestedId == null || requestedId === '') {
+    return user.empresaId;
+  }
+
+  // CHK016-SEC: validar que coerce para inteiro via parseInt+isInteger
+  // (mesma defesa que resolveScope aplica ao id_grupo — bloqueia injeção PostgREST)
+  const alvo = parseInt(requestedId, 10);
+  if (!Number.isInteger(alvo)) {
+    // CHK019-SEC: logar tentativa inválida
+    console.warn(
+      '[resolveEmpresaAlvo] 403 empresa_id inválido:',
+      { user_id: user.id, empresa_id_solicitado: requestedId, endpoint: endpoint || 'desconhecido' }
+    );
+    const err = new Error('empresa_id inválido');
+    err.status = 403;
+    throw err;
+  }
+
+  // CHK014-SEC: FAIL-CLOSED — usa _resolveScopeStrict (sem degradação silenciosa).
+  // Se o banco estiver indisponível, propagar como 503 — NUNCA retornar user.empresaId
+  // por padrão, o que abriria brecha para acesso cross-empresa em caso de falha.
+  let escopo;
+  try {
+    escopo = await _resolveScopeStrict(user);
+  } catch (scopeErr) {
+    console.error(
+      '[resolveEmpresaAlvo] _resolveScopeStrict falhou — escopo indisponível:',
+      { user_id: user.id, empresa_id_solicitado: alvo, endpoint: endpoint || 'desconhecido', erro: scopeErr.message }
+    );
+    const err = new Error('escopo indisponível');
+    err.status = 503;
+    throw err;
+  }
+
+  // Caso 3: empresa solicitada fora do escopo do token
+  if (!escopo.includes(alvo)) {
+    // CHK019-SEC: logar acesso negado com contexto completo
+    console.warn(
+      '[resolveEmpresaAlvo] 403 empresa fora do escopo:',
+      { user_id: user.id, empresa_id_solicitado: alvo, escopo, endpoint: endpoint || 'desconhecido' }
+    );
+    const err = new Error('empresa fora do escopo');
+    err.status = 403;
+    throw err;
+  }
+
+  // Empresa válida e dentro do escopo
+  return alvo;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Exportar router + init + resolveScope + resolveOrCreateGrupo + resolveEmpresaAlvo
 // resolveScope é exportado para uso em branding.js e futuras rotas de escopo
 // resolveOrCreateGrupo exportado para reutilização em futuras rotas
+// resolveEmpresaAlvo exportado para uso nos 7 handlers de movimento-por-filial
 // ──────────────────────────────────────────────────────────────────────────────
-module.exports = { router, init, resolveScope, resolveOrCreateGrupo };
+module.exports = { router, init, resolveScope, resolveOrCreateGrupo, resolveEmpresaAlvo };

@@ -98,13 +98,13 @@
 **FRs**: FR-014, FR-015 | **Contrato**: [contracts/grupo-escopo-api.md §Helper](./contracts/grupo-escopo-api.md)
 **Checklist**: CHK014-SEC (fail-closed), CHK019-SEC (log de 403), CHK016-SEC (tipo inteiro)
 
-- [ ] Implementar `resolveEmpresaAlvo(user, requestedId)` reutilizando `resolveScope(user)` de `routes/grupo.js`
-- [ ] Comportamento quando `requestedId` é `null`/`''`/`undefined`: retornar `user.empresaId` (backward-compatible; sem 403)
-- [ ] Comportamento quando `requestedId` é não-numérico (`parseInt` retorna `NaN`): retornar erro `{ status: 403, error: "empresa_id inválido" }`
-- [ ] Comportamento quando `requestedId` é inteiro mas fora do escopo: retornar erro `{ status: 403, error: "empresa fora do escopo" }`
-- [ ] **CHK014 — fail-closed**: se `resolveScope(user)` lançar exceção (ex: erro de banco ao consultar filiais), retornar **503** `{ error: "escopo indisponível" }` — NUNCA deixar passar sem validação (invariante: fail-closed, não fail-open)
-- [ ] **CHK019 — log de 403**: ao retornar 403 (qualquer motivo), registrar no log: `user_id`, `empresa_id` tentada, endpoint (passado como parâmetro ou detectado via contexto do handler)
-- [ ] Exportar `resolveEmpresaAlvo` para ser reutilizado nos 7 handlers
+- [x] Implementar `resolveEmpresaAlvo(user, requestedId)` reutilizando `resolveScope(user)` de `routes/grupo.js`
+- [x] Comportamento quando `requestedId` é `null`/`''`/`undefined`: retornar `user.empresaId` (backward-compatible; sem 403)
+- [x] Comportamento quando `requestedId` é não-numérico (`parseInt` retorna `NaN`): retornar erro `{ status: 403, error: "empresa_id inválido" }`
+- [x] Comportamento quando `requestedId` é inteiro mas fora do escopo: retornar erro `{ status: 403, error: "empresa fora do escopo" }`
+- [x] **CHK014 — fail-closed**: se `resolveScope(user)` lançar exceção (ex: erro de banco ao consultar filiais), retornar **503** `{ error: "escopo indisponível" }` — NUNCA deixar passar sem validação (invariante: fail-closed, não fail-open)
+- [x] **CHK019 — log de 403**: ao retornar 403 (qualquer motivo), registrar no log: `user_id`, `empresa_id` tentada, endpoint (passado como parâmetro ou detectado via contexto do handler)
+- [x] Exportar `resolveEmpresaAlvo` para ser reutilizado nos 7 handlers
 
 **Critérios de aceite testáveis**:
 - `resolveEmpresaAlvo(user, null)` → retorna `user.empresaId` (sem lançar)
