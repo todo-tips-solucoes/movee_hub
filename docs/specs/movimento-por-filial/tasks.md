@@ -406,16 +406,16 @@ Cobrir os seguintes cenários (mapeados em quickstart.md):
 
 > **IMPORTANTE**: Esta tarefa NÃO inclui deploy. A validação usa um ambiente já em execução ou branch subida manualmente pelo operador. Nenhuma automação de push/deploy deve ser executada por esta tarefa.
 
-- [ ] Confirmar com o operador que o branch `feat/movimento-por-filial` está disponível em homologação antes de executar os testes (D9)
-- [ ] **Roundtrip TS-RT-1**: autenticar como admin de grupo → `GET /grupo/escopo` retorna ≥2 empresas → dashboard exibe combobox → selecionar filial → URL atualiza para `?empresa_id=N` → listagem de movimento recarrega com dados da filial selecionada
-- [ ] **TS-FE-1**: combobox visível para admin de grupo
-- [ ] **TS-FE-2**: combobox oculto para empresa single (login com conta filho)
-- [ ] **TS-FE-3**: trocar filial recarrega dados + persiste URL
-- [ ] **TS-FE-5**: URL copiada com `?empresa_id=N` mantém seleção ao abrir em nova aba
-- [ ] **TS-FE-6**: `?empresa_id=texto` na URL → fallback para empresa-pai sem erro
-- [ ] **Segurança**: tentar forjar `empresa_id` de outro grupo via DevTools (fetch manual) → 403
-- [ ] **Regressão TS-REG-1**: fluxo de envio (ProcessControl / loop de envio) continua funcionando com `req.user.empresaId` sem threading — nenhuma regressão
-- [ ] **Regressão TS-REG-2**: build frontend limpo, sem warnings de TypeScript
+- [x] Confirmar com o operador que o branch `feat/movimento-por-filial` está disponível em homologação antes de executar os testes (D9)
+- [x] **Roundtrip TS-RT-1**: autenticar como admin de grupo → `GET /grupo/escopo` retorna ≥2 empresas → dashboard exibe combobox → selecionar filial → URL atualiza para `?empresa_id=N` → listagem de movimento recarrega com dados da filial selecionada
+- [x] **TS-FE-1**: combobox visível para admin de grupo
+- [x] **TS-FE-2**: combobox oculto para empresa single (login com conta filho)
+- [x] **TS-FE-3**: trocar filial recarrega dados + persiste URL
+- [x] **TS-FE-5**: URL copiada com `?empresa_id=N` mantém seleção ao abrir em nova aba
+- [x] **TS-FE-6**: `?empresa_id=texto` na URL → fallback para empresa-pai sem erro
+- [x] **Segurança**: tentar forjar `empresa_id` de outro grupo via DevTools (fetch manual) → 403
+- [x] **Regressão TS-REG-1**: fluxo de envio (ProcessControl / loop de envio) continua funcionando com `req.user.empresaId` sem threading — nenhuma regressão
+- [x] **Regressão TS-REG-2**: build frontend limpo, sem warnings de TypeScript
 
 **Critérios de aceite testáveis**:
 - Todos os TS-FE-1..6 e TS-RT-1 passam em homologação
