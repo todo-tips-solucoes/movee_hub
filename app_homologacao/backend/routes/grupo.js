@@ -492,6 +492,67 @@ router.delete('/filhos/:empresaIdFilho', requireGrupoPai, async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// GET /grupo/escopo
+//   Retorna as empresas que o token pode ver (escopo de seleção para o front).
+//   Auth: authenticateToken (SEM requireGrupoPai — filhos também consultam).
+//   Contrato: docs/specs/movimento-por-filial/contracts/grupo-escopo-api.md
+//
+//   Response 200:
+//     { empresas: [{ id, nome_empresa, default?: true }], default: empresaId }
+//
+//   Regras de montagem:
+//     - is_grupo_pai === true: busca Empresa?id=in.(ids)&select=id,nome_empresa
+//       ordena por id asc; marca o item do pai com default:true.
+//     - is_grupo_pai === false / sem grupo: retorna array de 1 item com default:true.
+//     - Erro de banco: 503 { error: 'serviço indisponível' } — fail-closed.
+//   CHK001-API: contrato documentado; CHK006-API: 401 sem token.
+// ──────────────────────────────────────────────────────────────────────────────
+router.get('/escopo', async (req, res) => {
+  try {
+    const { empresaId, id_grupo, is_grupo_pai, nome_empresa } = req.user;
+
+    // Caso: single-empresa ou filho — escopo de 1 item, sem query ao banco.
+    if (!id_grupo || !is_grupo_pai) {
+      return res.json({
+        empresas: [{ id: empresaId, nome_empresa, default: true }],
+        default: empresaId,
+      });
+    }
+
+    // Pai: coerce id_grupo para inteiro (proteção contra claim maliciosa).
+    const idGrupoInt = parseInt(id_grupo, 10);
+    if (!Number.isInteger(idGrupoInt) || idGrupoInt <= 0) {
+      // Claim inválida: degradar para escopo individual (fail-safe)
+      return res.json({
+        empresas: [{ id: empresaId, nome_empresa, default: true }],
+        default: empresaId,
+      });
+    }
+
+    // Buscar todos os membros do grupo (pai + filhos) em uma única query.
+    // Inclui o pai via id_grupo=eq.${idGrupoInt} (pai também tem id_grupo definido
+    // quando o grupo existe). Alternativamente: busca pelo campo id_empresa_pai.
+    // Usamos a abordagem mais simples: buscar filhos (id_grupo=eq.) e prepend do pai.
+    const filhos = await _postgrestRequest(
+      `Empresa?id_grupo=eq.${idGrupoInt}&select=id,nome_empresa&order=id.asc`,
+      'GET'
+    );
+
+    // Montar lista: pai primeiro (com default:true), depois filhos em ordem.
+    const listaFilhos = (filhos || []).filter(f => f.id !== empresaId);
+    const empresas = [
+      { id: empresaId, nome_empresa, default: true },
+      ...listaFilhos.map(f => ({ id: f.id, nome_empresa: f.nome_empresa })),
+    ];
+
+    return res.json({ empresas, default: empresaId });
+  } catch (err) {
+    console.error('[GET /grupo/escopo] Erro:', err.message);
+    return res.status(503).json({ error: 'serviço indisponível' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Helper interno: _resolveScopeStrict(user)
 //
 // Variante de resolveScope SEM degradação silenciosa:
