@@ -161,15 +161,22 @@ router.get('/filhos', requireGrupoPai, async (req, res) => {
       return res.status(403).json({ error: 'Apenas o administrador do grupo pode listar filhos.' });
     }
 
-    const filhos = await _postgrestRequest(
+    const membros = await _postgrestRequest(
       `Empresa?id_grupo=eq.${idGrupoInt}&select=id,nome_empresa,email`,
       'GET'
     );
 
-    const lista = (filhos || []).filter(f => f.id !== req.user.empresaId);
+    // grupo-unificado-filiais: a empresa-pai também é tratada como membro EDITÁVEL do
+    // grupo (decisão do operador). Mantemos a empresa-pai na lista marcada com
+    // is_pai=true e a ordenamos primeiro; as filhas vêm com is_pai=false. O login único
+    // permanece inalterado — a flag serve apenas para edição de cadastro na aba grupo.
+    const lista = (membros || [])
+      .map(f => ({ ...f, is_pai: f.id === req.user.empresaId }))
+      .sort((a, b) => (b.is_pai ? 1 : 0) - (a.is_pai ? 1 : 0));
 
-    // Limite implícito: 100 filhos (dec-025, CHK046)
-    if (lista.length > 100) {
+    // Limite implícito: 100 filhas — NÃO conta a empresa-pai (dec-025, CHK046)
+    const totalFilhas = lista.filter(f => !f.is_pai).length;
+    if (totalFilhas > 100) {
       return res.status(422).json({
         error: 'O grupo atingiu o limite de 100 empresas filhas. Contate o suporte.',
       });
@@ -530,10 +537,12 @@ router.put('/empresas/:id', requireGrupoPai, async (req, res) => {
       return res.status(403).json({ error: 'Empresa não encontrada' });
     }
 
-    // ── Proibir editar a própria empresa-pai por esta rota ────────────────
-    if (id === empresaId) {
-      return res.status(400).json({ error: 'Use o perfil para editar dados do grupo' });
-    }
+    // ── grupo-unificado-filiais (decisão do operador): a empresa-pai TAMBÉM é
+    //    editável por esta rota (tratada como filial só para edição de cadastro).
+    //    A proteção contra edição cross-grupo (acima) permanece; o login único
+    //    permanece inalterado (esta rota nunca toca `pass`, FR-B).
+    //    Antes havia um 400 bloqueando `id === empresaId`; removido a pedido do
+    //    operador para permitir editar o cadastro da matriz na aba grupo.
 
     // ── Validações de entrada (FR-B) ──────────────────────────────────────
     const { nome_empresa, email, cnpj } = req.body || {};

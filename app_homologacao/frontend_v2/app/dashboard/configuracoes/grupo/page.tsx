@@ -46,6 +46,8 @@ interface EmpresaFilha {
   id: number;
   nome_empresa: string;
   email?: string;
+  /** grupo-unificado-filiais: empresa-pai (matriz) — editável, mas não desvinculável */
+  is_pai?: boolean;
 }
 
 interface FormErrors {
@@ -880,9 +882,9 @@ export default function GrupoPage() {
       {/* ---- Lista de filiais ---- */}
       <div className="space-y-3">
         <h2 className="text-base font-semibold">
-          Filiais cadastradas{' '}
+          Empresas do grupo{' '}
           <span className="ml-1 text-muted-foreground text-sm font-normal">
-            ({filhos.length}/100)
+            ({filhos.filter((f) => !f.is_pai).length}/100 filiais)
           </span>
         </h2>
 
@@ -918,14 +920,21 @@ export default function GrupoPage() {
                 className="flex items-center justify-between px-4 py-3 bg-card hover:bg-muted/50 transition-colors"
               >
                 <div>
-                  <p className="text-sm font-medium">{f.nome_empresa}</p>
+                  <p className="text-sm font-medium">
+                    {f.nome_empresa}
+                    {f.is_pai && (
+                      <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary align-middle">
+                        Matriz
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     ID: <span className="tabular-nums">{f.id}</span>
                     {f.email ? ` · ${f.email}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 ml-4">
-                  {/* Botão Editar — task 3.1 */}
+                  {/* Botão Editar — task 3.1 (matriz também é editável) */}
                   <button
                     type="button"
                     onClick={() => abrirEditarFilial(f)}
@@ -935,13 +944,16 @@ export default function GrupoPage() {
                     <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                     <span className="hidden sm:inline">Editar</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setDesvincularAlvo(f)}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-destructive hover:underline px-2"
-                  >
-                    Desvincular
-                  </button>
+                  {/* grupo-unificado-filiais: a matriz (pai) não pode ser desvinculada */}
+                  {!f.is_pai && (
+                    <button
+                      type="button"
+                      onClick={() => setDesvincularAlvo(f)}
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-destructive hover:underline px-2"
+                    >
+                      Desvincular
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
