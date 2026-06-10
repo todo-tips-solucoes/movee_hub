@@ -371,7 +371,7 @@ async function sendMessage(
   async function markAndSet(status, retornoMsg) {
     if (alreadyUpdated) return;
     alreadyUpdated = true;
-    await updateEnvioMassa(id, status, retornoMsg, tipo);
+    await updateEnvioMassa(id, status, retornoMsg, tipo, id_empresa);
   }
 
   function isSessaoExpirada(resData) {
@@ -728,7 +728,8 @@ async function sendMessage(
         id,
         'erro',
         'Erro no envio (fallback final): ' + err.message,
-        tipo
+        tipo,
+        id_empresa
       );
       alreadyUpdated = true;
     }
@@ -738,9 +739,12 @@ async function sendMessage(
   }
 }
 
-async function updateEnvioMassa(id, enviado, mensagem, tipo) {
+async function updateEnvioMassa(id, enviado, mensagem, tipo, idEmp) {
     if (!id) {
         throw new Error('O campo "id" é obrigatório.');
+    }
+    if (!idEmp) {
+        throw new Error('O campo "idEmp" é obrigatório para atualização segura.');
     }
 
     // Montar o corpo da atualização dinamicamente
@@ -753,10 +757,11 @@ async function updateEnvioMassa(id, enviado, mensagem, tipo) {
         if (mensagem) updateData.retorno_envio_msg_2 = mensagem;
     }
 
-    console.log(`Atualizando o registro ${id} com os dados:`, updateData);
+    console.log(`Atualizando o registro ${id} (empresa ${idEmp}) com os dados:`, updateData);
 
-    // Atualizar no banco via PostgREST
-    const response = await postgrestRequest(`EnvioMassa?id=eq.${id}`, 'PATCH', updateData);
+    // FR-013: filtro composto id+id_empresa previne IDOR (OWASP API4:2023).
+    // PostgREST não toca linha que não casa ambos os filtros — ownership atômico.
+    const response = await postgrestRequest(`EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}`, 'PATCH', updateData);
 
     // Verificar se houve erro na atualização
     if (response.error) {
@@ -768,12 +773,30 @@ async function updateEnvioMassa(id, enviado, mensagem, tipo) {
 }
 
 // Endpoint para atualizar a tabela EnvioMassa
+// FR-013 / movimento-por-filial: empresa_id vem do body; resolveEmpresaAlvo valida escopo (403).
+// Filtro composto id+id_empresa na query PostgREST fecha o IDOR (OWASP API4:2023 / CWE-862):
+// se o registro não pertencer à empresa-alvo, PostgREST retorna [] — respondemos 404.
 app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { enviado, mensagem, tipo } = req.body;
 
+    // 1. Resolver e validar empresa-alvo (403 se fora do escopo)
+    let idEmp;
     try {
-        const result = await updateEnvioMassa(id, enviado, mensagem, tipo);
+        idEmp = await resolveEmpresaAlvo(req.user, req.body.empresa_id, 'PATCH /update-envio-massa/:id');
+    } catch (err) {
+        return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
+    }
+
+    try {
+        const result = await updateEnvioMassa(id, enviado, mensagem, tipo, idEmp);
+
+        // PostgREST retorna array vazio quando nenhuma linha casou o filtro
+        // (id não existe OU não pertence à empresa-alvo) — responder 404.
+        if (Array.isArray(result) && result.length === 0) {
+            return res.status(404).json({ error: 'Registro não encontrado ou não pertence à empresa.' });
+        }
+
         res.json({ message: 'Registro atualizado com sucesso!', data: result });
     } catch (error) {
         console.error('Erro ao atualizar o registro:', error.message);
