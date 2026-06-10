@@ -784,11 +784,18 @@ app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
 // Endpoint para deletar registro da tabela EnvioMassa
 app.delete('/envio-massa/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const empresaId = req.user.empresaId;
+
+    // movimento-por-filial: empresa_id pode vir via query string
+    let idEmp;
+    try {
+      idEmp = await resolveEmpresaAlvo(req.user, req.query.empresa_id, 'DELETE /envio-massa/:id');
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
+    }
 
     try {
         const result = await postgrestRequest(
-            `EnvioMassa?id=eq.${id}&id_empresa=eq.${empresaId}`,
+            `EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}`,
             'DELETE'
         );
         res.json({ message: 'Registro deletado com sucesso!' });
@@ -1183,8 +1190,15 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
         message: 'Não autenticado ou empresaId ausente no token.'
       });
     }
-    const empresaId = req.user.empresaId;
-    console.error('[UPLOAD] empresaId:', empresaId);
+    // movimento-por-filial: empresa_id pode vir como campo multipart
+    let idEmp;
+    try {
+      idEmp = await resolveEmpresaAlvo(req.user, req.body.empresa_id, 'POST /upload');
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
+    }
+    const empresaId = idEmp; // mantém compatibilidade com ramos que usam empresaId abaixo
+    console.error('[UPLOAD] idEmp:', idEmp);
 
     // ---- Verifica se veio arquivo ----
     if (!req.file) {
@@ -1327,7 +1341,7 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
         uuid: row.uuid,
         dt_inicial: dtIniTS,
         dt_final: dtFimTS,
-        id_empresa: empresaId
+        id_empresa: idEmp
       });
     });
 
@@ -1791,10 +1805,17 @@ app.post('/validate-xml-batch', authenticateToken, upload.array('xmlFiles', 100)
 
 // Rota para fechar o movimento
 app.post('/close-movimento', authenticateToken, async (req, res) => {
+  // movimento-por-filial: empresa_id pode vir via body JSON
+  let idEmp;
   try {
-    const empresaId = req.user.empresaId;
-    await postgrestRequest(`EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false`, 'PATCH', { mov_fechado: true });
-    
+    idEmp = await resolveEmpresaAlvo(req.user, req.body.empresa_id, 'POST /close-movimento');
+  } catch (err) {
+    return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
+  }
+
+  try {
+    await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false`, 'PATCH', { mov_fechado: true });
+
     res.json({ message: 'Movimento fechado com sucesso' });
   } catch (err) {
     console.error('Erro no servidor ao fechar o movimento:', err);
