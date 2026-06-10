@@ -357,10 +357,10 @@ Cobrir os seguintes cenários (mapeados em quickstart.md):
 **Arquivos afetados**: `frontend_v2/app/dashboard/page.tsx`
 **FRs**: FR-002 | **Clarificações**: D4 (D4 pré-confirmado pelo operador)
 
-- [ ] Verificar que a condição `empresas.length > 1` em 2.3 já satisfaz este requisito (caso trivial — validar)
-- [ ] Garantir que quando `empresas.length === 1`, o DOM não renderiza o `<EmpresaSelector>` (sem `display: none` — elemento deve estar ausente)
-- [ ] Verificar que o layout da página não quebra com o combobox ausente (sem gap vazio no header)
-- [ ] Testar com empresa filho (não é grupo-pai): combobox ausente, UI idêntica ao atual
+- [x] Verificar que a condição `empresas.length > 1` em 2.3 já satisfaz este requisito (caso trivial — validar)
+- [x] Garantir que quando `empresas.length === 1`, o DOM não renderiza o `<EmpresaSelector>` (sem `display: none` — elemento deve estar ausente)
+- [x] Verificar que o layout da página não quebra com o combobox ausente (sem gap vazio no header)
+- [x] Testar com empresa filho (não é grupo-pai): combobox ausente, UI idêntica ao atual
 
 **Critérios de aceite testáveis**:
 - Admin de empresa filho ou empresa sem filiais: `<EmpresaSelector>` não presente no DOM
