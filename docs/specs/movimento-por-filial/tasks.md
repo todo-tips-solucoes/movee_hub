@@ -230,20 +230,20 @@ Para cada endpoint:
 
 Cobrir os seguintes cenários (mapeados em quickstart.md):
 
-- [ ] **TS-BE-1** — Default sem `empresa_id`: resposta idêntica ao comportamento atual (sem regressão)
-- [ ] **TS-BE-2** — `empresa_id` de filial dentro do escopo: retorna dados da filial
-- [ ] **TS-BE-3** — `empresa_id` fora do escopo: 403 `{ "error": "empresa fora do escopo" }`, sem dados expostos
-- [ ] **TS-BE-4** — `empresa_id` não-numérico (`"abc"`, `"1; DROP"`): 403 `{ "error": "empresa_id inválido" }`
-- [ ] **TS-BE-5** — Filho não expande escopo: empresa filho não consegue acessar outras empresas do grupo
-- [ ] **TS-BE-6** — Upload grava na filial-alvo: `id_empresa` gravado corretamente
-- [ ] **TS-BE-7** — Upload fora do escopo: 403, 0 registros criados
-- [ ] **TS-BE-8** — Close-movimento por filial: apenas registros da filial são fechados
-- [ ] **TS-BE-9** — Delete: registro de outra empresa não é deletado
-- [ ] **TS-BE-10** — PATCH fecha o IDOR pré-existente (TS-BE-10)
-- [ ] **TS-BE-11** — `GET /grupo/escopo` (pai): array com pai + filiais
-- [ ] **TS-BE-12** — `GET /grupo/escopo` (filho/single): array com 1 item
-- [ ] **TS-BE-13** — `GET /grupo/escopo` sem auth: 401
-- [ ] **CHK009-API** — `POST /close-movimento` com filial sem registros abertos: 200 com `{ fechados: 0 }` (não 500)
+- [x] **TS-BE-1** — Default sem `empresa_id`: resposta idêntica ao comportamento atual (sem regressão)
+- [x] **TS-BE-2** — `empresa_id` de filial dentro do escopo: retorna dados da filial
+- [x] **TS-BE-3** — `empresa_id` fora do escopo: 403 `{ "error": "empresa fora do escopo" }`, sem dados expostos
+- [x] **TS-BE-4** — `empresa_id` não-numérico (`"abc"`, `"1; DROP"`): 403 `{ "error": "empresa_id inválido" }`
+- [x] **TS-BE-5** — Filho não expande escopo: empresa filho não consegue acessar outras empresas do grupo
+- [x] **TS-BE-6** — Upload grava na filial-alvo: `id_empresa` gravado corretamente
+- [x] **TS-BE-7** — Upload fora do escopo: 403, 0 registros criados
+- [x] **TS-BE-8** — Close-movimento por filial: apenas registros da filial são fechados
+- [x] **TS-BE-9** — Delete: registro de outra empresa não é deletado
+- [x] **TS-BE-10** — PATCH fecha o IDOR pré-existente (TS-BE-10)
+- [x] **TS-BE-11** — `GET /grupo/escopo` (pai): array com pai + filiais
+- [x] **TS-BE-12** — `GET /grupo/escopo` (filho/single): array com 1 item
+- [x] **TS-BE-13** — `GET /grupo/escopo` sem auth: 401
+- [x] **CHK009-API** — `POST /close-movimento` com filial sem registros abertos: 200 com `{ fechados: 0 }` (não 500)
 
 **Critérios de aceite testáveis**:
 - Todos os 13 TS-BE passam sem erro

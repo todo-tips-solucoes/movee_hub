@@ -1837,9 +1837,12 @@ app.post('/close-movimento', authenticateToken, async (req, res) => {
   }
 
   try {
-    await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false`, 'PATCH', { mov_fechado: true });
+    // CHK009-API: Prefer:return=representation → PostgREST retorna array dos registros
+    // atualizados; length = quantidade efetivamente fechada (0 se nenhum aberto).
+    const updated = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false`, 'PATCH', { mov_fechado: true });
+    const fechados = Array.isArray(updated) ? updated.length : 0;
 
-    res.json({ message: 'Movimento fechado com sucesso' });
+    res.json({ message: 'Movimento fechado com sucesso', fechados });
   } catch (err) {
     console.error('Erro no servidor ao fechar o movimento:', err);
     res.status(500).json({ error: 'Erro no servidor ao fechar o movimento' });
