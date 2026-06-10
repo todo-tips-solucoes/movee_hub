@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useEnvioMassa } from '@/hooks/use-envio-massa';
 import { useProcessStatus } from '@/hooks/use-process-status';
 import { StatsCards } from '@/components/stats-cards';
@@ -8,10 +9,44 @@ import { ActionBar } from '@/components/action-bar';
 import { Filters } from '@/components/filters';
 import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
+import { EmpresaSelector, useGrupoEscopo } from '@/components/empresa-selector';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
-export default function DashboardPage() {
+// ─── Inner client component (precisa de Suspense porque usa useSearchParams) ──
+
+function DashboardClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // ─── Escopo de filiais ───────────────────────────────────────────────────────
+  const { empresas, defaultId, loading: escopoLoading } = useGrupoEscopo();
+
+  // Lê empresa_id do query param; null = ainda não resolvido
+  const paramRaw = searchParams.get('empresa_id');
+  const empresaId: number | null = paramRaw !== null ? Number(paramRaw) : null;
+
+  // Quando o endpoint de escopo retornar o default e ainda não houver param,
+  // grava o default na URL (sem push de histórico)
+  useEffect(() => {
+    if (!escopoLoading && defaultId !== null && empresaId === null) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('empresa_id', String(defaultId));
+      router.replace(`/dashboard?${params.toString()}`);
+    }
+  }, [escopoLoading, defaultId, empresaId, router, searchParams]);
+
+  // Troca de filial: atualiza URL (substitui histórico, sem push)
+  const handleEmpresaChange = useCallback(
+    (id: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('empresa_id', String(id));
+      router.replace(`/dashboard?${params.toString()}`);
+    },
+    [router, searchParams],
+  );
+
+  // ─── Dados de movimento ─────────────────────────────────────────────────────
   const {
     paginatedData,
     stats,
@@ -35,15 +70,17 @@ export default function DashboardPage() {
     closeMovement,
     toggleSelectAll,
     toggleSelect,
-  } = useEnvioMassa();
+  } = useEnvioMassa(empresaId ?? undefined);
 
   const { isActive, isLoading: processLoading, startProcess, stopProcess } = useProcessStatus({
     onRefresh: fetchData,
   });
 
+  // Fetch inicial + refetch ao trocar empresa_id
+  // empresaId já é propagado ao hook (tarefa 2.4); fetchData reflete a filial corrente.
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData]); // fetchData muda quando empresaId muda (dep no hook)
 
   const handleStart = async () => {
     try {
@@ -105,8 +142,17 @@ export default function DashboardPage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Seção fixa: stats + actions + filters */}
+      {/* Seção fixa: seletor de filial (só quando escopo > 1) + stats + actions + filters */}
       <div className="shrink-0 space-y-4">
+        {/* Seletor de filial — visível apenas quando o grupo tem > 1 empresa (2.5 formaliza) */}
+        {empresas.length > 1 && (
+          <EmpresaSelector
+            value={empresaId}
+            onChange={handleEmpresaChange}
+            disabled={loading}
+          />
+        )}
+
         <StatsCards stats={stats} />
 
         <ActionBar
@@ -151,5 +197,16 @@ export default function DashboardPage() {
         />
       </div>
     </motion.div>
+  );
+}
+
+// ─── Page export — Suspense obrigatório para useSearchParams no App Router ─────
+// https://nextjs.org/docs/app/api-reference/functions/use-search-params
+
+export default function DashboardPage() {
+  return (
+    <Suspense>
+      <DashboardClient />
+    </Suspense>
   );
 }

@@ -20,6 +20,7 @@ const motoristaRoutes = require('./routes/motorista');
 
 // config-ui-tenant — rotas /grupo/* + helper resolveScope
 const grupoRoutes = require('./routes/grupo');
+const { resolveEmpresaAlvo } = grupoRoutes; // movimento-por-filial: threading empresa_id
 
 // config-ui-tenant — rotas /empresa/branding + /motorista/branding-tomador
 const brandingRoutes = require('./routes/branding');
@@ -274,10 +275,18 @@ app.post('/token/refresh', async (req, res) => {
 
 // Rota de CRUD para EnvioMassa
 app.get('/envio-massa', authenticateToken, async (req, res) => {
+  let idEmp;
   try {
-    const empresaId = req.user.empresaId;
-    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false`);
-    
+    // movimento-por-filial: threading empresa_id (FR-009)
+    // resolveEmpresaAlvo lança err com err.status 403/503 se fora do escopo
+    idEmp = await resolveEmpresaAlvo(req.user, req.query.empresa_id, 'GET /envio-massa');
+  } catch (authErr) {
+    const status = authErr.status || 403;
+    return res.status(status).json({ error: authErr.message });
+  }
+  try {
+    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false`);
+
     res.json(data);
   } catch (error) {
     console.error('Erro ao buscar dados:', error);
@@ -362,7 +371,7 @@ async function sendMessage(
   async function markAndSet(status, retornoMsg) {
     if (alreadyUpdated) return;
     alreadyUpdated = true;
-    await updateEnvioMassa(id, status, retornoMsg, tipo);
+    await updateEnvioMassa(id, status, retornoMsg, tipo, id_empresa);
   }
 
   function isSessaoExpirada(resData) {
@@ -719,7 +728,8 @@ async function sendMessage(
         id,
         'erro',
         'Erro no envio (fallback final): ' + err.message,
-        tipo
+        tipo,
+        id_empresa
       );
       alreadyUpdated = true;
     }
@@ -729,9 +739,12 @@ async function sendMessage(
   }
 }
 
-async function updateEnvioMassa(id, enviado, mensagem, tipo) {
+async function updateEnvioMassa(id, enviado, mensagem, tipo, idEmp) {
     if (!id) {
         throw new Error('O campo "id" é obrigatório.');
+    }
+    if (!idEmp) {
+        throw new Error('O campo "idEmp" é obrigatório para atualização segura.');
     }
 
     // Montar o corpo da atualização dinamicamente
@@ -744,10 +757,11 @@ async function updateEnvioMassa(id, enviado, mensagem, tipo) {
         if (mensagem) updateData.retorno_envio_msg_2 = mensagem;
     }
 
-    console.log(`Atualizando o registro ${id} com os dados:`, updateData);
+    console.log(`Atualizando o registro ${id} (empresa ${idEmp}) com os dados:`, updateData);
 
-    // Atualizar no banco via PostgREST
-    const response = await postgrestRequest(`EnvioMassa?id=eq.${id}`, 'PATCH', updateData);
+    // FR-013: filtro composto id+id_empresa previne IDOR (OWASP API4:2023).
+    // PostgREST não toca linha que não casa ambos os filtros — ownership atômico.
+    const response = await postgrestRequest(`EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}`, 'PATCH', updateData);
 
     // Verificar se houve erro na atualização
     if (response.error) {
@@ -759,12 +773,30 @@ async function updateEnvioMassa(id, enviado, mensagem, tipo) {
 }
 
 // Endpoint para atualizar a tabela EnvioMassa
+// FR-013 / movimento-por-filial: empresa_id vem do body; resolveEmpresaAlvo valida escopo (403).
+// Filtro composto id+id_empresa na query PostgREST fecha o IDOR (OWASP API4:2023 / CWE-862):
+// se o registro não pertencer à empresa-alvo, PostgREST retorna [] — respondemos 404.
 app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { enviado, mensagem, tipo } = req.body;
 
+    // 1. Resolver e validar empresa-alvo (403 se fora do escopo)
+    let idEmp;
     try {
-        const result = await updateEnvioMassa(id, enviado, mensagem, tipo);
+        idEmp = await resolveEmpresaAlvo(req.user, req.body.empresa_id, 'PATCH /update-envio-massa/:id');
+    } catch (err) {
+        return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
+    }
+
+    try {
+        const result = await updateEnvioMassa(id, enviado, mensagem, tipo, idEmp);
+
+        // PostgREST retorna array vazio quando nenhuma linha casou o filtro
+        // (id não existe OU não pertence à empresa-alvo) — responder 404.
+        if (Array.isArray(result) && result.length === 0) {
+            return res.status(404).json({ error: 'Registro não encontrado ou não pertence à empresa.' });
+        }
+
         res.json({ message: 'Registro atualizado com sucesso!', data: result });
     } catch (error) {
         console.error('Erro ao atualizar o registro:', error.message);
@@ -775,11 +807,18 @@ app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
 // Endpoint para deletar registro da tabela EnvioMassa
 app.delete('/envio-massa/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const empresaId = req.user.empresaId;
+
+    // movimento-por-filial: empresa_id pode vir via query string
+    let idEmp;
+    try {
+      idEmp = await resolveEmpresaAlvo(req.user, req.query.empresa_id, 'DELETE /envio-massa/:id');
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
+    }
 
     try {
         const result = await postgrestRequest(
-            `EnvioMassa?id=eq.${id}&id_empresa=eq.${empresaId}`,
+            `EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}`,
             'DELETE'
         );
         res.json({ message: 'Registro deletado com sucesso!' });
@@ -1174,8 +1213,15 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
         message: 'Não autenticado ou empresaId ausente no token.'
       });
     }
-    const empresaId = req.user.empresaId;
-    console.error('[UPLOAD] empresaId:', empresaId);
+    // movimento-por-filial: empresa_id pode vir como campo multipart
+    let idEmp;
+    try {
+      idEmp = await resolveEmpresaAlvo(req.user, req.body.empresa_id, 'POST /upload');
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
+    }
+    const empresaId = idEmp; // mantém compatibilidade com ramos que usam empresaId abaixo
+    console.error('[UPLOAD] idEmp:', idEmp);
 
     // ---- Verifica se veio arquivo ----
     if (!req.file) {
@@ -1318,7 +1364,7 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
         uuid: row.uuid,
         dt_inicial: dtIniTS,
         dt_final: dtFimTS,
-        id_empresa: empresaId
+        id_empresa: idEmp
       });
     });
 
@@ -1408,11 +1454,18 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
 
 // Rota para exportar dados da tabela EnvioMassa em CSV
 app.get('/export-envio-massa', authenticateToken, async (req, res) => {
+  let idEmp;
   try {
-    const empresaId = req.user.empresaId;
-
+    // movimento-por-filial: threading empresa_id (FR-010)
+    // resolveEmpresaAlvo lança err com err.status 403/503 se fora do escopo
+    idEmp = await resolveEmpresaAlvo(req.user, req.query.empresa_id, 'GET /export-envio-massa');
+  } catch (authErr) {
+    const status = authErr.status || 403;
+    return res.status(status).json({ error: authErr.message });
+  }
+  try {
     // Solicitar os campos específicos da tabela EnvioMassa
-    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false&select=id,created_at,number,nome,cnpj_prestador,valor,mensagem1,mensagem2,enviado,retorno_envio_msg_1,retorno_envio_msg_2,tribnac,cnpj_tomador,dCompet,numnota,nota_ok,data_emissao,erro_validacao,dataEnvio,id_empresa,uuid,mov_fechado,dt_inicial,dt_final`);
+    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false&select=id,created_at,number,nome,cnpj_prestador,valor,mensagem1,mensagem2,enviado,retorno_envio_msg_1,retorno_envio_msg_2,tribnac,cnpj_tomador,dCompet,numnota,nota_ok,data_emissao,erro_validacao,dataEnvio,id_empresa,uuid,mov_fechado,dt_inicial,dt_final`);
 
     if (data.length === 0) {
       return res.status(404).json({ error: 'Nenhum dado encontrado' });
@@ -1454,7 +1507,7 @@ app.get('/export-envio-massa', authenticateToken, async (req, res) => {
     const csv = json2csvParser.parse(formattedData);
 
     // Definir o nome do arquivo
-    const fileName = `envio_massa_${empresaId}.csv`;
+    const fileName = `envio_massa_${idEmp}.csv`;
 
     // Definir os cabeçalhos para download de CSV
     res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
@@ -1496,11 +1549,18 @@ function getNFeKeyFromNotaOk(notaOkRaw) {
 
 // Rota para baixar XMLs do movimento em aberto em um arquivo ZIP
 app.get('/download-xml-movimento', authenticateToken, async (req, res) => {
+  let idEmp;
   try {
-    const empresaId = req.user.empresaId;
-
+    // movimento-por-filial: threading empresa_id (FR-011)
+    // resolveEmpresaAlvo lança err com err.status 403/503 se fora do escopo
+    idEmp = await resolveEmpresaAlvo(req.user, req.query.empresa_id, 'GET /download-xml-movimento');
+  } catch (authErr) {
+    const status = authErr.status || 403;
+    return res.status(status).json({ error: authErr.message });
+  }
+  try {
     const data = await postgrestRequest(
-      `EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false&select=id,nome,numnota,nota_ok,erro_validacao`
+      `EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false&select=id,nome,numnota,nota_ok,erro_validacao`
     );
 
     if (!data || data.length === 0) {
@@ -1537,7 +1597,7 @@ app.get('/download-xml-movimento', authenticateToken, async (req, res) => {
       });
     }
 
-    const zipName = `xml_movimento_aberto_${empresaId}.zip`;
+    const zipName = `xml_movimento_aberto_${idEmp}.zip`;
     res.setHeader('Content-Disposition', `attachment; filename=${zipName}`);
     res.setHeader('Content-Type', 'application/zip');
 
@@ -1768,11 +1828,21 @@ app.post('/validate-xml-batch', authenticateToken, upload.array('xmlFiles', 100)
 
 // Rota para fechar o movimento
 app.post('/close-movimento', authenticateToken, async (req, res) => {
+  // movimento-por-filial: empresa_id pode vir via body JSON
+  let idEmp;
   try {
-    const empresaId = req.user.empresaId;
-    await postgrestRequest(`EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false`, 'PATCH', { mov_fechado: true });
-    
-    res.json({ message: 'Movimento fechado com sucesso' });
+    idEmp = await resolveEmpresaAlvo(req.user, req.body.empresa_id, 'POST /close-movimento');
+  } catch (err) {
+    return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
+  }
+
+  try {
+    // CHK009-API: Prefer:return=representation → PostgREST retorna array dos registros
+    // atualizados; length = quantidade efetivamente fechada (0 se nenhum aberto).
+    const updated = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false`, 'PATCH', { mov_fechado: true });
+    const fechados = Array.isArray(updated) ? updated.length : 0;
+
+    res.json({ message: 'Movimento fechado com sucesso', fechados });
   } catch (err) {
     console.error('Erro no servidor ao fechar o movimento:', err);
     res.status(500).json({ error: 'Erro no servidor ao fechar o movimento' });
