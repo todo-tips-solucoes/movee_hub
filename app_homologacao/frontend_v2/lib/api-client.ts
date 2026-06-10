@@ -27,9 +27,18 @@ async function handleResponse(res: Response) {
   return res;
 }
 
+function buildQuery(params?: Record<string, string | number | undefined | null>): string {
+  if (!params) return '';
+  const qs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join('&');
+  return qs ? `?${qs}` : '';
+}
+
 export const api = {
-  async get<T = unknown>(path: string): Promise<T> {
-    const res = await fetchWithTimeout(`${BASE}${path}`, { credentials: 'include' });
+  async get<T = unknown>(path: string, query?: Record<string, string | number | undefined | null>): Promise<T> {
+    const res = await fetchWithTimeout(`${BASE}${path}${buildQuery(query)}`, { credentials: 'include' });
     await handleResponse(res);
     return res.json();
   },
@@ -56,8 +65,8 @@ export const api = {
     return res.json();
   },
 
-  async del<T = unknown>(path: string): Promise<T> {
-    const res = await fetchWithTimeout(`${BASE}${path}`, {
+  async del<T = unknown>(path: string, query?: Record<string, string | number | undefined | null>): Promise<T> {
+    const res = await fetchWithTimeout(`${BASE}${path}${buildQuery(query)}`, {
       method: 'DELETE',
       credentials: 'include',
     });
@@ -65,9 +74,14 @@ export const api = {
     return res.json();
   },
 
-  async uploadFile<T = unknown>(path: string, file: File): Promise<T> {
+  async uploadFile<T = unknown>(path: string, file: File, extraFields?: Record<string, string>): Promise<T> {
     const formData = new FormData();
     formData.append('file', file);
+    if (extraFields) {
+      for (const [key, value] of Object.entries(extraFields)) {
+        formData.append(key, value);
+      }
+    }
     const res = await fetchWithTimeout(`${BASE}${path}`, {
       method: 'POST',
       credentials: 'include',
@@ -107,8 +121,8 @@ export const api = {
     window.URL.revokeObjectURL(url);
   },
 
-  async downloadBlob(path: string, filename: string): Promise<void> {
-    const res = await fetchWithTimeout(`${BASE}${path}`, { credentials: 'include' });
+  async downloadBlob(path: string, filename: string, query?: Record<string, string | number | undefined | null>): Promise<void> {
+    const res = await fetchWithTimeout(`${BASE}${path}${buildQuery(query)}`, { credentials: 'include' });
     await handleResponse(res);
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);

@@ -70,20 +70,17 @@ function DashboardClient() {
     closeMovement,
     toggleSelectAll,
     toggleSelect,
-  } = useEnvioMassa();
+  } = useEnvioMassa(empresaId ?? undefined);
 
   const { isActive, isLoading: processLoading, startProcess, stopProcess } = useProcessStatus({
     onRefresh: fetchData,
   });
 
   // Fetch inicial + refetch ao trocar empresa_id
-  // PONTO DE INTEGRAÇÃO 2.4: quando use-envio-massa aceitar empresaId,
-  // substituir fetchData() por fetchData(empresaId) e remover este comentário.
+  // empresaId já é propagado ao hook (tarefa 2.4); fetchData reflete a filial corrente.
   useEffect(() => {
     fetchData();
-  }, [fetchData, empresaId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Nota: empresaId no dep array garante refetch ao trocar a filial.
-  // O fetchData em si ainda não usa o id (isso é threading da tarefa 2.4).
+  }, [fetchData]); // fetchData muda quando empresaId muda (dep no hook)
 
   const handleStart = async () => {
     try {

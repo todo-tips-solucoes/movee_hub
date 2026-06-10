@@ -5,7 +5,7 @@ import { EnvioMassa, FilterState, StatsData } from '@/types';
 import { api } from '@/lib/api-client';
 import { applyFilters, computeStats, initialFilters } from '@/lib/utils';
 
-export function useEnvioMassa() {
+export function useEnvioMassa(empresaId?: number | null) {
   const [data, setData] = useState<EnvioMassa[]>([]);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [currentPage, setCurrentPage] = useState(1);
@@ -13,17 +13,21 @@ export function useEnvioMassa() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
+  // empresa_id é opcional: quando undefined/null não é enviado (backend usa empresa do token)
+  const eidParam = empresaId != null ? { empresa_id: empresaId } : undefined;
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await api.get<EnvioMassa[]>('/envio-massa');
+      const result = await api.get<EnvioMassa[]>('/envio-massa', eidParam);
       setData(Array.isArray(result) ? result : []);
     } catch {
       setData([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaId]);
 
   const filteredData = useMemo(() => applyFilters(data, filters), [data, filters]);
 
@@ -56,20 +60,25 @@ export function useEnvioMassa() {
   }, []);
 
   const deleteRecord = useCallback(async (id: number) => {
-    await api.del(`/envio-massa/${id}`);
+    await api.del(`/envio-massa/${id}`, eidParam);
     await fetchData();
-  }, [fetchData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchData, empresaId]);
 
   const updateRecord = useCallback(async (id: number, body: Record<string, unknown>) => {
-    await api.patch(`/update-envio-massa/${id}`, body);
+    const payload = empresaId != null ? { ...body, empresa_id: empresaId } : body;
+    await api.patch(`/update-envio-massa/${id}`, payload);
     await fetchData();
-  }, [fetchData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchData, empresaId]);
 
   const uploadFile = useCallback(async (file: File) => {
-    const result = await api.uploadFile('/upload', file);
+    const extra = empresaId != null ? { empresa_id: String(empresaId) } : undefined;
+    const result = await api.uploadFile('/upload', file, extra);
     await fetchData();
     return result;
-  }, [fetchData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchData, empresaId]);
 
   const exportCSV = useCallback(() => {
     const fields = ['id', 'number', 'nome', 'valor', 'enviado', 'retorno_envio_msg_1', 'numnota', 'nota_ok', 'data_emissao', 'erro_validacao'];
@@ -93,13 +102,15 @@ export function useEnvioMassa() {
   }, [filteredData]);
 
   const downloadXML = useCallback(async () => {
-    await api.downloadBlob('/download-xml-movimento', 'xml_movimento_aberto.zip');
-  }, []);
+    await api.downloadBlob('/download-xml-movimento', 'xml_movimento_aberto.zip', eidParam);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaId]);
 
   const closeMovement = useCallback(async () => {
-    await api.post('/close-movimento');
+    await api.post('/close-movimento', empresaId != null ? { empresa_id: empresaId } : undefined);
     await fetchData();
-  }, [fetchData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchData, empresaId]);
 
   const toggleSelectAll = useCallback(() => {
     if (selectedIds.size === paginatedData.length) {

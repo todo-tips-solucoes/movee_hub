@@ -336,12 +336,12 @@ Cobrir os seguintes cenários (mapeados em quickstart.md):
 **Arquivos afetados**: `frontend_v2/hooks/use-envio-massa.ts`, `frontend_v2/lib/api-client.ts`
 **FRs**: FR-003, FR-005 | **Contrato**: [contracts/movimento-api.md §1–7](./contracts/movimento-api.md)
 
-- [ ] Em `api-client.ts`: adicionar parâmetro opcional `empresaId?: number` a todas as funções que chamam os 7 endpoints de movimento; quando presente, append `empresa_id=${empresaId}` ao query string ou body
-- [ ] Em `use-envio-massa.ts`: receber `empresaId` como parâmetro (ou via `useSearchParams` interno) e passá-lo para as chamadas do `api-client.ts`
-- [ ] O hook deve invalidar/refetch quando `empresaId` muda (dep array do `useEffect`/`useQuery`)
-- [ ] Upload (`POST /upload`): incluir `empresa_id` como campo FormData adicional
-- [ ] Close-movimento, delete, PATCH: incluir `empresa_id` no body JSON
-- [ ] Sem `empresaId`: omitir o parâmetro (backend usa default = empresa do token — backward-compatible)
+- [x] Em `api-client.ts`: adicionar parâmetro opcional `empresaId?: number` a todas as funções que chamam os 7 endpoints de movimento; quando presente, append `empresa_id=${empresaId}` ao query string ou body
+- [x] Em `use-envio-massa.ts`: receber `empresaId` como parâmetro (ou via `useSearchParams` interno) e passá-lo para as chamadas do `api-client.ts`
+- [x] O hook deve invalidar/refetch quando `empresaId` muda (dep array do `useEffect`/`useQuery`)
+- [x] Upload (`POST /upload`): incluir `empresa_id` como campo FormData adicional
+- [x] Close-movimento, delete, PATCH: incluir `empresa_id` no body JSON
+- [x] Sem `empresaId`: omitir o parâmetro (backend usa default = empresa do token — backward-compatible)
 
 **Critérios de aceite testáveis**:
 - Roundtrip TS-RT-1: `GET /grupo/escopo` → selecionar filial → `GET /envio-massa?empresa_id=N` retorna dados da filial
