@@ -3,14 +3,17 @@
  * Prefixo: /grupo/*
  *
  * Feature: config-ui-tenant (White-label por Tenant + Grupo de CNPJs)
+ * Feature: cadastro-filiais (Cadastro de Filiais)
  * Ref: docs/specs/config-ui-tenant/contracts/grupo-api.md
  *      docs/specs/config-ui-tenant/spec.md (FR-002, FR-004, FR-INFRA-LOCK)
+ *      docs/specs/cadastro-filiais/contracts/grupo-empresas-api.md
  *      docs/constitution.md §II v1.1.0
  *
  * Princípio II (amendment v1.1.0): escopo resolvido exclusivamente a partir
  * do token JWT (req.user), nunca a partir do corpo/query do cliente.
  *
  * Requer DDL aplicado: docs/sql/001-config-ui-tenant-schema.sql
+ *                      docs/sql/004-cadastro-filiais-cnpj.sql
  */
 
 'use strict';
@@ -22,9 +25,11 @@ const router = express.Router();
 // Dependências injetadas pelo server.js (ver module.exports.init)
 // ──────────────────────────────────────────────────────────────────────────────
 let _postgrestRequest;
+let _bcrypt;
 
-function init({ postgrestRequest }) {
+function init({ postgrestRequest, bcrypt }) {
   _postgrestRequest = postgrestRequest;
+  _bcrypt = bcrypt;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -75,6 +80,55 @@ async function resolveScope(user) {
     // Fail-safe: degradar para escopo individual em vez de expor dados cruzados
     return [empresaId];
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Helper: resolveOrCreateGrupo(user)
+//
+// Contrato (contracts/grupo-empresas-api.md §Helper):
+//   Input : req.user { empresaId, id_grupo, nome_empresa, ... }
+//   Output: idGrupo (inteiro) — o id do Grupo ao qual o pai pertence.
+//           Cria o Grupo na primeira chamada se ainda não existir (idempotente).
+//
+//   Princípio II (SC-004): id_grupo vem SEMPRE do token, nunca do body.
+//   Throws em caso de falha irrecuperável (quem chama deve capturar).
+// ──────────────────────────────────────────────────────────────────────────────
+async function resolveOrCreateGrupo(user) {
+  const { empresaId, id_grupo, nome_empresa } = user;
+
+  if (id_grupo) {
+    // F1: coerce para inteiro — proteção contra claim maliciosa
+    const idGrupoInt = parseInt(id_grupo, 10);
+    if (!Number.isInteger(idGrupoInt) || idGrupoInt <= 0) {
+      throw new Error('Dados de grupo inválidos no token.');
+    }
+    return idGrupoInt;
+  }
+
+  // Sem id_grupo no token: resolver via id_empresa_pai (idempotente)
+  const grupoExistente = await _postgrestRequest(
+    `Grupo?id_empresa_pai=eq.${empresaId}&select=id`,
+    'GET'
+  );
+
+  if (grupoExistente && grupoExistente.length > 0) {
+    return grupoExistente[0].id;
+  }
+
+  // Criar grupo novo (primeira vinculação)
+  const novoGrupo = await _postgrestRequest(
+    'Grupo',
+    'POST',
+    {
+      nome: nome_empresa || `Grupo ${empresaId}`,
+      id_empresa_pai: empresaId,
+    }
+  );
+  // PostgREST com Prefer: return=representation retorna array
+  if (!novoGrupo || novoGrupo.length === 0) {
+    throw new Error('Erro ao criar grupo.');
+  }
+  return novoGrupo[0].id;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -185,42 +239,8 @@ router.post('/filhos', requireGrupoPai, async (req, res) => {
       });
     }
 
-    // Resolver ou criar o Grupo do pai
-    let idGrupoFinal;
-
-    if (id_grupo) {
-      // F1: coerce id_grupo para inteiro
-      idGrupoFinal = parseInt(id_grupo, 10);
-      if (!Number.isInteger(idGrupoFinal) || idGrupoFinal <= 0) {
-        return res.status(500).json({ error: 'Dados de grupo inválidos no token.' });
-      }
-    } else {
-      // Primeira vinculação: criar o Grupo para este pai
-      // Verificar se já existe grupo com id_empresa_pai = empresaId (idempotência)
-      const grupoExistente = await _postgrestRequest(
-        `Grupo?id_empresa_pai=eq.${empresaId}&select=id`,
-        'GET'
-      );
-
-      if (grupoExistente && grupoExistente.length > 0) {
-        idGrupoFinal = grupoExistente[0].id;
-      } else {
-        // Criar grupo novo
-        const novoGrupo = await _postgrestRequest(
-          'Grupo',
-          'POST',
-          {
-            nome: nome_empresa || `Grupo ${empresaId}`,
-            id_empresa_pai: empresaId,
-          }
-        );
-        // PostgREST com Prefer: return=representation retorna array
-        if (!novoGrupo || novoGrupo.length === 0) {
-          return res.status(500).json({ error: 'Erro ao criar grupo.' });
-        }
-        idGrupoFinal = novoGrupo[0].id;
-      }
-    }
+    // Resolver ou criar o Grupo do pai (helper idempotente — T-2.1)
+    const idGrupoFinal = await resolveOrCreateGrupo(req.user);
 
     // Verificar limite de 100 filhos antes de vincular (dec-025, CHK046)
     const filhosAtuais = await _postgrestRequest(
@@ -248,6 +268,164 @@ router.post('/filhos', requireGrupoPai, async (req, res) => {
     });
   } catch (err) {
     console.error('[POST /grupo/filhos] Erro:', err.message);
+    return res.status(500).json({ error: 'Erro no servidor.' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// POST /grupo/empresas
+//   Cria uma empresa filial e a vincula ao grupo do admin autenticado.
+//   Feature: cadastro-filiais (FR-001..FR-007)
+//   Ref: docs/specs/cadastro-filiais/contracts/grupo-empresas-api.md
+//
+//   Auth: authenticateToken (no mount /grupo) + requireGrupoPai (middleware aqui).
+//   id_grupo: sempre do token via resolveOrCreateGrupo (SC-004).
+//   Qualquer id_grupo no body é ignorado.
+//
+//   Body: { nome_empresa, email, senha, cnpj,
+//           endereco?, numero?, cep?, email_nota?, observacao? }
+//   Response 201: { id, nome_empresa, email, id_grupo }
+//   Response 400: nome_empresa ausente / email inválido ou duplicado / senha fraca
+//   Response 409: cnpj duplicado (UNIQUE constraint)
+//   Response 422: limite de 100 filiais atingido
+//   Response 403: não-admin (requireGrupoPai)
+// ──────────────────────────────────────────────────────────────────────────────
+router.post('/empresas', requireGrupoPai, async (req, res) => {
+  try {
+    const { nome_empresa, email, senha, cnpj,
+            endereco, numero, cep, email_nota, observacao } = req.body || {};
+
+    // ── Validações de entrada ──────────────────────────────────────────────
+
+    // nome_empresa obrigatório (FR-001)
+    if (!nome_empresa || typeof nome_empresa !== 'string' || !nome_empresa.trim()) {
+      return res.status(400).json({ error: 'Campo obrigatório ausente: nome_empresa.' });
+    }
+
+    // email: formato + presença (FR-003)
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Campo obrigatório ausente: email.' });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ error: 'Formato de e-mail inválido.' });
+    }
+
+    // senha: regra mínima >= 6 chars + 1 maiúscula + 1 dígito (FR-005)
+    if (!senha || typeof senha !== 'string') {
+      return res.status(400).json({ error: 'Campo obrigatório ausente: senha.' });
+    }
+    if (senha.length < 6 || !/[A-Z]/.test(senha) || !/\d/.test(senha)) {
+      return res.status(400).json({
+        error: 'Senha fraca: mínimo 6 caracteres, 1 letra maiúscula e 1 dígito.',
+      });
+    }
+
+    // cnpj: exatamente 14 dígitos numéricos (FR-006)
+    if (!cnpj || typeof cnpj !== 'string') {
+      return res.status(400).json({ error: 'Campo obrigatório ausente: cnpj.' });
+    }
+    const cnpjDigitos = cnpj.replace(/\D/g, '');
+    if (cnpjDigitos.length !== 14) {
+      return res.status(400).json({
+        error: 'CNPJ inválido: deve conter exatamente 14 dígitos numéricos.',
+      });
+    }
+
+    // ── Unicidade de email (FR-003) ───────────────────────────────────────
+    const emailExistente = await _postgrestRequest(
+      `Empresa?email=eq.${encodeURIComponent(email.trim())}&select=id`,
+      'GET'
+    );
+    if (emailExistente && emailExistente.length > 0) {
+      return res.status(400).json({ error: 'E-mail já cadastrado.' });
+    }
+
+    // ── Resolver/criar Grupo (SC-004: id_grupo do token, nunca do body) ───
+    let idGrupo;
+    try {
+      idGrupo = await resolveOrCreateGrupo(req.user);
+    } catch (grupoErr) {
+      console.error('[POST /grupo/empresas] Erro ao resolver grupo:', grupoErr.message);
+      return res.status(500).json({ error: 'Erro ao resolver grupo do administrador.' });
+    }
+
+    // ── Limite de 100 filiais por grupo (FR-007, dec-025) ─────────────────
+    const filhosAtuais = await _postgrestRequest(
+      `Empresa?id_grupo=eq.${idGrupo}&select=id`,
+      'GET'
+    );
+    const qtdFilhos = (filhosAtuais || []).filter(f => f.id !== req.user.empresaId).length;
+    if (qtdFilhos >= 100) {
+      return res.status(422).json({
+        error: 'O grupo atingiu o limite de 100 empresas filhas.',
+      });
+    }
+
+    // ── Hashear senha (FR-005) ────────────────────────────────────────────
+    if (!_bcrypt) {
+      console.error('[POST /grupo/empresas] bcrypt não injetado — verifique server.js');
+      return res.status(500).json({ error: 'Erro de configuração do servidor.' });
+    }
+    const hashedPass = await _bcrypt.hash(senha, 10);
+
+    // ── Montar payload (campos fiscais opcionais — FR-004) ────────────────
+    const payload = {
+      nome_empresa: nome_empresa.trim(),
+      email: email.trim(),
+      pass: hashedPass,
+      id_grupo: idGrupo,
+    };
+    // Incluir cnpj apenas se DDL 004 já foi aplicado; se a coluna não existir,
+    // o PostgREST retorna 400/42703 — capturado abaixo com mensagem clara.
+    payload.cnpj = cnpjDigitos;
+
+    // Campos fiscais opcionais: incluir apenas quando fornecidos (não nulos)
+    if (endereco !== undefined && endereco !== null) payload.endereco = endereco;
+    if (numero   !== undefined && numero   !== null) payload.numero   = numero;
+    if (cep      !== undefined && cep      !== null) payload.cep      = cep;
+    if (email_nota !== undefined && email_nota !== null) payload.email_nota = email_nota;
+    if (observacao !== undefined && observacao !== null) payload.observacao = observacao;
+
+    // ── INSERT via PostgREST ──────────────────────────────────────────────
+    let novaEmpresa;
+    try {
+      novaEmpresa = await _postgrestRequest('Empresa', 'POST', payload);
+    } catch (pgErr) {
+      const msg = pgErr && pgErr.message ? pgErr.message : '';
+      // UNIQUE constraint em cnpj → 409
+      if (/duplicate key.*cnpj/i.test(msg) || /unique.*cnpj/i.test(msg)) {
+        return res.status(409).json({ error: 'CNPJ já cadastrado.' });
+      }
+      // UNIQUE constraint em email (failsafe para race condition) → 400
+      if (/duplicate key.*email/i.test(msg) || /unique.*email/i.test(msg)) {
+        return res.status(400).json({ error: 'E-mail já cadastrado.' });
+      }
+      // Coluna cnpj inexistente (DDL 004 não aplicado) — erro claro, não 500 genérico
+      if (/column.*cnpj.*does not exist/i.test(msg) || /42703/i.test(msg)) {
+        console.error('[POST /grupo/empresas] Coluna cnpj ausente — DDL 004 não aplicado:', msg);
+        return res.status(503).json({
+          error: 'Funcionalidade de CNPJ indisponível: DDL 004 ainda não foi aplicado. Contacte o operador.',
+        });
+      }
+      throw pgErr; // outros erros: deixar cair no catch externo
+    }
+
+    if (!novaEmpresa || novaEmpresa.length === 0) {
+      return res.status(500).json({ error: 'Erro ao criar empresa.' });
+    }
+
+    const criada = novaEmpresa[0];
+
+    // Response 201 — pass ausente (SC-005, FR-005)
+    return res.status(201).json({
+      id:           criada.id,
+      nome_empresa: criada.nome_empresa,
+      email:        criada.email,
+      id_grupo:     criada.id_grupo,
+    });
+  } catch (err) {
+    console.error('[POST /grupo/empresas] Erro:', err.message);
     return res.status(500).json({ error: 'Erro no servidor.' });
   }
 });
@@ -314,7 +492,8 @@ router.delete('/filhos/:empresaIdFilho', requireGrupoPai, async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Exportar router + init + resolveScope
+// Exportar router + init + resolveScope + resolveOrCreateGrupo
 // resolveScope é exportado para uso em branding.js e futuras rotas de escopo
+// resolveOrCreateGrupo exportado para reutilização em futuras rotas
 // ──────────────────────────────────────────────────────────────────────────────
-module.exports = { router, init, resolveScope };
+module.exports = { router, init, resolveScope, resolveOrCreateGrupo };

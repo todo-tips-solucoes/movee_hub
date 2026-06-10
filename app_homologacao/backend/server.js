@@ -93,8 +93,16 @@ async function postgrestRequest(endpoint, method = 'GET', body = null) {
     const response = await fetch(url, options);
 
     if (!response.ok) {
-        console.error('Erro ao enviar para o PostgREST:', await response.text());
-        throw new Error(`Erro ao enviar dados para o PostgREST: ${response.statusText}`);
+        // Capturar o corpo do erro UMA vez (o stream so pode ser lido uma vez) e
+        // propaga-lo no Error para que os callers possam diferenciar violacoes
+        // (ex.: UNIQUE de cnpj/email -> 409/400 em routes/grupo.js). O corpo fica
+        // server-side (logado + usado para matching); nunca e enviado ao cliente.
+        const errBody = await response.text();
+        console.error('Erro ao enviar para o PostgREST:', errBody);
+        const pgErr = new Error(`Erro ao enviar dados para o PostgREST: ${response.statusText} — ${errBody}`);
+        pgErr.status = response.status;
+        pgErr.body = errBody;
+        throw pgErr;
     }
 
     const data = await response.json();
@@ -1821,8 +1829,8 @@ app.post('/logout', (req, res) => {
 motoristaRoutes.init({ postgrestRequest, generatePostgrestJWT });
 app.use('/motorista', motoristaRoutes.router);
 
-// config-ui-tenant — injetar dependências e montar rotas /grupo/*
-grupoRoutes.init({ postgrestRequest });
+// config-ui-tenant + cadastro-filiais — injetar dependências e montar rotas /grupo/*
+grupoRoutes.init({ postgrestRequest, bcrypt });
 app.use('/grupo', authenticateToken, grupoRoutes.router);
 
 // config-ui-tenant — injetar dependências e montar rotas de branding
