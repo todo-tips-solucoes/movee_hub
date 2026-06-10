@@ -125,12 +125,12 @@
 **FRs**: FR-016 | **Contrato**: [contracts/grupo-escopo-api.md §Endpoint](./contracts/grupo-escopo-api.md)
 **Checklist**: CHK001-API (contrato documentado), CHK006-API (401 sem token)
 
-- [ ] Registrar rota `GET /api/grupo/escopo` com middleware `authenticateToken` (SEM `requireGrupoPai` — filhos também consultam)
-- [ ] Montar lista `empresas` no handler:
+- [x] Registrar rota `GET /api/grupo/escopo` com middleware `authenticateToken` (SEM `requireGrupoPai` — filhos também consultam)
+- [x] Montar lista `empresas` no handler:
   - Se `is_grupo_pai = true`: buscar filiais via `Empresa?id_grupo=eq.${id_grupo}&order=nome_empresa.asc`, prepend da empresa-pai com `default: true`
   - Se `is_grupo_pai = false` (filho): retornar array com apenas a própria empresa (`[{ id: empresaId, nome_empresa, default: true }]`)
-- [ ] Shape da resposta 200 conforme contrato: `{ empresas: [{ id, nome_empresa, default? }] }`
-- [ ] Retornar 401 quando token ausente/inválido
+- [x] Shape da resposta 200 conforme contrato: `{ empresas: [{ id, nome_empresa, default? }] }`
+- [x] Retornar 401 quando token ausente/inválido
 
 **Critérios de aceite testáveis** (TS-BE-11, TS-BE-12, TS-BE-13):
 - Admin pai com 2 filiais: resposta 200 com array de 3 itens (pai + 2 filiais), pai tem `default: true`
@@ -153,11 +153,11 @@ Endpoints cobertos nesta tarefa:
 3. `GET /download-xml-movimento` — `empresa_id` via query string
 
 Para cada endpoint:
-- [ ] Extrair `empresa_id` da query (`req.query.empresa_id`)
-- [ ] Chamar `resolveEmpresaAlvo(req.user, req.query.empresa_id)` e capturar resultado
-- [ ] Se resultado contiver `status: 403` ou `status: 503`, retornar imediatamente com o status/body do helper
-- [ ] Substituir o `req.user.empresaId` hard-coded na query PostgREST pelo `idEmp` resolvido
-- [ ] Manter comportamento idêntico ao atual quando `empresa_id` não é enviado (default = empresa do token)
+- [x] Extrair `empresa_id` da query (`req.query.empresa_id`)
+- [x] Chamar `resolveEmpresaAlvo(req.user, req.query.empresa_id)` e capturar resultado
+- [x] Se resultado contiver `status: 403` ou `status: 503`, retornar imediatamente com o status/body do helper
+- [x] Substituir o `req.user.empresaId` hard-coded na query PostgREST pelo `idEmp` resolvido
+- [x] Manter comportamento idêntico ao atual quando `empresa_id` não é enviado (default = empresa do token)
 
 **Critérios de aceite testáveis**:
 - `GET /api/envio-massa` sem `empresa_id` → retorna dados da empresa do token (sem regressão — TS-BE-1)
@@ -184,12 +184,12 @@ Endpoints cobertos nesta tarefa:
 3. `DELETE /envio-massa/:id` — `empresa_id` via body ou query (`req.body.empresa_id`)
 
 Para cada endpoint:
-- [ ] Extrair `empresa_id` da fonte correta (vide contratos §4, §5, §6)
-- [ ] Chamar `resolveEmpresaAlvo(req.user, empresa_id_extraido)` — mesmo padrão da tarefa 1.3
-- [ ] Retornar 403/503 imediatamente se helper retornar erro
-- [ ] Para `POST /upload`: gravar `id_empresa = idEmp` na tabela `EnvioMassa` (não mais `req.user.empresaId`)
-- [ ] Para `POST /close-movimento`: filtrar `EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false` (apenas registros da filial alvo — US3-AC3)
-- [ ] Para `DELETE /envio-massa/:id`: filtrar por `id_empresa` antes de deletar (não deletar registro de outra empresa)
+- [x] Extrair `empresa_id` da fonte correta (vide contratos §4, §5, §6)
+- [x] Chamar `resolveEmpresaAlvo(req.user, empresa_id_extraido)` — mesmo padrão da tarefa 1.3
+- [x] Retornar 403/503 imediatamente se helper retornar erro
+- [x] Para `POST /upload`: gravar `id_empresa = idEmp` na tabela `EnvioMassa` (não mais `req.user.empresaId`)
+- [x] Para `POST /close-movimento`: filtrar `EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false` (apenas registros da filial alvo — US3-AC3)
+- [x] Para `DELETE /envio-massa/:id`: filtrar por `id_empresa` antes de deletar (não deletar registro de outra empresa)
 
 **Critérios de aceite testáveis**:
 - Upload com `empresa_id` válido → nota gravada com `id_empresa` correto (TS-BE-6)
@@ -208,10 +208,10 @@ Para cada endpoint:
 
 > **Revisão OWASP obrigatória** — gap pré-existente de IDOR (Insecure Direct Object Reference): qualquer autenticado pode editar qualquer `id` sem verificar ownership. OWASP API4:2023 (Broken Object Level Authorization).
 
-- [ ] Extrair `empresa_id` de `req.body.empresa_id` e resolver via `resolveEmpresaAlvo`
-- [ ] Retornar 403/503 imediatamente se helper retornar erro
-- [ ] Implementar verificação de ownership **atômica**: usar filtro composto na query PostgREST `EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}` (se `updateEnvioMassa` aceitar filtro extra), OU pré-checar com `SELECT id WHERE id=eq.${id} AND id_empresa=eq.${idEmp}` e retornar 404 se vazio antes de atualizar
-- [ ] Nunca retornar dados da linha (nem `id`) quando o registro não pertence ao escopo
+- [x] Extrair `empresa_id` de `req.body.empresa_id` e resolver via `resolveEmpresaAlvo`
+- [x] Retornar 403/503 imediatamente se helper retornar erro
+- [x] Implementar verificação de ownership **atômica**: usar filtro composto na query PostgREST `EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}` (se `updateEnvioMassa` aceitar filtro extra), OU pré-checar com `SELECT id WHERE id=eq.${id} AND id_empresa=eq.${idEmp}` e retornar 404 se vazio antes de atualizar
+- [x] Nunca retornar dados da linha (nem `id`) quando o registro não pertence ao escopo
 
 **Critérios de aceite testáveis** (TS-BE-10):
 - `PATCH /api/update-envio-massa/42` com `empresa_id` correto (registro pertence à empresa) → 200, atualiza
