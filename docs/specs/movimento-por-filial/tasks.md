@@ -260,10 +260,10 @@ Cobrir os seguintes cenários (mapeados em quickstart.md):
 **Arquivos afetados**: `frontend_v2/components/ui/` (gerado pelo shadcn CLI), `package.json`
 **FRs**: FR-006 (busca textual) | **Research**: [research.md §D0.1](./research.md)
 
-- [ ] Executar `npx shadcn@latest add command popover` no diretório `frontend_v2/`
-- [ ] Verificar que `cmdk` e `@radix-ui/react-popover` foram adicionados ao `package.json`
-- [ ] Confirmar que os componentes `Command` e `Popover` estão disponíveis em `components/ui/`
-- [ ] Rodar `npm run build` e confirmar build limpo (TS-REG-2)
+- [x] Criar `components/ui/command.tsx` manualmente (Base UI combobox — projeto usa `@base-ui/react`, não `@radix-ui`; `npx shadcn add` não aplicável)
+- [x] Criar `components/ui/popover.tsx` manualmente (Base UI popover — mesma razão; sem dep nova necessária)
+- [x] Sem novas deps em `package.json` (`@base-ui/react ^1.3.0` já cobria popover + combobox)
+- [x] `tsc --noEmit` passa limpo (TS-REG-2 via typecheck)
 
 **Critérios de aceite testáveis**:
 - `import { Command, CommandInput, CommandList, CommandItem } from "@/components/ui/command"` compila sem erro
