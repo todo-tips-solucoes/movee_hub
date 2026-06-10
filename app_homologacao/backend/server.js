@@ -20,6 +20,7 @@ const motoristaRoutes = require('./routes/motorista');
 
 // config-ui-tenant — rotas /grupo/* + helper resolveScope
 const grupoRoutes = require('./routes/grupo');
+const { resolveEmpresaAlvo } = grupoRoutes; // movimento-por-filial: threading empresa_id
 
 // config-ui-tenant — rotas /empresa/branding + /motorista/branding-tomador
 const brandingRoutes = require('./routes/branding');
@@ -274,10 +275,18 @@ app.post('/token/refresh', async (req, res) => {
 
 // Rota de CRUD para EnvioMassa
 app.get('/envio-massa', authenticateToken, async (req, res) => {
+  let idEmp;
   try {
-    const empresaId = req.user.empresaId;
-    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false`);
-    
+    // movimento-por-filial: threading empresa_id (FR-009)
+    // resolveEmpresaAlvo lança err com err.status 403/503 se fora do escopo
+    idEmp = await resolveEmpresaAlvo(req.user, req.query.empresa_id, 'GET /envio-massa');
+  } catch (authErr) {
+    const status = authErr.status || 403;
+    return res.status(status).json({ error: authErr.message });
+  }
+  try {
+    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false`);
+
     res.json(data);
   } catch (error) {
     console.error('Erro ao buscar dados:', error);
@@ -1408,11 +1417,18 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
 
 // Rota para exportar dados da tabela EnvioMassa em CSV
 app.get('/export-envio-massa', authenticateToken, async (req, res) => {
+  let idEmp;
   try {
-    const empresaId = req.user.empresaId;
-
+    // movimento-por-filial: threading empresa_id (FR-010)
+    // resolveEmpresaAlvo lança err com err.status 403/503 se fora do escopo
+    idEmp = await resolveEmpresaAlvo(req.user, req.query.empresa_id, 'GET /export-envio-massa');
+  } catch (authErr) {
+    const status = authErr.status || 403;
+    return res.status(status).json({ error: authErr.message });
+  }
+  try {
     // Solicitar os campos específicos da tabela EnvioMassa
-    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false&select=id,created_at,number,nome,cnpj_prestador,valor,mensagem1,mensagem2,enviado,retorno_envio_msg_1,retorno_envio_msg_2,tribnac,cnpj_tomador,dCompet,numnota,nota_ok,data_emissao,erro_validacao,dataEnvio,id_empresa,uuid,mov_fechado,dt_inicial,dt_final`);
+    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false&select=id,created_at,number,nome,cnpj_prestador,valor,mensagem1,mensagem2,enviado,retorno_envio_msg_1,retorno_envio_msg_2,tribnac,cnpj_tomador,dCompet,numnota,nota_ok,data_emissao,erro_validacao,dataEnvio,id_empresa,uuid,mov_fechado,dt_inicial,dt_final`);
 
     if (data.length === 0) {
       return res.status(404).json({ error: 'Nenhum dado encontrado' });
@@ -1454,7 +1470,7 @@ app.get('/export-envio-massa', authenticateToken, async (req, res) => {
     const csv = json2csvParser.parse(formattedData);
 
     // Definir o nome do arquivo
-    const fileName = `envio_massa_${empresaId}.csv`;
+    const fileName = `envio_massa_${idEmp}.csv`;
 
     // Definir os cabeçalhos para download de CSV
     res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
@@ -1496,11 +1512,18 @@ function getNFeKeyFromNotaOk(notaOkRaw) {
 
 // Rota para baixar XMLs do movimento em aberto em um arquivo ZIP
 app.get('/download-xml-movimento', authenticateToken, async (req, res) => {
+  let idEmp;
   try {
-    const empresaId = req.user.empresaId;
-
+    // movimento-por-filial: threading empresa_id (FR-011)
+    // resolveEmpresaAlvo lança err com err.status 403/503 se fora do escopo
+    idEmp = await resolveEmpresaAlvo(req.user, req.query.empresa_id, 'GET /download-xml-movimento');
+  } catch (authErr) {
+    const status = authErr.status || 403;
+    return res.status(status).json({ error: authErr.message });
+  }
+  try {
     const data = await postgrestRequest(
-      `EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false&select=id,nome,numnota,nota_ok,erro_validacao`
+      `EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false&select=id,nome,numnota,nota_ok,erro_validacao`
     );
 
     if (!data || data.length === 0) {
@@ -1537,7 +1560,7 @@ app.get('/download-xml-movimento', authenticateToken, async (req, res) => {
       });
     }
 
-    const zipName = `xml_movimento_aberto_${empresaId}.zip`;
+    const zipName = `xml_movimento_aberto_${idEmp}.zip`;
     res.setHeader('Content-Disposition', `attachment; filename=${zipName}`);
     res.setHeader('Content-Type', 'application/zip');
 
