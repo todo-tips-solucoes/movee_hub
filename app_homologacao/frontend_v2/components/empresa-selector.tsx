@@ -42,7 +42,7 @@ export interface EmpresaSelectorProps {
 
 // ─── Hook de fetch ─────────────────────────────────────────────────────────────
 
-function useGrupoEscopo() {
+export function useGrupoEscopo() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [defaultId, setDefaultId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);

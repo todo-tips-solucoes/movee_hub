@@ -312,13 +312,13 @@ Cobrir os seguintes cenários (mapeados em quickstart.md):
 **FRs**: FR-001, FR-004, FR-005 | **Research**: [research.md §D0.3, D0.4](./research.md)
 **Checklist**: CHK005-UX (loading ao trocar), CHK019-UX (aria-live)
 
-- [ ] Chamar `GET /api/grupo/escopo` no mount do dashboard para obter a lista de empresas e determinar visibilidade
-- [ ] Ler `?empresa_id=N` da URL via `useSearchParams` ao inicializar; se ausente, usar a empresa marcada `default: true`
-- [ ] Renderizar `<EmpresaSelector>` SOMENTE se `empresas.length > 1` (FR-002 — sem regressão para single-empresa — D4, US1-AS4)
-- [ ] Ao trocar a seleção no `EmpresaSelector`, atualizar o query param `?empresa_id=N` via `router.push`/`router.replace` sem reload completo (FR-004, US1-AS3)
-- [ ] Ao trocar a seleção, disparar refetch dos dados de movimento (FR-005, US1-AS2) — sem confirmação prévia do usuário
-- [ ] `empresa_id` inválido na URL (não-numérico ou fora do escopo retornado por `/grupo/escopo`): silenciosamente usar a empresa-pai como padrão (edge case spec)
-- [ ] Ao fechar o popover e o usuário copiar a URL, a nova aba deve carregar com a filial já selecionada (US1-AS3)
+- [x] Chamar `GET /api/grupo/escopo` no mount do dashboard para obter a lista de empresas e determinar visibilidade
+- [x] Ler `?empresa_id=N` da URL via `useSearchParams` ao inicializar; se ausente, usar a empresa marcada `default: true`
+- [x] Renderizar `<EmpresaSelector>` SOMENTE se `empresas.length > 1` (FR-002 — sem regressão para single-empresa — D4, US1-AS4)
+- [x] Ao trocar a seleção no `EmpresaSelector`, atualizar o query param `?empresa_id=N` via `router.push`/`router.replace` sem reload completo (FR-004, US1-AS3)
+- [x] Ao trocar a seleção, disparar refetch dos dados de movimento (FR-005, US1-AS2) — sem confirmação prévia do usuário
+- [x] `empresa_id` inválido na URL (não-numérico ou fora do escopo retornado por `/grupo/escopo`): silenciosamente usar a empresa-pai como padrão (edge case spec)
+- [x] Ao fechar o popover e o usuário copiar a URL, a nova aba deve carregar com a filial já selecionada (US1-AS3)
 
 **Critérios de aceite testáveis** (TS-FE-1..6):
 - TS-FE-1: combobox visível para admin de grupo com ≥2 empresas
