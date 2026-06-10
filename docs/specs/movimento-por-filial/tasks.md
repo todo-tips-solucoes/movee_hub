@@ -379,12 +379,12 @@ Cobrir os seguintes cenários (mapeados em quickstart.md):
 
 > Esta tarefa invoca explicitamente a skill `/ui-ux-pro-max` para revisar e refinar o `EmpresaSelector`. O executor deve usar o comando `/ui-ux-pro-max` (skill) passando o caminho do componente.
 
-- [ ] Invocar `/ui-ux-pro-max` com escopo: componente `EmpresaSelector`, design system EntreGô 2.0 (paleta azul/menta/creme, Plus Jakarta Sans, Material Symbols Rounded)
-- [ ] Aplicar refinamentos de contraste indicados pela skill (se alguma cor não atingir 4.5:1 WCAG AA — CHK013)
-- [ ] Refinar microcopy do placeholder do combobox: usar texto descritivo como "Selecionar filial..." (CHK018-UX)
-- [ ] Ajustar responsividade para mobile ≤375px conforme saída da skill (CHK015)
-- [ ] Verificar e ajustar estados: hover, focus-visible, selected, disabled — com ring/outline visível para navegação por teclado
-- [ ] Garantir que `npm run build` continua limpo após os ajustes
+- [x] Invocar `/ui-ux-pro-max` com escopo: componente `EmpresaSelector`, design system EntreGô 2.0 (paleta azul/menta/creme, Plus Jakarta Sans, Material Symbols Rounded)
+- [x] Aplicar refinamentos de contraste indicados pela skill (se alguma cor não atingir 4.5:1 WCAG AA — CHK013)
+- [x] Refinar microcopy do placeholder do combobox: usar texto descritivo como "Selecionar filial..." (CHK018-UX)
+- [x] Ajustar responsividade para mobile ≤375px conforme saída da skill (CHK015)
+- [x] Verificar e ajustar estados: hover, focus-visible, selected, disabled — com ring/outline visível para navegação por teclado
+- [x] Garantir que `npm run build` continua limpo após os ajustes
 
 **Critérios de aceite testáveis**:
 - Contraste de texto no trigger e lista ≥4.5:1 (verificável via ferramenta de contraste)

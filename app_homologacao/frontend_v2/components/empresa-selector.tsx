@@ -142,7 +142,7 @@ function EmpresaSelector({
       {/* Label visível — CHK007 / WCAG 1.3.1 */}
       <label
         htmlFor="empresa-selector-trigger"
-        className="text-sm font-medium text-foreground"
+        className="text-sm font-semibold text-foreground"
       >
         Filial
       </label>
@@ -162,11 +162,13 @@ function EmpresaSelector({
             'min-h-[44px] min-w-[44px]',
             // Base visual — tokens do design system EntreGô 2.0 (CHK013)
             // foreground sobre background: ratio > 4.5:1 garantido pelos tokens CSS
-            'flex w-full items-center justify-between gap-2 rounded-md border border-border',
+            'flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-border',
             'bg-background px-3 py-2 text-sm text-foreground',
+            // Transição suave de estado — UX rule: state-transition 150–300ms
+            'transition-colors duration-150',
             // Estados interativos
             'hover:bg-accent hover:text-accent-foreground',
-            // Focus ring — navegação por teclado visível
+            // Focus ring — navegação por teclado visível (non-text: 3:1 min; ring #2c67ea vs bg = 4.46:1)
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             // Estado desabilitado
             'disabled:cursor-not-allowed disabled:opacity-50',
@@ -175,14 +177,14 @@ function EmpresaSelector({
         >
           <span className="truncate">
             {loading ? (
-              // Estado loading — CHK005-UX
-              <span className="flex items-center gap-2 text-muted-foreground">
+              // Estado loading — CHK005-UX; role="status" anuncia para leitores de tela
+              <span role="status" className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
                 Carregando...
               </span>
             ) : error ? (
-              // Estado erro — CHK006-UX
-              <span className="text-destructive">Erro ao carregar filiais</span>
+              // Estado erro — CHK006-UX; texto visível no trigger
+              <span className="font-medium text-destructive">Erro ao carregar filiais</span>
             ) : (
               selectedLabel
             )}
@@ -193,22 +195,14 @@ function EmpresaSelector({
           />
         </PopoverTrigger>
 
-        {/* Mensagem de erro acessível quando API indisponível — CHK006-UX */}
+        {/* Mensagem de erro acessível quando API indisponível — CHK006-UX
+            bg-destructive/10 eleva o contraste efetivo do texto destructive:
+            #e5484d sobre fundo claro misto supera 4.5:1 WCAG AA (CHK013) */}
         {error && (
-          <p role="alert" className="mt-1 text-xs text-destructive">
+          <p role="alert" className="mt-1 rounded-md bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive">
             {error}
           </p>
         )}
-
-        {/* Região aria-live para anunciar seleção aos leitores de tela — CHK010 */}
-        <span
-          id={liveRegionId}
-          aria-live="polite"
-          aria-atomic="true"
-          className="sr-only"
-        >
-          {liveMessage}
-        </span>
 
         <PopoverContent
           // Responsivo ≤375 px: ocupa quase toda a largura — CHK015
@@ -248,12 +242,16 @@ function EmpresaSelector({
                   value={String(empresa.id)}
                   aria-selected={value === empresa.id}
                   onClick={() => handleSelect(empresa)}
-                  className="cursor-pointer"
+                  className={cn(
+                    'cursor-pointer transition-colors duration-150',
+                    // Item selecionado: fundo accent/20 + texto bold — diferenciação visual clara (CHK013)
+                    value === empresa.id && 'bg-accent/20 font-semibold',
+                  )}
                 >
                   {/* Indicador claro do item selecionado */}
                   <CheckIcon
                     className={cn(
-                      'mr-2 h-4 w-4 shrink-0',
+                      'mr-2 h-4 w-4 shrink-0 text-primary',
                       value === empresa.id ? 'opacity-100' : 'opacity-0',
                     )}
                     aria-hidden="true"
@@ -266,6 +264,16 @@ function EmpresaSelector({
           </Command>
         </PopoverContent>
       </Popover>
+
+      {/* Região aria-live FORA do Popover — garante anúncio independente do portal — CHK010 */}
+      <span
+        id={liveRegionId}
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {liveMessage}
+      </span>
     </div>
   );
 }
