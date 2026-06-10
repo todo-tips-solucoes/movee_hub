@@ -128,6 +128,22 @@ async function postgrestRequest(endpoint, method = 'GET', body = null) {
     return data;
 }
 
+// corte-modulo-c (DDL 007): o corte do login único é POR GRUPO e A QUENTE (sem cache).
+// A guarda de filial (POST /login e POST /token/refresh) só bloqueia se o grupo da
+// filial tiver login_unico_ativo=true. Compartilhada entre os dois pontos para garantir
+// paridade (divergir os dois reabriria o bypass via refreshToken — OWASP LOW-004).
+// Fail-open: erro de leitura da flag NÃO bloqueia — o 403 de filial é governança/UX
+// (redirecionar ao login do grupo), não fronteira de tenant (a filial é membro legítimo
+// do grupo e já passou pela senha). Não trancar usuário real por falha transitória de DB.
+async function grupoLoginUnicoAtivo(idGrupo) {
+  try {
+    const rows = await postgrestRequest(`Grupo?id=eq.${idGrupo}&select=login_unico_ativo`);
+    return rows && rows.length > 0 && rows[0].login_unico_ativo === true;
+  } catch (_e) {
+    return false;
+  }
+}
+
 
 // Função para gerar o JWT
 function generateAccessToken(payload) {
@@ -213,9 +229,10 @@ app.post('/login', loginRateLimiter, async (req, res) => {
 
     // Passo 4 — grupo-unificado-filiais Task 4.1: SOMENTE após senha válida, checar se é filial
     // Filial = tem id_grupo setado E não é empresa-pai de nenhum grupo
-    if (idGrupo !== null && isGrupoPai === false) {
+    // corte-modulo-c (DDL 007): bloquear APENAS se o grupo da filial tiver login_unico_ativo=true.
+    if (idGrupo !== null && isGrupoPai === false && await grupoLoginUnicoAtivo(idGrupo)) {
       // OWASP LOW-001: logar bloqueio sem credencial
-      console.log('[security] login-filial-bloqueado empresaId=%d ip=%s ts=%s', user.id, req.ip, new Date().toISOString());
+      console.log('[security] login-filial-bloqueado empresaId=%d grupoId=%d ip=%s ts=%s', user.id, idGrupo, req.ip, new Date().toISOString());
       return res.status(403).json({ error: 'Acesse o painel usando o login do grupo' });
     }
 
@@ -303,7 +320,9 @@ app.post('/token/refresh', async (req, res) => {
 
     // grupo-unificado-filiais — Task 4.2: OWASP LOW-004
     // Após derivar os claims, bloquear refresh de filial para impedir bypass do 403 do login
-    if (idGrupo !== null && isGrupoPai === false) {
+    // corte-modulo-c (DDL 007): bloquear APENAS se o grupo da filial tiver login_unico_ativo=true
+    // (mesma guarda do POST /login — paridade obrigatória, senão refreshToken antigo fura o corte).
+    if (idGrupo !== null && isGrupoPai === false && await grupoLoginUnicoAtivo(idGrupo)) {
       res.clearCookie('accessToken');
       res.clearCookie('refreshToken');
       return res.status(403).json({ error: 'Acesse o painel usando o login do grupo' });
