@@ -281,19 +281,19 @@ Cobrir os seguintes cenários (mapeados em quickstart.md):
 
 > **Tarefa irmã**: 3.1 fará acabamento visual via `/ui-ux-pro-max`; esta tarefa foca em funcionalidade e acessibilidade base.
 
-- [ ] Criar `components/empresa-selector.tsx` aceitando props: `empresas: { id: number; nome_empresa: string; default?: boolean }[]`, `value: number | null`, `onChange: (id: number) => void`
-- [ ] Usar `Popover` + `Command` do shadcn para montar o combobox pesquisável
-- [ ] Campo de busca `CommandInput` com `aria-label="Buscar filial"` (CHK008)
-- [ ] Cada `CommandItem` exibe `nome_empresa` como texto visível (nunca apenas ID — CHK009)
-- [ ] Trigger (`PopoverTrigger`) com `role="combobox"`, `aria-expanded={open}`, `aria-haspopup="listbox"` (CHK007)
-- [ ] Navegação por teclado: `↓/↑` navegam a lista, `Enter` seleciona, `Escape` fecha o popover (CHK011–CHK012); comportamento nativo do `cmdk` — verificar que não está suprimido
-- [ ] Área de toque do trigger: `min-h-[44px] min-w-[44px]` via Tailwind (CHK014-UX, WCAG 2.5.5)
-- [ ] Contraste WCAG 2.1 AA (4.5:1): usar cores do design system EntreGô 2.0 ou tokens CSS equivalentes para texto sobre fundo (CHK013)
-- [ ] Em telas ≤375px: `PopoverContent` com `w-[calc(100vw-2rem)]` e `max-h-[60vh] overflow-y-auto` (CHK015)
-- [ ] Estado de loading enquanto `GET /grupo/escopo` carrega: skeleton ou texto "Carregando..." no trigger (CHK005-UX)
-- [ ] Estado de erro (API indisponível): mensagem de erro acessível, combobox desabilitado (CHK006-UX)
-- [ ] `aria-live="polite"` em elemento adjacente anunciando "Filial [nome] selecionada. Dados recarregados." após troca (CHK010)
-- [ ] Componente exportado como default e named export
+- [x] Criar `components/empresa-selector.tsx` aceitando props: `empresas: { id: number; nome_empresa: string; default?: boolean }[]`, `value: number | null`, `onChange: (id: number) => void`
+- [x] Usar `Popover` + `Command` do shadcn para montar o combobox pesquisável
+- [x] Campo de busca `CommandInput` com `aria-label="Buscar filial"` (CHK008)
+- [x] Cada `CommandItem` exibe `nome_empresa` como texto visível (nunca apenas ID — CHK009)
+- [x] Trigger (`PopoverTrigger`) com `role="combobox"`, `aria-expanded={open}`, `aria-haspopup="listbox"` (CHK007)
+- [x] Navegação por teclado: `↓/↑` navegam a lista, `Enter` seleciona, `Escape` fecha o popover (CHK011–CHK012); comportamento nativo do Base UI — não suprimido
+- [x] Área de toque do trigger: `min-h-[44px] min-w-[44px]` via Tailwind (CHK014-UX, WCAG 2.5.5)
+- [x] Contraste WCAG 2.1 AA (4.5:1): usar cores do design system EntreGô 2.0 ou tokens CSS equivalentes para texto sobre fundo (CHK013)
+- [x] Em telas ≤375px: `PopoverContent` com `w-[calc(100vw-2rem)]` e `max-h-[60vh] overflow-y-auto` (CHK015)
+- [x] Estado de loading enquanto `GET /grupo/escopo` carrega: skeleton ou texto "Carregando..." no trigger (CHK005-UX)
+- [x] Estado de erro (API indisponível): mensagem de erro acessível, combobox desabilitado (CHK006-UX)
+- [x] `aria-live="polite"` em elemento adjacente anunciando "Filial [nome] selecionada. Dados recarregados." após troca (CHK010)
+- [x] Componente exportado como default e named export
 
 **Critérios de aceite testáveis**:
 - Componente renderiza com lista de empresas do mock
