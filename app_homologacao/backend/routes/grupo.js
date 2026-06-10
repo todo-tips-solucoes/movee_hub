@@ -431,6 +431,212 @@ router.post('/empresas', requireGrupoPai, async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// GET /grupo/empresas/:id
+//   Retorna dados completos de uma empresa filial do grupo para pré-preencher form de edição.
+//   Feature: grupo-unificado-filiais (FR-B, task 3.1)
+//
+//   Auth: authenticateToken (no mount /grupo) + requireGrupoPai (middleware aqui).
+//   Segurança:
+//     HIGH-002 (CWE-89): :id sanitizado para inteiro antes de qualquer query.
+//     MEDIUM-003 (BOLA): empresa buscada e id_grupo comparado com token.
+//
+//   Response 200: { id, nome_empresa, email, cnpj, endereco, numero, cep, email_nota, observacao, id_grupo }
+//   Response 400: ID inválido
+//   Response 403: não-admin ou empresa de outro grupo
+// ──────────────────────────────────────────────────────────────────────────────
+router.get('/empresas/:id', requireGrupoPai, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    const { id_grupo } = req.user;
+    const idGrupoInt = parseInt(id_grupo, 10);
+
+    const empresaResult = await _postgrestRequest(
+      `Empresa?id=eq.${id}&select=id,id_grupo,nome_empresa,email,cnpj,endereco,numero,cep,email_nota,observacao`,
+      'GET'
+    );
+    if (!empresaResult || empresaResult.length === 0) {
+      return res.status(403).json({ error: 'Empresa não encontrada' });
+    }
+    const empresa = empresaResult[0];
+    if (empresa.id_grupo !== idGrupoInt) {
+      return res.status(403).json({ error: 'Empresa não encontrada' });
+    }
+
+    // Não expõe pass/senha em hipótese alguma (SC-005, FR-B)
+    return res.status(200).json({
+      id:           empresa.id,
+      nome_empresa: empresa.nome_empresa,
+      email:        empresa.email,
+      cnpj:         empresa.cnpj        || '',
+      endereco:     empresa.endereco    || '',
+      numero:       empresa.numero      || '',
+      cep:          empresa.cep         || '',
+      email_nota:   empresa.email_nota  || '',
+      observacao:   empresa.observacao  || '',
+      id_grupo:     empresa.id_grupo,
+    });
+  } catch (err) {
+    console.error('[GET /grupo/empresas/:id] Erro:', err.message);
+    return res.status(500).json({ error: 'Erro no servidor.' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PUT /grupo/empresas/:id
+//   Atualiza dados cadastrais de uma empresa filial do grupo do admin autenticado.
+//   Feature: grupo-unificado-filiais (FR-B)
+//   Ref: docs/specs/grupo-unificado-filiais/spec.md
+//
+//   Auth: authenticateToken (no mount /grupo) + requireGrupoPai (middleware aqui).
+//   Segurança:
+//     HIGH-002 (CWE-89): :id sanitizado para inteiro antes de qualquer query.
+//     MEDIUM-003 (BOLA): empresa buscada e id_grupo comparado com token.
+//     LOW-002: mesmo emailRegex do POST.
+//
+//   Body: { nome_empresa, email, cnpj, endereco?, numero?, cep?, email_nota?, observacao? }
+//   Campos ignorados: senha / pass (NUNCA atualizado por esta rota — FR-B).
+//   Response 200: { id, nome_empresa, email, id_grupo }
+//   Response 400: ID inválido / nome_empresa ausente / email inválido / CNPJ inválido /
+//                 tentativa de editar a própria empresa-pai
+//   Response 403: não-admin (requireGrupoPai) / empresa de outro grupo (MEDIUM-003)
+//   Response 409: email duplicado / cnpj duplicado
+// ──────────────────────────────────────────────────────────────────────────────
+router.put('/empresas/:id', requireGrupoPai, async (req, res) => {
+  try {
+    // ── HIGH-002 (CWE-89): sanitizar :id antes de qualquer uso ────────────
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    // ── Dados do token (SC-004: id_grupo sempre do token, nunca do body) ──
+    const { empresaId, id_grupo } = req.user;
+    const idGrupoInt = parseInt(id_grupo, 10);
+
+    // ── MEDIUM-003 (BOLA): buscar empresa e verificar pertença ao grupo ───
+    const empresaResult = await _postgrestRequest(
+      `Empresa?id=eq.${id}&select=id,id_grupo,nome_empresa,email,cnpj`,
+      'GET'
+    );
+    if (!empresaResult || empresaResult.length === 0) {
+      return res.status(403).json({ error: 'Empresa não encontrada' });
+    }
+    const empresa = empresaResult[0];
+    if (empresa.id_grupo !== idGrupoInt) {
+      return res.status(403).json({ error: 'Empresa não encontrada' });
+    }
+
+    // ── Proibir editar a própria empresa-pai por esta rota ────────────────
+    if (id === empresaId) {
+      return res.status(400).json({ error: 'Use o perfil para editar dados do grupo' });
+    }
+
+    // ── Validações de entrada (FR-B) ──────────────────────────────────────
+    const { nome_empresa, email, cnpj } = req.body || {};
+
+    // nome_empresa obrigatório
+    if (!nome_empresa || typeof nome_empresa !== 'string' || !nome_empresa.trim()) {
+      return res.status(400).json({ error: 'Campo obrigatório ausente: nome_empresa.' });
+    }
+
+    // email: formato + presença — LOW-002: mesmo regex do POST
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Campo obrigatório ausente: email.' });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ error: 'Formato de e-mail inválido.' });
+    }
+
+    // cnpj: exatamente 14 dígitos numéricos
+    if (!cnpj || typeof cnpj !== 'string') {
+      return res.status(400).json({ error: 'Campo obrigatório ausente: cnpj.' });
+    }
+    const cnpjDigitos = cnpj.replace(/\D/g, '');
+    if (cnpjDigitos.length !== 14) {
+      return res.status(400).json({
+        error: 'CNPJ inválido: deve conter exatamente 14 dígitos numéricos.',
+      });
+    }
+
+    // ── Unicidade de email excluindo o próprio id (409) ───────────────────
+    const emailDuplicado = await _postgrestRequest(
+      `Empresa?email=eq.${encodeURIComponent(email.trim())}&id=neq.${id}&select=id`,
+      'GET'
+    );
+    if (emailDuplicado && emailDuplicado.length > 0) {
+      return res.status(409).json({ error: 'E-mail já cadastrado.' });
+    }
+
+    // ── Unicidade de cnpj excluindo o próprio id (409) ────────────────────
+    const cnpjDuplicado = await _postgrestRequest(
+      `Empresa?cnpj=eq.${encodeURIComponent(cnpjDigitos)}&id=neq.${id}&select=id`,
+      'GET'
+    );
+    if (cnpjDuplicado && cnpjDuplicado.length > 0) {
+      return res.status(409).json({ error: 'CNPJ já cadastrado.' });
+    }
+
+    // ── Montar payload — SEM pass/senha (FR-B) ────────────────────────────
+    const payload = {
+      nome_empresa: nome_empresa.trim(),
+      email:        email.trim(),
+      cnpj:         cnpjDigitos,
+    };
+
+    // Campos fiscais opcionais: incluir apenas quando fornecidos
+    const { endereco, numero, cep, email_nota, observacao } = req.body || {};
+    if (endereco   !== undefined && endereco   !== null) payload.endereco   = endereco;
+    if (numero     !== undefined && numero     !== null) payload.numero     = numero;
+    if (cep        !== undefined && cep        !== null) payload.cep        = cep;
+    if (email_nota !== undefined && email_nota !== null) payload.email_nota = email_nota;
+    if (observacao !== undefined && observacao !== null) payload.observacao = observacao;
+
+    // ── PATCH via PostgREST (atualiza apenas os campos permitidos) ────────
+    let empresaAtualizada;
+    try {
+      empresaAtualizada = await _postgrestRequest(
+        `Empresa?id=eq.${id}`,
+        'PATCH',
+        payload
+      );
+    } catch (pgErr) {
+      const msg = pgErr && pgErr.message ? pgErr.message : '';
+      // UNIQUE constraint em email (race condition) → 409
+      if (/duplicate key.*email/i.test(msg) || /unique.*email/i.test(msg)) {
+        return res.status(409).json({ error: 'E-mail já cadastrado.' });
+      }
+      // UNIQUE constraint em cnpj (race condition) → 409
+      if (/duplicate key.*cnpj/i.test(msg) || /unique.*cnpj/i.test(msg)) {
+        return res.status(409).json({ error: 'CNPJ já cadastrado.' });
+      }
+      throw pgErr;
+    }
+
+    if (!empresaAtualizada || empresaAtualizada.length === 0) {
+      return res.status(500).json({ error: 'Erro ao atualizar empresa.' });
+    }
+
+    const atualizada = empresaAtualizada[0];
+
+    // Response 200 — pass ausente (SC-005, FR-B)
+    return res.status(200).json({
+      id:           atualizada.id,
+      nome_empresa: atualizada.nome_empresa,
+      email:        atualizada.email,
+      id_grupo:     atualizada.id_grupo,
+    });
+  } catch (err) {
+    console.error('[PUT /grupo/empresas/:id] Erro:', err.message);
+    return res.status(500).json({ error: 'Erro no servidor.' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // DELETE /grupo/filhos/:empresaIdFilho
 //   Desvincula uma empresa filha (SET id_grupo = NULL). Só o pai.
 //   Auth: authenticateToken + is_grupo_pai.
@@ -666,9 +872,66 @@ async function resolveEmpresaAlvo(user, requestedId, endpoint) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Helper: mesmoGrupoQue(idEmpresa, idReferencia, cache)
+//
+// Verifica se idEmpresa pertence ao mesmo grupo que idReferencia.
+//
+// Algoritmo (máx. 2 queries PostgREST por ciclo — FR-005):
+//   1. Se cache.ids já populado → usar direto (zero queries)
+//   2. Buscar Grupo?id_empresa_pai=eq.<idReferencia>&select=id → idGrupoRef
+//   3. Buscar Empresa?id_grupo=eq.<idGrupoRef>&select=id → membros
+//   4. cache.ids = new Set([idReferencia, ...membros])
+//   5. Retornar cache.ids.has(Number(idEmpresa))
+//
+// Assinatura SEM default cache={} — OWASP MEDIUM-002 (CWE-362):
+//   default object em Node é compartilhado entre chamadas, causando
+//   contaminação cross-request. O caller DEVE declarar const _grupoCache = {}
+//   antes do loop e passar o objeto explicitamente.
+//
+// Fail-safe (FR-006): qualquer erro é capturado, logado e retorna false
+//   (backward-compat — empresa não reconhecida não recebe privilégios).
+// ──────────────────────────────────────────────────────────────────────────────
+async function mesmoGrupoQue(idEmpresa, idReferencia, cache) {
+  try {
+    // Cache hit — sem queries adicionais
+    if (cache.ids) {
+      return cache.ids.has(Number(idEmpresa));
+    }
+
+    // Query 1: buscar o grupo cuja empresa-pai é idReferencia
+    const grupos = await _postgrestRequest(
+      `Grupo?id_empresa_pai=eq.${idReferencia}&select=id`,
+      'GET'
+    );
+    if (!grupos || grupos.length === 0) {
+      // idReferencia não é empresa-pai de nenhum grupo → só ela mesma
+      cache.ids = new Set([Number(idReferencia)]);
+      return cache.ids.has(Number(idEmpresa));
+    }
+    const idGrupoRef = grupos[0].id;
+
+    // Query 2: buscar todos os membros do grupo
+    const membros = await _postgrestRequest(
+      `Empresa?id_grupo=eq.${idGrupoRef}&select=id`,
+      'GET'
+    );
+    const idsMembros = Array.isArray(membros) ? membros.map(m => Number(m.id)) : [];
+
+    // Popular cache — inclui a própria empresa de referência
+    cache.ids = new Set([Number(idReferencia), ...idsMembros]);
+
+    return cache.ids.has(Number(idEmpresa));
+  } catch (err) {
+    console.error('[mesmoGrupoQue] erro:', err && err.message ? err.message : err);
+    return false; // fail-safe backward-compat
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Exportar router + init + resolveScope + resolveOrCreateGrupo + resolveEmpresaAlvo
 // resolveScope é exportado para uso em branding.js e futuras rotas de escopo
 // resolveOrCreateGrupo exportado para reutilização em futuras rotas
 // resolveEmpresaAlvo exportado para uso nos 7 handlers de movimento-por-filial
+// mesmoGrupoQue exportado para grupo-unificado-filiais: substituição de id===6
 // ──────────────────────────────────────────────────────────────────────────────
-module.exports = { router, init, resolveScope, resolveOrCreateGrupo, resolveEmpresaAlvo };
+module.exports = { router, init, resolveScope, resolveOrCreateGrupo, resolveEmpresaAlvo, mesmoGrupoQue };

@@ -11,6 +11,7 @@ const axios = require('axios');
 const fs = require('fs');
 const { Parser } = require('json2csv');
 const fetch = require('node-fetch'); // Para fazer requisições HTTP ao PostgREST
+const rateLimit = require('express-rate-limit'); // grupo-unificado-filiais: OWASP MEDIUM-001
 const backendUrl = 'https://envmassapihomologacao.todo-tips.com'; // URL do backend
 const archiver = require('archiver');
 const xml2js = require('xml2js');
@@ -20,7 +21,7 @@ const motoristaRoutes = require('./routes/motorista');
 
 // config-ui-tenant — rotas /grupo/* + helper resolveScope
 const grupoRoutes = require('./routes/grupo');
-const { resolveEmpresaAlvo } = grupoRoutes; // movimento-por-filial: threading empresa_id
+const { resolveEmpresaAlvo, mesmoGrupoQue } = grupoRoutes; // movimento-por-filial: threading empresa_id; grupo-unificado-filiais: helper de grupo
 
 // config-ui-tenant — rotas /empresa/branding + /motorista/branding-tomador
 const brandingRoutes = require('./routes/branding');
@@ -49,6 +50,21 @@ app.options('*', cors({
 }));
 app.use(express.json()); // Para entender JSON no corpo das requisições
 
+// grupo-unificado-filiais — Task 4.1: dummy hash fixo p/ equalizar timing (OWASP HIGH-001 / CWE-208)
+// Gerado uma vez: bcrypt.hashSync('dummy-placeholder', 10)
+const BCRYPT_DUMMY_HASH = '$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234';
+
+// grupo-unificado-filiais — Task 4.3: rate limiter em POST /login (OWASP MEDIUM-001)
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10,                   // máximo 10 tentativas por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  handler: (_req, res) => {
+    res.status(429).json({ error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' });
+  },
+});
 
 // URL e chave da API PostgREST
 const POSTGREST_URL = process.env.POSTGREST_URL;
@@ -139,21 +155,30 @@ function authenticateToken(req, res, next) {
 }
 
 // Rota de Login
-app.post('/login', async (req, res) => {
+// grupo-unificado-filiais — Task 4.3: rate limiter aplicado EXCLUSIVAMENTE nesta rota (OWASP MEDIUM-001)
+app.post('/login', loginRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    // grupo-unificado-filiais — Task 4.1: OWASP HIGH-001 (CWE-208 anti-enumeração)
+    // Passo 1: buscar empresa por email
     const users = await postgrestRequest(`Empresa?email=eq.${email}`);
 
+    // Passo 2: email não encontrado → bcrypt.compare com dummy hash para equalizar timing
     if (users.length === 0) {
+      await bcrypt.compare(password, BCRYPT_DUMMY_HASH); // equaliza timing (não retorna nada útil)
       return res.status(400).json({ error: 'Email ou senha incorretos' });
     }
 
     const user = users[0];
+
+    // Passo 3: bcrypt.compare SEMPRE, mesmo antes de qualquer outra checagem
     const isValidPassword = await bcrypt.compare(password, user.pass);
 
     if (!isValidPassword) {
       return res.status(400).json({ error: 'Email ou senha incorretos' });
     }
+
     // config-ui-tenant: enriquecer o payload com id_grupo e is_grupo_pai
     // (lidos da tabela Empresa + Grupo — sem alterar campos existentes)
     let idGrupo = user.id_grupo || null;
@@ -174,6 +199,16 @@ app.post('/login', async (req, res) => {
         isGrupoPai = false;
       }
     }
+
+    // Passo 4 — grupo-unificado-filiais Task 4.1: SOMENTE após senha válida, checar se é filial
+    // Filial = tem id_grupo setado E não é empresa-pai de nenhum grupo
+    if (idGrupo !== null && isGrupoPai === false) {
+      // OWASP LOW-001: logar bloqueio sem credencial
+      console.log('[security] login-filial-bloqueado empresaId=%d ip=%s ts=%s', user.id, req.ip, new Date().toISOString());
+      return res.status(403).json({ error: 'Acesse o painel usando o login do grupo' });
+    }
+
+    // Passo 5: empresa-pai ou standalone — fluxo normal de geração de token
     const payload = {
       empresaId: user.id,
       nome_empresa: user.nome_empresa,
@@ -253,6 +288,14 @@ app.post('/token/refresh', async (req, res) => {
     } catch (_e) {
       idGrupo = null;
       isGrupoPai = false;
+    }
+
+    // grupo-unificado-filiais — Task 4.2: OWASP LOW-004
+    // Após derivar os claims, bloquear refresh de filial para impedir bypass do 403 do login
+    if (idGrupo !== null && isGrupoPai === false) {
+      res.clearCookie('accessToken');
+      res.clearCookie('refreshToken');
+      return res.status(403).json({ error: 'Acesse o painel usando o login do grupo' });
     }
 
     // Gerar um novo JWT (preservando os claims de grupo)
@@ -352,7 +395,8 @@ async function sendMessage(
   userToken,
   id_empresa,
   payload,
-  connection_id // <- importantíssimo
+  connection_id, // <- importantíssimo
+  grupoCache     // grupo-unificado-filiais: cache de grupo passado pelo caller (OWASP MEDIUM-002)
 ) {
   if (!sender || !mensagem) {
     throw new Error('Os campos "sender" e "mensagem" são obrigatórios.');
@@ -410,9 +454,9 @@ async function sendMessage(
 
   try {
     // ======================================================
-    // EMPRESA 6 (whatsmeow)
+    // EMPRESA 6 (whatsmeow) — grupo-unificado-filiais: grupo da Movee
     // ======================================================
-    if (id_empresa === 6) {
+    if (await mesmoGrupoQue(id_empresa, 6, grupoCache || {})) { // idReferencia=6 = Movee
       try {
         const sendWhatsMeowRes = await axios.post(
           'https://api.chatmasterveloz.com/api/messages/whatsmeow/sendTextPRO',
@@ -923,6 +967,11 @@ async function processBatchMessages(empresaId, userToken, connection_id) {
             throw new Error('Nenhum registro encontrado para processamento.');
         }
 
+        // grupo-unificado-filiais: cache de grupo por batch — declarado fora do loop,
+        // redeclarado a cada invocação de processBatchMessages (escopo de ciclo).
+        // Caller passa como 3º arg em mesmoGrupoQue — sem default object (OWASP MEDIUM-002).
+        const _grupoCache = {};
+
         for (const item of data) {
             // Verifica o estado do processo no banco antes de cada iteração
             const processStatus = await postgrestRequest(`ProcessControl?user_id=eq.${empresaId}`, 'GET');
@@ -935,7 +984,7 @@ async function processBatchMessages(empresaId, userToken, connection_id) {
                 if (item.enviado === 'off') {
                     let waitTime = Math.floor(Math.random() * 5) + 1;
 
-                    if (item.id_empresa !== 6) {
+                    if (!(await mesmoGrupoQue(item.id_empresa, 6, _grupoCache))) { // idReferencia=6 = Movee
                         const valorNum = toNumberBR(item.valor);
                         if (!Number.isFinite(valorNum)) {
                             throw new Error(`Valor inválido para item.nome=${item.nome}: "${item.valor}"`);
@@ -957,13 +1006,13 @@ async function processBatchMessages(empresaId, userToken, connection_id) {
                         await new Promise(resolve => setTimeout(resolve, 2 * 1000));                    
 
                         // Primeiro envio
-                        await sendMessage(trataNumero(item.number), item.mensagem1, 'men1', item.id, userToken, item.id_empresa, payload, connection_id);
+                        await sendMessage(trataNumero(item.number), item.mensagem1, 'men1', item.id, userToken, item.id_empresa, payload, connection_id, _grupoCache);
                     }else{
                         // Aguarda antes do envio
-                        await new Promise(resolve => setTimeout(resolve, waitTime * 1000));                    
+                        await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
 
                         // Primeiro envio
-                        await sendMessage(trataNumero(item.number), item.mensagem1, 'men1', item.id, userToken, item.id_empresa, '', '');
+                        await sendMessage(trataNumero(item.number), item.mensagem1, 'men1', item.id, userToken, item.id_empresa, '', '', _grupoCache);
                     }
 
                     waitTime = Math.floor(Math.random() * 3) + 1;
@@ -986,7 +1035,7 @@ async function processBatchMessages(empresaId, userToken, connection_id) {
                               };
                         //console.log(JSON.stringify(payload, null, 2));
                         await new Promise(resolve => setTimeout(resolve, 2 * 1000));
-                        await sendMessage(trataNumero(item.number), item.mensagem2, 'men2', item.id, userToken, item.id_empresa, payload, connection_id);
+                        await sendMessage(trataNumero(item.number), item.mensagem2, 'men2', item.id, userToken, item.id_empresa, payload, connection_id, _grupoCache);
                     }
                 }
             } catch (error) {
@@ -1221,6 +1270,7 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
       return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
     }
     const empresaId = idEmp; // mantém compatibilidade com ramos que usam empresaId abaixo
+    const _grupoCache = {}; // grupo-unificado-filiais: cache de grupo por request (OWASP MEDIUM-002)
     console.error('[UPLOAD] idEmp:', idEmp);
 
     // ---- Verifica se veio arquivo ----
@@ -1270,6 +1320,10 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
     const errors = [];
     const dataToInsert = [];
 
+    // grupo-unificado-filiais: resolver grupo UMA vez antes do loop síncrono (forEach não aceita await)
+    // idReferencia=6 = Movee; empresaId é constante para o request inteiro
+    const _isGrupoMovee = await mesmoGrupoQue(empresaId, 6, _grupoCache);
+
     rows.forEach((row, idx) => {
       const rowErrors = [];
 
@@ -1311,7 +1365,7 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
       let dtFimTS = toTimestamptzMidnightSP(dt_final_raw);
 
 
-      if(empresaId !== 6){
+      if (!_isGrupoMovee) { // grupo-unificado-filiais: idReferencia=6 = Movee (pré-computado antes do forEach)
         // datas (timestamptz)
         dt_inicial_raw = (row.dt_inicial ?? '').toString().trim();
         dt_final_raw = (row.dt_final   ?? '').toString().trim();
@@ -1729,6 +1783,7 @@ app.post('/validate-xml-batch', authenticateToken, upload.array('xmlFiles', 100)
 
   var validarDescricao = req.body.validar_descricao_servico === 'true';
   var empresaId = req.user.empresaId;
+  const _grupoCache = {}; // grupo-unificado-filiais: cache de grupo por request (OWASP MEDIUM-002)
   console.log('[validate-xml-batch] empresaId:', empresaId, 'tipo:', typeof empresaId, 'files:', files.length, 'validarDescricao:', validarDescricao, 'FASTAPI_TOKEN presente:', !!process.env.FASTAPI_VALIDATION_TOKEN);
 
   for (var i = 0; i < files.length; i++) {
@@ -1759,11 +1814,11 @@ app.post('/validate-xml-batch', authenticateToken, upload.array('xmlFiles', 100)
 
       // Determinar endpoint e payload
       var url, payload;
-      if (Number(empresaId) === 6) {
+      if (await mesmoGrupoQue(empresaId, 6, _grupoCache)) { // idReferencia=6 = Movee
         url = 'https://fastapihomologacao.todo-tips.com/validade_nfse';
         payload = new URLSearchParams({
           xml_input: xmlInput,
-          id_empresa: '6',
+          id_empresa: '6', // API fastapihomologacao espera sempre id=6 (Movee)
           validar_descricao_servico: String(validarDescricao)
         });
       } else {

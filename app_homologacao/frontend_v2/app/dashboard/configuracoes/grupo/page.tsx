@@ -7,11 +7,16 @@
  * Feature: cadastro-filiais
  * Ref: docs/specs/cadastro-filiais/spec.md FR-001..FR-010
  *      docs/specs/cadastro-filiais/contracts/grupo-empresas-api.md
+ *
+ * Feature: grupo-unificado-filiais (task 3.1)
+ * Adiciona modal de edição de filial: PUT /api/grupo/empresas/:id
+ * Ref: docs/specs/grupo-unificado-filiais/spec.md FR-B
+ *      OWASP LOW-003: autoComplete="off" no form de edição
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { Eye, EyeOff, Check, X, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Eye, EyeOff, Check, X, Loader2, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -24,6 +29,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                                 */
@@ -39,6 +52,26 @@ interface FormErrors {
   nome_empresa?: string;
   email?: string;
   senha?: string;
+  cnpj?: string;
+  geral?: string;
+}
+
+/** Dados completos para o formulário de edição (task 3.1) */
+interface EmpresaEditData {
+  id: number;
+  nome_empresa: string;
+  email: string;
+  cnpj: string;
+  endereco: string;
+  numero: string;
+  cep: string;
+  email_nota: string;
+  observacao: string;
+}
+
+interface EditFormErrors {
+  nome_empresa?: string;
+  email?: string;
   cnpj?: string;
   geral?: string;
 }
@@ -139,6 +172,14 @@ export default function GrupoPage() {
   const [desvincularAlvo, setDesvincularAlvo] = useState<EmpresaFilha | null>(null);
   const [desvinculando, setDesvinculando] = useState(false);
 
+  /* ---- editar filial (Dialog modal) — task 3.1 ---- */
+  const [editModalAberto, setEditModalAberto] = useState(false);
+  const [editAlvo, setEditAlvo] = useState<EmpresaEditData | null>(null);
+  const [editCarregando, setEditCarregando] = useState(false);
+  const [editSalvando, setEditSalvando] = useState(false);
+  const [editErrors, setEditErrors] = useState<EditFormErrors>({});
+  const [editDadosFiscaisAberto, setEditDadosFiscaisAberto] = useState(false);
+
   const prefersReduced = useReducedMotion();
 
   /* ---- refs para foco em erro ---- */
@@ -146,6 +187,11 @@ export default function GrupoPage() {
   const refEmail = useRef<HTMLInputElement>(null);
   const refSenha = useRef<HTMLInputElement>(null);
   const refCnpj = useRef<HTMLInputElement>(null);
+
+  /* ---- refs para foco em erro — form edição ---- */
+  const refEditNome = useRef<HTMLInputElement>(null);
+  const refEditEmail = useRef<HTMLInputElement>(null);
+  const refEditCnpj = useRef<HTMLInputElement>(null);
 
   /* ---- validações ---- */
   const isPasswordValid =
@@ -312,6 +358,155 @@ export default function GrupoPage() {
       setFormErrors({ geral: 'Erro de comunicação com o servidor.' });
     } finally {
       setCadastrando(false);
+    }
+  };
+
+  /* ---------------------------------------------------------------- */
+  /* Editar filial — task 3.1                                           */
+  /* ---------------------------------------------------------------- */
+
+  /** Abre o modal e pré-carrega dados completos da filial via GET /api/grupo/empresas/:id */
+  const abrirEditarFilial = useCallback(async (filial: EmpresaFilha) => {
+    setEditErrors({});
+    setEditDadosFiscaisAberto(false);
+    setEditAlvo(null);
+    setEditCarregando(true);
+    setEditModalAberto(true);
+    try {
+      const res = await fetch(`/api/grupo/empresas/${filial.id}`, {
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEditErrors({ geral: data.error || 'Erro ao carregar dados da filial.' });
+        return;
+      }
+      setEditAlvo({
+        id:           data.id,
+        nome_empresa: data.nome_empresa || '',
+        email:        data.email        || '',
+        cnpj:         data.cnpj         || '',
+        endereco:     data.endereco     || '',
+        numero:       data.numero       || '',
+        cep:          data.cep          || '',
+        email_nota:   data.email_nota   || '',
+        observacao:   data.observacao   || '',
+      });
+    } catch {
+      setEditErrors({ geral: 'Erro de comunicação com o servidor.' });
+    } finally {
+      setEditCarregando(false);
+    }
+  }, []);
+
+  const fecharEditarFilial = useCallback(() => {
+    if (editSalvando) return; // bloqueia fechar enquanto salva
+    setEditModalAberto(false);
+    setEditAlvo(null);
+    setEditErrors({});
+    setEditDadosFiscaisAberto(false);
+  }, [editSalvando]);
+
+  /** Atualiza um campo no editAlvo com type-safety */
+  const setEditField = useCallback(
+    (field: keyof EmpresaEditData, value: string | number) => {
+      setEditAlvo((prev) => (prev ? { ...prev, [field]: value } : prev));
+    },
+    [],
+  );
+
+  const handleSalvarEdicao = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editAlvo) return;
+    setEditErrors({});
+
+    /* Validação client-side (espelha backend) */
+    const erros: EditFormErrors = {};
+    if (!editAlvo.nome_empresa.trim()) erros.nome_empresa = 'Nome da empresa é obrigatório.';
+    if (!editAlvo.email.trim()) erros.email = 'E-mail é obrigatório.';
+    const cnpjDigitos = editAlvo.cnpj.replace(/\D/g, '');
+    if (!cnpjDigitos) erros.cnpj = 'CNPJ é obrigatório.';
+    else if (cnpjDigitos.length !== 14) erros.cnpj = 'CNPJ deve ter exatamente 14 dígitos.';
+
+    if (Object.keys(erros).length > 0) {
+      setEditErrors(erros);
+      if (erros.nome_empresa) refEditNome.current?.focus();
+      else if (erros.email) refEditEmail.current?.focus();
+      else if (erros.cnpj) refEditCnpj.current?.focus();
+      return;
+    }
+
+    setEditSalvando(true);
+    try {
+      const body: Record<string, string> = {
+        nome_empresa: editAlvo.nome_empresa.trim(),
+        email:        editAlvo.email.trim(),
+        cnpj:         cnpjDigitos,
+      };
+      /* campos opcionais */
+      if (editAlvo.endereco.trim()) body.endereco = editAlvo.endereco.trim();
+      if (editAlvo.numero.trim()) body.numero = editAlvo.numero.trim();
+      if (editAlvo.cep.trim()) body.cep = editAlvo.cep.trim();
+      if (editAlvo.email_nota.trim()) body.email_nota = editAlvo.email_nota.trim();
+      if (editAlvo.observacao.trim()) body.observacao = editAlvo.observacao.trim();
+
+      const res = await fetch(`/api/grupo/empresas/${editAlvo.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 200) {
+        toast.success('Filial atualizada com sucesso.');
+        fecharEditarFilial();
+        await carregarFilhos();
+        return;
+      }
+
+      if (res.status === 400) {
+        const msg: string = data.error || '';
+        const novosErros: EditFormErrors = {};
+        if (/e.?mail/i.test(msg)) {
+          novosErros.email = msg;
+          refEditEmail.current?.focus();
+        } else if (/cnpj/i.test(msg)) {
+          novosErros.cnpj = msg;
+          refEditCnpj.current?.focus();
+        } else if (/nome/i.test(msg)) {
+          novosErros.nome_empresa = msg;
+          refEditNome.current?.focus();
+        } else {
+          novosErros.geral = msg || 'Dados inválidos. Verifique os campos e tente novamente.';
+        }
+        setEditErrors(novosErros);
+        return;
+      }
+
+      if (res.status === 409) {
+        const msg: string = data.error || '';
+        if (/e.?mail/i.test(msg)) {
+          setEditErrors({ email: msg });
+          refEditEmail.current?.focus();
+        } else {
+          setEditErrors({ cnpj: msg });
+          refEditCnpj.current?.focus();
+        }
+        return;
+      }
+
+      if (res.status === 403) {
+        setEditErrors({ geral: 'Sem permissão para editar esta empresa.' });
+        return;
+      }
+
+      setEditErrors({ geral: data.error || 'Erro inesperado. Tente novamente.' });
+    } catch {
+      setEditErrors({ geral: 'Erro de comunicação com o servidor.' });
+    } finally {
+      setEditSalvando(false);
     }
   };
 
@@ -729,18 +924,307 @@ export default function GrupoPage() {
                     {f.email ? ` · ${f.email}` : ''}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setDesvincularAlvo(f)}
-                  className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-destructive hover:underline ml-4 px-2"
-                >
-                  Desvincular
-                </button>
+                <div className="flex items-center gap-1 ml-4">
+                  {/* Botão Editar — task 3.1 */}
+                  <button
+                    type="button"
+                    onClick={() => abrirEditarFilial(f)}
+                    aria-label={`Editar ${f.nome_empresa}`}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-muted-foreground hover:text-foreground transition-colors px-2 gap-1"
+                  >
+                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="hidden sm:inline">Editar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDesvincularAlvo(f)}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-destructive hover:underline px-2"
+                  >
+                    Desvincular
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* ────────────────────────────────────────────────────────────────── */}
+      {/* Modal de edição de filial — task 3.1                              */}
+      {/* ────────────────────────────────────────────────────────────────── */}
+      <Dialog open={editModalAberto} onOpenChange={(o) => { if (!o) fecharEditarFilial(); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar filial</DialogTitle>
+            <DialogDescription>
+              Atualize os dados cadastrais da filial. O campo senha não pode ser alterado por aqui.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Estado de carregamento inicial */}
+          {editCarregando && (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" aria-label="Carregando dados da filial" />
+            </div>
+          )}
+
+          {/* Erro ao carregar */}
+          {!editCarregando && editErrors.geral && !editAlvo && (
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            >
+              {editErrors.geral}
+            </div>
+          )}
+
+          {/* Formulário de edição — exibido apenas quando os dados carregaram */}
+          {!editCarregando && editAlvo && (
+            <form
+              id="form-editar-filial"
+              onSubmit={handleSalvarEdicao}
+              noValidate
+              autoComplete="off"
+              className="space-y-4"
+            >
+              {/* Erro geral */}
+              {editErrors.geral && (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                >
+                  {editErrors.geral}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Campos marcados com <span className="text-destructive">*</span> são obrigatórios.
+              </p>
+
+              {/* Nome da empresa */}
+              <div className="space-y-1">
+                <label htmlFor="edit_nome_empresa" className="text-sm font-medium">
+                  Nome da empresa <span className="text-destructive" aria-hidden="true">*</span>
+                </label>
+                <input
+                  ref={refEditNome}
+                  id="edit_nome_empresa"
+                  type="text"
+                  autoComplete="off"
+                  value={editAlvo.nome_empresa}
+                  onChange={(e) => setEditField('nome_empresa', e.target.value)}
+                  aria-required="true"
+                  aria-invalid={!!editErrors.nome_empresa}
+                  aria-describedby={editErrors.nome_empresa ? 'edit_err_nome' : undefined}
+                  className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                    editErrors.nome_empresa ? 'border-destructive' : 'border-input'
+                  }`}
+                />
+                {editErrors.nome_empresa && (
+                  <p id="edit_err_nome" role="alert" className="text-xs text-destructive">
+                    {editErrors.nome_empresa}
+                  </p>
+                )}
+              </div>
+
+              {/* E-mail — OWASP LOW-003: autoComplete="username" no campo email */}
+              <div className="space-y-1">
+                <label htmlFor="edit_email" className="text-sm font-medium">
+                  E-mail <span className="text-destructive" aria-hidden="true">*</span>
+                </label>
+                <input
+                  ref={refEditEmail}
+                  id="edit_email"
+                  type="email"
+                  autoComplete="username"
+                  value={editAlvo.email}
+                  onChange={(e) => setEditField('email', e.target.value)}
+                  aria-required="true"
+                  aria-invalid={!!editErrors.email}
+                  aria-describedby={editErrors.email ? 'edit_err_email' : undefined}
+                  className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                    editErrors.email ? 'border-destructive' : 'border-input'
+                  }`}
+                />
+                {editErrors.email && (
+                  <p id="edit_err_email" role="alert" className="text-xs text-destructive">
+                    {editErrors.email}
+                  </p>
+                )}
+              </div>
+
+              {/* CNPJ */}
+              <div className="space-y-1">
+                <label htmlFor="edit_cnpj" className="text-sm font-medium">
+                  CNPJ <span className="text-destructive" aria-hidden="true">*</span>
+                </label>
+                <input
+                  ref={refEditCnpj}
+                  id="edit_cnpj"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={editAlvo.cnpj ? exibirCnpj(editAlvo.cnpj.replace(/\D/g, '')) : ''}
+                  onChange={(e) => setEditField('cnpj', formatCnpj(e.target.value))}
+                  placeholder="00.000.000/0000-00"
+                  maxLength={18}
+                  aria-required="true"
+                  aria-invalid={!!editErrors.cnpj}
+                  aria-describedby={editErrors.cnpj ? 'edit_err_cnpj' : undefined}
+                  className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                    editErrors.cnpj ? 'border-destructive' : 'border-input'
+                  }`}
+                />
+                {editErrors.cnpj && (
+                  <p id="edit_err_cnpj" role="alert" className="text-xs text-destructive">
+                    {editErrors.cnpj}
+                  </p>
+                )}
+              </div>
+
+              {/* Seção "Dados fiscais" — colapsável */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setEditDadosFiscaisAberto((v) => !v)}
+                  aria-expanded={editDadosFiscaisAberto}
+                  aria-controls="edit_secao_dados_fiscais"
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left bg-muted/40 hover:bg-muted/60 transition-colors"
+                >
+                  Dados fiscais
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    Opcionais
+                    {editDadosFiscaisAberto ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {editDadosFiscaisAberto && (
+                    <motion.div
+                      id="edit_secao_dados_fiscais"
+                      key="edit-fiscal"
+                      initial={prefersReduced ? false : { height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={prefersReduced ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                      transition={{ duration: prefersReduced ? 0 : 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-4 space-y-3 bg-background">
+                        {/* Endereço */}
+                        <div className="space-y-1">
+                          <label htmlFor="edit_endereco" className="text-sm font-medium">
+                            Endereço
+                          </label>
+                          <input
+                            id="edit_endereco"
+                            type="text"
+                            autoComplete="off"
+                            value={editAlvo.endereco}
+                            onChange={(e) => setEditField('endereco', e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          />
+                        </div>
+
+                        {/* Número e CEP em linha */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label htmlFor="edit_numero" className="text-sm font-medium">
+                              Número
+                            </label>
+                            <input
+                              id="edit_numero"
+                              type="text"
+                              autoComplete="off"
+                              value={editAlvo.numero}
+                              onChange={(e) => setEditField('numero', e.target.value)}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label htmlFor="edit_cep" className="text-sm font-medium">
+                              CEP
+                            </label>
+                            <input
+                              id="edit_cep"
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="off"
+                              value={editAlvo.cep}
+                              onChange={(e) => setEditField('cep', e.target.value.replace(/\D/g, '').slice(0, 8))}
+                              placeholder="00000-000"
+                              maxLength={9}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                          </div>
+                        </div>
+
+                        {/* E-mail de nota fiscal */}
+                        <div className="space-y-1">
+                          <label htmlFor="edit_email_nota" className="text-sm font-medium">
+                            E-mail para nota fiscal
+                          </label>
+                          <input
+                            id="edit_email_nota"
+                            type="email"
+                            autoComplete="off"
+                            value={editAlvo.email_nota}
+                            onChange={(e) => setEditField('email_nota', e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          />
+                        </div>
+
+                        {/* Observação */}
+                        <div className="space-y-1">
+                          <label htmlFor="edit_observacao" className="text-sm font-medium">
+                            Observação
+                          </label>
+                          <textarea
+                            id="edit_observacao"
+                            rows={3}
+                            value={editAlvo.observacao}
+                            onChange={(e) => setEditField('observacao', e.target.value)}
+                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                          />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </form>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={fecharEditarFilial}
+              disabled={editSalvando}
+              className="inline-flex items-center justify-center min-h-[44px] rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="form-editar-filial"
+              disabled={editSalvando || editCarregando || !editAlvo}
+              className="inline-flex items-center justify-center gap-2 min-h-[44px] rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {editSalvando ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <span aria-label="Salvando...">Salvando…</span>
+                </>
+              ) : (
+                'Salvar alterações'
+              )}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo de confirmação de desvínculo (substitui confirm() nativo) */}
       <AlertDialog
