@@ -12,7 +12,18 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { Eye, EyeOff, Check, X, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                                 */
@@ -37,6 +48,7 @@ interface FormErrors {
 /* ------------------------------------------------------------------ */
 
 function PasswordStrength({ password }: { password: string }) {
+  const prefersReduced = useReducedMotion();
   const rules = useMemo(
     () => [
       { label: 'Mínimo 6 caracteres', ok: password.length >= 6 },
@@ -50,9 +62,9 @@ function PasswordStrength({ password }: { password: string }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, height: 0 }}
+      initial={prefersReduced ? false : { opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
+      exit={prefersReduced ? { opacity: 0 } : { opacity: 0, height: 0 }}
       className="space-y-1 pt-1"
     >
       {rules.map((r) => (
@@ -122,7 +134,12 @@ export default function GrupoPage() {
   /* ---- estado de submit ---- */
   const [cadastrando, setCadastrando] = useState(false);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
-  const [sucesso, setSucesso] = useState(false);
+
+  /* ---- desvincular (AlertDialog) ---- */
+  const [desvincularAlvo, setDesvincularAlvo] = useState<EmpresaFilha | null>(null);
+  const [desvinculando, setDesvinculando] = useState(false);
+
+  const prefersReduced = useReducedMotion();
 
   /* ---- refs para foco em erro ---- */
   const refNome = useRef<HTMLInputElement>(null);
@@ -198,7 +215,6 @@ export default function GrupoPage() {
   const handleCadastrarFilial = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErrors({});
-    setSucesso(false);
 
     /* validação client-side */
     const erros: FormErrors = {};
@@ -244,7 +260,7 @@ export default function GrupoPage() {
       const data = await res.json().catch(() => ({}));
 
       if (res.status === 201) {
-        setSucesso(true);
+        toast.success('Filial cadastrada com sucesso. A lista foi atualizada.');
         limparForm();
         await carregarFilhos();
         return;
@@ -303,21 +319,26 @@ export default function GrupoPage() {
   /* Desvincular                                                         */
   /* ---------------------------------------------------------------- */
 
-  const handleDesvincular = async (idFilho: number) => {
-    if (!confirm('Tem certeza que deseja desvincular esta empresa do grupo?')) return;
+  const confirmarDesvincular = async () => {
+    if (!desvincularAlvo) return;
+    setDesvinculando(true);
     try {
-      const res = await fetch(`/api/grupo/filhos/${idFilho}`, {
+      const res = await fetch(`/api/grupo/filhos/${desvincularAlvo.id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Erro ao desvincular empresa.');
+        toast.error(data.error || 'Erro ao desvincular empresa.');
         return;
       }
+      toast.success('Empresa desvinculada do grupo.');
       await carregarFilhos();
+      setDesvincularAlvo(null);
     } catch {
-      alert('Erro de comunicação com o servidor.');
+      toast.error('Erro de comunicação com o servidor.');
+    } finally {
+      setDesvinculando(false);
     }
   };
 
@@ -354,28 +375,10 @@ export default function GrupoPage() {
       <div className="rounded-lg border bg-card p-5 space-y-5">
         <h2 className="text-base font-semibold">Cadastrar filial</h2>
 
-        {/* Banner de sucesso */}
-        <AnimatePresence>
-          {sucesso && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              role="alert"
-              aria-live="polite"
-              className="rounded-md border border-success/50 bg-success/10 px-4 py-3 text-sm text-success flex items-center gap-2"
-            >
-              <Check className="h-4 w-4 shrink-0" />
-              Filial cadastrada com sucesso. A lista foi atualizada.
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Erro geral */}
         {formErrors.geral && (
           <div
             role="alert"
-            aria-live="polite"
             className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
           >
             {formErrors.geral}
@@ -416,7 +419,6 @@ export default function GrupoPage() {
               <p
                 id="err_nome_empresa"
                 role="alert"
-                aria-live="polite"
                 className="text-xs text-destructive"
               >
                 {formErrors.nome_empresa}
@@ -447,7 +449,6 @@ export default function GrupoPage() {
               <p
                 id="err_email"
                 role="alert"
-                aria-live="polite"
                 className="text-xs text-destructive"
               >
                 {formErrors.email}
@@ -471,11 +472,12 @@ export default function GrupoPage() {
                 aria-required="true"
                 aria-invalid={!!formErrors.senha}
                 aria-describedby={
-                  formErrors.senha
-                    ? 'err_senha'
-                    : senha
-                    ? 'senha_strength'
-                    : undefined
+                  [
+                    formErrors.senha ? 'err_senha' : null,
+                    senha ? 'senha_strength' : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined
                 }
                 className={`flex h-11 w-full rounded-md border bg-background px-3 py-2 pr-10 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                   formErrors.senha ? 'border-destructive' : 'border-input'
@@ -498,7 +500,6 @@ export default function GrupoPage() {
               <p
                 id="err_senha"
                 role="alert"
-                aria-live="polite"
                 className="text-xs text-destructive"
               >
                 {formErrors.senha}
@@ -539,7 +540,6 @@ export default function GrupoPage() {
               <p
                 id="err_cnpj"
                 role="alert"
-                aria-live="polite"
                 className="text-xs text-destructive"
               >
                 {formErrors.cnpj}
@@ -572,16 +572,16 @@ export default function GrupoPage() {
                 <motion.div
                   id="secao_dados_fiscais"
                   key="fiscal"
-                  initial={{ height: 0, opacity: 0 }}
+                  initial={prefersReduced ? false : { height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  exit={prefersReduced ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                  transition={{ duration: prefersReduced ? 0 : 0.2 }}
                   className="overflow-hidden"
                 >
                   <div className="p-4 space-y-3 bg-background">
                     {/* Endereço */}
                     <div className="space-y-1">
-                      <label htmlFor="cad_endereco" className="text-sm font-medium text-muted-foreground">
+                      <label htmlFor="cad_endereco" className="text-sm font-medium">
                         Endereço
                       </label>
                       <input
@@ -597,7 +597,7 @@ export default function GrupoPage() {
                     {/* Número e CEP em linha */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label htmlFor="cad_numero" className="text-sm font-medium text-muted-foreground">
+                        <label htmlFor="cad_numero" className="text-sm font-medium">
                           Número
                         </label>
                         <input
@@ -610,7 +610,7 @@ export default function GrupoPage() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label htmlFor="cad_cep" className="text-sm font-medium text-muted-foreground">
+                        <label htmlFor="cad_cep" className="text-sm font-medium">
                           CEP
                         </label>
                         <input
@@ -629,7 +629,7 @@ export default function GrupoPage() {
 
                     {/* E-mail de nota fiscal */}
                     <div className="space-y-1">
-                      <label htmlFor="cad_email_nota" className="text-sm font-medium text-muted-foreground">
+                      <label htmlFor="cad_email_nota" className="text-sm font-medium">
                         E-mail para nota fiscal
                       </label>
                       <input
@@ -644,7 +644,7 @@ export default function GrupoPage() {
 
                     {/* Observação */}
                     <div className="space-y-1">
-                      <label htmlFor="cad_observacao" className="text-sm font-medium text-muted-foreground">
+                      <label htmlFor="cad_observacao" className="text-sm font-medium">
                         Observação
                       </label>
                       <textarea
@@ -703,7 +703,6 @@ export default function GrupoPage() {
         {!loading && erro && (
           <div
             role="alert"
-            aria-live="polite"
             className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
           >
             {erro}
@@ -732,7 +731,7 @@ export default function GrupoPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleDesvincular(f.id)}
+                  onClick={() => setDesvincularAlvo(f)}
                   className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-destructive hover:underline ml-4 px-2"
                 >
                   Desvincular
@@ -742,6 +741,39 @@ export default function GrupoPage() {
           </div>
         )}
       </div>
+
+      {/* Diálogo de confirmação de desvínculo (substitui confirm() nativo) */}
+      <AlertDialog
+        open={desvincularAlvo !== null}
+        onOpenChange={(o) => {
+          if (!o) setDesvincularAlvo(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desvincular filial</AlertDialogTitle>
+            <AlertDialogDescription>
+              {desvincularAlvo
+                ? `Tem certeza que deseja desvincular "${desvincularAlvo.nome_empresa}" do grupo? A empresa não será excluída — apenas deixará de pertencer ao grupo.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={desvinculando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmarDesvincular();
+              }}
+              disabled={desvinculando}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {desvinculando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Desvincular
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

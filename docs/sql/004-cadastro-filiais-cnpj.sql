@@ -45,12 +45,45 @@ GRANT SELECT, INSERT, UPDATE ON "Empresa" TO authenticated;
 
 COMMIT;
 
--- 4. Recarregar o schema/privilegios no PostgREST
+-- 4. (Hardening — OWASP A07) UNIQUE em email.
+--    O cadastro de filiais checa unicidade de email no app (SELECT antes do
+--    INSERT), o que e TOCTOU sob concorrencia. Uma UNIQUE constraint no banco
+--    fecha a janela de corrida e e o failsafe que o backend JA espera
+--    (POST /grupo/empresas trata violacao de unique em email como 400).
+--
+--    SEGURO PARA O DEPLOY: roda FORA da transacao do cnpj (acima, ja commitada)
+--    e e GUARDADO por verificacao de duplicados — se ja existirem emails
+--    repetidos, o bloco apenas EMITE AVISO e NAO aplica a constraint (em vez de
+--    abortar). Esta secao nunca quebra o deploy do cnpj.
+--
+--    Se houver duplicados, o operador deve dedup-licar e re-rodar:
+--      SELECT email, count(*) FROM "Empresa" GROUP BY email HAVING count(*) > 1;
+DO $$
+DECLARE
+  _dups integer;
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'empresa_email_unique') THEN
+    RAISE NOTICE 'empresa_email_unique ja existe — nada a fazer.';
+  ELSE
+    SELECT count(*) INTO _dups
+    FROM (SELECT email FROM "Empresa" WHERE email IS NOT NULL
+          GROUP BY email HAVING count(*) > 1) d;
+    IF _dups > 0 THEN
+      RAISE NOTICE 'ATENCAO: % email(s) duplicado(s) em "Empresa" — empresa_email_unique NAO aplicada. Dedup-lique e re-rode este bloco.', _dups;
+    ELSE
+      ALTER TABLE "Empresa" ADD CONSTRAINT empresa_email_unique UNIQUE (email);
+      RAISE NOTICE 'empresa_email_unique aplicada com sucesso.';
+    END IF;
+  END IF;
+END$$;
+
+-- 5. Recarregar o schema/privilegios no PostgREST
 NOTIFY pgrst, 'reload schema';
 
 -- =============================================================================
 -- Verificacao (manual, apos aplicar):
 --   SELECT column_name FROM information_schema.columns
 --     WHERE table_name = 'Empresa' AND column_name = 'cnpj';
---   SELECT conname FROM pg_constraint WHERE conname = 'empresa_cnpj_unique';
+--   SELECT conname FROM pg_constraint
+--     WHERE conname IN ('empresa_cnpj_unique', 'empresa_email_unique');
 -- =============================================================================
