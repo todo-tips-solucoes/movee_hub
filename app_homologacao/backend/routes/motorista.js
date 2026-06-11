@@ -12,6 +12,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit'); // OWASP A06/A07: limita brute-force de login/cadastro
 const multer = require('multer');
 const axios = require('axios');
 const xml2js = require('xml2js');
@@ -33,6 +34,34 @@ const uploadMemory = multer({
     } else {
       cb(new Error('Somente arquivos XML são aceitos.'));
     }
+  },
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Rate limiters (OWASP A06/A07) — espelham o padrão já aceito do /login de empresa
+// (server.js loginRateLimiter, MEDIUM-001). /login e /register são públicos e
+// brute-forceáveis; sem limite, um atacante pode tentar reivindicar pré-cadastros
+// (senha NULL) por força-bruta de CNPJ. keyGenerator por IP (mesma escolha do login).
+// ──────────────────────────────────────────────────────────────────────────────
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10,                   // máx. 10 tentativas de login por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  handler: (_req, res) => {
+    res.status(429).json({ error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' });
+  },
+});
+
+const registerRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 20,                   // headroom p/ onboarding em lote (drivers compartilham IP atrás de proxy)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  handler: (_req, res) => {
+    res.status(429).json({ error: 'Muitas tentativas de cadastro. Tente novamente em 15 minutos.' });
   },
 });
 
@@ -139,7 +168,7 @@ function clearAuthCookies(res) {
 // ROTA: POST /motorista/login  (público)
 // Ref: tarefa 2.2.1 / contracts §login / spec FR-001 / quickstart 1, 2
 // ──────────────────────────────────────────────────────────────────────────────
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimiter, async (req, res) => {
   try {
     const { cnpjPrestador, senha } = req.body;
 
@@ -163,6 +192,13 @@ router.post('/login', async (req, res) => {
     }
 
     const motorista = motoristas[0];
+
+    // cadastro-motorista-base-validada: pré-cadastro vindo do upload tem senha
+    // NULL (motorista ainda não definiu acesso). Tratar como credencial inválida
+    // — mesma mensagem anti-enumeração e sem crashar o bcrypt.compare(_, null).
+    if (!motorista.senha) {
+      return res.status(401).json({ error: INVALID_MSG });
+    }
 
     // Verificar senha
     const senhaOk = await bcrypt.compare(senha, motorista.senha);
@@ -192,11 +228,15 @@ router.post('/login', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// ROTA: POST /motorista/register  (público — auto-cadastro com guard FR-017)
+// ROTA: POST /motorista/register  (público — ativação de cadastro com guard FR-017)
 // Ref: tarefa 2.3 / contracts §register / spec FR-017 / quickstart 3
-// Guard: só cadastra CNPJ que já existe na EnvioMassa e sem conta Motorista.
+// Feature: cadastro-motorista-base-validada (frente B)
+//   A base curada é a tabela "Motorista" (populada pelo upload do movimento como
+//   pré-cadastro SEM senha), não mais a EnvioMassa. /register não CRIA a linha:
+//   ele ATIVA o pré-cadastro definindo a senha (UPDATE), se o CNPJ estiver na base.
+//   Mantém anti-enumeração (FR-017): mesma 409 para "fora da base" e "já tem conta".
 // ──────────────────────────────────────────────────────────────────────────────
-router.post('/register', async (req, res) => {
+router.post('/register', registerRateLimiter, async (req, res) => {
   try {
     const { cnpjPrestador, nome, senha } = req.body;
 
@@ -210,35 +250,43 @@ router.post('/register', async (req, res) => {
 
     const cnpjNorm = String(cnpjPrestador).replace(/\D/g, '');
 
-    // Guard 1: verificar se CNPJ existe na EnvioMassa (anti-enumeração)
-    const movimentos = await _postgrestRequest(
-      `EnvioMassa?${cnpjEnvioMassaFilter(cnpjNorm)}&limit=1`
-    );
-
-    // Resposta anti-enumeração: mesma mensagem se CNPJ não existe ou já tem conta
+    // Resposta anti-enumeração (FR-017): mesma mensagem para "CNPJ fora da base"
+    // E para "já possui conta" — não revela presença/ausência na base curada.
     const NOT_ELIGIBLE_MSG = 'CNPJ não elegível para cadastro ou já possui conta.';
 
-    if (!movimentos || movimentos.length === 0) {
-      return res.status(409).json({ error: NOT_ELIGIBLE_MSG });
-    }
-
-    // Guard 2: verificar se já existe conta Motorista com este CNPJ
-    const existing = await _postgrestRequest(
-      `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}`
+    // Gate: o CNPJ tem de existir na base curada "Motorista" (pré-cadastro do upload).
+    const encontrados = await _postgrestRequest(
+      `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}&select=id,senha,ativo`
     );
+    const registro = encontrados && encontrados[0];
 
-    if (existing && existing.length > 0) {
+    // Não está na base curada → não elegível.
+    if (!registro) {
       return res.status(409).json({ error: NOT_ELIGIBLE_MSG });
     }
 
-    // Criar conta
+    // Já tem senha → conta já criada (anti-enum: mesma msg).
+    if (registro.senha) {
+      return res.status(409).json({ error: NOT_ELIGIBLE_MSG });
+    }
+
+    // Pré-cadastro desativado pelo admin (CRUD) → não elegível (decisão §6.9).
+    if (!registro.ativo) {
+      return res.status(409).json({ error: NOT_ELIGIBLE_MSG });
+    }
+
+    // Pré-cadastro válido (senha NULL, ativo): ATIVAR o acesso definindo a senha.
+    // UPDATE (não INSERT): a linha já existe, vinda do upload do movimento.
     const senhaHash = await bcrypt.hash(senha, 10);
-    await _postgrestRequest('Motorista', 'POST', {
-      cnpj_prestador: cnpjNorm,
-      senha: senhaHash,
-      nome: String(nome).trim(),
-      ativo: true,
-    });
+    await _postgrestRequest(
+      `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}`,
+      'PATCH',
+      {
+        senha: senhaHash,
+        nome: String(nome).trim(),
+        ativo: true,
+      }
+    );
 
     return res.status(201).json({ message: 'Conta criada com sucesso. Faça login para continuar.' });
   } catch (err) {
