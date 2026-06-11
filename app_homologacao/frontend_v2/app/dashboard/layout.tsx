@@ -28,7 +28,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-dvh md:h-screen flex-col md:overflow-hidden bg-background">
       <Header />
-      <main className="flex-1 overflow-auto md:overflow-hidden mx-auto w-full max-w-7xl px-3 sm:px-4 md:px-6 py-4">{children}</main>
+      {/* md:overflow-y-auto (não -hidden): páginas altas (Grupo, Motoristas) rolam
+          dentro do app-shell de altura fixa; a Envio preenche exato (md:h-full) e
+          mantém o scroll interno da tabela, sem scrollbar extra. */}
+      <main className="flex-1 overflow-auto md:overflow-y-auto mx-auto w-full max-w-7xl px-3 sm:px-4 md:px-6 py-4">{children}</main>
     </div>
   );
 }
