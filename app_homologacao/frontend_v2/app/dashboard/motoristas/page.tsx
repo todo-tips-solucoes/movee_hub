@@ -7,6 +7,10 @@
  * Feature: cadastro-motorista-base-validada (frente C)
  * Backend: /api/admin/motoristas (auth de empresa; escopo derivado de EnvioMassa).
  *
+ * Paginação: client-side, espelhando a tela EnvioMassa (componente
+ *   PaginationControls; busca + fatiamento em memória; rodapé fixo num layout
+ *   de altura cheia md:h-full).
+ *
  * Regras de UI (decisões §6):
  *   - Edita apenas nome e ativo (§6.5: CNPJ é imutável — é a chave/identidade).
  *   - "Resetar senha" devolve o motorista ao pré-cadastro (§6.6: senha=NULL;
@@ -15,13 +19,14 @@
  *   - Status "Cadastrado" = já definiu senha; "Pré-cadastro" = veio do upload.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Pencil, KeyRound, Power, PowerOff, Loader2, Search, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { PaginationControls } from '@/components/pagination-controls';
 import {
   Table,
   TableBody,
@@ -87,6 +92,10 @@ export default function MotoristasPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
 
+  /* ---- paginação (client-side, igual à EnvioMassa) ---- */
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage, setRecordsPerPage] = useState<number | 'all'>(100);
+
   /* ---- editar (Dialog) ---- */
   const [editAlvo, setEditAlvo] = useState<Motorista | null>(null);
   const [editNome, setEditNome] = useState('');
@@ -102,12 +111,12 @@ export default function MotoristasPage() {
   const [desativando, setDesativando] = useState(false);
 
   /* ---------------------------------------------------------------- */
-  const carregar = useCallback(async (q: string) => {
+  /* Carga — busca a base completa do escopo; filtro/paginação em memória */
+  const carregar = useCallback(async () => {
     setLoading(true);
     setErro(null);
     try {
-      const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
-      const res = await fetch(`/api/admin/motoristas${qs}`, { credentials: 'include' });
+      const res = await fetch('/api/admin/motoristas', { credentials: 'include' });
       if (!res.ok) {
         setErro(await readError(res));
         setMotoristas([]);
@@ -123,11 +132,48 @@ export default function MotoristasPage() {
     }
   }, []);
 
-  // Carga inicial + busca com debounce
   useEffect(() => {
-    const t = setTimeout(() => carregar(busca), busca ? 350 : 0);
-    return () => clearTimeout(t);
-  }, [busca, carregar]);
+    carregar();
+  }, [carregar]);
+
+  /* ---- filtro (busca por nome/CNPJ) em memória ---- */
+  const filtrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return motoristas;
+    const qDigits = q.replace(/\D/g, '');
+    return motoristas.filter(
+      (m) =>
+        (m.nome && m.nome.toLowerCase().includes(q)) ||
+        (qDigits.length > 0 && m.cnpj_prestador.includes(qDigits)),
+    );
+  }, [motoristas, busca]);
+
+  /* ---- paginação (mesma lógica do hook useEnvioMassa) ---- */
+  const totalPages = useMemo(
+    () => (recordsPerPage === 'all' ? 1 : Math.max(1, Math.ceil(filtrados.length / recordsPerPage))),
+    [filtrados.length, recordsPerPage],
+  );
+
+  const paginados = useMemo(() => {
+    if (recordsPerPage === 'all') return filtrados;
+    const start = (currentPage - 1) * recordsPerPage;
+    return filtrados.slice(start, start + recordsPerPage);
+  }, [filtrados, currentPage, recordsPerPage]);
+
+  // Clamp: se a página atual saiu do range (após filtrar/remover), volta ao limite
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const onBuscaChange = (v: string) => {
+    setBusca(v);
+    setCurrentPage(1);
+  };
+
+  const changeRecordsPerPage = (value: number | 'all') => {
+    setRecordsPerPage(value);
+    setCurrentPage(1);
+  };
 
   /* ---- editar ---- */
   const abrirEditar = (m: Motorista) => {
@@ -157,7 +203,7 @@ export default function MotoristasPage() {
       }
       toast.success('Motorista atualizado.');
       setEditAlvo(null);
-      await carregar(busca);
+      await carregar();
     } catch {
       toast.error('Falha ao salvar. Tente novamente.');
     } finally {
@@ -180,7 +226,7 @@ export default function MotoristasPage() {
       }
       toast.success('Senha resetada. O motorista deve refazer o cadastro no app.');
       setResetAlvo(null);
-      await carregar(busca);
+      await carregar();
     } catch {
       toast.error('Falha ao resetar senha. Tente novamente.');
     } finally {
@@ -203,7 +249,7 @@ export default function MotoristasPage() {
       }
       toast.success('Motorista desativado.');
       setDesativarAlvo(null);
-      await carregar(busca);
+      await carregar();
     } catch {
       toast.error('Falha ao desativar. Tente novamente.');
     } finally {
@@ -225,7 +271,7 @@ export default function MotoristasPage() {
         return;
       }
       toast.success('Motorista reativado.');
-      await carregar(busca);
+      await carregar();
     } catch {
       toast.error('Falha ao reativar. Tente novamente.');
     }
@@ -233,125 +279,143 @@ export default function MotoristasPage() {
 
   /* ---------------------------------------------------------------- */
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <Truck className="h-6 w-6 text-primary" />
-          Motoristas
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Base de motoristas habilitados a se cadastrar no app. Os motoristas são
-          incluídos automaticamente pela importação do movimento.
-        </p>
+    <div className="flex flex-col gap-4 md:h-full">
+      {/* Cabeçalho + busca (fixos) */}
+      <div className="shrink-0 space-y-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <Truck className="h-6 w-6 text-primary" />
+            Motoristas
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Base de motoristas habilitados a se cadastrar no app. Os motoristas são
+            incluídos automaticamente pela importação do movimento.
+          </p>
+        </div>
+
+        <div className="relative max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={busca}
+            onChange={(e) => onBuscaChange(e.target.value)}
+            placeholder="Buscar por nome ou CNPJ…"
+            className="pl-9"
+            aria-label="Buscar motoristas"
+          />
+        </div>
       </div>
 
-      {/* Busca */}
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por nome ou CNPJ…"
-          className="pl-9"
-          aria-label="Buscar motoristas"
-        />
-      </div>
-
-      {/* Conteúdo */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
-      ) : erro ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {erro}
-        </div>
-      ) : motoristas.length === 0 ? (
-        <div className="rounded-md border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
-          {busca.trim()
-            ? 'Nenhum motorista encontrado para a busca.'
-            : 'Nenhum motorista na base ainda. Importe um movimento para popular a lista.'}
-        </div>
-      ) : (
-        <div className="rounded-md border overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>CNPJ</TableHead>
-                <TableHead>Cadastro</TableHead>
-                <TableHead>Situação</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {motoristas.map((m) => (
-                <TableRow key={m.id} className={m.ativo ? '' : 'opacity-60'}>
-                  <TableCell className="font-medium">{m.nome || '—'}</TableCell>
-                  <TableCell className="tabular-nums">{maskCNPJ(m.cnpj_prestador)}</TableCell>
-                  <TableCell>
-                    {m.cadastrado ? (
-                      <Badge variant="default">Cadastrado</Badge>
-                    ) : (
-                      <Badge variant="secondary">Pré-cadastro</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {m.ativo ? (
-                      <Badge variant="outline">Ativo</Badge>
-                    ) : (
-                      <Badge variant="destructive">Inativo</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => abrirEditar(m)}
-                        aria-label={`Editar ${m.nome}`}
-                        title="Editar"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setResetAlvo(m)}
-                        disabled={!m.cadastrado}
-                        aria-label={`Resetar senha de ${m.nome}`}
-                        title={m.cadastrado ? 'Resetar senha' : 'Sem senha definida'}
-                      >
-                        <KeyRound className="h-4 w-4" />
-                      </Button>
-                      {m.ativo ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDesativarAlvo(m)}
-                          aria-label={`Desativar ${m.nome}`}
-                          title="Desativar"
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <PowerOff className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => reativar(m)}
-                          aria-label={`Reativar ${m.nome}`}
-                          title="Reativar"
-                        >
-                          <Power className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
+      {/* Área central — tabela ocupa o espaço restante e rola internamente */}
+      <div className="min-h-[200px] md:flex-1 md:min-h-0">
+        {loading ? (
+          <div className="flex h-full items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : erro ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {erro}
+          </div>
+        ) : filtrados.length === 0 ? (
+          <div className="rounded-md border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
+            {busca.trim()
+              ? 'Nenhum motorista encontrado para a busca.'
+              : 'Nenhum motorista na base ainda. Importe um movimento para popular a lista.'}
+          </div>
+        ) : (
+          <div className="rounded-md border overflow-auto md:h-full">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>CNPJ</TableHead>
+                  <TableHead>Cadastro</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {paginados.map((m) => (
+                  <TableRow key={m.id} className={m.ativo ? '' : 'opacity-60'}>
+                    <TableCell className="font-medium">{m.nome || '—'}</TableCell>
+                    <TableCell className="tabular-nums">{maskCNPJ(m.cnpj_prestador)}</TableCell>
+                    <TableCell>
+                      {m.cadastrado ? (
+                        <Badge variant="default">Cadastrado</Badge>
+                      ) : (
+                        <Badge variant="secondary">Pré-cadastro</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {m.ativo ? (
+                        <Badge variant="outline">Ativo</Badge>
+                      ) : (
+                        <Badge variant="destructive">Inativo</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => abrirEditar(m)}
+                          aria-label={`Editar ${m.nome}`}
+                          title="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setResetAlvo(m)}
+                          disabled={!m.cadastrado}
+                          aria-label={`Resetar senha de ${m.nome}`}
+                          title={m.cadastrado ? 'Resetar senha' : 'Sem senha definida'}
+                        >
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
+                        {m.ativo ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDesativarAlvo(m)}
+                            aria-label={`Desativar ${m.nome}`}
+                            title="Desativar"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <PowerOff className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => reativar(m)}
+                            aria-label={`Reativar ${m.nome}`}
+                            title="Reativar"
+                          >
+                            <Power className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      {/* Paginação fixa no rodapé (igual à EnvioMassa) */}
+      {!loading && !erro && filtrados.length > 0 && (
+        <div className="shrink-0">
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            recordsPerPage={recordsPerPage}
+            totalRecords={filtrados.length}
+            onPageChange={setCurrentPage}
+            onRecordsPerPageChange={changeRecordsPerPage}
+          />
         </div>
       )}
 
