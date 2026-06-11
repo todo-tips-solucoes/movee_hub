@@ -1,6 +1,6 @@
 'use client';
 
-import { LogOut, Send, FileCheck, Palette, Users } from 'lucide-react';
+import { LogOut, Send, FileCheck, Palette, Users, Truck } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useTenantTheme } from '@/contexts/tenant-theme-context';
 import { ThemeToggle } from './theme-toggle';
@@ -74,6 +74,19 @@ export function Header() {
             >
               <FileCheck className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Validacao XML</span>
+            </Link>
+            {/* cadastro-motorista-base-validada: CRUD da base de motoristas.
+                Escopo derivado do movimento do próprio admin → visível a todos. */}
+            <Link
+              href="/dashboard/motoristas"
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                pathname === '/dashboard/motoristas'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Truck className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Motoristas</span>
             </Link>
             {/* config-ui-tenant: visíveis só para o administrador do grupo (is_grupo_pai) */}
             {user?.is_grupo_pai && (

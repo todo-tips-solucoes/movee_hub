@@ -26,6 +26,9 @@ const { resolveEmpresaAlvo, mesmoGrupoQue } = grupoRoutes; // movimento-por-fili
 // config-ui-tenant — rotas /empresa/branding + /motorista/branding-tomador
 const brandingRoutes = require('./routes/branding');
 
+// cadastro-motorista-base-validada — CRUD admin de motoristas /admin/motoristas/*
+const adminMotoristaRoutes = require('./routes/admin-motorista');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 
@@ -1189,6 +1192,71 @@ const isCNPJ14 = (digits) => /^\d{14}$/.test(digits);
 const maskCNPJ = (digits14) =>
   digits14.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 
+// ──────────────────────────────────────────────────────────────────────────────
+// cadastro-motorista-base-validada (frente A): o upload do movimento popula a
+// base curada "Motorista" (pré-cadastro: nome+CNPJ, SEM senha). O motorista só
+// "ativa" o acesso definindo a senha em /motorista/register.
+//
+// Contrato:
+//   - Para cada cnpj_prestador distinto do lote, garante uma linha em Motorista.
+//   - Não existe → INSERT { cnpj_prestador, nome, ativo:true } (senha NULL).
+//   - Existe     → NUNCA toca senha; atualiza `nome` só se estiver vazio
+//                  (decisão §6.4 — não sobrescrever curadoria do CRUD).
+//   - Best-effort: NUNCA lança. O movimento em EnvioMassa é o dado primário;
+//     uma falha aqui é logada e ignorada (não derruba o upload).
+// ──────────────────────────────────────────────────────────────────────────────
+async function upsertMotoristasFromLote(rows) {
+  try {
+    // cnpj (14 dígitos) -> primeiro nome não-vazio observado no lote
+    const porCnpj = new Map();
+    for (const r of (rows || [])) {
+      const cnpj = onlyDigits(r && r.cnpj_prestador);
+      if (!isCNPJ14(cnpj)) continue;
+      const nome = String((r && r.nome) || '').trim();
+      if (!porCnpj.has(cnpj)) {
+        porCnpj.set(cnpj, nome);
+      } else if (!porCnpj.get(cnpj) && nome) {
+        porCnpj.set(cnpj, nome);
+      }
+    }
+    if (porCnpj.size === 0) return;
+
+    const cnpjs = [...porCnpj.keys()];
+    const lista = cnpjs.map((c) => `"${c}"`).join(',');
+
+    // Quais CNPJs já existem em Motorista (e com que nome)
+    const existentesArr = await postgrestRequest(
+      `Motorista?cnpj_prestador=in.(${encodeURIComponent(lista)})&select=cnpj_prestador,nome`
+    );
+    const existentes = new Map((existentesArr || []).map((m) => [m.cnpj_prestador, m]));
+
+    // Inserir os ausentes — pré-cadastro sem senha
+    const novos = cnpjs
+      .filter((c) => !existentes.has(c))
+      .map((c) => ({ cnpj_prestador: c, nome: porCnpj.get(c) || null, ativo: true }));
+    if (novos.length > 0) {
+      await postgrestRequest('Motorista', 'POST', novos);
+      console.error(`[UPLOAD][MOTORISTA] ${novos.length} pré-cadastro(s) criado(s) na base Motorista.`);
+    }
+
+    // Atualizar nome apenas quando o existente está vazio (não sobrescreve CRUD)
+    for (const c of cnpjs) {
+      const existente = existentes.get(c);
+      const nomeNovo = porCnpj.get(c);
+      const nomeAtualVazio = !existente || !(existente.nome && String(existente.nome).trim());
+      if (existente && nomeNovo && nomeAtualVazio) {
+        await postgrestRequest(
+          `Motorista?cnpj_prestador=eq.${encodeURIComponent(c)}`,
+          'PATCH',
+          { nome: nomeNovo }
+        );
+      }
+    }
+  } catch (err) {
+    console.error('[UPLOAD][MOTORISTA] Falha no upsert da base Motorista (ignorada, movimento preservado):', err.message);
+  }
+}
+
 function pad2(n){ return String(n).padStart(2,'0'); }
 
 // Excel serial -> Date (UTC, evita deslocamento por fuso local do servidor)
@@ -1500,6 +1568,10 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
         detail: response.error
       });
     }
+
+    // cadastro-motorista-base-validada (frente A): popular/curar a base "Motorista"
+    // a partir deste lote (best-effort — não derruba o upload se falhar).
+    await upsertMotoristasFromLote(dataToInsert);
 
     // Tenta inferir quantas linhas foram inseridas
     let insertedRows = null;
@@ -1987,6 +2059,11 @@ app.use('/motorista', motoristaRoutes.router);
 // config-ui-tenant + cadastro-filiais — injetar dependências e montar rotas /grupo/*
 grupoRoutes.init({ postgrestRequest, bcrypt });
 app.use('/grupo', authenticateToken, grupoRoutes.router);
+
+// cadastro-motorista-base-validada — CRUD admin de motoristas (auth de EMPRESA).
+// Escopo multi-tenant derivado de EnvioMassa via resolveScope (Princípio II).
+adminMotoristaRoutes.init({ postgrestRequest, resolveScope: grupoRoutes.resolveScope });
+app.use('/admin/motoristas', authenticateToken, adminMotoristaRoutes.router);
 
 // config-ui-tenant — injetar dependências e montar rotas de branding
 brandingRoutes.init({ postgrestRequest });
