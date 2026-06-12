@@ -6,9 +6,12 @@
 -- ATENÇÃO: executar APENAS pelo operador (Rito 6.1). Não aplicar pelo agente.
 -- Após aplicar, recarregar o schema do PostgREST (NOTIFY pgrst, 'reload schema').
 
--- Passo 1: adicionar coluna (tipo numérico, espelhando `valor` — NUMERIC(15,2))
+-- Passo 1: adicionar coluna espelhando `valor` (CL-001).
+-- Tipo confirmado no rito 6.1: "EnvioMassa".valor é DOUBLE PRECISION (float8),
+-- então gorjeta usa o MESMO tipo — garante serialização idêntica no PostgREST
+-- (double precision -> number JSON, igual a `valor`; numeric viraria string).
 ALTER TABLE "EnvioMassa"
-  ADD COLUMN IF NOT EXISTS gorjeta NUMERIC(15,2) DEFAULT NULL;
+  ADD COLUMN IF NOT EXISTS gorjeta DOUBLE PRECISION DEFAULT NULL;
 
 -- Passo 2: comentário descritivo na coluna
 COMMENT ON COLUMN "EnvioMassa".gorjeta
