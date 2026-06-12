@@ -145,3 +145,28 @@ gorjeta nula.
 
 - **SC-005**: O DDL pode ser reaplicado ao banco (em testes, rollback/replay) sem gerar erro —
   idempotência verificável por script.
+
+---
+
+## Clarifications
+
+Resolvidas por heurística clarify-answerer (score 3 em todas — evidência empírica no código e na spec).
+
+**CL-001 — Tipo/formato da coluna `gorjeta` na tabela `EnvioMassa`**
+- **Decisão**: espelhar exatamente a coluna `valor`.
+- **Formato**: string com 2 casas decimais, ex.: `"22.00"` — gerada via `valorNum.toFixed(2)`.
+- **DDL**: mesmo tipo da coluna `valor` (TEXT no Postgres; PostgREST recebe string e grava diretamente).
+- **Evidência**: `server.js:1455` — `const valor = Number.isFinite(valorNum) ? valorNum.toFixed(2) : null;`
+
+**CL-002 — Tratamento de gorjeta vazia ("R$ -") no upload**
+- **Decisão**: gravar `null`.
+- **Justificativa**: `null` preserva a semântica de ausência vs zero explícito. Spec acceptance scenario 2 define isso explicitamente.
+- **No código**: `toNumberBR("R$ -")` retorna `NaN` → `Number.isFinite(NaN)` é false → gravar `null` (mesmo padrão da guarda do `valor`, mas sem lançar rowError).
+
+**CL-003 — Exibição de gorjeta `null` na tela do motorista**
+- **Decisão**: ocultar a linha completamente. Não exibir "R$ 0,00" nem traço "—".
+- **Justificativa**: FR-006 + FR-003 da spec. `null` = ausência semântica; o componente não renderiza a linha.
+
+**CL-004 — Obrigatoriedade da coluna `gorjeta` no upload**
+- **Decisão**: completamente opcional. A ausência da coluna na planilha e valores `R$ -` NUNCA geram `rowError`.
+- **Justificativa**: retrocompatibilidade é requisito crítico (spec US2 acceptance scenarios 3 e 4). Planilhas legadas sem a coluna devem continuar funcionando sem qualquer alteração.
