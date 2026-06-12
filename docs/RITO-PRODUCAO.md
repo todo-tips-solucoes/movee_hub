@@ -14,7 +14,7 @@ produção**. Não existe um ambiente de produção separado.
 | **Orquestrador** | Docker Swarm local |
 | **Serviços** | `envio-massa-homologacao_backend_homologacao` · `envio-massa-homologacao_frontend_v2_homologacao` |
 | **Banco** | `chatmasterveloz` no container `pgadmin_db` |
-| **Domínios** | `https://envmassv2.todo-tips.com` (painel) · `https://appmotorista.todo-tips.com` (app motorista) |
+| **Domínios** | `https://app.moveelog.com.br` (painel) · `https://app.motorista.moveelog.com.br` (app motorista) |
 | **Registry** | `registry.todo-tips.com/envio-massa-backend` · `registry.todo-tips.com/envio-massa-frontend-v2` |
 
 Consequência: **todo deploy nesse ambiente atinge clientes reais imediatamente**. O nome
