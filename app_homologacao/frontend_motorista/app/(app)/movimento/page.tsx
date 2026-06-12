@@ -35,6 +35,7 @@ interface Tomador {
 interface Movimento {
   id: number;
   valor: string | number | null;
+  gorjeta?: string | number | null;
   dtInicial: string | null;
   dtFinal: string | null;
   nome: string | null;
@@ -114,6 +115,14 @@ export default function MovimentoPage() {
         ? parseFloat(movimento.valor)
         : movimento.valor
       : NaN;
+
+  // gorjetaNum — null quando ausente, zero ou inválido (FR-006 / CL-001 / CL-002)
+  const gorjetaNum =
+    movimento?.gorjeta != null && movimento.gorjeta !== ''
+      ? typeof movimento.gorjeta === 'string'
+        ? parseFloat(movimento.gorjeta)
+        : movimento.gorjeta
+      : null;
 
   return (
     <main className="relative flex min-h-dvh flex-col bg-muted/40">
@@ -197,6 +206,15 @@ export default function MovimentoPage() {
                   )}
                 </p>
                 <div className="bg-gradient-warm-rich animate-gradient mt-4 h-1.5 w-16 rounded-full" />
+                {/* Gorjeta — exibida apenas quando não-nula e não-zero (FR-006 / CL-001) */}
+                {gorjetaNum != null && !isNaN(gorjetaNum) && gorjetaNum > 0 && (
+                  <div className="mt-3 flex items-baseline justify-between gap-2">
+                    <span className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">Gorjeta</span>
+                    <span className="tabular font-semibold text-white/90">
+                      {formatCurrency(gorjetaNum)}
+                    </span>
+                  </div>
+                )}
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/12 px-2.5 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm">
                     <Calendar className="h-3.5 w-3.5 opacity-80" />

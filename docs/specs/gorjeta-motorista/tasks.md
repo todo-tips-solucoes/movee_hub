@@ -151,7 +151,7 @@ NOTIFY pgrst, 'reload schema';
 
 **DEP**: nenhuma (artefato independente — o operador aplica após a tarefa estar pronta)
 
-- [ ] **1.1** Criar `009_envio_massa_gorjeta.sql` com DDL idempotente e NOTIFY
+- [x] **1.1** Criar `009_envio_massa_gorjeta.sql` com DDL idempotente e NOTIFY
 
 ---
 
@@ -197,7 +197,7 @@ const gorjeta = parseGorjeta(row.gorjeta);
 
 **DEP**: 6.1 (DDL aplicado antes de subir o backend com essa mudança)
 
-- [ ] **2.1** Adicionar parse de gorjeta e incluir campo no `dataToInsert.push` em `server.js`
+- [x] **2.1** Adicionar parse de gorjeta e incluir campo no `dataToInsert.push` em `server.js`
 
 ### 2.2 Teste upload com gorjeta (server.js) `[A]`
 
@@ -221,7 +221,7 @@ o comportamento do parse de gorjeta no upload.
 
 **DEP**: 5.1 (diretório tests criado), 2.1 (lógica de parse implementada)
 
-- [ ] **2.2** Criar testes de upload (parse gorjeta) em `motorista-integration.test.js`
+- [x] **2.2** Criar testes de upload (parse gorjeta) em `motorista-integration.test.js`
 
 ---
 
@@ -258,7 +258,7 @@ gorjeta: m.gorjeta ?? null,   // FR-004: null quando ausente/zero (CL-002)
 
 **DEP**: 6.1 (DDL aplicado — a coluna precisa existir para o PostgREST retorná-la)
 
-- [ ] **3.1** Adicionar `gorjeta: m.gorjeta ?? null` no mapper de `/movimento-aberto` em `motorista.js`
+- [x] **3.1** Adicionar `gorjeta: m.gorjeta ?? null` no mapper de `/movimento-aberto` em `motorista.js`
 
 ### 3.2 Teste de integração leitura gorjeta (motorista.js) `[A]`
 
@@ -279,7 +279,7 @@ endpoint `/movimento-aberto`.
 
 **DEP**: 5.1 (diretório tests), 3.1 (mapper implementado)
 
-- [ ] **3.2** Criar testes de leitura gorjeta em `motorista-integration.test.js`
+- [x] **3.2** Criar testes de leitura gorjeta em `motorista-integration.test.js`
 
 ---
 
@@ -308,7 +308,7 @@ gorjeta?: string | number | null;
 
 **DEP**: nenhuma (mudança de tipo pura, independente do backend estar deployado)
 
-- [ ] **4.1** Adicionar `gorjeta?: string | number | null` à interface `Movimento` em `page.tsx`
+- [x] **4.1** Adicionar `gorjeta?: string | number | null` à interface `Movimento` em `page.tsx`
 
 ### 4.2 Render condicional de gorjeta (page.tsx) `[C]`
 
@@ -351,7 +351,7 @@ const gorjetaNum =
 
 **DEP**: 4.1 (interface atualizada)
 
-- [ ] **4.2** Implementar derivação `gorjetaNum` e render condicional em `page.tsx`
+- [x] **4.2** Implementar derivação `gorjetaNum` e render condicional em `page.tsx`
 
 ### 4.3 Verificação local do render (page.tsx) `[M]`
 
@@ -373,7 +373,7 @@ componente renderiza corretamente com dados mockados.
 
 **DEP**: 4.2 (render implementado)
 
-- [ ] **4.3** Verificar render localmente (snapshot ou inspeção manual com dados mock)
+- [x] **4.3** Verificar render localmente (snapshot ou inspeção manual com dados mock)
 
 ---
 
@@ -408,7 +408,7 @@ const { describe, it } = require('node:test');
 
 **DEP**: nenhuma
 
-- [ ] **5.1** Criar diretório `tests/` e esqueleto de `motorista-integration.test.js`
+- [x] **5.1** Criar diretório `tests/` e esqueleto de `motorista-integration.test.js`
 
 ---
 

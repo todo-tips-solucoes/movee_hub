@@ -924,6 +924,18 @@ function toNumberBR(input) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+// parseGorjeta — converte valor bruto da planilha em número ou null.
+// "R$ 22,00" → 22.00 | "R$ -" / vazio / undefined / 0 → null
+// Não lança exceção — falha silenciosa retorna null (FR-003 / CL-001 / CL-004).
+function parseGorjeta(raw) {
+  if (raw == null || raw === '') return null;
+  const s = String(raw).trim();
+  if (s === 'R$ -' || s === '-') return null;
+  const n = toNumberBR(s);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return parseFloat(n.toFixed(2));
+}
+
 function formatBRL(valueNumber) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valueNumber);
 }
@@ -1486,6 +1498,10 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
       }
       const cnpj_prestador = cnpjPrestDigits;
 
+      // gorjeta — opcional, não bloqueia upload (FR-003 / CL-004)
+      // "R$ 22,00" → 22.00 | "R$ -" / vazio / undefined → null
+      const gorjeta = parseGorjeta(row.gorjeta);
+
       // Se essa linha deu erro, acumula e NÃO adiciona pra inserir
       if (rowErrors.length) {
         errors.push({
@@ -1500,6 +1516,7 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
         number,
         nome,
         valor,
+        gorjeta,
         mensagem1: row.mensagem1,
         mensagem2: row.mensagem2,
         enviado,
