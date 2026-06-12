@@ -44,15 +44,16 @@ chega ao app. Precisa de: **criar a coluna** + **persistir no upload** + **mapea
 3. **Obrigatoriedade**: gorjeta é **opcional** — planilhas antigas (sem a coluna) e linhas com
    `R$ -` **não podem** quebrar o upload (diferente de `valor`, que é obrigatório).
 
-## 4. ⚠️ Base de código (branch) — NÃO é a `main`
+## 4. Base de código (branch) — `main`
 
-Os arquivos do motorista (`frontend_motorista/`, `backend/routes/motorista.js`) **não estão na
-`main`** — vivem em **`feat/design-system-movee-v2`** (reskin Movee do motorista, DEPLOYADO e não
-mergeado — [[reskin-entrego-motorista]] / [[redesign-movee-v2]]). O `backend/server.js` (upload)
-existe nas duas, mas para manter tudo junto e bater com as imagens no ar, **fazer todas as mudanças
-na branch `feat/design-system-movee-v2`**, criando a branch de feature a partir dela. Confirmar com
-o operador que essa branch corresponde às imagens no ar (`app-motorista-frontend` e
-`envio-massa-backend:cadastro-motorista-base`).
+**Verificado 2026-06-12:** toda a base necessária está na **`main`** —
+`app_homologacao/frontend_motorista/`, `app_homologacao/backend/routes/motorista.js`,
+`app_homologacao/backend/server.js`, além do briefing, da constitution e deste plano. A branch
+`feat/design-system-movee-v2` (reskin Movee do motorista) **já foi mergeada e não existe mais no
+remoto**. Portanto: **basear a feature na `main`**, criando a branch de feature a partir dela.
+(Se ao confrontar com as imagens no ar — `app-motorista-frontend`,
+`envio-massa-backend:cadastro-motorista-base` — houver divergência, alinhar com o operador antes do
+deploy.)
 
 ## 5. Escopo
 
@@ -131,7 +132,7 @@ Ambiente do cliente: host `VPSTodo`; banco `chatmasterveloz`/`pgadmin_db`; servi
 - Guardar o ponteiro de onda após cada etapa ([[feature00c-reconcile-premature-review]]).
 - Deploy sob o rito (§8, com a **ordem crítica DDL→reload→backend→frontend**) e validação no celular.
 
-## 10. Referências de código (branch `feat/design-system-movee-v2`)
+## 10. Referências de código (na `main`)
 
 - `docs/modelo_upload_envio_em_massa_movee (2).xlsx` — planilha modelo (coluna `gorjeta`).
 - `app_homologacao/backend/server.js` — upload: validação por linha (~1154), objeto de insert
