@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Send, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/contexts/auth-context';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Wordmark } from '@/components/brand/wordmark';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -68,12 +69,12 @@ export default function LoginPage() {
         <Card className="glass w-full border-0 shadow-none">
           <CardHeader className="text-center">
             <motion.div
-              className="shine shine-once mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-warm-rich text-white shadow-lg"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
+              className="mb-3 flex justify-center"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
             >
-              <Send className="h-7 w-7" />
+              <Wordmark className="h-12" />
             </motion.div>
             <CardTitle className="font-display text-2xl">Envio em Massa</CardTitle>
             <CardDescription>Entre com suas credenciais</CardDescription>
