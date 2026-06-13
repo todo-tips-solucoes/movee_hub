@@ -124,6 +124,12 @@ export default function MovimentoPage() {
         : movimento.gorjeta
       : null;
 
+  // totalProduzido — valor da nota + gorjeta (gorjeta conta como 0 quando ausente).
+  // Exibido quando o valor da nota é numérico válido.
+  const totalProduzido =
+    (!isNaN(valorNum) ? valorNum : 0) +
+    (gorjetaNum != null && !isNaN(gorjetaNum) ? gorjetaNum : 0);
+
   return (
     <main className="relative flex min-h-dvh flex-col bg-muted/40">
       {/* App bar — glass */}
@@ -212,6 +218,17 @@ export default function MovimentoPage() {
                     <span className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">Gorjeta</span>
                     <span className="tabular font-semibold text-white/90">
                       {formatCurrency(gorjetaNum)}
+                    </span>
+                  </div>
+                )}
+                {/* Total produzido = valor da nota + gorjeta */}
+                {!isNaN(valorNum) && (
+                  <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-white/15 pt-3">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/90">
+                      Total produzido
+                    </span>
+                    <span className="tabular text-lg font-bold text-white">
+                      {formatCurrency(totalProduzido)}
                     </span>
                   </div>
                 )}
