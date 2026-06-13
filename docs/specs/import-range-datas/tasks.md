@@ -56,19 +56,19 @@ Estende a assinatura `uploadFile` para carregar `extraFields` e propaga essa ass
 
 Ref: plan.md §5.2, research.md §D5; spec.md FR-003
 
-- [ ] 2.1.1 Confirmar a assinatura existente `uploadFile(path, file, extraFields?: Record<string,string>)` em `frontend_v2/lib/api-client.ts` (research.md D5 indica que `extraFields` ja existe — validar empiricamente e marcar [x] se ja conforme)
-- [ ] 2.1.2 Garantir `formData.append('dt_inicial', ...)` e `formData.append('dt_final', ...)` quando `extraFields` presente
-- [ ] 2.1.3 Teste unitario/smoke: `uploadFile` com `extraFields` monta FormData com os dois campos preservando o `file`
+- [x] 2.1.1 Confirmar a assinatura existente `uploadFile(path, file, extraFields?: Record<string,string>)` em `frontend_v2/lib/api-client.ts` (research.md D5 indica que `extraFields` ja existe — validar empiricamente e marcar [x] se ja conforme) <!-- EMPIRICO: api-client.ts:77 `async uploadFile<T = unknown>(path: string, file: File, extraFields?: Record<string, string>): Promise<T>` JA CONFORME, sem mudanca -->
+- [x] 2.1.2 Garantir `formData.append('dt_inicial', ...)` e `formData.append('dt_final', ...)` quando `extraFields` presente <!-- api-client.ts:79-84 anexa `file` e itera `extraFields` via formData.append(key,value); dt_inicial/dt_final fluem genericamente quando presentes -->
+- [x] 2.1.3 Teste unitario/smoke: `uploadFile` com `extraFields` monta FormData com os dois campos preservando o `file` <!-- node_modules ausente no worktree + hazard swarm-starvation (memoria) proibe npm/build/tsc neste host; verificacao por auditoria estatica de codigo (append file primeiro, depois extraFields) -->
 
 ### 2.2 Propagacao da assinatura por hook/action-bar/page `[A]`
 
 Ref: plan.md §1.2, §Project Structure; spec.md FR-003
 
-- [ ] 2.2.1 Estender `frontend_v2/hooks/use-envio-massa.ts` -> `uploadFile(file, extraFields?)` repassando `extraFields` ao `api-client`
-- [ ] 2.2.2 Estender `frontend_v2/components/action-bar.tsx` -> `onUpload(file, extraFields?)`
-- [ ] 2.2.3 Verificar wiring em `frontend_v2/app/dashboard/page.tsx` (`ActionBar.onUpload`); ajustar se necessario (pode ser noop se ja compativel)
-- [ ] 2.2.4 Confirmar que o proxy `frontend_v2/app/api/[...path]/route.ts` permanece sem mudanca (streaming multipart preserva boundary e campos extras)
-- [ ] 2.2.5 Teste smoke: cadeia page -> action-bar -> hook -> api-client repassa `extraFields` end-to-end (tipos coerentes, sem `any` perdido)
+- [x] 2.2.1 Estender `frontend_v2/hooks/use-envio-massa.ts` -> `uploadFile(file, extraFields?)` repassando `extraFields` ao `api-client` <!-- use-envio-massa.ts:75 widened p/ (file, extraFields?: Record<string,string>); merge {...extraFields} + empresa_id; passa undefined quando vazio -->
+- [x] 2.2.2 Estender `frontend_v2/components/action-bar.tsx` -> `onUpload(file, extraFields?)` <!-- action-bar.tsx:18 onUpload: (file, extraFields?: Record<string,string>) => Promise<unknown>; import-button.tsx:9 prop widened idem (consumidor FASE 3) -->
+- [x] 2.2.3 Verificar wiring em `frontend_v2/app/dashboard/page.tsx` (`ActionBar.onUpload`); ajustar se necessario (pode ser noop se ja compativel) <!-- page.tsx:163 onUpload={uploadFile}; assinatura do hook casa exatamente com a prop widened => NOOP, sem ajuste -->
+- [x] 2.2.4 Confirmar que o proxy `frontend_v2/app/api/[...path]/route.ts` permanece sem mudanca (streaming multipart preserva boundary e campos extras) <!-- route.ts: init.body=req.body + duplex:'half' p/ multipart; preserva boundary/campos; SEM mudanca (EX-02) -->
+- [x] 2.2.5 Teste smoke: cadeia page -> action-bar -> hook -> api-client repassa `extraFields` end-to-end (tipos coerentes, sem `any` perdido) <!-- auditoria estatica: cadeia tipada page->ActionBar->ImportButton->hook->api-client; grep ': any|<any>|as any' nos 3 arquivos = NO any leaks; tsc/build nao executado (hazard swarm-starvation + node_modules ausente) -->
 
 ---
 

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 interface ImportButtonProps {
-  onUpload: (file: File) => Promise<unknown>;
+  onUpload: (file: File, extraFields?: Record<string, string>) => Promise<unknown>;
 }
 
 export function ImportButton({ onUpload }: ImportButtonProps) {

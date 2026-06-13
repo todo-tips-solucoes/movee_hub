@@ -15,7 +15,7 @@ interface ActionBarProps {
   isProcessLoading: boolean;
   onStart: () => void;
   onStop: () => void;
-  onUpload: (file: File) => Promise<unknown>;
+  onUpload: (file: File, extraFields?: Record<string, string>) => Promise<unknown>;
   onExportCSV: () => void;
   onDownloadXML: () => Promise<void>;
   onCloseMovement: () => Promise<void>;
