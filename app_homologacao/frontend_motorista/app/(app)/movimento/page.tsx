@@ -221,13 +221,13 @@ export default function MovimentoPage() {
                     </span>
                   </div>
                 )}
-                {/* Total produzido = valor da nota + gorjeta */}
+                {/* Total produzido = valor da nota + gorjeta (informação secundária) */}
                 {!isNaN(valorNum) && (
-                  <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-white/15 pt-3">
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/90">
+                  <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-white/10 pt-3">
+                    <span className="text-xs font-medium uppercase tracking-[0.18em] text-white/75">
                       Total produzido
                     </span>
-                    <span className="tabular text-lg font-bold text-white">
+                    <span className="tabular font-semibold text-white/90">
                       {formatCurrency(totalProduzido)}
                     </span>
                   </div>
