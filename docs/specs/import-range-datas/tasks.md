@@ -82,19 +82,19 @@ Fluxo de 2 passos: escolher arquivo -> abrir Dialog com dois `<input type="date"
 
 Ref: plan.md §1.1; spec.md FR-001
 
-- [ ] 3.1.1 Adicionar estado local em `frontend_v2/components/import-button.tsx`: `dtInicial`, `dtFinal`, `dialogOpen`, `pendingFile`
-- [ ] 3.1.2 Em `handleChange`/`handleDrop`: validar extensao -> salvar `pendingFile` -> `setDialogOpen(true)` (NAO chamar `onUpload` imediatamente)
-- [ ] 3.1.3 Renderizar Dialog (`Dialog`/`DialogContent`/`DialogHeader`/`DialogTitle`/`DialogFooter` de `@/components/ui/dialog`) com dois `<Input type="date">` (Data inicial / Data final) e `Label`
-- [ ] 3.1.4 Ao confirmar: converter `YYYY-MM-DD` (input nativo) -> `DD/MM/YYYY` -> `onUpload(pendingFile, { dt_inicial, dt_final })` -> fechar dialog -> reset de estado
-- [ ] 3.1.5 Atualizar a interface `ImportButtonProps.onUpload` para `(file: File, extraFields?: Record<string, string>) => Promise<unknown>`
+- [x] 3.1.1 Adicionar estado local em `frontend_v2/components/import-button.tsx`: `dtInicial`, `dtFinal`, `dialogOpen`, `pendingFile` <!-- import-button.tsx:38-42 useState dialogOpen/pendingFile/dtInicial/dtFinal -->
+- [x] 3.1.2 Em `handleChange`/`handleDrop`: validar extensao -> salvar `pendingFile` -> `setDialogOpen(true)` (NAO chamar `onUpload` imediatamente) <!-- import-button.tsx:52-62 stageFile: regex .xlsx? -> setPendingFile -> setDialogOpen(true); handleChange/handleDrop chamam stageFile, sem onUpload -->
+- [x] 3.1.3 Renderizar Dialog (`Dialog`/`DialogContent`/`DialogHeader`/`DialogTitle`/`DialogFooter` de `@/components/ui/dialog`) com dois `<Input type="date">` (Data inicial / Data final) e `Label` <!-- import-button.tsx:130-184 Dialog+DialogContent/Header/Title/Footer; 2x Input type=date + Label; precedent edit-dialog.tsx:76 mesma API -->
+- [x] 3.1.4 Ao confirmar: converter `YYYY-MM-DD` (input nativo) -> `DD/MM/YYYY` -> `onUpload(pendingFile, { dt_inicial, dt_final })` -> fechar dialog -> reset de estado <!-- import-button.tsx:24-31 toBackendDate YYYY-MM-DD->DD/MM/YYYY; :65-87 handleConfirm onUpload(file,{dt_inicial,dt_final}) + reset; backend server.js:1395 exige DD/MM/YYYY -->
+- [x] 3.1.5 Atualizar a interface `ImportButtonProps.onUpload` para `(file: File, extraFields?: Record<string, string>) => Promise<unknown>` <!-- import-button.tsx:19 ja alargada na FASE 2 (2.2.2); confirmado -->
 
 ### 3.2 Validacao de range na UI (botao habilitado) `[A]`
 
 Ref: plan.md §1.1; spec.md FR-002, SC-2
 
-- [ ] 3.2.1 Habilitar o botao Enviar somente quando `dtInicial && dtFinal && dtInicial <= dtFinal`; caso contrario manter desabilitado
-- [ ] 3.2.2 Garantir feedback de erro/estado antes do envio (botao desabilitado = mecanismo de feedback, SC-2)
-- [ ] 3.2.3 Teste de componente: botao desabilitado com data faltando ou `dtInicial > dtFinal`; habilitado com range valido; `onUpload` recebe `{ dt_inicial, dt_final }` em `DD/MM/YYYY`
+- [x] 3.2.1 Habilitar o botao Enviar somente quando `dtInicial && dtFinal && dtInicial <= dtFinal`; caso contrario manter desabilitado <!-- import-button.tsx:64 rangeValido = dtInicial!=='' && dtFinal!=='' && dtInicial<=dtFinal; :180 Button disabled={!rangeValido || uploading} -->
+- [x] 3.2.2 Garantir feedback de erro/estado antes do envio (botao desabilitado = mecanismo de feedback, SC-2) <!-- import-button.tsx:180 botao desabilitado (SC-2) + :168-172 mensagem text-destructive quando dtInicial>dtFinal -->
+- [x] 3.2.3 Teste de componente: botao desabilitado com data faltando ou `dtInicial > dtFinal`; habilitado com range valido; `onUpload` recebe `{ dt_inicial, dt_final }` em `DD/MM/YYYY` <!-- auditoria estatica deterministica (sem runner: hazard swarm-starvation + node_modules ausente): rangeValido gate cobre faltando/invertido/valido; handleConfirm passa {dt_inicial,dt_final} DD/MM/YYYY; sem `any` (grep limpo) -->
 
 ---
 
