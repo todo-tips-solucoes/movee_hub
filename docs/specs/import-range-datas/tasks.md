@@ -25,24 +25,24 @@ A base da fatia vertical: o backend passa a ler o range de `req.body`, valida um
 
 Ref: plan.md §Phase 1.3; spec.md FR-004, FR-007
 
-- [ ] 1.1.1 Ler `req.body.dt_inicial` e `req.body.dt_final` (campos de texto do FormData via `upload.single('file')`) apos a validacao de `req.file` e antes do loop de linhas em `backend/server.js` (`app.post('/upload', ...)`)
-- [ ] 1.1.2 Validar presenca: `dt_inicial` ausente/vazio -> `400` com mensagem unica em PT; idem `dt_final`
-- [ ] 1.1.3 Converter ambas via `toTimestamptzMidnightSP` (helper existente ~linha 1350); valor invalido -> `400` com mensagem `formato esperado: DD/MM/YYYY`
-- [ ] 1.1.4 Validar consistencia `dtIniTS <= dtFimTS`; senao `400` com mensagem `dt_inicial deve ser menor ou igual a dt_final`
-- [ ] 1.1.5 Preservar semantica de `dt_final` (meia-noite horario SP) identica ao comportamento atual (FR-007)
-- [ ] 1.1.6 Teste de integracao: request sem `dt_inicial` -> `400`; sem `dt_final` -> `400`; data invalida -> `400`; `dt_inicial > dt_final` -> `400`; mensagem unica (nao por linha)
+- [x] 1.1.1 Ler `req.body.dt_inicial` e `req.body.dt_final` (campos de texto do FormData via `upload.single('file')`) apos a validacao de `req.file` e antes do loop de linhas em `backend/server.js` (`app.post('/upload', ...)`) <!-- server.js:1381-1382 -->
+- [x] 1.1.2 Validar presenca: `dt_inicial` ausente/vazio -> `400` com mensagem unica em PT; idem `dt_final` <!-- server.js:1384-1389 -->
+- [x] 1.1.3 Converter ambas via `toTimestamptzMidnightSP` (helper existente ~linha 1350); valor invalido -> `400` com mensagem `formato esperado: DD/MM/YYYY` <!-- server.js:1391-1399; probe PASS -->
+- [x] 1.1.4 Validar consistencia `dtIniTS <= dtFimTS`; senao `400` com mensagem `dt_inicial deve ser menor ou igual a dt_final` <!-- server.js:1400-1402; probe ini>fim PASS -->
+- [x] 1.1.5 Preservar semantica de `dt_final` (meia-noite horario SP) identica ao comportamento atual (FR-007) <!-- reusa toTimestamptzMidnightSP; probe -03:00 PASS -->
+- [ ] 1.1.6 Teste de integracao: request sem `dt_inicial` -> `400`; sem `dt_final` -> `400`; data invalida -> `400`; `dt_inicial > dt_final` -> `400`; mensagem unica (nao por linha) <!-- diferido p/ FASE 4 E2E (sem backend vivo no worktree); logica validada via probe direto dos helpers -->
 
 ### 1.2 Aplicacao do range a todas as linhas e remocao da validacao per-row `[C]`
 
 Ref: plan.md §Phase 1.3; spec.md FR-005, FR-006, FR-008; checklists/requirements.md CHK017
 
-- [ ] 1.2.1 No loop `rows.forEach` (~1472-1516), remover o bloco condicional `if (!_isGrupoMovee) { ... }` que lia/validava `row.dt_inicial`/`row.dt_final` per-row
-- [ ] 1.2.2 Remover o fallback de data padrao por grupo (`01/01/1982`); usar `dtIniTS`/`dtFimTS` do escopo do handler para TODAS as linhas (FR-008)
-- [ ] 1.2.3 Garantir que `dataToInsert.push({...})` use `dt_inicial: dtIniTS` e `dt_final: dtFimTS` (valores do range)
-- [ ] 1.2.4 Ignorar colunas `dt_inicial`/`dt_final` da planilha; presenca ou ausencia delas nao causa falha (FR-006)
-- [ ] 1.2.5 Verificar se `_isGrupoMovee` (e `await mesmoGrupoQue(empresaId, 6, _grupoCache)`) tem outros usos no handler alem do bloco de datas; se nao, remover tambem (Ref: checklists/requirements.md CHK039)
-- [ ] 1.2.6 Confirmar sem regressao em `valor`, `gorjeta`, CNPJ do motorista e mensagens de envio (FR-009) — nenhuma alteracao na logica desses campos
-- [ ] 1.2.7 Teste de integracao: importar planilha com linhas sem colunas de data -> zero rejeicoes 400 (SC-1); range aplicado uniformemente a grupo Movee e nao-Movee (SC-4/FR-008); roundtrip de gorjeta/valor/CNPJ sem regressao (SC-5)
+- [x] 1.2.1 No loop `rows.forEach` (~1472-1516), remover o bloco condicional `if (!_isGrupoMovee) { ... }` que lia/validava `row.dt_inicial`/`row.dt_final` per-row <!-- removido; grep dt_inicial_raw -> NONE -->
+- [x] 1.2.2 Remover o fallback de data padrao por grupo (`01/01/1982`); usar `dtIniTS`/`dtFimTS` do escopo do handler para TODAS as linhas (FR-008) <!-- grep 01/01/1982 -> NONE -->
+- [x] 1.2.3 Garantir que `dataToInsert.push({...})` use `dt_inicial: dtIniTS` e `dt_final: dtFimTS` (valores do range) <!-- server.js:1519-1520 referenciam consts do handler -->
+- [x] 1.2.4 Ignorar colunas `dt_inicial`/`dt_final` da planilha; presenca ou ausencia delas nao causa falha (FR-006) <!-- nenhuma leitura de row.dt_* restante -->
+- [x] 1.2.5 Verificar se `_isGrupoMovee` (e `await mesmoGrupoQue(empresaId, 6, _grupoCache)`) tem outros usos no handler alem do bloco de datas; se nao, remover tambem (Ref: checklists/requirements.md CHK039) <!-- unico uso era o bloco de datas; _isGrupoMovee e _grupoCache (do /upload) removidos; grep _isGrupoMovee -> NONE -->
+- [x] 1.2.6 Confirmar sem regressao em `valor`, `gorjeta`, CNPJ do motorista e mensagens de envio (FR-009) — nenhuma alteracao na logica desses campos <!-- edits tocaram apenas datas; node --check OK; unit 23/23 pass -->
+- [ ] 1.2.7 Teste de integracao: importar planilha com linhas sem colunas de data -> zero rejeicoes 400 (SC-1); range aplicado uniformemente a grupo Movee e nao-Movee (SC-4/FR-008); roundtrip de gorjeta/valor/CNPJ sem regressao (SC-5) <!-- diferido p/ FASE 4 E2E (sem backend vivo no worktree) -->
 
 ---
 
