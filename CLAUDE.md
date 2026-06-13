@@ -59,6 +59,28 @@ Detalhe completo em [`docs/RITO-PRODUCAO.md`](docs/RITO-PRODUCAO.md).
 - ⚠️ O `ENV BACKEND_URL` do Dockerfile do `frontend_v2` aponta para a API do ambiente; conferir
   antes de buildar para outro destino.
 
+## Regras de domínio — App Motorista / base `Motorista`
+
+O **app motorista** (login + validação de nota fiscal, domínio
+`app.motorista.moveelog.com.br`) é **exclusivo do grupo Movee**. "Grupo Movee" = empresa
+`id=6` **+ suas filiais**, resolvido por `mesmoGrupoQue(idEmpresa, 6, cache)` (em
+`routes/grupo.js`) — **nunca** `id_empresa === 6` estrito (hoje a Movee não tem filiais, mas
+terá; o critério de grupo deixa o sistema correto quando elas existirem). Decorrências:
+
+- **Base `Motorista`** (pré-cadastro: `cnpj_prestador`, `nome`, `ativo`; sem coluna de empresa):
+  o `/upload` (`upsertMotoristasFromLote` em `server.js`) só cura/popula essa base quando o
+  upload é do **grupo Movee**. Uploads de outras empresas **não** devem inserir motoristas —
+  senão a base de login/validação fica poluída com motoristas de outros tenants.
+- **Roteamento da FastAPI de validação** (validação em massa no `server.js` e `validar-nota` em
+  `routes/motorista.js`): grupo Movee → endpoint **não-nexus** (`fastapihomologacao`, sempre
+  `id_empresa=6`); demais empresas → endpoint **nexus** (`fastapihomologacaonexus`,
+  `nexus=true`). Os dois pontos devem usar `mesmoGrupoQue(_, 6)` — manter consistência entre
+  eles. Um movimento na empresa errada roteia para a FastAPI errada e a validação falha com
+  "Nenhum motorista ativo encontrado para o CNPJ do prestador".
+- Erros do serviço de validação: distinguir **negócio** (4xx com `detail` → propagar a mensagem
+  real) de **infra** (timeout/5xx/sem resposta → 502 "indisponível"). Não mascarar regra de
+  negócio como indisponibilidade.
+
 ## Governança
 
 - Commit/push/merge/deploy **somente com autorização explícita** do operador.
