@@ -530,3 +530,187 @@ describe('3.2 / 3.3 POST /motorista/validar-nota', () => {
     axiosMock.post = async () => _axiosMockResponse;
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// GORJETA — Task 2.2: Parse de gorjeta no upload (lógica unitária)
+// Ref: spec gorjeta-motorista FR-001..FR-003 / CL-001/CL-004 / plan §6.1
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Helpers inline (espelham server.js) para teste sem carregar o módulo completo
+function toNumberBR_test(input) {
+  if (typeof input === 'number' && Number.isFinite(input)) return input;
+  const raw = String(input ?? '').trim();
+  if (!raw) return NaN;
+  const cleaned = raw.replace(/[^\d.,-]/g, '').replace(/\s+/g, '');
+  const hasComma = cleaned.includes(',');
+  const hasDot = cleaned.includes('.');
+  let normalized = cleaned;
+  if (hasComma && hasDot) {
+    normalized = cleaned.replace(/\./g, '').replace(',', '.');
+  } else if (hasComma) {
+    normalized = cleaned.replace(',', '.');
+  }
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function parseGorjeta_test(raw) {
+  if (raw == null || raw === '') return null;
+  const s = String(raw).trim();
+  if (s === 'R$ -' || s === '-') return null;
+  const n = toNumberBR_test(s);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return parseFloat(n.toFixed(2));
+}
+
+describe('gorjeta Task 2.2 — parse de gorjeta no upload', () => {
+  test('"R$ 22,00" → 22.00 (FR-001)', () => {
+    assert.equal(parseGorjeta_test('R$ 22,00'), 22.00);
+  });
+
+  test('gorjeta undefined (coluna ausente na planilha) → null (FR-002 / FR-003)', () => {
+    assert.equal(parseGorjeta_test(undefined), null);
+  });
+
+  test('gorjeta vazia ("") → null', () => {
+    assert.equal(parseGorjeta_test(''), null);
+  });
+
+  test('"R$ -" → null sem rowError (CL-004)', () => {
+    assert.equal(parseGorjeta_test('R$ -'), null);
+  });
+
+  test('"0" → null (zero é ausência — CL-001)', () => {
+    assert.equal(parseGorjeta_test('0'), null);
+  });
+
+  // Regressão: upload sem gorjeta não altera outros campos
+  test('dataToInsert sem gorjeta: outros campos intactos', () => {
+    const row = { nome: 'João', valor: 'R$ 100,00', gorjeta: undefined };
+    const gorjeta = parseGorjeta_test(row.gorjeta);
+    const item = { nome: row.nome, valor: '100.00', gorjeta };
+    assert.equal(item.nome, 'João');
+    assert.equal(item.valor, '100.00');
+    assert.equal(item.gorjeta, null);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// GORJETA — Task 3.2: Leitura de gorjeta no mapper /movimento-aberto
+// Ref: spec gorjeta-motorista FR-004 / CL-002 / plan §6.2
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('gorjeta Task 3.2 — leitura no mapper /movimento-aberto', () => {
+  const base = {
+    id: 1, valor: '100.00', dt_inicial: '2026-01-01', dt_final: '2026-01-31',
+    nome: 'Transportes XYZ', cnpj_tomador: '12.345.678/0001-00',
+    cnpj_prestador: '98765432000199', tribnac: null,
+    nota_ok: null, erro_validacao: null,
+  };
+
+  function mapMov(m) {
+    return {
+      id: m.id,
+      valor: m.valor,
+      gorjeta: m.gorjeta ?? null,
+      dtInicial: m.dt_inicial,
+      dtFinal: m.dt_final,
+      nome: m.nome,
+      cnpjTomador: m.cnpj_tomador,
+      cnpjPrestador: m.cnpj_prestador,
+      tribnac: m.tribnac,
+      notaOk: m.nota_ok,
+      erroValidacao: m.erro_validacao,
+      tomador: null,
+    };
+  }
+
+  test('gorjeta "22.0" no banco → gorjeta: "22.0" na resposta (FR-004)', () => {
+    const mov = mapMov({ ...base, gorjeta: '22.0' });
+    assert.equal(mov.gorjeta, '22.0');
+  });
+
+  test('gorjeta null no banco → gorjeta: null na resposta (FR-004)', () => {
+    const mov = mapMov({ ...base, gorjeta: null });
+    assert.equal(mov.gorjeta, null);
+  });
+
+  test('campo gorjeta ausente no registro (base antiga) → null (retrocompatibilidade — CL-002)', () => {
+    const mov = mapMov({ ...base }); // sem gorjeta
+    assert.equal(mov.gorjeta, null);
+  });
+
+  test('gorjeta não altera campo valor', () => {
+    const mov = mapMov({ ...base, gorjeta: '50.00' });
+    assert.equal(mov.valor, '100.00');
+    assert.equal(mov.gorjeta, '50.00');
+  });
+
+  test('outros campos preservados — regressão zero', () => {
+    const mov = mapMov({ ...base, gorjeta: null });
+    assert.equal(mov.id, 1);
+    assert.equal(mov.nome, 'Transportes XYZ');
+    assert.equal(mov.cnpjPrestador, '98765432000199');
+    assert.equal(mov.notaOk, null);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// GORJETA — Task 3.1 via HTTP: gorjeta retornada no endpoint /movimento-aberto
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('gorjeta Task 3.1 via HTTP — gorjeta no endpoint /movimento-aberto', () => {
+  before(() => {
+    resetDB();
+    // Movimento com gorjeta
+    DB.EnvioMassa.push({
+      id: 200,
+      cnpj_prestador: '77777777000100',
+      mov_fechado: false,
+      valor: '300.00',
+      gorjeta: '22.00',
+      dt_inicial: '2026-01-01',
+      dt_final: '2026-01-31',
+      nome: 'Empresa Gorjeta',
+      cnpj_tomador: '88888888000100',
+      tribnac: null,
+      nota_ok: null,
+      erro_validacao: null,
+    });
+    // Movimento sem gorjeta (base antiga)
+    DB.EnvioMassa.push({
+      id: 201,
+      cnpj_prestador: '66666666000100',
+      mov_fechado: false,
+      valor: '500.00',
+      // gorjeta ausente (undefined)
+      dt_inicial: '2026-01-01',
+      dt_final: '2026-01-31',
+      nome: 'Empresa Sem Gorjeta',
+      cnpj_tomador: '88888888000100',
+      tribnac: null,
+      nota_ok: null,
+      erro_validacao: null,
+    });
+  });
+
+  test('movimento com gorjeta → resposta inclui gorjeta: "22.00"', async () => {
+    const tok = makeToken({ cnpjPrestador: '77777777000100' });
+    const r = await request('GET', '/motorista/movimento-aberto', {
+      cookies: `accessToken=${tok}`,
+    });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.movimento, 'movimento deve existir');
+    assert.equal(r.body.movimento.gorjeta, '22.00');
+  });
+
+  test('movimento sem gorjeta (base antiga) → resposta inclui gorjeta: null (CL-002)', async () => {
+    const tok = makeToken({ cnpjPrestador: '66666666000100' });
+    const r = await request('GET', '/motorista/movimento-aberto', {
+      cookies: `accessToken=${tok}`,
+    });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.movimento, 'movimento deve existir');
+    assert.equal(r.body.movimento.gorjeta, null);
+  });
+});

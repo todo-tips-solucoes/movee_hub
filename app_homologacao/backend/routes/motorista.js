@@ -427,6 +427,7 @@ router.get('/movimento-aberto', authenticateMotorista, async (req, res) => {
     const movimento = {
       id: m.id,
       valor: m.valor,
+      gorjeta: m.gorjeta ?? null,    // FR-004: null quando ausente/zero (CL-002)
       dtInicial: m.dt_inicial,
       dtFinal: m.dt_final,
       nome: m.nome,
