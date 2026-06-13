@@ -586,7 +586,19 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
         '| status:', apiErr.response?.status,
         '| body:', respBody
       );
-      // Falha temporária: não altera nota_ok/erro_validacao (FR-012)
+      // Distinção infra vs. negócio (não altera nota_ok/erro_validacao — FR-012):
+      // - Erro de NEGÓCIO: o serviço de validação RESPONDEU com uma regra (4xx +
+      //   `detail`), ex.: "Nenhum motorista ativo encontrado para o CNPJ do
+      //   prestador informado." -> propagar a mensagem real ao app (422), em vez
+      //   de mascará-la como "serviço indisponível".
+      // - Falha de INFRA: timeout, conexão recusada, sem `response`, ou 5xx -> o
+      //   serviço está de fato indisponível -> 502 genérico.
+      const extStatus = apiErr.response?.status;
+      const extDetail = apiErr.response?.data?.detail;
+      const detailMsg = typeof extDetail === 'string' ? extDetail.trim() : '';
+      if (extStatus >= 400 && extStatus < 500 && detailMsg) {
+        return res.status(422).json({ error: detailMsg });
+      }
       return res.status(502).json({
         error: 'Serviço de validação indisponível. Tente novamente em instantes.',
       });
