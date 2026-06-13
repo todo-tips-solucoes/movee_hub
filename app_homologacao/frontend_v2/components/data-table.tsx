@@ -120,11 +120,12 @@ export function DataTable({
         )}
       </div>
 
-      {/* Desktop table layout */}
-      <div className="hidden md:block rounded-lg border h-full overflow-auto">
+      {/* Desktop table layout — R007: overflow-x explícito (scroll interno, sem estourar a página) */}
+      <div className="hidden md:block rounded-lg border h-full overflow-x-auto overflow-y-auto">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0] shadow-border">
-            <TableRow className="hover:bg-card">
+            {/* R007: headers sem quebra de linha em larguras médias (densidade desktop) */}
+            <TableRow className="whitespace-nowrap hover:bg-card">
               <TableHead className="w-10">
                 <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />
               </TableHead>

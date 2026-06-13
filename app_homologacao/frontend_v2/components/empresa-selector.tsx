@@ -208,7 +208,9 @@ function EmpresaSelector({
           // Responsivo ≤375 px: ocupa quase toda a largura — CHK015
           className={cn(
             'w-[var(--radix-popover-trigger-width,220px)]',
+            // R008: teto mobile (sem estourar) + teto explícito no desktop
             'max-w-[calc(100vw-2rem)]',
+            'md:max-w-lg',
             'max-h-[60vh]',
             'overflow-y-auto',
             'p-0',

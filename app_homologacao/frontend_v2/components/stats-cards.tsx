@@ -21,7 +21,8 @@ const cards = [
 
 export function StatsCards({ stats }: StatsCardsProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    {/* R006: md:grid-cols-4 suaviza o salto 3→5 (menos espaço morto 768–1024px). R012: gap fluido */}
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5">
       {cards.map((card, i) => {
         const Icon = card.icon;
         const percentage = card.key !== 'total' && stats.total > 0
