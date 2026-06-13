@@ -208,6 +208,9 @@
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     min-height: 100dvh;
+    /* R010: body ≥16px explícito (evita auto-zoom do iOS em inputs) + line-height 1.5 */
+    font-size: 1rem;
+    line-height: 1.5;
   }
 }
 
