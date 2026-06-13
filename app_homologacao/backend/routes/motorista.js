@@ -20,6 +20,10 @@ const xml2js = require('xml2js');
 // global (só Node 18+). Usa o pacote `form-data` (compatível e suportado pelo
 // axios via getHeaders() para o boundary do multipart/form-data).
 const FormData = require('form-data');
+// base-motorista-grupo-movee: roteamento da FastAPI por GRUPO Movee (empresa 6 + filiais),
+// não por id_empresa===6 estrito — alinha com a validação em massa (server.js). grupo.js é
+// inicializado no boot (server.js), então o _postgrestRequest interno já está disponível.
+const { mesmoGrupoQue } = require('./grupo');
 
 const router = express.Router();
 
@@ -543,7 +547,11 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
     const xmlInput = JSON.stringify({ filename: req.file.originalname, data: xmlContent });
 
     let url, payload;
-    if (Number(movimento.id_empresa) === 6) {
+    // base-motorista-grupo-movee: todo o grupo Movee (empresa 6 + filiais) usa a MESMA
+    // FastAPI (não-nexus, id_empresa=6). Antes era `=== 6` estrito, que mandaria uma
+    // filial Movee para a FastAPI nexus errada.
+    const _grupoCache = {};
+    if (await mesmoGrupoQue(Number(movimento.id_empresa), 6, _grupoCache)) {
       url = 'https://fastapihomologacao.todo-tips.com/validade_nfse';
       payload = new URLSearchParams({
         xml_input: xmlInput,
