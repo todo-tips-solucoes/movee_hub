@@ -1590,7 +1590,13 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
 
     // cadastro-motorista-base-validada (frente A): popular/curar a base "Motorista"
     // a partir deste lote (best-effort — não derruba o upload se falhar).
-    await upsertMotoristasFromLote(dataToInsert);
+    // base-motorista-grupo-movee: a base "Motorista" (login + validação do app motorista)
+    // é EXCLUSIVA do grupo Movee (empresa 6 + filiais). Só cura a base quando o upload é
+    // de uma empresa do grupo — uploads de outras empresas não devem poluir a base.
+    const _grupoCacheMotorista = {};
+    if (await mesmoGrupoQue(empresaId, 6, _grupoCacheMotorista)) {
+      await upsertMotoristasFromLote(dataToInsert);
+    }
 
     // Tenta inferir quantas linhas foram inseridas
     let insertedRows = null;
