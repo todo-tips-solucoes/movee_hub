@@ -72,9 +72,12 @@ export function useEnvioMassa(empresaId?: number | null) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData, empresaId]);
 
-  const uploadFile = useCallback(async (file: File) => {
-    const extra = empresaId != null ? { empresa_id: String(empresaId) } : undefined;
-    const result = await api.uploadFile('/upload', file, extra);
+  const uploadFile = useCallback(async (file: File, extraFields?: Record<string, string>) => {
+    const extra: Record<string, string> = { ...extraFields };
+    if (empresaId != null) {
+      extra.empresa_id = String(empresaId);
+    }
+    const result = await api.uploadFile('/upload', file, Object.keys(extra).length > 0 ? extra : undefined);
     await fetchData();
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps

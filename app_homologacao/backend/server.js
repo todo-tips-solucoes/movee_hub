@@ -1368,7 +1368,6 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
       return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
     }
     const empresaId = idEmp; // mantém compatibilidade com ramos que usam empresaId abaixo
-    const _grupoCache = {}; // grupo-unificado-filiais: cache de grupo por request (OWASP MEDIUM-002)
     console.error('[UPLOAD] idEmp:', idEmp);
 
     // ---- Verifica se veio arquivo ----
@@ -1376,6 +1375,32 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
       console.error('[UPLOAD] Nenhum arquivo recebido');
       return res.status(400).json({ success: false, message: 'Arquivo não enviado!' });
     }
+
+    // ---- Validação do range de datas (import-range-datas: lida UMA vez, aplicada a TODAS as linhas) ----
+    // Fonte única das datas: range informado pelo operador na UI (não mais as colunas da planilha).
+    const dtInicialRaw = String(req.body.dt_inicial ?? '').trim();
+    const dtFinalRaw   = String(req.body.dt_final   ?? '').trim();
+
+    if (!dtInicialRaw) {
+      return res.status(400).json({ success: false, message: 'dt_inicial é obrigatório para o import.' });
+    }
+    if (!dtFinalRaw) {
+      return res.status(400).json({ success: false, message: 'dt_final é obrigatório para o import.' });
+    }
+
+    const dtIniTS = toTimestamptzMidnightSP(dtInicialRaw);
+    const dtFimTS = toTimestamptzMidnightSP(dtFinalRaw);
+
+    if (!dtIniTS) {
+      return res.status(400).json({ success: false, message: 'dt_inicial inválido (formato esperado: DD/MM/YYYY).' });
+    }
+    if (!dtFimTS) {
+      return res.status(400).json({ success: false, message: 'dt_final inválido (formato esperado: DD/MM/YYYY).' });
+    }
+    if (dtIniTS > dtFimTS) {
+      return res.status(400).json({ success: false, message: 'dt_inicial deve ser menor ou igual a dt_final.' });
+    }
+    // dtIniTS e dtFimTS são os valores a aplicar em TODAS as linhas do lote (semântica meia-noite SP preservada).
 
     // ---- Lê planilha ----
     const filePath = path.join(__dirname, req.file.path);
@@ -1418,10 +1443,6 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
     const errors = [];
     const dataToInsert = [];
 
-    // grupo-unificado-filiais: resolver grupo UMA vez antes do loop síncrono (forEach não aceita await)
-    // idReferencia=6 = Movee; empresaId é constante para o request inteiro
-    const _isGrupoMovee = await mesmoGrupoQue(empresaId, 6, _grupoCache);
-
     rows.forEach((row, idx) => {
       const rowErrors = [];
 
@@ -1457,28 +1478,9 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
       // enviado — default "off"
       const enviado = String(row.enviado ?? '').trim() || 'off';
 
-      let dt_inicial_raw = '01/01/1982';
-      let dt_final_raw = '01/01/1982';
-      let dtIniTS = toTimestamptzMidnightSP(dt_inicial_raw);
-      let dtFimTS = toTimestamptzMidnightSP(dt_final_raw);
+      // import-range-datas: datas vêm do range único do handler (dtIniTS/dtFimTS),
+      // aplicado a TODAS as linhas. As colunas dt_inicial/dt_final da planilha são ignoradas.
 
-
-      if (!_isGrupoMovee) { // grupo-unificado-filiais: idReferencia=6 = Movee (pré-computado antes do forEach)
-        // datas (timestamptz)
-        dt_inicial_raw = (row.dt_inicial ?? '').toString().trim();
-        dt_final_raw = (row.dt_final   ?? '').toString().trim();
-
-        if (!dt_inicial_raw) rowErrors.push('dt_inicial é obrigatório.');
-        if (!dt_final_raw)   rowErrors.push('dt_final é obrigatório.');
-
-        dtIniTS = toTimestamptzMidnightSP(dt_inicial_raw);
-        dtFimTS = toTimestamptzMidnightSP(dt_final_raw);
-
-        if (!dtIniTS) rowErrors.push('dt_inicial inválido (não foi possível converter para timestamptz).');
-        if (!dtFimTS) rowErrors.push('dt_final inválido (não foi possível converter para timestamptz).');
-
-      }
-      
       // cnpj_prestador — obrigatório sem máscara, 14 dígitos
       const cnpjPrestDigits = onlyDigits(row.cnpj_prestador);
       if (!isCNPJ14(cnpjPrestDigits)) {
