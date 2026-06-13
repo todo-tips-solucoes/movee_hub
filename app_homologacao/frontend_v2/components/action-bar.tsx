@@ -58,8 +58,8 @@ export function ActionBar({
     }
   };
 
+  // R002: gaps fluidos; grupos com wrap p/ nunca causar scroll horizontal <400px
   return (
-    {/* R002: gaps fluidos; grupos com wrap p/ nunca causar scroll horizontal <400px */}
     <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 sm:gap-3 md:gap-4">
       <ProcessControls
         isActive={isActive}
