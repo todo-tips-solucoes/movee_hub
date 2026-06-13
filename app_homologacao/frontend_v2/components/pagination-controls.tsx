@@ -52,9 +52,10 @@ export function PaginationControls({
         {totalRecords > 0 ? `Mostrando ${start}-${end} de ${totalRecords}` : 'Nenhum registro'}
       </span>
 
-      <div className="flex items-center gap-2">
+      {/* R011: gaps de toque ≥8px no mobile; permite wrap p/ não estourar <400px */}
+      <div className="flex flex-wrap items-center gap-2">
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+          <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-11 sm:h-7" />}>
             {recordsPerPage === 'all' ? 'Todas' : recordsPerPage} por pagina
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -66,11 +67,12 @@ export function PaginationControls({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex items-center gap-1">
+        {/* R011: alvos 44×44px no mobile (densidade 32px no desktop); wrap centralizado */}
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-1">
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8"
+            className="h-11 w-11 sm:h-8 sm:w-8"
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage <= 1}
           >
@@ -81,7 +83,7 @@ export function PaginationControls({
               key={page}
               variant={page === currentPage ? 'default' : 'outline'}
               size="icon"
-              className="h-8 w-8"
+              className="h-11 w-11 sm:h-8 sm:w-8"
               onClick={() => onPageChange(page)}
             >
               {page}
@@ -90,7 +92,7 @@ export function PaginationControls({
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8"
+            className="h-11 w-11 sm:h-8 sm:w-8"
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage >= totalPages}
           >
