@@ -74,7 +74,8 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      {/* R003: largura mobile explícita (sem scroll horizontal); scroll interno já no body */}
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Editar Registro</DialogTitle>
         </DialogHeader>
@@ -86,6 +87,7 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
                 id={key}
                 value={form[key]}
                 onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="h-11 sm:h-9 md:h-8"
               />
             </div>
           ))}

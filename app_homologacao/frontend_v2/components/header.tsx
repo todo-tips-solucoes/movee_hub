@@ -140,15 +140,15 @@ export function Header() {
             </SheetContent>
           </Sheet>
 
-          {/* dec-030: logo do tenant h-8 max-w-32; fallback = logo oficial EntreGô */}
+          {/* dec-030: logo do tenant; R004: shrink-0 + escala responsiva, visível ≥320px */}
           {logoUrl ? (
-            <img src={logoUrl} alt={brandName} className="h-8 max-w-32 object-contain" />
+            <img src={logoUrl} alt={brandName} className="h-7 max-w-28 shrink-0 object-contain sm:h-8 sm:max-w-32" />
           ) : (
             <img
               src="/brand/logo-entrego-96h.png"
               srcSet="/brand/logo-entrego-48h.png 1x, /brand/logo-entrego-96h.png 2x, /brand/logo-entrego-192h.png 3x"
               alt="EntreGô"
-              className="h-7 w-auto object-contain dark:brightness-0 dark:invert"
+              className="h-6 w-auto shrink-0 object-contain dark:brightness-0 dark:invert sm:h-7"
             />
           )}
 

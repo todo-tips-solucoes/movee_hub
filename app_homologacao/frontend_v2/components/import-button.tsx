@@ -131,7 +131,8 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
           else setDialogOpen(true);
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        {/* R003: largura mobile explícita (sem scroll horizontal) */}
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Periodo da movimentacao</DialogTitle>
             <DialogDescription>
@@ -150,6 +151,7 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
                 value={dtInicial}
                 max={dtFinal || undefined}
                 onChange={(e) => setDtInicial(e.target.value)}
+                className="h-11 sm:h-9"
               />
             </div>
             <div className="grid gap-2">
@@ -160,6 +162,7 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
                 value={dtFinal}
                 min={dtInicial || undefined}
                 onChange={(e) => setDtFinal(e.target.value)}
+                className="h-11 sm:h-9"
               />
             </div>
             {dtInicial !== '' && dtFinal !== '' && dtInicial > dtFinal && (
