@@ -182,6 +182,10 @@
   --font-heading: var(--font-jakarta), system-ui, sans-serif;
   --font-mono: var(--font-jakarta), ui-monospace, "SF Mono", Menlo, monospace;
 
+  /* Breakpoint extra para mobile pequeno (≥400px) — evita espremer grids
+     de filtros/selects entre 320px e 640px (R001). Tailwind v4 via @theme. */
+  --breakpoint-xs: 25rem;
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

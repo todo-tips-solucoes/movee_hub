@@ -59,7 +59,8 @@ export function ActionBar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
+    {/* R002: gaps fluidos; grupos com wrap p/ nunca causar scroll horizontal <400px */}
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 sm:gap-3 md:gap-4">
       <ProcessControls
         isActive={isActive}
         isLoading={isProcessLoading}
@@ -69,7 +70,7 @@ export function ActionBar({
 
       <Separator orientation="vertical" className="hidden h-8 sm:block" />
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <ImportButton onUpload={onUpload} />
         <Button size="sm" variant="outline" className="gap-1.5" onClick={handleExportCSV} disabled={csvLoading}>
           {csvLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
@@ -79,7 +80,7 @@ export function ActionBar({
 
       <Separator orientation="vertical" className="hidden h-8 sm:block" />
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" className="gap-1.5" onClick={handleDownloadXML} disabled={xmlLoading}>
           {xmlLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           Download XML

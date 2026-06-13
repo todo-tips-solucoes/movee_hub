@@ -76,7 +76,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10 sm:px-6">
       {/* Hero EntreGô — superfície base + aurora assinatura (azul→menta) */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-background" />
       <div className="aurora-orb bg-gradient-warm -right-24 -top-24 h-72 w-72 animate-float" aria-hidden />
@@ -91,7 +91,7 @@ export default function RegisterPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-sm"
+        className="w-full max-w-[95vw] sm:max-w-sm"
       >
         <Card className="glass w-full border-0 shadow-none">
           <CardHeader className="text-center">
@@ -115,6 +115,7 @@ export default function RegisterPage() {
                   placeholder="Minha Empresa LTDA"
                   value={nomeEmpresa}
                   onChange={(e) => setNomeEmpresa(e.target.value)}
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div className="grid gap-1.5">
@@ -126,6 +127,7 @@ export default function RegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div className="grid gap-1.5">
@@ -138,7 +140,7 @@ export default function RegisterPage() {
                     value={senha}
                     onChange={(e) => setSenha(e.target.value)}
                     autoComplete="new-password"
-                    className="pr-10"
+                    className="h-11 pr-10 sm:h-10"
                   />
                   <button
                     type="button"
@@ -151,7 +153,7 @@ export default function RegisterPage() {
                 </div>
                 <PasswordStrength password={senha} />
               </div>
-              <Button type="submit" className="w-full" disabled={loading || (!isPasswordValid && senha.length > 0)}>
+              <Button type="submit" className="h-11 w-full sm:h-10" disabled={loading || (!isPasswordValid && senha.length > 0)}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Criar Conta
               </Button>
