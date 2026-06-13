@@ -8,7 +8,7 @@ O projeto é composto por três serviços, orquestrados via Docker Swarm + Traef
 |---|---|---|---|
 | [`backend`](app_homologacao/backend/README.md) | Node.js / Express | API REST: autenticação, CRUD de envios, upload, processamento e validação de XML | `envmassapihomologacao.todo-tips.com` |
 | `frontend` | HTML/CSS/JS + Nginx | Frontend legado (v1), estático | `envmasshomologacao.todo-tips.com` |
-| [`frontend_v2`](app_homologacao/frontend_v2/README.md) | Next.js 16 + React 19 + Tailwind/shadcn | Frontend atual (v2) | `envmassv2.todo-tips.com` |
+| [`frontend_v2`](app_homologacao/frontend_v2/README.md) | Next.js 16 + React 19 + Tailwind/shadcn | Frontend atual (v2) | `app.moveelog.com.br` |
 
 > 📚 **Documentação por módulo:** [Backend (API e endpoints)](app_homologacao/backend/README.md) · [Frontend v2](app_homologacao/frontend_v2/README.md)
 

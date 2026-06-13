@@ -63,4 +63,4 @@ Componentes de domínio — `data-table`, `filters`, `action-bar`, `stats-cards`
 
 ## Deploy
 
-Build standalone, conteinerizado (`Dockerfile`), servido na porta **3000** atrás do Traefik (host `envmassv2.todo-tips.com` em homologação). Ver `../docker-compose.yml`.
+Build standalone, conteinerizado (`Dockerfile`), servido na porta **3000** atrás do Traefik (host `app.moveelog.com.br` em homologação). Ver `../docker-compose.yml`.
