@@ -108,29 +108,31 @@ Fecha a fatia com validacao E2E ponta-a-ponta, ajuste do modelo de planilha (doc
 
 Ref: quickstart.md; spec.md SC-1..SC-5, P1/P2/P3
 
-- [ ] 4.1.1 Executar quickstart Cenario happy path P1 (escolher arquivo -> dialog -> datas -> enviar -> gravacao com range em todas as linhas)
-- [ ] 4.1.2 Executar cenarios de erro P2 (range invalido bloqueado na UI antes do envio; backend retorna 400 unico)
-- [ ] 4.1.3 Executar P3 (comportamento uniforme entre grupos, incluindo Movee — fallback `01/01/1982` eliminado)
-- [ ] 4.1.4 Executar quickstart Cenario 6 (roundtrip E2E): gorjeta (null vs valor), valor, CNPJ com/sem mascara gravados corretamente (SC-5)
-- [ ] 4.1.5 Confirmar multer + streaming: `upload.single('file')` popula `req.body.dt_inicial/dt_final` quando body chega via stream do proxy (plan §9)
+- [ ] 4.1.1 [OPERADOR/DIFERIDA] Executar quickstart Cenario happy path P1 (escolher arquivo -> dialog -> datas -> enviar -> gravacao com range em todas as linhas) <!-- gate de operador: exige ambiente vivo (=producao); roteiro em operacao-e-modelo-planilha.md §3.1 + quickstart.md cenario 1 -->
+- [ ] 4.1.2 [OPERADOR/DIFERIDA] Executar cenarios de erro P2 (range invalido bloqueado na UI antes do envio; backend retorna 400 unico) <!-- gate de operador; quickstart cenarios 2/3/4 -->
+- [ ] 4.1.3 [OPERADOR/DIFERIDA] Executar P3 (comportamento uniforme entre grupos, incluindo Movee — fallback `01/01/1982` eliminado) <!-- gate de operador; quickstart cenario 7 -->
+- [ ] 4.1.4 [OPERADOR/DIFERIDA] Executar quickstart Cenario 6 (roundtrip E2E): gorjeta (null vs valor), valor, CNPJ com/sem mascara gravados corretamente (SC-5) <!-- gate de operador; quickstart cenario 6 -->
+- [ ] 4.1.5 [OPERADOR/DIFERIDA] Confirmar multer + streaming: `upload.single('file')` popula `req.body.dt_inicial/dt_final` quando body chega via stream do proxy (plan §9) <!-- gate de operador: exige backend vivo -->
+
+> Subtarefas 1.1.6 e 1.2.7 (testes de integracao da FASE 1) tambem ficam nesta etapa E2E de operador (sem backend vivo no worktree; helpers validados por probe na FASE 1).
 
 ### 4.2 Ajuste do modelo de planilha (documentacao) `[M]`
 
 Ref: plan.md §8 (ordem 4); spec.md FR-006
 
-- [ ] 4.2.1 Atualizar a documentacao/modelo de planilha indicando que as colunas `dt_inicial`/`dt_final` passam a ser ignoradas (datas vem do range da UI)
-- [ ] 4.2.2 Documentar o novo fluxo do operador (escolher arquivo -> informar range no dialog -> enviar)
-- [ ] 4.2.3 Revisar render da doc (Markdown/links) — sem Mermaid invalido nem links 404
+- [x] 4.2.1 Atualizar a documentacao/modelo de planilha indicando que as colunas `dt_inicial`/`dt_final` passam a ser ignoradas (datas vem do range da UI) <!-- operacao-e-modelo-planilha.md §1: tabela antes/depois + nota de que nao ha xlsx binario versionado (modelo so em md); colunas obrigatorias inalteradas listadas -->
+- [x] 4.2.2 Documentar o novo fluxo do operador (escolher arquivo -> informar range no dialog -> enviar) <!-- operacao-e-modelo-planilha.md §2: fluxo 2 passos + comportamento esperado (SC-1, FR-007, FR-009) + link p/ quickstart cenarios 1-7 -->
+- [x] 4.2.3 Revisar render da doc (Markdown/links) — sem Mermaid invalido nem links 404 <!-- doc sem Mermaid; links internos relativos validados (spec.md/plan.md/tasks.md/quickstart.md/../../RITO-PRODUCAO.md existem); code blocks com linguagem (bash) -->
 
 ### 4.3 Deploy coordenado frontend + backend (sem DDL) `[C]`
 
 Ref: plan.md §9, §Convencoes de Borda; spec.md FR-010; CLAUDE.md rito de producao
 
-- [ ] 4.3.1 Anotar plano de rollback (imagem anterior de backend e frontend_v2 via `docker service ls`) antes de qualquer escrita no ambiente vivo
-- [ ] 4.3.2 Build coordenado backend + frontend_v2 com swap temporario 4G + `docker build --memory=2g` (licao starvation, host VPSTodo); `push` para `registry.todo-tips.com`
-- [ ] 4.3.3 `docker service update --with-registry-auth --image` para ambos os servicos no mesmo ciclo (nunca `docker stack deploy`) — apos os 5 gates do rito de producao (autorizacao explicita do operador)
-- [ ] 4.3.4 Smoke test E2E (HTTP, sem expor segredos): import com range valido grava em todas as linhas; range invalido -> 400; sem DDL aplicado
-- [ ] 4.3.5 Confirmar ausencia de janela de incompatibilidade (FR-010): backend exige range somente apos frontend que o envia estar no ar
+- [ ] 4.3.1 [OPERADOR/DIFERIDA] Anotar plano de rollback (imagem anterior de backend e frontend_v2 via `docker service ls`) antes de qualquer escrita no ambiente vivo <!-- runbook completo em operacao-e-modelo-planilha.md §3.2 -->
+- [ ] 4.3.2 [OPERADOR/DIFERIDA] Build coordenado backend + frontend_v2 com swap temporario 4G + `docker build --memory=2g` (licao starvation, host VPSTodo); `push` para `registry.todo-tips.com` <!-- NUNCA buildar/pkill amplo no VPSTodo sem swap+cap (memoria: incidente swarm starvation); runbook §3.2 passo 2 -->
+- [ ] 4.3.3 [OPERADOR/DIFERIDA] `docker service update --with-registry-auth --image` para ambos os servicos no mesmo ciclo (nunca `docker stack deploy`) — apos os 5 gates do rito de producao (autorizacao explicita do operador) <!-- escrita no ambiente vivo: clausula petrea, so o operador executa; runbook §3.2 passo 3 -->
+- [ ] 4.3.4 [OPERADOR/DIFERIDA] Smoke test E2E (HTTP, sem expor segredos): import com range valido grava em todas as linhas; range invalido -> 400; sem DDL aplicado <!-- runbook §3.2 passo 4 -->
+- [ ] 4.3.5 [OPERADOR/DIFERIDA] Confirmar ausencia de janela de incompatibilidade (FR-010): backend exige range somente apos frontend que o envia estar no ar <!-- runbook §3.2 passo 5 -->
 
 ---
 
