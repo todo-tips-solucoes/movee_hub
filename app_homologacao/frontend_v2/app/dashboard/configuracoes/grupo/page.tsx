@@ -150,6 +150,8 @@ export default function GrupoPage() {
   const [filhos, setFilhos] = useState<EmpresaFilha[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  // U010: formulário "Cadastrar filial" colapsável (progressive disclosure)
+  const [cadOpen, setCadOpen] = useState(false);
 
   /* ---- formulário — campos obrigatórios ---- */
   const [nomeEmpresa, setNomeEmpresa] = useState('');
@@ -169,6 +171,12 @@ export default function GrupoPage() {
   /* ---- estado de submit ---- */
   const [cadastrando, setCadastrando] = useState(false);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  // U010: abre o formulário automaticamente quando surge um erro geral, mas
+  // sem travar — o usuário ainda pode recolher (open controlado só por cadOpen).
+  useEffect(() => {
+    if (formErrors.geral) setCadOpen(true);
+  }, [formErrors.geral]);
 
   /* ---- desvincular (AlertDialog) ---- */
   const [desvincularAlvo, setDesvincularAlvo] = useState<EmpresaFilha | null>(null);
@@ -569,8 +577,16 @@ export default function GrupoPage() {
       </div>
 
       {/* ---- Formulário: Cadastrar filial ---- */}
-      <div className="rounded-lg border bg-card p-5 space-y-5">
-        <h2 className="text-base font-semibold">Cadastrar filial</h2>
+      <details
+        className="group rounded-lg border bg-card"
+        open={cadOpen}
+        onToggle={(e) => setCadOpen((e.currentTarget as HTMLDetailsElement).open)}
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg p-5 [&::-webkit-details-marker]:hidden">
+          <h2 className="text-base font-semibold">Cadastrar filial</h2>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="space-y-5 px-5 pb-5">
 
         {/* Erro geral */}
         {formErrors.geral && (
@@ -877,7 +893,8 @@ export default function GrupoPage() {
             )}
           </button>
         </form>
-      </div>
+        </div>
+      </details>
 
       {/* ---- Lista de filiais ---- */}
       <div className="space-y-3">
