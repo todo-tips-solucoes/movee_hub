@@ -19,6 +19,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useTenantTheme } from '@/contexts/tenant-theme-context';
 import { useAuth } from '@/contexts/auth-context';
+import { Button } from '@/components/ui/button';
 
 const MOVEE_DEFAULTS = {
   cor_primaria: '#2C67EA',
@@ -288,16 +289,13 @@ export default function AparenciaPage() {
 
       {/* Ações */}
       <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex items-center justify-center rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
+        <Button type="button" size="lg" onClick={handleSave} disabled={saving}>
           {saving ? 'Salvando…' : 'Salvar aparência'}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="lg"
           onClick={() => {
             setCorPrimaria(branding?.cor_primaria || MOVEE_DEFAULTS.cor_primaria);
             setCorDestaque(branding?.cor_destaque || MOVEE_DEFAULTS.cor_destaque);
@@ -309,10 +307,9 @@ export default function AparenciaPage() {
             setSuccess(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
           }}
-          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-5 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
         >
           Descartar
-        </button>
+        </Button>
       </div>
     </div>
   );

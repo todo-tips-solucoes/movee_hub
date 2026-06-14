@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 import { Header } from '@/components/header';
+import { PageBreadcrumb } from '@/components/page-breadcrumb';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -28,6 +29,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-dvh md:h-screen flex-col md:overflow-hidden bg-background">
       <Header />
+      {/* U009: trilha de navegação fora do <main> p/ preservar o modelo de
+          altura (a página Envio usa md:h-full = altura do main) */}
+      <div className="shrink-0 mx-auto w-full max-w-7xl px-3 pt-3 sm:px-4 md:px-6 xl:max-w-[96rem] xl:px-8 2xl:max-w-[110rem]">
+        <PageBreadcrumb />
+      </div>
       {/* md:overflow-y-auto (não -hidden): páginas altas (Grupo, Motoristas) rolam
           dentro do app-shell de altura fixa; a Envio preenche exato (md:h-full) e
           mantém o scroll interno da tabela, sem scrollbar extra. */}

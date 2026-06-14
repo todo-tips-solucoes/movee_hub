@@ -144,6 +144,26 @@ function DashboardClient() {
     >
       {/* Seção fixa: seletor de filial (só quando escopo > 1) + stats + actions + filters */}
       <div className="shrink-0 space-y-4">
+        {/* U008 + U002: título da página + estado de processamento destacado */}
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">Envio em Massa</h1>
+          <span
+            role="status"
+            aria-live="polite"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+              isActive
+                ? 'border-success/30 bg-success/10 text-success'
+                : 'border-border bg-muted text-muted-foreground'
+            }`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${isActive ? 'bg-success pulse-ring' : 'bg-muted-foreground/60'}`}
+              aria-hidden="true"
+            />
+            {processLoading ? 'Atualizando…' : isActive ? 'Processando' : 'Parado'}
+          </span>
+        </div>
+
         {/* Seletor de filial — visível apenas quando o grupo tem > 1 empresa (2.5 formaliza) */}
         {empresas.length > 1 && (
           <EmpresaSelector
