@@ -20,7 +20,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Pencil, KeyRound, Power, PowerOff, Loader2, Search, Truck } from 'lucide-react';
+import { Pencil, KeyRound, Power, PowerOff, Loader2, Search, Truck, AlertCircle, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -312,8 +312,17 @@ export default function MotoristasPage() {
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : erro ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {erro}
+          <div role="alert" className="flex flex-col items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2 text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">Não foi possível carregar os motoristas</p>
+                <p className="text-destructive/90">{erro}</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={carregar} className="shrink-0 gap-1.5">
+              <RotateCw className="h-3.5 w-3.5" aria-hidden="true" /> Tentar novamente
+            </Button>
           </div>
         ) : filtrados.length === 0 ? (
           <div className="rounded-md border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">

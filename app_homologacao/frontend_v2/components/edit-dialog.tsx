@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +26,8 @@ interface EditDialogProps {
 
 export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [form, setForm] = useState({
     number: '',
     nome: '',
@@ -49,13 +52,31 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
     }
   }, [record]);
 
+  // Reseta a confirmação visual ao (re)abrir; ao fechar (inclui ESC/backdrop),
+  // cancela um eventual timer de fechamento pendente p/ não fechar um diálogo
+  // reaberto. Limpa também no unmount.
+  useEffect(() => {
+    if (open) {
+      setSaved(false);
+    } else if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, [open]);
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
+
   const handleSave = async () => {
     if (!record) return;
     try {
       setLoading(true);
       await onSave(record.id, form);
       toast.success('Registro atualizado com sucesso!');
-      onOpenChange(false);
+      // Confirmação visual breve antes de fechar (U011)
+      setSaved(true);
+      closeTimer.current = setTimeout(() => onOpenChange(false), 900);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao atualizar registro');
     } finally {
@@ -77,6 +98,28 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* R003: largura mobile explícita (sem scroll horizontal); scroll interno já no body */}
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+        <AnimatePresence>
+          {saved && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[inherit] bg-card/95 backdrop-blur-sm"
+              role="status"
+              aria-live="polite"
+            >
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+              >
+                <CheckCircle2 className="h-12 w-12 text-success" aria-hidden="true" />
+              </motion.div>
+              <p className="text-sm font-medium">Registro atualizado</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <DialogHeader>
           <DialogTitle>
             {record?.nome ? `Editar “${record.nome}”` : 'Editar registro'}
@@ -101,10 +144,10 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
           ))}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading || saved}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
+          <Button onClick={handleSave} disabled={loading || saved}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Salvar
           </Button>
