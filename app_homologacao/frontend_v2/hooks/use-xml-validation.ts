@@ -1,31 +1,43 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { api } from '@/lib/api-client';
 
+// Enum de status terminal por XML (snake_case — paridade com backend)
+export type ValidationStatus =
+  | 'ja_validada'
+  | 'validada'
+  | 'revalidada'
+  | 'duplicada_no_lote'
+  | 'sem_movimento'
+  | 'erro';
+
+// Critério usado para casar o XML com o movimento
+export type MatchCriterio = 'chave' | 'fallback' | 'none';
+
+// Uma linha da resposta — substitui as flags booleanas antigas
 export interface ValidationRow {
-  cnpj_prestador: string;
-  data_emissao: string;
-  razao_social: string;
-  valor_nota: string;
-  filename: string;
-  valid: boolean;
-  valid_cnpj_prestador: boolean;
-  valid_cnpj: boolean;
-  valid_descricao_servico: boolean;
-  valid_valor: boolean;
-  valid_trib_nac: boolean;
-  valid_dCompet: boolean;
+  arquivo: string;
+  status: ValidationStatus;
+  match_criterio: MatchCriterio;
+  movimento_id: number | null;
+  cnpj_prestador: string | null;
+  numnota: string | null;
+  erro_validacao: string | null;
 }
 
-export interface ValidationStats {
+// 7 contadores snake_case (paridade com backend)
+export interface BatchStats {
   total: number;
-  success: number;
-  errors: number;
+  ja_validada: number;
+  validada: number;
+  revalidada: number;
+  duplicada_no_lote: number;
+  sem_movimento: number;
+  erro: number;
 }
 
 export interface ValidationResponse {
-  stats: ValidationStats;
+  stats: BatchStats;
   results: ValidationRow[];
 }
 
@@ -52,7 +64,21 @@ export function useXmlValidation() {
       });
 
       if (!res.ok) {
-        throw new Error(`Erro na validacao (status ${res.status})`);
+        let msg = `Erro na validacao (status ${res.status})`;
+        try {
+          const body = await res.json();
+          // 4xx com detail = erro de negócio (propagar real); 5xx = infra
+          if (res.status < 500 && body?.detail) {
+            msg = body.detail;
+          } else {
+            msg = 'Servico de validacao indisponivel. Tente novamente mais tarde.';
+          }
+        } catch {
+          if (res.status >= 500) {
+            msg = 'Servico de validacao indisponivel. Tente novamente mais tarde.';
+          }
+        }
+        throw new Error(msg);
       }
 
       const json: ValidationResponse = await res.json();
@@ -67,15 +93,15 @@ export function useXmlValidation() {
 
   const downloadCSV = useCallback(() => {
     if (!data) return;
-    const fields = [
-      'cnpj_prestador', 'data_emissao', 'razao_social', 'valor_nota', 'filename',
-      'valid', 'valid_cnpj_prestador', 'valid_cnpj', 'valid_descricao_servico',
-      'valid_valor', 'valid_trib_nac', 'valid_dCompet'
+    const fields: (keyof ValidationRow)[] = [
+      'arquivo', 'status', 'match_criterio', 'movimento_id',
+      'cnpj_prestador', 'numnota', 'erro_validacao',
     ];
     const header = fields.map(f => `"${f}"`).join(',');
     const rows = data.results.map(row =>
       fields.map(f => {
-        const val = row[f as keyof ValidationRow];
+        const val = row[f];
+        if (val === null || val === undefined) return '""';
         return typeof val === 'string' ? `"${val.replace(/"/g, '""')}"` : String(val);
       }).join(',')
     );

@@ -1,13 +1,101 @@
 'use client';
 
 import { useRef, useState, useMemo } from 'react';
-import { FileCheck, Upload, Loader2, FileX2, CheckCircle2, Download, FileText, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  FileCheck, Upload, Loader2, FileX2, CheckCircle2, Download,
+  FileText, AlertTriangle, ChevronLeft, ChevronRight,
+  RefreshCw, Copy, Ban, HelpCircle,
+} from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useXmlValidation } from '@/hooks/use-xml-validation';
+import { useXmlValidation, ValidationStatus, ValidationRow } from '@/hooks/use-xml-validation';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// ---------------------------------------------------------------------------
+// Badge de status — a11y: nunca cor sozinha, sempre ícone + texto
+// ---------------------------------------------------------------------------
+
+interface StatusBadgeConfig {
+  label: string;
+  icon: React.ReactNode;
+  /** classes Tailwind para fundo + texto (dark/light via variáveis CSS) */
+  className: string;
+}
+
+function getStatusConfig(status: ValidationStatus): StatusBadgeConfig {
+  switch (status) {
+    case 'ja_validada':
+      return {
+        label: 'Ja validada',
+        icon: <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />,
+        className: 'bg-muted text-muted-foreground',
+      };
+    case 'validada':
+      return {
+        label: 'Validada',
+        icon: <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />,
+        className: 'bg-success/15 text-success',
+      };
+    case 'revalidada':
+      return {
+        label: 'Revalidada',
+        icon: <RefreshCw className="h-3 w-3 shrink-0" aria-hidden="true" />,
+        className: 'bg-primary/10 text-primary',
+      };
+    case 'duplicada_no_lote':
+      return {
+        label: 'Duplicada no lote',
+        icon: <Copy className="h-3 w-3 shrink-0" aria-hidden="true" />,
+        className: 'bg-warning/15 text-warning-foreground',
+      };
+    case 'sem_movimento':
+      return {
+        label: 'Sem movimento',
+        icon: <HelpCircle className="h-3 w-3 shrink-0" aria-hidden="true" />,
+        className: 'bg-secondary text-secondary-foreground',
+      };
+    case 'erro':
+      return {
+        label: 'Erro',
+        icon: <Ban className="h-3 w-3 shrink-0" aria-hidden="true" />,
+        className: 'bg-destructive/15 text-destructive',
+      };
+    default:
+      // União fechada de 6 status; fallback defensivo para status desconhecido.
+      return {
+        label: String(status),
+        icon: <HelpCircle className="h-3 w-3 shrink-0" aria-hidden="true" />,
+        className: 'bg-secondary text-secondary-foreground',
+      };
+  }
+}
+
+function StatusBadge({ status }: { status: ValidationStatus }) {
+  const cfg = getStatusConfig(status);
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.className}`}
+      aria-label={cfg.label}
+    >
+      {cfg.icon}
+      {cfg.label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Label do critério de casamento
+// ---------------------------------------------------------------------------
+function matchCriterioLabel(c: ValidationRow['match_criterio']): string {
+  if (c === 'chave') return 'Chave NF-e';
+  if (c === 'fallback') return 'CNPJ + Nota + Data';
+  return '—';
+}
+
+// ---------------------------------------------------------------------------
+// Componente principal
+// ---------------------------------------------------------------------------
 export function XmlValidationCard() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -75,6 +163,7 @@ export function XmlValidationCard() {
 
   return (
     <div className="space-y-4">
+      {/* Card de upload */}
       <Card>
         <CardHeader>
           <CardTitle as="h1" className="flex items-center gap-2 text-lg">
@@ -88,8 +177,10 @@ export function XmlValidationCard() {
         <CardContent className="space-y-4">
           {/* Drop zone */}
           <div
-            className={`relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
-              dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+            className={`relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors cursor-pointer ${
+              dragOver
+                ? 'border-primary bg-primary/5'
+                : 'border-muted-foreground/25 hover:border-muted-foreground/50'
             }`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -97,6 +188,8 @@ export function XmlValidationCard() {
             onClick={() => inputRef.current?.click()}
             role="button"
             tabIndex={0}
+            aria-label="Area de upload de arquivos XML. Clique ou arraste arquivos."
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }}
           >
             <input
               ref={inputRef}
@@ -105,8 +198,9 @@ export function XmlValidationCard() {
               multiple
               className="hidden"
               onChange={handleFileChange}
+              aria-label="Selecionar arquivos XML"
             />
-            <Upload className="h-8 w-8 text-muted-foreground" />
+            <Upload className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">
               Clique ou arraste arquivos XML aqui
             </p>
@@ -117,7 +211,7 @@ export function XmlValidationCard() {
             )}
           </div>
 
-          {/* File list */}
+          {/* Lista de arquivos */}
           <AnimatePresence>
             {files.length > 0 && (
               <motion.div
@@ -129,7 +223,7 @@ export function XmlValidationCard() {
                 <div className="space-y-1">
                   {files.map((f, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <FileCheck className="h-3 w-3 shrink-0" />
+                      <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
                       <span className="truncate">{f.name}</span>
                       <span className="ml-auto shrink-0">{(f.size / 1024).toFixed(1)} KB</span>
                     </div>
@@ -150,33 +244,32 @@ export function XmlValidationCard() {
             <span className="text-sm">Validar Descricao do Servico</span>
           </label>
 
-          {/* Error message */}
+          {/* Mensagem de erro */}
           <AnimatePresence>
             {error && (
               <motion.div
+                role="alert"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+                className="flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
               >
-                <FileX2 className="h-4 w-4 shrink-0" />
-                {error}
+                <FileX2 className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+                <span>{error}</span>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Action buttons */}
-          <div className="flex gap-2">
+          {/* Botoes de acao */}
+          <div className="flex gap-2 flex-wrap">
             <Button
               onClick={handleSubmit}
               disabled={loading || files.length === 0}
               className="gap-2"
             >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileCheck className="h-4 w-4" />
-              )}
+              {loading
+                ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                : <FileCheck className="h-4 w-4" aria-hidden="true" />}
               {loading ? 'Validando...' : 'Validar'}
             </Button>
             {files.length > 0 && (
@@ -188,7 +281,7 @@ export function XmlValidationCard() {
         </CardContent>
       </Card>
 
-      {/* Relatorio Visual */}
+      {/* Relatorio de Resultados */}
       <AnimatePresence>
         {data && (
           <motion.div
@@ -198,102 +291,155 @@ export function XmlValidationCard() {
             transition={{ duration: 0.3 }}
             className="space-y-4"
           >
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Card size="sm">
-                <CardContent className="flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <FileText className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="tabular text-2xl font-bold">{data.stats.total}</p>
-                    <p className="text-xs text-muted-foreground">Notas Validadas</p>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* ── Resumo agregado: 7 contadores ── */}
+            <section aria-label="Resumo da validacao">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                {/* Total */}
+                <Card size="sm">
+                  <CardContent className="flex flex-col items-center justify-center gap-1 p-3 text-center">
+                    <FileText className="h-4 w-4 text-primary" aria-hidden="true" />
+                    <p className="tabular text-xl font-bold">{data.stats.total}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Total</p>
+                  </CardContent>
+                </Card>
 
-              <Card size="sm">
-                <CardContent className="flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10">
-                    <CheckCircle2 className="h-5 w-5 text-success" />
-                  </div>
-                  <div>
-                    <p className="tabular text-2xl font-bold text-success">{data.stats.success}</p>
-                    <p className="text-xs text-muted-foreground">Sucesso</p>
-                  </div>
-                </CardContent>
-              </Card>
+                {/* Ja validada */}
+                <Card size="sm">
+                  <CardContent className="flex flex-col items-center justify-center gap-1 p-3 text-center">
+                    <CheckCircle2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    <p className="tabular text-xl font-bold text-muted-foreground">{data.stats.ja_validada}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Ja validadas</p>
+                  </CardContent>
+                </Card>
 
-              <Card size="sm">
-                <CardContent className="flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
-                    <AlertTriangle className="h-5 w-5 text-destructive" />
-                  </div>
-                  <div>
-                    <p className="tabular text-2xl font-bold text-destructive">{data.stats.errors}</p>
-                    <p className="text-xs text-muted-foreground">Erros</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                {/* Validada */}
+                <Card size="sm">
+                  <CardContent className="flex flex-col items-center justify-center gap-1 p-3 text-center">
+                    <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
+                    <p className="tabular text-xl font-bold text-success">{data.stats.validada}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Validadas</p>
+                  </CardContent>
+                </Card>
 
-            {/* Results table */}
+                {/* Revalidada */}
+                <Card size="sm">
+                  <CardContent className="flex flex-col items-center justify-center gap-1 p-3 text-center">
+                    <RefreshCw className="h-4 w-4 text-primary" aria-hidden="true" />
+                    <p className="tabular text-xl font-bold text-primary">{data.stats.revalidada}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Revalidadas</p>
+                  </CardContent>
+                </Card>
+
+                {/* Duplicada no lote */}
+                <Card size="sm">
+                  <CardContent className="flex flex-col items-center justify-center gap-1 p-3 text-center">
+                    <Copy className="h-4 w-4 text-warning-foreground" aria-hidden="true" />
+                    <p className="tabular text-xl font-bold">{data.stats.duplicada_no_lote}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Duplicadas</p>
+                  </CardContent>
+                </Card>
+
+                {/* Sem movimento */}
+                <Card size="sm">
+                  <CardContent className="flex flex-col items-center justify-center gap-1 p-3 text-center">
+                    <HelpCircle className="h-4 w-4 text-secondary-foreground" aria-hidden="true" />
+                    <p className="tabular text-xl font-bold">{data.stats.sem_movimento}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Sem movimento</p>
+                  </CardContent>
+                </Card>
+
+                {/* Erro */}
+                <Card size="sm">
+                  <CardContent className="flex flex-col items-center justify-center gap-1 p-3 text-center">
+                    <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
+                    <p className="tabular text-xl font-bold text-destructive">{data.stats.erro}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Erros</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
+            {/* ── Tabela de resultados detalhados ── */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Detalhes da Validacao</CardTitle>
-                <div className="flex justify-end">
-                  <Button size="sm" variant="outline" onClick={downloadCSV} className="gap-1.5">
-                    <Download className="h-4 w-4" />
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <CardTitle className="text-sm">Detalhes da Validacao</CardTitle>
+                  <Button size="sm" variant="outline" onClick={downloadCSV} className="gap-1.5 shrink-0">
+                    <Download className="h-4 w-4" aria-hidden="true" />
                     Exportar CSV
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="overflow-x-auto max-h-[400px] overflow-y-auto relative">
+                <div className="overflow-x-auto max-h-[400px] overflow-y-auto relative rounded-md border">
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-card z-10">
                       <tr className="border-b text-left text-muted-foreground">
-                        <th className="pb-2 pr-3 pt-1 font-medium bg-card">Arquivo</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium bg-card">CNPJ Prestador</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium bg-card">Razao Social</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium bg-card">Valor</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium bg-card">Data Emissao</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium text-center bg-card">Valida</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium text-center bg-card">CNPJ Prest.</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium text-center bg-card">CNPJ</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium text-center bg-card">Descricao</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium text-center bg-card">Valor</th>
-                        <th className="pb-2 pr-3 pt-1 font-medium text-center bg-card">Trib. Nac.</th>
-                        <th className="pb-2 pt-1 font-medium text-center bg-card">dCompet</th>
+                        <th scope="col" className="pb-2 pr-3 pt-2 pl-3 font-medium bg-card">Arquivo</th>
+                        <th scope="col" className="pb-2 pr-3 pt-2 font-medium bg-card whitespace-nowrap">Status</th>
+                        <th scope="col" className="pb-2 pr-3 pt-2 font-medium bg-card whitespace-nowrap">Criterio</th>
+                        <th scope="col" className="pb-2 pr-3 pt-2 font-medium bg-card whitespace-nowrap">Mov. ID</th>
+                        <th scope="col" className="pb-2 pr-3 pt-2 font-medium bg-card whitespace-nowrap">CNPJ Prestador</th>
+                        <th scope="col" className="pb-2 pr-3 pt-2 font-medium bg-card whitespace-nowrap">Num. Nota</th>
+                        <th scope="col" className="pb-2 pr-3 pt-2 font-medium bg-card">Mensagem</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedResults.map((row, i) => (
-                        <tr key={i} className={`border-b last:border-0 ${row.valid ? '' : 'bg-destructive/5'}`}>
-                          <td className="py-2 pr-3 max-w-[180px] truncate" title={row.filename}>{row.filename}</td>
-                          <td className="py-2 pr-3 font-mono">{row.cnpj_prestador}</td>
-                          <td className="py-2 pr-3 max-w-[150px] truncate" title={row.razao_social}>{row.razao_social}</td>
-                          <td className="py-2 pr-3">R$ {row.valor_nota}</td>
-                          <td className="py-2 pr-3">{row.data_emissao ? new Date(row.data_emissao).toLocaleDateString('pt-BR') : ''}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_cnpj_prestador ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_cnpj ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_descricao_servico ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_valor ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
-                          <td className="py-2 pr-3 text-center">{row.valid_trib_nac ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
-                          <td className="py-2 text-center">{row.valid_dCompet ? <CheckCircle2 className="h-4 w-4 text-success mx-auto" /> : <FileX2 className="h-4 w-4 text-destructive mx-auto" />}</td>
-                        </tr>
-                      ))}
+                      {paginatedResults.map((row, i) => {
+                        const isError = row.status === 'erro' || row.status === 'sem_movimento';
+                        return (
+                          <tr
+                            key={i}
+                            className={`border-b last:border-0 transition-colors ${
+                              isError ? 'bg-destructive/5 hover:bg-destructive/10' : 'hover:bg-muted/30'
+                            }`}
+                          >
+                            <td className="py-2 pr-3 pl-3 max-w-[180px]">
+                              <span className="block truncate font-mono" title={row.arquivo}>
+                                {row.arquivo}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-3 whitespace-nowrap">
+                              <StatusBadge status={row.status} />
+                            </td>
+                            <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">
+                              {matchCriterioLabel(row.match_criterio)}
+                            </td>
+                            <td className="py-2 pr-3 font-mono text-muted-foreground">
+                              {row.movimento_id ?? '—'}
+                            </td>
+                            <td className="py-2 pr-3 font-mono">
+                              {row.cnpj_prestador ?? '—'}
+                            </td>
+                            <td className="py-2 pr-3">
+                              {row.numnota ?? '—'}
+                            </td>
+                            <td className="py-2 pr-3 max-w-[240px]">
+                              {row.erro_validacao ? (
+                                <span className="text-destructive" title={row.erro_validacao}>
+                                  {row.erro_validacao}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
 
                 {/* Paginacao */}
-                {data.results.length > 0 && (
-                  <div className="flex items-center justify-between border-t pt-3">
+                {data.results.length > rowsPerPage && (
+                  <div className="flex items-center justify-between border-t pt-3 flex-wrap gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Registros por pagina:</span>
+                      <label htmlFor="rows-per-page" className="text-xs text-muted-foreground sr-only">
+                        Registros por pagina
+                      </label>
+                      <span className="text-xs text-muted-foreground" aria-hidden="true">Registros por pagina:</span>
                       <select
+                        id="rows-per-page"
                         value={rowsPerPage}
                         onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
                         className="h-8 rounded-md border bg-background px-2 text-xs"
@@ -303,29 +449,33 @@ export function XmlValidationCard() {
                         <option value={50}>50</option>
                         <option value={100}>100</option>
                       </select>
-                      <span className="text-xs text-muted-foreground">
-                        {((currentPage - 1) * rowsPerPage) + 1}-{Math.min(currentPage * rowsPerPage, data.results.length)} de {data.results.length}
+                      <span className="text-xs text-muted-foreground" aria-live="polite">
+                        {((currentPage - 1) * rowsPerPage) + 1}–{Math.min(currentPage * rowsPerPage, data.results.length)} de {data.results.length}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1" role="navigation" aria-label="Paginacao">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
                         className="h-8 w-8 p-0"
+                        aria-label="Pagina anterior"
                       >
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                       </Button>
-                      <span className="text-xs px-2">{currentPage} / {totalPages}</span>
+                      <span className="text-xs px-2" aria-current="page">
+                        {currentPage} / {totalPages}
+                      </span>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                         disabled={currentPage === totalPages}
                         className="h-8 w-8 p-0"
+                        aria-label="Proxima pagina"
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </div>
                   </div>
