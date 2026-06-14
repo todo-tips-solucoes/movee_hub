@@ -36,7 +36,7 @@ type NavItem = {
 
 // Fonte única dos itens de navegação — renderizada tanto no header desktop
 // (horizontal) quanto no menu mobile (Sheet), aplicando o filtro is_grupo_pai.
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Envio', icon: Send },
   { href: '/dashboard/validacao-xml', label: 'Validação XML', icon: FileCheck },
   // cadastro-motorista-base-validada: CRUD da base de motoristas (visível a todos)

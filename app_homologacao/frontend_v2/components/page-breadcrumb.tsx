@@ -4,19 +4,18 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
+import { NAV_ITEMS } from '@/components/header';
 
 /**
  * Trilha de navegação (breadcrumb) do shell do dashboard — orientação em
  * subrotas (U009). Só apresentação: deriva os rótulos da rota atual; não toca
  * lógica/dados. As configurações têm 3 níveis (Painel › Configurações › X).
+ *
+ * Fonte única de rótulos: NAV_ITEMS do header (evita divergência de rotas).
  */
-const ROUTE_LABELS: Record<string, string> = {
-  '/dashboard': 'Envio',
-  '/dashboard/validacao-xml': 'Validação XML',
-  '/dashboard/motoristas': 'Motoristas',
-  '/dashboard/configuracoes/aparencia': 'Aparência',
-  '/dashboard/configuracoes/grupo': 'Grupo',
-};
+const ROUTE_LABELS: Record<string, string> = Object.fromEntries(
+  NAV_ITEMS.map((item) => [item.href, item.label])
+);
 
 type Crumb = { label: string; href?: string };
 

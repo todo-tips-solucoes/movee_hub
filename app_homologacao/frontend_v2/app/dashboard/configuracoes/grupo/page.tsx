@@ -172,6 +172,12 @@ export default function GrupoPage() {
   const [cadastrando, setCadastrando] = useState(false);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
+  // U010: abre o formulário automaticamente quando surge um erro geral, mas
+  // sem travar — o usuário ainda pode recolher (open controlado só por cadOpen).
+  useEffect(() => {
+    if (formErrors.geral) setCadOpen(true);
+  }, [formErrors.geral]);
+
   /* ---- desvincular (AlertDialog) ---- */
   const [desvincularAlvo, setDesvincularAlvo] = useState<EmpresaFilha | null>(null);
   const [desvinculando, setDesvinculando] = useState(false);
@@ -573,7 +579,7 @@ export default function GrupoPage() {
       {/* ---- Formulário: Cadastrar filial ---- */}
       <details
         className="group rounded-lg border bg-card"
-        open={cadOpen || !!formErrors.geral}
+        open={cadOpen}
         onToggle={(e) => setCadOpen((e.currentTarget as HTMLDetailsElement).open)}
       >
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg p-5 [&::-webkit-details-marker]:hidden">
