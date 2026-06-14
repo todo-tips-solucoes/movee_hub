@@ -2064,7 +2064,7 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
 
   // Estado para árvore de decisão + dedup intra-lote.
   var results = [];
-  var chavesProcessadas = {}; // task 1.3.4: Set<chave> já processada no lote
+  var movimentosProcessados = {}; // task 1.3.4: dedup intra-lote por movimento.id (cobre XMLs sem chave)
   var stats = {
     total: 0, ja_validada: 0, validada: 0, revalidada: 0,
     duplicada_no_lote: 0, sem_movimento: 0, erro: 0
@@ -2102,14 +2102,6 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
         throw { _handled: true };
       }
 
-      // task 1.3.4: dedup intra-lote por chave (antes de qualquer chamada).
-      if (fields.chave && chavesProcessadas[fields.chave]) {
-        row.status = 'duplicada_no_lote';
-        row.match_criterio = chavesProcessadas[fields.chave].criterio || 'chave';
-        row.movimento_id = chavesProcessadas[fields.chave].movimento_id;
-        throw { _handled: true };
-      }
-
       // task 1.3.5 (c): casamento.
       var match = findMovimentoParaXml(fields, movsByChave, movsByFallback);
       row.match_criterio = match.criterio;
@@ -2123,14 +2115,20 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
       var movimento = match.movimento;
       row.movimento_id = movimento.id;
 
-      // Registrar a chave como processada (dedup) com o critério/movimento do 1º.
-      if (fields.chave) {
-        chavesProcessadas[fields.chave] = { criterio: match.criterio, movimento_id: movimento.id };
+      // task 1.3.4 (dedup intra-lote por MOVIMENTO): deduplica pelo movimento
+      // casado — cobre "mesma chave 2x" E XMLs SEM chave que casam o mesmo
+      // movimento via fallback (cnpj+numnota+data). Evita validar/revalidar o
+      // mesmo registro 2x no lote. 1º processa; repetições → duplicada_no_lote.
+      if (movimentosProcessados[movimento.id]) {
+        row.status = 'duplicada_no_lote';
+        row.match_criterio = movimentosProcessados[movimento.id].criterio || match.criterio;
+        throw { _handled: true };
       }
+      movimentosProcessados[movimento.id] = { criterio: match.criterio };
 
-      // GATE CENTRAL [C]: nota APROVADA (nota_ok cheio + erro_validacao vazio) →
-      // ja_validada, NENHUMA chamada à FastAPI, NENHUM PATCH (replica jaAprovada
-      // de routes/motorista.js).
+      // GATE CENTRAL [C] (snapshot rápido): nota APROVADA no snapshot do lote →
+      // ja_validada, sem FastAPI e sem PATCH (replica jaAprovada de
+      // routes/motorista.js). Confirmação FRESCA logo abaixo (anti-race).
       var temNotaOk = movimento.nota_ok != null && String(movimento.nota_ok).trim() !== '';
       var jaAprovada = temNotaOk && !((movimento.erro_validacao || '').trim());
       if (jaAprovada) {
@@ -2138,9 +2136,36 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
         throw { _handled: true };
       }
 
-      // Reprovada (nota_ok cheio + erro_validacao cheio) → revalidada;
-      // Sem validação (nota_ok vazio) → validada. Ambas chamam FastAPI + PATCH.
+      // Reprovada (nota_ok cheio + erro cheio) → revalidada; Sem validação
+      // (nota_ok vazio) → validada. Ambas chamam FastAPI + PATCH.
       var statusAlvo = temNotaOk ? 'revalidada' : 'validada';
+
+      // GATE CENTRAL [C] reforçado — read-back FRESCO antes de chamar a FastAPI.
+      // A FastAPI grava nota_ok/erro_validacao DIRETO na EnvioMassa, então o
+      // snapshot inicial do lote pode estar defasado se este movimento foi
+      // aprovado nesse meio-tempo (concorrência externa, ou um XML anterior do
+      // mesmo lote). Se já está APROVADA AGORA, não chama a FastAPI e não grava —
+      // fecha o furo de sobrescrita da nota aprovada.
+      try {
+        var freshPre = await postgrestRequest(
+          'EnvioMassa?id=eq.' + encodeURIComponent(movimento.id) + '&select=nota_ok,erro_validacao'
+        );
+        var pre = (Array.isArray(freshPre) && freshPre[0]) || null;
+        if (pre) {
+          var temNotaOkFresh = pre.nota_ok != null && String(pre.nota_ok).trim() !== '';
+          var jaAprovadaFresh = temNotaOkFresh && !((pre.erro_validacao || '').trim());
+          if (jaAprovadaFresh) {
+            row.status = 'ja_validada';
+            throw { _handled: true };
+          }
+          // Estado fresco manda no statusAlvo (snapshot pode estar defasado).
+          statusAlvo = temNotaOkFresh ? 'revalidada' : 'validada';
+        }
+      } catch (preErr) {
+        if (preErr && preErr._handled) throw preErr;
+        // Leitura instável: prossegue com o snapshot (gate snapshot já passou).
+        console.error('[validate-xml-batch] read-back pré-FastAPI falhou id=' + movimento.id + ': ' + (preErr && preErr.message));
+      }
 
       // task 1.3.7: roteamento FastAPI por grupo Movee (PRESERVAR exatamente).
       // mesmoGrupoQue afeta SÓ o roteamento — não o escopo do casamento.
@@ -2213,11 +2238,10 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
       var novoNotaOk = registro.nota_ok;
       var novoErro = (registro.erro_validacao || '').trim();
 
-      // Assertion anti-overwrite (task 1.3.6): o movimento NÃO podia estar
-      // aprovado antes do PATCH (já foi barrado pelo gate). Defesa extra contra
-      // race — se de algum modo está aprovado agora, NÃO regrava.
-      // task 1.3.6: PATCH idempotente — body SÓ { nota_ok, erro_validacao }.
-      // NUNCA `valor` (INV-4).
+      // task 1.3.6: PATCH idempotente — body SÓ { nota_ok, erro_validacao },
+      // NUNCA `valor` (INV-4). A defesa anti-overwrite é o read-back FRESCO feito
+      // ANTES da chamada à FastAPI (acima): uma nota já aprovada nunca chega
+      // aqui. Aqui apenas refletimos o resultado que a FastAPI persistiu.
       try {
         await postgrestRequest(
           'EnvioMassa?id=eq.' + encodeURIComponent(movimento.id),

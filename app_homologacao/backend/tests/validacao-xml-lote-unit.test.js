@@ -369,27 +369,46 @@ describe('findMovimentoParaXml — casamento', () => {
     assert.deepEqual(result.movimento, movFixture1);
   });
 
-  test('T-U-12: dedup intra-lote — mesma chave processada duas vezes', () => {
-    // Simula o comportamento do handler (chavesProcessadas dict)
-    const chavesProcessadas = {};
+  test('T-U-12: dedup intra-lote por MOVIMENTO — mesma nota processada duas vezes', () => {
+    // Simula o handler (movimentosProcessados dict, indexado por movimento.id).
+    const movimentosProcessados = {};
     const { movsByChave, movsByFallback } = buildIndexes([]);
     movsByChave[CHAVE_F1] = movFixture1;
 
     const extractedA = { chave: CHAVE_F1, cnpj_prestador: '43568174000168', numnota: '98', data_emissao: '2026-06-09T14:41:32-03:00' };
     const extractedB = { chave: CHAVE_F1, cnpj_prestador: '43568174000168', numnota: '98', data_emissao: '2026-06-09T14:41:32-03:00' };
 
-    // Processa A (1ª ocorrência)
-    assert.ok(!chavesProcessadas[CHAVE_F1], '1ª vez: chave não está no dict');
+    // Processa A (1ª ocorrência): casa e registra o MOVIMENTO.
     const matchA = findMovimentoParaXml(extractedA, movsByChave, movsByFallback);
     assert.equal(matchA.criterio, 'chave');
-    // Registra como processada (igual ao handler)
-    chavesProcessadas[CHAVE_F1] = { criterio: matchA.criterio, movimento_id: matchA.movimento.id };
+    assert.ok(!movimentosProcessados[matchA.movimento.id], '1ª vez: movimento não está no dict');
+    movimentosProcessados[matchA.movimento.id] = { criterio: matchA.criterio };
 
-    // Processa B (2ª ocorrência — deve ser duplicada_no_lote)
-    assert.ok(chavesProcessadas[extractedB.chave], '2ª vez: chave já está no dict → duplicada_no_lote');
-    const dedup = chavesProcessadas[extractedB.chave];
-    assert.equal(dedup.criterio, 'chave', 'criterio herdado do 1º');
-    assert.equal(dedup.movimento_id, movFixture1.id, 'movimento_id herdado do 1º');
+    // Processa B (2ª ocorrência — mesmo movimento → duplicada_no_lote).
+    const matchB = findMovimentoParaXml(extractedB, movsByChave, movsByFallback);
+    assert.ok(movimentosProcessados[matchB.movimento.id], '2ª vez: movimento já processado → duplicada_no_lote');
+    assert.equal(movimentosProcessados[matchB.movimento.id].criterio, 'chave', 'criterio herdado do 1º');
+  });
+
+  test('T-U-12b: dedup por movimento cobre XMLs SEM chave que casam o mesmo movimento (fallback)', () => {
+    // #2: dois XMLs sem chave de acesso, mesma cnpj+numnota+dia → mesmo movimento
+    // via fallback → o 2º vira duplicada_no_lote (dedup por movimento.id, não por
+    // chave). Antes, sem chave, ambos seriam processados (2ª chamada à FastAPI).
+    const movimentosProcessados = {};
+    const { movsByChave, movsByFallback } = buildIndexes([]);
+    movsByFallback['43568174000168|98|2026-06-09'] = movFixture1;
+
+    const semChaveA = { chave: null, cnpj_prestador: '43568174000168', numnota: '98', data_emissao: '2026-06-09T14:41:32-03:00' };
+    const semChaveB = { chave: null, cnpj_prestador: '43.568.174/0001-68', numnota: '98', data_emissao: '2026-06-09T08:00:00-03:00' };
+
+    const mA = findMovimentoParaXml(semChaveA, movsByChave, movsByFallback);
+    assert.equal(mA.criterio, 'fallback', 'sem chave → casa por fallback');
+    assert.ok(!movimentosProcessados[mA.movimento.id]);
+    movimentosProcessados[mA.movimento.id] = { criterio: mA.criterio };
+
+    const mB = findMovimentoParaXml(semChaveB, movsByChave, movsByFallback);
+    assert.equal(mB.criterio, 'fallback');
+    assert.ok(movimentosProcessados[mB.movimento.id], 'XML sem chave repetido → duplicada_no_lote via movimento');
   });
 
 });
