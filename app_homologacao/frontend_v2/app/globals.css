@@ -52,7 +52,7 @@
   --success-foreground: #ffffff;
   --warning: #ffb72a;
   --warning-foreground: #0f1849;
-  --destructive: #e5484d;         /* vermelho FUNCIONAL (guia não define erro) */
+  --destructive: #d32f2f;         /* vermelho FUNCIONAL (guia não define erro); U004: 4.98:1 sobre branco (AA) p/ texto e botão */
   --destructive-foreground: #ffffff;
 
   --border: #e7ddcd;

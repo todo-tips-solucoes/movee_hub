@@ -77,8 +77,8 @@ export function XmlValidationCard() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileCheck className="h-5 w-5 text-primary" />
+          <CardTitle as="h1" className="flex items-center gap-2 text-lg">
+            <FileCheck className="h-5 w-5 text-primary" aria-hidden="true" />
             Validacao XML NFSe
           </CardTitle>
           <CardDescription>

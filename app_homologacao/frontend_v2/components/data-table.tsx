@@ -82,11 +82,11 @@ export function DataTable({
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditRecord(item)}>
-                      <Pencil className="h-3.5 w-3.5" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditRecord(item)} aria-label={`Editar registro ${item.nome}`} title="Editar">
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(item.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(item.id)} aria-label={`Excluir registro ${item.nome}`} title="Excluir">
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
                   </div>
                 </div>
@@ -104,8 +104,12 @@ export function DataTable({
                   {item.numnota && <span className="text-muted-foreground">Nota: {item.numnota}</span>}
                   {item.data_emissao && <span className="text-muted-foreground">{formatDateBR(item.data_emissao)}</span>}
                   {item.erro_validacao && (
-                    <span className="flex items-center gap-1 text-destructive">
-                      <AlertCircle className="h-3.5 w-3.5" /> Erro val.
+                    <span
+                      className="flex items-center gap-1 font-medium text-destructive"
+                      title={item.erro_validacao}
+                      aria-label={`Erro de validação: ${item.erro_validacao}`}
+                    >
+                      <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" /> Erro val.
                     </span>
                   )}
                   {xmlUrl && (
@@ -199,8 +203,12 @@ export function DataTable({
                     <TableCell className="text-center">
                       {item.erro_validacao ? (
                         <Tooltip>
-                          <TooltipTrigger>
-                            <AlertCircle className="mx-auto h-4 w-4 text-destructive" />
+                          <TooltipTrigger
+                            aria-label={`Erro de validação: ${item.erro_validacao}`}
+                            className="mx-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                            Erro
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs">
                             <p>{item.erro_validacao}</p>
@@ -217,16 +225,20 @@ export function DataTable({
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => setEditRecord(item)}
+                          aria-label={`Editar registro ${item.nome}`}
+                          title="Editar"
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-destructive hover:text-destructive"
                           onClick={() => setDeleteId(item.id)}
+                          aria-label={`Excluir registro ${item.nome}`}
+                          title="Excluir"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </Button>
                       </div>
                     </TableCell>

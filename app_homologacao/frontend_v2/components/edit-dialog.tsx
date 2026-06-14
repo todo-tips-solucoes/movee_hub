@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { EnvioMassa } from '@/types';
@@ -77,7 +78,14 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
       {/* R003: largura mobile explícita (sem scroll horizontal); scroll interno já no body */}
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar Registro</DialogTitle>
+          <DialogTitle>
+            {record?.nome ? `Editar “${record.nome}”` : 'Editar registro'}
+          </DialogTitle>
+          <DialogDescription>
+            {record?.number
+              ? `Atualize os dados do registro nº ${record.number}.`
+              : 'Atualize os dados do registro selecionado.'}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 py-4 max-h-[60vh] overflow-y-auto pr-1">
           {fields.map(({ key, label }) => (
