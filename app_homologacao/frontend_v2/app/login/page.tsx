@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({});
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const { user, loading: authLoading, login } = useAuth();
   const router = useRouter();
 
@@ -28,10 +32,31 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router]);
 
+  // Validação de apresentação (não altera a lógica de auth)
+  const validate = (field: 'email' | 'password', value: string): string => {
+    if (field === 'email') {
+      if (!value.trim()) return 'Informe seu e-mail.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'E-mail em formato inválido.';
+    }
+    if (field === 'password' && !value) return 'Informe sua senha.';
+    return '';
+  };
+
+  const handleBlur = (field: 'email' | 'password', value: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setErrors((prev) => ({ ...prev, [field]: validate(field, value) || undefined }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error('Preencha todos os campos');
+    const nextErrors = {
+      email: validate('email', email) || undefined,
+      password: validate('password', password) || undefined,
+    };
+    setErrors(nextErrors);
+    setTouched({ email: true, password: true });
+    if (nextErrors.email || nextErrors.password) {
+      (nextErrors.email ? emailRef : passwordRef).current?.focus();
       return;
     }
     try {
@@ -82,27 +107,52 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="grid gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">
+                  Email <span className="text-destructive" aria-hidden="true">*</span>
+                </Label>
                 <Input
+                  ref={emailRef}
                   id="email"
                   type="email"
                   placeholder="seu@email.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (touched.email) setErrors((p) => ({ ...p, email: validate('email', e.target.value) || undefined }));
+                  }}
+                  onBlur={(e) => handleBlur('email', e.target.value)}
                   autoComplete="email"
+                  aria-required="true"
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
                   className="h-11 sm:h-10"
                 />
+                {errors.email && (
+                  <p id="email-error" role="alert" className="flex items-center gap-1 text-xs font-medium text-destructive">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {errors.email}
+                  </p>
+                )}
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="password">Senha</Label>
+                <Label htmlFor="password">
+                  Senha <span className="text-destructive" aria-hidden="true">*</span>
+                </Label>
                 <div className="relative">
                   <Input
+                    ref={passwordRef}
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder="********"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (touched.password) setErrors((p) => ({ ...p, password: validate('password', e.target.value) || undefined }));
+                    }}
+                    onBlur={(e) => handleBlur('password', e.target.value)}
                     autoComplete="current-password"
+                    aria-required="true"
+                    aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? 'password-error' : undefined}
                     className="h-11 pr-10 sm:h-10"
                   />
                   <button
@@ -110,10 +160,16 @@ export default function LoginPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     tabIndex={-1}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {errors.password && (
+                  <p id="password-error" role="alert" className="flex items-center gap-1 text-xs font-medium text-destructive">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {errors.password}
+                  </p>
+                )}
               </div>
               <Button type="submit" className="h-11 w-full sm:h-10" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
