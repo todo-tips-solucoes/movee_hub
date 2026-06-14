@@ -41,6 +41,7 @@
 | — | App Motorista PWA, config-ui-tenant, cadastro-filiais, movimento-por-filial, grupo-unificado | `/feature-00c` (SDD) | no ar em produção |
 | 2026-06-12/13 | Gorjeta motorista, import-range-datas | `/feature-00c` | deployados em produção |
 | **2026-06-13** | **Responsividade do painel `app.moveelog.com.br` (frontend_v2)** | **`/ui-ux-pro-max`, 3 fases (R001-R012), 1 PR por fase** | **✅ 3 fases deployadas + validadas no celular** |
+| **2026-06-13** | **Melhoria de UI/UX do painel `app.moveelog.com.br` (frontend_v2)** | **`/ui-ux-pro-max`, 3 fases (U001-U012), 1 PR/fase + `/code-review`** | **✅ PRs #39/#40/#41 mergeados na main; falta build/deploy** |
 
 ### Ciclo responsividade do painel (2026-06-13) — referência
 
@@ -60,6 +61,35 @@
   elemento/fragment raiz quebra o build turbopack ("Expected ',', got 'ident'"). Usar `//` acima
   do `return` ou pôr o comentário como FILHO. **Grepar `return ($` + `{/*` ANTES de cada build.**
 - **Limpeza:** worktrees + branches (locais e remotas) das 3 fases e do hotfix removidas após validação.
+
+### Ciclo melhoria de UI/UX do painel (2026-06-13) — referência
+
+- **Plano:** `docs/plans/melhoria-ui-ux-painel-moveelog.md` (PR #38, mergeado). **Complemento** da
+  responsividade (acima): acessibilidade, forms & feedback, hierarquia/clareza, navegação e
+  microinterações. Polish **preservando** o design system EntreGô 2.0 (NÃO re-skin); **só
+  apresentação** (sem tocar lógica/dados: api-client/contexts/hooks/types).
+- **Execução:** skill `/ui-ux-pro-max`, **uma fase por branch/PR empilhado**, worktrees isolados:
+  - Fase 1 (a11y & clareza, U001-U005) -> **PR #39** (base `main`).
+  - Fase 2 (forms & feedback, U006/U007/U011) -> **PR #40** (base fase1).
+  - Fase 3 (navegação/densidade/microinterações, U008/U009/U010/U012) -> **PR #41** (base fase2).
+  - **Empilhados** porque `edit-dialog` é tocado na fase1 (U005) e na fase2 (U011) — evita conflito.
+- **`/code-review` (high) das 3 fases:** 1 achado crítico **REFUTADO** (alegavam que `<Input>` sem
+  `forwardRef` não encaminharia `ref` — falso em React 19.2: `ref` é prop normal repassada via
+  `{...props}`; o foco-no-1º-inválido funciona). 3 bugs reais + 3 limpezas corrigidos **nas fases
+  corretas** (branches re-empilhadas via rebase): `setTimeout` do edit-dialog com cleanup
+  (ref + clear no close/unmount); `<details>` do grupo recolhível (`open={cadOpen}` + efeito
+  auto-open em erro); `aria-describedby` da senha aponta p/ o erro; breadcrumb deriva de
+  `NAV_ITEMS` (fonte única); regra de senha em `isStrongPassword()`; `aria-label` com fallback.
+- **Merge:** PRs **#39 -> #40 -> #41** mergeados na main NA ORDEM via REST API. Por serem
+  empilhados, a **base de #40 e #41 foi retargetada para `main`** antes de cada merge (senão a
+  fase2 entraria na branch da fase1). Merge commits `045571d` / `897756b` / `dca12d6`.
+- **Token de a11y (U004):** `--destructive` light `#e5484d` -> `#d32f2f` (3.91 -> 4.98:1, AA) —
+  corrige texto e botão destrutivo no light; dark já >=6:1; `warning` não é usado como texto.
+- **Build/deploy:** **NÃO executados** (este host só tinha ~1.7G livres, swap 0 — risco de
+  starvation). Type-check/`next build` ficam para o operador sob o mesmo rito da responsividade
+  (swap 4G + `--memory=2g`, `docker push`, `docker service update` do frontend_v2). **Sem DDL.**
+  Smoke `app.moveelog.com.br/login` = 200 + validar dark/light e axe/Lighthouse a11y (meta >=95).
+- **Limpeza:** worktrees + branches (locais e remotas) das 3 fases removidos após o merge.
 
 > ⚠️ `gh` (GitHub CLI) NÃO está instalado nesta VPS — abrir/mergear PR via API REST do GitHub
 > usando o token de `~/.git-credentials` (helper Python + `urllib`).
