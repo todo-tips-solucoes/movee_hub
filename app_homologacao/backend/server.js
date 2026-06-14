@@ -31,6 +31,18 @@ const adminMotoristaRoutes = require('./routes/admin-motorista');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
+// validacao-xml-lote (FASE 0, CHK113/CHK022): instância dedicada do multer para
+// a rota /validate-xml-batch com limite de tamanho por arquivo (2 MB) e de
+// quantidade (100). Separada do `upload` global para NÃO impor 2 MB ao /upload
+// (XLSX pode ser maior). XMLs NFS-e nacionais são pequenos (<2 MB); o limite
+// rejeita o arquivo no multer ANTES do parsing. dest mantido em 'uploads/'
+// (mesmo disco transiente do upload); cada arquivo é removido via fs.unlinkSync
+// no finally do loop, então nenhum XML persiste após o processamento (CHK109).
+const XML_BATCH_MAX_FILE_BYTES = 2 * 1024 * 1024; // 2 MB por XML
+const uploadXmlBatch = multer({
+  dest: 'uploads/',
+  limits: { fileSize: XML_BATCH_MAX_FILE_BYTES, files: 100 }
+});
 
 // Configurações básicas do servidor
 app.use(cookieParser());
@@ -1881,6 +1893,20 @@ function extractNfseFields(parsed, filename) {
     return null;
   }
 
+  // validacao-xml-lote (FASE 1, task 1.1): localiza o NÓ (objeto) cujo nome casa
+  // com `key` (não o valor), para acessar atributos via `.$`. Defensivo: retorna
+  // null sem lançar.
+  function findNode(obj, key) {
+    if (!obj || typeof obj !== 'object') return null;
+    if (obj[key] !== undefined && typeof obj[key] === 'object') return obj[key];
+    var keys = Object.keys(obj);
+    for (var i = 0; i < keys.length; i++) {
+      var found = findNode(obj[keys[i]], key);
+      if (found !== null) return found;
+    }
+    return null;
+  }
+
   var emit = findKey(parsed, 'emit');
   var prest = findKey(parsed, 'prest');
   var source = emit || prest;
@@ -1890,18 +1916,96 @@ function extractNfseFields(parsed, filename) {
   var valores = findKey(parsed, 'valores');
   var valor_nota = valores ? (findKey(valores, 'vLiq') || findKey(valores, 'vServ') || '') : '';
 
+  // validacao-xml-lote (FASE 1, task 1.1.2): chave de acesso (50 dígitos).
+  // Padrão NACIONAL NFS-e: atributo `Id` de <infNFSe> com prefixo `NFS`
+  // (ex.: Id="NFS3550...50" → chave "3550...50"). Extração defensiva: qualquer
+  // ausência → null (cai no fallback cnpj+numnota+data no casamento). NÃO há
+  // fallback para o filename aqui (decisão D1 do plan.md) — o handler resolve.
+  var chave = null;
+  try {
+    var infNFSe = findNode(parsed, 'infNFSe');
+    var rawId = (infNFSe && infNFSe.$ && infNFSe.$.Id) ? String(infNFSe.$.Id) : null;
+    if (rawId) {
+      var stripped = rawId.replace(/^NFS/, '');
+      chave = /^\d{50}$/.test(stripped) ? stripped : (stripped || null);
+    }
+  } catch (e) { chave = null; }
+
+  // validacao-xml-lote (FASE 1, task 1.1.3): numnota = <nNFSe> (NUNCA nDPS/nDFSe).
+  var numnota = null;
+  try {
+    var n = findKey(parsed, 'nNFSe');
+    numnota = (n !== null && n !== undefined && String(n).trim() !== '') ? String(n).trim() : null;
+  } catch (e) { numnota = null; }
+
   return {
     cnpj_prestador: cnpj_prestador,
     data_emissao: data_emissao,
     razao_social: razao_social,
     valor_nota: valor_nota,
+    chave: chave,
+    numnota: numnota,
     filename: filename
   };
 }
 
+// validacao-xml-lote (FASE 1, task 1.2): normaliza data_emissao (ISO) para
+// "YYYY-MM-DD" (por dia, sem hora) — usado na chave composta de fallback.
+function normalizeDataDia(v) {
+  if (!v) return '';
+  var s = String(v).trim();
+  // ISO 8601 já começa com YYYY-MM-DD; pega os 10 primeiros chars se válidos.
+  var m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : '';
+}
+
+// validacao-xml-lote (FASE 1, task 1.2): casa o XML extraído com um movimento
+// aberto da empresa-alvo. Primário por chave (índice movsByChave), fallback por
+// `cnpj|numnota|data_dia` (índice movsByFallback). Ambos os índices são
+// construídos UMA vez por lote APENAS sobre movimentos da empresa-alvo
+// (isolamento multi-tenant — Princ. II). Retorna { movimento, criterio }.
+function findMovimentoParaXml(extracted, movsByChave, movsByFallback) {
+  // Primário: chave de acesso (mesmo formato de getNFeKeyFromNotaOk).
+  if (extracted && extracted.chave) {
+    var byChave = movsByChave[extracted.chave];
+    if (byChave) return { movimento: byChave, criterio: 'chave' };
+  }
+  // Fallback: cnpj_normalizado | numnota | data_dia.
+  var cnpj = onlyDigits(extracted && extracted.cnpj_prestador);
+  var num = (extracted && extracted.numnota != null) ? String(extracted.numnota).trim() : '';
+  var dia = normalizeDataDia(extracted && extracted.data_emissao);
+  if (cnpj && num && dia) {
+    var fbKey = cnpj + '|' + num + '|' + dia;
+    var byFallback = movsByFallback[fbKey];
+    if (byFallback) return { movimento: byFallback, criterio: 'fallback' };
+  }
+  return { movimento: null, criterio: 'none' };
+}
+
 // Rota para validacao em lote de XMLs NFSe
-app.post('/validate-xml-batch', authenticateToken, upload.array('xmlFiles', 100), async (req, res) => {
-  var results = [];
+// validacao-xml-lote (FASE 0, CHK113): middleware que aplica uploadXmlBatch e
+// traduz erros do multer (ex.: LIMIT_FILE_SIZE > 2 MB, LIMIT_FILE_COUNT > 100)
+// numa resposta JSON limpa (413), em vez do 500 HTML padrão do Express.
+function xmlBatchUpload(req, res, next) {
+  uploadXmlBatch.array('xmlFiles', 100)(req, res, function (err) {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Arquivo XML excede o limite de 2 MB.' });
+      }
+      if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return res.status(413).json({ error: 'Limite de 100 arquivos por lote excedido.' });
+      }
+      return res.status(400).json({ error: 'Falha no upload dos XMLs: ' + err.message });
+    }
+    next();
+  });
+}
+
+// validacao-xml-lote (FASE 1, task 1.3): reescrita idempotente.
+// Casa cada XML com um movimento ABERTO da empresa-alvo e persiste o resultado
+// no registro EXISTENTE via PATCH por id — NUNCA sobrescreve nota APROVADA (gate
+// central). Usa uploadXmlBatch (limite 2 MB/arquivo, 100 arquivos — FASE 0).
+app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, res) => {
   var files = req.files || [];
 
   if (files.length === 0) {
@@ -1909,43 +2013,144 @@ app.post('/validate-xml-batch', authenticateToken, upload.array('xmlFiles', 100)
   }
 
   var validarDescricao = req.body.validar_descricao_servico === 'true';
-  var empresaId = req.user.empresaId;
   const _grupoCache = {}; // grupo-unificado-filiais: cache de grupo por request (OWASP MEDIUM-002)
-  console.log('[validate-xml-batch] empresaId:', empresaId, 'tipo:', typeof empresaId, 'files:', files.length, 'validarDescricao:', validarDescricao, 'FASTAPI_TOKEN presente:', !!process.env.FASTAPI_VALIDATION_TOKEN);
+
+  // task 1.3.1: resolver empresa-alvo (gate de escopo/tenant). Lança 403/503.
+  // NUNCA expandir o casamento para o grupo — só esta empresa (Princ. II).
+  var idEmp;
+  try {
+    idEmp = await resolveEmpresaAlvo(req.user, req.body.empresa_id, 'POST /validate-xml-batch');
+  } catch (authErr) {
+    // Limpar arquivos transientes do disco antes de retornar (CHK109).
+    files.forEach(function (f) { try { fs.unlinkSync(f.path); } catch (e) {} });
+    var status = authErr.status || 403;
+    return res.status(status).json({ error: authErr.message });
+  }
+
+  console.log('[validate-xml-batch] empresaAlvo:', idEmp, 'files:', files.length, 'validarDescricao:', validarDescricao, 'FASTAPI_TOKEN presente:', !!process.env.FASTAPI_VALIDATION_TOKEN);
+
+  // task 1.3.2: carregar UMA vez os movimentos abertos da empresa-alvo.
+  // Falha de PostgREST para o lote inteiro → cada linha vira `erro` (0.2.3).
+  var movimentosAbertos = null;
+  var loadMovsError = null;
+  try {
+    movimentosAbertos = await postgrestRequest(
+      'EnvioMassa?mov_fechado=eq.false&id_empresa=eq.' + encodeURIComponent(idEmp) +
+      '&select=id,nota_ok,erro_validacao,cnpj_prestador,numnota,data_emissao,valor'
+    );
+    if (!Array.isArray(movimentosAbertos)) movimentosAbertos = [];
+  } catch (e) {
+    loadMovsError = e;
+    console.error('[validate-xml-batch] Falha ao carregar movimentos abertos (lote inteiro vira erro):', e.message);
+  }
+
+  // task 1.3.3: índices em memória (só sobre a empresa-alvo — isolamento tenant).
+  var movsByChave = {};
+  var movsByFallback = {};
+  if (movimentosAbertos) {
+    for (var mi = 0; mi < movimentosAbertos.length; mi++) {
+      var mv = movimentosAbertos[mi];
+      var chaveMov = getNFeKeyFromNotaOk(mv.nota_ok);
+      if (chaveMov && movsByChave[chaveMov] === undefined) movsByChave[chaveMov] = mv;
+      var cnpjMov = onlyDigits(mv.cnpj_prestador);
+      var numMov = (mv.numnota != null) ? String(mv.numnota).trim() : '';
+      var diaMov = normalizeDataDia(mv.data_emissao);
+      if (cnpjMov && numMov && diaMov) {
+        var fbk = cnpjMov + '|' + numMov + '|' + diaMov;
+        if (movsByFallback[fbk] === undefined) movsByFallback[fbk] = mv;
+      }
+    }
+  }
+
+  // Estado para árvore de decisão + dedup intra-lote.
+  var results = [];
+  var chavesProcessadas = {}; // task 1.3.4: Set<chave> já processada no lote
+  var stats = {
+    total: 0, ja_validada: 0, validada: 0, revalidada: 0,
+    duplicada_no_lote: 0, sem_movimento: 0, erro: 0
+  };
 
   for (var i = 0; i < files.length; i++) {
     var file = files[i];
+    var chamouFastApi = false; // controla rate-limit (1.3.9) e PATCH (1.3.5)
     var row = {
-      cnpj_prestador: '', data_emissao: '', razao_social: '', valor_nota: '',
-      filename: file.originalname,
-      valid: false, valid_cnpj_prestador: false, valid_cnpj: false,
-      valid_descricao_servico: false, valid_valor: false, valid_trib_nac: false, valid_dCompet: false
+      arquivo: file.originalname,
+      status: 'erro',
+      match_criterio: 'none',
+      movimento_id: null,
+      cnpj_prestador: null,
+      numnota: null,
+      erro_validacao: null
     };
 
     try {
+      // task 1.3.12: try/catch por iteração — falha de uma linha não para o lote.
       var xmlContent = fs.readFileSync(file.path, 'utf-8');
 
-      // Parse XML para extrair campos
       var parsed = await xml2js.parseStringPromise(xmlContent, {
         explicitArray: false,
         tagNameProcessors: [xml2js.processors.stripPrefix]
       });
       var fields = extractNfseFields(parsed, file.originalname);
-      row.cnpj_prestador = fields.cnpj_prestador;
-      row.data_emissao = fields.data_emissao;
-      row.razao_social = fields.razao_social;
-      row.valor_nota = fields.valor_nota;
+      row.cnpj_prestador = fields.cnpj_prestador || null;
+      row.numnota = fields.numnota || null;
 
-      // Montar xml_input
+      // Se o lote inteiro falhou ao carregar movimentos → erro por linha (0.2.3).
+      if (loadMovsError) {
+        row.status = 'erro';
+        row.erro_validacao = 'serviço de validação indisponível';
+        throw { _handled: true };
+      }
+
+      // task 1.3.4: dedup intra-lote por chave (antes de qualquer chamada).
+      if (fields.chave && chavesProcessadas[fields.chave]) {
+        row.status = 'duplicada_no_lote';
+        row.match_criterio = chavesProcessadas[fields.chave].criterio || 'chave';
+        row.movimento_id = chavesProcessadas[fields.chave].movimento_id;
+        throw { _handled: true };
+      }
+
+      // task 1.3.5 (c): casamento.
+      var match = findMovimentoParaXml(fields, movsByChave, movsByFallback);
+      row.match_criterio = match.criterio;
+
+      if (match.criterio === 'none' || !match.movimento) {
+        // sem_movimento → NUNCA insere (P3).
+        row.status = 'sem_movimento';
+        throw { _handled: true };
+      }
+
+      var movimento = match.movimento;
+      row.movimento_id = movimento.id;
+
+      // Registrar a chave como processada (dedup) com o critério/movimento do 1º.
+      if (fields.chave) {
+        chavesProcessadas[fields.chave] = { criterio: match.criterio, movimento_id: movimento.id };
+      }
+
+      // GATE CENTRAL [C]: nota APROVADA (nota_ok cheio + erro_validacao vazio) →
+      // ja_validada, NENHUMA chamada à FastAPI, NENHUM PATCH (replica jaAprovada
+      // de routes/motorista.js).
+      var temNotaOk = movimento.nota_ok != null && String(movimento.nota_ok).trim() !== '';
+      var jaAprovada = temNotaOk && !((movimento.erro_validacao || '').trim());
+      if (jaAprovada) {
+        row.status = 'ja_validada';
+        throw { _handled: true };
+      }
+
+      // Reprovada (nota_ok cheio + erro_validacao cheio) → revalidada;
+      // Sem validação (nota_ok vazio) → validada. Ambas chamam FastAPI + PATCH.
+      var statusAlvo = temNotaOk ? 'revalidada' : 'validada';
+
+      // task 1.3.7: roteamento FastAPI por grupo Movee (PRESERVAR exatamente).
+      // mesmoGrupoQue afeta SÓ o roteamento — não o escopo do casamento.
       var xmlInput = JSON.stringify({ filename: file.originalname, data: xmlContent });
-
-      // Determinar endpoint e payload
       var url, payload;
-      if (await mesmoGrupoQue(empresaId, 6, _grupoCache)) { // idReferencia=6 = Movee
+      if (await mesmoGrupoQue(idEmp, 6, _grupoCache)) { // idReferencia=6 = Movee
         url = 'https://fastapihomologacao.todo-tips.com/validade_nfse';
         payload = new URLSearchParams({
           xml_input: xmlInput,
-          id_empresa: '6', // API fastapihomologacao espera sempre id=6 (Movee)
+          id_empresa: '6',
           validar_descricao_servico: String(validarDescricao)
         });
       } else {
@@ -1957,55 +2162,106 @@ app.post('/validate-xml-batch', authenticateToken, upload.array('xmlFiles', 100)
         });
       }
 
-      var apiResponse = await axios.post(url, payload.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': process.env.FASTAPI_VALIDATION_TOKEN
-        }
-      });
-
-      var apiData = apiResponse.data;
-      // A API pode retornar objeto direto ou array
-      var validationResult = Array.isArray(apiData) ? apiData[0] : apiData;
-      if (validationResult) {
-        row.valid = validationResult.valid || false;
-        if (validationResult.details) {
-          row.valid_cnpj_prestador = validationResult.details.valid_cnpj_prestador || false;
-          row.valid_cnpj = validationResult.details.valid_cnpj || false;
-          row.valid_descricao_servico = validationResult.details.valid_descricao_servico || false;
-          row.valid_valor = validationResult.details.valid_valor || false;
-          row.valid_trib_nac = validationResult.details.valid_trib_nac || false;
-          row.valid_dCompet = validationResult.details.valid_dCompet || false;
+      // task 1.3.8: classificar negócio × infra na chamada à FastAPI.
+      chamouFastApi = true;
+      console.log('[validate-xml-batch][FASTAPI] id=' + movimento.id + ' url=' + url + ' empresa=' + idEmp);
+      try {
+        await axios.post(url, payload.toString(), {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': process.env.FASTAPI_VALIDATION_TOKEN
+          }
+        });
+      } catch (apiErr) {
+        var extStatus = (apiErr.response && apiErr.response.status) || 0;
+        var extDetail = apiErr.response && apiErr.response.data && apiErr.response.data.detail;
+        var detailMsg = typeof extDetail === 'string' ? extDetail.trim() : '';
+        if (extStatus >= 400 && extStatus < 500 && detailMsg) {
+          // NEGÓCIO: 4xx com detail → propaga o detail (será gravado abaixo via
+          // read-back; mesmo se a FastAPI gravou erro_validacao, refletimos).
+          console.error('[validate-xml-batch][FASTAPI] negócio id=' + movimento.id + ' detail=' + detailMsg);
+          // segue para o read-back/PATCH abaixo (a FastAPI grava erro_validacao).
+        } else {
+          // INFRA: timeout/5xx/sem resposta → erro, NÃO grava resultado falso.
+          console.error('[validate-xml-batch][FASTAPI] infra id=' + movimento.id + ' status=' + extStatus + ' msg=' + apiErr.message);
+          row.status = 'erro';
+          row.erro_validacao = 'serviço de validação indisponível';
+          throw { _handled: true };
         }
       }
+
+      // Fonte de verdade: a FastAPI grava nota_ok/erro_validacao DIRETO na
+      // EnvioMassa. Relemos o registro (padrão validar-nota) e then PATCH
+      // idempotente por id com esses {nota_ok, erro_validacao} (FR-012).
+      var registro = null;
+      try {
+        var refreshed = await postgrestRequest(
+          'EnvioMassa?id=eq.' + encodeURIComponent(movimento.id) + '&select=nota_ok,erro_validacao'
+        );
+        registro = (Array.isArray(refreshed) && refreshed[0]) || null;
+      } catch (e) {
+        registro = null;
+      }
+
+      if (!registro) {
+        // FastAPI respondeu mas não persistiu → tratar como infra (não grava falso).
+        row.status = 'erro';
+        row.erro_validacao = 'serviço de validação indisponível';
+        throw { _handled: true };
+      }
+
+      var novoNotaOk = registro.nota_ok;
+      var novoErro = (registro.erro_validacao || '').trim();
+
+      // Assertion anti-overwrite (task 1.3.6): o movimento NÃO podia estar
+      // aprovado antes do PATCH (já foi barrado pelo gate). Defesa extra contra
+      // race — se de algum modo está aprovado agora, NÃO regrava.
+      // task 1.3.6: PATCH idempotente — body SÓ { nota_ok, erro_validacao }.
+      // NUNCA `valor` (INV-4).
+      try {
+        await postgrestRequest(
+          'EnvioMassa?id=eq.' + encodeURIComponent(movimento.id),
+          'PATCH',
+          { nota_ok: novoNotaOk, erro_validacao: registro.erro_validacao }
+        );
+        // task 1.3.11 / 0.1.3: log estruturado por PATCH (sem PII/sem XML).
+        console.log('[PATCH] id=' + movimento.id + ' status=' + statusAlvo + ' empresa=' + idEmp);
+      } catch (patchErr) {
+        console.error('[validate-xml-batch][PATCH] falha id=' + movimento.id + ': ' + patchErr.message);
+        row.status = 'erro';
+        row.erro_validacao = 'serviço de validação indisponível';
+        throw { _handled: true };
+      }
+
+      row.status = statusAlvo;
+      row.erro_validacao = novoErro ? registro.erro_validacao : null;
     } catch (err) {
-      console.error('Erro ao processar XML ' + file.originalname + ':', err.message);
-      if (err.response) {
-        console.error('Status:', err.response.status, 'Data:', JSON.stringify(err.response.data));
+      if (!(err && err._handled)) {
+        // Parse/erro inesperado → status=erro, continua o lote (FR-015).
+        console.error('[validate-xml-batch] Erro ao processar XML ' + file.originalname + ': ' + (err && err.message));
+        row.status = 'erro';
+        if (!row.erro_validacao) row.erro_validacao = 'falha ao processar XML';
       }
     } finally {
+      // CHK109: remover o arquivo transiente do disco após o processamento.
       try { fs.unlinkSync(file.path); } catch (e) { /* ignore */ }
     }
 
     results.push(row);
+    if (stats[row.status] !== undefined) stats[row.status] += 1;
+    stats.total += 1;
 
-    // Rate limit: 1 validacao a cada 2 segundos
-    if (i < files.length - 1) {
-      await new Promise(function(resolve) { setTimeout(resolve, 2000); });
+    // task 1.3.9: rate-limit de 2s SOMENTE quando houve chamada à FastAPI.
+    if (chamouFastApi && i < files.length - 1) {
+      await new Promise(function (resolve) { setTimeout(resolve, 2000); });
     }
   }
 
-  var successCount = results.filter(function(r) { return r.valid === true; }).length;
-  var errorCount = results.filter(function(r) { return r.valid !== true; }).length;
+  // task 1.3.11: log de aggregates ao final (sem PII).
+  console.log('[validate-xml-batch][stats] ' + JSON.stringify(stats));
 
-  res.json({
-    stats: {
-      total: results.length,
-      success: successCount,
-      errors: errorCount
-    },
-    results: results
-  });
+  // task 1.3.10: resposta enriquecida { stats, results } em snake_case.
+  res.json({ stats: stats, results: results });
 });
 
 // Rota para fechar o movimento

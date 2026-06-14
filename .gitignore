@@ -33,3 +33,7 @@ Thumbs.db
 # ---- Local tooling ----
 .claude/
 .vercel
+
+# ---- Fixtures sensíveis (NFS-e reais: CNPJs + assinatura digital) ----
+# Usados localmente nos testes/E2E (validacao-xml-lote); não versionar.
+docs/nota_entrego/
