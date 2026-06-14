@@ -56,7 +56,9 @@ export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
 
-  const isPasswordValid = senha.length >= 6 && /[A-Z]/.test(senha) && /\d/.test(senha);
+  // Regra única de força de senha (reusada no submit e na validação inline)
+  const isStrongPassword = (v: string) => v.length >= 6 && /[A-Z]/.test(v) && /\d/.test(v);
+  const isPasswordValid = isStrongPassword(senha);
 
   // Validação de apresentação (não altera a lógica de registro)
   const validate = (field: 'nomeEmpresa' | 'email' | 'senha', value: string): string => {
@@ -67,8 +69,7 @@ export default function RegisterPage() {
     }
     if (field === 'senha') {
       if (!value) return 'Crie uma senha.';
-      if (!(value.length >= 6 && /[A-Z]/.test(value) && /\d/.test(value)))
-        return 'A senha não atende aos requisitos abaixo.';
+      if (!isStrongPassword(value)) return 'A senha não atende aos requisitos abaixo.';
     }
     return '';
   };
@@ -207,7 +208,7 @@ export default function RegisterPage() {
                     autoComplete="new-password"
                     aria-required="true"
                     aria-invalid={!!errors.senha}
-                    aria-describedby="senha-requisitos"
+                    aria-describedby={errors.senha ? 'senha-error senha-requisitos' : 'senha-requisitos'}
                     className="h-11 pr-10 sm:h-10"
                   />
                   <button
@@ -221,7 +222,7 @@ export default function RegisterPage() {
                   </button>
                 </div>
                 {errors.senha && (
-                  <p role="alert" className="flex items-center gap-1 text-xs font-medium text-destructive">
+                  <p id="senha-error" role="alert" className="flex items-center gap-1 text-xs font-medium text-destructive">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {errors.senha}
                   </p>
                 )}

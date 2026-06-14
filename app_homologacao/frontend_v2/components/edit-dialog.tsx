@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ interface EditDialogProps {
 export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogProps) {
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [form, setForm] = useState({
     number: '',
     nome: '',
@@ -51,10 +52,21 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
     }
   }, [record]);
 
-  // Reseta a confirmação visual sempre que o diálogo (re)abre
+  // Reseta a confirmação visual ao (re)abrir; ao fechar (inclui ESC/backdrop),
+  // cancela um eventual timer de fechamento pendente p/ não fechar um diálogo
+  // reaberto. Limpa também no unmount.
   useEffect(() => {
-    if (open) setSaved(false);
+    if (open) {
+      setSaved(false);
+    } else if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
   }, [open]);
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
 
   const handleSave = async () => {
     if (!record) return;
@@ -64,7 +76,7 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
       toast.success('Registro atualizado com sucesso!');
       // Confirmação visual breve antes de fechar (U011)
       setSaved(true);
-      setTimeout(() => onOpenChange(false), 900);
+      closeTimer.current = setTimeout(() => onOpenChange(false), 900);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao atualizar registro');
     } finally {
