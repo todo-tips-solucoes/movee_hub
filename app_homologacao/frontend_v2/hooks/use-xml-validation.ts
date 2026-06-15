@@ -12,7 +12,7 @@ export type ValidationStatus =
   | 'erro';
 
 // Critério usado para casar o XML com o movimento
-export type MatchCriterio = 'chave' | 'fallback' | 'none';
+export type MatchCriterio = 'chave' | 'cnpj' | 'none';
 
 // Uma linha da resposta — substitui as flags booleanas antigas
 export interface ValidationRow {

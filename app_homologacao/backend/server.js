@@ -1960,24 +1960,28 @@ function normalizeDataDia(v) {
 }
 
 // validacao-xml-lote (FASE 1, task 1.2): casa o XML extraído com um movimento
-// aberto da empresa-alvo. Primário por chave (índice movsByChave), fallback por
-// `cnpj|numnota|data_dia` (índice movsByFallback). Ambos os índices são
-// construídos UMA vez por lote APENAS sobre movimentos da empresa-alvo
-// (isolamento multi-tenant — Princ. II). Retorna { movimento, criterio }.
-function findMovimentoParaXml(extracted, movsByChave, movsByFallback) {
-  // Primário: chave de acesso (mesmo formato de getNFeKeyFromNotaOk).
+// aberto da empresa-alvo. Primário por chave (índice movsByChave, p/ reenvio),
+// fallback por cnpj_prestador no movimento aberto mais recente (índice
+// movsByCnpj) — replicando o fluxo de 1-nota. Ambos os índices são construídos
+// UMA vez por lote APENAS sobre movimentos da empresa-alvo (isolamento
+// multi-tenant — Princ. II). Retorna { movimento, criterio }.
+function findMovimentoParaXml(extracted, movsByChave, movsByCnpj) {
+  // Primário: chave de acesso (reenvio — movimento já validado tem nota_ok, do
+  // qual getNFeKeyFromNotaOk deriva a mesma chave). Confirma identidade exata.
   if (extracted && extracted.chave) {
     var byChave = movsByChave[extracted.chave];
     if (byChave) return { movimento: byChave, criterio: 'chave' };
   }
-  // Fallback: cnpj_normalizado | numnota | data_dia.
+  // Fallback (1ª validação): cnpj_prestador no movimento ABERTO mais recente da
+  // empresa-alvo. Replica o fluxo de 1-nota (routes/motorista.js validar-nota:
+  // `cnpj_prestador=...&mov_fechado=eq.false&order=created_at.desc&limit=1`).
+  // Um movimento aberto ainda-não-validado só tem cnpj_prestador (numnota/
+  // data_emissao/nota_ok são preenchidos NA validação), então casar por
+  // cnpj é o único critério viável aqui. Modelo: 1 nota por prestador.
   var cnpj = onlyDigits(extracted && extracted.cnpj_prestador);
-  var num = (extracted && extracted.numnota != null) ? String(extracted.numnota).trim() : '';
-  var dia = normalizeDataDia(extracted && extracted.data_emissao);
-  if (cnpj && num && dia) {
-    var fbKey = cnpj + '|' + num + '|' + dia;
-    var byFallback = movsByFallback[fbKey];
-    if (byFallback) return { movimento: byFallback, criterio: 'fallback' };
+  if (cnpj) {
+    var byCnpj = movsByCnpj[cnpj];
+    if (byCnpj) return { movimento: byCnpj, criterio: 'cnpj' };
   }
   return { movimento: null, criterio: 'none' };
 }
@@ -2036,7 +2040,8 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
   try {
     movimentosAbertos = await postgrestRequest(
       'EnvioMassa?mov_fechado=eq.false&id_empresa=eq.' + encodeURIComponent(idEmp) +
-      '&select=id,nota_ok,erro_validacao,cnpj_prestador,numnota,data_emissao,valor'
+      '&select=id,nota_ok,erro_validacao,cnpj_prestador,numnota,data_emissao,valor,created_at' +
+      '&order=created_at.desc'
     );
     if (!Array.isArray(movimentosAbertos)) movimentosAbertos = [];
   } catch (e) {
@@ -2046,19 +2051,17 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
 
   // task 1.3.3: índices em memória (só sobre a empresa-alvo — isolamento tenant).
   var movsByChave = {};
-  var movsByFallback = {};
+  var movsByCnpj = {};
   if (movimentosAbertos) {
     for (var mi = 0; mi < movimentosAbertos.length; mi++) {
       var mv = movimentosAbertos[mi];
       var chaveMov = getNFeKeyFromNotaOk(mv.nota_ok);
       if (chaveMov && movsByChave[chaveMov] === undefined) movsByChave[chaveMov] = mv;
+      // Movimento aberto MAIS RECENTE por cnpj_prestador (só-dígitos): a query
+      // ordena por created_at.desc, então o 1º visto de cada cnpj é o mais
+      // recente — replica `order=created_at.desc&limit=1` do fluxo de 1-nota.
       var cnpjMov = onlyDigits(mv.cnpj_prestador);
-      var numMov = (mv.numnota != null) ? String(mv.numnota).trim() : '';
-      var diaMov = normalizeDataDia(mv.data_emissao);
-      if (cnpjMov && numMov && diaMov) {
-        var fbk = cnpjMov + '|' + numMov + '|' + diaMov;
-        if (movsByFallback[fbk] === undefined) movsByFallback[fbk] = mv;
-      }
+      if (cnpjMov && movsByCnpj[cnpjMov] === undefined) movsByCnpj[cnpjMov] = mv;
     }
   }
 
@@ -2103,7 +2106,7 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
       }
 
       // task 1.3.5 (c): casamento.
-      var match = findMovimentoParaXml(fields, movsByChave, movsByFallback);
+      var match = findMovimentoParaXml(fields, movsByChave, movsByCnpj);
       row.match_criterio = match.criterio;
 
       if (match.criterio === 'none' || !match.movimento) {

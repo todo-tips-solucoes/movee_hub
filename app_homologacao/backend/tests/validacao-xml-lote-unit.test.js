@@ -135,18 +135,15 @@ function extractNfseFields(parsed, filename) {
   };
 }
 
-function findMovimentoParaXml(extracted, movsByChave, movsByFallback) {
+function findMovimentoParaXml(extracted, movsByChave, movsByCnpj) {
   if (extracted && extracted.chave) {
     var byChave = movsByChave[extracted.chave];
     if (byChave) return { movimento: byChave, criterio: 'chave' };
   }
   var cnpj = onlyDigits(extracted && extracted.cnpj_prestador);
-  var num = (extracted && extracted.numnota != null) ? String(extracted.numnota).trim() : '';
-  var dia = normalizeDataDia(extracted && extracted.data_emissao);
-  if (cnpj && num && dia) {
-    var fbKey = cnpj + '|' + num + '|' + dia;
-    var byFallback = movsByFallback[fbKey];
-    if (byFallback) return { movimento: byFallback, criterio: 'fallback' };
+  if (cnpj) {
+    var byCnpj = movsByCnpj[cnpj];
+    if (byCnpj) return { movimento: byCnpj, criterio: 'cnpj' };
   }
   return { movimento: null, criterio: 'none' };
 }
@@ -289,26 +286,24 @@ describe('findMovimentoParaXml — casamento', () => {
     id_empresa: 99
   };
 
-  // Índices construídos da mesma forma que o handler do server.js
+  // Índices construídos como no handler do server.js: por chave (reenvio) e por
+  // cnpj_prestador (1ª validação — movimento aberto MAIS RECENTE; a query usa
+  // order=created_at.desc, então o 1º de cada cnpj é o mais recente).
   function buildIndexes(movimentos) {
     var movsByChave = {};
-    var movsByFallback = {};
+    var movsByCnpj = {};
     for (var mv of movimentos) {
-      // Por chave (getNFeKeyFromNotaOk retorna null se nota_ok vazio — sem chave aqui)
-      // Para simular chave conhecida, inserimos manualmente no índice
+      // getNFeKeyFromNotaOk(mv.nota_ok) é null quando nota_ok vazio (movimento
+      // aberto não-validado); a chave conhecida é inserida manualmente nos
+      // testes que a exercitam.
       var cnpjMov = onlyDigits(mv.cnpj_prestador);
-      var numMov = (mv.numnota != null) ? String(mv.numnota).trim() : '';
-      var diaMov = normalizeDataDia(mv.data_emissao);
-      if (cnpjMov && numMov && diaMov) {
-        var fbk = cnpjMov + '|' + numMov + '|' + diaMov;
-        if (movsByFallback[fbk] === undefined) movsByFallback[fbk] = mv;
-      }
+      if (cnpjMov && movsByCnpj[cnpjMov] === undefined) movsByCnpj[cnpjMov] = mv;
     }
-    return { movsByChave, movsByFallback };
+    return { movsByChave, movsByCnpj };
   }
 
   test('T-U-05: casamento primário por chave', () => {
-    const { movsByChave, movsByFallback } = buildIndexes([]);
+    const { movsByChave, movsByCnpj } = buildIndexes([]);
     // Inserir chave manualmente no índice primário
     movsByChave[CHAVE_F1] = movFixture1;
 
@@ -319,28 +314,30 @@ describe('findMovimentoParaXml — casamento', () => {
       data_emissao: '2026-06-09T14:41:32-03:00'
     };
 
-    const result = findMovimentoParaXml(extracted, movsByChave, movsByFallback);
+    const result = findMovimentoParaXml(extracted, movsByChave, movsByCnpj);
     assert.equal(result.criterio, 'chave', 'criterio deve ser "chave"');
     assert.deepEqual(result.movimento, movFixture1, 'deve retornar o movimento correto');
   });
 
-  test('T-U-06: casamento por fallback cnpj|numnota|data quando chave ausente', () => {
-    const { movsByChave, movsByFallback } = buildIndexes([movFixture2]);
+  test('T-U-06: casamento por cnpj_prestador (movimento aberto) quando chave ausente', () => {
+    // 1ª validação: o movimento aberto só tem cnpj_prestador (numnota/data/
+    // nota_ok são preenchidos NA validação). Casa por cnpj, como o fluxo 1-nota.
+    const { movsByChave, movsByCnpj } = buildIndexes([movFixture2]);
 
     const extracted = {
-      chave: null,  // sem chave de acesso no XML
+      chave: null,  // movimento ainda não validado → sem chave no índice
       cnpj_prestador: '44890502000100',
       numnota: '146',
       data_emissao: '2026-06-09T13:12:49-03:00'
     };
 
-    const result = findMovimentoParaXml(extracted, movsByChave, movsByFallback);
-    assert.equal(result.criterio, 'fallback', 'criterio deve ser "fallback"');
+    const result = findMovimentoParaXml(extracted, movsByChave, movsByCnpj);
+    assert.equal(result.criterio, 'cnpj', 'criterio deve ser "cnpj"');
     assert.deepEqual(result.movimento, movFixture2, 'deve retornar movFixture2');
   });
 
   test('T-U-07: sem casamento → criterio="none", movimento=null', () => {
-    const { movsByChave, movsByFallback } = buildIndexes([movFixture1]);
+    const { movsByChave, movsByCnpj } = buildIndexes([movFixture1]);
 
     const extracted = {
       chave: CHAVE_F2,  // chave não indexada
@@ -349,14 +346,14 @@ describe('findMovimentoParaXml — casamento', () => {
       data_emissao: '2024-01-01T00:00:00-03:00'
     };
 
-    const result = findMovimentoParaXml(extracted, movsByChave, movsByFallback);
+    const result = findMovimentoParaXml(extracted, movsByChave, movsByCnpj);
     assert.equal(result.criterio, 'none', 'criterio deve ser "none"');
     assert.equal(result.movimento, null, 'movimento deve ser null');
   });
 
-  test('T-U-08: fallback normaliza CNPJ com pontuação (remove não-dígitos)', () => {
-    const { movsByChave, movsByFallback } = buildIndexes([movFixture1]);
-    // CNPJ do XML com máscara → deve ser normalizado para digits antes do casamento
+  test('T-U-08: casamento por cnpj normaliza CNPJ com pontuação (remove não-dígitos)', () => {
+    const { movsByChave, movsByCnpj } = buildIndexes([movFixture1]);
+    // CNPJ do XML com máscara → deve ser normalizado para dígitos antes do casamento
     const extracted = {
       chave: null,
       cnpj_prestador: '43.568.174/0001-68',  // cnpj mascarado = mesmo que 43568174000168
@@ -364,50 +361,60 @@ describe('findMovimentoParaXml — casamento', () => {
       data_emissao: '2026-06-09T14:41:32-03:00'
     };
 
-    const result = findMovimentoParaXml(extracted, movsByChave, movsByFallback);
-    assert.equal(result.criterio, 'fallback', 'CNPJ mascarado deve ser normalizado e casar por fallback');
+    const result = findMovimentoParaXml(extracted, movsByChave, movsByCnpj);
+    assert.equal(result.criterio, 'cnpj', 'CNPJ mascarado deve ser normalizado e casar por cnpj');
     assert.deepEqual(result.movimento, movFixture1);
+  });
+
+  test('T-U-08b: movsByCnpj guarda o movimento ABERTO mais recente (1º na ordem created_at.desc)', () => {
+    // A query carrega com order=created_at.desc; o handler indexa o 1º de cada
+    // cnpj (= mais recente). Simula dois movimentos abertos do mesmo prestador.
+    const recente = { id: 2001, cnpj_prestador: '43568174000168', numnota: null, nota_ok: null, erro_validacao: null, data_emissao: null, id_empresa: 99 };
+    const antigo  = { id: 2000, cnpj_prestador: '43568174000168', numnota: null, nota_ok: null, erro_validacao: null, data_emissao: null, id_empresa: 99 };
+    const { movsByChave, movsByCnpj } = buildIndexes([recente, antigo]); // ordem desc
+    const extracted = { chave: null, cnpj_prestador: '43568174000168', numnota: null, data_emissao: null };
+    const result = findMovimentoParaXml(extracted, movsByChave, movsByCnpj);
+    assert.equal(result.criterio, 'cnpj');
+    assert.equal(result.movimento.id, 2001, 'deve casar o movimento mais recente (1º na ordem)');
   });
 
   test('T-U-12: dedup intra-lote por MOVIMENTO — mesma nota processada duas vezes', () => {
     // Simula o handler (movimentosProcessados dict, indexado por movimento.id).
     const movimentosProcessados = {};
-    const { movsByChave, movsByFallback } = buildIndexes([]);
+    const { movsByChave, movsByCnpj } = buildIndexes([]);
     movsByChave[CHAVE_F1] = movFixture1;
 
     const extractedA = { chave: CHAVE_F1, cnpj_prestador: '43568174000168', numnota: '98', data_emissao: '2026-06-09T14:41:32-03:00' };
     const extractedB = { chave: CHAVE_F1, cnpj_prestador: '43568174000168', numnota: '98', data_emissao: '2026-06-09T14:41:32-03:00' };
 
     // Processa A (1ª ocorrência): casa e registra o MOVIMENTO.
-    const matchA = findMovimentoParaXml(extractedA, movsByChave, movsByFallback);
+    const matchA = findMovimentoParaXml(extractedA, movsByChave, movsByCnpj);
     assert.equal(matchA.criterio, 'chave');
     assert.ok(!movimentosProcessados[matchA.movimento.id], '1ª vez: movimento não está no dict');
     movimentosProcessados[matchA.movimento.id] = { criterio: matchA.criterio };
 
     // Processa B (2ª ocorrência — mesmo movimento → duplicada_no_lote).
-    const matchB = findMovimentoParaXml(extractedB, movsByChave, movsByFallback);
+    const matchB = findMovimentoParaXml(extractedB, movsByChave, movsByCnpj);
     assert.ok(movimentosProcessados[matchB.movimento.id], '2ª vez: movimento já processado → duplicada_no_lote');
     assert.equal(movimentosProcessados[matchB.movimento.id].criterio, 'chave', 'criterio herdado do 1º');
   });
 
-  test('T-U-12b: dedup por movimento cobre XMLs SEM chave que casam o mesmo movimento (fallback)', () => {
-    // #2: dois XMLs sem chave de acesso, mesma cnpj+numnota+dia → mesmo movimento
-    // via fallback → o 2º vira duplicada_no_lote (dedup por movimento.id, não por
-    // chave). Antes, sem chave, ambos seriam processados (2ª chamada à FastAPI).
+  test('T-U-12b: dedup por movimento cobre XMLs SEM chave que casam o mesmo movimento (por cnpj)', () => {
+    // Dois XMLs sem chave do mesmo prestador → mesmo movimento aberto (casado por
+    // cnpj) → o 2º vira duplicada_no_lote (dedup por movimento.id, não por chave).
     const movimentosProcessados = {};
-    const { movsByChave, movsByFallback } = buildIndexes([]);
-    movsByFallback['43568174000168|98|2026-06-09'] = movFixture1;
+    const { movsByChave, movsByCnpj } = buildIndexes([movFixture1]); // cnpj 43568174000168
 
-    const semChaveA = { chave: null, cnpj_prestador: '43568174000168', numnota: '98', data_emissao: '2026-06-09T14:41:32-03:00' };
-    const semChaveB = { chave: null, cnpj_prestador: '43.568.174/0001-68', numnota: '98', data_emissao: '2026-06-09T08:00:00-03:00' };
+    const semChaveA = { chave: null, cnpj_prestador: '43568174000168', numnota: null, data_emissao: null };
+    const semChaveB = { chave: null, cnpj_prestador: '43.568.174/0001-68', numnota: null, data_emissao: null };
 
-    const mA = findMovimentoParaXml(semChaveA, movsByChave, movsByFallback);
-    assert.equal(mA.criterio, 'fallback', 'sem chave → casa por fallback');
+    const mA = findMovimentoParaXml(semChaveA, movsByChave, movsByCnpj);
+    assert.equal(mA.criterio, 'cnpj', 'sem chave → casa por cnpj');
     assert.ok(!movimentosProcessados[mA.movimento.id]);
     movimentosProcessados[mA.movimento.id] = { criterio: mA.criterio };
 
-    const mB = findMovimentoParaXml(semChaveB, movsByChave, movsByFallback);
-    assert.equal(mB.criterio, 'fallback');
+    const mB = findMovimentoParaXml(semChaveB, movsByChave, movsByCnpj);
+    assert.equal(mB.criterio, 'cnpj');
     assert.ok(movimentosProcessados[mB.movimento.id], 'XML sem chave repetido → duplicada_no_lote via movimento');
   });
 
@@ -483,9 +490,9 @@ describe('Integração: extractNfseFields + findMovimentoParaXml (sem I/O real)'
     assert.equal(fields.chave, CHAVE, `chave extraída deve ser exatamente ${CHAVE}`);
 
     const movsByChave = { [CHAVE]: { id: 501, cnpj_prestador: '43568174000168', nota_ok: null, erro_validacao: null } };
-    const movsByFallback = {};
+    const movsByCnpj = {};
 
-    const result = findMovimentoParaXml(fields, movsByChave, movsByFallback);
+    const result = findMovimentoParaXml(fields, movsByChave, movsByCnpj);
     assert.equal(result.criterio, 'chave');
     assert.equal(result.movimento.id, 501);
   });
@@ -516,18 +523,17 @@ describe('Integração: extractNfseFields + findMovimentoParaXml (sem I/O real)'
     assert.equal(result.movimento.id, 503);
   });
 
-  test('T-U-I-04: fixture 1 sem chave no índice → fallback por cnpj|numnota|data', async () => {
+  test('T-U-I-04: fixture 1 sem chave no índice → casa por cnpj_prestador (movimento aberto)', async () => {
     const parsed = await parseXml(FIXTURE_1);
     const fields = extractNfseFields(parsed, path.basename(FIXTURE_1));
 
-    // Índice primário vazio (nenhum movimento tem essa chave cadastrada)
+    // Índice primário vazio (movimento aberto ainda não validado → sem chave)
     const movsByChave = {};
-    // Índice fallback: '43568174000168|98|2026-06-09'
-    const fbKey = '43568174000168|98|2026-06-09';
-    const movsByFallback = { [fbKey]: { id: 601, cnpj_prestador: '43568174000168', nota_ok: null, erro_validacao: null } };
+    // Índice por cnpj: movimento aberto do prestador, indexado por cnpj só-dígitos
+    const movsByCnpj = { '43568174000168': { id: 601, cnpj_prestador: '43568174000168', nota_ok: null, erro_validacao: null } };
 
-    const result = findMovimentoParaXml(fields, movsByChave, movsByFallback);
-    assert.equal(result.criterio, 'fallback', 'deve casar por fallback quando chave não está no índice primário');
+    const result = findMovimentoParaXml(fields, movsByChave, movsByCnpj);
+    assert.equal(result.criterio, 'cnpj', 'deve casar por cnpj quando chave não está no índice primário');
     assert.equal(result.movimento.id, 601);
   });
 
