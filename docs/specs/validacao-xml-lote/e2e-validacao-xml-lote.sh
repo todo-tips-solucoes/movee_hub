@@ -20,9 +20,14 @@
 #   - Movimentos abertos no banco para os CNPJs/notas acima (empresa Movee)
 #     (caso não existam, criar via INSERT ou upload de lote CSV)
 #
+# Autenticação: o backend lê o JWT do COOKIE `accessToken` (req.cookies.accessToken),
+# NÃO do header Authorization. Capture o valor do cookie no navegador logado:
+#   F12 → Application (Storage) → Cookies → https://app.moveelog.com.br → copiar
+#   o VALOR de `accessToken` (é httpOnly: aparece no DevTools, não via JS/console).
+#
 # Uso:
-#   export TOKEN_MOVEE="Bearer <jwt-movee>"
-#   export TOKEN_OUTRO_TENANT="Bearer <jwt-outra-empresa>"
+#   export ACCESS_TOKEN_MOVEE="<valor-do-cookie-accessToken-do-usuario-Movee>"
+#   export ACCESS_TOKEN_OUTRO="<accessToken-de-outra-empresa>"   # opcional (INV-3)
 #   export API_BASE="https://app.moveelog.com.br"         # via proxy frontend
 #   # OU (acesso direto ao backend em dev):
 #   # export API_BASE="http://localhost:3001"
@@ -32,8 +37,9 @@
 set -euo pipefail
 
 API="${API_BASE:-https://app.moveelog.com.br}"
-TOKEN="${TOKEN_MOVEE:?TOKEN_MOVEE nao definido}"
-TOKEN_OUTRO="${TOKEN_OUTRO_TENANT:-}"
+# Aceita ACCESS_TOKEN_MOVEE (novo, valor do cookie) ou TOKEN_MOVEE (legado).
+TOKEN="${ACCESS_TOKEN_MOVEE:-${TOKEN_MOVEE:?Defina ACCESS_TOKEN_MOVEE com o valor do cookie accessToken}}"
+TOKEN_OUTRO="${ACCESS_TOKEN_OUTRO:-${TOKEN_OUTRO_TENANT:-}}"
 FIXTURES_DIR="$(cd "$(dirname "$0")/../../.." && pwd)/docs/nota_entrego"
 
 XML1="${FIXTURES_DIR}/35503082243568174000168000000000009826065650835650.xml"
@@ -90,7 +96,7 @@ PSQL
 echo ""
 
 RESP1=$(curl -s -X POST "${ENDPOINT}" \
-  -H "Authorization: ${TOKEN}" \
+  -H "Cookie: accessToken=${TOKEN}" \
   -F "xmlFiles=@${XML1}" \
   -F "xmlFiles=@${XML2}" \
   -F "xmlFiles=@${XML3}")
@@ -139,7 +145,7 @@ PSQL
 echo ""
 
 RESP2=$(curl -s -X POST "${ENDPOINT}" \
-  -H "Authorization: ${TOKEN}" \
+  -H "Cookie: accessToken=${TOKEN}" \
   -F "xmlFiles=@${XML1}" \
   -F "xmlFiles=@${XML2}" \
   -F "xmlFiles=@${XML3}")
@@ -179,7 +185,7 @@ PSQL
 echo ""
 
 RESP3=$(curl -s -X POST "${ENDPOINT}" \
-  -H "Authorization: ${TOKEN}" \
+  -H "Cookie: accessToken=${TOKEN}" \
   -F "xmlFiles=@${XML1}")
 echo "Resposta Cenário 3:"
 echo "${RESP3}" | jq .
@@ -202,7 +208,7 @@ PSQL
 echo ""
 
 RESP4=$(curl -s -X POST "${ENDPOINT}" \
-  -H "Authorization: ${TOKEN}" \
+  -H "Cookie: accessToken=${TOKEN}" \
   -F "xmlFiles=@${XML1}" \
   -F "xmlFiles=@${XML1}")   # mesmo XML enviado 2x
 echo "Resposta Cenário 4 (mesmo XML 2x):"
@@ -242,7 +248,7 @@ cat > "${DUMMY_XML}" <<'XMLEOF'
 XMLEOF
 
 RESP5=$(curl -s -X POST "${ENDPOINT}" \
-  -H "Authorization: ${TOKEN}" \
+  -H "Cookie: accessToken=${TOKEN}" \
   -F "xmlFiles=@${DUMMY_XML}")
 echo "Resposta Cenário 5:"
 echo "${RESP5}" | jq .
@@ -266,12 +272,12 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────────────
 echo "--- CENÁRIO 6: tenant errada → isolamento (INV-3) ---"
 if [ -z "${TOKEN_OUTRO}" ]; then
-  echo "[SKIP] TOKEN_OUTRO_TENANT não definido. Para testar INV-3, definir e re-executar."
+  echo "[SKIP] ACCESS_TOKEN_OUTRO nao definido. Para testar INV-3 (isolamento cross-tenant), definir e re-executar."
   echo "       Os movimentos do XML1 pertencem à empresa Movee (id_empresa=6 ou grupo)."
   echo "       Usando token de empresa diferente, a resposta deve ser sem_movimento (não vaza dados)."
 else
   RESP6=$(curl -s -X POST "${ENDPOINT}" \
-    -H "Authorization: ${TOKEN_OUTRO}" \
+    -H "Cookie: accessToken=${TOKEN_OUTRO}" \
     -F "xmlFiles=@${XML1}" \
     -F "xmlFiles=@${XML2}" \
     -F "xmlFiles=@${XML3}")
