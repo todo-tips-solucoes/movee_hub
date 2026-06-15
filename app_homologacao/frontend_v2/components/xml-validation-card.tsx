@@ -89,7 +89,7 @@ function StatusBadge({ status }: { status: ValidationStatus }) {
 // ---------------------------------------------------------------------------
 function matchCriterioLabel(c: ValidationRow['match_criterio']): string {
   if (c === 'chave') return 'Chave NF-e';
-  if (c === 'fallback') return 'CNPJ + Nota + Data';
+  if (c === 'cnpj') return 'CNPJ do prestador';
   return '—';
 }
 
