@@ -47,9 +47,32 @@ const uploadMemory = multer({
 // brute-forceáveis; sem limite, um atacante pode tentar reivindicar pré-cadastros
 // (senha NULL) por força-bruta de CNPJ. keyGenerator por IP (mesma escolha do login).
 // ──────────────────────────────────────────────────────────────────────────────
-const loginRateLimiter = rateLimit({
+// fix login motorista 429 — o limiter original chaveava SÓ por req.ip. Atrás de
+// Traefik+Next sem `trust proxy`, req.ip é o IP do proxy (igual p/ todos) → o teto de
+// 10 virava um BALDE GLOBAL: depois de 10 logins agregados em 15 min, qualquer motorista
+// recebia 429, que a UI mostra como "Erro ao conectar. Tente novamente.". Correção em
+// duas camadas (compõem defesa em profundidade):
+//   1) por (IP + CNPJ): cada CONTA tem seu próprio balde — um motorista nunca derruba
+//      outro. Isola o sintoma mesmo que o req.ip ainda estivesse compartilhado.
+//   2) por IP: teto agregado anti-abuso/enumeração, com folga p/ NAT compartilhado
+//      (operadora/4G/roteador de pátio: vários motoristas saem pelo mesmo IP público).
+// Depende de `app.set('trust proxy', …)` (server.js) p/ req.ip refletir o IP real.
+const onlyDigitsLogin = (v) => String(v || '').replace(/\D/g, '');
+
+const loginPerAccountLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 10,                   // máx. 10 tentativas de login por IP
+  max: 10,                   // máx. 10 tentativas por (IP, CNPJ)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${req.ip}|${onlyDigitsLogin(req.body && req.body.cnpjPrestador)}`,
+  handler: (_req, res) => {
+    res.status(429).json({ error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' });
+  },
+});
+
+const loginPerIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 60,                   // teto agregado por IP (folga p/ NAT compartilhado de motoristas)
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.ip,
@@ -172,7 +195,7 @@ function clearAuthCookies(res) {
 // ROTA: POST /motorista/login  (público)
 // Ref: tarefa 2.2.1 / contracts §login / spec FR-001 / quickstart 1, 2
 // ──────────────────────────────────────────────────────────────────────────────
-router.post('/login', loginRateLimiter, async (req, res) => {
+router.post('/login', loginPerIpLimiter, loginPerAccountLimiter, async (req, res) => {
   try {
     const { cnpjPrestador, senha } = req.body;
 

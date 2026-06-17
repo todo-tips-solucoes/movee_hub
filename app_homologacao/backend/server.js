@@ -44,6 +44,16 @@ const uploadXmlBatch = multer({
   limits: { fileSize: XML_BATCH_MAX_FILE_BYTES, files: 100 }
 });
 
+// fix login motorista 429 (trust proxy) — o backend roda atrás de Traefik (ingress do
+// Swarm) e do proxy Next.js (frontend_*/app/api/[...path]/route.ts). SEM trust proxy o
+// Express ignora o X-Forwarded-For e usa o IP do socket (o da rede overlay/proxy), que
+// é IDÊNTICO para todos os clientes. Isso fazia o rate limit por IP do /motorista/login
+// (keyGenerator: req.ip) virar um BALDE GLOBAL: após 10 logins agregados em 15 min, todo
+// motorista recebia 429 → a UI mostrava "Erro ao conectar. Tente novamente.".
+// O nº de hops confiáveis depende da topologia (Traefik + Next). Default 1 (Traefik);
+// ajustável por env sem rebuild se a contagem precisar mudar após validação no ambiente.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+
 // Configurações básicas do servidor
 app.use(cookieParser());
 const allowedOrigins = [

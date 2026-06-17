@@ -71,6 +71,12 @@ export default function LoginPage() {
         geral = 'CNPJ ou senha incorretos.';
       } else if (msg.includes('inativa') || msg.includes('403')) {
         geral = 'Conta inativa. Entre em contato com o suporte.';
+      } else if (msg.includes('Muitas tentativas')) {
+        // fix login motorista 429 — antes caía no fallback "Erro ao conectar",
+        // mascarando o rate limit. Mostra a causa real ao motorista.
+        geral = 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.';
+      } else if (msg.includes('Tempo limite')) {
+        geral = 'O servidor demorou a responder. Tente novamente.';
       }
       setErrors({ geral });
       toast.error(geral);
