@@ -165,9 +165,13 @@ async function patchRouteLogic({
       }
     }
 
-    // [G] Patch demais campos
+    // [G] Patch demais campos. [] significa "nenhuma linha casou" OU "update vazio"
+    // (edição só-CNPJ não traz enviado/men1/men2). Só é 404 quando NÃO houve mudança de CNPJ.
     const result = await updateEnvioMassa(id, enviado, mensagem, tipo, idEmp);
     if (Array.isArray(result) && result.length === 0) {
+      if (hasCnpjChange) {
+        return { status: 200, body: { message: 'Registro atualizado com sucesso!' } };
+      }
       return { status: 404, body: { error: 'Registro não encontrado ou não pertence à empresa.' } };
     }
 
@@ -204,6 +208,13 @@ function mesmoGrupoQueFalse() { return Promise.resolve(false); }
 
 function updateEnvioMassaOK(id, enviado, mensagem, tipo, idEmp) {
   return Promise.resolve([{ id, id_empresa: idEmp, enviado }]);
+}
+
+// Reflete o comportamento REAL de updateEnvioMassa quando o updateData é vazio
+// (edição só-CNPJ não traz enviado/men1/men2): PATCH vazio → PostgREST retorna [].
+// Era esse o caso que mascarava o falso-404 (produção: "com os dados: {}" → [] → 404).
+function updateEnvioMassaVazio() {
+  return Promise.resolve([]);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -413,6 +424,36 @@ describe('patchRouteLogic (rota PATCH /update-envio-massa/:id)', () => {
     });
 
     assert.equal(result.status, 200);
+    assert.ok(result.body.message.includes('sucesso'));
+  });
+
+  // C1b — Regressão do falso-404: editar SÓ o CNPJ (sem enviado/men1/men2) faz o [G]
+  // chamar updateEnvioMassa com updateData vazio → PostgREST retorna []. Antes do fix,
+  // a rota interpretava [] como "não encontrado" e devolvia 404 mesmo tendo migrado o CNPJ.
+  // Deve devolver 200. (Reproduz o relato de produção: "registro 196021 (empresa 6) com os dados: {}".)
+  test('C1b via rota: edição só-CNPJ, updateEnvioMassa retorna [] → 200 (não falso-404)', async () => {
+    const postgrestMock = async (endpoint, method = 'GET') => {
+      if (method === 'GET' && endpoint.startsWith('EnvioMassa')) {
+        return [{ cnpj_prestador: CNPJ_ANTIGO }]; // [C] movimento existe
+      }
+      if (method === 'PATCH' && endpoint.startsWith('EnvioMassa')) {
+        return []; // [F] patch em lote OK
+      }
+      return [];
+    };
+
+    const result = await patchRouteLogic({
+      id: 196021,
+      body: { empresa_id: ID_EMP, cnpj_prestador: CNPJ_NOVO }, // só CNPJ, sem enviado/mensagem/tipo
+      user: userMovee,
+      resolveEmpresaAlvo: resolveEmpresaAlvoOK,
+      mesmoGrupoQue: mesmoGrupoQueTrue,
+      postgrestRequest: postgrestMock,
+      migrarCnpjMotorista: async () => ({ ok: true }),
+      updateEnvioMassa: updateEnvioMassaVazio, // [G] update vazio → []
+    });
+
+    assert.equal(result.status, 200, 'edição só-CNPJ não pode devolver 404 quando o movimento existe');
     assert.ok(result.body.message.includes('sucesso'));
   });
 

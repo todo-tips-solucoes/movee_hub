@@ -958,9 +958,16 @@ app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
         // [G] PATCH demais campos do movimento editado (enviado/men1/men2/tipo) — não-regressão
         const result = await updateEnvioMassa(id, enviado, mensagem, tipo, idEmp);
 
-        // PostgREST retorna array vazio quando nenhuma linha casou o filtro
-        // (id não existe OU não pertence à empresa-alvo) — responder 404.
+        // PostgREST retorna [] em DOIS casos distintos: (a) nenhuma linha casou o filtro
+        // (id/empresa errados — "não encontrado"); (b) o update foi VAZIO porque o body não
+        // trazia enviado/men1/men2 — caso típico de edição SÓ de CNPJ. Logo, [] sozinho NÃO
+        // significa "não encontrado".
         if (Array.isArray(result) && result.length === 0) {
+            // Se houve mudança de CNPJ, o movimento já foi confirmado em [C] e processado em
+            // [F]/[F-Motorista]: não é 404, apenas não havia outros campos a gravar → 200.
+            if (hasCnpjChange) {
+                return res.json({ message: 'Registro atualizado com sucesso!' });
+            }
             return res.status(404).json({ error: 'Registro não encontrado ou não pertence à empresa.' });
         }
 
