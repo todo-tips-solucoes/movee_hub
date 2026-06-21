@@ -78,6 +78,8 @@ Ao editar um movimento, o campo de CNPJ do prestador exibe máscara de formataç
 
 - O que acontece se o CNPJ antigo e o novo forem iguais após normalização (remoção de pontuação)? O sistema deve detectar que não houve mudança e não acionar a lógica de migração.
 - O que acontece se a atualização em lote de movimentos falhar parcialmente? O sistema deve reportar erro sem deixar estado inconsistente (movimentos parcialmente atualizados).
+- O que acontece se os movimentos forem atualizados com sucesso mas a migração do motorista falhar em seguida (sem transação atômica no PostgREST)? O sistema deve retornar erro (HTTP 500) com mensagem clara e logar a inconsistência — sem tentar reverter os movimentos (rollback em lote sem transação é inseguro).
+- Movimentos já finalizados (`enviado=true`) também têm o CNPJ atualizado na troca em lote — a correção de digitação vale para todo o histórico da empresa.
 - O que acontece se o admin de uma empresa fora do grupo Movee editar o CNPJ? O CNPJ deve ser atualizado nos movimentos normalmente, sem qualquer operação na tabela de motoristas.
 - O que acontece se o campo CNPJ for removido do payload de edição? O sistema deve ignorar a lógica de migração (comportamento atual mantido para outros campos).
 
@@ -95,6 +97,10 @@ Ao editar um movimento, o campo de CNPJ do prestador exibe máscara de formataç
 - **FR-008**: O campo de CNPJ do prestador no formulário de edição DEVE exibir máscara de formatação e validar que o valor contém exatamente 14 dígitos numéricos antes de habilitar o envio.
 - **FR-009**: O sistema DEVE normalizar o CNPJ (remover pontuação, manter apenas dígitos) antes de qualquer comparação ou persistência.
 - **FR-010**: A lógica de migração de motorista DEVE ser executada somente após a atualização bem-sucedida dos movimentos — nunca antes.
+- **FR-011**: Se a atualização dos movimentos suceder mas a migração subsequente do motorista falhar, o sistema DEVE retornar erro (HTTP 500) com mensagem clara e registrar a inconsistência em log (sem expor segredos), SEM tentar reverter os movimentos — reversão em lote sem transação atômica é insegura.
+- **FR-012**: A troca em lote do CNPJ DEVE abranger todos os movimentos da mesma empresa com o CNPJ antigo independentemente do status `enviado` (incluindo movimentos já finalizados), garantindo consistência total do prestador.
+- **FR-013**: A verificação de conflito de unicidade (HTTP 409) e qualquer leitura/escrita na tabela de motoristas DEVE ocorrer exclusivamente para empresas do grupo Movee; empresas fora do grupo nunca consultam a tabela de motoristas (preserva isolamento multi-tenant — a base de motoristas é exclusiva do grupo Movee).
+- **FR-014**: O aviso "Isto também atualizará o login do motorista no app" PODE ser exibido como texto fixo no diálogo de edição ao alterar o CNPJ, para todos os usuários — não é necessário o front detectar pertencimento ao grupo Movee (inofensivo para empresas externas, cujo motorista não é tocado; evita expor dados de grupo ao cliente).
 
 ### Key Entities
 
@@ -122,3 +128,12 @@ Todas as decisões de design foram resolvidas pelo feature-briefing antes da esp
 2. **Conflito de unicidade**: HTTP 409, sem merge automático.
 3. **Motorista inexistente**: criar pré-cadastro (grupo Movee); ignorar (demais empresas).
 4. **Validação no front**: máscara + 14 dígitos obrigatórios.
+
+### Sessão de clarify 2026-06-21 (resolvida autonomamente — score 3, evidência nas fontes)
+
+Operador ausente (background job); respostas decididas por heurística sobre briefing + constitution + spec (todas com citação literal). Decisões registradas no state.json (dec-007 a dec-010).
+
+5. **Falha parcial movimentos→motorista (Q1)**: se os movimentos forem atualizados mas a migração do motorista falhar, retornar **HTTP 500 + log da inconsistência, sem reverter** os movimentos (FR-011). Reverter em lote sem transação atômica é inseguro; opção de migrar o motorista antes foi descartada por violar FR-010. *Evidência: briefing "logar e retornar status claro" + spec FR-010 (ordem movimento→motorista).*
+6. **Escopo do UPDATE por status (Q2)**: a troca em lote abrange **todos os movimentos** da empresa com o CNPJ antigo, **incluindo os já enviados** (`enviado=true`) — FR-012. *Evidência: spec FR-002 "todos os demais movimentos da mesma empresa" sem restrição de status + briefing Opção A.*
+7. **Checagem de conflito 409 exclusiva do grupo Movee (Q3)**: empresas **fora** do grupo Movee **nunca** consultam a tabela de motoristas; o 409 e qualquer leitura/escrita de motorista são exclusivos do grupo Movee — FR-013. *Evidência: briefing "Para empresas fora do grupo: apenas grava o novo CNPJ no movimento, sem tocar Motorista" + spec FR-003 + constitution Princípio II (isolamento multi-tenant NON-NEGOTIABLE).*
+8. **Aviso de impacto no login no front (Q4)**: exibir o aviso como **texto fixo no diálogo para todos os usuários**, sem detectar grupo Movee no client (inofensivo para empresas externas) — FR-014. *Evidência: briefing "Exibir aviso... (Pode ser texto fixo no diálogo.)".*
