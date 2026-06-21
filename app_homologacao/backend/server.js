@@ -873,13 +873,14 @@ async function updateEnvioMassa(id, enviado, mensagem, tipo, idEmp) {
 
 // Endpoint para atualizar a tabela EnvioMassa
 // FR-013 / movimento-por-filial: empresa_id vem do body; resolveEmpresaAlvo valida escopo (403).
+// migrar-cnpj-motorista: estendido com suporte a cnpj_prestador — ordem [A]..[H] do contrato.
 // Filtro composto id+id_empresa na query PostgREST fecha o IDOR (OWASP API4:2023 / CWE-862):
 // se o registro não pertencer à empresa-alvo, PostgREST retorna [] — respondemos 404.
 app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { enviado, mensagem, tipo } = req.body;
 
-    // 1. Resolver e validar empresa-alvo (403 se fora do escopo)
+    // [A] Resolver e validar empresa-alvo (403 se fora do escopo)
     let idEmp;
     try {
         idEmp = await resolveEmpresaAlvo(req.user, req.body.empresa_id, 'PATCH /update-envio-massa/:id');
@@ -887,15 +888,90 @@ app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
         return res.status(err.status || 403).json({ error: err.error || 'empresa fora do escopo' });
     }
 
+    // Verificar se há mudança de CNPJ solicitada
+    const cnpjRaw = req.body.cnpj_prestador;
+    const hasCnpjChange = cnpjRaw !== undefined && cnpjRaw !== null && cnpjRaw !== '';
+
     try {
+        if (hasCnpjChange) {
+            // [B] Validar cnpjNovo
+            const cnpjNovo = onlyDigits(cnpjRaw);
+            if (!isCNPJ14(cnpjNovo)) {
+                return res.status(400).json({ error: 'CNPJ inválido — deve conter 14 dígitos.' });
+            }
+
+            // [C] Buscar movimento atual escopado (ownership atômico anti-IDOR)
+            const movimentos = await postgrestRequest(
+                `EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}&select=cnpj_prestador`
+            );
+            if (!Array.isArray(movimentos) || movimentos.length === 0) {
+                return res.status(404).json({ error: 'Movimento não encontrado.' });
+            }
+            const cnpjAntigo = onlyDigits(movimentos[0].cnpj_prestador);
+
+            // [D] Idempotência: CNPJ não muda → pular lógica de CNPJ
+            if (cnpjNovo !== cnpjAntigo) {
+                // [E] GATE DE GRUPO (SEC-03, guard-clause OBRIGATÓRIA antes de [E1])
+                // Empresa fora do grupo Movee nunca acessa Motorista
+                const _cnpjCache = {};
+                const isMoveeGroup = await mesmoGrupoQue(idEmp, 6, _cnpjCache);
+
+                if (isMoveeGroup) {
+                    // [E1] PRÉ-CHECK 409 + [F-Motorista] — dentro da função migrarCnpjMotorista
+                    // [F] PATCH em lote dos movimentos primeiro (FR-010: Motorista SÓ após movimentos OK)
+                    const patchLote = await postgrestRequest(
+                        `EnvioMassa?id_empresa=eq.${idEmp}&cnpj_prestador=eq.${encodeURIComponent(cnpjAntigo)}`,
+                        'PATCH',
+                        { cnpj_prestador: cnpjNovo }
+                    );
+                    if (patchLote && patchLote.error) {
+                        console.error('[PATCH /update-envio-massa] Erro no lote de movimentos:', patchLote.code);
+                        return res.status(500).json({ error: 'Erro ao atualizar movimentos em lote.' });
+                    }
+
+                    // [F-Motorista] migrar CNPJ na base Motorista (SÓ após movimentos OK — FR-010)
+                    const migResult = await migrarCnpjMotorista(cnpjAntigo, cnpjNovo, idEmp, _cnpjCache);
+                    if (migResult.conflict) {
+                        return res.status(409).json({ error: 'CNPJ já cadastrado para outro motorista.' });
+                    }
+                    if (migResult.error) {
+                        // FR-011: falha parcial pós-movimentos → 500, sem reverter
+                        console.error('[PATCH /update-envio-massa] Falha parcial em migrarCnpjMotorista (movimentos já atualizados):', migResult.error && migResult.error.message ? migResult.error.message : String(migResult.error));
+                        return res.status(500).json({ error: 'Movimentos atualizados, mas falha ao migrar base do motorista.' });
+                    }
+                } else {
+                    // Fora do grupo Movee: só atualiza movimentos, não toca Motorista (FR-013)
+                    const patchLote = await postgrestRequest(
+                        `EnvioMassa?id_empresa=eq.${idEmp}&cnpj_prestador=eq.${encodeURIComponent(cnpjAntigo)}`,
+                        'PATCH',
+                        { cnpj_prestador: cnpjNovo }
+                    );
+                    if (patchLote && patchLote.error) {
+                        console.error('[PATCH /update-envio-massa] Erro no lote de movimentos (fora do grupo):', patchLote.code);
+                        return res.status(500).json({ error: 'Erro ao atualizar movimentos em lote.' });
+                    }
+                }
+            }
+            // CNPJ igual (idempotência) ou já processado: cai para [G]
+        }
+
+        // [G] PATCH demais campos do movimento editado (enviado/men1/men2/tipo) — não-regressão
         const result = await updateEnvioMassa(id, enviado, mensagem, tipo, idEmp);
 
-        // PostgREST retorna array vazio quando nenhuma linha casou o filtro
-        // (id não existe OU não pertence à empresa-alvo) — responder 404.
+        // PostgREST retorna [] em DOIS casos distintos: (a) nenhuma linha casou o filtro
+        // (id/empresa errados — "não encontrado"); (b) o update foi VAZIO porque o body não
+        // trazia enviado/men1/men2 — caso típico de edição SÓ de CNPJ. Logo, [] sozinho NÃO
+        // significa "não encontrado".
         if (Array.isArray(result) && result.length === 0) {
+            // Se houve mudança de CNPJ, o movimento já foi confirmado em [C] e processado em
+            // [F]/[F-Motorista]: não é 404, apenas não havia outros campos a gravar → 200.
+            if (hasCnpjChange) {
+                return res.json({ message: 'Registro atualizado com sucesso!' });
+            }
             return res.status(404).json({ error: 'Registro não encontrado ou não pertence à empresa.' });
         }
 
+        // [H] Resposta 200
         res.json({ message: 'Registro atualizado com sucesso!', data: result });
     } catch (error) {
         console.error('Erro ao atualizar o registro:', error.message);
@@ -1288,6 +1364,82 @@ async function upsertMotoristasFromLote(rows) {
     }
   } catch (err) {
     console.error('[UPLOAD][MOTORISTA] Falha no upsert da base Motorista (ignorada, movimento preservado):', err.message);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// migrar-cnpj-motorista: migra o CNPJ de um motorista na base Motorista.
+//
+// Contrato (contracts/patch-update-envio-massa.md §Função migrarCnpjMotorista):
+//
+//   Gate de grupo ([E] na rota): SOMENTE chamada quando mesmoGrupoQue já passou.
+//   A função NÃO re-verifica o grupo — o gate pertence à rota (SEC-03, FR-013).
+//
+//   Algoritmo:
+//     1. PRÉ-CHECK 409 [E1]: Motorista?cnpj_prestador=eq.{cnpjNovo} existe? → { conflict: true }
+//     2. Buscar Motorista?cnpj_prestador=eq.{cnpjAntigo}
+//        - Existe  → PATCH preservando id/nome/senha/ativo: { cnpj_prestador: cnpjNovo }
+//        - Ausente → POST pré-cadastro { cnpj_prestador: cnpjNovo, nome: '', ativo: true }
+//          (senha NULL — motorista define via /motorista/register)
+//     3. Violação UNIQUE no POST → { conflict: true }  (SEC-04 — TOCTOU atômico)
+//     4. Qualquer outra falha → { error }  (FR-011: log sem objeto Motorista completo — SEC-05)
+//
+//   Retornos:
+//     { ok: true }       — migração concluída
+//     { skipped: true }  — (reservado; gate de grupo pertence à rota, não aqui)
+//     { conflict: true } — cnpjNovo já existe em Motorista (409 na rota)
+//     { error: <Error> } — falha inesperada (500 na rota + log)
+// ──────────────────────────────────────────────────────────────────────────────
+async function migrarCnpjMotorista(cnpjAntigo, cnpjNovo, idEmpresa, cache) {
+  try {
+    // [E1] PRÉ-CHECK 409: cnpjNovo já tem motorista cadastrado?
+    const existeNovo = await postgrestRequest(
+      `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNovo)}&select=cnpj_prestador`
+    );
+    if (Array.isArray(existeNovo) && existeNovo.length > 0) {
+      return { conflict: true };
+    }
+
+    // Buscar motorista com o CNPJ antigo
+    const existeAntigo = await postgrestRequest(
+      `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjAntigo)}&select=cnpj_prestador,nome,ativo`
+    );
+
+    if (Array.isArray(existeAntigo) && existeAntigo.length > 0) {
+      // Motorista antigo existe → PATCH preservando nome/ativo (nunca toca senha)
+      await postgrestRequest(
+        `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjAntigo)}`,
+        'PATCH',
+        { cnpj_prestador: cnpjNovo }
+      );
+    } else {
+      // Motorista antigo ausente → pré-cadastro sem senha
+      try {
+        await postgrestRequest(
+          'Motorista',
+          'POST',
+          { cnpj_prestador: cnpjNovo, nome: '', ativo: true }
+        );
+      } catch (postErr) {
+        // SEC-04: violação UNIQUE (code 23505) no POST → conflict, não 500
+        if (
+          postErr && (
+            (postErr.code === '23505') ||
+            (postErr.message && postErr.message.includes('23505')) ||
+            (postErr.message && postErr.message.toLowerCase().includes('unique'))
+          )
+        ) {
+          return { conflict: true };
+        }
+        throw postErr;
+      }
+    }
+
+    return { ok: true };
+  } catch (err) {
+    // SEC-05: nunca logar objeto Motorista completo (contém hash de senha)
+    console.error('[migrarCnpjMotorista] erro:', err && err.message ? err.message : String(err));
+    return { error: err };
   }
 }
 
