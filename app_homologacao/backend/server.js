@@ -1412,6 +1412,8 @@ async function migrarCnpjMotorista(cnpjAntigo, cnpjNovo, idEmpresa, cache) {
         'PATCH',
         { cnpj_prestador: cnpjNovo }
       );
+      // Observabilidade: log de sucesso (SEC-05: só CNPJs, nunca o objeto Motorista/senha)
+      console.log(`[UPDATE][MOTORISTA] migrou ${cnpjAntigo}->${cnpjNovo} (grupo Movee)`);
     } else {
       // Motorista antigo ausente → pré-cadastro sem senha
       try {
@@ -1420,6 +1422,8 @@ async function migrarCnpjMotorista(cnpjAntigo, cnpjNovo, idEmpresa, cache) {
           'POST',
           { cnpj_prestador: cnpjNovo, nome: '', ativo: true }
         );
+        // Observabilidade: log de sucesso (SEC-05: só CNPJ, nunca senha)
+        console.log(`[UPDATE][MOTORISTA] pré-cadastro criado para ${cnpjNovo} (grupo Movee)`);
       } catch (postErr) {
         // SEC-04: violação UNIQUE (code 23505) no POST → conflict, não 500
         if (
