@@ -268,9 +268,12 @@ brandingTomadorRouter.get('/branding-tomador', async (req, res) => {
       // Buscar a empresa pelo CNPJ do tomador para obter id_grupo
       if (mov.cnpj_tomador) {
         const cnpjNorm = String(mov.cnpj_tomador).replace(/\D/g, '');
-        // Tentar por cnpj_prestador (coluna usada para identificar a empresa)
+        // A empresa do tomador é identificada pela coluna `cnpj` da tabela Empresa.
+        // (NÃO existe Empresa.cnpj_prestador — isso causava PostgREST 42703 e jogava
+        // todo o resolve no catch → sempre fallback 'movee'. cnpj_prestador é coluna
+        // de EnvioMassa/Motorista, não de Empresa — ver routes/grupo.js:586/465.)
         const empresas = await _postgrestRequest(
-          `Empresa?cnpj_prestador=eq.${cnpjNorm}&select=id,id_grupo`,
+          `Empresa?cnpj=eq.${encodeURIComponent(cnpjNorm)}&select=id,id_grupo`,
           'GET'
         );
         if (empresas && empresas.length > 0) {
