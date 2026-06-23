@@ -20,13 +20,20 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Pencil, KeyRound, Power, PowerOff, Loader2, Search, Truck, AlertCircle, RotateCw } from 'lucide-react';
+import { Pencil, KeyRound, Power, PowerOff, Loader2, Search, Truck, AlertCircle, RotateCw, FilterX } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { PaginationControls } from '@/components/pagination-controls';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -67,6 +74,18 @@ interface Motorista {
   created_at: string;
 }
 
+/** Estado dos filtros client-side (Nível 1). */
+type FiltroSituacao = 'todos' | 'ativos' | 'inativos';
+type FiltroCadastro = 'todos' | 'cadastrados' | 'pre';
+type FiltroPeriodo = 'any' | '7d' | '30d' | 'custom';
+type Ordenacao = 'nome' | 'recentes' | 'antigos';
+
+/* Defaults — "Limpar filtros" restaura exatamente estes valores. */
+const SITUACAO_PADRAO: FiltroSituacao = 'todos';
+const CADASTRO_PADRAO: FiltroCadastro = 'todos';
+const PERIODO_PADRAO: FiltroPeriodo = 'any';
+const ORDENACAO_PADRAO: Ordenacao = 'nome'; // espelha o order=nome.asc do backend
+
 /* ------------------------------------------------------------------ */
 /* Helpers                                                              */
 /* ------------------------------------------------------------------ */
@@ -91,6 +110,14 @@ export default function MotoristasPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
+
+  /* ---- filtros (client-side; dados já vêm completos do escopo) ---- */
+  const [fSituacao, setFSituacao] = useState<FiltroSituacao>(SITUACAO_PADRAO);
+  const [fCadastro, setFCadastro] = useState<FiltroCadastro>(CADASTRO_PADRAO);
+  const [fPeriodo, setFPeriodo] = useState<FiltroPeriodo>(PERIODO_PADRAO);
+  const [fDataInicio, setFDataInicio] = useState(''); // YYYY-MM-DD (período personalizado)
+  const [fDataFim, setFDataFim] = useState('');       // YYYY-MM-DD (período personalizado)
+  const [ordenacao, setOrdenacao] = useState<Ordenacao>(ORDENACAO_PADRAO);
 
   /* ---- paginação (client-side, igual à EnvioMassa) ---- */
   const [currentPage, setCurrentPage] = useState(1);
@@ -136,17 +163,78 @@ export default function MotoristasPage() {
     carregar();
   }, [carregar]);
 
-  /* ---- filtro (busca por nome/CNPJ) em memória ---- */
+  /* ---- algum filtro/busca ativo? (ordenação não zera resultados) ---- */
+  const temFiltroAtivo =
+    busca.trim() !== '' ||
+    fSituacao !== SITUACAO_PADRAO ||
+    fCadastro !== CADASTRO_PADRAO ||
+    fPeriodo !== PERIODO_PADRAO;
+
+  /* ---- busca + filtros + ordenação compostos (AND) num único useMemo ---- */
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    if (!q) return motoristas;
     const qDigits = q.replace(/\D/g, '');
-    return motoristas.filter(
-      (m) =>
-        (m.nome && m.nome.toLowerCase().includes(q)) ||
-        (qDigits.length > 0 && m.cnpj_prestador.includes(qDigits)),
-    );
-  }, [motoristas, busca]);
+
+    // Limites de período (timestamps locais; inclusivos nas duas pontas).
+    let minTs = -Infinity;
+    let maxTs = Infinity;
+    if (fPeriodo === '7d' || fPeriodo === '30d') {
+      const dias = fPeriodo === '7d' ? 7 : 30;
+      minTs = Date.now() - dias * 24 * 60 * 60 * 1000;
+    } else if (fPeriodo === 'custom') {
+      if (fDataInicio) {
+        const t = new Date(`${fDataInicio}T00:00:00`).getTime();
+        if (!Number.isNaN(t)) minTs = t;
+      }
+      if (fDataFim) {
+        const t = new Date(`${fDataFim}T23:59:59.999`).getTime();
+        if (!Number.isNaN(t)) maxTs = t;
+      }
+    }
+    const filtraPeriodo = minTs !== -Infinity || maxTs !== Infinity;
+
+    const out = motoristas.filter((m) => {
+      // Busca por nome ou CNPJ (mesma regra original).
+      if (q) {
+        const okNome = !!m.nome && m.nome.toLowerCase().includes(q);
+        const okCnpj = qDigits.length > 0 && m.cnpj_prestador.includes(qDigits);
+        if (!okNome && !okCnpj) return false;
+      }
+      // Situação.
+      if (fSituacao === 'ativos' && !m.ativo) return false;
+      if (fSituacao === 'inativos' && m.ativo) return false;
+      // Cadastro (pré-cadastro = senha NULL → cadastrado=false).
+      if (fCadastro === 'cadastrados' && !m.cadastrado) return false;
+      if (fCadastro === 'pre' && m.cadastrado) return false;
+      // Período de cadastro.
+      if (filtraPeriodo) {
+        const ts = new Date(m.created_at).getTime();
+        if (Number.isNaN(ts) || ts < minTs || ts > maxTs) return false;
+      }
+      return true;
+    });
+
+    // Ordenação.
+    if (ordenacao === 'nome') {
+      out.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+    } else if (ordenacao === 'recentes') {
+      out.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (ordenacao === 'antigos') {
+      out.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    }
+    return out;
+  }, [motoristas, busca, fSituacao, fCadastro, fPeriodo, fDataInicio, fDataFim, ordenacao]);
+
+  /* ---- limpar todos os filtros (volta aos defaults + busca vazia) ---- */
+  const limparFiltros = useCallback(() => {
+    setBusca('');
+    setFSituacao(SITUACAO_PADRAO);
+    setFCadastro(CADASTRO_PADRAO);
+    setFPeriodo(PERIODO_PADRAO);
+    setFDataInicio('');
+    setFDataFim('');
+    setOrdenacao(ORDENACAO_PADRAO);
+  }, []);
 
   /* ---- paginação (mesma lógica do hook useEnvioMassa) ---- */
   const totalPages = useMemo(
@@ -165,9 +253,13 @@ export default function MotoristasPage() {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
+  // Volta à página 1 sempre que busca/filtros/ordenação mudam.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [busca, fSituacao, fCadastro, fPeriodo, fDataInicio, fDataFim, ordenacao]);
+
   const onBuscaChange = (v: string) => {
     setBusca(v);
-    setCurrentPage(1);
   };
 
   const changeRecordsPerPage = (value: number | 'all') => {
@@ -303,6 +395,131 @@ export default function MotoristasPage() {
             aria-label="Buscar motoristas"
           />
         </div>
+
+        {/* Barra de filtros (Nível 1 — tudo client-side) */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          {/* Situação */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="filtro-situacao" className="text-xs font-medium text-muted-foreground">
+              Situação
+            </Label>
+            <Select value={fSituacao} onValueChange={(v) => setFSituacao(v as FiltroSituacao)}>
+              <SelectTrigger id="filtro-situacao" className="w-full sm:w-[150px]" aria-label="Filtrar por situação">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="ativos">Ativos</SelectItem>
+                <SelectItem value="inativos">Inativos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Cadastro */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="filtro-cadastro" className="text-xs font-medium text-muted-foreground">
+              Cadastro
+            </Label>
+            <Select value={fCadastro} onValueChange={(v) => setFCadastro(v as FiltroCadastro)}>
+              <SelectTrigger id="filtro-cadastro" className="w-full sm:w-[160px]" aria-label="Filtrar por cadastro">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="cadastrados">Cadastrados</SelectItem>
+                <SelectItem value="pre">Pré-cadastro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Período de cadastro */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="filtro-periodo" className="text-xs font-medium text-muted-foreground">
+              Período de cadastro
+            </Label>
+            <Select value={fPeriodo} onValueChange={(v) => setFPeriodo(v as FiltroPeriodo)}>
+              <SelectTrigger id="filtro-periodo" className="w-full sm:w-[170px]" aria-label="Filtrar por período de cadastro">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Qualquer data</SelectItem>
+                <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                <SelectItem value="custom">Personalizado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Período personalizado: datas início/fim (inclusive) */}
+          {fPeriodo === 'custom' && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="filtro-data-inicio" className="text-xs font-medium text-muted-foreground">
+                  De
+                </Label>
+                <Input
+                  id="filtro-data-inicio"
+                  type="date"
+                  value={fDataInicio}
+                  max={fDataFim || undefined}
+                  onChange={(e) => setFDataInicio(e.target.value)}
+                  className="w-full sm:w-[160px]"
+                  aria-label="Data inicial do cadastro"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="filtro-data-fim" className="text-xs font-medium text-muted-foreground">
+                  Até
+                </Label>
+                <Input
+                  id="filtro-data-fim"
+                  type="date"
+                  value={fDataFim}
+                  min={fDataInicio || undefined}
+                  onChange={(e) => setFDataFim(e.target.value)}
+                  className="w-full sm:w-[160px]"
+                  aria-label="Data final do cadastro"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Ordenação */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="filtro-ordenacao" className="text-xs font-medium text-muted-foreground">
+              Ordenar por
+            </Label>
+            <Select value={ordenacao} onValueChange={(v) => setOrdenacao(v as Ordenacao)}>
+              <SelectTrigger id="filtro-ordenacao" className="w-full sm:w-[160px]" aria-label="Ordenar motoristas">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nome">Nome (A–Z)</SelectItem>
+                <SelectItem value="recentes">Mais recentes</SelectItem>
+                <SelectItem value="antigos">Mais antigos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Contador + limpar filtros */}
+          <div className="flex items-center gap-3 sm:ml-auto sm:pb-0.5">
+            <span className="text-sm text-muted-foreground" aria-live="polite">
+              {filtrados.length} {filtrados.length === 1 ? 'motorista' : 'motoristas'}
+            </span>
+            {temFiltroAtivo && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={limparFiltros}
+                className="gap-1.5"
+                aria-label="Limpar todos os filtros"
+              >
+                <FilterX className="h-4 w-4" aria-hidden="true" />
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Área central — tabela ocupa o espaço restante e rola internamente */}
@@ -325,10 +542,18 @@ export default function MotoristasPage() {
             </Button>
           </div>
         ) : filtrados.length === 0 ? (
-          <div className="rounded-md border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
-            {busca.trim()
-              ? 'Nenhum motorista encontrado para a busca.'
-              : 'Nenhum motorista na base ainda. Importe um movimento para popular a lista.'}
+          <div className="flex flex-col items-center gap-3 rounded-md border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
+            {temFiltroAtivo ? (
+              <>
+                <p>Nenhum motorista para os filtros aplicados.</p>
+                <Button variant="ghost" size="sm" onClick={limparFiltros} className="gap-1.5" aria-label="Limpar todos os filtros">
+                  <FilterX className="h-4 w-4" aria-hidden="true" />
+                  Limpar filtros
+                </Button>
+              </>
+            ) : (
+              <p>Nenhum motorista na base ainda. Importe um movimento para popular a lista.</p>
+            )}
           </div>
         ) : (
           <div className="rounded-md border overflow-auto md:h-full">
