@@ -1329,16 +1329,25 @@ async function upsertMotoristasFromLote(rows) {
         porCnpj.set(cnpj, nome);
       }
     }
-    if (porCnpj.size === 0) return;
+    if (porCnpj.size === 0) return { ok: true, criados: 0 };
 
     const cnpjs = [...porCnpj.keys()];
-    const lista = cnpjs.map((c) => `"${c}"`).join(',');
 
-    // Quais CNPJs já existem em Motorista (e com que nome)
-    const existentesArr = await postgrestRequest(
-      `Motorista?cnpj_prestador=in.(${encodeURIComponent(lista)})&select=cnpj_prestador,nome`
-    );
-    const existentes = new Map((existentesArr || []).map((m) => [m.cnpj_prestador, m]));
+    // Quais CNPJs já existem em Motorista (e com que nome).
+    // EM LOTES: o filtro `in.(...)` vai inteiro na URL e cada CNPJ ocupa ~23 chars
+    // codificados; um upload grande (centenas de CNPJs) estourava o limite de header
+    // do PostgREST → "Parse Error: Header overflow" → o GET lançava ANTES do INSERT e
+    // nenhum motorista era cadastrado. Paginar em fatias de 100 mantém a URL ~2,3 KB.
+    const CHUNK_IN = 100;
+    const existentes = new Map();
+    for (let i = 0; i < cnpjs.length; i += CHUNK_IN) {
+      const fatia = cnpjs.slice(i, i + CHUNK_IN);
+      const lista = fatia.map((c) => `"${c}"`).join(',');
+      const parte = await postgrestRequest(
+        `Motorista?cnpj_prestador=in.(${encodeURIComponent(lista)})&select=cnpj_prestador,nome`
+      );
+      for (const m of (parte || [])) existentes.set(m.cnpj_prestador, m);
+    }
 
     // Inserir os ausentes — pré-cadastro sem senha
     const novos = cnpjs
@@ -1347,6 +1356,8 @@ async function upsertMotoristasFromLote(rows) {
     if (novos.length > 0) {
       await postgrestRequest('Motorista', 'POST', novos);
       console.error(`[UPLOAD][MOTORISTA] ${novos.length} pré-cadastro(s) criado(s) na base Motorista.`);
+    } else {
+      console.error('[UPLOAD][MOTORISTA] Nenhum pré-cadastro novo (todos os CNPJs do lote já existem em Motorista).');
     }
 
     // Atualizar nome apenas quando o existente está vazio (não sobrescreve CRUD)
@@ -1362,8 +1373,17 @@ async function upsertMotoristasFromLote(rows) {
         );
       }
     }
+    return { ok: true, criados: novos.length };
   } catch (err) {
-    console.error('[UPLOAD][MOTORISTA] Falha no upsert da base Motorista (ignorada, movimento preservado):', err.message);
+    // err.status / err.body vêm de postgrestRequest (corpo real do PostgREST — ex.:
+    // "null value in column \"senha\" violates not-null" quando a migração 008 não
+    // foi aplicada/recarregada). Logamos status+body explícitos para diagnóstico, e
+    // RETORNAMOS o erro para que o /upload possa avisar (movimento sempre preservado).
+    console.error(
+      '[UPLOAD][MOTORISTA] Falha no upsert da base Motorista (movimento preservado) —',
+      'status=', err && err.status, 'body=', (err && err.body) || (err && err.message)
+    );
+    return { ok: false, erro: (err && err.body) || (err && err.message) || String(err) };
   }
 }
 
@@ -1772,9 +1792,16 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
     // é EXCLUSIVA do grupo Movee (empresa 6 + filiais). Só cura a base quando o upload é
     // de uma empresa do grupo — uploads de outras empresas não devem poluir a base.
     const _grupoCacheMotorista = {};
+    let motoristaUpsert = null; // null = não é grupo Movee (upsert não se aplica)
     if (await mesmoGrupoQue(empresaId, 6, _grupoCacheMotorista)) {
-      await upsertMotoristasFromLote(dataToInsert);
+      motoristaUpsert = await upsertMotoristasFromLote(dataToInsert);
     }
+    // Observabilidade: se o pré-cadastro do grupo Movee falhou, NÃO mascarar como
+    // sucesso pleno — o movimento foi salvo, mas o motorista não entrou na base
+    // (login do app falharia). Aviso aditivo; não altera o contrato existente.
+    const motoristaWarning = (motoristaUpsert && motoristaUpsert.ok === false)
+      ? 'Movimento salvo, mas o pré-cadastro de motoristas na base Motorista falhou. Os motoristas podem não conseguir acessar o app até a correção.'
+      : null;
 
     // Tenta inferir quantas linhas foram inseridas
     let insertedRows = null;
@@ -1789,7 +1816,8 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
       return res.status(200).json({
         success: true,
         warning: 'Upload processado, mas não consegui confirmar retorno do PostgREST.',
-        inserted_attempted: dataToInsert.length
+        inserted_attempted: dataToInsert.length,
+        ...(motoristaWarning ? { motorista_warning: motoristaWarning } : {})
       });
     }
 
@@ -1797,7 +1825,8 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
 
     return res.json({
       success: true,
-      inserted: insertedRows.length
+      inserted: insertedRows.length,
+      ...(motoristaWarning ? { motorista_warning: motoristaWarning } : {})
     });
 
   } catch (error) {
