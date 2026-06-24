@@ -86,6 +86,31 @@ const CADASTRO_PADRAO: FiltroCadastro = 'todos';
 const PERIODO_PADRAO: FiltroPeriodo = 'any';
 const ORDENACAO_PADRAO: Ordenacao = 'nome'; // espelha o order=nome.asc do backend
 
+/* Opções dos filtros. O array `items` (valor→rótulo) é o que o Select do Base UI
+ * usa para exibir o rótulo no gatilho quando o popup está fechado (os <SelectItem>
+ * só montam ao abrir). Sem ele, o gatilho mostraria o valor cru. */
+const SITUACAO_OPCOES: { value: FiltroSituacao; label: string }[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'ativos', label: 'Ativos' },
+  { value: 'inativos', label: 'Inativos' },
+];
+const CADASTRO_OPCOES: { value: FiltroCadastro; label: string }[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'cadastrados', label: 'Cadastrados' },
+  { value: 'pre', label: 'Pré-cadastro' },
+];
+const PERIODO_OPCOES: { value: FiltroPeriodo; label: string }[] = [
+  { value: 'any', label: 'Qualquer data' },
+  { value: '7d', label: 'Últimos 7 dias' },
+  { value: '30d', label: 'Últimos 30 dias' },
+  { value: 'custom', label: 'Personalizado' },
+];
+const ORDENACAO_OPCOES: { value: Ordenacao; label: string }[] = [
+  { value: 'nome', label: 'Nome (A–Z)' },
+  { value: 'recentes', label: 'Mais recentes' },
+  { value: 'antigos', label: 'Mais antigos' },
+];
+
 /* ------------------------------------------------------------------ */
 /* Helpers                                                              */
 /* ------------------------------------------------------------------ */
@@ -224,6 +249,16 @@ export default function MotoristasPage() {
     }
     return out;
   }, [motoristas, busca, fSituacao, fCadastro, fPeriodo, fDataInicio, fDataFim, ordenacao]);
+
+  /* ---- trocar período: sair de "Personalizado" descarta as datas (evita
+   *      datas "fantasma" persistindo no state ao voltar para custom) ---- */
+  const onPeriodoChange = useCallback((v: FiltroPeriodo) => {
+    setFPeriodo(v);
+    if (v !== 'custom') {
+      setFDataInicio('');
+      setFDataFim('');
+    }
+  }, []);
 
   /* ---- limpar todos os filtros (volta aos defaults + busca vazia) ---- */
   const limparFiltros = useCallback(() => {
@@ -403,14 +438,14 @@ export default function MotoristasPage() {
             <Label htmlFor="filtro-situacao" className="text-xs font-medium text-muted-foreground">
               Situação
             </Label>
-            <Select value={fSituacao} onValueChange={(v) => setFSituacao(v as FiltroSituacao)}>
+            <Select items={SITUACAO_OPCOES} value={fSituacao} onValueChange={(v) => setFSituacao(v as FiltroSituacao)}>
               <SelectTrigger id="filtro-situacao" className="w-full sm:w-[150px]" aria-label="Filtrar por situação">
-                <SelectValue />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="ativos">Ativos</SelectItem>
-                <SelectItem value="inativos">Inativos</SelectItem>
+                {SITUACAO_OPCOES.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -420,14 +455,14 @@ export default function MotoristasPage() {
             <Label htmlFor="filtro-cadastro" className="text-xs font-medium text-muted-foreground">
               Cadastro
             </Label>
-            <Select value={fCadastro} onValueChange={(v) => setFCadastro(v as FiltroCadastro)}>
+            <Select items={CADASTRO_OPCOES} value={fCadastro} onValueChange={(v) => setFCadastro(v as FiltroCadastro)}>
               <SelectTrigger id="filtro-cadastro" className="w-full sm:w-[160px]" aria-label="Filtrar por cadastro">
-                <SelectValue />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="cadastrados">Cadastrados</SelectItem>
-                <SelectItem value="pre">Pré-cadastro</SelectItem>
+                {CADASTRO_OPCOES.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -437,15 +472,14 @@ export default function MotoristasPage() {
             <Label htmlFor="filtro-periodo" className="text-xs font-medium text-muted-foreground">
               Período de cadastro
             </Label>
-            <Select value={fPeriodo} onValueChange={(v) => setFPeriodo(v as FiltroPeriodo)}>
+            <Select items={PERIODO_OPCOES} value={fPeriodo} onValueChange={(v) => onPeriodoChange(v as FiltroPeriodo)}>
               <SelectTrigger id="filtro-periodo" className="w-full sm:w-[170px]" aria-label="Filtrar por período de cadastro">
-                <SelectValue />
+                <SelectValue placeholder="Qualquer data" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="any">Qualquer data</SelectItem>
-                <SelectItem value="7d">Últimos 7 dias</SelectItem>
-                <SelectItem value="30d">Últimos 30 dias</SelectItem>
-                <SelectItem value="custom">Personalizado</SelectItem>
+                {PERIODO_OPCOES.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -489,14 +523,14 @@ export default function MotoristasPage() {
             <Label htmlFor="filtro-ordenacao" className="text-xs font-medium text-muted-foreground">
               Ordenar por
             </Label>
-            <Select value={ordenacao} onValueChange={(v) => setOrdenacao(v as Ordenacao)}>
+            <Select items={ORDENACAO_OPCOES} value={ordenacao} onValueChange={(v) => setOrdenacao(v as Ordenacao)}>
               <SelectTrigger id="filtro-ordenacao" className="w-full sm:w-[160px]" aria-label="Ordenar motoristas">
-                <SelectValue />
+                <SelectValue placeholder="Nome (A–Z)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="nome">Nome (A–Z)</SelectItem>
-                <SelectItem value="recentes">Mais recentes</SelectItem>
-                <SelectItem value="antigos">Mais antigos</SelectItem>
+                {ORDENACAO_OPCOES.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
