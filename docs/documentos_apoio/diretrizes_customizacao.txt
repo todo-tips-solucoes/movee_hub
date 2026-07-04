@@ -1,0 +1,1513 @@
+# Planejamento da evolução do sistema e criação de ambiente isolado de homologação
+
+Você está trabalhando em um repositório existente que atualmente contém uma aplicação em produção executada dentro de containers Docker.
+
+A aplicação atual realiza:
+
+* envio de mensagens em massa;
+* recebimento de notas;
+* acompanhamento dos status de validação das notas.
+
+O sistema deverá evoluir para uma plataforma modular de gestão de motoristas. O envio em massa deixará de ser a aplicação principal e passará a ser um módulo de um sistema maior.
+
+Antes de qualquer alteração funcional, deverá ser criado e validado um ambiente isolado de desenvolvimento, testes e homologação, garantindo que nenhuma alteração seja aplicada acidentalmente na produção.
+
+---
+
+# Objetivo desta sessão
+
+Nesta sessão, realize uma análise completa do projeto e produza um plano técnico detalhado para:
+
+1. Criar um ambiente isolado de desenvolvimento, testes e homologação.
+2. Preservar integralmente o ambiente Docker de produção.
+3. Analisar os arquivos de faturamento e performance.
+4. Projetar as tabelas fundamentais da nova plataforma.
+5. Projetar autenticação, usuários, entidades(filial matriz) e permissões.
+6. Planejar a gestão de motoristas.
+7. Planejar a interface modular da aplicação.
+8. Planejar a importação dos arquivos de faturamento e performance.
+9. Integrar o módulo atual de envio em massa à nova plataforma.
+10. Organizar a implementação em sessões futuras do Claude Code.
+
+## Restrição principal
+
+Nesta sessão, não implemente as alterações funcionais.
+
+Não modifique código, banco, containers, volumes, redes ou configurações de produção.
+
+O objetivo é produzir um plano completo e prompts autossuficientes para as próximas sessões.
+
+---
+
+# Contexto de infraestrutura
+
+A aplicação atualmente está em produção dentro de um ou mais containers Docker.
+
+Considere todos os recursos atuais como críticos, incluindo:
+
+* containers;
+* imagens;
+* volumes;
+* bind mounts;
+* redes;
+* bancos de dados;
+* filas;
+* caches;
+* arquivos;
+* variáveis de ambiente;
+* credenciais;
+* domínios;
+* certificados;
+* serviços externos;
+* webhooks.
+
+Não confie apenas no nome de diretórios, arquivos, projetos Docker ou containers para determinar se um recurso é de produção, homologação ou desenvolvimento.
+
+Confirme a finalidade de cada recurso por meio de evidências encontradas no repositório e na configuração do ambiente.
+
+---
+
+# Estado funcional desejado
+
+A nova plataforma deverá possuir inicialmente:
+
+1. Gestão de entidades.
+2. Gestão de usuários.
+3. Autenticação por usuário e senha.
+4. Associação de usuários a entidades.
+5. Controle de papéis e permissões.
+6. Isolamento dos dados por entidade.
+7. Gestão de motoristas.
+8. Gestão de veículos, quando os dados justificarem.
+9. Dados de faturamento.
+10. Dados de performance.
+11. Histórico de importações.
+12. Módulo de envio em massa.
+13. Auditoria.
+14. Administração da plataforma.
+
+A arquitetura deverá permitir a inclusão futura de novos módulos.
+
+---
+
+# Arquivos obrigatórios para análise
+
+Analise profundamente os seguintes arquivos:
+
+```text
+/var/lib/envioMassa_homologacao/docs/documentos_apoio/Faturamento.zip
+/var/lib/envioMassa_homologacao/docs/documentos_apoio/Performance_.zip
+```
+
+Caso algum caminho não exista, procure os arquivos a partir da raiz do repositório, especialmente em:
+
+```text
+docs/documentos_apoio/
+```
+
+Não modifique os arquivos originais.
+
+Não exponha dados pessoais encontrados nesses arquivos. Utilize exemplos mascarados ou fictícios no relatório.
+
+---
+
+# Ordem obrigatória do planejamento
+
+O planejamento deverá respeitar exatamente esta ordem:
+
+1. Diagnóstico do repositório e do ambiente atual.
+2. Plano do ambiente isolado de desenvolvimento, testes e homologação.
+3. Critérios de validação do isolamento.
+4. Análise dos arquivos de faturamento e performance.
+5. Arquitetura modular.
+6. Modelo de dados.
+7. Autenticação, entidades e permissões.
+8. Pipeline de importação.
+9. Interface da aplicação.
+10. Integração do módulo de envio em massa.
+11. Migrations, testes e implantação.
+12. Backlog priorizado.
+13. Prompts para sessões futuras.
+
+Nenhuma etapa funcional poderá ser planejada como implementação imediata antes da conclusão e aprovação do ambiente isolado.
+
+---
+
+# Etapa 1 — Diagnóstico do repositório e da aplicação atual
+
+Analise a estrutura completa do repositório.
+
+Identifique:
+
+* frontend;
+* backend;
+* linguagens;
+* frameworks;
+* versões;
+* banco de dados;
+* ORM;
+* migrations;
+* autenticação existente;
+* rotas;
+* APIs;
+* componentes;
+* serviços;
+* filas;
+* workers;
+* jobs;
+* cache;
+* armazenamento;
+* importações;
+* processamento de arquivos;
+* envio de mensagens;
+* validação de notas;
+* logs;
+* testes;
+* Docker;
+* Docker Compose;
+* Docker Swarm;
+* Portainer;
+* proxy reverso;
+* CI/CD;
+* variáveis de ambiente;
+* documentação.
+
+Localize e descreva:
+
+1. O módulo atual de envio em massa.
+2. O fluxo de recebimento de notas.
+3. O fluxo de validação das notas.
+4. As tabelas existentes.
+5. As integrações externas.
+6. Os pontos de entrada da aplicação.
+7. Os componentes que podem ser reutilizados.
+8. Os pontos de acoplamento.
+9. Os débitos técnicos.
+10. Os riscos para a evolução do sistema.
+
+Não presuma a stack. Baseie todas as conclusões no conteúdo encontrado.
+
+Diferencie claramente:
+
+* fato encontrado;
+* inferência;
+* recomendação;
+* decisão pendente.
+
+---
+
+# Etapa 2 — Diagnóstico da infraestrutura Docker atual
+
+Analise apenas de forma não destrutiva:
+
+* `Dockerfile`;
+* arquivos Compose;
+* stacks;
+* serviços;
+* imagens;
+* containers;
+* redes;
+* volumes;
+* bind mounts;
+* portas;
+* health checks;
+* políticas de reinicialização;
+* variáveis de ambiente;
+* arquivos `.env`;
+* banco;
+* cache;
+* filas;
+* proxy;
+* certificados;
+* scripts de inicialização;
+* migrations automáticas;
+* processo atual de build;
+* processo atual de deploy.
+
+Identifique se a aplicação utiliza:
+
+* Docker Compose;
+* Docker Swarm;
+* Portainer;
+* outro orquestrador.
+
+Mapeie as dependências entre os serviços.
+
+Não exiba valores de:
+
+* senhas;
+* tokens;
+* chaves;
+* segredos;
+* credenciais;
+* certificados privados.
+
+Quando precisar demonstrar uma configuração, substitua os valores por máscaras.
+
+---
+
+# Etapa 3 — Plano do ambiente isolado
+
+Antes de qualquer implementação funcional, planeje um ambiente isolado que permita desenvolver e testar as alterações sem afetar produção.
+
+O plano deverá separar:
+
+* desenvolvimento;
+* testes automatizados;
+* homologação;
+* produção.
+
+Para cada ambiente, defina:
+
+* finalidade;
+* código utilizado;
+* branch;
+* imagem;
+* tag;
+* banco;
+* usuário do banco;
+* volumes;
+* redes;
+* portas;
+* domínio;
+* credenciais;
+* armazenamento;
+* filas;
+* cache;
+* logs;
+* integrações externas;
+* política de atualização;
+* política de reset;
+* política de backup;
+* política de acesso.
+
+## Alternativas que devem ser avaliadas
+
+### Alternativa A — VPS ou servidor separado
+
+Avalie:
+
+* isolamento;
+* segurança;
+* custo;
+* manutenção;
+* semelhança com produção;
+* complexidade;
+* riscos.
+
+### Alternativa B — Mesmo servidor com isolamento Docker
+
+Caso seja necessário utilizar o mesmo servidor, o plano deverá exigir:
+
+* projeto Docker diferente;
+* stack diferente;
+* nomes de serviços diferentes;
+* nomes de containers diferentes;
+* redes diferentes;
+* volumes diferentes;
+* banco diferente;
+* usuário de banco diferente;
+* senha diferente;
+* cache diferente;
+* filas diferentes;
+* portas diferentes;
+* domínio diferente;
+* arquivos `.env` diferentes;
+* credenciais diferentes;
+* limites de CPU e memória;
+* logs separados.
+
+### Alternativa C — Ambiente efêmero
+
+Avalie um ambiente temporário para:
+
+* pull requests;
+* branches;
+* testes de integração;
+* testes end-to-end;
+* validações específicas.
+
+Ao final, recomende uma alternativa principal e justifique.
+
+A recomendação preferencial deverá ser infraestrutura separada, quando técnica e financeiramente viável.
+
+---
+
+# Etapa 4 — Regras obrigatórias de isolamento
+
+O ambiente não produtivo não poderá compartilhar com produção:
+
+* banco de dados;
+* schema;
+* usuário de banco;
+* senha de banco;
+* volume do banco;
+* volume de uploads;
+* diretório de arquivos;
+* cache;
+* filas;
+* sessões;
+* tokens;
+* chaves;
+* credenciais;
+* webhooks;
+* buckets;
+* domínio;
+* redes internas;
+* arquivos `.env`;
+* diretórios persistentes;
+* logs;
+* backups operacionais.
+
+Caso algum recurso externo precise ser compartilhado:
+
+1. Identifique o recurso.
+2. Explique por que o compartilhamento seria necessário.
+3. Avalie o risco.
+4. Defina credenciais exclusivas.
+5. Defina restrições.
+6. Impeça operações reais de produção.
+7. Registre a decisão como risco explícito.
+
+---
+
+# Etapa 5 — Estrutura Docker recomendada
+
+Com base na estrutura atual do repositório, proponha uma organização de arquivos semelhante a:
+
+```text
+Dockerfile
+Dockerfile.dev
+compose.yml
+compose.development.yml
+compose.test.yml
+compose.homologation.yml
+compose.production.yml
+.env.example
+.env.development.example
+.env.test.example
+.env.homologation.example
+```
+
+Esses nomes são apenas referências.
+
+Não substitua as convenções atuais sem necessidade.
+
+Explique:
+
+1. Qual arquivo será compartilhado.
+2. Quais arquivos serão específicos de cada ambiente.
+3. Como evitar duplicação.
+4. Como identificar explicitamente o ambiente.
+5. Como nomear projetos ou stacks.
+6. Como nomear containers.
+7. Como nomear volumes.
+8. Como nomear redes.
+9. Como versionar as imagens.
+10. Como impedir o uso acidental de `latest`.
+11. Como validar a configuração antes de subir os serviços.
+12. Como impedir que um comando de homologação afete produção.
+
+Os comandos sugeridos deverão sempre informar explicitamente:
+
+* arquivo Compose;
+* nome do projeto ou stack;
+* arquivo de variáveis;
+* ambiente de destino.
+
+Não sugira comandos genéricos ou ambíguos.
+
+---
+
+# Etapa 6 — Banco de homologação
+
+Planeje um banco exclusivo para homologação.
+
+Defina:
+
+* nome;
+* usuário;
+* senha exclusiva;
+* host;
+* porta;
+* volume;
+* rede;
+* backup;
+* restauração;
+* migrations;
+* seeds;
+* reset;
+* dados sintéticos;
+* dados anonimizados;
+* controle de versão do schema.
+
+Não utilize diretamente um backup de produção com dados pessoais.
+
+Caso seja necessário utilizar dados derivados de produção, defina um processo automatizado e irreversível de anonimização para:
+
+* nomes;
+* CPFs;
+* CNPJs, quando necessário;
+* telefones;
+* e-mails;
+* endereços;
+* placas;
+* documentos;
+* mensagens;
+* anexos;
+* tokens;
+* identificadores externos;
+* outros dados pessoais.
+
+O processo de anonimização deverá ser:
+
+* repetível;
+* documentado;
+* auditável;
+* testável;
+* irreversível no ambiente não produtivo.
+
+---
+
+# Etapa 7 — Prevenção de operações reais
+
+Identifique integrações capazes de produzir efeitos reais, incluindo:
+
+* WhatsApp;
+* mensagens;
+* e-mail;
+* SMS;
+* webhooks;
+* emissão ou consulta de notas;
+* APIs externas;
+* armazenamento;
+* sistemas financeiros;
+* notificações;
+* filas externas.
+
+Para cada integração, recomende uma estratégia:
+
+* mock;
+* stub;
+* sandbox;
+* fake server;
+* credencial de teste;
+* bloqueio de saída;
+* allowlist;
+* feature flag;
+* modo dry-run.
+
+## Proteções obrigatórias para o envio em massa
+
+O ambiente de homologação deverá possuir:
+
+1. Modo de simulação.
+2. Provider mock.
+3. Feature flag para desabilitar envio real.
+4. Allowlist de destinatários.
+5. Limite máximo de mensagens.
+6. Bloqueio de destinatários não autorizados.
+7. Registro das tentativas bloqueadas.
+8. Identificação visual de ambiente não produtivo.
+9. Confirmação adicional antes de qualquer envio.
+10. Garantia de que credenciais de produção não serão utilizadas.
+
+---
+
+# Etapa 8 — Validação de variáveis e segredos
+
+Planeje:
+
+* arquivos de exemplo sem segredos;
+* arquivos separados por ambiente;
+* armazenamento seguro;
+* rotação;
+* validação na inicialização;
+* proibição de segredos no Git;
+* permissões de arquivo;
+* identificação obrigatória do ambiente.
+
+Considere uma variável equivalente a:
+
+```text
+APP_ENV=development
+APP_ENV=test
+APP_ENV=homologation
+APP_ENV=production
+```
+
+A aplicação deverá falhar de forma segura quando encontrar combinações perigosas, como:
+
+* homologação apontando para banco de produção;
+* ambiente não produtivo usando domínio de produção;
+* homologação utilizando token de produção;
+* ambiente de teste montando volume de produção;
+* ambiente não produtivo utilizando fila ou cache de produção;
+* produção sendo iniciada com credenciais de teste.
+
+Proponha validações concretas para essas situações.
+
+---
+
+# Etapa 9 — Fluxo Git e CI/CD
+
+Proponha um fluxo compatível com o tamanho do projeto.
+
+Avalie:
+
+* branch principal;
+* branch de desenvolvimento;
+* branches de funcionalidade;
+* pull requests;
+* revisão;
+* homologação;
+* aprovação;
+* produção;
+* hotfix.
+
+Não imponha um fluxo complexo quando uma abordagem mais simples for suficiente.
+
+O pipeline deverá considerar:
+
+1. Instalação das dependências.
+2. Lint.
+3. Verificação de tipos.
+4. Testes unitários.
+5. Testes de integração.
+6. Testes de banco.
+7. Build.
+8. Build da imagem Docker.
+9. Scan de vulnerabilidades.
+10. Validação dos arquivos Docker.
+11. Inicialização em ambiente temporário.
+12. Health checks.
+13. Testes end-to-end.
+14. Publicação da imagem.
+15. Deploy em homologação.
+16. Testes pós-deploy.
+17. Aprovação manual.
+18. Deploy em produção.
+19. Verificação pós-deploy.
+20. Rollback.
+
+O deploy em produção nunca deverá ocorrer automaticamente sem aprovação explícita.
+
+---
+
+# Etapa 10 — Migrations seguras
+
+O plano deverá exigir que toda migration seja validada em homologação antes da produção.
+
+Inclua:
+
+* aplicação em banco vazio;
+* aplicação em banco com dados;
+* aplicação em cópia anonimizada;
+* validação da integridade;
+* avaliação de locks;
+* avaliação de downtime;
+* compatibilidade entre versões;
+* backup;
+* restauração;
+* rollback;
+* migration corretiva;
+* estratégia expand-and-contract, quando necessária.
+
+Nenhuma migration poderá ser aplicada diretamente em produção como primeiro teste.
+
+---
+
+# Etapa 11 — Testes de isolamento
+
+Planeje testes que comprovem:
+
+1. O banco de produção não foi alterado.
+2. Os volumes de produção não foram montados.
+3. As redes estão separadas.
+4. Os containers possuem nomes diferentes.
+5. As stacks ou projetos possuem nomes diferentes.
+6. As credenciais são diferentes.
+7. As portas não conflitam.
+8. O domínio é diferente.
+9. Os logs estão separados.
+10. Os arquivos estão armazenados separadamente.
+11. As filas não são compartilhadas.
+12. O cache não é compartilhado.
+13. As sessões não são compartilhadas.
+14. Os webhooks não apontam para produção.
+15. Nenhuma mensagem real é enviada.
+16. Nenhum dado real é modificado.
+17. As migrations atingem apenas homologação.
+18. O ambiente possui identificação visual.
+19. A configuração de homologação não consegue acessar recursos críticos de produção.
+20. O processo de backup e restauração funciona.
+
+Inclua comandos de verificação e as evidências esperadas, mas não execute comandos destrutivos.
+
+---
+
+# Checkpoint obrigatório antes do planejamento funcional
+
+O planejamento funcional somente poderá continuar depois que o documento definir:
+
+* estratégia de isolamento;
+* banco exclusivo;
+* volumes exclusivos;
+* redes exclusivas;
+* credenciais exclusivas;
+* arquivos de configuração exclusivos;
+* proteção contra integrações reais;
+* processo de backup;
+* processo de restauração;
+* processo de rollback;
+* testes de isolamento;
+* critérios de aceite do ambiente.
+
+Este checkpoint deverá aparecer explicitamente no plano.
+
+---
+
+# Etapa 12 — Análise dos arquivos ZIP
+
+Para cada ZIP:
+
+1. Liste os arquivos internos.
+2. Identifique os formatos.
+3. Identifique abas, quando aplicável.
+4. Analise cabeçalhos.
+5. Analise tipos de dados.
+6. Analise amostras de registros.
+7. Identifique campos obrigatórios.
+8. Identifique campos opcionais.
+9. Identifique chaves naturais.
+10. Identifique duplicidades.
+11. Identifique inconsistências.
+12. Identifique campos equivalentes.
+13. Identifique relacionamentos.
+14. Identifique dados pessoais.
+15. Avalie a qualidade dos dados.
+16. Avalie o volume.
+17. Avalie os impactos de performance.
+18. Identifique possíveis relações entre os dois arquivos.
+
+Não se limite aos nomes das colunas.
+
+Analise os valores para compreender o significado real dos campos.
+
+---
+
+# Etapa 13 — Arquitetura modular
+
+Proponha, quando compatível com a stack atual, módulos ou domínios para:
+
+* autenticação;
+* entidades;
+* usuários;
+* papéis;
+* permissões;
+* motoristas;
+* veículos;
+* faturamento;
+* performance;
+* importações;
+* envio em massa;
+* auditoria;
+* administração.
+
+Explique:
+
+1. Responsabilidade de cada módulo.
+2. Dependências permitidas.
+3. Dependências proibidas.
+4. Integração entre os módulos.
+5. Estratégia para evitar acoplamento.
+6. Estratégia para novos módulos.
+7. Componentes atuais que serão reaproveitados.
+8. Componentes que precisarão ser refatorados.
+9. Estratégia de isolamento por entidade.
+
+Prefira evolução incremental.
+
+Não recomende reescrita completa sem evidência técnica concreta.
+
+---
+
+# Etapa 14 — Entidades, usuários e autenticação
+
+Considere que uma entidade poderá representar:
+
+* organização;
+* empresa;
+* transportadora;
+* cliente;
+* filial;
+* operação.
+
+Confirme o significado adequado a partir dos dados e do repositório.
+
+O modelo deverá permitir:
+
+* uma entidade com vários usuários;
+* um usuário em uma ou mais entidades, quando necessário;
+* papéis diferentes por entidade;
+* ativação e desativação;
+* recuperação de senha;
+* troca de senha;
+* controle de tentativas;
+* auditoria de login;
+* sessões;
+* revogação de sessões;
+* futura autenticação multifator;
+* futura integração com SSO.
+
+Avalie as opções de isolamento:
+
+* coluna `entity_id`;
+* schemas;
+* bancos separados;
+* Row-Level Security;
+* combinação de estratégias.
+
+Recomende uma abordagem e justifique.
+
+---
+
+# Etapa 15 — Controle de permissões
+
+Avalie:
+
+* RBAC;
+* papéis globais;
+* papéis por entidade;
+* permissões por recurso;
+* permissões por ação;
+* permissões específicas por usuário;
+* acesso por módulo;
+* acesso por operação.
+
+Considere ações como:
+
+```text
+view
+list
+create
+update
+delete
+import
+export
+send
+approve
+manage
+```
+
+O sistema deverá permitir, por exemplo:
+
+* consulta de motoristas;
+* cadastro de motoristas;
+* alteração de motoristas;
+* importação de dados;
+* acesso a relatórios;
+* uso do envio em massa;
+* gestão de usuários;
+* administração da entidade;
+* administração global.
+
+Não utilize apenas campos booleanos fixos na tabela de usuários.
+
+Defina:
+
+* tabelas;
+* relacionamentos;
+* precedência;
+* herança;
+* negações;
+* cache de permissões;
+* validação no backend;
+* proteção no frontend;
+* auditoria.
+
+A autorização no frontend nunca deverá ser considerada suficiente.
+
+---
+
+# Etapa 16 — Modelo de dados
+
+Com base no repositório e nos ZIPs, proponha as tabelas fundamentais.
+
+Avalie a necessidade de tabelas relacionadas a:
+
+* entidades;
+* usuários;
+* usuários por entidade;
+* papéis;
+* permissões;
+* papéis por usuário;
+* permissões por papel;
+* módulos;
+* motoristas;
+* documentos;
+* contatos;
+* endereços;
+* veículos;
+* motoristas por veículo;
+* transportadoras;
+* operações;
+* faturamentos;
+* itens de faturamento;
+* indicadores de performance;
+* períodos;
+* importações;
+* arquivos importados;
+* linhas importadas;
+* erros;
+* auditoria;
+* mensagens;
+* destinatários;
+* envios;
+* status de envio;
+* notas;
+* status de validação.
+
+Esses nomes são apenas referências.
+
+Utilize somente as tabelas justificadas pelos dados e pela arquitetura.
+
+Para cada tabela, apresente:
+
+1. Nome.
+2. Objetivo.
+3. Colunas.
+4. Tipos.
+5. Obrigatoriedade.
+6. Valores padrão.
+7. Chave primária.
+8. Chaves estrangeiras.
+9. Constraints.
+10. Índices.
+11. Unicidade.
+12. Auditoria.
+13. Soft delete ou exclusão física.
+14. Relacionamentos.
+15. Origem dos dados.
+16. Granularidade.
+17. Justificativa.
+
+Considere, quando necessário:
+
+```text
+id
+entity_id
+created_at
+updated_at
+created_by
+updated_by
+deleted_at
+is_active
+```
+
+Não adicione colunas padronizadas indiscriminadamente.
+
+---
+
+# Etapa 17 — Mapeamento de faturamento e performance
+
+Crie uma matriz contendo:
+
+| ZIP | Arquivo interno | Aba | Coluna original | Tabela de destino | Coluna de destino | Tipo | Transformação | Validação | Obrigatório |
+| --- | --------------- | --- | --------------- | ----------------- | ----------------- | ---- | ------------- | --------- | ----------- |
+
+Defina:
+
+* granularidade;
+* chaves;
+* normalização;
+* histórico;
+* campos calculados;
+* campos derivados;
+* dados cadastrais;
+* dados transacionais;
+* metadados da importação;
+* prevenção de duplicidade;
+* reimportação;
+* correção;
+* períodos de referência;
+* índices;
+* particionamento, quando justificado.
+
+Explique quais cálculos devem ser persistidos e quais devem ser feitos durante a consulta.
+
+---
+
+# Etapa 18 — Pipeline de importação
+
+Planeje o fluxo completo:
+
+1. Seleção do tipo de importação.
+2. Upload.
+3. Validação de extensão.
+4. Validação do conteúdo.
+5. Validação de tamanho.
+6. Cálculo de hash.
+7. Identificação de duplicidade.
+8. Armazenamento do original.
+9. Registro da importação.
+10. Leitura.
+11. Validação dos cabeçalhos.
+12. Normalização.
+13. Validação por linha.
+14. Persistência em lote.
+15. Transações.
+16. Rollback.
+17. Linhas válidas.
+18. Linhas inválidas.
+19. Motivos dos erros.
+20. Resumo.
+21. Reprocessamento.
+22. Cancelamento.
+23. Idempotência.
+24. Auditoria.
+25. Logs.
+26. Métricas.
+27. Concorrência.
+28. Filas.
+29. Progresso.
+30. Arquivos grandes.
+
+Avalie status como:
+
+```text
+pending
+validating
+queued
+processing
+completed
+completed_with_errors
+failed
+cancelled
+```
+
+Adapte-os à arquitetura encontrada.
+
+---
+
+# Etapa 19 — Interface modular
+
+Planeje uma interface com:
+
+* login;
+* recuperação de senha;
+* seleção de entidade;
+* dashboard;
+* menu principal;
+* perfil do usuário;
+* logout;
+* identificação do ambiente;
+* controle visual por permissões.
+
+Considere os módulos:
+
+* Dashboard;
+* Motoristas;
+* Faturamento;
+* Performance;
+* Importações;
+* Envio em massa;
+* Usuários;
+* Papéis e permissões;
+* Configurações;
+* Auditoria.
+
+## Tela de importações
+
+Deverá permitir:
+
+* selecionar o tipo;
+* enviar arquivo;
+* validar;
+* acompanhar progresso;
+* visualizar registros válidos;
+* visualizar registros inválidos;
+* baixar relatório de erros;
+* visualizar histórico;
+* reprocessar;
+* cancelar, quando possível;
+* visualizar responsável;
+* visualizar duração;
+* visualizar status;
+* acessar o arquivo original, quando autorizado.
+
+## Módulo de envio em massa
+
+Explique:
+
+1. Como será incorporado ao novo layout.
+2. Como preservar suas funcionalidades.
+3. Quais rotas serão alteradas.
+4. Como aplicar autenticação.
+5. Como aplicar permissões.
+6. Como aplicar isolamento por entidade.
+7. Como manter compatibilidade temporária.
+8. Como evitar regressões.
+
+---
+
+# Etapa 20 — Segurança
+
+Inclua:
+
+* hash seguro de senha;
+* política de senha;
+* proteção contra força bruta;
+* rate limiting;
+* recuperação segura;
+* expiração;
+* revogação de sessão;
+* autorização no backend;
+* proteção de rotas;
+* validação de upload;
+* prevenção de path traversal;
+* prevenção de CSV Injection;
+* prevenção de SQL Injection;
+* proteção contra arquivos maliciosos;
+* logs sem dados sensíveis;
+* segregação por entidade;
+* auditoria;
+* LGPD;
+* retenção;
+* exclusão;
+* anonimização.
+
+---
+
+# Etapa 21 — Performance e escalabilidade
+
+Avalie:
+
+* índices;
+* consultas por entidade;
+* paginação;
+* filtros;
+* ordenação;
+* busca;
+* bulk insert;
+* upsert;
+* processamento assíncrono;
+* filas;
+* cache;
+* timeout;
+* retentativas;
+* locks;
+* concorrência;
+* particionamento;
+* arquivamento;
+* relatórios;
+* dados históricos;
+* observabilidade.
+
+Não adicione complexidade sem justificativa.
+
+Relacione cada recomendação ao volume observado nos arquivos.
+
+---
+
+# Etapa 22 — Migrations e implantação futura
+
+Planeje:
+
+1. Criação do ambiente isolado.
+2. Testes de isolamento.
+3. Backup.
+4. Migrations fundamentais.
+5. Criação da entidade inicial.
+6. Criação do administrador.
+7. Papéis e permissões iniciais.
+8. Associação dos dados existentes.
+9. Compatibilidade com a aplicação antiga.
+10. Refatoração incremental.
+11. Validação em homologação.
+12. Testes de regressão.
+13. Aprovação.
+14. Deploy futuro em produção.
+15. Monitoramento.
+16. Rollback.
+
+Não planeje a exclusão imediata de estruturas atuais.
+
+---
+
+# Etapa 23 — Testes
+
+Defina testes:
+
+* unitários;
+* integração;
+* banco;
+* contrato;
+* end-to-end;
+* carga;
+* segurança;
+* regressão.
+
+Cubra:
+
+* ambiente isolado;
+* autenticação;
+* autorização;
+* isolamento por entidade;
+* usuários;
+* papéis;
+* permissões;
+* motoristas;
+* faturamento;
+* performance;
+* importações;
+* arquivos inválidos;
+* arquivos duplicados;
+* arquivos grandes;
+* idempotência;
+* rollback;
+* reprocessamento;
+* envio em massa;
+* bloqueio de mensagens reais;
+* interface;
+* API;
+* migrations.
+
+---
+
+# Entregáveis obrigatórios
+
+O documento final deverá conter, nesta ordem:
+
+## 1. Resumo executivo
+
+Inclua:
+
+* estado atual;
+* estado desejado;
+* estratégia;
+* riscos;
+* recomendação principal.
+
+## 2. Diagnóstico do repositório
+
+Inclua:
+
+* stack;
+* estrutura;
+* funcionamento;
+* débitos;
+* componentes reutilizáveis;
+* riscos.
+
+## 3. Diagnóstico Docker
+
+Inclua:
+
+* serviços;
+* containers;
+* imagens;
+* redes;
+* volumes;
+* portas;
+* bancos;
+* dependências;
+* processo de deploy.
+
+## 4. Plano do ambiente isolado
+
+Inclua:
+
+* alternativas;
+* recomendação;
+* arquitetura;
+* isolamento;
+* banco;
+* redes;
+* volumes;
+* credenciais;
+* integrações;
+* backups;
+* restauração;
+* rollback;
+* CI/CD;
+* testes;
+* critérios de aceite.
+
+## 5. Diagramas de infraestrutura
+
+Inclua diagramas Mermaid para:
+
+* infraestrutura atual;
+* infraestrutura proposta;
+* fluxo de promoção entre ambientes.
+
+## 6. Matriz dos ambientes
+
+Compare:
+
+* desenvolvimento;
+* testes;
+* homologação;
+* produção.
+
+## 7. Diagnóstico dos ZIPs
+
+Inclua:
+
+* conteúdo;
+* colunas;
+* tipos;
+* exemplos anonimizados;
+* qualidade;
+* relacionamentos;
+* problemas.
+
+## 8. Arquitetura modular
+
+Inclua:
+
+* módulos;
+* responsabilidades;
+* dependências;
+* estratégia multi-entidade.
+
+## 9. Modelo de dados
+
+Inclua:
+
+* Mermaid ER;
+* catálogo de tabelas;
+* colunas;
+* constraints;
+* índices;
+* decisões.
+
+## 10. Matriz de mapeamento
+
+Mapeie os campos de origem para o banco.
+
+## 11. Autenticação e permissões
+
+Inclua:
+
+* usuários;
+* entidades;
+* papéis;
+* permissões;
+* sessões;
+* validação.
+
+## 12. Pipeline de importação
+
+Descreva todo o fluxo.
+
+## 13. Plano da interface
+
+Inclua:
+
+* páginas;
+* rotas;
+* componentes;
+* permissões;
+* estados;
+* APIs.
+
+## 14. APIs e contratos
+
+Para cada endpoint, informe:
+
+* método;
+* rota;
+* finalidade;
+* autenticação;
+* permissão;
+* parâmetros;
+* body;
+* resposta;
+* erros.
+
+## 15. Plano por fases
+
+Para cada fase, informe:
+
+* objetivo;
+* tarefas;
+* dependências;
+* arquivos ou áreas afetadas;
+* migrations;
+* testes;
+* riscos;
+* critério de conclusão.
+
+## 16. Backlog priorizado
+
+Utilize:
+
+```text
+XS
+S
+M
+L
+XL
+```
+
+Inclua:
+
+* prioridade;
+* dependência;
+* complexidade;
+* risco;
+* resultado esperado.
+
+Não utilize estimativas em horas.
+
+## 17. Critérios de aceite
+
+Defina critérios objetivos e verificáveis.
+
+## 18. Riscos e decisões pendentes
+
+Separe:
+
+* infraestrutura;
+* dados;
+* segurança;
+* migração;
+* negócio;
+* performance.
+
+## 19. Evidências que deverão ser coletadas
+
+Liste as evidências que as sessões de implementação deverão apresentar após cada etapa.
+
+## 20. Prompts para novas sessões
+
+Gere três prompts autossuficientes.
+
+### Prompt A — Criação do ambiente isolado
+
+Esse prompt deverá tratar exclusivamente de:
+
+* criação da homologação;
+* configurações Docker;
+* banco exclusivo;
+* volumes;
+* redes;
+* credenciais;
+* mocks;
+* bloqueio de integrações;
+* identificação visual;
+* testes de isolamento;
+* backup;
+* restauração;
+* rollback.
+
+O Prompt A não poderá autorizar mudanças funcionais na aplicação.
+
+### Prompt B — Banco, autenticação e fundações
+
+Esse prompt deverá ser executado somente depois da aprovação do Prompt A.
+
+Deverá tratar de:
+
+* tabelas fundamentais;
+* migrations;
+* entidades;
+* usuários;
+* autenticação;
+* papéis;
+* permissões;
+* auditoria inicial.
+
+Todas as alterações deverão ocorrer exclusivamente no ambiente isolado.
+
+### Prompt C — Importações, interface e módulos funcionais
+
+Esse prompt deverá ser executado somente depois da aprovação dos Prompts A e B.
+
+Deverá tratar de:
+
+* gestão de motoristas;
+* faturamento;
+* performance;
+* importações;
+* interface;
+* integração do envio em massa;
+* testes de regressão.
+
+Cada prompt deverá:
+
+1. Ser autossuficiente.
+2. Informar o escopo.
+3. Informar o que está proibido.
+4. Informar a ordem das tarefas.
+5. Exigir testes.
+6. Exigir evidências.
+7. Exigir critérios de aceite.
+8. Impedir mudanças fora do escopo.
+9. Impedir alterações em produção.
+10. Orientar a interrupção segura caso seja detectado risco à produção.
+
+---
+
+# Regras de execução
+
+1. Não altere código nesta sessão.
+2. Não crie migrations nesta sessão.
+3. Não altere bancos.
+4. Não reinicie containers.
+5. Não pare containers.
+6. Não remova containers.
+7. Não remova imagens.
+8. Não remova volumes.
+9. Não remova redes.
+10. Não altere stacks.
+11. Não altere arquivos `.env`.
+12. Não instale dependências.
+13. Não execute comandos destrutivos.
+14. Não execute `docker system prune`.
+15. Não execute `docker compose down`.
+16. Não execute `docker stack rm`.
+17. Não execute migrations.
+18. Não exponha segredos.
+19. Não copie credenciais de produção.
+20. Não monte volumes de produção em homologação.
+21. Não utilize banco de produção em testes.
+22. Não acione integrações reais.
+23. Não confie apenas em nomes para identificar ambientes.
+24. Não proponha reescrita completa sem justificativa.
+25. Não presuma tecnologias que possam ser verificadas.
+26. Registre premissas.
+27. Diferencie fatos, inferências e recomendações.
+28. Priorize evolução incremental.
+29. Priorize segurança e reversibilidade.
+30. Preserve todas as funcionalidades atuais.
+31. Toda futura implementação deverá começar pelo Prompt A.
+32. Os Prompts B e C deverão declarar explicitamente que dependem da aprovação da etapa anterior.
+
+---
+
+# Critério de sucesso
+
+A tarefa será considerada concluída quando o documento permitir que novas sessões do Claude Code:
+
+* compreendam o sistema atual;
+* compreendam a infraestrutura Docker;
+* criem homologação sem afetar produção;
+* comprovem o isolamento por evidências;
+* analisem os arquivos de faturamento e performance;
+* modelem as tabelas fundamentais;
+* implementem autenticação e autorização;
+* implementem gestão de motoristas;
+* implementem importações;
+* integrem o envio em massa;
+* criem a nova interface;
+* executem migrations somente em homologação;
+* realizem testes;
+* façam backup e restauração;
+* executem rollback;
+* promovam alterações de forma controlada;
+* preservem integralmente os dados e serviços de produção.
+
+O documento deverá possuir detalhes suficientes para que nenhuma das sessões futuras dependa do histórico desta conversa.
