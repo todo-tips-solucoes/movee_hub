@@ -31,7 +31,9 @@ ESCOPO (exclusivo — infra, zero mudança funcional):
 6. Seeds anonimizados: gerar NO SANDBOX context-mode a partir dos CSVs em
    /var/lib/envioMassa_homologacao/docs/documentos_apoio/*.zip (processo irreversível:
    HMAC com salt descartado, nomes fake, valores ±20%); asserção automática de
-   não-vazamento. Os CSVs brutos nunca entram no contexto nem no git.
+   não-vazamento. O gerador deve ter modo opcional de SÍNTESE DE VOLUME (replicar os
+   dias disponíveis com datas deslocadas e hashes novos) — a S10 o usará para montar o
+   dataset de ~1 ano. Os CSVs brutos nunca entram no contexto nem no git.
 7. Backup diário (pg_dump -Fc) + restore testado + rollback documentado.
 8. Executar os 20 TESTES DE ISOLAMENTO da §4.11 e anexar evidência item a item.
 

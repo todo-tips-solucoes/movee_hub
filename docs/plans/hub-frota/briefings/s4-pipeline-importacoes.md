@@ -2,6 +2,10 @@
 
 **Fase:** S4 · **Branch:** `feat/hub-importacoes` · **Pré-requisito:** S2 mergeada
 (schema/RBAC); S3 recomendada antes (telas usam o shell).
+**Pré-requisito BLOQUEANTE adicional: D4 confirmado pelo operador** (`soma_das_taxas`
+em centavos; `tempo_disponivel_escalado` como %; sentido de `atingido`/`margem_fee`) —
+não iniciar sem a resposta registrada no DIARIO.md. D6 (mais dias de CSV) é recomendado,
+não bloqueante.
 
 ## Contexto mínimo (autossuficiente)
 
@@ -101,3 +105,7 @@ respeitados; 6. PR + DIARIO.md.
   para valor novo, não erro fatal).
 - Categoria nova em `descricao` = warning, não erro (schema do parceiro pode evoluir).
 - PostgREST: GRANT + reload de schema para cada tabela nova.
+- **Fonte canônica** dos limites numéricos (20 MB, 100 MB descomprimido, lote de 500,
+  >50% inválidas → failed), da matriz coluna a coluna e do catálogo de tabelas: plano
+  técnico §12, §10 e §9.2 — **ler essas três seções no repo antes de implementar** (são
+  parte integrante deste briefing); em divergência, vale o plano.

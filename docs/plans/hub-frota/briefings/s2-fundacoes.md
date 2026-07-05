@@ -29,7 +29,9 @@ Fundações do hub no ambiente isolado: schema novo (migrations 011+), autentica
    (a série `docs/sql/` está **congelada** — decisão D1): `Usuario`, `UsuarioEntidade`,
    `Papel`, `Permissao`, `PapelPermissao`, `Modulo`, `ModuloEntidade`, `Auditoria`,
    `SessaoRefresh`, `SchemaMigration`; seeds de papéis (`admin_plataforma`,
-   `admin_entidade`, `operador`, `leitura`), permissões `modulo.acao` e módulos
+   `admin_entidade`, `operador`, `leitura`), permissões `modulo.acao` (**todas** as ações
+   usadas no plano §13/§14 e nos briefings S3–S9 — incluindo `faturamento.export` e
+   `performance.export`, exigidas na S6/S7) e módulos
    (`dashboard, motoristas, faturamento, performance, importacoes, envio_massa, usuarios,
    auditoria, admin`); GRANTs para o role do PostgREST (**lição do 42501**: toda tabela
    nova precisa de GRANT explícito — precedente `docs/sql/003-...-grants.sql`).
@@ -45,8 +47,12 @@ Fundações do hub no ambiente isolado: schema novo (migrations 011+), autentica
    (usuario, entidades, entidade ativa, módulos+permissões); `POST /api/v1/me/entidade`
    (troca de entidade ativa, re-emite token com claim `empresa_ativa`); cache de
    permissões in-memory TTL 60 s com invalidação em update de papel.
-5. **RLS** nas tabelas novas com `id_empresa` (policies via claims do JWT do PostgREST)
-   como defesa em profundidade — backend continua a autoridade.
+5. **RLS** nas tabelas novas com `id_empresa` como defesa em profundidade — backend
+   continua a autoridade. ⚠️ **Pré-requisito técnico:** `generatePostgrestJWT()`
+   (server.js:99–106) hoje emite token **estático** `role: authenticated` **sem claims**;
+   evoluí-lo para emitir JWT **por request** com claims de escopo (`empresa_ativa` +
+   lista do grupo, mesmo `PGRST_JWT_SECRET`), que as policies leem. Sem isso, RLS por
+   claim não funciona (ou barra tudo, ou não barra nada).
 6. **Runtime**: backend do hub em **Node 20 LTS** (`Dockerfile.hub`; o Dockerfile legado
    node:14 não muda).
 
@@ -61,7 +67,9 @@ migrations+GRANTs → migração de login → auth → RBAC/`/me` → RLS → te
 ## Modelo de dados (resumo operacional — detalhe no plano §9.2)
 
 - `Usuario(id, email citext UNIQUE, senha_hash, nome, ativo, tentativas_login,
-  bloqueado_ate, token_recuperacao_hash, token_recuperacao_expira, criado_em, atualizado_em)`
+  bloqueado_ate, token_recuperacao_hash, token_recuperacao_expira, criado_em,
+  atualizado_em, criado_por NULL)` — `criado_por` fica NULL nas linhas de
+  bootstrap/migração (ovo-e-galinha do primeiro usuário)
 - `UsuarioEntidade(usuario_id, empresa_id, papel_id, ativo, UNIQUE(usuario_id, empresa_id))`
 - `Papel(nome UNIQUE, escopo global|entidade, is_sistema)` ·
   `Permissao(codigo UNIQUE 'modulo.acao', modulo_id)` · `PapelPermissao(UNIQUE par)`

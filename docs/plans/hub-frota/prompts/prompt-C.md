@@ -22,6 +22,11 @@ FASES (um briefing autossuficiente por sessão, nesta ordem):
   S9  briefings/s9-auditoria-administracao.md  — auditoria + administração
   S10 briefings/s10-regressao-cutover.md       — regressão geral + ensaio de cutover
 
+  ⚠️ S3–S9 rodam via /feature-00c; a S10 executa o briefing DIRETAMENTE (sem
+  /feature-00c), conforme o prompt próprio do plano mestre §7. A ordem S3→S10 acima é a
+  OFICIAL; a tabela de dependências do plano técnico (§16) é informativa e NÃO autoriza
+  rodar fases em paralelo ou fora de ordem.
+
 REGRAS COMUNS A TODAS AS FASES:
 - Todo desenvolvimento SOMENTE no ambiente isolado validado na S1. O "homologação" antigo
   (VPSTodo, chatmasterveloz, *.moveelog.com.br) É PRODUÇÃO — nenhuma escrita lá, nunca.

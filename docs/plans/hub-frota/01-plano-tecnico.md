@@ -319,7 +319,7 @@ infra/hub/
 | Volume | `hub_homolog_pg_data` (test: tmpfs/anonimo com `down -v`) |
 | PostgREST | `postgrest/postgrest:v14.1` próprio, `PGRST_JWT_SECRET` novo, na mesma rede interna (corrige o acoplamento via URL pública de produção) |
 | Backup/restauração | `pg_dump -Fc` diário via cron na VPS + teste de `pg_restore` mensal; script versionado |
-| Migrations | Série única (§9.6) aplicadas por script idempotente + `SIGUSR1` no PostgREST |
+| Migrations | Série única (§9, preâmbulo; decisão D1 em §18) aplicadas por script idempotente + `SIGUSR1` no PostgREST |
 | Seeds | **Sintéticos + anonimizados** (abaixo); jamais dump bruto de produção |
 | Reset | `compose down -v && up && migrate && seed` documentado no runbook |
 | Versão do schema | Tabela `SchemaMigration` (id, nome, aplicado_em) — parte da série única |
@@ -411,7 +411,7 @@ verificados por construção (hosts distintos) + conferência de env.
 | 3 | Redes separadas | `docker network ls` na VPS | Só redes `hub_*` (+default) |
 | 4 | Containers com nomes distintos | `docker ps --format '{{.Names}}'` | Todos `hub_homolog_*` |
 | 5 | Projetos/stacks distintos | `docker compose ls` | `hub-homolog` (nunca `envio-massa-homologacao`) |
-| 6 | Credenciais diferentes | diff de **hashes** dos segredos (nunca valores): `sha256sum <(echo $JWT_SECRET)` vs fingerprint de produção fornecido pelo operador | Hashes distintos |
+| 6 | Credenciais diferentes | diff de **hashes** dos segredos (nunca valores): `printf '%s' "$JWT_SECRET" \| sha256sum` (builtin — sem newline e sem vazar em `ps`) comparado ao fingerprint de produção calculado pelo operador **com o mesmo método** | Hashes distintos (método idêntico nos dois lados) |
 | 7 | Portas sem conflito | `ss -tlnp` na VPS | Sem colisão; host de produção inalterado |
 | 8 | Domínio diferente | `curl -sI https://<dominio-homolog>/login` | 200 no domínio novo; `app.moveelog.com.br` continua servido pelo host antigo (dig) |
 | 9 | Logs separados | `docker compose -p hub-homolog logs --tail 5` | Só serviços do hub |
@@ -425,7 +425,7 @@ verificados por construção (hosts distintos) + conferência de env.
 | 17 | Migrations só em homolog | `SELECT * FROM "SchemaMigration"` em homolog vs consulta equivalente em produção (operador) | Tabela nem existe em produção |
 | 18 | Identificação visual | screenshot do banner de ambiente (§13.2) | Banner "HOMOLOGAÇÃO" |
 | 19 | Homolog não alcança produção | do host homolog: `psql "host=<ip-prod> port=5432" …` → recusa/timeout (porta nem publicada) + preflight passa | Conexão impossível |
-| 20 | Backup/restauração funciona | `pg_dump -Fc hub_homolog > b.dump && createdb hub_restore && pg_restore -d hub_restore b.dump && diff contagens` | Contagens iguais |
+| 20 | Backup/restauração funciona | `pg_dump -Fc hub_homolog > b.dump && dropdb --if-exists hub_restore && createdb hub_restore && pg_restore -d hub_restore b.dump && diff contagens; rm b.dump` | Contagens iguais (comando re-executável) |
 
 ---
 
@@ -594,7 +594,7 @@ Granularidade: **1 linha = métricas de 1 entregador em 1 turno** de 1 dia (por 
 | `id_da_pessoa_entregadora` | UUID v4 | **0%** | 755 distintos |
 | `pessoa_entregadora` | texto | 0% | Nome completo (mascarado: `E*** d*** S***`) |
 | `praca` | texto | 0% | Só `SAO PAULO` (sem as variantes "(ZONA)" do faturamento) |
-| `sub_praca` | texto (12) | 18,6% | 9 em comum com faturamento + 2 exclusivas (`… (MINI BTU FD)`) |
+| `sub_praca` | texto (11 não vazios) | 18,6% | 9 em comum com faturamento + 2 exclusivas (`… (MINI BTU FD)`) |
 | `origem` | texto (8) | **98,7%** | Estabelecimento/hub |
 | `tempo_disponivel_escalado` | decimal ponto | 0% | 0–100,14 → **percentual** (15 linhas >100) |
 | `tempo_disponivel_absoluto` | `HH:MM:SS` | 0% | 100% no formato hora |
@@ -735,7 +735,9 @@ erDiagram
 ### 9.2 Catálogo de tabelas novas
 
 Formato compacto; colunas de auditoria (`criado_em`, `atualizado_em`, `criado_por`)
-presentes em todas — omitidas abaixo. FK sempre com índice.
+presentes em todas — omitidas abaixo. `criado_por` é **nullable** e fica NULL em linhas
+criadas por migração/bootstrap (resolve o ovo-e-galinha do primeiro `Usuario`). FK sempre
+com índice.
 
 **`Usuario`** — pessoas que acessam o hub (hoje o login é a própria `Empresa`).
 `id` · `email citext UNIQUE NOT NULL` · `senha_hash text NOT NULL` (bcrypt) ·
@@ -754,7 +756,8 @@ Justifica: 1 usuário em várias filiais com papéis distintos (requisito etapa 
 Semente: `admin_plataforma` (global), `admin_entidade`, `operador`, `leitura`.
 
 **`Permissao`** — `codigo text UNIQUE` no formato `modulo.acao`
-(ex.: `motoristas.view`, `importacoes.create`, `envio_massa.send`, `usuarios.manage`) ·
+(ex.: `motoristas.view`, `importacoes.create`, `importacoes.export`, `faturamento.export`,
+`performance.export`, `envio_massa.send`, `usuarios.manage`) ·
 `modulo_id FK Modulo` · `descricao`. Ações do domínio: view/list/create/update/delete/
 import/export/send/approve/manage.
 
@@ -776,8 +779,9 @@ opcional, ver D3) · `ativo bool` · `UNIQUE (id_empresa, id_externo)`.
 Índices: `(id_empresa, nome)` para busca.
 
 **`ImportacaoArquivo`** — cabeçalho de cada importação.
-`id` · `id_empresa FK` · `tipo text CHECK (tipo IN ('faturamento','performance'))`
-(extensível a `envio_massa` no futuro) · `nome_arquivo text` · `hash_sha256 char(64) NOT NULL` ·
+`id` · `id_empresa FK` · `tipo text CHECK (tipo IN ('faturamento','performance','envio_massa'))`
+(`envio_massa` entra no CHECK desde a criação — é usado a partir da S8 para o histórico do
+upload legado) · `nome_arquivo text` · `hash_sha256 char(64) NOT NULL` ·
 `tamanho_bytes bigint` · `status text CHECK (status IN
 ('pending','validating','processing','completed','completed_with_errors','failed','cancelled'))` ·
 `total_linhas int` · `linhas_validas int` · `linhas_invalidas int` ·
@@ -943,7 +947,7 @@ incremental; diretriz etapa 14 pede confirmar significado no repositório — co
 | Opção | Avaliação |
 |---|---|
 | Coluna `id_empresa` (+ escopo no backend) | **Adotada** — padrão já existente (`resolveScope`), custo zero de migração |
-| RLS | **Adotada como reforço (S2)** — PostgREST propaga claims do JWT para policies; protege contra bug de escopo no backend |
+| RLS | **Adotada como reforço (S2)** — policies leem claims do JWT propagadas pelo PostgREST; protege contra bug de escopo no backend. ⚠️ **Pré-requisito técnico:** hoje `generatePostgrestJWT()` (server.js:99–106) emite token **estático** `role: authenticated` **sem claims de escopo** — a S2 deve evoluí-lo para emitir JWT **por request** com `empresa_ativa`/lista do escopo (mesmo `PGRST_JWT_SECRET`); sem isso, RLS por claim não funciona |
 | Schemas por entidade | Rejeitada — dezenas de entidades irmãs de um mesmo negócio; migrations multiplicadas |
 | Bancos separados | Rejeitada — idem, e quebra consultas de grupo (matriz vê filiais) |
 
@@ -995,7 +999,8 @@ decisão pendente D5 (§18), anonimização §4.6.
   → status=processing: por linha → normaliza (§10) → valida → lote de 500 → upsert Entregador + insert fato
      (ON CONFLICT (id_empresa, hash_linha) DO NOTHING → idempotência por linha)
   → erros por linha → ImportacaoLinhaErro (motivo + campo + valor mascarado)
-  → status final: completed | completed_with_errors | failed  (cancelled se usuário cancelar antes de processing)
+  → status final: completed | completed_with_errors | failed | cancelled
+     (cancelamento possível em pending/validating e, durante processing, entre lotes — ver §12.2)
   → resumo (total/válidas/inválidas/duração) + Auditoria + métricas em log estruturado
 ```
 
@@ -1020,7 +1025,7 @@ decisão pendente D5 (§18), anonimização §4.6.
 
 `pending → validating → processing → completed | completed_with_errors | failed`;
 `cancelled` a partir de pending/validating/processing (entre lotes). (`queued` reservado
-para quando/se houver fila.)
+para quando/se houver fila — adotá-lo exigirá estender o CHECK de `status` via migration.)
 
 ### 12.3 Histórico e tela
 
@@ -1169,19 +1174,29 @@ sessões. Resumo:
 | Fase | Objetivo | Migrations | Testes exigidos | Risco central | Critério de conclusão |
 |---|---|---|---|---|---|
 | S1 (Prompt A) | Ambiente isolado completo (infra-as-code, mocks, seeds anonimizados, backup/restore) | — (só infra) | 20 testes de isolamento | deriva de config | G2: 20/20 com evidência |
-| S2 (Prompt B) | Fundações: DDL 011+ (Usuario→SchemaMigration), auth Usuario, RBAC, RLS, auditoria, migração login | 011–016 (expand-only) | unit auth/RBAC/escopo + integração banco + E2E login/troca-entidade | base de tudo; RLS×PostgREST | suíte verde + RBAC auditável |
+| S2 (Prompt B) | Fundações: DDL 011+ (Usuario→SchemaMigration), auth Usuario, RBAC, RLS, auditoria, migração login | 011+ (~6 arquivos, expand-only) | unit auth/RBAC/escopo + integração banco + E2E login/troca-entidade | base de tudo; RLS×PostgREST | suíte verde + RBAC auditável |
 | S3 | Shell do hub: ModuleNav data-driven, EntitySwitcher, EnvBadge, dashboard | — | E2E navegação por permissão | UX/permissões inconsistentes | shell navegável com módulos por permissão |
-| S4 | Pipeline de importações + telas (faturamento e performance ingest) | 017 (se ajuste) | unit parser/validação + integração idempotência + E2E upload→conclusão + reimport no-op | idempotência | importar os 2 CSVs reais (na homolog, dados anonimizados) 100% válidos; reimport = 0 novas |
-| S5 | Módulo Motoristas (Entregador + vínculo Motorista + telas) | 018 (se ajuste) | unit vínculo + E2E CRUD | D3 (vínculo sem CNPJ) | CRUD + filtros + vínculo funcionando |
+| S4 | Pipeline de importações + telas (faturamento e performance ingest) | próximas da série (cria Entregador, ImportacaoArquivo, ImportacaoLinhaErro, FaturamentoLancamento, PerformanceTurno) | unit parser/validação + integração idempotência + E2E upload→conclusão + reimport no-op | idempotência | importar os 2 CSVs reais (na homolog, dados anonimizados) 100% válidos; reimport = 0 novas |
+| S5 | Módulo Motoristas (Entregador + vínculo Motorista + telas) | próxima livre da série (se ajuste) | unit vínculo + E2E CRUD | D3 (vínculo sem CNPJ) | CRUD + filtros + vínculo funcionando |
 | S6 | Módulo Faturamento (consulta/agregados/export) | — | E2E filtros/totais/export (CSV injection) | performance de agregados | telas com dados importados reais-anonimizados |
 | S7 | Módulo Performance (consulta/agregados) | — | idem S6 | idem | idem |
 | S8 | Envio em massa como módulo (§13.4) | — | **E2E fluxo completo atual** + permissões | **regressão do fluxo do cliente** | E2E 100% + zero mudança nos endpoints |
-| S9 | Auditoria + Administração (telas + módulos por entidade) | 019 (se ajuste) | E2E trilha/admin | baixo | trilha completa das ações S2–S8 |
+| S9 | Auditoria + Administração (telas + módulos por entidade) | próxima livre da série (se ajuste) | E2E trilha/admin | baixo | trilha completa das ações S2–S8 |
 | S10 | Regressão geral + ensaio de cutover | — | suíte completa + migrations em cópia anonimizada + restore + carga (1 ano sintético ≈ 2,5 M linhas) | subestimar cutover | runbook de cutover com rollback ensaiado e checklist dos 5 gates |
 
+> Os números de migration por fase acima são **indicativos**; a regra vinculante é a
+> série única contínua (§9): cada fase usa o **próximo número livre** no momento da
+> execução e o registra em `SchemaMigration` (evita colisão se uma fase não criar migration).
+
 **Implantação futura (etapa 22):** sequência do cutover (executado **pelo operador**, G3):
+**auditoria prévia do schema real de produção** (`pg_dump --schema-only` colado pelo
+operador, validado contra os objetos que as migrations 011+ pressupõem — as séries
+pré-011 foram aplicadas manualmente e podem divergir do baseline do ambiente isolado) →
 backup completo → migrations 011+ no banco de produção (já validadas 3× §4.10) → deploy
-das imagens do hub (`service update`, tags novas) → smoke → janela de observação →
+das imagens do hub (`service update`, tags novas) → smoke → **primeira importação dos
+CSVs reais em produção como passo explícito do runbook** (responsável definido; até ela,
+os módulos Motoristas/Faturamento/Performance nascem **vazios por design**; é a primeira
+entrada de dados pessoais reais nessas tabelas — LGPD) → janela de observação →
 rollback documentado (tags anteriores + restore). Criação da entidade inicial/admin/papéis
 vem das migrations de seed (S2). Compatibilidade com a app antiga garantida por
 expand-only + convivência §11.5. **Nada é excluído no cutover** (contract é fase futura).
@@ -1286,13 +1301,14 @@ git/logs/contexto de sessão; 10. axe ≥ 95 e design system EntreGô 2.0 nas te
 - **D3:** vínculo `Entregador↔Motorista` — CSVs não têm CNPJ; opções: (a) manual na tela
   de motoristas (recomendado para começar), (b) por nome normalizado (sugerir candidatos,
   humano confirma), (c) planilha de-para fornecida pelo cliente. Recomendação: **a+b**.
-- **D4:** confirmar semânticas com o cliente: `soma_das_taxas...` em centavos;
-  `tempo_disponivel_escalado` como %; significado exato de `atingido` e `margem_fee`.
+- **D4 (bloqueante da S4/S7):** confirmar semânticas com o cliente **antes de iniciar a
+  S4**: `soma_das_taxas...` em centavos; `tempo_disponivel_escalado` como %; significado
+  exato de `atingido` e `margem_fee`. O briefing s4 não inicia sem D4 respondido.
 - **D5 (LGPD):** política de retenção/exclusão dos dados de faturamento/performance e do
   arquivo original (proposta: reter originais 90 dias, fatos por 5 anos; anonimizar
   entregadores inativos > 2 anos).
-- **D6:** obter mais dias de CSV (idealmente 1 semana + 1 virada de mês) antes da S4 para
-  validar estabilidade do schema.
+- **D6 (recomendada antes da S4, não bloqueante):** obter mais dias de CSV (idealmente
+  1 semana + 1 virada de mês) para validar estabilidade do schema.
 - **D7:** destino do frontend v1 legado no cutover (proposta: manter no ar, fora do hub,
   até decisão de desligamento).
 

@@ -49,7 +49,8 @@ papéis → módulos) → E2E → evidências.
 - Integração: evento gerado por ação real aparece na consulta; módulo desabilitado some
   do `GET /me` da entidade.
 - E2E: admin_entidade vê só a própria trilha; alterar papel de um usuário reflete nas
-  permissões (cache invalidado ≤ 60 s); desabilitar módulo esconde item do menu e
+  permissões **imediatamente** (invalidação síncrona no update — o TTL de 60 s do cache
+  é apenas fallback, não o mecanismo); desabilitar módulo esconde item do menu e
   bloqueia endpoint (403).
 
 ## Evidências
@@ -71,4 +72,5 @@ DIARIO.md.
   edição entram mascarados.
 - GRANT: negar UPDATE/DELETE em `Auditoria` para o role do PostgREST (append-only por
   permissão, não só por convenção).
-- Cache de permissões TTL 60 s (S2) — telas de papéis devem avisar a latência ou invalidar.
+- Cache de permissões (S2): a invalidação é **síncrona** no update de papel; o TTL 60 s
+  é só fallback — não tratar a troca de papel como assíncrona nem confiar apenas no TTL.

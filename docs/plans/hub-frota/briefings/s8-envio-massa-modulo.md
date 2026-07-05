@@ -74,7 +74,10 @@ flags); log do mock n8n comprovando que nada real sairia; testes legados verdes.
 
 1. E2E do fluxo completo 100% verde no hub; 2. testes legados intocados e verdes;
 3. diff mínimo nos endpoints legados (middleware + flags apenas); 4. flags permitem
-desligar RBAC/log instantaneamente (rollback funcional); 5. proteções de envio ativas e
+desligar RBAC/log instantaneamente (rollback funcional) **e têm remoção agendada** —
+a aposentadoria de `HUB_RBAC_ENVIO`/`HUB_IMPORT_LOG_ENVIO` entra no runbook da S10 como
+pendência do contract pós-cutover (dono: operador; `HUB_RBAC_ENVIO=off` é bypass de RBAC
+e não pode sobreviver indefinidamente em produção); 5. proteções de envio ativas e
 auditadas; 6. PR + DIARIO.md.
 
 ## Gotchas
