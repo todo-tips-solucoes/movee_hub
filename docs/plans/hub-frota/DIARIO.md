@@ -38,3 +38,28 @@ pendências, ponteiros (branch/PR/estado feature-00c).
   .gitignore (fora do escopo de escrita da S0).
 - **Ponteiros:** branch `docs/hub-frota-plano-tecnico` (PR draft); próximo passo após
   G1 = sessão fresca com `prompts/prompt-A.md` (S1).
+
+---
+
+## 2026-07-05 — Gate G1 (decisão do operador) + merge da S0
+
+- **S0 mergeada:** PR #53 (merge `e5c0ee7c`) após code review de 8 ângulos — 19 achados
+  corrigidos (`8bce8bf`), 3 refutados.
+- **G1 DECIDIDO pelo operador (Paulo):**
+  - **D0 = MESMO HOST (VPSTodo)** — Alternativa B do plano (§4.2). Recursos verificados
+    após upgrade: 8 vCPU, 15 Gi RAM (8,7 Gi disponíveis), swap 8 Gi; disco 85% (23 GB
+    livres) → operador executa `docker builder prune -a -f` antes da S1 (~43 GB recuperáveis).
+  - **Subdomínio de homolog:** `hub-homolog.todo-tips.com`. Roteamento TLS é decisão de
+    design da S1 (2ª instância Traefik em portas altas vs. rota no Traefik existente —
+    esta última mexe em produção e exige o operador).
+  - **D1 e D2 ratificadas** (série única `backend/db/011+`, docs/sql congelada; hub em Node 20).
+  - **D4 CONFIRMADA** (`soma_das_taxas` em centavos; `tempo_disponivel_escalado` em %) —
+    S4/S7 liberadas dessa pendência.
+  - **Exceção standing auditada à cláusula pétrea (escopada, S1–S10):** o agente pode
+    criar/gerir no VPSTodo SOMENTE recursos prefixados `hub-`/`hub_` (projetos compose
+    hub-dev/test/homolog, redes/volumes/containers `hub_*`, banco novo do hub). Tudo do
+    ambiente vivo (Swarm, stacks `envio-massa-homologacao_*`/`fastapi*`/`pgadmin`,
+    banco `chatmasterveloz`, `.env`, Traefik de produção) permanece intocável; na dúvida,
+    parar e devolver ao operador.
+- **Pendências:** operador rodar o prune e colar a saída; depois sessão fresca com
+  `prompts/prompt-A.md` (já preenchido com as decisões do G1).
