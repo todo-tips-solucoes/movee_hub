@@ -15,7 +15,8 @@ detalhe do motorista).
   `criterio_*`, `margem_fee_*`) só nas linhas de bônus.
 - Índices existentes: `(id_empresa, data_referencia)`, `(id_empresa, entregador_id,
   data_referencia)`, `(id_empresa, descricao)` — filtros devem se apoiar neles.
-- ⚠️ Ambiente do VPSTodo É PRODUÇÃO — trabalho só no ambiente isolado.
+- ⚠️ O ambiente VIVO do cliente no VPSTodo É PRODUÇÃO — trabalho só nos recursos `hub-*`
+  do ambiente isolado (rodam no próprio VPSTodo; exceção escopada do G1 — DIARIO.md).
 - Referências: plano técnico §7.2/§7.4 (semântica), §9.2, §14 (contratos), §12.6
   (performance), §13 (telas).
 

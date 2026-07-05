@@ -11,7 +11,8 @@
   `importacao.criada/concluida/falha`, `motorista.editado/vinculado`,
   `envio.bloqueado_allowlist`, etc. Também existem `Modulo`/`ModuloEntidade` (shell
   data-driven) e papéis/permissões.
-- ⚠️ Ambiente do VPSTodo É PRODUÇÃO — trabalho só no ambiente isolado.
+- ⚠️ O ambiente VIVO do cliente no VPSTodo É PRODUÇÃO — trabalho só nos recursos `hub-*`
+  do ambiente isolado (rodam no próprio VPSTodo; exceção escopada do G1 — DIARIO.md).
 - Referências: plano técnico §9.2 (`Auditoria`, `Modulo*`), §13 (telas), §14 (APIs).
 
 ## Objetivo

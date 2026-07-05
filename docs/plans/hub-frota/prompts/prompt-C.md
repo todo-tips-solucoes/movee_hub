@@ -5,8 +5,9 @@
 > mergeado com evidências). Não executar nenhuma fase antes disso.**
 
 ```text
-Use /context-mode:context-mode durante toda a sessão. Rode
+Use /context-mode:context-mode durante toda a sessão. Para as fases S3–S9, rode
 /feature-00c docs/plans/hub-frota/briefings/<briefing-da-fase>.md
+(EXCEÇÃO: a fase S10 executa o briefing DIRETAMENTE, sem /feature-00c — plano mestre §7.)
 
 PRÉ-CONDIÇÃO OBRIGATÓRIA: Prompts A e B aprovados (G2 + PR da S2 mergeado; fases
 anteriores da ordem S3→S10 concluídas conforme DIARIO.md). Se não confirmar, PARE e
@@ -28,9 +29,12 @@ FASES (um briefing autossuficiente por sessão, nesta ordem):
   rodar fases em paralelo ou fora de ordem.
 
 REGRAS COMUNS A TODAS AS FASES:
-- Todo desenvolvimento SOMENTE no ambiente isolado validado na S1. O "homologação" antigo
-  (VPSTodo, chatmasterveloz, *.moveelog.com.br) É PRODUÇÃO — nenhuma escrita lá, nunca.
-  O cutover (G3) é executado PELO OPERADOR, fora destas sessões.
+- Todo desenvolvimento SOMENTE no ambiente isolado validado na S1 — recursos hub-*/hub_
+  que rodam NO PRÓPRIO VPSTodo (G1 2026-07-05: mesmo host), sob a exceção escopada
+  registrada no DIARIO.md e no CLAUDE.md. O ambiente VIVO do cliente no mesmo host
+  (stacks envio-massa-homologacao_*/fastapi*/pgadmin, banco chatmasterveloz,
+  *.moveelog.com.br) É PRODUÇÃO — nenhuma escrita nele, nunca. O cutover (G3) é
+  executado PELO OPERADOR, fora destas sessões.
 - Telas novas: design via /ui-ux-pro-max sobre o design system EntreGô 2.0 existente.
 - Protocolo §5 do plano mestre: context-mode para pesquisa/análise; subagentes Explore
   para investigação ruidosa; CSVs reais só no sandbox (LGPD); artefatos em arquivos.

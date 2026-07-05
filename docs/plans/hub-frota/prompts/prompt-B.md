@@ -12,9 +12,12 @@ PRÉ-CONDIÇÃO OBRIGATÓRIA: G2 aprovado (evidências 20/20 de isolamento do PR
 mergeadas). Se não conseguir confirmar o G2 (PR da S1 mergeado + aprovação registrada no
 DIARIO.md), PARE e pergunte ao operador. Este prompt depende da aprovação do Prompt A.
 
-CONTEXTO. Ambiente isolado validado na S1 (VPS Hub, compose hub-homolog, banco hub_homolog,
-mocks). O "homologação" antigo no VPSTodo É PRODUÇÃO — intocável. Todo o trabalho desta
-sessão ocorre SOMENTE no ambiente isolado.
+CONTEXTO. Ambiente isolado validado na S1 — projeto compose hub-homolog + banco
+hub_homolog + mocks, rodando NO PRÓPRIO VPSTodo (decisão G1 2026-07-05: mesmo host,
+Alternativa B; ver DIARIO.md). O ambiente VIVO do cliente no mesmo host (stacks
+envio-massa-homologacao_*/fastapi*/pgadmin, banco chatmasterveloz) É PRODUÇÃO —
+intocável. Todo o trabalho desta sessão ocorre SOMENTE nos recursos hub-*/hub_ do
+ambiente isolado, sob a exceção escopada do G1 (registrada no DIARIO.md e no CLAUDE.md).
 
 ESCOPO (fundações — plano técnico §9, §11):
 - Migrations 011+ na série única app_homologacao/backend/db/ (docs/sql/ está congelada):
@@ -28,7 +31,9 @@ ESCOPO (fundações — plano técnico §9, §11):
 - RLS no Postgres como reforço (claims via PostgREST) + testes de acesso cruzado.
 - Backend do hub em Node 20 (Dockerfile.hub — decisão D2; o legado node:14 não muda).
 
-PROIBIDO: qualquer escrita no ambiente vivo do cliente (VPSTodo/chatmasterveloz);
+PROIBIDO: qualquer escrita no ambiente vivo do cliente (stacks/serviços existentes,
+banco chatmasterveloz, .env, Traefik de produção — a exceção do G1 cobre APENAS
+recursos hub-/hub_ no VPSTodo);
 alterar endpoints legados (/login, /upload, /envio-massa...); mudanças de UI além do
 mínimo para exercitar auth (telas completas são S3+); DDL destrutiva em tabelas
 existentes (Empresa, Motorista, EnvioMassa — expand-only); commitar segredos ou dados

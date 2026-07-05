@@ -2,10 +2,10 @@
 
 **Fase:** S4 · **Branch:** `feat/hub-importacoes` · **Pré-requisito:** S2 mergeada
 (schema/RBAC); S3 recomendada antes (telas usam o shell).
-**Pré-requisito BLOQUEANTE adicional: D4 confirmado pelo operador** (`soma_das_taxas`
-em centavos; `tempo_disponivel_escalado` como %; sentido de `atingido`/`margem_fee`) —
-não iniciar sem a resposta registrada no DIARIO.md. D6 (mais dias de CSV) é recomendado,
-não bloqueante.
+**Pré-requisito BLOQUEANTE adicional (D4):** centavos e percentual **já confirmados no
+G1** (DIARIO 2026-07-05); **resta confirmar o sentido de `atingido` e `margem_fee`** —
+não iniciar sem essa resposta registrada no DIARIO.md. D6 (mais dias de CSV) é
+recomendado, não bloqueante.
 
 ## Contexto mínimo (autossuficiente)
 
@@ -37,7 +37,8 @@ não bloqueante.
   motivo, campo, valor_mascarado)`; `FaturamentoLancamento` e `PerformanceTurno`
   (fatos append-only, `UNIQUE(id_empresa, hash_linha)`). Matriz de mapeamento completa:
   plano técnico §10 (**seguir coluna a coluna**). Catálogo: §9.2.
-- ⚠️ Ambiente do VPSTodo É PRODUÇÃO — trabalho só no ambiente isolado.
+- ⚠️ O ambiente VIVO do cliente no VPSTodo É PRODUÇÃO — trabalho só nos recursos `hub-*`
+  do ambiente isolado (rodam no próprio VPSTodo; exceção escopada do G1 — DIARIO.md).
 
 ## Objetivo
 

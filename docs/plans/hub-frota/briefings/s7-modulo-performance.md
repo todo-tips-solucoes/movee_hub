@@ -14,7 +14,8 @@
   ex. `ALMOCO 11H30-15H29`).
 - KPIs derivados **na consulta** (não persistidos): taxa de aceitação (aceitas/ofertadas),
   taxa de conclusão (completadas/aceitas), taxa de rejeição — divisões protegidas de zero.
-- ⚠️ Ambiente do VPSTodo É PRODUÇÃO — trabalho só no ambiente isolado.
+- ⚠️ O ambiente VIVO do cliente no VPSTodo É PRODUÇÃO — trabalho só nos recursos `hub-*`
+  do ambiente isolado (rodam no próprio VPSTodo; exceção escopada do G1 — DIARIO.md).
 - Referências: plano técnico §7.3, §9.2, §14, §13.
 
 ## Objetivo

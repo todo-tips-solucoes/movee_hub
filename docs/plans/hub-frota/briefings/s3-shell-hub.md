@@ -12,7 +12,8 @@
   proxy `app/api/[...path]/route.ts` (reusar como estão).
 - Backend da S2 fornece: `GET /api/v1/me` → `{usuario, entidades[], entidade_ativa,
   modulos[], permissoes[]}`; `POST /api/v1/me/entidade` troca entidade ativa.
-- ⚠️ Ambiente "homologação" do VPSTodo É PRODUÇÃO. Trabalho só no ambiente isolado da S1.
+- ⚠️ O ambiente VIVO do cliente no VPSTodo É PRODUÇÃO. Trabalho só nos recursos `hub-*`
+  do ambiente isolado da S1 (rodam no próprio VPSTodo; exceção escopada do G1 — DIARIO.md).
 - Referências: plano técnico §13 (interface), §14 (APIs), §15 (S3).
 
 ## Objetivo
@@ -69,4 +70,5 @@ no menu E bloqueado no backend; 3. banner de ambiente presente em todo o shell n
 - Comentário `{/* */}` logo após `return (` quebra build turbopack — usar `//` acima.
 - `Select` Base UI precisa de `items` no Root para exibir rótulo.
 - Breadcrumb deve derivar de NAV_ITEMS (padrão adotado no U-fix do painel).
-- Build Next: nunca no VPSTodo; na VPS Hub ou CI.
+- Build Next: nunca solto no host — sempre sob cap de memória (`docker build --memory=2g`,
+  swap ativo; rito anti-starvation) ou em CI.

@@ -54,8 +54,10 @@ PROIBIDO:
   você PODE criar/gerir no VPSTodo SOMENTE recursos prefixados hub-/hub_ (projetos
   compose hub-dev/test/homolog, redes/volumes/containers hub_*, banco novo do hub).
   TODO o resto do host (Swarm, stacks envio-massa-homologacao_*/fastapi*/pgadmin/n8n/
-  fia/sdr/metanoia, banco chatmasterveloz, .env, Traefik de produção, registry) segue
-  intocável para escrita — na dúvida se um recurso é do hub, PARE e pergunte ao operador.
+  fia/sdr/metanoia, banco chatmasterveloz, .env, Traefik de produção) segue intocável
+  para escrita. Registry (registry.todo-tips.com): PERMITIDO pull e push de tags hub-*
+  (§4.4 do plano — único compartilhamento aceito); PROIBIDO tocar tags usadas pela
+  produção. Na dúvida se um recurso é do hub, PARE e pergunte ao operador.
 - Copiar credenciais/volumes/dumps de produção. Dados derivados só via gen-seeds
   anonimizado. Não usar tag latest. Não commitar .env reais nem os ZIPs.
 

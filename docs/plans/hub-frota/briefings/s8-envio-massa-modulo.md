@@ -17,7 +17,9 @@ cliente usa todos os dias.
   nexus p/ demais), `POST /close-movimento`.
 - No ambiente isolado, n8n e FastAPI são **mocks** (S1) e valem as proteções:
   `ENVIO_DRY_RUN` default, allowlist, limite por lote, registro de bloqueios.
-- ⚠️ Ambiente do VPSTodo É PRODUÇÃO. Nada é deployado lá nesta fase.
+- ⚠️ O ambiente VIVO do cliente no VPSTodo É PRODUÇÃO — nada é deployado nele nesta fase.
+  O trabalho ocorre nos recursos `hub-*` do ambiente isolado (mesmo host; exceção
+  escopada do G1 — DIARIO.md).
 - Referências: plano técnico §13.4 (8 pontos), §14 (tabela, linha "legado"), §15 (S8);
   E2E existentes como base: `docs/specs/validacao-xml-lote/e2e-validacao-xml-lote.sh`,
   `docs/specs/grupo-unificado-filiais/e2e-corte-modulo-c.sh`.

@@ -49,6 +49,18 @@ vivo com os 5 gates satisfeitos.
 
 Detalhe completo em [`docs/RITO-PRODUCAO.md`](docs/RITO-PRODUCAO.md).
 
+### Exceção escopada — recursos `hub-*` (gate G1 do hub-frota, 2026-07-05)
+
+O operador concedeu uma **exceção standing e auditada** ao rito, válida durante as fases
+S1–S10 do hub de frota (registro completo em
+[`docs/plans/hub-frota/DIARIO.md`](docs/plans/hub-frota/DIARIO.md)): o agente **pode**
+criar e gerir neste host **somente** recursos prefixados `hub-`/`hub_` — projetos compose
+`hub-dev`/`hub-test-*`/`hub-homolog`, redes/volumes/containers `hub_*`, o banco novo do
+hub e push/pull de tags `hub-*` no registry. **Dentro desse escopo, esta exceção
+prevalece sobre a regra geral acima.** Fora dele — Swarm, stacks existentes,
+`chatmasterveloz`, `.env`, Traefik, tags de produção — o rito integral continua valendo,
+e na dúvida se um recurso é do hub: parar e devolver ao operador.
+
 ## Convenções de deploy
 
 - Deploy = `docker build` → `docker push` → `docker service update --with-registry-auth --image …`.

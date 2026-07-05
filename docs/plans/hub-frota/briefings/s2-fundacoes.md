@@ -10,10 +10,11 @@
   frontends Next 16. Hoje **login = tabela `Empresa`** (`pass` bcrypt); multi-tenant por
   `Empresa`/`Grupo`/`id_grupo` com helpers `resolveScope`/`mesmoGrupoQue`/`resolveEmpresaAlvo`
   (`routes/grupo.js`) — critério canônico de escopo, preservar.
-- ⚠️ O ambiente "homologação" no VPSTodo (serviços `envio-massa-homologacao_*`, banco
-  `chatmasterveloz`, `*.moveelog.com.br`) **É PRODUÇÃO** — nenhuma escrita lá. Trabalho
-  100% no **ambiente isolado** da S1 (VPS Hub, compose `hub-homolog`, banco `hub_homolog`,
-  PostgREST próprio, mocks).
+- ⚠️ O ambiente vivo do cliente no VPSTodo (serviços `envio-massa-homologacao_*`, banco
+  `chatmasterveloz`, `*.moveelog.com.br`) **É PRODUÇÃO** — nenhuma escrita nele. Trabalho
+  100% no **ambiente isolado** da S1 (projeto compose `hub-homolog`, banco `hub_homolog`,
+  PostgREST próprio, mocks), que roda **no próprio VPSTodo** sob a exceção escopada
+  `hub-*` do G1 (2026-07-05, registrada no DIARIO.md e no CLAUDE.md).
 - Referências: plano técnico `docs/plans/hub-frota/01-plano-tecnico.md` §9 (modelo de
   dados), §11 (auth/RBAC/segurança), §14 (APIs), §15 (fase S2).
 

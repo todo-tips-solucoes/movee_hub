@@ -53,8 +53,9 @@ pendências, ponteiros (branch/PR/estado feature-00c).
     design da S1 (2ª instância Traefik em portas altas vs. rota no Traefik existente —
     esta última mexe em produção e exige o operador).
   - **D1 e D2 ratificadas** (série única `backend/db/011+`, docs/sql congelada; hub em Node 20).
-  - **D4 CONFIRMADA** (`soma_das_taxas` em centavos; `tempo_disponivel_escalado` em %) —
-    S4/S7 liberadas dessa pendência.
+  - **D4 PARCIALMENTE confirmada** (`soma_das_taxas` em centavos; `tempo_disponivel_escalado`
+    em % — confirmados pelo operador). **Pendente e ainda BLOQUEANTE da S4:** significado
+    exato de `atingido` e `margem_fee` (registrar aqui quando o operador/cliente responder).
   - **Exceção standing auditada à cláusula pétrea (escopada, S1–S10):** o agente pode
     criar/gerir no VPSTodo SOMENTE recursos prefixados `hub-`/`hub_` (projetos compose
     hub-dev/test/homolog, redes/volumes/containers `hub_*`, banco novo do hub). Tudo do
@@ -63,3 +64,20 @@ pendências, ponteiros (branch/PR/estado feature-00c).
     parar e devolver ao operador.
 - **Pendências:** operador rodar o prune e colar a saída; depois sessão fresca com
   `prompts/prompt-A.md` (já preenchido com as decisões do G1).
+
+---
+
+## 2026-07-05 — Review do delta do PR #53 + propagação do G1
+
+- **Review (4 finders + verificação):** 9 achados confirmados no delta não revisado
+  (commits 8bce8bf/dc2d99a) — todos corrigidos nesta entrada de commit.
+- **Correções aplicadas:** decisão do G1 (mesmo host + exceção `hub-*`) propagada a
+  prompt-B, prompt-C e briefings s2–s10 (fim do "VPS Hub"/proibições absolutas);
+  **exceção registrada no CLAUDE.md** (fonte canônica, com regra de precedência);
+  testes de isolamento 1/2/19 ganharam método de mesmo-host (item 19 testa a rede
+  docker, não a porta pública); "registry" removido dos intocáveis do prompt-A (push de
+  tags `hub-*` permitido, §4.4); §3.5/§4.2 reconciliadas com o upgrade e a decisão;
+  teste #20 preserva dump em falha; #6 fixa builtin do bash; prompt-C traz a exceção
+  da S10 (sem /feature-00c) na primeira linha.
+- **⚠️ D4 corrigida para PARCIAL:** `atingido` e `margem_fee` seguem pendentes e
+  bloqueantes da S4 (o G1 confirmou só centavos e percentual).

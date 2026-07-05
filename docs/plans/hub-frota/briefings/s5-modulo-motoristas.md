@@ -16,7 +16,8 @@
      `id_externo` UUID + nome, por entidade. **Os CSVs não têm CNPJ**, então o vínculo
      Entregador↔Motorista **não é automático** (decisão D3 do plano técnico: manual +
      sugestão por nome; o operador pode fornecer de-para no futuro).
-- ⚠️ Ambiente do VPSTodo É PRODUÇÃO — trabalho só no ambiente isolado.
+- ⚠️ O ambiente VIVO do cliente no VPSTodo É PRODUÇÃO — trabalho só nos recursos `hub-*`
+  do ambiente isolado (rodam no próprio VPSTodo; exceção escopada do G1 — DIARIO.md).
 - Referências: plano técnico §9.2 (`Entregador`), §13 (telas), §14 (APIs), D3 em §18;
   CLAUDE.md (regras de domínio da base `Motorista`).
 

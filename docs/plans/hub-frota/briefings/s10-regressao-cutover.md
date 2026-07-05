@@ -6,7 +6,8 @@ prepara e ensaia; o cutover (G3) é executado **pelo operador** sob o rito dos 5
 
 ## Contexto mínimo (autossuficiente)
 
-- Hub completo rodando no ambiente isolado (VPS Hub): shell + auth/RBAC + importações +
+- Hub completo rodando no ambiente isolado (projeto compose `hub-homolog`, no próprio
+  VPSTodo — G1 2026-07-05, mesmo host): shell + auth/RBAC + importações +
   motoristas + faturamento + performance + envio em massa re-hospedado + auditoria/admin.
 - Produção (VPSTodo): serviços `envio-massa-homologacao_*`, banco `chatmasterveloz`
   (postgres:13, volume `pgadmin_pg_data`), imagens atuais anotáveis via
@@ -15,8 +16,11 @@ prepara e ensaia; o cutover (G3) é executado **pelo operador** sob o rito dos 5
   PostgREST (`SIGUSR1`).
 - Migrations do hub: série única `app_homologacao/backend/db/011+`, expand-only,
   idempotentes, já aplicadas na homolog isolada.
-- ⚠️ Cláusula pétrea: o agente não executa nada no VPSTodo; entrega runbook/comandos e
-  analisa saídas coladas pelo operador.
+- ⚠️ Cláusula pétrea: no ambiente VIVO do cliente o agente não executa nada — os comandos
+  do cutover são do operador (o agente entrega runbook e analisa saídas coladas). Nos
+  recursos `hub-*` do ambiente isolado (mesmo host), o agente executa normalmente sob a
+  exceção escopada do G1 (DIARIO.md) — a suíte de regressão e o ensaio de
+  migrations/rollback desta fase rodam nesses recursos.
 - Referências: plano técnico §15 (implantação futura), §16.1 (evidências S10), §17
   (aceite), §4.10 (migrations seguras); `docs/RITO-PRODUCAO.md`.
 
@@ -58,7 +62,8 @@ anonimizada, teste de carga e **runbook de cutover com rollback ensaiado**.
 6. Plano de observação pós-cutover (o que monitorar nas primeiras 24 h; como decidir
    rollback).
 
-**Não inclui:** o cutover em si; qualquer comando no VPSTodo; mudanças funcionais (bug
+**Não inclui:** o cutover em si; qualquer comando no ambiente vivo do cliente
+(stacks/serviços existentes, chatmasterveloz); mudanças funcionais (bug
 achado na regressão → registrar; se pequeno, corrigir com PR próprio referenciado; se
 grande, devolver ao operador).
 

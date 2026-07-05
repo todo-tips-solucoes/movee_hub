@@ -223,6 +223,11 @@ Terceiros no mesmo host (fora do escopo, não tocar): `fia_*`, `n8n_*`, `sdr-wha
 - Portas publicadas no host: só 80/443 (Traefik) + 8093/8094 (metanoia). Um ambiente
   isolado no mesmo host teria portas livres, mas competiria por RAM/disco escassos.
 
+> **Atualização (G1, 2026-07-05):** o host foi ampliado após este diagnóstico — medição
+> de 2026-07-05: 6,5 Gi usados, **8,7 Gi disponíveis**, swap 8 Gi (6 livres); disco segue
+> 85% com ~43 GB de build cache recuperável (prune pelo operador antes da S1). Foi essa
+> mudança que viabilizou a escolha do mesmo host no G1 (ver §4.2 e DIARIO.md).
+
 ---
 
 ## 4. Plano do ambiente isolado
@@ -245,9 +250,18 @@ Exigências mínimas se G1 optar por ela: projeto/stack `hub-dev` distinto; serv
 containers, redes (`hub_dev_net`), volumes (`hub_dev_pg_data`), banco (`hub_dev`),
 usuário/senha de banco, portas, domínio, `.env` e credenciais **todos próprios**;
 `--memory`/`--cpus` capados (lição do incidente de starvation); logs separados.
-**Contras decisivos:** ~1,4 GiB RAM livre e disco 85% (§3.5); builds Next proibitivos;
-cláusula pétrea impede o agente de executar — todo comando passaria pelo operador
-(latência enorme em S2–S10); blast radius humano. **Não recomendada.**
+**Contras à época do diagnóstico:** ~1,4 GiB RAM livre e disco 85% (§3.5); builds Next
+proibitivos; cláusula pétrea sem exceção — todo comando passaria pelo operador (latência
+enorme em S2–S10); blast radius humano. **Não recomendada no diagnóstico original.**
+
+> **Decisão G1 (2026-07-05, DIARIO.md): esta alternativa FOI a escolhida**, viabilizada
+> por (a) upgrade do host — 8,7 Gi de RAM disponíveis pós-upgrade (vs. 1,4 Gi do
+> diagnóstico, ver nota na §3.5) + prune de build cache pelo operador (~43 GB); e
+> (b) **exceção standing escopada a recursos `hub-*`** (registrada no DIARIO.md e no
+> CLAUDE.md): o agente executa diretamente os recursos do hub; a cláusula pétrea segue
+> integral para todo o resto do host. As exigências desta seção (nomes/redes/volumes/
+> credenciais/portas próprios + **caps de CPU/RAM em todo serviço e build**) são
+> **vinculantes** para a S1.
 
 ### 4.3 Alternativa C — ambiente efêmero (complementar)
 
@@ -401,8 +415,13 @@ migration (down ou compensação); 11. migration corretiva preferível a editar 
 
 ### 4.11 Testes de isolamento (etapa 11) — os 20, com comando e evidência esperada
 
-Executáveis na S1 (nenhum é destrutivo). Na Alternativa A, os itens 1–2 e 19 são
-verificados por construção (hosts distintos) + conferência de env.
+Executáveis na S1 (nenhum é destrutivo). **Com a Alternativa B escolhida no G1 (mesmo
+host), os itens 1–2 e 19 NÃO valem "por construção"** — método de mesmo-host: itens 1–2 =
+operador compara estado/contagens de produção antes/depois **e** `docker inspect` de
+todos os containers `hub_*` prova que nenhum monta `pgadmin_pg_data`/binds de produção;
+item 19 = comando reescrito na tabela (o vetor real no mesmo host é a rede docker
+compartilhada/loopback, não a porta pública). Onde a tabela diz "na VPS homolog",
+leia-se: no VPSTodo, restrito aos recursos `hub_*`.
 
 | # | Comprovação | Comando (na VPS homolog, salvo indicado) | Evidência esperada |
 |---|---|---|---|
@@ -411,7 +430,7 @@ verificados por construção (hosts distintos) + conferência de env.
 | 3 | Redes separadas | `docker network ls` na VPS | Só redes `hub_*` (+default) |
 | 4 | Containers com nomes distintos | `docker ps --format '{{.Names}}'` | Todos `hub_homolog_*` |
 | 5 | Projetos/stacks distintos | `docker compose ls` | `hub-homolog` (nunca `envio-massa-homologacao`) |
-| 6 | Credenciais diferentes | diff de **hashes** dos segredos (nunca valores): `printf '%s' "$JWT_SECRET" \| sha256sum` (builtin — sem newline e sem vazar em `ps`) comparado ao fingerprint de produção calculado pelo operador **com o mesmo método** | Hashes distintos (método idêntico nos dois lados) |
+| 6 | Credenciais diferentes | diff de **hashes** dos segredos (nunca valores): `printf '%s' "$JWT_SECRET" \| sha256sum` (usar o **builtin do bash** — nunca `/usr/bin/printf`, que expõe o segredo em `ps`; sem newline) comparado ao fingerprint de produção calculado pelo operador **com o mesmo método** | Hashes distintos (método idêntico nos dois lados) |
 | 7 | Portas sem conflito | `ss -tlnp` na VPS | Sem colisão; host de produção inalterado |
 | 8 | Domínio diferente | `curl -sI https://<dominio-homolog>/login` | 200 no domínio novo; `app.moveelog.com.br` continua servido pelo host antigo (dig) |
 | 9 | Logs separados | `docker compose -p hub-homolog logs --tail 5` | Só serviços do hub |
@@ -424,8 +443,8 @@ verificados por construção (hosts distintos) + conferência de env.
 | 16 | Nenhum dado real modificado | item 1 + banco homolog contém apenas seeds anonimizados (`SELECT count(*)`) | Contagens de seed |
 | 17 | Migrations só em homolog | `SELECT * FROM "SchemaMigration"` em homolog vs consulta equivalente em produção (operador) | Tabela nem existe em produção |
 | 18 | Identificação visual | screenshot do banner de ambiente (§13.2) | Banner "HOMOLOGAÇÃO" |
-| 19 | Homolog não alcança produção | do host homolog: `psql "host=<ip-prod> port=5432" …` → recusa/timeout (porta nem publicada) + preflight passa | Conexão impossível |
-| 20 | Backup/restauração funciona | `pg_dump -Fc hub_homolog > b.dump && dropdb --if-exists hub_restore && createdb hub_restore && pg_restore -d hub_restore b.dump && diff contagens; rm b.dump` | Contagens iguais (comando re-executável) |
+| 19 | Homolog não alcança produção | `docker network inspect pgadmin app_homologacao_default` → nenhum container `hub_*` como membro; de DENTRO de um container `hub_*`: resolução/conexão a `pgadmin_db:5432` (nome e IP da rede `pgadmin`) falha; preflight passa | Redes de produção sem membros `hub_*`; conexão impossível a partir do hub (testar a rede docker, não a porta pública) |
+| 20 | Backup/restauração funciona | dentro do container Postgres do hub, como usuário `postgres`: `pg_dump -Fc hub_homolog > b.dump && dropdb --if-exists hub_restore && createdb hub_restore && pg_restore -d hub_restore b.dump && diff contagens && rm b.dump` (em falha, `b.dump` é preservado para diagnóstico) | Contagens iguais (comando re-executável) |
 
 ---
 
