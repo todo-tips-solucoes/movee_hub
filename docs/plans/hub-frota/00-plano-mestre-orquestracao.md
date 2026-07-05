@@ -58,6 +58,11 @@ aplicação principal e vira **um módulo** do hub. Módulos iniciais previstos 
 1. **"Homologação" atual É produção.** Os serviços `envio-massa-homologacao_*`, o banco
    `chatmasterveloz` e os domínios `app.moveelog.com.br` / `app.motorista.moveelog.com.br`
    atendem clientes reais. Todo o desenvolvimento do hub ocorre **fora** deles até o cutover.
+   ⚠️ **Regra terminológica:** quando as diretrizes (`diretrizes_customizacao.txt`) falam em
+   "homologação" (deploy, migrations, testes), leia-se sempre o **novo ambiente isolado
+   criado na S1** — **nunca** os recursos existentes `envio-massa-homologacao_*` /
+   `chatmasterveloz`, que apesar do nome são produção. Nenhuma sessão pode resolver o termo
+   "homologação" das diretrizes para recursos existentes.
 2. **Cláusula pétrea:** o agente não executa escrita no ambiente vivo. Entrega artefatos
    (código, PRs, DDLs, runbooks); o operador aplica — salvo exceção pontual, auditada e
    consumível concedida por escrito para uma mudança específica (rito dos 5 gates).
@@ -78,6 +83,14 @@ aplicação principal e vira **um módulo** do hub. Módulos iniciais previstos 
 | **`/context-mode:context-mode`** | Gestão de memória/token em TODAS as sessões. Regras na §5. |
 | **`/feature-00c`** | Pipeline SDD autônoma (specify→clarify→plan→checklist→create-tasks→execute-task→review-task) para **cada feature** das fases S2–S9. Estado em `feature-00c-state/<short-name>/`. Retomada com `/feature-00c-resume`. |
 | **`/ui-ux-pro-max`** | Design/implementação de todas as páginas novas do hub (shell, dashboards, telas de módulo). Design system EntreGô 2.0 preservado (azul/menta/creme, Plus Jakarta Sans, Tailwind v4 `@theme`). |
+
+⚠️ **Disponibilidade das skills:** `ui-ux-pro-max` vive em `.claude/skills/` do checkout
+principal e `.claude/` é **gitignored** — um clone novo ou uma VPS separada **não** terá a
+skill (nem o plugin context-mode). Por isso, as **sessões de desenvolvimento continuam
+rodando neste host** (checkout `/var/lib/envioMassa_homologacao`, onde as skills estão
+instaladas); uma eventual VPS separada (G1) é **alvo de runtime/deploy do ambiente isolado**,
+não o lugar das sessões. Se algum dia as sessões migrarem de máquina, instalar antes:
+plugin context-mode, skills feature-00c e `cp -rL` da ui-ux-pro-max.
 
 Gotchas conhecidos que TODA sessão de implementação deve herdar (estão na memória do projeto,
 repetidos aqui para sessões frescas):
@@ -125,16 +138,23 @@ flowchart TD
 - Análise dos CSVs **inteira dentro do sandbox context-mode** (`ctx_execute_file` /
   `ctx_execute` python): tipos, chaves, duplicidades, qualidade, volume, relações — só
   estatísticas e exemplos mascarados entram no contexto/relatório.
+  ⚠️ Os ZIPs (`Faturamento.zip`, `Performance_.zip`) **não estão no git** (contêm dados
+  pessoais — LGPD) e existem apenas em
+  `/var/lib/envioMassa_homologacao/docs/documentos_apoio/` no host VPSTodo. A S0 deve rodar
+  neste host (worktrees leem o caminho absoluto acima); se os arquivos não existirem mais,
+  parar e pedir os arquivos ao operador — **não** inventar o schema a partir dos nomes de
+  coluna citados neste plano.
 - Diagnóstico do repo e do Docker por subagentes `Explore` + `ctx_batch_execute` (nunca
   despejar árvores de arquivos no contexto principal).
 - **Saída:** `docs/plans/hub-frota/01-plano-tecnico.md` (os 20 entregáveis, com Mermaid ER,
-  matriz de mapeamento CSV→tabelas, catálogo de tabelas, APIs) e
-  `docs/plans/hub-frota/prompts/prompt-A.md`, `prompt-B.md`, `prompt-C.md` — todos
-  autossuficientes, via PR.
+  matriz de mapeamento CSV→tabelas, catálogo de tabelas, APIs),
+  `docs/plans/hub-frota/prompts/prompt-A.md`, `prompt-B.md`, `prompt-C.md` **e os briefings
+  autossuficientes por fase em `docs/plans/hub-frota/briefings/`** (um por sessão S2–S10;
+  são o insumo direto dos prompts da §7) — todos via PR.
 - **Proibido:** alterar código, banco, containers, `.env`, stacks (regras de execução 1–32
   das diretrizes).
-- **Critério de conclusão:** PR aberto com o plano técnico completo; nenhuma escrita fora de
-  `docs/`.
+- **Critério de conclusão:** PR aberto com o plano técnico completo **e os briefings de
+  todas as fases S2–S10**; nenhuma escrita fora de `docs/`.
 
 ### G1 — Decisão de infraestrutura (operador)
 
@@ -258,7 +278,11 @@ Toda sessão (S0–S10) segue este protocolo:
 9. Atualizar o **diário da fase**: `docs/plans/hub-frota/DIARIO.md` (apêndice de ~10 linhas
    por sessão: o que fechou, decisões, pendências, ponteiros). É o handoff entre sessões.
 10. Commit + push + PR (draft) da fase; 1 PR por fase (empilhar só se inevitável, e então
-    re-target antes do merge — lição dos PRs #39–41).
+    re-target antes do merge — lição dos PRs #39–41). **Base da autorização (governança do
+    CLAUDE.md):** a aprovação deste plano pelo operador (merge do PR do plano) constitui a
+    autorização explícita para commit+push+**PR draft** por fase, dentro do escopo das fases
+    aqui descritas. **Merge e deploy continuam exigindo autorização explícita por ação** —
+    nenhuma sessão mergeia ou deploya com base neste plano.
 11. Memória persistente: **só ponteiros** (nome da fase, branch, PR, status) — nunca
     conteúdo do plano.
 
@@ -275,8 +299,12 @@ atravessar compaction no meio de uma onda de execução.
   só com aprovação do operador (governança do CLAUDE.md).
 - **Imagens:** tag por fase (ex.: `:hub-fundacoes`), nunca `latest`; rollback = tag anterior
   anotada antes do update.
-- **Migrations:** numeradas e idempotentes em `db/` (convenção atual 0NN), aplicadas primeiro
-  no ambiente isolado; produção só via rito no cutover.
+- **Migrations:** numeradas e idempotentes. ⚠️ Hoje existem **duas séries paralelas com
+  números colidindo**: `app_homologacao/backend/db/` (001–010) e `docs/sql/` (001–007).
+  A S0 deve definir a **série única do hub** (recomendação: continuar
+  `app_homologacao/backend/db/` a partir de 011 e congelar `docs/sql/`) e registrar a
+  decisão no plano técnico — **não** criar uma terceira série nem renumerar de 001.
+  Aplicadas primeiro no ambiente isolado; produção só via rito no cutover.
 - **Testes:** cada feature-00c exige unit + E2E no ambiente isolado antes do review-task
   fechar; evidências anexadas ao PR.
 
@@ -294,8 +322,9 @@ Use /context-mode:context-mode durante toda a sessão para gestão de memória/t
 Leia docs/plans/hub-frota/00-plano-mestre-orquestracao.md (§S0 e §5) e execute
 INTEGRALMENTE docs/documentos_apoio/diretrizes_customizacao.txt (etapas 1–23, ordem
 obrigatória, 20 entregáveis, Prompts A/B/C). Analise os ZIPs de faturamento e performance
-exclusivamente dentro do sandbox do context-mode (nunca cole dados pessoais no contexto ou
-no relatório — use exemplos mascarados). Não altere código, banco, containers ou .env.
+(fora do git; caminho no host: /var/lib/envioMassa_homologacao/docs/documentos_apoio/*.zip —
+se ausentes, pare e peça ao operador) exclusivamente dentro do sandbox do context-mode
+(nunca cole dados pessoais no contexto ou no relatório — use exemplos mascarados). Não altere código, banco, containers ou .env.
 Saídas: docs/plans/hub-frota/01-plano-tecnico.md + docs/plans/hub-frota/prompts/prompt-{A,B,C}.md
 + briefings autossuficientes por fase (S2–S10) em docs/plans/hub-frota/briefings/.
 Ao final: atualize docs/plans/hub-frota/DIARIO.md, commit em branch docs/hub-frota-plano-tecnico,
@@ -345,11 +374,11 @@ encadeado e checklist dos 5 gates. O cutover em produção é executado PELO OPE
 | 3 | Fundações: DDL/auth/RBAC/auditoria-base | S2 | XL | P0 | G2 | alto (base de tudo) |
 | 4 | Shell do hub (navegação modular) | S3 | M | P0 | S2 | médio |
 | 5 | Pipeline de importações + telas | S4 | XL | P1 | S2 | alto (idempotência) |
-| 6 | Módulo Motoristas | S5 | M | P1 | S3 | médio |
+| 6 | Módulo Motoristas | S5 | M | P1 | S3, S4 | médio |
 | 7 | Módulo Faturamento | S6 | M | P1 | S4 | baixo |
 | 8 | Módulo Performance | S7 | M | P1 | S4, S6 | baixo |
 | 9 | Envio em massa como módulo | S8 | L | P1 | S3 | **alto (regressão)** |
-| 10 | Auditoria + Administração | S9 | M | P2 | S2 | baixo |
+| 10 | Auditoria + Administração | S9 | M | P1 | S2 | baixo |
 | 11 | Regressão E2E + runbook cutover | S10 | L | P0 | S2–S9 | alto |
 | 12 | Gestão de veículos | futuro | M | P3 | dados justificarem | baixo |
 
@@ -362,6 +391,8 @@ encadeado e checklist dos 5 gates. O cutover em produção é executado PELO OPE
 | Infra | Onde vive o ambiente isolado (custo de VPS) | **Decisão do operador em G1** |
 | Infra | Build no VPSTodo → starvation | Buildar fora do host; se inevitável, swap 4G + `--memory=2g` |
 | Dados | CSVs contêm dados pessoais (LGPD) | Análise só no sandbox; seeds anonimizados; ZIPs nunca commitados |
+| Dados | ZIPs fora do git — existem só no checkout principal deste host | S0 roda neste host lendo o caminho absoluto; se ausentes, parar e pedir ao operador (nunca inventar schema) |
+| Processo | Skills (ui-ux-pro-max, context-mode) são locais e gitignored | Sessões de desenvolvimento permanecem neste host; VPS separada é só runtime do ambiente isolado |
 | Dados | Formato dos CSVs pode variar entre exportações | Validação de cabeçalho no pipeline + versionamento do layout |
 | Migração | Backend legado Node 14 | Evolução incremental (diretrizes proíbem reescrita sem evidência); avaliar upgrade na S0 como decisão separada |
 | Migração | Associação Empresa/grupos → entidades | DDL aditiva + backfill idempotente, testado em cópia anonimizada |
