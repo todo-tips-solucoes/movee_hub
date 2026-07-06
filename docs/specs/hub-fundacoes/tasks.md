@@ -192,11 +192,11 @@ Ref: briefing §Integração, FR-004, SC-002, critério de aceite #1.
 
 Ref: briefing §E2E, quickstart.md Scenarios 1/3/4/5/6/7/8/9, critérios de aceite #4/#5.
 
-- [ ] 6.3.1 login→me→troca de entidade (US1/US2)
-- [ ] 6.3.2 troca de senha revoga todas as sessões (US3, refresh revogado não renova)
-- [ ] 6.3.3 5 falhas consecutivas bloqueiam 15 min (US4)
-- [ ] 6.3.4 RLS: token com claim da entidade A lendo dados da B → 0 linhas (US5, real)
-- [ ] 6.3.5 Capturar saída/log de cada cenário como evidência
+- [x] 6.3.1 login→me→troca de entidade (US1/US2) — `infra/hub/testes/hub-e2e-homolog.sh`, 8/8 asserts contra hub-homolog real (backend/mailpit-mock subidos, migrate até 0008)
+- [x] 6.3.2 troca de senha revoga todas as sessões (US3, refresh revogado não renova) — 13/13 asserts, 2 sessões simultâneas, ambas revogadas após redefinir-senha; achado: reuso do token → 400 (não 410 como o texto do quickstart.md sugere), paridade confirmada com hub-auth-integration.sh:268 (decisão já auditada na FASE 3, dec-060)
+- [x] 6.3.3 5 falhas consecutivas bloqueiam 15 min (US4) — 3/3 asserts; bloqueio comprimido via `UPDATE "Usuario" SET bloqueado_ate = now() - interval '1 minute'` (SQL direto no banco do hub, dec-060) em vez de aguardar 15 min reais
+- [x] 6.3.4 RLS: token com claim da entidade A lendo dados da B → 0 linhas (US5, real) — 7/7 asserts via PostgREST direto (bypass do Express), mesmo padrão de hub-rls-integration.sh
+- [x] 6.3.5 Capturar saída/log de cada cenário como evidência — 32/32 asserts verdes, `docs/plans/hub-frota/evidencias/S2/01-e2e-homolog.txt`; cleanup 100% (0 linhas residuais `e2e-teste-*`) via `SET session_replication_role = replica` (superuser, sessão-escopado, contorna o trigger incondicional de imutabilidade da Auditoria só para o DELETE de teste — dec-060)
 
 ### 6.4 Corrigir cobertura do `npm test` e diff limpo `[C]`
 

@@ -1,0 +1,78 @@
+PREFLIGHT: ok — projeto 'hub-homolog' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=homologation
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (5 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.homolog.yml (projeto hub-homolog, APP_ENV=homologation)
+garantindo mailpit-mock + backend no ar (idempotente, ambiente PERSISTENTE)…
+ Container hub_homolog_mailpit_mock Running 
+ Container hub_homolog_mailpit_mock Waiting 
+ Container hub_homolog_mailpit_mock Healthy 
+ Container hub_homolog_db Running 
+ Container hub_homolog_postgrest Running 
+ Container hub_homolog_backend Running 
+ Container hub_homolog_db Waiting 
+ Container hub_homolog_db Healthy 
+ Container hub_homolog_db Waiting 
+ Container hub_homolog_db Healthy 
+ Container hub_homolog_backend Waiting 
+ Container hub_homolog_db Waiting 
+ Container hub_homolog_postgrest Waiting 
+ Container hub_homolog_backend Healthy 
+ Container hub_homolog_db Healthy 
+ Container hub_homolog_postgrest Healthy 
+rodando migrate.sh (idempotente, até 0008)…
+
+### 6.3.1 — login -> me -> troca de entidade ###
+PASS: 6.3.1 login -> 200
+PASS: 6.3.1 login: e-mail correto no corpo
+PASS: 6.3.1 GET /me -> 200
+PASS: 6.3.1 GET /me: 2 entidades vinculadas
+PASS: 6.3.1 GET /me: entidade_ativa=null antes da troca
+PASS: 6.3.1 POST /me/entidade (A) -> 200
+PASS: 6.3.1 POST /me/entidade: entidade_ativa=A no corpo
+PASS: 6.3.1 GET /me pós-troca: entidade_ativa=A refletida sem novo login
+
+### 6.3.2 — recuperar-senha + redefinir-senha revoga TODAS as sessões ###
+PASS: 6.3.2 login sessão 1 -> 200
+PASS: 6.3.2 login sessão 2 -> 200
+PASS: 6.3.2 recuperar-senha (e-mail existente) -> 200
+PASS: 6.3.2 recuperar-senha: ok=true
+PASS: 6.3.2 recuperar-senha: corpo IDÊNTICO p/ e-mail inexistente (FR-020)
+PASS: 6.3.2 token de redefinição capturado via mailpit-mock
+PASS: 6.3.2 redefinir-senha -> 200
+PASS: 6.3.2 redefinir-senha: ok=true
+PASS: 6.3.2 reuso do MESMO token -> 400 TOKEN_INVALIDO (single-use, paridade c/ FASE 3)
+PASS: 6.3.2 login com senha ANTIGA falha -> 401
+PASS: 6.3.2 login com senha NOVA funciona -> 200
+PASS: 6.3.2 refresh sessão 1 (pré-redefinição) revogado -> 401 (FR-022/SC-007)
+PASS: 6.3.2 refresh sessão 2 (pré-redefinição) revogado -> 401 (TODAS as sessões)
+
+### 6.3.3 — 5 falhas consecutivas -> bloqueio 423 -> desbloqueio via SQL ###
+PASS: 6.3.3 5 falhas consecutivas -> todas 401
+PASS: 6.3.3 6ª tentativa (senha CORRETA) apos 5 falhas -> 423 CONTA_BLOQUEADA
+PASS: 6.3.3 login correto aceito na 1ª tentativa após período de bloqueio expirado
+
+### 6.3.4 — RLS: token com claim da entidade A lendo dados da B -> 0 linhas ###
+PASS: 6.3.4 PostgREST direto (bypass app): status 200 mesmo pedindo B
+PASS: 6.3.4 PostgREST direto: escopo=[A] lendo B -> 0 linhas (RLS nega, SC-008)
+PASS: 6.3.4 PostgREST direto: escopo=[A] lendo A -> 200
+PASS: 6.3.4 PostgREST direto: escopo=[A] lendo A -> 1 linha (uso legítimo preservado)
+PASS: 6.3.4 shape snake_case (id_empresa/criado_em) — Convenção de Borda
+PASS: 6.3.4 criado_em é string ISO 8601
+PASS: 6.3.4 detalhes é objeto JSON
+
+HUB-E2E-HOMOLOG: OK — todos os asserts passaram (FASE 6.3, quickstart Scenarios 1/3/4/5/6/7/8/9)
+
+=== cleanup: removendo linhas e2e-teste-* (superuser hub_homolog, owner bypassa RLS) ===
+SET
+DELETE 19
+DELETE 5
+DELETE 2
+DELETE 3
+=== cleanup: concluído ===
