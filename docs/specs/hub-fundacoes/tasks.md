@@ -61,7 +61,7 @@ Ref: data-model.md §Papel is_sistema, FR-008, checklists/security.md CHK006/CHK
 
 - [ ] 1.5.1 `infra/hub/migrations/0007_seed_papeis_permissoes_modulos.sql` — ≥4 papéis-seed (`admin_plataforma` + demais) `is_sistema=true`; módulos (`atendimento, performance, importacoes, envio_massa, usuarios, auditoria, admin`); PapelPermissao default
 - [ ] 1.5.2 Seed idempotente (`ON CONFLICT DO NOTHING` / `WHERE NOT EXISTS`), 2ª execução = no-op
-- [ ] 1.5.3 Validar com o dono do produto que os 4 papéis-seed e suas permissões default refletem o modelo de acesso pretendido — Ref: checklists/security.md CHK027 (`{humano}`, resolver antes de execute-task da FASE 4)
+- [x] 1.5.3 Validar com o dono do produto que os 4 papéis-seed e suas permissões default refletem o modelo de acesso pretendido — Ref: checklists/security.md CHK027 (`{humano}`, resolver antes de execute-task da FASE 4) — **APROVADO SEM AJUSTES** (block-002/dec-033, operador Paulo, 2026-07-06T03:18:25Z)
 - [ ] 1.5.4 Teste de integração: seed aplicado, união de grants por papel consultável via PostgREST
 
 ---
@@ -72,11 +72,11 @@ Ref: data-model.md §Papel is_sistema, FR-008, checklists/security.md CHK006/CHK
 
 Ref: plan.md §Migração de dados, data-model.md, FR-001–FR-005, SC-001/SC-002, Edge Cases.
 
-- [ ] 2.1.1 `infra/hub/migrations/0008_migracao_empresa_para_usuario.sql` — 1 `Usuario` por `Empresa` com login ativo, **mesmo hash bcrypt copiado** (ninguém redefine senha), `UsuarioEntidade` vinculando à empresa de origem
-- [ ] 2.1.2 Excluir da migração contas de origem sem meio de autenticar (sem senha definida) — não criar conta "quebrada" (FR-005, Edge Case)
-- [ ] 2.1.3 Idempotência expand-only: cada conta de origem gera no máximo um `Usuario` (`WHERE NOT EXISTS`); 2ª execução = no-op (FR-004, SC-002)
-- [ ] 2.1.4 Registrar em `SchemaMigration`; garantir que o fluxo de login legado (tabela `Empresa`) continua intocado (FR-003)
-- [ ] 2.1.5 Teste de integração: hash preservado (login com hash original funciona), re-execução não duplica, conta sem senha não migra
+- [x] 2.1.1 `infra/hub/migrations/0008_migracao_empresa_para_usuario.sql` — 1 `Usuario` por `Empresa` com login ativo, **mesmo hash bcrypt copiado** (ninguém redefine senha), `UsuarioEntidade` vinculando à empresa de origem
+- [x] 2.1.2 Excluir da migração contas de origem sem meio de autenticar (sem senha definida) — não criar conta "quebrada" (FR-005, Edge Case)
+- [x] 2.1.3 Idempotência expand-only: cada conta de origem gera no máximo um `Usuario` (`WHERE NOT EXISTS`); 2ª execução = no-op (FR-004, SC-002)
+- [x] 2.1.4 Registrar em `SchemaMigration`; garantir que o fluxo de login legado (tabela `Empresa`) continua intocado (FR-003) — registro automático via `migrate.sh` (mesmo mecanismo de 0002-0007); migration só LÊ `Empresa`, nunca escreve
+- [x] 2.1.5 Teste de integração: hash preservado (login com hash original funciona), re-execução não duplica, conta sem senha não migra — `infra/hub/testes/migracao-login-integration.sh`, 6/6 asserts OK (dec-036/dec-037)
 
 ---
 
