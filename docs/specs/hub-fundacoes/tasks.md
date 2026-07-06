@@ -21,48 +21,48 @@ Escopo: Backlog executável da feature `hub-fundacoes` (S2 do hub-frota). Decomp
 
 Ref: plan.md §Source Code (`Dockerfile.hub`, `compose.hub.*`), briefing §S1 ambiente isolado, memória exceção-standing-hub-recursos.
 
-- [ ] 1.1.1 Criar `app_homologacao/backend/Dockerfile.hub` (Node 20 LTS, mesma árvore de código; ZERO alteração no Dockerfile de produção Node 14)
-- [ ] 1.1.2 Editar `infra/hub/compose.hub.dev.yml`, `compose.hub.test.yml`, `compose.hub.homolog.yml` adicionando serviço `backend` apontando via env para o banco isolado do hub (recursos `hub-*` apenas)
-- [ ] 1.1.3 Adicionar/reutilizar `infra/hub/mocks/mailpit-like/` como mock de envio de e-mail para recuperação de senha (Research Decision 11)
-- [ ] 1.1.4 Prever cap de memória no build (`DOCKER_BUILDKIT=0 --memory=2g` + swap temporário) — lição starvation; documentar no runbook da task
-- [ ] 1.1.5 Smoke: subir `compose.hub.test` e confirmar backend hub respondendo isolado (sem tocar stacks de produção)
+- [x] 1.1.1 Criar `app_homologacao/backend/Dockerfile.hub` (Node 20 LTS, mesma árvore de código; ZERO alteração no Dockerfile de produção Node 14)
+- [x] 1.1.2 Editar `infra/hub/compose.hub.dev.yml`, `compose.hub.test.yml`, `compose.hub.homolog.yml` adicionando serviço `backend` apontando via env para o banco isolado do hub (recursos `hub-*` apenas)
+- [x] 1.1.3 Adicionar/reutilizar `infra/hub/mocks/mailpit-like/` como mock de envio de e-mail para recuperação de senha (Research Decision 11)
+- [x] 1.1.4 Prever cap de memória no build (`DOCKER_BUILDKIT=0 --memory=2g` + swap temporário) — lição starvation; documentar no runbook da task
+- [x] 1.1.5 Smoke: subir `compose.hub.test` e confirmar backend hub respondendo isolado (sem tocar stacks de produção)
 
 ### 1.2 Migration de contas e sessão `[C]`
 
 Ref: data-model.md §Usuario/§SessaoRefresh, plan.md §migrations, briefing §DDL, FR-014/FR-018.
 
-- [ ] 1.2.1 `infra/hub/migrations/0002_usuario.sql` — tabela `Usuario` (email citext UNIQUE, senha_hash, nome, ativo, tentativas_login, bloqueado_ate, token_recuperacao_hash, token_recuperacao_expira, criado_em) idempotente (`IF NOT EXISTS`)
-- [ ] 1.2.2 `infra/hub/migrations/0005_sessao_refresh.sql` — tabela `SessaoRefresh` (token_hash UNIQUE, usuario_id FK, expira_em) hash-only (Decision 9), idempotente
-- [ ] 1.2.3 GRANTs explícitos ao role do PostgREST (`authenticated`) para as tabelas novas (lição do 42501; precedente `docs/sql/003-...-grants.sql`)
-- [ ] 1.2.4 Registrar cada migration em `SchemaMigration` (idempotência: 2ª execução = no-op)
-- [ ] 1.2.5 Teste de integração: rodar `0002`/`0005` em banco vazio e verificar tabelas + GRANTs via PostgREST (role authenticated)
+- [x] 1.2.1 `infra/hub/migrations/0002_usuario.sql` — tabela `Usuario` (email citext UNIQUE, senha_hash, nome, ativo, tentativas_login, bloqueado_ate, token_recuperacao_hash, token_recuperacao_expira, criado_em) idempotente (`IF NOT EXISTS`)
+- [x] 1.2.2 `infra/hub/migrations/0005_sessao_refresh.sql` — tabela `SessaoRefresh` (token_hash UNIQUE, usuario_id FK, expira_em) hash-only (Decision 9), idempotente
+- [x] 1.2.3 GRANTs explícitos ao role do PostgREST (`authenticated`) para as tabelas novas (lição do 42501; precedente `docs/sql/003-...-grants.sql`)
+- [x] 1.2.4 Registrar cada migration em `SchemaMigration` (idempotência: 2ª execução = no-op)
+- [x] 1.2.5 Teste de integração: rodar `0002`/`0005` em banco vazio e verificar tabelas + GRANTs via PostgREST (role authenticated)
 
 ### 1.3 Migration de RBAC (papéis, permissões, módulos) `[C]`
 
 Ref: data-model.md §Papel/§Permissao/§PapelPermissao/§Modulo/§ModuloEntidade, FR-006/FR-007/FR-008.
 
-- [ ] 1.3.1 `infra/hub/migrations/0003_papel_permissao_modulo.sql` — tabelas `Papel` (escopo CHECK global|entidade, is_sistema), `Permissao`, `PapelPermissao` (N:M), `Modulo`, `ModuloEntidade`; `UsuarioEntidade` (UNIQUE(usuario_id, empresa_id)) idempotente
-- [ ] 1.3.2 GRANTs explícitos ao role do PostgREST para as tabelas de RBAC
-- [ ] 1.3.3 `SIGUSR1`/`NOTIFY pgrst` para recarregar o schema cache do PostgREST após criar tabelas (gotcha herdado)
-- [ ] 1.3.4 Teste de integração: migration idempotente (2×=no-op) e tabelas consultáveis via PostgREST
+- [x] 1.3.1 `infra/hub/migrations/0003_papel_permissao_modulo.sql` — tabelas `Papel` (escopo CHECK global|entidade, is_sistema), `Permissao`, `PapelPermissao` (N:M), `Modulo`, `ModuloEntidade`; `UsuarioEntidade` (UNIQUE(usuario_id, empresa_id)) idempotente
+- [x] 1.3.2 GRANTs explícitos ao role do PostgREST para as tabelas de RBAC
+- [x] 1.3.3 `SIGUSR1`/`NOTIFY pgrst` para recarregar o schema cache do PostgREST após criar tabelas (gotcha herdado)
+- [x] 1.3.4 Teste de integração: migration idempotente (2×=no-op) e tabelas consultáveis via PostgREST
 
 ### 1.4 Migration de auditoria imutável `[C]`
 
 Ref: data-model.md §Auditoria, FR-023/FR-024/FR-025, block-001.
 
-- [ ] 1.4.1 `infra/hub/migrations/0004_auditoria.sql` — tabela `Auditoria` (acao, resultado, usuario_id nullable, criado_em, metadados sem dados sensíveis) idempotente
-- [ ] 1.4.2 `REVOKE UPDATE, DELETE ON "Auditoria"` do role do PostgREST + trigger bloqueador de UPDATE/DELETE (defesa em profundidade, FR-024)
-- [ ] 1.4.3 GRANT de INSERT/SELECT ao role apropriado; nenhum endpoint expõe edição/remoção
-- [ ] 1.4.4 Teste de integração: INSERT permitido, UPDATE/DELETE rejeitados na camada de dados (imutabilidade reforçada)
+- [x] 1.4.1 `infra/hub/migrations/0004_auditoria.sql` — tabela `Auditoria` (acao, resultado, usuario_id nullable, criado_em, metadados sem dados sensíveis) idempotente
+- [x] 1.4.2 `REVOKE UPDATE, DELETE ON "Auditoria"` do role do PostgREST + trigger bloqueador de UPDATE/DELETE (defesa em profundidade, FR-024)
+- [x] 1.4.3 GRANT de INSERT/SELECT ao role apropriado; nenhum endpoint expõe edição/remoção
+- [x] 1.4.4 Teste de integração: INSERT permitido, UPDATE/DELETE rejeitados na camada de dados (imutabilidade reforçada)
 
 ### 1.5 Seed dos papéis, permissões e módulos `[C]`
 
 Ref: data-model.md §Papel is_sistema, FR-008, checklists/security.md CHK006/CHK027.
 
-- [ ] 1.5.1 `infra/hub/migrations/0007_seed_papeis_permissoes_modulos.sql` — ≥4 papéis-seed (`admin_plataforma` + demais) `is_sistema=true`; módulos (`atendimento, performance, importacoes, envio_massa, usuarios, auditoria, admin`); PapelPermissao default
-- [ ] 1.5.2 Seed idempotente (`ON CONFLICT DO NOTHING` / `WHERE NOT EXISTS`), 2ª execução = no-op
+- [x] 1.5.1 `infra/hub/migrations/0007_seed_papeis_permissoes_modulos.sql` — ≥4 papéis-seed (`admin_plataforma` + demais) `is_sistema=true`; módulos (`atendimento, performance, importacoes, envio_massa, usuarios, auditoria, admin`); PapelPermissao default
+- [x] 1.5.2 Seed idempotente (`ON CONFLICT DO NOTHING` / `WHERE NOT EXISTS`), 2ª execução = no-op
 - [x] 1.5.3 Validar com o dono do produto que os 4 papéis-seed e suas permissões default refletem o modelo de acesso pretendido — Ref: checklists/security.md CHK027 (`{humano}`, resolver antes de execute-task da FASE 4) — **APROVADO SEM AJUSTES** (block-002/dec-033, operador Paulo, 2026-07-06T03:18:25Z)
-- [ ] 1.5.4 Teste de integração: seed aplicado, união de grants por papel consultável via PostgREST
+- [x] 1.5.4 Teste de integração: seed aplicado, união de grants por papel consultável via PostgREST
 
 ---
 
@@ -86,31 +86,31 @@ Ref: plan.md §Migração de dados, data-model.md, FR-001–FR-005, SC-001/SC-00
 
 Ref: contracts/auth.md §login, FR-014–FR-017, SC-006, research Decision 14, `server.js:79/83` (reuso).
 
-- [ ] 3.1.1 `routes/hub-auth.js` — `POST /api/v1/auth/login` (e-mail+senha, cookies httpOnly `accessToken` 15min / `refreshToken` 7dias, sameSite=Strict)
-- [ ] 3.1.2 Dummy-hash anti-enumeração: resposta indistinguível para e-mail inexistente vs senha incorreta (FR-015, mesmo padrão de `server.js:79`)
-- [ ] 3.1.3 Rate-limit por IP+conta reusando `express-rate-limit` (`server.js:83`); 429 RATE_LIMIT (FR-016)
-- [ ] 3.1.4 Bloqueio temporário: 5 falhas consecutivas / 15 min → 423 CONTA_BLOQUEADA; reset de `tentativas_login` após login correto pós-expiração (FR-017, data-model bloqueado_ate)
-- [ ] 3.1.5 Registrar `app.use()` do router em `server.js` de forma **estritamente aditiva** (ZERO diff em rotas legadas)
-- [ ] 3.1.6 Teste unit: dummy-hash timing, contagem de falhas/bloqueio; teste de integração do fluxo de bloqueio
+- [x] 3.1.1 `routes/hub-auth.js` — `POST /api/v1/auth/login` (e-mail+senha, cookies httpOnly `accessToken` 15min / `refreshToken` 7dias, sameSite=Strict)
+- [x] 3.1.2 Dummy-hash anti-enumeração: resposta indistinguível para e-mail inexistente vs senha incorreta (FR-015, mesmo padrão de `server.js:79`)
+- [x] 3.1.3 Rate-limit por IP+conta reusando `express-rate-limit` (`server.js:83`); 429 RATE_LIMIT (FR-016)
+- [x] 3.1.4 Bloqueio temporário: 5 falhas consecutivas / 15 min → 423 CONTA_BLOQUEADA; reset de `tentativas_login` após login correto pós-expiração (FR-017, data-model bloqueado_ate)
+- [x] 3.1.5 Registrar `app.use()` do router em `server.js` de forma **estritamente aditiva** (ZERO diff em rotas legadas)
+- [x] 3.1.6 Teste unit: dummy-hash timing, contagem de falhas/bloqueio; teste de integração do fluxo de bloqueio
 
 ### 3.2 Sessão: refresh e logout `[C]`
 
 Ref: contracts/auth.md §refresh/§logout, FR-018, research Decision 9.
 
-- [ ] 3.2.1 `POST /api/v1/auth/refresh` — rotação de refresh token hash-only; detectar replay de token rotacionado → 401 SESSAO_INVALIDA
-- [ ] 3.2.2 `POST /api/v1/auth/logout` — revoga a sessão atual (refresh deixa de renovar) (FR-018)
-- [ ] 3.2.3 Teste unit + integração: logout revoga de verdade (refresh revogado não renova)
+- [x] 3.2.1 `POST /api/v1/auth/refresh` — rotação de refresh token hash-only; detectar replay de token rotacionado → 401 SESSAO_INVALIDA
+- [x] 3.2.2 `POST /api/v1/auth/logout` — revoga a sessão atual (refresh deixa de renovar) (FR-018)
+- [x] 3.2.3 Teste unit + integração: logout revoga de verdade (refresh revogado não renova)
 
 ### 3.3 Recuperação e redefinição de senha `[C]`
 
 Ref: contracts/auth.md §recuperar-senha/§redefinir-senha, FR-019–FR-022, SC-005/SC-007, **checklists/security.md CHK010**.
 
-- [ ] 3.3.1 `POST /api/v1/auth/recuperar-senha` — resposta idêntica para e-mail existente/inexistente (FR-020, SC-005); grava `token_recuperacao_hash`+`token_recuperacao_expira` sobrescrevendo pedido anterior (Edge Case "apenas o mais recente")
-- [ ] 3.3.2 **Definir o TTL concreto de `token_recuperacao_expira`** (FR-021 diz apenas "tempo limitado") — resolver CHK010 e documentar o valor na migration/rota; token single-use (invalidado NULL no primeiro uso)
-- [ ] 3.3.3 `POST /api/v1/auth/redefinir-senha` — valida token vs hash (400 TOKEN_INVALIDO), expiração/uso (410 TOKEN_EXPIRADO); atualiza `senha_hash`; invalida token
-- [ ] 3.3.4 Ao concluir redefinição, **invalidar TODAS as sessões** anteriores (FR-022, SC-007)
-- [ ] 3.3.5 Rate-limit também em `recuperar-senha` (research Decision 14); usar mock de e-mail; falha do e-mail não vaza existência de conta (Edge Case)
-- [ ] 3.3.6 Teste unit: geração/validação de token, expiração, single-use; teste de integração: revogação de sessões pós-reset
+- [x] 3.3.1 `POST /api/v1/auth/recuperar-senha` — resposta idêntica para e-mail existente/inexistente (FR-020, SC-005); grava `token_recuperacao_hash`+`token_recuperacao_expira` sobrescrevendo pedido anterior (Edge Case "apenas o mais recente")
+- [x] 3.3.2 **Definir o TTL concreto de `token_recuperacao_expira`** (FR-021 diz apenas "tempo limitado") — resolver CHK010 e documentar o valor na migration/rota; token single-use (invalidado NULL no primeiro uso)
+- [x] 3.3.3 `POST /api/v1/auth/redefinir-senha` — valida token vs hash (400 TOKEN_INVALIDO), expiração/uso (410 TOKEN_EXPIRADO); atualiza `senha_hash`; invalida token
+- [x] 3.3.4 Ao concluir redefinição, **invalidar TODAS as sessões** anteriores (FR-022, SC-007)
+- [x] 3.3.5 Rate-limit também em `recuperar-senha` (research Decision 14); usar mock de e-mail; falha do e-mail não vaza existência de conta (Edge Case)
+- [x] 3.3.6 Teste unit: geração/validação de token, expiração, single-use; teste de integração: revogação de sessões pós-reset
 
 ---
 
