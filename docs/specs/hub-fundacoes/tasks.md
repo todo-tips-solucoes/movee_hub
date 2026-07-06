@@ -120,30 +120,30 @@ Ref: contracts/auth.md §recuperar-senha/§redefinir-senha, FR-019–FR-022, SC-
 
 Ref: contracts/rbac-me.md §requirePermission, FR-007/FR-009/FR-012, research owasp (fail-closed explícito).
 
-- [ ] 4.1.1 `middleware/hub-require-permission.js` — `requirePermission('modulo.acao')`; 401 NAO_AUTENTICADO sem token, 403 PERMISSAO_NEGADA sem grant
-- [ ] 4.1.2 Precedência RBAC = **união de grants** (sem herança, sem negação); papel global vs papel de entidade (FR-009)
-- [ ] 4.1.3 Fail-closed explícito: qualquer erro/indefinição na avaliação de permissão → nega (remediação owasp-security)
-- [ ] 4.1.4 Auditar toda ação de capacidade nova via helper (FR-012) — ver 4.3
-- [ ] 4.1.5 Teste unit: com/sem grant, papel global vs entidade, caminho de erro nega (fail-closed)
+- [x] 4.1.1 `middleware/hub-require-permission.js` — `requirePermission('modulo.acao')`; 401 NAO_AUTENTICADO sem token, 403 PERMISSAO_NEGADA sem grant
+- [x] 4.1.2 Precedência RBAC = **união de grants** (sem herança, sem negação); papel global vs papel de entidade (FR-009)
+- [x] 4.1.3 Fail-closed explícito: qualquer erro/indefinição na avaliação de permissão → nega (remediação owasp-security)
+- [x] 4.1.4 Auditar toda ação de capacidade nova via helper (FR-012) — ver 4.3
+- [x] 4.1.5 Teste unit: com/sem grant, papel global vs entidade, caminho de erro nega (fail-closed)
 
 ### 4.2 Cache de permissões e /me `[A]`
 
 Ref: contracts/rbac-me.md §GET /me §POST /me/entidade, FR-010/FR-011/FR-013, SC-004.
 
-- [ ] 4.2.1 `lib/hub-rbac-cache.js` — cache in-memory de permissões efetivas com TTL 60s + invalidação em mudança de papel/vínculo (SC-004: reflete em ≤60s sem logout)
-- [ ] 4.2.2 `routes/hub-me.js` — `GET /api/v1/me` (perfil + entidade ativa + permissões efetivas)
-- [ ] 4.2.3 `POST /api/v1/me/entidade` — troca de entidade ativa; 403 SEM_VINCULO se sem `UsuarioEntidade` ativo para o `empresa_id` (FR-010/FR-011)
-- [ ] 4.2.4 Perda de vínculo com sessão aberta reflete na próxima ação sensível (Edge Case, FR-013 via invalidação de cache)
-- [ ] 4.2.5 Teste unit: cache + invalidação; teste de integração: troca de entidade e recusa sem vínculo
+- [x] 4.2.1 `lib/hub-rbac-cache.js` — cache in-memory de permissões efetivas com TTL 60s + invalidação em mudança de papel/vínculo (SC-004: reflete em ≤60s sem logout)
+- [x] 4.2.2 `routes/hub-me.js` — `GET /api/v1/me` (perfil + entidade ativa + permissões efetivas)
+- [x] 4.2.3 `POST /api/v1/me/entidade` — troca de entidade ativa; 403 SEM_VINCULO se sem `UsuarioEntidade` ativo para o `empresa_id` (FR-010/FR-011)
+- [x] 4.2.4 Perda de vínculo com sessão aberta reflete na próxima ação sensível (Edge Case, FR-013 via invalidação de cache)
+- [x] 4.2.5 Teste unit: cache + invalidação; teste de integração: troca de entidade e recusa sem vínculo
 
 ### 4.3 Helper de auditoria com scrub `[A]`
 
 Ref: plan.md §hub-auditoria.js, FR-023/FR-025, contracts/auditoria.md.
 
-- [ ] 4.3.1 `lib/hub-auditoria.js` — escrita em `Auditoria` (login_sucesso/login_falha/logout/troca_papel/troca_entidade_ativa) com scrub (nunca senha/dados sensíveis, FR-025)
-- [ ] 4.3.2 `GET /api/v1/auditoria` protegido por `requirePermission('auditoria.consultar')` (filtros desde/ate/limit)
-- [ ] 4.3.3 Integrar chamadas de auditoria nos eventos de login/logout/troca (FR-023)
-- [ ] 4.3.4 Teste unit: scrub não vaza senha; teste de integração: eventos de sucesso e falha aparecem na trilha
+- [x] 4.3.1 `lib/hub-auditoria.js` — escrita em `Auditoria` (login_sucesso/login_falha/logout/troca_papel/troca_entidade_ativa) com scrub (nunca senha/dados sensíveis, FR-025)
+- [x] 4.3.2 `GET /api/v1/auditoria` protegido por `requirePermission('auditoria.consultar')` (filtros desde/ate/limit)
+- [x] 4.3.3 Integrar chamadas de auditoria nos eventos de login/logout/troca (FR-023)
+- [x] 4.3.4 Teste unit: scrub não vaza senha; teste de integração: eventos de sucesso e falha aparecem na trilha
 
 ---
 

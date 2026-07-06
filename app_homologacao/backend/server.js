@@ -38,6 +38,12 @@ const adminMotoristaRoutes = require('./routes/admin-motorista');
 // nestas rotas — nenhum cliente de produção as conhece.
 const hubAuthRoutes = require('./routes/hub-auth');
 
+// hub-fundacoes (FASE 4) — rotas /api/v1/me* e /api/v1/auditoria do hub
+// isolado. Arquivo 100% novo (routes/hub-me.js); cada rota decide sua própria
+// exigência de auth internamente (GET /me e POST /me/entidade exigem só
+// accessToken válido; GET /auditoria passa por requirePermission).
+const hubMeRoutes = require('./routes/hub-me');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 // validacao-xml-lote (FASE 0, CHK113/CHK022): instância dedicada do multer para
@@ -2595,6 +2601,14 @@ motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, brandingR
 // logout leem o cookie diretamente). Auditoria e RBAC completos chegam nas
 // próximas ondas (FASE 4/5).
 app.use('/api/v1/auth', hubAuthRoutes.router);
+
+// hub-fundacoes (FASE 4) — /api/v1/me (perfil + troca de entidade ativa) e
+// /api/v1/auditoria (consulta da trilha, protegida por requirePermission
+// dentro do próprio router). Sem authenticateToken aqui — mesmo padrão do
+// bloco /api/v1/auth acima: cada rota do hub-me.js decide sua própria
+// exigência de auth (accessToken do hub, não o token do backend legado).
+app.use('/api/v1/me', hubMeRoutes.router);
+app.use('/api/v1/auditoria', hubMeRoutes.auditoriaRouter);
 
 // Iniciar o servidor
 app.listen(3000, () => {
