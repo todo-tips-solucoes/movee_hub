@@ -17,10 +17,10 @@ mounts (nomes) por container hub_*:
   hub_homolog_backup: /var/lib/envioMassa_homologacao/infra/hub/scripts hub_homolog_backups 
   hub_homolog_postgrest: 
   hub_homolog_db: hub_homolog_pg_data 
-  hub_homolog_fastapi_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/fastapi-mock hub_homolog_mocklogs 
-  hub_homolog_traefik: /var/lib/hub_secrets/tls /var/lib/envioMassa_homologacao/infra/hub/traefik/dynamic 
+  hub_homolog_fastapi_mock: hub_homolog_mocklogs /var/lib/envioMassa_homologacao/infra/hub/mocks/fastapi-mock 
+  hub_homolog_traefik: /var/lib/envioMassa_homologacao/infra/hub/traefik/dynamic /var/lib/hub_secrets/tls 
   hub_homolog_placeholder: /var/lib/envioMassa_homologacao/infra/hub/mocks/placeholder 
-  hub_homolog_n8n_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/n8n-mock hub_homolog_mocklogs 
+  hub_homolog_n8n_mock: hub_homolog_mocklogs /var/lib/envioMassa_homologacao/infra/hub/mocks/n8n-mock 
 RESULTADO: PASS
 
 ==================================================================
@@ -88,25 +88,26 @@ RESULTADO: PASS (sem colisão; host de produção inalterado)
 ==================================================================
 ITEM 8 — Domínio diferente
 ------------------------------------------------------------------
+  DNS: 178.156.254.243
   https://hub-homolog.todo-tips.com:8443/ → HTTP=200
   produção inalterada: https://app.moveelog.com.br/login → HTTP=200
-RESULTADO: PASS-parcial (vhost hub OK; DNS público = operador)
+RESULTADO: PASS (DNS público ativo; domínio próprio do hub em portas altas)
 
 ==================================================================
 ITEM 9 — Logs separados
 ------------------------------------------------------------------
+  hub_homolog_db  | 2026-07-06 00:46:49.696 UTC [65] LOG:  database system was shut down at 2026-07-06 00:46:49 UTC
+  hub_homolog_db  | 2026-07-06 00:46:49.700 UTC [1] LOG:  database system is ready to accept connections
   hub_homolog_placeholder  | [placeholder] listening :8080 APP_ENV=homologation
   hub_homolog_placeholder  | [placeholder] listening :8080 APP_ENV=homologation
-  hub_homolog_db           | 2026-07-06 00:46:49.696 UTC [65] LOG:  database system was shut down at 2026-07-06 00:46:49 UTC
-  hub_homolog_db           | 2026-07-06 00:46:49.700 UTC [1] LOG:  database system is ready to accept connections
-  hub_homolog_backup       | [backup-daemon] iniciado: diário às 03:00 UTC, retenção 14d, db=hub_homolog
-  hub_homolog_backup       | [backup-daemon] próximo backup em 7607s (2026-07-06 03:00:00 UTC)
-  hub_homolog_n8n_mock     | [n8n-mock] listening :8080 APP_ENV=homologation
   hub_homolog_postgrest    | 06/Jul/2026:00:47:08 +0000: Schema cache loaded 1 Relations, 0 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 487 Timezones
-  hub_homolog_postgrest     | 06/Jul/2026:00:47:08 +0000: Schema cache loaded in 0.2 milliseconds
+  hub_homolog_postgrest    | 06/Jul/2026:00:47:08 +0000: Schema cache loaded in 0.2 milliseconds
   hub_homolog_fastapi_mock  | [fastapi-mock] listening :8080 APP_ENV=homologation
-  hub_homolog_traefik       | [90m2026-07-06T00:56:49Z[0m [33mWRN[0m [1mA new release of Traefik has been found: 3.7.6. Please consider updating.[0m
-  hub_homolog_traefik       | 178.156.254.243 - - [06/Jul/2026:01:10:06 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 13 "hub-placeholder-https@file" "http://placeholder:8080" 2ms
+  hub_homolog_traefik       | 172.21.0.1 - - [06/Jul/2026:01:17:45 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 19 "hub-placeholder-https@file" "http://placeholder:8080" 1ms
+  hub_homolog_traefik       | 178.156.254.243 - - [06/Jul/2026:01:18:30 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 20 "hub-placeholder-https@file" "http://placeholder:8080" 1ms
+  hub_homolog_backup        | [backup-daemon] iniciado: diário às 03:00 UTC, retenção 14d, db=hub_homolog
+  hub_homolog_n8n_mock      | [n8n-mock] listening :8080 APP_ENV=homologation
+  hub_homolog_backup        | [backup-daemon] próximo backup em 7607s (2026-07-06 03:00:00 UTC)
 RESULTADO: PASS se acima só aparecem serviços hub_homolog_*
 
 ==================================================================
@@ -151,7 +152,7 @@ RESULTADO: PASS (0 moveelog; todo-tips só no HUB_DOMAIN=hub-homolog.todo-tips.c
 ==================================================================
 ITEM 15 — Nenhuma mensagem real (mock n8n registra, nada sai)
 ------------------------------------------------------------------
-  resposta: {"ok":true,"mock":true,"delivered":false}  log do mock: {"ts":"2026-07-06T01:10:07.028Z","mock":"n8n","method":"POST","path":"/webhook/envio-massa","payload":{"mensagem":"evidencia item 15","destinatario":"5511988887777"},"note":"MENSAGEM NAO ENVIADA (mock) — registro para evidencia"}
+  resposta: {"ok":true,"mock":true,"delivered":false}  log do mock: {"ts":"2026-07-06T01:18:31.347Z","mock":"n8n","method":"POST","path":"/webhook/envio-massa","payload":{"mensagem":"evidencia item 15","destinatario":"5511988887777"},"note":"MENSAGEM NAO ENVIADA (mock) — registro para evidencia"}
 RESULTADO: PASS (payload registrado; delivered=false; token real ausente por construção)
 
 ==================================================================

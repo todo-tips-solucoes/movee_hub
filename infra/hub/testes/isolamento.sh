@@ -98,15 +98,19 @@ echo "RESULTADO: PASS (sem colisão; host de produção inalterado)"
 
 hdr 8 "Domínio diferente"
 if getent hosts hub-homolog.todo-tips.com >/dev/null 2>&1; then
+  echo "  DNS: $(getent hosts hub-homolog.todo-tips.com | awk '{print $1}' | head -1)"
   curl -sk -o /dev/null -w "  https://hub-homolog.todo-tips.com:8443/ → HTTP=%{http_code}\n" "https://hub-homolog.todo-tips.com:8443/"
+  DNS_OK=1
 else
   echo "  DNS hub-homolog.todo-tips.com ainda NÃO resolve → PENDÊNCIA DO OPERADOR (criar registro A → IP do VPSTodo)"
   curl -sk --resolve hub-homolog.todo-tips.com:8443:127.0.0.1 -o /dev/null \
     -w "  com --resolve local: https://hub-homolog.todo-tips.com:8443/ → HTTP=%{http_code} (vhost do Traefik hub OK)\n" \
     "https://hub-homolog.todo-tips.com:8443/"
+  DNS_OK=0
 fi
 echo "  produção inalterada: $(curl -sk -o /dev/null -w 'https://app.moveelog.com.br/login → HTTP=%{http_code}' https://app.moveelog.com.br/login)"
-echo "RESULTADO: PASS-parcial (vhost hub OK; DNS público = operador)"
+[ "$DNS_OK" = 1 ] && echo "RESULTADO: PASS (DNS público ativo; domínio próprio do hub em portas altas)" \
+                  || echo "RESULTADO: PASS-parcial (vhost hub OK; DNS público = operador)"
 
 hdr 9 "Logs separados"
 dc logs --tail 2 2>&1 | sed 's/^/  /' | head -25

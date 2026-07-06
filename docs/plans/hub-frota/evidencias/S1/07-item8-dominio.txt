@@ -1,0 +1,18 @@
+# Evidência 07 — ITEM 8 fechado: domínio de homolog no ar (2026-07-06 01:17:17 UTC)
+
+$ getent hosts hub-homolog.todo-tips.com
+  178.156.254.243 hetzner_automacao.todo-tips.com hub-homolog.todo-tips.com
+
+$ curl -skI https://hub-homolog.todo-tips.com:8443/  (Traefik do hub, cert self-signed)
+  HTTP/2 200 
+  content-type: text/html; charset=utf-8
+  date: Mon, 06 Jul 2026 01:17:17 GMT
+  x-app-env: homologation
+  
+  banner: AMBIENTE DE HOMOLOGAÇÃO
+  redirect 8880: HTTP=301 -> https://hub-homolog.todo-tips.com:8443/
+
+## produção inalterada pelo DNS novo:
+  https://app.moveelog.com.br/login -> HTTP=200
+  (hub-homolog resolve para o MESMO IP do host — 178.156.254.243 — como decidido no G1 mesmo-host;
+   as portas 80/443 seguem 100% com o Traefik de produção; o hub só atende 8880/8443)

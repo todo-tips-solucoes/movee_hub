@@ -16,8 +16,10 @@ técnico) — aprovação é do operador.
 
 ## Status dos 20 testes de isolamento (§4.11)
 
-PASS: 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 (19/20).
-PASS-parcial: 8 (vhost do Traefik hub OK; falta só o DNS público — operador).
+**PASS: 20/20.** Item 8 fechado em 2026-07-06: DNS `hub-homolog.todo-tips.com`
+→ 178.156.254.243 (mesmo IP do host, decisão mesmo-host do G1);
+`https://hub-homolog.todo-tips.com:8443/` → HTTP/2 200 com banner de ambiente;
+produção inalterada (`app.moveelog.com.br/login` → 200). Ver `07-item8-dominio.txt`.
 
 Itens 1, 6/13 e 17 foram executados **pelo agente sob autorização explícita do
 operador** (chat de 2026-07-06; somente leitura em produção + hashes em pipe) —
@@ -31,12 +33,11 @@ ver `06-operador-itens-1-6-13-17.txt`:
 
 ## Ações pendentes do OPERADOR (fecham o G2)
 
-1. **Item 8 / DNS** — criar `hub-homolog.todo-tips.com` → A/AAAA para o IP do
-   VPSTodo. Acesso: `https://hub-homolog.todo-tips.com:8443` (certificado
-   self-signed — decisão de design da S1; promoção a TLS válido via rota no
-   Traefik de produção é opcional e só o operador executa; ver RUNBOOK).
-2. Conferir/ratificar as evidências dos itens 1, 6/13 e 17 (executadas pelo
-   agente sob sua autorização) e **aprovar o G2 + mergear o PR #54**.
+Nenhuma bloqueante: 20/20 executados. Restam ao operador apenas a
+**aprovação formal do G2** (ratificar estas evidências) e, opcionalmente, a
+promoção do roteamento a TLS válido via Traefik de produção (RUNBOOK — só o
+operador executa). Itens 1, 6/13, 17 e a verificação do 8 foram executados
+pelo agente sob autorização explícita no chat de 2026-07-06 (evidências 06 e 07).
 
 ## Registro de incidente (transparência)
 
