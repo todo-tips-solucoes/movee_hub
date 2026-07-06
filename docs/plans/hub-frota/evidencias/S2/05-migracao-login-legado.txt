@@ -1,0 +1,14 @@
+=== Login legado com MESMO hash + idempotência de migration — task 2.1.5 — 2026-07-06T05:39:34Z ===
+Script: infra/hub/testes/migracao-login-integration.sh (ambiente hub-test-* efêmero, isolado, destruído ao final; Empresa é tabela sintética de teste)
+
+seed sintético: tabela "Empresa" local (2 contas — 1 com senha, 1 sem)…
+rodando migrate.sh (0002..0008)…
+PASS: Usuario criado para a conta com senha (1 linha)
+PASS: conta sem senha NÃO migrada (FR-005)
+PASS: hash bcrypt copiado sem recálculo
+PASS: UsuarioEntidade vinculado com papel admin_entidade
+PASS: bcrypt.compare(senha original, hash copiado) — login legado funciona sem trocar senha
+reexecutando 0008 diretamente (fora do controle de SchemaMigration do migrate.sh)…
+PASS: reexecução direta de 0008 não duplica Usuario (idempotente)
+PASS: reexecução direta de 0008 não duplica UsuarioEntidade
+MIGRACAO-LOGIN-INTEGRATION: OK — todos os asserts passaram (task 2.1.5)

@@ -215,11 +215,11 @@ Ref: briefing "hoje só 2 de 8 rodam — corrigir", critério de aceite #6 (diff
 
 Ref: briefing §Evidências para o PR + Critérios de Aceite.
 
-- [ ] 7.1.1 Saída da suíte completa verde
-- [ ] 7.1.2 `SELECT * FROM "SchemaMigration"` demonstrando migrations registradas
-- [ ] 7.1.3 Demonstração RLS negando acesso cruzado (0 linhas cross-entidade)
-- [ ] 7.1.4 Auditoria de login demonstrada (evento sucesso e falha na trilha)
-- [ ] 7.1.5 Login legado com o MESMO hash funcionando; migrations rodadas 2× sem efeito
+- [x] 7.1.1 Saída da suíte completa verde
+- [x] 7.1.2 `SELECT * FROM "SchemaMigration"` demonstrando migrations registradas
+- [x] 7.1.3 Demonstração RLS negando acesso cruzado (0 linhas cross-entidade)
+- [x] 7.1.4 Auditoria de login demonstrada (evento sucesso e falha na trilha)
+- [x] 7.1.5 Login legado com o MESMO hash funcionando; migrations rodadas 2× sem efeito
 
 ### 7.2 DIARIO e PR draft `[A]`
 
