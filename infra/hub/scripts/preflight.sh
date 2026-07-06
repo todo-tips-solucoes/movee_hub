@@ -100,7 +100,7 @@ if [ "$APP_ENV" != "production" ]; then
 
   # --- Tokens vs fingerprint de produção (comparação por hash, §4.8) ----------
   if [ -f "$FP_FILE" ]; then
-    for v in N8N_API_TOKEN FASTAPI_VALIDATION_TOKEN JWT_SECRET JWT_REFRESH_SECRET POSTGREST_API_KEY PGRST_JWT_SECRET; do
+    for v in N8N_API_TOKEN FASTAPI_VALIDATION_TOKEN JWT_SECRET JWT_REFRESH_SECRET POSTGREST_API_KEY PGRST_JWT_SECRET HUB_DB_PASSWORD; do
       val="$(get_var "$v")"
       [ -z "$val" ] && continue
       # printf builtin do bash (nunca /usr/bin/printf — segredo apareceria em ps)

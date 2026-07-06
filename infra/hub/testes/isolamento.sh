@@ -66,18 +66,30 @@ echo "  (stacks Swarm de produção seguem à parte: docker stack ls — leitura
 
 hdr 6 "Credenciais diferentes (hashes; nunca valores)"
 get_var() { awk -F= -v k="$1" '$0 !~ /^[[:space:]]*#/ && $1 == k { sub(/^[^=]*=/, ""); print; exit }' "$E"; }
+FP="/var/lib/hub_secrets/prod-fingerprints.sha256"
+COLIDE=0
 for v in JWT_SECRET JWT_REFRESH_SECRET POSTGREST_API_KEY PGRST_JWT_SECRET HUB_DB_PASSWORD; do
   val="$(get_var $v)"
   h="$(printf '%s' "$val" | sha256sum | awk '{print $1}')"
-  echo "  sha256($v do hub) = $h"
+  if [ -f "$FP" ] && grep -v '^#' "$FP" | grep -qi "^$h"; then
+    echo "  sha256($v do hub) = ${h:0:12}… → IGUAL a um segredo de produção (VIOLAÇÃO)"
+    COLIDE=1
+  else
+    echo "  sha256($v do hub) = ${h:0:12}… → distinto de todos os fingerprints de produção"
+  fi
 done
-cat <<'EOF'
+if [ -f "$FP" ] && grep -qv '^#' "$FP"; then
+  echo "  fingerprints de produção registrados: $(grep -cv '^#' "$FP") entradas em $FP (0600)"
+  [ "$COLIDE" = 0 ] && echo "RESULTADO: PASS (todos os segredos do hub distintos dos de produção)" \
+                    || echo "RESULTADO: FAIL (colisão de segredo com produção)"
+else
+  cat <<'EOF'
 AÇÃO DO OPERADOR: calcular os fingerprints de produção COM O MESMO MÉTODO
 (builtin do bash, sem newline):  printf '%s' "$SEGREDO" | sha256sum
-e conferir que TODOS diferem dos hashes acima; registrar em
-/var/lib/hub_secrets/prod-fingerprints.sha256 (o preflight passa a garantir).
+e registrar em /var/lib/hub_secrets/prod-fingerprints.sha256.
 RESULTADO: PASS-parcial (hashes do hub emitidos; comparação final = operador)
 EOF
+fi
 
 hdr 7 "Portas sem conflito"
 ss -tlnp 2>/dev/null | awk 'NR==1 || /:80 |:443 |:8880|:8443/' | sed 's/^/  /'

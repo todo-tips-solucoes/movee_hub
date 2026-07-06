@@ -1,4 +1,4 @@
-# Evidência 01 — preflight PASSANDO nos 3 ambientes (2026-07-06 00:53:55 UTC)
+# Evidência 01 — preflight PASSANDO nos 3 ambientes (atualizada 2026-07-06 pós-fingerprints)
 
 PREFLIGHT: ok — projeto 'hub-homolog' dentro do escopo hub-*
 PREFLIGHT: ok — APP_ENV=homologation

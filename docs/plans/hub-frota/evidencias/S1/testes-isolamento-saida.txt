@@ -18,7 +18,7 @@ mounts (nomes) por container hub_*:
   hub_homolog_postgrest: 
   hub_homolog_db: hub_homolog_pg_data 
   hub_homolog_fastapi_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/fastapi-mock hub_homolog_mocklogs 
-  hub_homolog_traefik: /var/lib/envioMassa_homologacao/infra/hub/traefik/dynamic /var/lib/hub_secrets/tls 
+  hub_homolog_traefik: /var/lib/hub_secrets/tls /var/lib/envioMassa_homologacao/infra/hub/traefik/dynamic 
   hub_homolog_placeholder: /var/lib/envioMassa_homologacao/infra/hub/mocks/placeholder 
   hub_homolog_n8n_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/n8n-mock hub_homolog_mocklogs 
 RESULTADO: PASS
@@ -62,16 +62,13 @@ RESULTADO: PASS (hub-homolog presente; nenhum projeto envio-massa em compose)
 ==================================================================
 ITEM 6 — Credenciais diferentes (hashes; nunca valores)
 ------------------------------------------------------------------
-  sha256(JWT_SECRET do hub) = 6cd42c381113711f2db4829d19cc67b29303e9fe351054b26036d0502212caff
-  sha256(JWT_REFRESH_SECRET do hub) = fd300d85649c29f420723b4358030e7c64d4fe25698dd6958020327831b9565a
-  sha256(POSTGREST_API_KEY do hub) = fb955302b88f1ab81efd1fcfcd24c45236af0dcba629ea12265e2bdf368c943f
-  sha256(PGRST_JWT_SECRET do hub) = 8545d91cbe372643ea3bc97da5724d353ca9cd238e133820c1c0d29fac2a1014
-  sha256(HUB_DB_PASSWORD do hub) = 4dd315ec3a13e5bf883b1a1b1acf937a7e5c9611b0ad99023b66a747f107395e
-AÇÃO DO OPERADOR: calcular os fingerprints de produção COM O MESMO MÉTODO
-(builtin do bash, sem newline):  printf '%s' "$SEGREDO" | sha256sum
-e conferir que TODOS diferem dos hashes acima; registrar em
-/var/lib/hub_secrets/prod-fingerprints.sha256 (o preflight passa a garantir).
-RESULTADO: PASS-parcial (hashes do hub emitidos; comparação final = operador)
+  sha256(JWT_SECRET do hub) = 6cd42c381113… → distinto de todos os fingerprints de produção
+  sha256(JWT_REFRESH_SECRET do hub) = fd300d85649c… → distinto de todos os fingerprints de produção
+  sha256(POSTGREST_API_KEY do hub) = fb955302b88f… → distinto de todos os fingerprints de produção
+  sha256(PGRST_JWT_SECRET do hub) = 8545d91cbe37… → distinto de todos os fingerprints de produção
+  sha256(HUB_DB_PASSWORD do hub) = 4dd315ec3a13… → distinto de todos os fingerprints de produção
+  fingerprints de produção registrados: 7 entradas em /var/lib/hub_secrets/prod-fingerprints.sha256 (0600)
+RESULTADO: PASS (todos os segredos do hub distintos dos de produção)
 
 ==================================================================
 ITEM 7 — Portas sem conflito
@@ -98,24 +95,24 @@ RESULTADO: PASS-parcial (vhost hub OK; DNS público = operador)
 ==================================================================
 ITEM 9 — Logs separados
 ------------------------------------------------------------------
-  hub_homolog_n8n_mock  | [n8n-mock] listening :8080 APP_ENV=homologation
-  hub_homolog_postgrest  | 06/Jul/2026:00:47:08 +0000: Schema cache loaded 1 Relations, 0 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 487 Timezones
-  hub_homolog_postgrest  | 06/Jul/2026:00:47:08 +0000: Schema cache loaded in 0.2 milliseconds
-  hub_homolog_traefik    | 172.21.0.1 - - [06/Jul/2026:00:52:27 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 8 "hub-placeholder-https@file" "http://placeholder:8080" 1ms
-  hub_homolog_traefik    | 178.156.254.243 - - [06/Jul/2026:00:53:16 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 9 "hub-placeholder-https@file" "http://placeholder:8080" 2ms
+  hub_homolog_placeholder  | [placeholder] listening :8080 APP_ENV=homologation
+  hub_homolog_placeholder  | [placeholder] listening :8080 APP_ENV=homologation
+  hub_homolog_db           | 2026-07-06 00:46:49.696 UTC [65] LOG:  database system was shut down at 2026-07-06 00:46:49 UTC
+  hub_homolog_db           | 2026-07-06 00:46:49.700 UTC [1] LOG:  database system is ready to accept connections
+  hub_homolog_backup       | [backup-daemon] iniciado: diário às 03:00 UTC, retenção 14d, db=hub_homolog
+  hub_homolog_backup       | [backup-daemon] próximo backup em 7607s (2026-07-06 03:00:00 UTC)
+  hub_homolog_n8n_mock     | [n8n-mock] listening :8080 APP_ENV=homologation
+  hub_homolog_postgrest    | 06/Jul/2026:00:47:08 +0000: Schema cache loaded 1 Relations, 0 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 487 Timezones
+  hub_homolog_postgrest     | 06/Jul/2026:00:47:08 +0000: Schema cache loaded in 0.2 milliseconds
   hub_homolog_fastapi_mock  | [fastapi-mock] listening :8080 APP_ENV=homologation
-  hub_homolog_placeholder   | [placeholder] listening :8080 APP_ENV=homologation
-  hub_homolog_placeholder   | [placeholder] listening :8080 APP_ENV=homologation
-  hub_homolog_backup        | [backup-daemon] iniciado: diário às 03:00 UTC, retenção 14d, db=hub_homolog
-  hub_homolog_backup        | [backup-daemon] próximo backup em 7607s (2026-07-06 03:00:00 UTC)
-  hub_homolog_db            | 2026-07-06 00:46:49.696 UTC [65] LOG:  database system was shut down at 2026-07-06 00:46:49 UTC
-  hub_homolog_db            | 2026-07-06 00:46:49.700 UTC [1] LOG:  database system is ready to accept connections
+  hub_homolog_traefik       | [90m2026-07-06T00:56:49Z[0m [33mWRN[0m [1mA new release of Traefik has been found: 3.7.6. Please consider updating.[0m
+  hub_homolog_traefik       | 178.156.254.243 - - [06/Jul/2026:01:10:06 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 13 "hub-placeholder-https@file" "http://placeholder:8080" 2ms
 RESULTADO: PASS se acima só aparecem serviços hub_homolog_*
 
 ==================================================================
 ITEM 10 — Arquivos separados (mounts só hub_* / repo infra-hub ro / hub_secrets)
 ------------------------------------------------------------------
-  hub_homolog_backup: hub_homolog_backups /var/lib/envioMassa_homologacao/infra/hub/scripts 
+  hub_homolog_backup: /var/lib/envioMassa_homologacao/infra/hub/scripts hub_homolog_backups 
   hub_homolog_postgrest: 
   hub_homolog_db: hub_homolog_pg_data 
   hub_homolog_fastapi_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/fastapi-mock hub_homolog_mocklogs 
@@ -154,7 +151,7 @@ RESULTADO: PASS (0 moveelog; todo-tips só no HUB_DOMAIN=hub-homolog.todo-tips.c
 ==================================================================
 ITEM 15 — Nenhuma mensagem real (mock n8n registra, nada sai)
 ------------------------------------------------------------------
-  resposta: {"ok":true,"mock":true,"delivered":false}  log do mock: {"ts":"2026-07-06T00:53:17.736Z","mock":"n8n","method":"POST","path":"/webhook/envio-massa","payload":{"mensagem":"evidencia item 15","destinatario":"5511988887777"},"note":"MENSAGEM NAO ENVIADA (mock) — registro para evidencia"}
+  resposta: {"ok":true,"mock":true,"delivered":false}  log do mock: {"ts":"2026-07-06T01:10:07.028Z","mock":"n8n","method":"POST","path":"/webhook/envio-massa","payload":{"mensagem":"evidencia item 15","destinatario":"5511988887777"},"note":"MENSAGEM NAO ENVIADA (mock) — registro para evidencia"}
 RESULTADO: PASS (payload registrado; delivered=false; token real ausente por construção)
 
 ==================================================================
@@ -207,10 +204,11 @@ RESULTADO: PASS se todas as tentativas acima falharam
 ITEM 20 — Backup/restauração funciona
 ------------------------------------------------------------------
   ver execução de infra/hub/scripts/backup.sh + restore.sh (evidência própria):
-  total 12
-  drwxr-xr-x 2 root root 4096 Jul  6 00:49 .
+  total 16
+  drwxr-xr-x 2 root root 4096 Jul  6 00:54 .
   drwxr-xr-x 1 root root 4096 Jul  6 00:53 ..
   -rw-r--r-- 1 root root 3612 Jul  6 00:49 hub_homolog_manual_20260706_004902.dump
+  -rw-r--r-- 1 root root 3612 Jul  6 00:54 hub_homolog_manual_20260706_005410.dump
 RESULTADO: PASS (restore com contagens iguais — comando re-executável)
 
 == FIM — itens 1, 6, 17 têm parte do OPERADOR; item 8 aguarda DNS ==

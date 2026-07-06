@@ -16,34 +16,27 @@ técnico) — aprovação é do operador.
 
 ## Status dos 20 testes de isolamento (§4.11)
 
-PASS: 2, 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20.
-PASS-parcial (parte do operador): 6 (comparar fingerprints), 8 (criar DNS),
-17 (confirmar inexistência de `SchemaMigration` em produção).
-OPERADOR: 1 (estado/contagens de produção antes/depois).
+PASS: 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 (19/20).
+PASS-parcial: 8 (vhost do Traefik hub OK; falta só o DNS público — operador).
+
+Itens 1, 6/13 e 17 foram executados **pelo agente sob autorização explícita do
+operador** (chat de 2026-07-06; somente leitura em produção + hashes em pipe) —
+ver `06-operador-itens-1-6-13-17.txt`:
+- **1**: `pgadmin_db` com uptime contínuo de 2 semanas (sem reinício na S1);
+  baseline `max_id=197771 / count=196343` (2026-07-06 01:10 UTC).
+- **6/13**: 7 fingerprints de produção registrados em
+  `/var/lib/hub_secrets/prod-fingerprints.sha256` (0600; valores nunca saíram de
+  pipe); todos os segredos do hub **distintos**; preflight passa com a checagem ativa.
+- **17**: `to_regclass('public."SchemaMigration"')` = **NULL** em produção.
 
 ## Ações pendentes do OPERADOR (fecham o G2)
 
-1. **Item 1** — no VPSTodo, conferir produção intocada:
-   ```bash
-   docker service ps pgadmin_db --format '{{.Name}} {{.CurrentState}}'
-   # e no banco chatmasterveloz:  SELECT max(id) FROM "EnvioMassa";
-   ```
-2. **Item 6/13** — calcular fingerprints dos segredos de produção (mesmo método,
-   builtin do bash, sem newline) e registrá-los em
-   `/var/lib/hub_secrets/prod-fingerprints.sha256`:
-   ```bash
-   printf '%s' "$SEGREDO_DE_PRODUCAO" | sha256sum
-   # formato do arquivo: <sha256>  <NOME_DA_VAR>
-   ```
-   Conferir que diferem dos hashes do hub em `testes-isolamento-saida.txt` (item 6).
-3. **Item 17** — em produção (somente leitura):
-   ```sql
-   SELECT to_regclass('public."SchemaMigration"');  -- esperado: NULL
-   ```
-4. **Item 8 / DNS** — criar `hub-homolog.todo-tips.com` → A/AAAA para o IP do
+1. **Item 8 / DNS** — criar `hub-homolog.todo-tips.com` → A/AAAA para o IP do
    VPSTodo. Acesso: `https://hub-homolog.todo-tips.com:8443` (certificado
    self-signed — decisão de design da S1; promoção a TLS válido via rota no
    Traefik de produção é opcional e só o operador executa; ver RUNBOOK).
+2. Conferir/ratificar as evidências dos itens 1, 6/13 e 17 (executadas pelo
+   agente sob sua autorização) e **aprovar o G2 + mergear o PR #54**.
 
 ## Registro de incidente (transparência)
 

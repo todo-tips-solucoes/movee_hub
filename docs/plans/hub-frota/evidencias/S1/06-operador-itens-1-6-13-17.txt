@@ -1,0 +1,24 @@
+# Evidência 06 — itens 1, 6/13 e 17 executados pelo agente sob autorização explícita do operador (chat, 2026-07-06)
+
+## ITEM 1 — produção intocada (somente leitura)
+$ docker service ps pgadmin_db (uptime contínuo desde ANTES da S1 = sem reinício):
+pgadmin_db.1 Running 2 weeks ago
+pgadmin_db.1 Shutdown 2 weeks ago
+$ SELECT max(id), count(*) FROM "EnvioMassa" (baseline pós-S1):
+  max_id=197771 count=196343 em 2026-07-06 01:10:34.65445+00
+  Nota: baseline 'antes' não foi coletado pré-S1; a evidência de intocado é o uptime
+  contínuo do serviço (2 semanas, iniciado muito antes da S1) + nenhum container
+  hub_* com acesso a rede/volume de produção (itens 2, 10, 19) + este baseline
+  para comparação nas fases S2+.
+
+## ITEM 17 — SchemaMigration NÃO existe em produção
+$ SELECT to_regclass('public."SchemaMigration"') em chatmasterveloz:
+  resultado: NULL (esperado NULL) → tabela não existe em produção; série de migrations só no hub
+
+## ITEM 6/13 — fingerprints de produção registrados e comparados
+  /var/lib/hub_secrets/prod-fingerprints.sha256: 7 entradas, permissões 600
+  método: hash calculado DENTRO dos containers de produção (printf builtin | sha256sum);
+  PGRST_JWT_SECRET via docker service inspect em pipe — valor jamais em stdout/ps/contexto.
+  comparação (isolamento.sh item 6): TODOS os segredos do hub distintos → PASS.
+  preflight re-executado com fingerprints ativos: PASSOU (evidência 01 atualizada).
+  fato registrado: em produção POSTGREST_API_KEY = PGRST_JWT_SECRET (mesmo hash).
