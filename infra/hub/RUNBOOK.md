@@ -80,6 +80,30 @@ migration, migration corretiva em vez de editar aplicada. Na S1 o banco é
 **vazio + SchemaMigration + role do PostgREST** (0000/0001) — schema funcional
 só nas fases S3+.
 
+## Build do backend do hub (S2+)
+
+Serviço `backend` (`app_homologacao/backend/Dockerfile.hub`, Node 20 LTS —
+o `Dockerfile` de produção Node 14 não muda). **Lição de starvation
+(2026-06-11)**: builds de Node nesta VPS SEM cap de memória já derrubaram o
+control-plane do Swarm. Sempre buildar com cap explícito e, se necessário,
+swap temporário:
+
+```bash
+# Build isolado (fora do docker compose, para inspecionar erros de build)
+DOCKER_BUILDKIT=0 docker build --memory=2g \
+  -f app_homologacao/backend/Dockerfile.hub \
+  -t hub-backend:dev app_homologacao/backend
+
+# Via compose (o serviço já builda a partir do Dockerfile.hub) — mesmo cap:
+DOCKER_BUILDKIT=0 docker compose -f infra/hub/compose.hub.dev.yml -p hub-dev \
+  --env-file /var/lib/hub_secrets/.env.hub.dev build --memory=2g backend
+```
+
+Se o host estiver com pouca RAM livre, ativar swap temporário (4G) antes do
+build e desativar (`swapoff`) ao final — ver memória `feature gorjeta` e
+`plano responsividade painel`. NUNCA `pkill -f next-server`/similar amplo no
+host (incidente de starvation 2026-06-11).
+
 ## Seeds anonimizados (§4.6)
 
 ```bash
@@ -157,6 +181,10 @@ partir da S2, o frontend do hub assume o banner e o placeholder sai do compose.
   em `/data/fastapi-mock.jsonl` (volume `hub_homolog_mocklogs`); `GET /_log`.
 - `n8n-mock`: qualquer POST é registrado (`/data/n8n-mock.jsonl`) e respondido
   com sucesso simulado — **nenhuma mensagem sai**. `GET /_log`.
+- `mailpit-mock` (S2, hub-fundacoes): recebe `POST /send {to,subject,text}` da
+  rota de recuperação de senha do hub (`MAIL_MOCK_URL`), registra em
+  `/data/mailpit-like.jsonl` (nenhum e-mail real sai do ambiente) e expõe
+  `GET /_log?to=<email>` para os testes extraírem o token enviado.
 - Proteções do envio em massa já no env (§4.7 1–10): `ENVIO_DRY_RUN=true`,
   `ENVIO_REAL_HABILITADO=false`, `ENVIO_ALLOWLIST=` (vazia bloqueia tudo),
   `ENVIO_MAX_MENSAGENS=10`; tokens reais ausentes por construção + preflight.

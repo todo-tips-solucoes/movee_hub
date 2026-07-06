@@ -1,0 +1,53 @@
+=== SELECT * FROM "SchemaMigration" — hub_homolog — 2026-07-06T05:33:48Z ===
+Comando: docker exec hub_homolog_db psql -U hub_homolog -d hub_homolog -c 'SELECT * FROM "SchemaMigration" ORDER BY id;'
+
+ id |                  nome                   |          aplicado_em          
+----+-----------------------------------------+-------------------------------
+  1 | 0000_schema_migration.sql               | 2026-07-06 00:47:07.7287+00
+  2 | 0001_postgrest_roles.sql                | 2026-07-06 00:47:08.279678+00
+  3 | 0002_usuario.sql                        | 2026-07-06 05:17:33.306439+00
+  4 | 0003_papel_permissao_modulo.sql         | 2026-07-06 05:17:33.684089+00
+  5 | 0004_auditoria.sql                      | 2026-07-06 05:17:34.002734+00
+  6 | 0005_sessao_refresh.sql                 | 2026-07-06 05:17:34.315101+00
+  7 | 0006_rls_policies.sql                   | 2026-07-06 05:17:34.63646+00
+  8 | 0007_seed_papeis_permissoes_modulos.sql | 2026-07-06 05:17:34.963802+00
+  9 | 0008_migracao_empresa_para_usuario.sql  | 2026-07-06 05:17:35.280663+00
+(9 rows)
+
+
+=== Rodando migrate.sh 2x seguidas (idempotencia) ===
+Rodadas de migrate.sh executadas 2x seguidas em 2026-07-06T05:34:25Z — resultado: 'migrate: concluído (0 aplicadas agora)' em AMBAS, timestamps aplicado_em INALTERADOS entre as duas execuções (confirma idempotência).
+
+--- run1 (tail) ---
+PostgREST: SIGUSR1 enviado (reload de schema)
+migrate: concluído (0 aplicadas agora)
+ id |                  nome                   |          aplicado_em          
+----+-----------------------------------------+-------------------------------
+  1 | 0000_schema_migration.sql               | 2026-07-06 00:47:07.7287+00
+  2 | 0001_postgrest_roles.sql                | 2026-07-06 00:47:08.279678+00
+  3 | 0002_usuario.sql                        | 2026-07-06 05:17:33.306439+00
+  4 | 0003_papel_permissao_modulo.sql         | 2026-07-06 05:17:33.684089+00
+  5 | 0004_auditoria.sql                      | 2026-07-06 05:17:34.002734+00
+  6 | 0005_sessao_refresh.sql                 | 2026-07-06 05:17:34.315101+00
+  7 | 0006_rls_policies.sql                   | 2026-07-06 05:17:34.63646+00
+  8 | 0007_seed_papeis_permissoes_modulos.sql | 2026-07-06 05:17:34.963802+00
+  9 | 0008_migracao_empresa_para_usuario.sql  | 2026-07-06 05:17:35.280663+00
+(9 rows)
+
+
+--- run2 (tail) ---
+PostgREST: SIGUSR1 enviado (reload de schema)
+migrate: concluído (0 aplicadas agora)
+ id |                  nome                   |          aplicado_em          
+----+-----------------------------------------+-------------------------------
+  1 | 0000_schema_migration.sql               | 2026-07-06 00:47:07.7287+00
+  2 | 0001_postgrest_roles.sql                | 2026-07-06 00:47:08.279678+00
+  3 | 0002_usuario.sql                        | 2026-07-06 05:17:33.306439+00
+  4 | 0003_papel_permissao_modulo.sql         | 2026-07-06 05:17:33.684089+00
+  5 | 0004_auditoria.sql                      | 2026-07-06 05:17:34.002734+00
+  6 | 0005_sessao_refresh.sql                 | 2026-07-06 05:17:34.315101+00
+  7 | 0006_rls_policies.sql                   | 2026-07-06 05:17:34.63646+00
+  8 | 0007_seed_papeis_permissoes_modulos.sql | 2026-07-06 05:17:34.963802+00
+  9 | 0008_migracao_empresa_para_usuario.sql  | 2026-07-06 05:17:35.280663+00
+(9 rows)
+

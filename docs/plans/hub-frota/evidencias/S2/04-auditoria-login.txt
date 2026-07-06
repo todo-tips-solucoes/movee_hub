@@ -1,0 +1,16 @@
+=== Auditoria de login (login_sucesso / login_falha) — hub-homolog — 2026-07-06T05:37:50Z ===
+Usuário sintético 'evidencia-s2-login@example.test' criado só para esta evidência (removido ao final).
+
+--- Requisições HTTP contra o backend (docker exec hub_homolog_backend node evidencia-login.js) ---
+LOGIN_SUCESSO status= 200 (senha correta)
+LOGIN_FALHA status= 401 (senha incorreta)
+
+--- SELECT id, acao, id_empresa, detalhes, criado_em FROM "Auditoria" WHERE id IN (52,53) ---
+ id |     acao      | id_empresa |                       detalhes                       |           criado_em           
+----+---------------+------------+------------------------------------------------------+-------------------------------
+ 52 | login_sucesso |            | {}                                                   | 2026-07-06 05:37:24.589346+00
+ 53 | login_falha   |            | {"motivo": "senha_incorreta", "tentativas_login": 1} | 2026-07-06 05:37:24.754219+00
+(2 rows)
+
+
+Interpretação: acao='login_sucesso' registrado no login com senha correta; acao='login_falha' com detalhes.motivo='senha_incorreta' no login com senha errada. Nenhum segredo (senha/hash/token) presente em 'detalhes' — scrubDetalhes() confirmado em produção real (não só unit test).

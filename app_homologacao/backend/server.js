@@ -29,6 +29,21 @@ const brandingRoutes = require('./routes/branding');
 // cadastro-motorista-base-validada — CRUD admin de motoristas /admin/motoristas/*
 const adminMotoristaRoutes = require('./routes/admin-motorista');
 
+// hub-fundacoes (FASE 3, S2 do hub-frota) — rotas /api/v1/auth/* do hub isolado.
+// Router 100% novo e autocontido (própria conexão PostgREST via lib/hub-postgrest.js,
+// próprio JWT via lib/hub-postgrest-jwt.js) — NÃO usa postgrestRequest/generatePostgrestJWT
+// legados. Ativo em qualquer ambiente que monte este server.js, mas só o hub
+// (Dockerfile.hub) provê as env vars que ele exige (PGRST_JWT_SECRET/JWT_SECRET/
+// POSTGREST_URL); o backend de produção (Dockerfile, node:14) nunca recebe tráfego
+// nestas rotas — nenhum cliente de produção as conhece.
+const hubAuthRoutes = require('./routes/hub-auth');
+
+// hub-fundacoes (FASE 4) — rotas /api/v1/me* e /api/v1/auditoria do hub
+// isolado. Arquivo 100% novo (routes/hub-me.js); cada rota decide sua própria
+// exigência de auth internamente (GET /me e POST /me/entidade exigem só
+// accessToken válido; GET /auditoria passa por requirePermission).
+const hubMeRoutes = require('./routes/hub-me');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 // validacao-xml-lote (FASE 0, CHK113/CHK022): instância dedicada do multer para
@@ -2578,6 +2593,22 @@ app.use('/empresa/branding', authenticateToken, brandingRoutes.router);
 // authenticateMotorista — senão req.motorista nunca é setado e o handler retorna
 // 401 mesmo com sessão válida (fix: branding-tomador 401 no app motorista).
 motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, brandingRoutes.brandingTomadorRouter);
+
+// hub-fundacoes (FASE 3) — /api/v1/auth/* (login/refresh/logout/recuperar-senha/
+// redefinir-senha). Sem authenticateToken aqui — o próprio router aplica
+// rate-limit (Decision 8) e cada rota decide sua própria exigência de auth
+// (login/recuperar-senha/redefinir-senha são públicos por design; refresh e
+// logout leem o cookie diretamente). Auditoria e RBAC completos chegam nas
+// próximas ondas (FASE 4/5).
+app.use('/api/v1/auth', hubAuthRoutes.router);
+
+// hub-fundacoes (FASE 4) — /api/v1/me (perfil + troca de entidade ativa) e
+// /api/v1/auditoria (consulta da trilha, protegida por requirePermission
+// dentro do próprio router). Sem authenticateToken aqui — mesmo padrão do
+// bloco /api/v1/auth acima: cada rota do hub-me.js decide sua própria
+// exigência de auth (accessToken do hub, não o token do backend legado).
+app.use('/api/v1/me', hubMeRoutes.router);
+app.use('/api/v1/auditoria', hubMeRoutes.auditoriaRouter);
 
 // Iniciar o servidor
 app.listen(3000, () => {

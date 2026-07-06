@@ -1,0 +1,35 @@
+# =============================================================================
+# Dockerfile.hub — build do backend para o ambiente ISOLADO do Hub de Frota
+# (hub-dev/hub-test/hub-homolog). Node 20 LTS (produção continua Node 14 —
+# ver `Dockerfile`, que NÃO é alterado por este arquivo).
+#
+# Mesma árvore de código do backend legado (nenhuma duplicação de lógica de
+# auth/rate-limit/bcrypt — plan.md §Structure Decision). O `.dockerignore`
+# existente já exclui `node_modules`, então módulos nativos (bcrypt) recompilam
+# para a ABI do Node 20 durante o build — não copiar binários pré-compilados
+# do host (CLAUDE.md §Convenções de deploy).
+#
+# Build (cap de memória obrigatório — lição de starvation, ver RUNBOOK.md):
+#   DOCKER_BUILDKIT=0 docker build --memory=2g \
+#     -f app_homologacao/backend/Dockerfile.hub \
+#     -t hub-backend:dev app_homologacao/backend
+# =============================================================================
+FROM node:20-alpine
+
+WORKDIR /var/lib/envioMassa_homologacao/app_homologacao
+
+# Dependências nativas de build (bcrypt precisa de toolchain C para compilar
+# a partir do source no Alpine — glibc-free, sem prebuilt binary compatível)
+RUN apk add --no-cache python3 make g++
+
+# Copiar apenas os manifests primeiro (cache de layer do Docker)
+COPY package*.json ./
+
+RUN npm install
+
+# Copiar todo o conteúdo do backend para dentro do contêiner
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

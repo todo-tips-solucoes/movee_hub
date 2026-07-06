@@ -87,5 +87,42 @@ services:
     tmpfs:
       - /data
 
+  mailpit-mock:
+    <<: *hub-common
+    image: node:20-alpine
+    mem_limit: 128m
+    cpus: 0.25
+    command: ["node", "/app/server.js"]
+    environment:
+      APP_ENV: "${APP_ENV}"
+      MOCK_PORT: "8080"
+    volumes:
+      - ./mocks/mailpit-like:/app:ro
+    tmpfs:
+      - /data
+
+  backend:
+    <<: *hub-common
+    build:
+      context: ../../app_homologacao/backend
+      dockerfile: Dockerfile.hub
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      APP_ENV: "${APP_ENV}"
+      POSTGREST_URL: "http://postgrest:3000"
+      POSTGREST_API_KEY: "${POSTGREST_API_KEY:?}"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?}"
+      JWT_SECRET: "${JWT_SECRET:?}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?}"
+      FASTAPI_URL: "${FASTAPI_URL}"
+      N8N_URL: "${N8N_URL}"
+      MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+    depends_on:
+      db:
+        condition: service_healthy
+      postgrest:
+        condition: service_started
+
 # Rede default do projeto (hub-test-<runid>_default) — prefixo hub- garantido
 # pelo nome do projeto; volumes não são usados (tmpfs).

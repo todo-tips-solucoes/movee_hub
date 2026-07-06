@@ -1,0 +1,90 @@
+========================================================================
+Correções pós-review do PR #55 (hub-fundacoes / S2) — evidências de teste
+Data: 2026-07-06  |  Branch: feat/hub-fundacoes  |  Ambiente: hub-test-* efêmero
+========================================================================
+
+Todos os runtimes rodaram em projetos compose EFÊMEROS `hub-test-<runid>`
+(compose.hub.test.yml, tmpfs), NUNCA no hub-homolog persistente nem em
+produção. Build do backend sempre com DOCKER_BUILDKIT=0 --memory=2g.
+Cleanup ao final: nenhum container/volume `hub-test-*` órfão; hub_homolog_*
+e produção intactos.
+
+------------------------------------------------------------------------
+1) SUÍTE UNITÁRIA — node --test tests/hub-*-unit.test.js
+------------------------------------------------------------------------
+# tests 67
+# suites 20
+# pass 67
+# fail 0
+# duration_ms ~142
+
+Novos testes unit adicionados:
+  hub-auth-unit.test.js:
+    - entradaLoginValida (#6): senha/email não-string, string vazia, formato
+      inválido -> false; válidos -> true (5 casos).
+    - classificarCredencial (#4): inativa (mesmo c/ senha correta) -> 'inativa'
+      sem contabilizar; ativa+senha errada -> 'senha_incorreta'; ativa+correta
+      -> 'sucesso' (4 casos).
+    - classificarSessaoRefresh (#5): reuso vs expirada vs válida; precedência
+      de reuso sobre expiração (4 casos).
+    - patchRedefinicaoSenha (#3): zera tentativas_login/bloqueado_ate + invalida
+      token (1 caso).
+  hub-rbac-unit.test.js:
+    - permissões por entidade (#1): união flat vê auditoria.consultar (de B);
+      por-entidade A (só leitura) NÃO vê -> gate nega; por-entidade B vê;
+      entidade sem vínculo -> Set vazio (4 casos).
+    - invalidação coerente flat + `id:*` sem tocar outros usuários (1 caso).
+
+------------------------------------------------------------------------
+2) HUB-RLS-INTEGRATION (#2 INSERT restrito + idempotência 0009)
+------------------------------------------------------------------------
+PASS: migrate.sh rodado 2x: 0006 idempotente (pulada na 2ª corrida)
+PASS: migrate.sh rodado 2x: 0009 idempotente (pulada na 2ª corrida)
+... (18 asserts originais de RLS: a/b/c/d/e/f/g — todos PASS) ...
+PASS: (#2) INSERT global forjado (acao arbitrária) REJEITADO (status != 201)
+PASS: (#2) INSERT global de auth legítima (login_falha) ACEITO -> 201
+PASS: (#2) INSERT in-scope (id_empresa=A) ACEITO -> 201
+PASS: (#2) INSERT out-of-scope (id_empresa=B) REJEITADO (status != 201)
+PASS: (#2) linha global forjada NÃO foi persistida no banco
+
+HUB-RLS-INTEGRATION: OK — todos os asserts passaram (24/24)
+
+------------------------------------------------------------------------
+3) HUB-RBAC-INTEGRATION (#1 cross-tenant de auditoria)
+------------------------------------------------------------------------
+... (33 asserts originais de RBAC — todos PASS, incluindo o cenário legado
+     "GET /auditoria sem entidade ativa -> 200 eventos=[]" e "sem grant -> 403") ...
+PASS: (#1) união flat contém auditoria.consultar (vinda de B) — gate flat sozinho vazaria
+PASS: (#1) GET /auditoria com entidade ATIVA=A (só leitura) -> 403 (gate por-entidade)
+PASS: (#1) trilha de A NÃO vazou ao ativar A sem auditoria.consultar
+PASS: (#1) GET /auditoria com entidade ATIVA=B (admin_entidade) -> 200
+PASS: (#1) trilha de B retornada ao ativar B (uso legítimo preservado)
+PASS: (#1) todos os eventos em B escopados por B
+
+HUB-RBAC-INTEGRATION: OK — todos os asserts passaram (FASE 4: 4.1/4.2/4.3)
+
+------------------------------------------------------------------------
+4) HUB-AUTH-INTEGRATION (#3 desbloqueio no reset, #4 inativa não bloqueia,
+   #5 expiração benigna não derruba outros devices)
+------------------------------------------------------------------------
+... (24 asserts originais de auth — todos PASS) ...
+PASS: (#3) conta bloqueada: login com senha correta -> 423 (antes de redefinir)
+PASS: (#3) token de recuperação extraído (reset-bloqueio)
+PASS: (#3) redefinir-senha (conta bloqueada) -> 200
+PASS: (#3) após redefinir: bloqueado_ate=NULL e tentativas_login=0 (desbloqueio)
+PASS: (#3) login com a nova senha após redefinir conta bloqueada -> 200 (não 423)
+PASS: (#4) conta inativa + senha correta -> 401 (uniforme, sem vazar motivo)
+PASS: (#4) conta inativa: bloqueado_ate=NULL e tentativas_login=0 após 5 tentativas
+PASS: (#5) 2 devices logados -> 2 sessões ativas
+PASS: (#5) refresh do device 1 (sessão expirada) -> 401
+PASS: (#5) sessão do device 2 continua ATIVA (expiração benigna não revoga a família)
+PASS: (#5) refresh do device 2 (sessão ativa) -> 200 (não foi deslogado pelo device 1)
+
+HUB-AUTH-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2/3.3)
+
+------------------------------------------------------------------------
+5) LIMPEZA / ISOLAMENTO
+------------------------------------------------------------------------
+docker ps -a | grep hub-test-   -> NENHUM órfão
+docker volume ls | grep hub-test- -> NENHUM volume órfão
+hub_homolog_* : todos Up (intactos) ; produção não tocada.

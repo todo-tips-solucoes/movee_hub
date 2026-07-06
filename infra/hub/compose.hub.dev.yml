@@ -90,6 +90,43 @@ services:
       - ./mocks/n8n-mock:/app:ro
       - hub_dev_mocklogs:/data
 
+  mailpit-mock:
+    <<: *mock-common
+    container_name: hub_dev_mailpit_mock
+    ports:
+      - "127.0.0.1:14804:8080"
+    volumes:
+      - ./mocks/mailpit-like:/app:ro
+      - hub_dev_mocklogs:/data
+
+  backend:
+    <<: *hub-common
+    build:
+      context: ../../app_homologacao/backend
+      dockerfile: Dockerfile.hub
+    image: hub-backend:dev
+    container_name: hub_dev_backend
+    mem_limit: 512m
+    cpus: 0.5
+    networks: [hub_dev]
+    ports:
+      - "127.0.0.1:14805:3000"   # localhost apenas (§6: dev = portas altas, só localhost)
+    environment:
+      APP_ENV: "${APP_ENV}"
+      POSTGREST_URL: "http://postgrest:3000"
+      POSTGREST_API_KEY: "${POSTGREST_API_KEY:?}"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?}"
+      JWT_SECRET: "${JWT_SECRET:?}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?}"
+      FASTAPI_URL: "${FASTAPI_URL}"
+      N8N_URL: "${N8N_URL}"
+      MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+    depends_on:
+      db:
+        condition: service_healthy
+      postgrest:
+        condition: service_started
+
 networks:
   hub_dev:
     name: hub_dev_net

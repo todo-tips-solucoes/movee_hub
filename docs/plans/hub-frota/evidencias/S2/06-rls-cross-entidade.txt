@@ -1,0 +1,22 @@
+=== RLS de reforço nega acesso cruzado — task 5.2.4 — 2026-07-06T05:39:34Z ===
+Script: infra/hub/testes/hub-rls-integration.sh (ambiente hub-test-* efêmero, isolado, destruído ao final)
+
+PASS: migrate.sh rodado 2x: 0006 idempotente (pulada na 2ª corrida)
+PASS: (a) Auditoria: escopo=[A] lendo B -> 200
+PASS: (a) Auditoria: escopo=[A] lendo B -> 0 linhas (RLS nega, SC-008)
+PASS: (b) Auditoria: escopo=[A] lendo A -> 200
+PASS: (b) Auditoria: escopo=[A] lendo A -> 1 linha (uso legítimo preservado, FR-026)
+PASS: (b) Auditoria: acao correta
+PASS: (g) Auditoria: shape snake_case (id_empresa/criado_em presentes)
+PASS: (g) Auditoria: criado_em é string ISO 8601
+PASS: (g) Auditoria: detalhes é objeto JSON
+PASS: (c) Auditoria: linha global (id_empresa NULL) sempre visível
+PASS: (d) ModuloEntidade: escopo=[A] lendo B -> 0 linhas
+PASS: (d) ModuloEntidade: escopo=[A] lendo A -> 1 linha
+PASS: (e) UsuarioEntidade: sub=A lendo vínculo de B -> 0 linhas
+PASS: (e) UsuarioEntidade: sub=A lendo o próprio -> 1 linha
+PASS: (f) sem claims: Auditoria escopada (A) -> 0 linhas (nega-por-padrão puro)
+PASS: (f) sem claims: Auditoria global (NULL) ainda visível
+PASS: (f) sem claims: ModuloEntidade -> 0 linhas
+PASS: (f) sem claims: UsuarioEntidade -> 0 linhas
+HUB-RLS-INTEGRATION: OK — todos os asserts passaram (FASE 5: 5.2, quickstart Scenario 9, SC-008)

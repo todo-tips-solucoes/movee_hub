@@ -93,6 +93,43 @@ services:
       - ./mocks/n8n-mock:/app:ro
       - hub_homolog_mocklogs:/data
 
+  mailpit-mock:
+    <<: *mock-common
+    container_name: hub_homolog_mailpit_mock
+    command: ["node", "/app/server.js"]
+    volumes:
+      - ./mocks/mailpit-like:/app:ro
+      - hub_homolog_mocklogs:/data
+
+  backend:
+    <<: *hub-common
+    build:
+      context: ../../app_homologacao/backend
+      dockerfile: Dockerfile.hub
+    image: hub-backend:homolog
+    container_name: hub_homolog_backend
+    mem_limit: 768m
+    cpus: 1.0
+    networks: [hub_internal]
+    # Sem porta publicada: alcançado só via rede interna (roteamento externo,
+    # quando existir endpoint real a expor, é decisão de FASE 3+ — traefik/
+    # dynamic/hub.yml ganha rota nesse momento, não nesta fundação)
+    environment:
+      APP_ENV: "${APP_ENV}"
+      POSTGREST_URL: "http://postgrest:3000"
+      POSTGREST_API_KEY: "${POSTGREST_API_KEY:?}"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?}"
+      JWT_SECRET: "${JWT_SECRET:?}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?}"
+      FASTAPI_URL: "${FASTAPI_URL}"
+      N8N_URL: "${N8N_URL}"
+      MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+    depends_on:
+      db:
+        condition: service_healthy
+      postgrest:
+        condition: service_started
+
   placeholder:
     <<: *hub-common
     image: node:20-alpine

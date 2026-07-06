@@ -178,3 +178,169 @@ pendências, ponteiros (branch/PR/estado feature-00c).
 - **S2 LIBERADA**: rodar em sessão fresca com
   `docs/plans/hub-frota/prompts/prompt-B.md` (fundações). Handoff completo via
   este DIARIO + evidências S1 + RUNBOOK (`infra/hub/RUNBOOK.md`).
+
+---
+
+## 2026-07-06 — S2 (Fundações do Hub) CONCLUÍDA — FASES 1–7, evidências e PR draft
+
+- **S2 completa via `/feature-00c` (feature `hub-fundacoes`, branch `feat/hub-fundacoes`,
+  13 commits)**: banco (migrations 0000–0008 idempotentes: `Usuario`, `UsuarioEntidade`,
+  `Papel`/`Permissao`/`PapelPermissao`, `Modulo`/`ModuloEntidade`, `Auditoria`,
+  `SessaoRefresh` + GRANTs explícitos + registro em `SchemaMigration`), migração
+  expand-only `Empresa.pass → Usuario` (hash bcrypt preservado, sem recálculo),
+  autenticação `/api/v1/auth/*` (login/refresh/logout/recuperar-redefinir senha,
+  anti-enumeração, rate-limit, bloqueio 5/15min, revogação de sessões), RBAC
+  (`requirePermission` fail-closed, cache TTL 60s) + `/api/v1/me*`, RLS de reforço
+  nega-por-padrão (JWT PostgREST por claims de escopo/sub).
+- **Decisões-chave da S2**:
+  - **dec-008**: postura nega-por-padrão quando claim de entidade está ausente/não
+    verificável (FR-028) — reforça RLS mesmo sem contornar a camada de aplicação.
+  - **block-001**: Auditoria imutável no banco — trigger incondicional
+    `hub_bloqueia_alteracao_auditoria` (`0004_auditoria.sql`, FR-023/024/025) bloqueia
+    UPDATE/DELETE mesmo para o dono/superuser; único bypass é
+    `session_replication_role=replica` (escopado à sessão, usado só em cleanup de
+    dados sintéticos de teste).
+  - **block-002/dec-033**: matriz de 4 papéis-seed e permissões default **aprovada
+    pelo operador sem ajustes** (Paulo, 2026-07-06T03:18:25Z).
+  - **dec-039**: TTL de `token_recuperacao_expira` fixado em 1h (FR-021 não
+    especificava valor concreto).
+  - **dec-055**: suíte completa (106 testes) mostra 8 falhas **pré-existentes** em
+    `motorista-integration.test.js` (gorjeta/"movimento deve existir"), confirmadas
+    idênticas no commit-baseline anterior a `hub-fundacoes` (05ef220, worktree
+    isolado) — **não é regressão** desta feature; fix fora de escopo.
+  - **dec-060/dec-061**: 1ª rodada de `hub-e2e-homolog.sh` achou 2 bugs no próprio
+    teste (não no código): reuso do token de redefinição retorna 400 (não 410 como
+    o quickstart sugeria) e cleanup de dados `e2e-teste-*` exige
+    `session_replication_role=replica` por causa do trigger de imutabilidade da
+    Auditoria; corrigidos, 32/32 verde na 3ª rodada, 0 linhas residuais.
+  - **dec-063**: evidências formais da FASE 7 geradas frescas (não reaproveitadas
+    cegamente) — ver lista abaixo.
+  - **dec-064**: cleanup pós-evidência de auditoria de login tentou remover o
+    usuário sintético + 2 linhas de `Auditoria` via `session_replication_role=replica`;
+    **negado pelo classificador de auto-mode** (Logging/Audit Tampering). Aceito
+    sem contornar a negação: as 2 linhas (`login_sucesso`/`login_falha`) são
+    eventos reais, sem segredos (`detalhes={}` e
+    `{motivo:"senha_incorreta",tentativas_login:1}`), e o próprio design de
+    imutabilidade (FK `Auditoria_usuario_id_fkey`) impede remover o `Usuario`
+    referenciado — reforça, na prática, a garantia de block-001. Dados
+    permanecem no ambiente isolado `hub-homolog` (não-produção).
+- **Testes e evidências (`docs/plans/hub-frota/evidencias/S2/`)**:
+  - `01-e2e-homolog.txt` — E2E persistente: 32/32 (login→me→troca de entidade,
+    recuperar/redefinir senha revoga sessões, bloqueio 5 falhas→423, RLS
+    cross-entidade via PostgREST direto).
+  - `02-npm-test.txt` — suíte completa: **106 testes, 98 pass, 8 fail** (as 8 são
+    100% de `motorista-integration.test.js`, pré-existentes/dec-055; todos os
+    `hub-*` verdes).
+  - `03-schema-migration.txt` — `SELECT * FROM "SchemaMigration"` (9 migrations
+    0000–0008) + `migrate.sh` rodado 2× consecutivas contra `hub-homolog`:
+    "0 aplicadas agora" nas duas, timestamps inalterados (idempotência real).
+  - `04-auditoria-login.txt` — login com usuário sintético descartável contra
+    `hub-homolog`: `login_sucesso` (200) e `login_falha` (401,
+    motivo=senha_incorreta) registrados na trilha, sem segredos.
+  - `05-migracao-login-legado.txt` — `migracao-login-integration.sh` (ambiente
+    efêmero): 7/7 PASS — hash bcrypt copiado sem recálculo, `bcrypt.compare`
+    confirma login legado funcional, reexecução direta de `0008` não duplica
+    linhas.
+  - `06-rls-cross-entidade.txt` — `hub-rls-integration.sh` (ambiente efêmero):
+    17/17 PASS — RLS nega cross-entidade em `Auditoria`/`ModuloEntidade`/
+    `UsuarioEntidade`, preserva uso legítimo, nega-por-padrão mesmo sem claims.
+  - Nenhum segredo (senha/hash/token) presente em qualquer evidência salva.
+- **Blast radius confirmado**: toda escrita ficou confinada a recursos `hub-*`
+  (banco `hub_homolog`, containers `hub_homolog_*`, projetos `hub-test-*`
+  efêmeros) — **zero escrita** no ambiente vivo do cliente (`chatmasterveloz`,
+  `envio-massa-homologacao_*`, `pgadmin_db`, Traefik/tags de produção).
+  `docker compose ls` confirma apenas `hub-homolog` e `metanoia-prod` (intocado)
+  ativos ao final; nenhum projeto `hub-test-*` remanescente.
+- **PR draft aberto** na branch `feat/hub-fundacoes` referenciando os 7 critérios
+  de aceite do briefing + as 6 evidências acima.
+- **Pendências para o operador (gate G3)**: (1) revisar e aprovar o PR draft;
+  (2) decidir sobre o fix da gorjeta pré-existente (fora de escopo desta feature,
+  dec-055) — abrir issue/feature separada se desejado; (3) autorizar cutover para
+  produção (deploy real do backend com as rotas `/api/v1/auth`, `/me`, `/auditoria`
+  e as migrations 0000–0008) — **não realizado nesta sessão**, exige os 5 gates do
+  rito de produção do CLAUDE.md; (4) revisar a divergência de trailer de commit
+  ainda pendente desde a S1 (CLAUDE.md pede "Claude Opus 4.8", commits usam o
+  modelo vigente).
+- Ambiente `hub-homolog` permanece NO AR (9 containers saudáveis), não foi
+  derrubado.
+
+---
+
+## 2026-07-06 — Correções pós-review do PR #55 (hub-fundacoes / S2)
+
+Aplicadas na branch `feat/hub-fundacoes` (sem merge — reverificação do pai).
+Todo runtime em projetos compose EFÊMEROS `hub-test-*`; zero escrita no
+`hub-homolog` persistente e em produção. Migrations expand-only/idempotentes
+(0000–0008 intocadas; correções em `0009_rls_hardening_indices.sql` novo).
+
+### Corrigido (7 achados)
+
+1. **[ALTA — segurança] Leitura cross-tenant da trilha de auditoria.** O gate
+   `requirePermission('auditoria.consultar')` validava contra a UNIÃO FLAT dos
+   vínculos; a query escopava pela entidade ATIVA → quem tinha o grant só na
+   empresa B lia a trilha de A ao ativá-la. Fix: nova
+   `obterPermissoesEfetivasPorEntidade(usuarioId, empresaId)` em
+   `lib/hub-rbac-cache.js` (restringe os vínculos à entidade ANTES de unir;
+   cache próprio `usuarioId:empresaId`; invalidação coerente flat + `id:*`), e
+   `GET /auditoria` passou a exigir `auditoria.consultar` NA entidade ativa
+   (segunda verificação após o gate flat). União flat mantida onde é correta
+   (módulos do /me). Cenário provado em `hub-rbac-integration.sh` (admin em B +
+   leitura em A → ativa A = 403 sem vazar; ativa B = 200 com a trilha de B).
+
+2. **[MÉDIA — segurança] INSERT de auditoria "global" forjável.** A policy de
+   INSERT de 0006 tinha ramo `id_empresa IS NULL` incondicional → qualquer token
+   `authenticated` forjava eventos globais. `0009` recria a policy (DROP+CREATE,
+   idempotente) limitando o ramo global a um CONJUNTO FECHADO de `acao` de
+   autenticação (login_sucesso/login_falha/logout/recuperacao_senha_solicitada/
+   senha_redefinida). Decisão documentada no SQL: os inserts globais legítimos
+   vêm do backend com `claims={}` (JWT sem `sub` no login), logo NÃO dá para
+   exigir `sub`; a restrição por `acao` na própria WITH CHECK é a idempotente
+   viável. Provado em `hub-rls-integration.sh` (forja rejeitada e não persistida;
+   login_falha global aceito; in-scope aceito; out-of-scope rejeitado).
+
+3. **[MÉDIA] Reset de senha não desbloqueava a conta.** `/redefinir-senha` agora
+   zera `tentativas_login` e `bloqueado_ate` no PATCH de sucesso. Provado
+   (conta bloqueada → redefinir → login nova senha = 200, não 423).
+
+4. **[MÉDIA] Conta inativa acumulava bloqueio.** Ramo `!ativo` separado do de
+   senha incorreta (via `classificarCredencial`): conta inativa NÃO incrementa
+   `tentativas_login`/`bloqueado_ate`, resposta uniforme 401 (anti-enumeração).
+   Provado (inativa + senha correta 5× → bloqueado_ate NULL, tentativas 0).
+
+5. **[MÉDIA] Refresh expirado revogava todas as sessões.** `classificarSessaoRefresh`
+   distingue REUSO (revogado_em preenchido → revoga a família, defesa contra
+   roubo) de EXPIRAÇÃO natural (só 401, limpa cookies desta req, NÃO derruba
+   outros devices). Provado (device 1 expirado → 401; device 2 segue ativo → 200).
+
+6. **[MÉDIA] Senha não-string virava 500.** Guard `entradaLoginValida` checa
+   `typeof` de email/senha antes de qualquer `bcrypt.compare` → 401 uniforme.
+   Provado unit (`{senha: 12345}` → false).
+
+7. **[MÉDIA — perf] Índices RLS ausentes.** `0009` adiciona
+   `idx_auditoria_id_empresa` e `idx_moduloentidade_empresa_id`
+   (CREATE INDEX IF NOT EXISTS). UsuarioEntidade(empresa_id) já existia (0003).
+
+### Resultados observados (ambiente efêmero)
+
+- Unit (`node --test tests/hub-*-unit.test.js`): **67 pass / 0 fail** (20 suites).
+- `hub-rls-integration.sh`: **OK (24/24)** — inclui idempotência de 0009 (2ª
+  corrida pula) e os 5 asserts do #2.
+- `hub-rbac-integration.sh`: **OK** — inclui os 6 asserts do #1 cross-tenant e
+  todos os asserts legados (sem entidade → 200 []; sem grant → 403).
+- `hub-auth-integration.sh`: **OK** — inclui os asserts de #3/#4/#5 + todos os
+  legados (bloqueio, rotação/replay, single-use, imutabilidade 0004).
+- Cleanup: nenhum `hub-test-*` órfão (container/volume); `hub_homolog_*` e
+  produção intactos. Evidência em `evidencias/S2/07-fix-review-testes.txt`.
+
+### Follow-up (NÃO corrigido — pendências conhecidas)
+
+- **Auditor não vê eventos globais (id_empresa NULL) no GET /auditoria** — a
+  query filtra `id_empresa=eq.<entidade>`, deixando os eventos globais de auth
+  fora. Decisão de produto (avaliar em S3+).
+- **Lost update no contador de tentativas** (read-modify-write não atômico) —
+  exige incremento atômico (mudança estrutural), avaliar depois.
+- **Arquitetura**: claim `empresa_ativa` morta nas policies; `claims` como 4º
+  parâmetro opcional de `hubPostgrestRequest` (risco de 0-linhas silencioso →
+  considerar cliente PostgREST req-scoped); incoerência GRANT×policy em
+  UsuarioEntidade/ModuloEntidade; dedup dos helpers de JWT (verify/sign/cookies)
+  num `lib/hub-token.js`. Todos para S3+.
