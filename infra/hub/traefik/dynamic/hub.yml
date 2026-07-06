@@ -1,0 +1,42 @@
+# Traefik do hub (2ª instância, portas altas) — provider FILE apenas.
+# Decisão de design da S1: sem docker.sock (não enxerga produção) e sem
+# Let's Encrypt (80/443 pertencem ao Traefik de produção; ACME HTTP-01/TLS-ALPN
+# inviáveis sem elas). TLS = certificado self-signed gerado no gen-secrets.sh.
+# Promoção futura a TLS válido: rota no Traefik de PRODUÇÃO — SÓ O OPERADOR
+# executa (ver RUNBOOK.md §"Promover roteamento ao Traefik de produção").
+
+http:
+  routers:
+    hub-placeholder-https:
+      rule: "Host(`hub-homolog.todo-tips.com`) || Host(`localhost`)"
+      entryPoints: ["websecurehub"]
+      service: hub-placeholder
+      tls: {}
+    hub-placeholder-http:
+      rule: "Host(`hub-homolog.todo-tips.com`) || Host(`localhost`)"
+      entryPoints: ["webhub"]
+      middlewares: ["hub-to-https"]
+      service: hub-placeholder
+
+  middlewares:
+    hub-to-https:
+      redirectScheme:
+        scheme: https
+        port: "8443"
+        permanent: true
+
+  services:
+    hub-placeholder:
+      loadBalancer:
+        servers:
+          - url: "http://placeholder:8080"
+
+tls:
+  certificates:
+    - certFile: /certs/hub-homolog.crt
+      keyFile: /certs/hub-homolog.key
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/hub-homolog.crt
+        keyFile: /certs/hub-homolog.key

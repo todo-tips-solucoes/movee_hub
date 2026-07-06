@@ -81,3 +81,46 @@ pendências, ponteiros (branch/PR/estado feature-00c).
   da S10 (sem /feature-00c) na primeira linha.
 - **⚠️ D4 corrigida para PARCIAL:** `atingido` e `margem_fee` seguem pendentes e
   bloqueantes da S4 (o G1 confirmou só centavos e percentual).
+
+---
+
+## 2026-07-06 — S1 executada: ambiente isolado criado (aguardando G2 do operador)
+
+- **Sessão S1 (Prompt A) concluída pelo agente** na branch `feat/hub-ambiente-isolado`;
+  infra-as-code em `infra/hub/` (composes dev/test/homolog, `.env.*.example`, mocks
+  fastapi/n8n/placeholder em Node stdlib, preflight, gen-secrets, migrate, backup,
+  restore, gen-seeds, runbook, testes). Escopo respeitado: **zero mudança funcional**;
+  banco novo vazio + `SchemaMigration` (0000) + role do PostgREST (0001 — infra mínima
+  do PGRST_DB_ANON_ROLE, registrada como interpretação no PR).
+- **Ambiente `hub-homolog` NO AR** (projeto compose próprio, 7/7 containers, todos com
+  caps de CPU/RAM): postgres:13 `hub_homolog` (porta não publicada), PostgREST v14.1
+  próprio (interno, `PGRST_JWT_SECRET` novo), mocks com registro de payload, Traefik
+  do hub em **8880/8443** e daemon de backup diário (03:00 UTC, retenção 14d).
+- **Decisão de design (roteamento TLS):** 2ª instância Traefik do hub em portas altas
+  com **provider file (sem docker.sock)** e certificado **self-signed** — ACME é
+  inviável sem 80/443 (produção). Config de promoção ao Traefik de produção documentada
+  no RUNBOOK; execução é exclusiva do operador.
+- **Credenciais todas novas** geradas em `/var/lib/hub_secrets/` (0700/0600, fora do
+  git); templates sem segredos no repo; `prod-fingerprints.sha256` aguarda o operador.
+- **Preflight fail-safe (§4.8):** passa nos 3 ambientes; **teste negativo 6/6**
+  combinações perigosas abortadas (códigos 10–15) — evidência 02.
+- **Seeds anonimizados (§4.6):** gen-seeds.py (HMAC, salt descartado, fail-closed para
+  coluna nova) sobre os ZIPs reais no sandbox: 4.014 fat + 2.720 perf, **asserção
+  0-vazamentos** (789 UUIDs/790 nomes observados, 0 na saída); modo síntese de volume
+  testado (7 dias); carga provada em compose efêmero `hub-test-<runid>` (down -v);
+  homolog permanece sem dados (schema funcional é S3+). Saída gitignored.
+- **Backup/restore (§4.11 #20):** pg_dump -Fc + restore em `hub_restore` com contagens
+  iguais; re-executável.
+- **20 testes de isolamento (§4.11):** 16 PASS diretos; 6/8/17 PASS-parcial e 1 =
+  **operador** (comandos prontos em `evidencias/S1/README.md`). Destaque item 19
+  (mesmo-host): containers hub em rede `internal` — não resolvem `pgadmin_db`, TCP ao
+  IP do banco de produção falha, sem saída à internet.
+- **⚠️ Incidente registrado (transparência):** ao limpar o volume anônimo do container
+  de backup, o agente removeu 19 volumes anônimos **dangling** do host inteiro sem
+  filtro `hub_*` — fora do escopo da exceção G1. Todos órfãos (Docker recusa remover
+  volume em uso); verificação imediata: 25 serviços Swarm 1/1 e volumes nomeados de
+  produção intactos. Impacto avaliado nulo; lição: limpeza sempre com filtro `hub_*`.
+  Detalhe em `evidencias/S1/README.md`.
+- **Pendências para o G2 (operador):** item 1 (estado/contagens de produção),
+  fingerprints (item 6/13), item 17 (SchemaMigration inexistente em produção), DNS
+  `hub-homolog.todo-tips.com` (item 8); revisar/mergear o PR draft da S1.
