@@ -93,16 +93,21 @@ E_ADMIN=910002
 E_MULTI_A=910003
 E_MULTI_B=910004
 E_NAO_VINCULADA=999999
+# Correção pós-review PR #55 (#1): cenário cross-tenant de auditoria
+E_CROSS_A=910005   # onde a pessoa tem só 'leitura' (SEM auditoria.consultar)
+E_CROSS_B=910006   # onde a pessoa é 'admin_entidade' (COM auditoria.consultar)
 
 psql_t <<SQL >/dev/null
 INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES
   ('rbac-operador@example.test', '$HASH_OK', 'Usuario Teste Operador', true),
   ('rbac-admin@example.test', '$HASH_OK', 'Usuario Teste Admin Entidade', true),
-  ('rbac-multi@example.test', '$HASH_OK', 'Usuario Teste Multi Entidade', true);
+  ('rbac-multi@example.test', '$HASH_OK', 'Usuario Teste Multi Entidade', true),
+  ('rbac-crosstenant@example.test', '$HASH_OK', 'Usuario Teste Cross Tenant', true);
 SQL
 UID_OPERADOR="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='rbac-operador@example.test'" | tr -d '[:space:]')"
 UID_ADMIN="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='rbac-admin@example.test'" | tr -d '[:space:]')"
 UID_MULTI="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='rbac-multi@example.test'" | tr -d '[:space:]')"
+UID_CROSS="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='rbac-crosstenant@example.test'" | tr -d '[:space:]')"
 
 PAPEL_OPERADOR="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='operador'" | tr -d '[:space:]')"
 PAPEL_ADMIN_ENTIDADE="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='admin_entidade'" | tr -d '[:space:]')"
@@ -116,10 +121,19 @@ INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ($UID_OPERADOR, $E_OPERADOR, $PAPEL_OPERADOR, true),
   ($UID_ADMIN, $E_ADMIN, $PAPEL_ADMIN_ENTIDADE, true),
   ($UID_MULTI, $E_MULTI_A, $PAPEL_LEITURA, true),
-  ($UID_MULTI, $E_MULTI_B, $PAPEL_OPERADOR, true);
+  ($UID_MULTI, $E_MULTI_B, $PAPEL_OPERADOR, true),
+  ($UID_CROSS, $E_CROSS_A, $PAPEL_LEITURA, true),
+  ($UID_CROSS, $E_CROSS_B, $PAPEL_ADMIN_ENTIDADE, true);
 
 INSERT INTO "ModuloEntidade" (modulo_id, empresa_id, ativo) VALUES
   ($MODULO_DASHBOARD, $E_OPERADOR, true);
+
+-- Trilhas distintas por entidade: se o gate vazasse, ao ativar A (só leitura)
+-- o usuário leria estes eventos de A. Escopo real inserido nas claims p/ passar
+-- pela policy de INSERT (nega-por-padrão + ramo global fechado em 0009).
+INSERT INTO "Auditoria" (id_empresa, usuario_id, acao, recurso, detalhes, criado_em) VALUES
+  ($E_CROSS_A, $UID_CROSS, 'evento_cross_a', 'UsuarioEntidade', '{"origem":"rbac-crosstenant"}'::jsonb, now()),
+  ($E_CROSS_B, $UID_CROSS, 'evento_cross_b', 'UsuarioEntidade', '{"origem":"rbac-crosstenant"}'::jsonb, now());
 SQL
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -348,6 +362,71 @@ check "POST /me/entidade (multi) -> empresa A -> 200" "$(jget3 troca_a_status)" 
 check "POST /me/entidade (multi) -> troca para empresa B -> 200 (sem novo login)" "$(jget3 troca_b_status)" "200"
 check "POST /me/entidade (multi) -> entidade_ativa = B" "$(jget3 troca_b_entidade_ativa)" "$E_MULTI_B"
 check "POST /me/entidade (multi) -> 3ª empresa não vinculada -> 403 SEM_VINCULO" "$(jget3 troca_invalida_status)" "403"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cenário 4 — CROSS-TENANT DE AUDITORIA (correção pós-review PR #55, achado #1)
+# Usuário admin_entidade em B (tem auditoria.consultar) + leitura em A (NÃO tem).
+# Antes da correção, ativar A e chamar GET /auditoria vazava a trilha de A,
+# porque o gate usava a UNIÃO flat (que enxerga auditoria.consultar vindo de B).
+# Esperado agora: ativar A -> 403 PERMISSAO_NEGADA; ativar B -> 200 + trilha de B.
+# ─────────────────────────────────────────────────────────────────────────────
+OUT4="$(run_node "$SENHA_OK" "$E_CROSS_A" "$E_CROSS_B" <<'JS'
+const BASE = 'http://localhost:3000/api/v1';
+function parseSetCookie(res) {
+  const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  const jar = {};
+  for (const c of raw) { const [pair] = c.split(';'); const idx = pair.indexOf('='); jar[pair.slice(0, idx)] = pair.slice(idx + 1); }
+  return jar;
+}
+function cookieHeader(jar) { return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '); }
+
+async function main() {
+  const senhaOk = process.argv[2];
+  const empresaA = Number(process.argv[3]); // leitura (sem auditoria.consultar)
+  const empresaB = Number(process.argv[4]); // admin_entidade (com auditoria.consultar)
+  const out = {};
+
+  const rLogin = await fetch(`${BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'rbac-crosstenant@example.test', senha: senhaOk }) });
+  let jar = parseSetCookie(rLogin);
+
+  const rMe = await fetch(`${BASE}/me`, { headers: { Cookie: cookieHeader(jar) } });
+  const bMe = await rMe.json();
+  // union flat contém auditoria.consultar (vem de B) — comprova que o gate flat sozinho vazaria
+  out.uniao_tem_auditoria = (bMe.permissoes || []).includes('auditoria.consultar') ? 'true' : 'false';
+
+  // Ativa A (leitura) e tenta ler auditoria -> deve NEGAR (403)
+  const rTrocaA = await fetch(`${BASE}/me/entidade`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) }, body: JSON.stringify({ empresa_id: empresaA }) });
+  jar = { ...jar, ...parseSetCookie(rTrocaA) };
+  const rAudA = await fetch(`${BASE}/auditoria`, { headers: { Cookie: cookieHeader(jar) } });
+  out.audit_A_status = rAudA.status;
+  const bAudA = await rAudA.json().catch(() => ({}));
+  out.audit_A_vazou_evento_a = Array.isArray(bAudA.eventos) && bAudA.eventos.some((e) => e.acao === 'evento_cross_a') ? 'true' : 'false';
+
+  // Ativa B (admin_entidade) e lê auditoria -> 200 + trilha de B
+  const rTrocaB = await fetch(`${BASE}/me/entidade`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) }, body: JSON.stringify({ empresa_id: empresaB }) });
+  jar = { ...jar, ...parseSetCookie(rTrocaB) };
+  const rAudB = await fetch(`${BASE}/auditoria`, { headers: { Cookie: cookieHeader(jar) } });
+  out.audit_B_status = rAudB.status;
+  const bAudB = await rAudB.json().catch(() => ({}));
+  out.audit_B_tem_evento_b = Array.isArray(bAudB.eventos) && bAudB.eventos.some((e) => e.acao === 'evento_cross_b') ? 'true' : 'false';
+  out.audit_B_todos_da_entidade = Array.isArray(bAudB.eventos) && bAudB.eventos.every((e) => e.id_empresa === empresaB) ? 'true' : 'false';
+
+  console.log('___RESULT_JSON___' + JSON.stringify(out));
+}
+main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
+JS
+)"
+echo "$OUT4" | grep -v '___RESULT_JSON___' || true
+R4="$(echo "$OUT4" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+[ -n "$R4" ] || { echo "FAIL: script Node (cenário 4 cross-tenant) não retornou resultado"; echo "$OUT4"; exit 1; }
+jget4() { printf '%s' "$R4" | node_e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); process.stdout.write(String(d['$1']))"; }
+
+check "(#1) união flat contém auditoria.consultar (vinda de B) — gate flat sozinho vazaria" "$(jget4 uniao_tem_auditoria)" "true"
+check "(#1) GET /auditoria com entidade ATIVA=A (só leitura) -> 403 (gate por-entidade)" "$(jget4 audit_A_status)" "403"
+check "(#1) trilha de A NÃO vazou ao ativar A sem auditoria.consultar" "$(jget4 audit_A_vazou_evento_a)" "false"
+check "(#1) GET /auditoria com entidade ATIVA=B (admin_entidade) -> 200" "$(jget4 audit_B_status)" "200"
+check "(#1) trilha de B retornada ao ativar B (uso legítimo preservado)" "$(jget4 audit_B_tem_evento_b)" "true"
+check "(#1) todos os eventos em B escopados por B" "$(jget4 audit_B_todos_da_entidade)" "true"
 
 echo
 if [ "$fails" = "0" ]; then

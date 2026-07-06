@@ -14,7 +14,10 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
-const { obterPermissoesEfetivas } = require('../lib/hub-rbac-cache');
+const {
+  obterPermissoesEfetivas,
+  obterPermissoesEfetivasPorEntidade,
+} = require('../lib/hub-rbac-cache');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { requirePermission } = require('../middleware/hub-require-permission');
 
@@ -225,6 +228,18 @@ auditoriaRouter.get('/', requirePermission('auditoria.consultar'), async (req, r
     // vazamento cross-tenant, até que o cliente chame POST /me/entidade.
     if (!entidadeAtiva) {
       return res.status(200).json({ eventos: [] });
+    }
+
+    // Correção pós-review PR #55 (achado #1 — leitura cross-tenant): o gate de
+    // `requirePermission('auditoria.consultar')` acima valida contra a UNIÃO
+    // achatada dos vínculos (barreira grossa: nega quem não tem a permissão em
+    // NENHUMA entidade). Mas a consulta é escopada pela entidade ATIVA — então
+    // é ESSA entidade que precisa conceder `auditoria.consultar`. Sem esta
+    // segunda verificação, alguém com o grant só na empresa B leria a trilha da
+    // empresa A ao ativá-la (onde tem apenas leitura). Verificação por-entidade:
+    const permsEntidade = await obterPermissoesEfetivasPorEntidade(payload.sub, entidadeAtiva);
+    if (!permsEntidade.has('auditoria.consultar')) {
+      return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
     }
 
     const filtros = [`id_empresa=eq.${entidadeAtiva}`];

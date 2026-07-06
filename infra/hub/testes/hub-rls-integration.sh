@@ -72,12 +72,14 @@ echo "rodando migrate.sh (0002..0008, INCLUSIVE 0006 — FASE 5)…"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1
 grep -q "0006_rls_policies.sql" "$TMP/migrate.log" || { echo "FAIL: 0006 não aplicada"; cat "$TMP/migrate.log"; exit 1; }
 grep -q "0008_migracao_empresa_para_usuario.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo"; cat "$TMP/migrate.log"; exit 1; }
+grep -q "0009_rls_hardening_indices.sql" "$TMP/migrate.log" || { echo "FAIL: 0009 (correção pós-review) não aplicada"; cat "$TMP/migrate.log"; exit 1; }
 
 # --- Idempotência (task 5.2.3): reaplica a série inteira sobre o MESMO banco;
 # migrate.sh pula todas por já registradas em SchemaMigration -> no-op.
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate2.log" 2>&1
 IDEMPOTENTE="$(grep -c 'pulada (já aplicada)' "$TMP/migrate2.log" | tr -d '[:space:]')"
 check "migrate.sh rodado 2x: 0006 idempotente (pulada na 2ª corrida)" "$(grep -c 'pulada (já aplicada): 0006_rls_policies.sql' "$TMP/migrate2.log")" "1"
+check "migrate.sh rodado 2x: 0009 idempotente (pulada na 2ª corrida)" "$(grep -c 'pulada (já aplicada): 0009_rls_hardening_indices.sql' "$TMP/migrate2.log")" "1"
 
 # --- Seed: 2 entidades (A, B), 2 usuários (A, B), vínculos, módulo, auditoria -
 E_A=920001
@@ -207,6 +209,55 @@ check "(f) sem claims: Auditoria escopada (A) -> 0 linhas (nega-por-padrão puro
 check "(f) sem claims: Auditoria global (NULL) ainda visível" "$(jval sem_claims_audit_global_len)" "1"
 check "(f) sem claims: ModuloEntidade -> 0 linhas" "$(jval sem_claims_modulo_len)" "0"
 check "(f) sem claims: UsuarioEntidade -> 0 linhas" "$(jval sem_claims_ue_len)" "0"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (h) INSERT em Auditoria — correção pós-review PR #55 (achado #2 / migration
+# 0009): o ramo global (id_empresa IS NULL) da policy de INSERT foi fechado a um
+# conjunto de `acao` de autenticação. Prova, chamando o PostgREST direto:
+#   - forjar evento global com acao ARBITRÁRIA (não-auth) -> REJEITADO (não 201)
+#   - evento global com acao de AUTH legítima (login_falha) -> ACEITO (201)
+#   - evento in-scope (id_empresa=A) -> ACEITO; out-of-scope (id_empresa=B) -> REJEITADO
+# ─────────────────────────────────────────────────────────────────────────────
+OUTI="$(run_node "$E_A" "$E_B" <<'JS'
+const { generateHubPostgrestJWT } = require('./lib/hub-postgrest-jwt');
+
+async function pgPost(jwt, path, body) {
+  const r = await fetch(`http://postgrest:3000/${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+    body: JSON.stringify(body),
+  });
+  return r.status;
+}
+
+async function main() {
+  const [empresaA, empresaB] = process.argv.slice(2).map(Number);
+  const out = {};
+  const jwtEscopoA = generateHubPostgrestJWT({ usuarioId: 1, empresaAtiva: empresaA, escopo: [empresaA] });
+
+  out.forjado_global_status = await pgPost(jwtEscopoA, 'Auditoria', { id_empresa: null, acao: 'evento_forjado_global', recurso: 'Ataque', detalhes: {} });
+  out.auth_global_status = await pgPost(jwtEscopoA, 'Auditoria', { id_empresa: null, acao: 'login_falha', recurso: 'Usuario', detalhes: {} });
+  out.inscope_status = await pgPost(jwtEscopoA, 'Auditoria', { id_empresa: empresaA, acao: 'evento_inscope', recurso: 'X', detalhes: {} });
+  out.outscope_status = await pgPost(jwtEscopoA, 'Auditoria', { id_empresa: empresaB, acao: 'evento_outscope', recurso: 'X', detalhes: {} });
+
+  console.log('___RESULT_JSON___' + JSON.stringify(out));
+}
+main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
+JS
+)"
+echo "$OUTI" | grep -v '___RESULT_JSON___' || true
+RI="$(echo "$OUTI" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+[ -n "$RI" ] || { echo "FAIL: script Node (INSERT policy) não retornou resultado"; echo "$OUTI"; exit 1; }
+ival() { node -e "const d=JSON.parse(process.argv[1]); const v=d[process.argv[2]]; process.stdout.write(v === undefined ? '' : String(v));" "$RI" "$1"; }
+
+check "(#2) INSERT global forjado (acao arbitrária) REJEITADO (status != 201)" "$([ "$(ival forjado_global_status)" != "201" ] && echo sim || echo nao)" "sim"
+check "(#2) INSERT global de auth legítima (login_falha) ACEITO -> 201" "$(ival auth_global_status)" "201"
+check "(#2) INSERT in-scope (id_empresa=A) ACEITO -> 201" "$(ival inscope_status)" "201"
+check "(#2) INSERT out-of-scope (id_empresa=B) REJEITADO (status != 201)" "$([ "$(ival outscope_status)" != "201" ] && echo sim || echo nao)" "sim"
+
+# Confirma no banco que a linha forjada NÃO existe
+N_FORJADO="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='evento_forjado_global'" | tr -d '[:space:]')"
+check "(#2) linha global forjada NÃO foi persistida no banco" "$N_FORJADO" "0"
 
 echo
 if [ "$fails" = "0" ]; then

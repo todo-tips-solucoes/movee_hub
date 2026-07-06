@@ -263,3 +263,84 @@ pendências, ponteiros (branch/PR/estado feature-00c).
   modelo vigente).
 - Ambiente `hub-homolog` permanece NO AR (9 containers saudáveis), não foi
   derrubado.
+
+---
+
+## 2026-07-06 — Correções pós-review do PR #55 (hub-fundacoes / S2)
+
+Aplicadas na branch `feat/hub-fundacoes` (sem merge — reverificação do pai).
+Todo runtime em projetos compose EFÊMEROS `hub-test-*`; zero escrita no
+`hub-homolog` persistente e em produção. Migrations expand-only/idempotentes
+(0000–0008 intocadas; correções em `0009_rls_hardening_indices.sql` novo).
+
+### Corrigido (7 achados)
+
+1. **[ALTA — segurança] Leitura cross-tenant da trilha de auditoria.** O gate
+   `requirePermission('auditoria.consultar')` validava contra a UNIÃO FLAT dos
+   vínculos; a query escopava pela entidade ATIVA → quem tinha o grant só na
+   empresa B lia a trilha de A ao ativá-la. Fix: nova
+   `obterPermissoesEfetivasPorEntidade(usuarioId, empresaId)` em
+   `lib/hub-rbac-cache.js` (restringe os vínculos à entidade ANTES de unir;
+   cache próprio `usuarioId:empresaId`; invalidação coerente flat + `id:*`), e
+   `GET /auditoria` passou a exigir `auditoria.consultar` NA entidade ativa
+   (segunda verificação após o gate flat). União flat mantida onde é correta
+   (módulos do /me). Cenário provado em `hub-rbac-integration.sh` (admin em B +
+   leitura em A → ativa A = 403 sem vazar; ativa B = 200 com a trilha de B).
+
+2. **[MÉDIA — segurança] INSERT de auditoria "global" forjável.** A policy de
+   INSERT de 0006 tinha ramo `id_empresa IS NULL` incondicional → qualquer token
+   `authenticated` forjava eventos globais. `0009` recria a policy (DROP+CREATE,
+   idempotente) limitando o ramo global a um CONJUNTO FECHADO de `acao` de
+   autenticação (login_sucesso/login_falha/logout/recuperacao_senha_solicitada/
+   senha_redefinida). Decisão documentada no SQL: os inserts globais legítimos
+   vêm do backend com `claims={}` (JWT sem `sub` no login), logo NÃO dá para
+   exigir `sub`; a restrição por `acao` na própria WITH CHECK é a idempotente
+   viável. Provado em `hub-rls-integration.sh` (forja rejeitada e não persistida;
+   login_falha global aceito; in-scope aceito; out-of-scope rejeitado).
+
+3. **[MÉDIA] Reset de senha não desbloqueava a conta.** `/redefinir-senha` agora
+   zera `tentativas_login` e `bloqueado_ate` no PATCH de sucesso. Provado
+   (conta bloqueada → redefinir → login nova senha = 200, não 423).
+
+4. **[MÉDIA] Conta inativa acumulava bloqueio.** Ramo `!ativo` separado do de
+   senha incorreta (via `classificarCredencial`): conta inativa NÃO incrementa
+   `tentativas_login`/`bloqueado_ate`, resposta uniforme 401 (anti-enumeração).
+   Provado (inativa + senha correta 5× → bloqueado_ate NULL, tentativas 0).
+
+5. **[MÉDIA] Refresh expirado revogava todas as sessões.** `classificarSessaoRefresh`
+   distingue REUSO (revogado_em preenchido → revoga a família, defesa contra
+   roubo) de EXPIRAÇÃO natural (só 401, limpa cookies desta req, NÃO derruba
+   outros devices). Provado (device 1 expirado → 401; device 2 segue ativo → 200).
+
+6. **[MÉDIA] Senha não-string virava 500.** Guard `entradaLoginValida` checa
+   `typeof` de email/senha antes de qualquer `bcrypt.compare` → 401 uniforme.
+   Provado unit (`{senha: 12345}` → false).
+
+7. **[MÉDIA — perf] Índices RLS ausentes.** `0009` adiciona
+   `idx_auditoria_id_empresa` e `idx_moduloentidade_empresa_id`
+   (CREATE INDEX IF NOT EXISTS). UsuarioEntidade(empresa_id) já existia (0003).
+
+### Resultados observados (ambiente efêmero)
+
+- Unit (`node --test tests/hub-*-unit.test.js`): **67 pass / 0 fail** (20 suites).
+- `hub-rls-integration.sh`: **OK (24/24)** — inclui idempotência de 0009 (2ª
+  corrida pula) e os 5 asserts do #2.
+- `hub-rbac-integration.sh`: **OK** — inclui os 6 asserts do #1 cross-tenant e
+  todos os asserts legados (sem entidade → 200 []; sem grant → 403).
+- `hub-auth-integration.sh`: **OK** — inclui os asserts de #3/#4/#5 + todos os
+  legados (bloqueio, rotação/replay, single-use, imutabilidade 0004).
+- Cleanup: nenhum `hub-test-*` órfão (container/volume); `hub_homolog_*` e
+  produção intactos. Evidência em `evidencias/S2/07-fix-review-testes.txt`.
+
+### Follow-up (NÃO corrigido — pendências conhecidas)
+
+- **Auditor não vê eventos globais (id_empresa NULL) no GET /auditoria** — a
+  query filtra `id_empresa=eq.<entidade>`, deixando os eventos globais de auth
+  fora. Decisão de produto (avaliar em S3+).
+- **Lost update no contador de tentativas** (read-modify-write não atômico) —
+  exige incremento atômico (mudança estrutural), avaliar depois.
+- **Arquitetura**: claim `empresa_ativa` morta nas policies; `claims` como 4º
+  parâmetro opcional de `hubPostgrestRequest` (risco de 0-linhas silencioso →
+  considerar cliente PostgREST req-scoped); incoerência GRANT×policy em
+  UsuarioEntidade/ModuloEntidade; dedup dos helpers de JWT (verify/sign/cookies)
+  num `lib/hub-token.js`. Todos para S3+.

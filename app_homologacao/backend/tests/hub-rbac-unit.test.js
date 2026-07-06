@@ -48,6 +48,37 @@ function montarUniaoDePermissoes(linhasPapelPermissao) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Cópia local: permissões efetivas POR ENTIDADE (correção pós-review PR #55,
+// achado #1). Espelha carregarPermissoesDoBanco(usuarioId, empresaId): restringe
+// os vínculos à entidade ANTES de unir as permissões. `vinculos` = lista de
+// { empresa_id, permissoes: [codigo,...] } (o join Papel->PapelPermissao já
+// resolvido, como o loader real faz em 2 queries).
+// ──────────────────────────────────────────────────────────────────────────────
+
+function unirPermissoes(vinculos, empresaId /* opcional: restringe */) {
+  const codigos = new Set();
+  for (const v of vinculos || []) {
+    if (empresaId !== undefined && empresaId !== null && v.empresa_id !== empresaId) continue;
+    for (const c of v.permissoes || []) codigos.add(c);
+  }
+  return codigos;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Cópia local: invalidação coerente flat + por-entidade (espelho de
+// invalidarUsuario em lib/hub-rbac-cache.js: apaga `id` e todo `id:*`).
+// ──────────────────────────────────────────────────────────────────────────────
+
+function invalidarCoerente(cache, usuarioId) {
+  const flat = String(usuarioId);
+  cache.delete(flat);
+  const prefixo = `${flat}:`;
+  for (const chave of [...cache.keys()]) {
+    if (chave.startsWith(prefixo)) cache.delete(chave);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Cópia local: cache TTL + invalidação + fail-closed não-cacheado (espelho de
 // lib/hub-rbac-cache.js, com loader e relógio injetáveis para teste)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -158,6 +189,56 @@ describe('montarUniaoDePermissoes', () => {
 // ──────────────────────────────────────────────────────────────────────────────
 // cache TTL + invalidação (Decision 7, SC-004)
 // ──────────────────────────────────────────────────────────────────────────────
+
+describe('permissões por entidade (#1 — gate de auditoria contra entidade ativa)', () => {
+  // Usuário admin na empresa B (tem auditoria.consultar) + leitura na empresa A
+  // (NÃO tem auditoria.consultar). Cenário exato do achado de segurança.
+  const A = 910003;
+  const B = 910002;
+  const vinculos = [
+    { empresa_id: A, permissoes: ['dashboard.consultar', 'motoristas.consultar'] }, // leitura em A
+    { empresa_id: B, permissoes: ['dashboard.consultar', 'auditoria.consultar', 'usuarios.gerenciar'] }, // admin em B
+  ];
+
+  test('união FLAT enxerga auditoria.consultar (vem de B) — por isso NÃO serve de gate por-tenant', () => {
+    const flat = unirPermissoes(vinculos);
+    assert.equal(flat.has('auditoria.consultar'), true);
+  });
+
+  test('POR ENTIDADE A: auditoria.consultar AUSENTE (só leitura em A) -> gate nega (403)', () => {
+    const permsA = unirPermissoes(vinculos, A);
+    assert.equal(permsA.has('auditoria.consultar'), false);
+  });
+
+  test('POR ENTIDADE B: auditoria.consultar PRESENTE -> gate permite', () => {
+    const permsB = unirPermissoes(vinculos, B);
+    assert.equal(permsB.has('auditoria.consultar'), true);
+  });
+
+  test('entidade sem vínculo -> Set vazio (nega por construção)', () => {
+    const permsX = unirPermissoes(vinculos, 999999);
+    assert.equal(permsX.size, 0);
+  });
+});
+
+describe('invalidação coerente flat + por-entidade (#1)', () => {
+  test('invalidarUsuario apaga a entrada flat E todas as `id:*` do usuário, sem tocar outros', () => {
+    const cache = new Map();
+    cache.set('42', { permissoes: new Set(), expiraEm: 9e15 });
+    cache.set('42:910002', { permissoes: new Set(), expiraEm: 9e15 });
+    cache.set('42:910003', { permissoes: new Set(), expiraEm: 9e15 });
+    cache.set('7', { permissoes: new Set(), expiraEm: 9e15 });
+    cache.set('7:910002', { permissoes: new Set(), expiraEm: 9e15 });
+
+    invalidarCoerente(cache, '42');
+
+    assert.equal(cache.has('42'), false);
+    assert.equal(cache.has('42:910002'), false);
+    assert.equal(cache.has('42:910003'), false);
+    assert.equal(cache.has('7'), true, 'outro usuário intacto');
+    assert.equal(cache.has('7:910002'), true, 'entrada por-entidade de outro usuário intacta');
+  });
+});
 
 describe('cache RBAC — TTL + invalidação', () => {
   test('cache-miss chama o loader; hit subsequente dentro do TTL não chama de novo', async () => {

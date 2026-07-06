@@ -62,6 +62,22 @@ function formatoEmailValido(email) {
   return EMAIL_REGEX.test(email);
 }
 
+/**
+ * Guard de entrada do /login (correção pós-review PR #55, achado #6): valida
+ * TIPO antes de qualquer bcrypt.compare. Um body como `{senha: 12345}` (senha
+ * não-string) chegava ao bcrypt.compare e estourava 500 ("data and hash
+ * arguments required"); aqui ele cai no 401 uniforme (anti-enumeração). Pura.
+ * @param {*} emailBruto - valor cru de req.body.email
+ * @param {*} senhaBruta - valor cru de req.body.senha
+ * @returns {boolean}
+ */
+function entradaLoginValida(emailBruto, senhaBruta) {
+  if (typeof emailBruto !== 'string' || typeof senhaBruta !== 'string') return false;
+  if (senhaBruta.length === 0) return false;
+  const email = normalizarEmail(emailBruto);
+  return Boolean(email) && formatoEmailValido(email);
+}
+
 function hashToken(tokenBruto) {
   return crypto.createHash('sha256').update(tokenBruto).digest('hex');
 }
@@ -89,6 +105,41 @@ function calcularBloqueioAposFalha(tentativasAtuais, agora) {
 
 function contaEstaBloqueada(usuario, agora) {
   return Boolean(usuario.bloqueado_ate) && new Date(usuario.bloqueado_ate) > agora;
+}
+
+/**
+ * Classifica o desfecho da conferência de credencial no /login, DEPOIS do
+ * bcrypt.compare (correção pós-review PR #55, achado #4). Pura.
+ *   'inativa'        -> conta desativada: resposta uniforme 401, MAS sem
+ *                       contabilizar falha (não acumula bloqueio).
+ *   'senha_incorreta'-> conta ativa + senha errada: contabiliza falha (FR-017).
+ *   'sucesso'        -> conta ativa + senha correta.
+ * @param {{ativo: boolean}} usuario
+ * @param {boolean} senhaValida
+ * @returns {'inativa'|'senha_incorreta'|'sucesso'}
+ */
+function classificarCredencial(usuario, senhaValida) {
+  if (!usuario.ativo) return 'inativa';
+  if (!senhaValida) return 'senha_incorreta';
+  return 'sucesso';
+}
+
+/**
+ * Classifica o estado de uma SessaoRefresh apresentada no /refresh (correção
+ * pós-review PR #55, achado #5). Pura — não acessa o banco.
+ *   'reuso'    -> já revogada (rotacionada) e reapresentada: possível roubo,
+ *                 revoga TODA a família (defesa em profundidade, Decision 9).
+ *   'expirada' -> ainda não revogada, mas `expira_em` no passado: expiração
+ *                 natural benigna de UM device, NÃO derruba os outros.
+ *   'valida'   -> ativa e dentro da validade: segue a rotação normal.
+ * @param {{revogado_em: string|null, expira_em: string}} sessao
+ * @param {Date} agora
+ * @returns {'reuso'|'expirada'|'valida'}
+ */
+function classificarSessaoRefresh(sessao, agora) {
+  if (sessao.revogado_em) return 'reuso';
+  if (new Date(sessao.expira_em) < agora) return 'expirada';
+  return 'valida';
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -165,18 +216,21 @@ function decodificarUsuarioIdDoAccessToken(accessToken) {
 router.post('/login', authRateLimiter, async (req, res) => {
   const ip = req.ip;
   try {
-    const email = normalizarEmail(req.body && req.body.email);
+    const emailBruto = req.body && req.body.email;
     const senha = req.body && req.body.senha;
+    const email = typeof emailBruto === 'string' ? normalizarEmail(emailBruto) : '';
 
     // Resposta uniforme para QUALQUER caminho de credencial inválida
-    // (contracts/auth.md: 401 CREDENCIAIS_INVALIDAS, FR-015).
-    if (!email || !senha || !formatoEmailValido(email)) {
+    // (contracts/auth.md: 401 CREDENCIAIS_INVALIDAS, FR-015), INCLUSIVE tipos
+    // inesperados (senha/email não-string — correção pós-review PR #55 #6:
+    // antes estouravam 500 no bcrypt.compare).
+    if (!entradaLoginValida(emailBruto, senha)) {
       // Sem conta candidata: ainda assim equaliza timing (não vaza motivo).
-      await bcrypt.compare(String(senha || ''), BCRYPT_DUMMY_HASH);
+      await bcrypt.compare(typeof senha === 'string' ? senha : '', BCRYPT_DUMMY_HASH);
       await registrarAuditoria({
         acao: 'login_falha',
         recurso: 'Usuario',
-        detalhes: { motivo: 'entrada_invalida', email },
+        detalhes: { motivo: 'entrada_invalida', email: email || null },
         ip,
       });
       return res.status(401).json({ erro: 'E-mail ou senha inválidos.' });
@@ -216,9 +270,29 @@ router.post('/login', authRateLimiter, async (req, res) => {
 
     // bcrypt.compare SEMPRE contra um hash real (nunca undefined — evita o
     // crash "data and hash arguments required", mesmo padrão server.js:224-228)
+    // Rodado SEMPRE (mesmo para conta inativa) para equalizar timing.
     const senhaValida = await bcrypt.compare(senha, usuario.senha_hash || BCRYPT_DUMMY_HASH);
 
-    if (!senhaValida || !usuario.ativo) {
+    const desfecho = classificarCredencial(usuario, senhaValida);
+
+    // Correção pós-review PR #55 (achado #4): conta INATIVA não deve acumular
+    // bloqueio (senão uma conta desativada com senha correta "auto-bloqueia" a
+    // cada tentativa). Ramo separado do de senha incorreta: NÃO incrementa
+    // tentativas_login/bloqueado_ate, mas mantém a resposta uniforme
+    // (mesmo corpo do 401 de credencial inválida — anti-enumeração, FR-015).
+    if (desfecho === 'inativa') {
+      await registrarAuditoria({
+        usuarioId: usuario.id,
+        acao: 'login_falha',
+        recurso: 'Usuario',
+        recursoId: usuario.id,
+        detalhes: { motivo: 'conta_inativa' },
+        ip,
+      });
+      return res.status(401).json({ erro: 'E-mail ou senha inválidos.' });
+    }
+
+    if (desfecho === 'senha_incorreta') {
       const { tentativas_login, bloqueado_ate } = calcularBloqueioAposFalha(usuario.tentativas_login, agora);
       await hubPostgrestRequest(`Usuario?id=eq.${usuario.id}`, 'PATCH', {
         tentativas_login,
@@ -230,7 +304,7 @@ router.post('/login', authRateLimiter, async (req, res) => {
         acao: 'login_falha',
         recurso: 'Usuario',
         recursoId: usuario.id,
-        detalhes: { motivo: !usuario.ativo ? 'conta_inativa' : 'senha_incorreta', tentativas_login },
+        detalhes: { motivo: 'senha_incorreta', tentativas_login },
         ip,
       });
       return res.status(401).json({ erro: 'E-mail ou senha inválidos.' });
@@ -295,10 +369,17 @@ router.post('/refresh', async (req, res) => {
     const sessao = sessoes[0];
     const agora = new Date();
 
-    // Decision 9: reuso de refresh já revogado (rotacionado) OU expirado é
-    // tratado como possível replay — revoga TODA a família de sessões ativas
-    // do usuário (defesa em profundidade contra roubo de token).
-    if (sessao.revogado_em || new Date(sessao.expira_em) < agora) {
+    // Correção pós-review PR #55 (achado #5): distinguir REUSO/replay de
+    // EXPIRAÇÃO NATURAL.
+    //   - Reuso (sessão com `revogado_em` preenchido): token já rotacionado
+    //     sendo reapresentado -> possível roubo. Decision 9: revoga TODA a
+    //     família de sessões ativas do usuário (defesa em profundidade).
+    //   - Expiração natural (sessão ainda NÃO revogada, apenas `expira_em`
+    //     no passado): evento benigno de um único device -> responde 401 e
+    //     limpa só os cookies desta requisição, SEM derrubar as sessões
+    //     ativas de outros devices do mesmo usuário.
+    const estadoSessao = classificarSessaoRefresh(sessao, agora);
+    if (estadoSessao === 'reuso') {
       await hubPostgrestRequest(`SessaoRefresh?usuario_id=eq.${sessao.usuario_id}&revogado_em=is.null`, 'PATCH', {
         revogado_em: agora.toISOString(),
       });
@@ -311,6 +392,16 @@ router.post('/refresh', async (req, res) => {
         detalhes: { motivo: 'replay_refresh_token' },
         ip,
       });
+      return res.status(401).json({ erro: 'Sessão inválida.' });
+    }
+
+    if (estadoSessao === 'expirada') {
+      // Expiração benigna: NÃO revoga a família. Marca só esta sessão como
+      // encerrada (idempotente) para higiene, limpa cookies e devolve 401.
+      await hubPostgrestRequest(`SessaoRefresh?id=eq.${sessao.id}&revogado_em=is.null`, 'PATCH', {
+        revogado_em: agora.toISOString(),
+      });
+      clearAuthCookies(res);
       return res.status(401).json({ erro: 'Sessão inválida.' });
     }
 
@@ -473,10 +564,16 @@ router.post('/redefinir-senha', async (req, res) => {
 
     // Single-use: token invalidado (NULL) neste PATCH — segundo uso do mesmo
     // token bruto não encontrará mais linha (token_recuperacao_hash=NULL).
+    // Correção pós-review PR #55 (achado #3): redefinir a senha TAMBÉM
+    // desbloqueia a conta (zera tentativas_login e bloqueado_ate, como o login
+    // bem-sucedido já faz) — sem isso, uma conta bloqueada continuava 423
+    // mesmo após o usuário provar posse do e-mail e trocar a senha.
     await hubPostgrestRequest(`Usuario?id=eq.${usuario.id}`, 'PATCH', {
       senha_hash: novoHash,
       token_recuperacao_hash: null,
       token_recuperacao_expira: null,
+      tentativas_login: 0,
+      bloqueado_ate: null,
       atualizado_em: agora.toISOString(),
     });
 
@@ -505,10 +602,13 @@ module.exports = {
   // exportados para testes unitários puros (tests/hub-auth-unit.test.js)
   normalizarEmail,
   formatoEmailValido,
+  entradaLoginValida,
   hashToken,
   gerarTokenBruto,
   calcularBloqueioAposFalha,
   contaEstaBloqueada,
+  classificarCredencial,
+  classificarSessaoRefresh,
   BCRYPT_DUMMY_HASH,
   BLOQUEIO_FALHAS_LIMITE,
   RECUPERACAO_TOKEN_TTL_MS,

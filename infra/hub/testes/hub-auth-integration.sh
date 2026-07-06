@@ -85,11 +85,17 @@ psql_t <<SQL >/dev/null
 INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES
   ('auth-teste@example.test', '$HASH_OK', 'Usuario Teste Auth', true),
   ('auth-bloqueio@example.test', '$HASH_OK', 'Usuario Teste Bloqueio', true),
-  ('auth-recuperacao@example.test', '$HASH_OK', 'Usuario Teste Recuperacao', true);
+  ('auth-recuperacao@example.test', '$HASH_OK', 'Usuario Teste Recuperacao', true),
+  ('auth-reset-bloqueio@example.test', '$HASH_OK', 'Usuario Teste Reset Bloqueio', true),
+  ('auth-inativa@example.test', '$HASH_OK', 'Usuario Teste Inativa', false),
+  ('auth-multidev@example.test', '$HASH_OK', 'Usuario Teste Multi Device', true);
 SQL
 UID_PRINCIPAL="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-teste@example.test'" | tr -d '[:space:]')"
 UID_BLOQUEIO="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-bloqueio@example.test'" | tr -d '[:space:]')"
 UID_RECUPERACAO="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-recuperacao@example.test'" | tr -d '[:space:]')"
+UID_RESET_BLOQ="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-reset-bloqueio@example.test'" | tr -d '[:space:]')"
+UID_INATIVA="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-inativa@example.test'" | tr -d '[:space:]')"
+UID_MULTIDEV="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-multidev@example.test'" | tr -d '[:space:]')"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Cenário 1 — conta `auth-teste`: login/refresh/logout + anti-enumeração
@@ -275,6 +281,131 @@ ST_LOGIN_NOVA="$(node_e "
     .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
 " "$NOVA_SENHA" | tr -d '[:space:]')"
 check "login com a NOVA senha pós-redefinição -> 200" "$ST_LOGIN_NOVA" "200"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cenário 4 — (#3) redefinir-senha DESBLOQUEIA a conta.
+# Conta bloqueada (bloqueado_ate no futuro + 5 tentativas) que redefine a senha
+# deve ficar desbloqueada e logar com a nova senha (200, não 423).
+# ─────────────────────────────────────────────────────────────────────────────
+psql_t <<SQL >/dev/null
+UPDATE "Usuario"
+   SET tentativas_login = 5,
+       bloqueado_ate = now() + interval '15 minutes'
+ WHERE id = $UID_RESET_BLOQ;
+SQL
+ST_BLOQ_ANTES="$(node_e "
+  fetch('http://localhost:3000/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-reset-bloqueio@example.test', senha: process.argv[1] }) })
+    .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
+" "$SENHA_OK" | tr -d '[:space:]')"
+check "(#3) conta bloqueada: login com senha correta -> 423 (antes de redefinir)" "$ST_BLOQ_ANTES" "423"
+
+node_e "
+  fetch('http://localhost:3000/api/v1/auth/recuperar-senha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-reset-bloqueio@example.test' }) })
+    .then(r => r.json()).then(() => process.exit(0));
+" >/dev/null 2>&1
+sleep 1
+MAIL_LOG_RB="$(node_e "
+  fetch('http://mailpit-mock:8080/_log?to=' + encodeURIComponent('auth-reset-bloqueio@example.test'))
+    .then(r => r.json()).then(j => { process.stdout.write(JSON.stringify(j)); process.exit(0); });
+")"
+TOKEN_RB="$(printf '%s' "$MAIL_LOG_RB" | node_e "
+  const arr = JSON.parse(require('fs').readFileSync(0,'utf8'));
+  const last = arr[arr.length - 1];
+  const m = last && last.text && last.text.match(/token para redefinir sua senha: ([0-9a-f]+)/);
+  process.stdout.write(m ? m[1] : '');
+")"
+check "(#3) token de recuperação extraído (reset-bloqueio)" "$([ -n "$TOKEN_RB" ] && echo sim || echo nao)" "sim"
+
+SENHA_RB='NovaSenhaReset#9'
+ST_REDEF_RB="$(node_e "
+  fetch('http://localhost:3000/api/v1/auth/redefinir-senha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: process.argv[1], nova_senha: process.argv[2] }) })
+    .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
+" "$TOKEN_RB" "$SENHA_RB" | tr -d '[:space:]')"
+check "(#3) redefinir-senha (conta bloqueada) -> 200" "$ST_REDEF_RB" "200"
+
+BLOQ_POS_REDEF="$(psql_t -tAc "SELECT bloqueado_ate IS NULL AND tentativas_login = 0 FROM \"Usuario\" WHERE id = $UID_RESET_BLOQ" | tr -d '[:space:]')"
+check "(#3) após redefinir: bloqueado_ate=NULL e tentativas_login=0 (desbloqueio)" "$BLOQ_POS_REDEF" "t"
+
+ST_LOGIN_RB="$(node_e "
+  fetch('http://localhost:3000/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-reset-bloqueio@example.test', senha: process.argv[1] }) })
+    .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
+" "$SENHA_RB" | tr -d '[:space:]')"
+check "(#3) login com a nova senha após redefinir conta bloqueada -> 200 (não 423)" "$ST_LOGIN_RB" "200"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cenário 5 — (#4) conta INATIVA com senha correta NÃO acumula bloqueio.
+# 5 logins com a senha CORRETA numa conta ativo=false: todos 401, e
+# bloqueado_ate permanece NULL, tentativas_login permanece 0.
+# ─────────────────────────────────────────────────────────────────────────────
+for i in 1 2 3 4 5; do
+  ST_IN="$(node_e "
+    fetch('http://localhost:3000/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-inativa@example.test', senha: process.argv[1] }) })
+      .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
+  " "$SENHA_OK" | tr -d '[:space:]')"
+  if [ "$i" = "5" ]; then
+    check "(#4) conta inativa + senha correta -> 401 (uniforme, sem vazar motivo)" "$ST_IN" "401"
+  fi
+done
+INATIVA_SEM_BLOQ="$(psql_t -tAc "SELECT bloqueado_ate IS NULL AND tentativas_login = 0 FROM \"Usuario\" WHERE id = $UID_INATIVA" | tr -d '[:space:]')"
+check "(#4) conta inativa: bloqueado_ate=NULL e tentativas_login=0 após 5 tentativas" "$INATIVA_SEM_BLOQ" "t"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cenário 6 — (#5) refresh EXPIRADO de um device NÃO derruba a sessão de outro.
+# 2 logins (2 devices) -> 2 sessões ativas. Expira só a sessão do device 1 no
+# banco. refresh do device 1 -> 401 (expirada, benigna); a sessão do device 2
+# continua ATIVA e seu refresh -> 200.
+# ─────────────────────────────────────────────────────────────────────────────
+OUT_MD="$(run_node "$SENHA_OK" <<'JS'
+const BASE = 'http://localhost:3000/api/v1/auth';
+function parseSetCookie(res) {
+  const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  const jar = {};
+  for (const c of raw) { const [pair] = c.split(';'); const idx = pair.indexOf('='); jar[pair.slice(0, idx)] = pair.slice(idx + 1); }
+  return jar;
+}
+async function main() {
+  const senha = process.argv[2];
+  const out = {};
+  const r1 = await fetch(`${BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-multidev@example.test', senha }) });
+  const r2 = await fetch(`${BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-multidev@example.test', senha }) });
+  const j1 = parseSetCookie(r1), j2 = parseSetCookie(r2);
+  out.dev1_refresh = j1.refreshToken || '';
+  out.dev2_refresh = j2.refreshToken || '';
+  console.log('___RESULT_JSON___' + JSON.stringify(out));
+}
+main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
+JS
+)"
+RMD="$(echo "$OUT_MD" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+[ -n "$RMD" ] || { echo "FAIL: script Node (cenário 6 multidev) não retornou resultado"; echo "$OUT_MD"; exit 1; }
+mdget() { printf '%s' "$RMD" | node_e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); process.stdout.write(String(d['$1']))"; }
+DEV1_RT="$(mdget dev1_refresh)"
+DEV2_RT="$(mdget dev2_refresh)"
+DEV1_HASH="$(printf '%s' "$DEV1_RT" | node_e "process.stdout.write(require('crypto').createHash('sha256').update(require('fs').readFileSync(0,'utf8')).digest('hex'))")"
+
+SESSOES_ANTES="$(psql_t -tAc "SELECT count(*) FROM \"SessaoRefresh\" WHERE usuario_id=$UID_MULTIDEV AND revogado_em IS NULL" | tr -d '[:space:]')"
+check "(#5) 2 devices logados -> 2 sessões ativas" "$SESSOES_ANTES" "2"
+
+# Expira SÓ a sessão do device 1 (expira_em no passado, ainda não revogada)
+psql_t <<SQL >/dev/null
+UPDATE "SessaoRefresh" SET expira_em = now() - interval '1 hour'
+ WHERE usuario_id = $UID_MULTIDEV AND token_hash = '$DEV1_HASH';
+SQL
+
+ST_REFRESH_EXP="$(node_e "
+  fetch('http://localhost:3000/api/v1/auth/refresh', { method: 'POST', headers: { Cookie: 'refreshToken=' + process.argv[1] } })
+    .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
+" "$DEV1_RT" | tr -d '[:space:]')"
+check "(#5) refresh do device 1 (sessão expirada) -> 401" "$ST_REFRESH_EXP" "401"
+
+DEV2_ATIVA="$(psql_t -tAc "SELECT revogado_em IS NULL FROM \"SessaoRefresh\" WHERE usuario_id=$UID_MULTIDEV AND revogado_em IS NULL AND expira_em > now()" | tr -d '[:space:]')"
+check "(#5) sessão do device 2 continua ATIVA (expiração benigna não revoga a família)" "$DEV2_ATIVA" "t"
+
+ST_REFRESH_DEV2="$(node_e "
+  fetch('http://localhost:3000/api/v1/auth/refresh', { method: 'POST', headers: { Cookie: 'refreshToken=' + process.argv[1] } })
+    .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
+" "$DEV2_RT" | tr -d '[:space:]')"
+check "(#5) refresh do device 2 (sessão ativa) -> 200 (não foi deslogado pelo device 1)" "$ST_REFRESH_DEV2" "200"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auditoria (FR-023) + imutabilidade (defesa em profundidade, reforço 0004)

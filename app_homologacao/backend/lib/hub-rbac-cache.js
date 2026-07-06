@@ -34,17 +34,29 @@ const cache = new Map();
  * Consulta o PostgREST e monta o conjunto de permissões efetivas de um
  * usuário. Pode lançar (erro de rede/infra) — o caller (`obterPermissoesEfetivas`)
  * é quem decide a política de fail-closed; esta função é só a leitura crua.
+ *
  * @param {number|string} usuarioId
+ * @param {number|string|null} [empresaId] - quando informado, restringe os
+ *   vínculos considerados a ESSA entidade ANTES de unir as permissões
+ *   (permissões efetivas POR ENTIDADE — correção pós-review PR #55, achado #1:
+ *   evita que um grant sensível a tenant concedido só na empresa B autorize
+ *   uma ação executada na empresa A ativa). Quando omitido/null, une TODOS os
+ *   vínculos ativos (união flat — usada só onde faz sentido, ex.: listar os
+ *   módulos que a pessoa vê em QUALQUER entidade no GET /me).
  * @returns {Promise<Set<string>>}
  */
-async function carregarPermissoesDoBanco(usuarioId) {
+async function carregarPermissoesDoBanco(usuarioId, empresaId = null) {
   // FASE 5 (0006_rls_policies.sql): a policy de UsuarioEntidade é escopada
   // por `usuario_id = claim.sub` (nega-por-padrão sem escopo/empresa_ativa
   // — cada pessoa só lê os PRÓPRIOS vínculos, research.md Decision 3/4).
   // Sem a claim `usuarioId` aqui, RLS devolveria zero linhas mesmo para o
   // dono legítimo do vínculo.
+  const escopoEmpresa =
+    empresaId !== null && empresaId !== undefined
+      ? `&empresa_id=eq.${empresaId}`
+      : '';
   const vinculos = await hubPostgrestRequest(
-    `UsuarioEntidade?usuario_id=eq.${usuarioId}&ativo=eq.true&select=papel_id`,
+    `UsuarioEntidade?usuario_id=eq.${usuarioId}${escopoEmpresa}&ativo=eq.true&select=papel_id`,
     'GET',
     null,
     { usuarioId }
@@ -71,14 +83,13 @@ async function carregarPermissoesDoBanco(usuarioId) {
 }
 
 /**
- * Retorna o conjunto de permissões efetivas do usuário, servindo do cache
- * quando válido (TTL 60s) ou recarregando do banco em cache-miss/expiração.
- * NUNCA lança — fail-closed resolve para Set vazio (ver cabeçalho do arquivo).
- * @param {number|string} usuarioId
+ * Núcleo de cache compartilhado (TTL 60s + fail-closed não-cacheado) — usado
+ * tanto pela união flat quanto pela variante por-entidade. NUNCA lança.
+ * @param {string} chave - chave de cache já resolvida
+ * @param {() => Promise<Set<string>>} carregador
  * @returns {Promise<Set<string>>}
  */
-async function obterPermissoesEfetivas(usuarioId) {
-  const chave = String(usuarioId);
+async function obterComCache(chave, carregador) {
   const agora = Date.now();
   const entrada = cache.get(chave);
   if (entrada && entrada.expiraEm > agora) {
@@ -87,7 +98,7 @@ async function obterPermissoesEfetivas(usuarioId) {
 
   let permissoes;
   try {
-    permissoes = await carregarPermissoesDoBanco(usuarioId);
+    permissoes = await carregador();
   } catch (e) {
     console.error(
       '[hub-rbac-cache] erro ao carregar permissoes do banco (fail-closed -> vazio, nao cacheado):',
@@ -101,14 +112,53 @@ async function obterPermissoesEfetivas(usuarioId) {
 }
 
 /**
+ * Retorna a UNIÃO FLAT das permissões efetivas do usuário (todos os vínculos
+ * ativos, qualquer entidade), servindo do cache quando válido (TTL 60s).
+ * NUNCA lança — fail-closed resolve para Set vazio (ver cabeçalho do arquivo).
+ *
+ * ⚠️ Não usar como gate de ação sensível a tenant — para isso use
+ * `obterPermissoesEfetivasPorEntidade` (correção pós-review PR #55, achado #1).
+ * A união flat continua correta para casos NÃO sensíveis a entidade, ex.:
+ * cruzar os módulos que a pessoa vê em qualquer entidade no GET /me.
+ * @param {number|string} usuarioId
+ * @returns {Promise<Set<string>>}
+ */
+async function obterPermissoesEfetivas(usuarioId) {
+  return obterComCache(String(usuarioId), () => carregarPermissoesDoBanco(usuarioId));
+}
+
+/**
+ * Retorna as permissões efetivas do usuário RESTRITAS à entidade ativa
+ * `empresaId` — só os vínculos daquela empresa contribuem (correção pós-review
+ * PR #55, achado #1). Cache próprio, chaveado por (usuarioId, empresaId), para
+ * não colidir com a união flat nem entre entidades. NUNCA lança (fail-closed).
+ * @param {number|string} usuarioId
+ * @param {number|string|null} empresaId
+ * @returns {Promise<Set<string>>}
+ */
+async function obterPermissoesEfetivasPorEntidade(usuarioId, empresaId) {
+  // Sem entidade ativa não há escopo de tenant — nega por construção (Set vazio).
+  if (empresaId === null || empresaId === undefined) return new Set();
+  const chave = `${usuarioId}:${empresaId}`;
+  return obterComCache(chave, () => carregarPermissoesDoBanco(usuarioId, empresaId));
+}
+
+/**
  * Invalidação ativa (Decision 7) — a ser chamada por qualquer operação
  * administrativa que altere `UsuarioEntidade`/`PapelPermissao` do usuário
  * afetado, garantindo que SC-004 (≤60s) seja cumprido com folga mesmo no
- * pior caso (mudança 1ms após o cache ter sido populado).
+ * pior caso (mudança 1ms após o cache ter sido populado). Limpa TANTO a
+ * entrada de união flat quanto TODAS as entradas por-entidade daquele usuário
+ * (chaves `usuarioId:*`) — invalidação coerente entre as duas visões.
  * @param {number|string} usuarioId
  */
 function invalidarUsuario(usuarioId) {
-  cache.delete(String(usuarioId));
+  const flat = String(usuarioId);
+  cache.delete(flat);
+  const prefixo = `${flat}:`;
+  for (const chave of cache.keys()) {
+    if (chave.startsWith(prefixo)) cache.delete(chave);
+  }
 }
 
 /** Limpa o cache inteiro — uso exclusivo de testes. */
@@ -118,6 +168,7 @@ function limparCache() {
 
 module.exports = {
   obterPermissoesEfetivas,
+  obterPermissoesEfetivasPorEntidade,
   invalidarUsuario,
   limparCache,
   carregarPermissoesDoBanco,

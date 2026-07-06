@@ -64,6 +64,36 @@ function contaEstaBloqueada(usuario, agora) {
   return Boolean(usuario.bloqueado_ate) && new Date(usuario.bloqueado_ate) > agora;
 }
 
+// ── Correções pós-review PR #55 — cópias locais das novas funções puras ──────
+
+// (#6) entradaLoginValida — guard de TIPO antes de qualquer bcrypt.compare.
+function entradaLoginValida(emailBruto, senhaBruta) {
+  if (typeof emailBruto !== 'string' || typeof senhaBruta !== 'string') return false;
+  if (senhaBruta.length === 0) return false;
+  const email = normalizarEmail(emailBruto);
+  return Boolean(email) && formatoEmailValido(email);
+}
+
+// (#4) classificarCredencial — desfecho pós-bcrypt.compare no /login.
+function classificarCredencial(usuario, senhaValida) {
+  if (!usuario.ativo) return 'inativa';
+  if (!senhaValida) return 'senha_incorreta';
+  return 'sucesso';
+}
+
+// (#5) classificarSessaoRefresh — reuso vs expiração natural vs válida.
+function classificarSessaoRefresh(sessao, agora) {
+  if (sessao.revogado_em) return 'reuso';
+  if (new Date(sessao.expira_em) < agora) return 'expirada';
+  return 'valida';
+}
+
+// (#3) patchRedefinicaoSenha — espelho do PATCH de /redefinir-senha (só os
+// campos de estado de conta relevantes ao review: desbloqueio + reset).
+function patchRedefinicaoSenha() {
+  return { token_recuperacao_hash: null, token_recuperacao_expira: null, tentativas_login: 0, bloqueado_ate: null };
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // normalizarEmail / formatoEmailValido
 // ──────────────────────────────────────────────────────────────────────────────
@@ -172,5 +202,84 @@ describe('contaEstaBloqueada', () => {
     const agora = new Date('2026-07-06T12:00:00Z');
     const passado = new Date(agora.getTime() - 60 * 1000).toISOString();
     assert.equal(contaEstaBloqueada({ bloqueado_ate: passado }, agora), false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Correções pós-review PR #55
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('entradaLoginValida (#6 — senha/email não-string vira 401, nunca 500)', () => {
+  test('senha numérica é rejeitada (não chega ao bcrypt.compare)', () => {
+    assert.equal(entradaLoginValida('foo@bar.com', 12345), false);
+  });
+
+  test('email não-string é rejeitado', () => {
+    assert.equal(entradaLoginValida({ obj: 1 }, 'SenhaOk#1'), false);
+    assert.equal(entradaLoginValida(undefined, 'SenhaOk#1'), false);
+  });
+
+  test('senha string vazia é rejeitada', () => {
+    assert.equal(entradaLoginValida('foo@bar.com', ''), false);
+  });
+
+  test('email formato inválido é rejeitado mesmo com senha string', () => {
+    assert.equal(entradaLoginValida('foobar', 'SenhaOk#1'), false);
+  });
+
+  test('email + senha string válidos -> true', () => {
+    assert.equal(entradaLoginValida('  Foo@Bar.com ', 'SenhaOk#1'), true);
+  });
+});
+
+describe('classificarCredencial (#4 — conta inativa não acumula bloqueio)', () => {
+  test('conta inativa (mesmo com senha correta) -> "inativa" (sem contabilizar falha)', () => {
+    assert.equal(classificarCredencial({ ativo: false }, true), 'inativa');
+  });
+
+  test('conta inativa com senha errada -> "inativa" (também não incrementa)', () => {
+    assert.equal(classificarCredencial({ ativo: false }, false), 'inativa');
+  });
+
+  test('conta ativa + senha errada -> "senha_incorreta" (contabiliza falha, FR-017)', () => {
+    assert.equal(classificarCredencial({ ativo: true }, false), 'senha_incorreta');
+  });
+
+  test('conta ativa + senha correta -> "sucesso"', () => {
+    assert.equal(classificarCredencial({ ativo: true }, true), 'sucesso');
+  });
+});
+
+describe('classificarSessaoRefresh (#5 — expiração natural não revoga a família)', () => {
+  const agora = new Date('2026-07-06T12:00:00Z');
+
+  test('sessão revogada reapresentada -> "reuso" (revoga família toda)', () => {
+    const s = { revogado_em: '2026-07-06T11:00:00Z', expira_em: '2026-07-13T12:00:00Z' };
+    assert.equal(classificarSessaoRefresh(s, agora), 'reuso');
+  });
+
+  test('sessão ainda ativa mas expira_em no passado -> "expirada" (benigna, só este device)', () => {
+    const s = { revogado_em: null, expira_em: '2026-07-06T11:59:00Z' };
+    assert.equal(classificarSessaoRefresh(s, agora), 'expirada');
+  });
+
+  test('reuso tem precedência sobre expiração (revogada E expirada -> "reuso")', () => {
+    const s = { revogado_em: '2026-07-05T12:00:00Z', expira_em: '2026-07-06T11:00:00Z' };
+    assert.equal(classificarSessaoRefresh(s, agora), 'reuso');
+  });
+
+  test('sessão ativa e dentro da validade -> "valida"', () => {
+    const s = { revogado_em: null, expira_em: '2026-07-13T12:00:00Z' };
+    assert.equal(classificarSessaoRefresh(s, agora), 'valida');
+  });
+});
+
+describe('patchRedefinicaoSenha (#3 — redefinir senha desbloqueia a conta)', () => {
+  test('zera tentativas_login e bloqueado_ate (além de invalidar o token)', () => {
+    const p = patchRedefinicaoSenha();
+    assert.equal(p.tentativas_login, 0);
+    assert.equal(p.bloqueado_ate, null);
+    assert.equal(p.token_recuperacao_hash, null);
+    assert.equal(p.token_recuperacao_expira, null);
   });
 });
