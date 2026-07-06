@@ -174,19 +174,19 @@ Ref: `infra/hub/migrations/0006_rls_policies.sql`, FR-026/FR-027/FR-028, SC-008,
 
 Ref: briefing §Testes exigidos (Unit), plan.md §tests.
 
-- [ ] 6.1.1 `tests/hub-auth-unit.test.js` — hash/verificação, geração/validação de tokens, dummy-hash timing
-- [ ] 6.1.2 `tests/hub-rbac-unit.test.js` — requirePermission (com/sem grant, global vs entidade), cache e invalidação
-- [ ] 6.1.3 Cobrir caminhos de fail-closed e união de grants
-- [ ] 6.1.4 Rodar e capturar saída verde
+- [x] 6.1.1 `tests/hub-auth-unit.test.js` — hash/verificação, geração/validação de tokens, dummy-hash timing
+- [x] 6.1.2 `tests/hub-rbac-unit.test.js` — requirePermission (com/sem grant, global vs entidade), cache e invalidação
+- [x] 6.1.3 Cobrir caminhos de fail-closed e união de grants (hub-auditoria-unit.test.js + hub-postgrest-jwt-unit.test.js também verdes)
+- [x] 6.1.4 Rodar e capturar saída verde — 48/48 (15 auth + 19 rbac + 6 auditoria + 8 postgrest-jwt), reexecutado onda-010
 
 ### 6.2 Integração de banco (compose test) `[A]`
 
 Ref: briefing §Integração, FR-004, SC-002, critério de aceite #1.
 
-- [ ] 6.2.1 `tests/hub-rls-integration.test.js` + `tests/hub-auditoria-integration.test.js` contra `hub-test`
-- [ ] 6.2.2 Migrations em banco **vazio** E **com seeds**, rodadas **2×** (idempotência = no-op)
-- [ ] 6.2.3 GRANTs validados via query PostgREST com role `authenticated`; migração de login com hash preservado
-- [ ] 6.2.4 Rodar e capturar saída verde
+- [x] 6.2.1 `tests/hub-rls-integration.test.js` + `tests/hub-auditoria-integration.test.js` contra `hub-test` — wrappers node:test finos sobre `infra/hub/testes/hub-{rls,auditoria}-integration.sh` (decisão dec-054: evita duplicar ~200 linhas de orquestração Docker já provada; hub-auditoria-integration.sh é NOVO, fecha gap de 1.4.4 sem teste correspondente)
+- [x] 6.2.2 Migrations em banco **vazio** E **com seeds**, rodadas **2×** (idempotência = no-op) — confirmado onda-009 (0006) e reconfirmado nesta onda via migrate.sh na série completa até 0008
+- [x] 6.2.3 GRANTs validados via query PostgREST com role `authenticated`; migração de login com hash preservado — pg_catalog.has_table_privilege confirma SELECT/INSERT=true, UPDATE/DELETE=false para Auditoria
+- [x] 6.2.4 Rodar e capturar saída verde — hub-rls-integration.test.js 1/1 (invoca .sh 18/18), hub-auditoria-integration.test.js 1/1 (invoca .sh NOVO 16/16) = 34/34 asserts totais
 
 ### 6.3 E2E na homolog isolada `[A]`
 
@@ -202,10 +202,10 @@ Ref: briefing §E2E, quickstart.md Scenarios 1/3/4/5/6/7/8/9, critérios de acei
 
 Ref: briefing "hoje só 2 de 8 rodam — corrigir", critério de aceite #6 (diff limpo legados).
 
-- [ ] 6.4.1 Ajustar o script `npm test` para incluir **todos** os arquivos de teste (2→8)
-- [ ] 6.4.2 Confirmar suíte completa verde (todos os 8 arquivos executando)
-- [ ] 6.4.3 Verificar `git diff` — ZERO alteração em endpoints/handlers legados (`/login`, `/upload`, `/envio-massa`, `/validate-xml-batch`); apenas `app.use()` aditivo em server.js
-- [ ] 6.4.4 Rodar gate de segurança sobre o diff (nenhum segredo, sem hardcode)
+- [x] 6.4.1 Ajustar o script `npm test` para incluir **todos** os arquivos de teste (2→6 unit rápidos numa única invocação `node --test`, não chain `&&` — chain faria short-circuit e nunca chegar aos hub-*-unit; `test:hub:integration` cobre os 2 restantes até 8)
+- [x] 6.4.2 Confirmar suíte completa verde — 98/106 pass; 8 falhas são bug PRÉ-EXISTENTE em motorista-integration.test.js (gorjeta), CONFIRMADO idêntico no baseline pré-hub-fundacoes (commit 05ef220, worktree isolado), NÃO é regressão desta feature (dec-055). Os 4 arquivos hub unit: 48/48 verdes
+- [x] 6.4.3 Verificar `git diff` — ZERO alteração em endpoints/handlers legados — `git diff main...feat/hub-fundacoes --stat`: 42 arquivos, 5384 insertions(+), 0 deletions; server.js só com blocos `require()`+`app.use()` aditivos (dec-056)
+- [x] 6.4.4 Rodar gate de segurança sobre o diff — owasp-security aplicado: 0 findings critical/high novos; alg-pinning HS256, fail-closed em requirePermission, rate-limit+dummy-hash anti-enumeração, RLS nega-por-padrão, sem segredos hardcoded (dec-057)
 
 ---
 
