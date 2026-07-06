@@ -163,3 +163,18 @@ pendências, ponteiros (branch/PR/estado feature-00c).
   backup/restore contagens iguais, smoke 200 pelo domínio. Evidências
   regeneradas. **PR #54 mergeado pelo agente com autorização do operador
   ("se tudo certo faça o merge"). G2 = ratificação formal do operador.**
+
+---
+
+## 2026-07-06 — Gate G2 RATIFICADO pelo operador
+
+- **G2 APROVADO** (Paulo, chat da sessão S1): ambiente isolado aceito com os 7
+  critérios da §17.1 satisfeitos — 20/20 testes de isolamento com evidência
+  (`docs/plans/hub-frota/evidencias/S1/`), produção intocada (baseline
+  max_id=197771/count=196343, uptime pgadmin_db 2 semanas), up canônico por
+  ambiente, preflight com teste negativo 6/6, backup/restore executados, seeds
+  anonimizados com asserção 0-vazamentos, mocks respondendo e registrando.
+- PR #54 mergeado na main (47bfebcb) com as correções do review de 8 ângulos.
+- **S2 LIBERADA**: rodar em sessão fresca com
+  `docs/plans/hub-frota/prompts/prompt-B.md` (fundações). Handoff completo via
+  este DIARIO + evidências S1 + RUNBOOK (`infra/hub/RUNBOOK.md`).
