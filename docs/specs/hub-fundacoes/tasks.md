@@ -153,18 +153,18 @@ Ref: plan.md §hub-auditoria.js, FR-023/FR-025, contracts/auditoria.md.
 
 Ref: plan.md §hub-postgrest-jwt.js, briefing §evolução técnica, FR-026/FR-027/FR-028.
 
-- [ ] 5.1.1 `lib/hub-postgrest-jwt.js` — emitir JWT do PostgREST **por request** com claims de escopo (`empresa_ativa` + lista do grupo), mesmo `PGRST_JWT_SECRET`; NÃO editar `generatePostgrestJWT` legada (server.js:99-106)
-- [ ] 5.1.2 Alg-pinning JWT HS256 explícito na verificação (remediação owasp-security)
-- [ ] 5.1.3 Teste unit: claims corretos por request; rejeição de alg diferente de HS256
+- [x] 5.1.1 `lib/hub-postgrest-jwt.js` — emitir JWT do PostgREST **por request** com claims de escopo (`empresa_ativa` + lista do grupo), mesmo `PGRST_JWT_SECRET`; NÃO editar `generatePostgrestJWT` legada (server.js:99-106)
+- [x] 5.1.2 Alg-pinning JWT HS256 explícito na verificação (remediação owasp-security)
+- [x] 5.1.3 Teste unit: claims corretos por request; rejeição de alg diferente de HS256
 
 ### 5.2 Policies RLS nega-por-padrão `[C]`
 
 Ref: `infra/hub/migrations/0006_rls_policies.sql`, FR-026/FR-027/FR-028, SC-008, quickstart Scenario 9.
 
-- [ ] 5.2.1 `0006_rls_policies.sql` — role `authenticated`, `ENABLE ROW LEVEL SECURITY` + policies lendo o claim de entidade nos dados NOVOS da fundação (FR-027)
-- [ ] 5.2.2 Postura **nega por padrão**: sem claim de entidade presente/verificável → zero linhas (FR-028); RLS é reforço, não substitui `requirePermission` (FR-026)
-- [ ] 5.2.3 GRANTs coerentes com RLS; idempotente; registrada em `SchemaMigration`
-- [ ] 5.2.4 Teste de integração (real, sem mock — quickstart Scenario 9): token com claim da entidade A lendo dados da B → 0 linhas; lendo os da própria A → retorna (SC-008)
+- [x] 5.2.1 `0006_rls_policies.sql` — role `authenticated`, `ENABLE ROW LEVEL SECURITY` + policies lendo o claim de entidade nos dados NOVOS da fundação (FR-027)
+- [x] 5.2.2 Postura **nega por padrão**: sem claim de entidade presente/verificável → zero linhas (FR-028); RLS é reforço, não substitui `requirePermission` (FR-026)
+- [x] 5.2.3 GRANTs coerentes com RLS; idempotente; registrada em `SchemaMigration`
+- [x] 5.2.4 Teste de integração (real, sem mock — quickstart Scenario 9): token com claim da entidade A lendo dados da B → 0 linhas; lendo os da própria A → retorna (SC-008)
 
 ---
 

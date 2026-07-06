@@ -38,14 +38,24 @@ const cache = new Map();
  * @returns {Promise<Set<string>>}
  */
 async function carregarPermissoesDoBanco(usuarioId) {
+  // FASE 5 (0006_rls_policies.sql): a policy de UsuarioEntidade é escopada
+  // por `usuario_id = claim.sub` (nega-por-padrão sem escopo/empresa_ativa
+  // — cada pessoa só lê os PRÓPRIOS vínculos, research.md Decision 3/4).
+  // Sem a claim `usuarioId` aqui, RLS devolveria zero linhas mesmo para o
+  // dono legítimo do vínculo.
   const vinculos = await hubPostgrestRequest(
-    `UsuarioEntidade?usuario_id=eq.${usuarioId}&ativo=eq.true&select=papel_id`
+    `UsuarioEntidade?usuario_id=eq.${usuarioId}&ativo=eq.true&select=papel_id`,
+    'GET',
+    null,
+    { usuarioId }
   );
   if (!vinculos || vinculos.length === 0) return new Set();
 
   const papelIds = [...new Set(vinculos.map((v) => v.papel_id))];
   if (papelIds.length === 0) return new Set();
 
+  // PapelPermissao é tabela global (sem coluna de entidade) — fora da
+  // cobertura FR-027, sem RLS; nenhuma claim de escopo é necessária aqui.
   const filtroIds = papelIds.join(',');
   const linhas = await hubPostgrestRequest(
     `PapelPermissao?papel_id=in.(${filtroIds})&select=permissao:Permissao(codigo)`

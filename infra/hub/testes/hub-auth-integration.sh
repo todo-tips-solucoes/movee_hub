@@ -68,7 +68,7 @@ check() { # check <descricao> <valor-obtido> <valor-esperado>
   fi
 }
 
-echo "rodando migrate.sh (0002..0008, sem 0006 ainda — FASE 5)…"
+echo "rodando migrate.sh (0002..0008, INCLUSIVE 0006/RLS — FASE 5 já implementada)…"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1
 grep -q "0008_migracao_empresa_para_usuario.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas"; cat "$TMP/migrate.log"; exit 1; }
 

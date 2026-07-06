@@ -11,10 +11,14 @@
 // `POSTGREST_API_KEY` é um env legado, mantido por paridade de nomenclatura com
 // server.js, mas NÃO é o segredo do PostgREST do hub.
 //
-// FASE 3 (autenticação) só precisa do papel `authenticated` sem claims de
-// escopo — RLS/claims de entidade (`empresa_ativa`, `escopo`) chegam na FASE 5
-// (0006_rls_policies.sql). Por isso os parâmetros de claim são opcionais aqui:
-// nesta fase o caller chama `generateHubPostgrestJWT()` sem argumentos.
+// FASE 3 (autenticação) só precisava do papel `authenticated` sem claims de
+// escopo. A partir da FASE 5 (0006_rls_policies.sql), os callers que tocam
+// tabelas cobertas por RLS (UsuarioEntidade/ModuloEntidade/Auditoria) MUST
+// passar claims reais — ver lib/hub-rbac-cache.js, lib/hub-auditoria.js e
+// routes/hub-me.js. Os parâmetros continuam opcionais aqui (não todo caller
+// precisa de todos: UsuarioEntidade é escopado por `sub`, ModuloEntidade e
+// Auditoria por `escopo`/`empresa_ativa` — ver research.md Decision 3/4 e
+// infra/hub/migrations/0006_rls_policies.sql).
 'use strict';
 
 const jwt = require('jsonwebtoken');

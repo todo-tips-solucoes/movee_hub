@@ -50,6 +50,13 @@ function scrubDetalhes(detalhes) {
  * @param {number|string|null} [evento.recursoId]
  * @param {object} [evento.detalhes] - passa por scrubDetalhes antes de gravar
  * @param {string|null} [evento.ip]
+ * @param {object} [evento.claims] - repassado a hubPostgrestRequest (FASE 5,
+ *   0006_rls_policies.sql). A policy de INSERT em Auditoria libera linhas com
+ *   `id_empresa IS NULL` (eventos globais: login/logout/recuperação — sem
+ *   entidade ainda escolhida) incondicionalmente; quando `idEmpresa` é
+ *   informado (ex.: troca_entidade_ativa), o caller MUST passar
+ *   `claims: { usuarioId, empresaAtiva: idEmpresa, escopo: [idEmpresa] }` —
+ *   caso contrário o INSERT é negado pela policy (nega-por-padrão, FR-028).
  */
 async function registrarAuditoria(evento) {
   const {
@@ -60,6 +67,7 @@ async function registrarAuditoria(evento) {
     recursoId = null,
     detalhes = {},
     ip = null,
+    claims = {},
   } = evento || {};
 
   if (!acao || !recurso) {
@@ -76,7 +84,7 @@ async function registrarAuditoria(evento) {
       recurso_id: recursoId !== null && recursoId !== undefined ? String(recursoId) : null,
       detalhes: scrubDetalhes(detalhes),
       ip,
-    });
+    }, claims);
   } catch (e) {
     // best-effort — nunca interrompe o fluxo chamador (ver cabeçalho)
     console.error('[hub-auditoria] falha ao registrar evento (nao bloqueia o fluxo):', acao, e.message);

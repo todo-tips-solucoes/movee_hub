@@ -79,8 +79,14 @@ router.get('/', async (req, res) => {
     }
     const usuario = usuarios[0];
 
+    // FASE 5 (0006_rls_policies.sql): UsuarioEntidade é escopada por
+    // `usuario_id = claim.sub` (não por escopo/empresa_ativa) — listamos
+    // TODOS os vínculos ativos da pessoa, não só o da entidade ativa.
     const vinculos = await hubPostgrestRequest(
-      `UsuarioEntidade?usuario_id=eq.${payload.sub}&ativo=eq.true&select=empresa_id,ativo,papel:Papel(nome)`
+      `UsuarioEntidade?usuario_id=eq.${payload.sub}&ativo=eq.true&select=empresa_id,ativo,papel:Papel(nome)`,
+      'GET',
+      null,
+      { usuarioId: payload.sub }
     );
     const entidades = (vinculos || []).map((v) => ({
       empresa_id: v.empresa_id,
@@ -107,8 +113,14 @@ router.get('/', async (req, res) => {
     // concedida, mesmo que o módulo esteja ativo para a entidade).
     let modulos = [];
     if (entidadeAtiva) {
+      // FASE 5: ModuloEntidade é escopada por `empresa_id ∈ claim.escopo`
+      // (research.md Decision 3/4) — passamos empresa_ativa/escopo = a
+      // própria entidade selecionada.
       const modulosEntidade = await hubPostgrestRequest(
-        `ModuloEntidade?empresa_id=eq.${entidadeAtiva}&ativo=eq.true&select=modulo:Modulo(codigo,nome,icone,ordem,ativo)`
+        `ModuloEntidade?empresa_id=eq.${entidadeAtiva}&ativo=eq.true&select=modulo:Modulo(codigo,nome,icone,ordem,ativo)`,
+        'GET',
+        null,
+        { usuarioId: payload.sub, empresaAtiva: entidadeAtiva, escopo: [entidadeAtiva] }
       );
       const prefixosComPermissao = new Set(
         [...permissoesEfetivas].map((codigo) => codigo.split('.')[0])
@@ -154,16 +166,20 @@ router.post('/entidade', async (req, res) => {
     // FR-011: recusa quando a pessoa não tem UsuarioEntidade ATIVO para o
     // empresa_id solicitado — resolvido server-side, nunca confiando no corpo
     // da requisição além do id a validar (Princípio II).
+    // FASE 5: UsuarioEntidade é escopada por `usuario_id = claim.sub`.
     const vinculos = await hubPostgrestRequest(
-      `UsuarioEntidade?usuario_id=eq.${payload.sub}&empresa_id=eq.${empresaId}&ativo=eq.true&select=id,empresa_id`
+      `UsuarioEntidade?usuario_id=eq.${payload.sub}&empresa_id=eq.${empresaId}&ativo=eq.true&select=id,empresa_id`,
+      'GET',
+      null,
+      { usuarioId: payload.sub }
     );
     if (!vinculos || vinculos.length === 0) {
       return res.status(403).json({ erro: 'SEM_VINCULO' });
     }
 
     // Reemite o accessToken com a claim de entidade ativa atualizada — sem
-    // exigir novo login (FR-010). O JWT do PostgREST (Decision 3) passa a
-    // carregar `empresa_ativa` = este valor a partir da próxima FASE (5.1).
+    // exigir novo login (FR-010). O JWT do PostgREST (Decision 3) carrega
+    // `empresa_ativa`/`escopo` a partir desta FASE (5.1).
     const novoAccessToken = gerarAccessToken({
       sub: payload.sub,
       email: payload.email,
@@ -171,6 +187,10 @@ router.post('/entidade', async (req, res) => {
     });
     setAccessTokenCookie(res, novoAccessToken);
 
+    // A trilha de auditoria deste evento JÁ carrega id_empresa=empresaId
+    // (Auditoria é coberta por RLS na FASE 5) — o vínculo acabou de ser
+    // validado acima, então passamos a claim de escopo real para o INSERT
+    // não ser negado pela policy nega-por-padrão (FR-028).
     await registrarAuditoria({
       usuarioId: payload.sub,
       idEmpresa: empresaId,
@@ -178,6 +198,7 @@ router.post('/entidade', async (req, res) => {
       recurso: 'UsuarioEntidade',
       recursoId: vinculos[0].id,
       ip,
+      claims: { usuarioId: payload.sub, empresaAtiva: empresaId, escopo: [empresaId] },
     });
 
     return res.status(200).json({ entidade_ativa: empresaId });
@@ -222,7 +243,15 @@ auditoriaRouter.get('/', requirePermission('auditoria.consultar'), async (req, r
     filtros.push(`limit=${limit}`);
     filtros.push('select=id,id_empresa,usuario_id,acao,recurso,recurso_id,detalhes,ip,criado_em');
 
-    const eventos = await hubPostgrestRequest(`Auditoria?${filtros.join('&')}`);
+    // FASE 5: Auditoria é escopada por `id_empresa ∈ claim.escopo` (linhas
+    // com id_empresa NULL — eventos globais como login — ficam fora desta
+    // consulta, que já filtra id_empresa=eq.<entidadeAtiva> acima).
+    const eventos = await hubPostgrestRequest(
+      `Auditoria?${filtros.join('&')}`,
+      'GET',
+      null,
+      { usuarioId: payload.sub, empresaAtiva: entidadeAtiva, escopo: [entidadeAtiva] }
+    );
     return res.status(200).json({ eventos: eventos || [] });
   } catch (e) {
     console.error('[hub-me] erro em GET /auditoria:', e.message);
