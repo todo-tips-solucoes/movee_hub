@@ -1,6 +1,5 @@
-# Evidência 04 — seeds anonimizados + asserção + carga em efêmero (2026-07-06 00:53:57 UTC)
+# Evidência 04 — seeds anonimizados + asserção + carga em efêmero (final pós-review, 2026-07-06 01:34:00 UTC)
 
-## gen-seeds.py (re-execução; salt novo a cada rodada — irreversível)
 ASSERCAO 0-VAZAMENTOS:
   uuids originais na saida ......: 0 (de 789 observados)
   nomes completos originais .....: 0 (de 790 observados)
@@ -12,7 +11,6 @@ RESUMO:
   performance: 1 dia(s), 2720 linhas
   saida: infra/hub/seeds/out (gitignored)
 
-## manifest.json (sem dados pessoais)
 {
   "datasets": {
     "faturamento": {
@@ -43,32 +41,34 @@ RESUMO:
   },
   "nota": "salt HMAC descartado apos a geracao (irreversivel); arquivos gerados sao gitignored"
 }
-## modo síntese de volume (S10): --synthesize-days 6 → 7 dias
+## síntese de volume (S10): --synthesize-days 6 → 7 dias
   RESULTADO: 0 vazamentos — OK
 RESUMO:
   faturamento: 7 dia(s), 28098 linhas
   performance: 7 dia(s), 19040 linhas
   saida: /root/.claude/jobs/9eb48a85/tmp/ss (gitignored)
 
-## carga em compose efêmero hub-test-<runid> (homolog intocado)
-PREFLIGHT: ok — projeto 'hub-test-1783299242' dentro do escopo hub-*
+## carga em compose efêmero (um único \copy streamado por dataset)
+PREFLIGHT: ok — projeto 'hub-test-1783301641' dentro do escopo hub-*
 PREFLIGHT: ok — APP_ENV=test
 PREFLIGHT: ok — docker compose config válido
-PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest
-PREFLIGHT: ok — nenhuma URL de PostgREST/banco de produção no env
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
 PREFLIGHT: ok — nenhum domínio de produção
-PREFLIGHT: ok — tokens distintos dos fingerprints de produção (/var/lib/hub_secrets/prod-fingerprints.sha256)
-PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose
-PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783299242, APP_ENV=test)
-subindo banco efêmero (hub-test-1783299242, tmpfs)…
- Network hub-test-1783299242_default Creating 
- Network hub-test-1783299242_default Created 
- Container hub-test-1783299242-db-1 Creating 
- Container hub-test-1783299242-db-1 Created 
- Container hub-test-1783299242-db-1 Starting 
- Container hub-test-1783299242-db-1 Started 
- Container hub-test-1783299242-db-1 Waiting 
- Container hub-test-1783299242-db-1 Healthy 
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783301641, APP_ENV=test)
+subindo banco efêmero (hub-test-1783301641, tmpfs)…
+ Network hub-test-1783301641_default Creating 
+ Network hub-test-1783301641_default Created 
+ Container hub-test-1783301641-db-1 Creating 
+ Container hub-test-1783301641-db-1 Created 
+ Container hub-test-1783301641-db-1 Starting 
+ Container hub-test-1783301641-db-1 Started 
+ Container hub-test-1783301641-db-1 Waiting 
+ Container hub-test-1783301641-db-1 Healthy 
 carregando seeds anonimizados…
   staging_faturamento: 4014 linhas carregadas de 1 arquivo(s)
   staging_performance: 2720 linhas carregadas de 1 arquivo(s)
@@ -76,4 +76,4 @@ verificação de conteúdo (amostras NUNCA são impressas — só agregados):
 faturamento: 4014 linhas, 691 entregadores anon
 performance: 2720 linhas, 755 entregadores anon
 derrubando ambiente efêmero (down -v)…
-CARGA DE SEEDS: OK (projeto hub-test-1783299242 destruído; homolog intocado)
+CARGA DE SEEDS: OK (projeto hub-test-1783301641 destruído; homolog intocado)

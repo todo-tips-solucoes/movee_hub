@@ -22,7 +22,9 @@ APP_ENV=homologation
 HUB_DOMAIN=hub-homolog.todo-tips.com
 HUB_HTTP_PORT=8880
 HUB_HTTPS_PORT=8443
-HUB_TLS_DIR=$TMP/tls
+# caminho REAL permitido pela allowlist de binds — um caminho fora dela
+# abortaria com 14 antes de exercitar o código específico de cada caso
+HUB_TLS_DIR=/var/lib/hub_secrets/tls
 HUB_DB_NAME=hub_homolog
 HUB_DB_USER=hub_homolog
 HUB_DB_PASSWORD=dummy-pass-teste
@@ -41,7 +43,6 @@ ENVIO_ALLOWLIST=
 ENVIO_MAX_MENSAGENS=10
 EOF
 }
-mkdir -p "$TMP/tls"
 
 run_case() { # run_case <num> <descricao> <esperado> <envfile> [compose] [fp_file]
   local num="$1" desc="$2" want="$3" env="$4" compose="${5:-$COMPOSE}" fp="${6:-}"

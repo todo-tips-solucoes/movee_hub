@@ -123,6 +123,12 @@ services:
       - "--api.dashboard=false"
       - "--log.level=INFO"
       - "--accesslog=true"
+    environment:
+      # Consumidas pelo Go templating de traefik/dynamic/hub.yml (fonte única
+      # de domínio/porta — sem drift entre env e roteamento)
+      HUB_DOMAIN: "${HUB_DOMAIN:?}"
+      HUB_HTTPS_PORT: "${HUB_HTTPS_PORT}"
+      APP_ENV: "${APP_ENV}"
     ports:
       - "${HUB_HTTP_PORT}:${HUB_HTTP_PORT}"
       - "${HUB_HTTPS_PORT}:${HUB_HTTPS_PORT}"

@@ -22,21 +22,21 @@ done
 
 MIG_DIR="$(cd "$(dirname "$0")/../migrations" && pwd)"
 
-get_var() {
-  awk -F= -v k="$1" '$0 !~ /^[[:space:]]*#/ && $1 == k { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE"
-}
-DB_USER="$(get_var HUB_DB_USER)"
-DB_NAME="$(get_var HUB_DB_NAME)"
+. "$(cd "$(dirname "$0")" && pwd)/lib.sh"
+DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"
+DB_NAME="$(get_var HUB_DB_NAME "$ENV_FILE")"
 [ -n "$DB_USER" ] && [ -n "$DB_NAME" ] || { echo "HUB_DB_USER/HUB_DB_NAME ausentes no env-file" >&2; exit 2; }
 
 dc() { docker compose -f "$COMPOSE_FILE" -p "$PROJECT" --env-file "$ENV_FILE" "$@"; }
 psql_exec() { dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@"; }
 
-# Bootstrap: a 0000 cria a própria SchemaMigration (IF NOT EXISTS — reexecutável)
-applied() { # applied <nome> → 0 se já aplicada
-  psql_exec -tAc "SELECT 1 FROM pg_tables WHERE tablename='SchemaMigration'" | grep -q 1 || return 1
-  [ "$(psql_exec -tAc "SELECT count(*) FROM \"SchemaMigration\" WHERE nome='$1'")" = "1" ]
-}
+# Bootstrap: a 0000 cria a própria SchemaMigration (IF NOT EXISTS — reexecutável).
+# Lista de aplicadas carregada UMA vez (2 execs no total, não 2 por migration).
+APPLIED=""
+if psql_exec -tAc "SELECT 1 FROM pg_tables WHERE tablename='SchemaMigration'" | grep -q 1; then
+  APPLIED="$(psql_exec -tAc 'SELECT nome FROM "SchemaMigration"')"
+fi
+applied() { printf '%s\n' "$APPLIED" | grep -qx "$1"; }
 
 count=0
 for f in "$MIG_DIR"/*.sql; do

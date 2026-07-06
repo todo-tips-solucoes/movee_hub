@@ -7,29 +7,33 @@
 #
 # Uso:
 #   infra/hub/scripts/restore.sh -f <compose.yml> -p <projeto> -e <env-file> \
-#     [-d <arquivo.dump>] [--keep]
+#     [-d <arquivo.dump>]
+# Dumps NUNCA são apagados por este script.
 # =============================================================================
 set -euo pipefail
 
-COMPOSE_FILE="" PROJECT="" ENV_FILE="" DUMP="" KEEP=0
+COMPOSE_FILE="" PROJECT="" ENV_FILE="" DUMP=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -f) COMPOSE_FILE="$2"; shift 2 ;;
     -p) PROJECT="$2"; shift 2 ;;
     -e) ENV_FILE="$2"; shift 2 ;;
     -d) DUMP="$2"; shift 2 ;;
-    --keep) KEEP=1; shift ;;
-    *) echo "uso: $0 -f compose.yml -p projeto -e env-file [-d dump] [--keep]" >&2; exit 2 ;;
+    *) echo "uso: $0 -f compose.yml -p projeto -e env-file [-d dump]" >&2; exit 2 ;;
   esac
 done
 [ -n "$COMPOSE_FILE" ] && [ -n "$PROJECT" ] && [ -n "$ENV_FILE" ] || { echo "argumentos -f/-p/-e obrigatórios" >&2; exit 2; }
 
 dc() { docker compose -f "$COMPOSE_FILE" -p "$PROJECT" --env-file "$ENV_FILE" "$@"; }
 
-dc exec -T backup bash -s -- "$DUMP" "$KEEP" <<'SCRIPT'
+if ! dc ps --services 2>/dev/null | grep -qx backup; then
+  echo "ERRO: o compose '$COMPOSE_FILE' não tem o serviço 'backup' (só o homolog tem)." >&2
+  exit 3
+fi
+
+dc exec -T backup bash -s -- "$DUMP" <<'SCRIPT'
 set -euo pipefail
 DUMP="${1:-}"
-KEEP="${2:-0}"
 if [ -z "$DUMP" ]; then
   DUMP="$(ls -1t /backups/*.dump 2>/dev/null | head -1 || true)"
 fi
@@ -58,7 +62,6 @@ done
 
 if [ "$FAIL" = "0" ]; then
   dropdb -h "$PGHOST" -U "$PGUSER" "$PGDATABASE_RESTORE"
-  if [ "$KEEP" != "1" ] && [[ "$DUMP" == *"_restoretest_"* ]]; then rm -f "$DUMP"; fi
   echo "RESTORE OK: contagens iguais em todas as tabelas"
 else
   echo "RESTORE FALHOU: dump preservado em $DUMP para diagnóstico" >&2

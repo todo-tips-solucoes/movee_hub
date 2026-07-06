@@ -151,9 +151,10 @@ partir da S2, o frontend do hub assume o banner e o placeholder sai do compose.
 
 ## Mocks (§4.7)
 
-- `fastapi-mock`: cenários por header `X-Mock-Scenario`
-  (`valida` | `invalida` | `erro_negocio` | `timeout`); registra tudo em
-  `/data/fastapi-mock.jsonl` (volume `hub_homolog_mocklogs`); `GET /_log`.
+- `fastapi-mock`: cenários (`valida` | `invalida` | `erro_negocio` | `timeout`).
+  **Canal canônico = header `X-Mock-Scenario`** (S2+ deve usar só ele;
+  `?scenario=`/`mock_scenario` no body existem para curl manual). Registra tudo
+  em `/data/fastapi-mock.jsonl` (volume `hub_homolog_mocklogs`); `GET /_log`.
 - `n8n-mock`: qualquer POST é registrado (`/data/n8n-mock.jsonl`) e respondido
   com sucesso simulado — **nenhuma mensagem sai**. `GET /_log`.
 - Proteções do envio em massa já no env (§4.7 1–10): `ENVIO_DRY_RUN=true`,

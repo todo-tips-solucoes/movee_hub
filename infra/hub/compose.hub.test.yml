@@ -68,6 +68,10 @@ services:
       MOCK_PORT: "8080"
     volumes:
       - ./mocks/fastapi-mock:/app:ro
+    tmpfs:
+      # os mocks gravam evidência em /data/*.jsonl; sem isto o appendFileSync
+      # falharia (ENOENT engolido) e GET /_log voltaria vazio (review S1)
+      - /data
 
   n8n-mock:
     <<: *hub-common
@@ -80,6 +84,8 @@ services:
       MOCK_PORT: "8080"
     volumes:
       - ./mocks/n8n-mock:/app:ro
+    tmpfs:
+      - /data
 
 # Rede default do projeto (hub-test-<runid>_default) — prefixo hub- garantido
 # pelo nome do projeto; volumes não são usados (tmpfs).

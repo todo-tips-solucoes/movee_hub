@@ -19,6 +19,13 @@ while getopts "f:p:e:" opt; do
 done
 [ -n "$COMPOSE_FILE" ] && [ -n "$PROJECT" ] && [ -n "$ENV_FILE" ] || { echo "argumentos -f/-p/-e obrigatórios" >&2; exit 2; }
 
+# O serviço 'backup' existe SÓ no compose de homolog (dev/test não têm
+# caminho de backup — bancos descartáveis). Falha clara em vez de erro críptico.
+if ! docker compose -f "$COMPOSE_FILE" -p "$PROJECT" --env-file "$ENV_FILE" ps --services 2>/dev/null | grep -qx backup; then
+  echo "ERRO: o compose '$COMPOSE_FILE' não tem o serviço 'backup' (só o homolog tem)." >&2
+  exit 3
+fi
+
 STAMP="$(date -u +%Y%m%d_%H%M%S)"
 OUT="/backups/\${PGDATABASE}_manual_${STAMP}.dump"
 

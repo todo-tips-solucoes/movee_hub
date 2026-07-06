@@ -7,44 +7,44 @@ AÇÃO DO OPERADOR (antes/depois da S1, no VPSTodo):
   # e no banco de produção:
   #   SELECT max(id) FROM "EnvioMassa";
 Evidência esperada: estado/contagens idênticos.
-Suporte do agente (nenhum container hub_* monta volume de produção): ver item 2.
+(Executado sob autorização em 2026-07-06 — ver evidência 06.)
 
 ==================================================================
 ITEM 2 — Volumes de produção não montados em containers hub_*
 ------------------------------------------------------------------
 containers hub_* montando volumes/binds de produção: 0 (esperado 0)
 mounts (nomes) por container hub_*:
+  hub_homolog_traefik: /var/lib/envioMassa_homologacao/infra/hub/traefik/dynamic /var/lib/hub_secrets/tls 
   hub_homolog_backup: /var/lib/envioMassa_homologacao/infra/hub/scripts hub_homolog_backups 
   hub_homolog_postgrest: 
   hub_homolog_db: hub_homolog_pg_data 
-  hub_homolog_fastapi_mock: hub_homolog_mocklogs /var/lib/envioMassa_homologacao/infra/hub/mocks/fastapi-mock 
-  hub_homolog_traefik: /var/lib/envioMassa_homologacao/infra/hub/traefik/dynamic /var/lib/hub_secrets/tls 
+  hub_homolog_fastapi_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/fastapi-mock hub_homolog_mocklogs 
   hub_homolog_placeholder: /var/lib/envioMassa_homologacao/infra/hub/mocks/placeholder 
-  hub_homolog_n8n_mock: hub_homolog_mocklogs /var/lib/envioMassa_homologacao/infra/hub/mocks/n8n-mock 
+  hub_homolog_n8n_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/n8n-mock hub_homolog_mocklogs 
 RESULTADO: PASS
 
 ==================================================================
-ITEM 3 — Redes separadas (containers hub_* só em redes hub_*)
+ITEM 3 — Redes separadas (conjunto EXATO das redes do projeto)
 ------------------------------------------------------------------
   rede hub: hub_homolog_edge
   rede hub: hub_homolog_net
+  hub_homolog_traefik → hub_homolog_edge hub_homolog_net 
   hub_homolog_backup → hub_homolog_net 
   hub_homolog_postgrest → hub_homolog_net 
   hub_homolog_db → hub_homolog_net 
   hub_homolog_fastapi_mock → hub_homolog_net 
-  hub_homolog_traefik → hub_homolog_edge hub_homolog_net 
   hub_homolog_placeholder → hub_homolog_edge 
   hub_homolog_n8n_mock → hub_homolog_net 
-RESULTADO: PASS
+RESULTADO: PASS (só hub_homolog_net hub_homolog_edge)
 
 ==================================================================
 ITEM 4 — Containers com nomes distintos (hub_homolog_*)
 ------------------------------------------------------------------
+  hub_homolog_traefik
   hub_homolog_backup
   hub_homolog_postgrest
   hub_homolog_db
   hub_homolog_fastapi_mock
-  hub_homolog_traefik
   hub_homolog_placeholder
   hub_homolog_n8n_mock
 containers do projeto: 7; com prefixo hub_homolog_: 7
@@ -60,7 +60,7 @@ RESULTADO: PASS (hub-homolog presente; nenhum projeto envio-massa em compose)
   (stacks Swarm de produção seguem à parte: docker stack ls — leitura do operador)
 
 ==================================================================
-ITEM 6 — Credenciais diferentes (hashes; nunca valores)
+ITEM 6 — Credenciais diferentes (hashes truncados; nunca valores)
 ------------------------------------------------------------------
   sha256(JWT_SECRET do hub) = 6cd42c381113… → distinto de todos os fingerprints de produção
   sha256(JWT_REFRESH_SECRET do hub) = fd300d85649c… → distinto de todos os fingerprints de produção
@@ -74,15 +74,15 @@ RESULTADO: PASS (todos os segredos do hub distintos dos de produção)
 ITEM 7 — Portas sem conflito
 ------------------------------------------------------------------
   State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                                 
-  LISTEN 0      4096         0.0.0.0:8880       0.0.0.0:*    users:(("docker-proxy",pid=736756,fd=8))               
+  LISTEN 0      4096         0.0.0.0:8880       0.0.0.0:*    users:(("docker-proxy",pid=837771,fd=8))               
   LISTEN 0      4096         0.0.0.0:443        0.0.0.0:*    users:(("docker-proxy",pid=72201,fd=8))                
   LISTEN 0      4096         0.0.0.0:80         0.0.0.0:*    users:(("docker-proxy",pid=72173,fd=8))                
-  LISTEN 0      4096         0.0.0.0:8443       0.0.0.0:*    users:(("docker-proxy",pid=736725,fd=8))               
-  LISTEN 0      4096            [::]:8880          [::]:*    users:(("docker-proxy",pid=736763,fd=8))               
+  LISTEN 0      4096         0.0.0.0:8443       0.0.0.0:*    users:(("docker-proxy",pid=837748,fd=8))               
+  LISTEN 0      4096            [::]:8880          [::]:*    users:(("docker-proxy",pid=837777,fd=8))               
   LISTEN 0      4096            [::]:443           [::]:*    users:(("docker-proxy",pid=72211,fd=8))                
   LISTEN 0      4096            [::]:80            [::]:*    users:(("docker-proxy",pid=72180,fd=8))                
-  LISTEN 0      4096            [::]:8443          [::]:*    users:(("docker-proxy",pid=736734,fd=8))               
-  80/443 seguem no processo de produção (dockerd/ingress); 8880/8443 = docker-proxy do hub
+  LISTEN 0      4096            [::]:8443          [::]:*    users:(("docker-proxy",pid=837756,fd=8))               
+  80/443 seguem no processo de produção; 8880/8443 = docker-proxy do hub
 RESULTADO: PASS (sem colisão; host de produção inalterado)
 
 ==================================================================
@@ -91,33 +91,33 @@ ITEM 8 — Domínio diferente
   DNS: 178.156.254.243
   https://hub-homolog.todo-tips.com:8443/ → HTTP=200
   produção inalterada: https://app.moveelog.com.br/login → HTTP=200
-RESULTADO: PASS (DNS público ativo; domínio próprio do hub em portas altas)
+RESULTADO: PASS (DNS ativo E HTTP 200 pelo domínio; nota: getent também lê /etc/hosts — conferência externa final é do operador)
 
 ==================================================================
 ITEM 9 — Logs separados
 ------------------------------------------------------------------
-  hub_homolog_db  | 2026-07-06 00:46:49.696 UTC [65] LOG:  database system was shut down at 2026-07-06 00:46:49 UTC
-  hub_homolog_db  | 2026-07-06 00:46:49.700 UTC [1] LOG:  database system is ready to accept connections
   hub_homolog_placeholder  | [placeholder] listening :8080 APP_ENV=homologation
   hub_homolog_placeholder  | [placeholder] listening :8080 APP_ENV=homologation
-  hub_homolog_postgrest    | 06/Jul/2026:00:47:08 +0000: Schema cache loaded 1 Relations, 0 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 487 Timezones
-  hub_homolog_postgrest    | 06/Jul/2026:00:47:08 +0000: Schema cache loaded in 0.2 milliseconds
+  hub_homolog_backup       | [backup-daemon] iniciado: diário às 03:00 UTC, retenção 14d, db=hub_homolog
+  hub_homolog_backup       | [backup-daemon] próximo backup em 7607s (2026-07-06 03:00:00 UTC)
+  hub_homolog_postgrest    | 06/Jul/2026:01:33:27 +0000: Schema cache loaded 1 Relations, 0 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 487 Timezones
+  hub_homolog_postgrest    | 06/Jul/2026:01:33:27 +0000: Schema cache loaded in 0.3 milliseconds
+  hub_homolog_db           | 2026-07-06 00:46:49.696 UTC [65] LOG:  database system was shut down at 2026-07-06 00:46:49 UTC
+  hub_homolog_db           | 2026-07-06 00:46:49.700 UTC [1] LOG:  database system is ready to accept connections
   hub_homolog_fastapi_mock  | [fastapi-mock] listening :8080 APP_ENV=homologation
-  hub_homolog_traefik       | 172.21.0.1 - - [06/Jul/2026:01:17:45 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 19 "hub-placeholder-https@file" "http://placeholder:8080" 1ms
-  hub_homolog_traefik       | 178.156.254.243 - - [06/Jul/2026:01:18:30 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 20 "hub-placeholder-https@file" "http://placeholder:8080" 1ms
-  hub_homolog_backup        | [backup-daemon] iniciado: diário às 03:00 UTC, retenção 14d, db=hub_homolog
+  hub_homolog_traefik       | 178.156.254.243 - - [06/Jul/2026:01:32:59 +0000] "GET / HTTP/1.1" 301 17 "-" "-" 2 "hub-placeholder-http@file" "-" 0ms
+  hub_homolog_traefik       | 178.156.254.243 - - [06/Jul/2026:01:33:31 +0000] "GET / HTTP/2.0" 200 1218 "-" "-" 3 "hub-placeholder-https@file" "http://placeholder:8080" 2ms
   hub_homolog_n8n_mock      | [n8n-mock] listening :8080 APP_ENV=homologation
-  hub_homolog_backup        | [backup-daemon] próximo backup em 7607s (2026-07-06 03:00:00 UTC)
 RESULTADO: PASS se acima só aparecem serviços hub_homolog_*
 
 ==================================================================
-ITEM 10 — Arquivos separados (mounts só hub_* / repo infra-hub ro / hub_secrets)
+ITEM 10 — Arquivos separados (mounts só hub_* / binds permitidos)
 ------------------------------------------------------------------
+  hub_homolog_traefik: /var/lib/envioMassa_homologacao/infra/hub/traefik/dynamic /var/lib/hub_secrets/tls 
   hub_homolog_backup: /var/lib/envioMassa_homologacao/infra/hub/scripts hub_homolog_backups 
   hub_homolog_postgrest: 
   hub_homolog_db: hub_homolog_pg_data 
   hub_homolog_fastapi_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/fastapi-mock hub_homolog_mocklogs 
-  hub_homolog_traefik: /var/lib/envioMassa_homologacao/infra/hub/traefik/dynamic /var/lib/hub_secrets/tls 
   hub_homolog_placeholder: /var/lib/envioMassa_homologacao/infra/hub/mocks/placeholder 
   hub_homolog_n8n_mock: /var/lib/envioMassa_homologacao/infra/hub/mocks/n8n-mock hub_homolog_mocklogs 
 RESULTADO: PASS
@@ -137,8 +137,8 @@ ITEM 13 — Sessões não compartilhadas (JWT do hub inválido fora dele)
 ------------------------------------------------------------------
   token assinado com secret do hub, verificado com o MESMO secret: true
   verificado com OUTRO secret (ex.: o de produção): false
-  + JWT_SECRET do hub é novo (item 6) e cookie ficará em domínio distinto (item 8)
-RESULTADO: PASS (verificação cruzada falha por construção; hash vs produção = operador, item 6)
+  + JWT_SECRET do hub distinto de produção (item 6) e cookie em domínio distinto (item 8)
+RESULTADO: PASS (verificação cruzada falha por construção)
 
 ==================================================================
 ITEM 14 — Webhooks não apontam para produção
@@ -147,12 +147,12 @@ ITEM 14 — Webhooks não apontam para produção
     0
   matches de 'todo-tips' no env real (nomes de var apenas; exceções §4.4 = subdomínio hub + registry):
     HUB_DOMAIN=hub-homolog.todo-tips.com
-RESULTADO: PASS (0 moveelog; todo-tips só no HUB_DOMAIN=hub-homolog.todo-tips.com)
+RESULTADO: PASS (0 moveelog; todo-tips só no HUB_DOMAIN)
 
 ==================================================================
 ITEM 15 — Nenhuma mensagem real (mock n8n registra, nada sai)
 ------------------------------------------------------------------
-  resposta: {"ok":true,"mock":true,"delivered":false}  log do mock: {"ts":"2026-07-06T01:18:31.347Z","mock":"n8n","method":"POST","path":"/webhook/envio-massa","payload":{"mensagem":"evidencia item 15","destinatario":"5511988887777"},"note":"MENSAGEM NAO ENVIADA (mock) — registro para evidencia"}
+  resposta: {"ok":true,"mock":true,"delivered":false}  log do mock: {"ts":"2026-07-06T01:33:31.647Z","mock":"n8n","method":"POST","path":"/webhook/envio-massa","payload":{"mensagem":"evidencia item 15","destinatario":"5511988887777"},"note":"MENSAGEM NAO ENVIADA (mock) — registro para evidencia"}
 RESULTADO: PASS (payload registrado; delivered=false; token real ausente por construção)
 
 ==================================================================
@@ -165,7 +165,7 @@ ITEM 16 — Nenhum dado real modificado (homolog só tem SchemaMigration)
 (1 row)
 
 SchemaMigration: 2
-  seeds anonimizados existem apenas em arquivos gitignored + ambientes efêmeros (item 20 do prompt: schema funcional só S3+)
+  seeds anonimizados existem apenas em arquivos gitignored + ambientes efêmeros
 RESULTADO: PASS (+ item 1 do operador para o lado de produção)
 
 ==================================================================
@@ -178,8 +178,9 @@ ITEM 17 — Migrations só em homolog
 (2 rows)
 
 AÇÃO DO OPERADOR (em produção, somente leitura):
-  SELECT to_regclass('public."SchemaMigration"');   -- esperado: NULL (tabela nem existe)
-RESULTADO: PASS-parcial (hub tem a série; inexistência em produção = operador)
+  SELECT to_regclass('public."SchemaMigration"');   -- esperado: NULL
+RESULTADO: PASS-parcial (hub tem a série; inexistência em produção = operador —
+executado sob autorização em 2026-07-06, resultado NULL, ver evidência 06)
 
 ==================================================================
 ITEM 18 — Identificação visual do ambiente
@@ -194,22 +195,25 @@ ITEM 19 — Homolog não alcança produção (rede docker, não porta pública)
   membros hub_* nas redes de produção (esperado: nenhum):
     rede pgadmin: nenhum membro hub_*
     rede app_homologacao_default: nenhum membro hub_*
+    rede fastapi_homologacao: nenhum membro hub_*
+    rede fastapi_homologacao_nexus: nenhum membro hub_*
+    rede network_main: nenhum membro hub_*
   de DENTRO de hub_homolog_db (rede internal):
     resolve pgadmin_db: NÃO (esperado)
     conexão TCP ao IP do banco de produção (10.0.5.11:5432): FALHOU (esperado)
     saída à internet: NÃO (rede internal, esperado)
-  preflight: passou (ver evidência própria)
-RESULTADO: PASS se todas as tentativas acima falharam
+RESULTADO: PASS (nenhum membro hub_* nas pgadmin, app_homologacao_default, fastapi_homologacao, fastapi_homologacao_nexus, network_main; conexões impossíveis a partir do hub)
 
 ==================================================================
 ITEM 20 — Backup/restauração funciona
 ------------------------------------------------------------------
   ver execução de infra/hub/scripts/backup.sh + restore.sh (evidência própria):
-  total 16
-  drwxr-xr-x 2 root root 4096 Jul  6 00:54 .
+  total 20
+  drwxr-xr-x 2 root root 4096 Jul  6 01:33 .
   drwxr-xr-x 1 root root 4096 Jul  6 00:53 ..
   -rw-r--r-- 1 root root 3612 Jul  6 00:49 hub_homolog_manual_20260706_004902.dump
   -rw-r--r-- 1 root root 3612 Jul  6 00:54 hub_homolog_manual_20260706_005410.dump
+  -rw-r--r-- 1 root root 3612 Jul  6 01:33 hub_homolog_manual_20260706_013327.dump
 RESULTADO: PASS (restore com contagens iguais — comando re-executável)
 
-== FIM — itens 1, 6, 17 têm parte do OPERADOR; item 8 aguarda DNS ==
+== FIM — nenhum item automatizado falhou (FAILS=0) ==

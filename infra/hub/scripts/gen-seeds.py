@@ -232,7 +232,9 @@ def scale_counts(row, f):
 
 
 # --------------------------------------------------------------- pipeline
-def process_csv(text, spec, anon, dataset, day_shift):
+def parse_csv(text, spec, dataset):
+    """Parse ÚNICO por arquivo (as réplicas do modo síntese reusam as rows —
+    review S1: reparsear 365× custava ~2,4M parses de linha redundantes)."""
     reader = csv.DictReader(io.StringIO(text), delimiter=";")
     cols = reader.fieldnames or []
     unknown = [c for c in cols if c not in spec]
@@ -240,9 +242,12 @@ def process_csv(text, spec, anon, dataset, day_shift):
         raise SystemExit(
             "FAIL-CLOSED: colunas sem classificação em {}: {} — classifique em "
             "gen-seeds.py antes de prosseguir".format(dataset, unknown))
+    return cols, list(reader)
 
+
+def process_rows(cols, rows, spec, anon, dataset, day_shift):
     out_rows = []
-    for i, row in enumerate(reader):
+    for i, row in enumerate(rows):
         key = row.get("id_da_pessoa_entregadora", "").strip() or \
               row.get("recebedor", row.get("pessoa_entregadora", "")).strip()
         f_row = anon.factor(dataset, key or str(i), str(i), str(day_shift))
@@ -283,7 +288,7 @@ def process_csv(text, spec, anon, dataset, day_shift):
             else:
                 raise SystemExit("tipo desconhecido: " + kind)
         out_rows.append(new)
-    return cols, out_rows
+    return out_rows
 
 
 def write_csv(path, cols, rows):
@@ -294,22 +299,36 @@ def write_csv(path, cols, rows):
         w.writerows(rows)
 
 
+UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+
+
 def assert_no_leak(out_dir, anon):
-    """Asserção de não-vazamento sobre TODOS os arquivos gerados."""
-    blob_parts = []
+    """Asserção de não-vazamento sobre TODOS os arquivos gerados.
+
+    Streaming arquivo a arquivo (review S1: o blob único custaria ~1 GB de RAM
+    e minutos de scan no dataset S10 de 365 dias). Semântica: (a) UUIDs
+    extraídos por regex e intersectados com os reais; (b) nomes/origens reais
+    comparados por CÉLULA exata (nos dados-fonte, nome/origem são sempre a
+    célula inteira — uma coluna esquecida de anonimizar reapareceria idêntica);
+    (c) mapeamentos de nome cujo fake colide com QUALQUER nome real contam
+    como identidade."""
+    uuid_hits_set = set()
+    cell_values = set()
     for root, _, files in os.walk(out_dir):
         for fn in files:
             if fn.endswith(".csv"):
                 with open(os.path.join(root, fn), encoding="utf-8") as fh:
-                    blob_parts.append(fh.read())
-    blob = "\n".join(blob_parts)
-    blob_lower = blob.lower()
+                    for line in fh:
+                        uuid_hits_set.update(
+                            u.lower() for u in UUID_RE.findall(line))
+                        cell_values.update(
+                            c.strip() for c in line.rstrip("\n").split(";"))
 
-    leaks = 0
-    uuid_hits = sum(1 for u in anon.real_uuids if u in blob_lower)
-    name_hits = sum(1 for n in anon.real_names if n and n in blob)
-    origem_hits = sum(1 for o in anon.real_origens if o and o in blob)
-    ident_names = sum(1 for k, v in anon.name_map.items() if k == v)
+    uuid_hits = len(uuid_hits_set & anon.real_uuids)
+    name_hits = len(cell_values & anon.real_names)
+    origem_hits = len(cell_values & anon.real_origens)
+    ident_names = sum(1 for v in anon.name_map.values() if v in anon.real_names)
     leaks = uuid_hits + name_hits + origem_hits + ident_names
 
     print("ASSERCAO 0-VAZAMENTOS:")
@@ -359,9 +378,15 @@ def main():
                 m = re.search(r"(\d{4}-\d{2}-\d{2})", name)
                 base_day = m.group(1) if m else os.path.splitext(os.path.basename(name))[0]
                 text = zf.read(name).decode("utf-8-sig")
+                cols, raw_rows = parse_csv(text, spec, label)
                 for k in range(0, args.synthesize_days + 1):
-                    cols, rows = process_csv(text, spec, anon, label, k)
+                    rows = process_rows(cols, raw_rows, spec, anon, label, k)
                     day_out = shift_date(base_day, k) if m else "{}+{}".format(base_day, k)
+                    if day_out in files_out:
+                        raise SystemExit(
+                            "FAIL-CLOSED: dois CSVs de {} produzem o mesmo dia de "
+                            "saída '{}' ({}); a sobrescrita silenciosa perderia "
+                            "linhas".format(label, day_out, name))
                     path = os.path.join(args.out, label, day_out + ".csv")
                     write_csv(path, cols, rows)
                     files_out[day_out] = len(rows)

@@ -11,6 +11,8 @@
 # CSVs/ZIPs reais (LGPD) e seeds gerados (mesmo anonimizados ficam fora do git)
 docs/documentos_apoio/*.zip
 docs/documentos_apoio/*.xlsx
+# templates de planilha sem dados pessoais continuam visíveis/versionáveis
+!docs/documentos_apoio/modelo_*.xlsx
 infra/hub/seeds/out/
 *.dump
 

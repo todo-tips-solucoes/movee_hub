@@ -20,6 +20,17 @@ x-hub-common: &hub-common
       max-size: "5m"
       max-file: "2"
 
+x-mock-common: &mock-common
+  <<: *hub-common
+  image: node:20-alpine
+  mem_limit: 128m
+  cpus: 0.25
+  command: ["node", "/app/server.js"]
+  networks: [hub_dev]
+  environment:
+    APP_ENV: "${APP_ENV}"
+    MOCK_PORT: "8080"
+
 services:
   db:
     <<: *hub-common
@@ -62,38 +73,22 @@ services:
         condition: service_healthy
 
   fastapi-mock:
-    <<: *hub-common
-    image: node:20-alpine
+    <<: *mock-common
     container_name: hub_dev_fastapi_mock
-    mem_limit: 128m
-    cpus: 0.25
-    command: ["node", "/app/server.js"]
-    environment:
-      APP_ENV: "${APP_ENV}"
-      MOCK_PORT: "8080"
     ports:
       - "127.0.0.1:14802:8080"
     volumes:
       - ./mocks/fastapi-mock:/app:ro
       - hub_dev_mocklogs:/data
-    networks: [hub_dev]
 
   n8n-mock:
-    <<: *hub-common
-    image: node:20-alpine
+    <<: *mock-common
     container_name: hub_dev_n8n_mock
-    mem_limit: 128m
-    cpus: 0.25
-    command: ["node", "/app/server.js"]
-    environment:
-      APP_ENV: "${APP_ENV}"
-      MOCK_PORT: "8080"
     ports:
       - "127.0.0.1:14803:8080"
     volumes:
       - ./mocks/n8n-mock:/app:ro
       - hub_dev_mocklogs:/data
-    networks: [hub_dev]
 
 networks:
   hub_dev:

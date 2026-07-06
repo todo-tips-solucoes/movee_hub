@@ -1,20 +1,23 @@
-# Evidência 05 — backup pg_dump -Fc + restore com contagens iguais (2026-07-06 00:54:10 UTC)
+# Evidência 05 — backup pg_dump -Fc + restore (final pós-review, 2026-07-06 01:34:10 UTC)
 
--rw-r--r-- 1 root root 3612 Jul  6 00:54 /backups/hub_homolog_manual_20260706_005410.dump
-backup manual concluído: /backups/${PGDATABASE}_manual_20260706_005410.dump (no volume de backups do projeto hub-homolog)
+-rw-r--r-- 1 root root 3612 Jul  6 01:34 /backups/hub_homolog_manual_20260706_013410.dump
+backup manual concluído: /backups/${PGDATABASE}_manual_20260706_013410.dump (no volume de backups do projeto hub-homolog)
 
-restaurando: /backups/hub_homolog_manual_20260706_005410.dump
+restaurando: /backups/hub_homolog_manual_20260706_013410.dump
 NOTICE:  database "hub_restore" does not exist, skipping
   OK  SchemaMigration: origem=2 restore=2
 RESTORE OK: contagens iguais em todas as tabelas
 
-## daemon diário (03:00 UTC, retenção 14d):
+## guard: compose sem serviço backup falha claro (exit 3):
+ERRO: o compose 'infra/hub/compose.hub.dev.yml' não tem o serviço 'backup' (só o homolog tem).
+exit=3
+
 [backup-daemon] iniciado: diário às 03:00 UTC, retenção 14d, db=hub_homolog
 [backup-daemon] próximo backup em 7607s (2026-07-06 03:00:00 UTC)
-
-## dumps no volume hub_homolog_backups:
-total 16
-drwxr-xr-x 2 root root 4096 Jul  6 00:54 .
+total 24
+drwxr-xr-x 2 root root 4096 Jul  6 01:34 .
 drwxr-xr-x 1 root root 4096 Jul  6 00:53 ..
 -rw-r--r-- 1 root root 3612 Jul  6 00:49 hub_homolog_manual_20260706_004902.dump
 -rw-r--r-- 1 root root 3612 Jul  6 00:54 hub_homolog_manual_20260706_005410.dump
+-rw-r--r-- 1 root root 3612 Jul  6 01:33 hub_homolog_manual_20260706_013327.dump
+-rw-r--r-- 1 root root 3612 Jul  6 01:34 hub_homolog_manual_20260706_013410.dump

@@ -1,31 +1,27 @@
-# Evidência 03 — up canônico + migrations (2026-07-06 00:53:57 UTC)
+# Evidência 03 — up canônico + migrations + roteamento (final pós-review, 2026-07-06 01:33:59 UTC)
 
-$ docker compose -f infra/hub/compose.hub.homolog.yml -p hub-homolog --env-file /var/lib/hub_secrets/.env.hub.homolog ps
-hub_homolog_backup postgres:13 Up 44 seconds
-hub_homolog_db postgres:13 Up 7 minutes (healthy)
-hub_homolog_fastapi_mock node:20-alpine Up 7 minutes
-hub_homolog_n8n_mock node:20-alpine Up 7 minutes
-hub_homolog_placeholder node:20-alpine Up 5 minutes
-hub_homolog_postgrest postgrest/postgrest:v14.1 Up 6 minutes
-hub_homolog_traefik traefik:v3.5.3 Up 7 minutes
+hub_homolog_backup postgres:13 Up 40 minutes
+hub_homolog_db postgres:13 Up 47 minutes (healthy)
+hub_homolog_fastapi_mock node:20-alpine Up 47 minutes
+hub_homolog_n8n_mock node:20-alpine Up 47 minutes
+hub_homolog_placeholder node:20-alpine Up 45 minutes
+hub_homolog_postgrest postgrest/postgrest:v14.1 Up 47 minutes
+hub_homolog_traefik traefik:v3.5.3 Up About a minute
 
-$ SELECT * FROM "SchemaMigration"
  id |           nome            |          aplicado_em          
 ----+---------------------------+-------------------------------
   1 | 0000_schema_migration.sql | 2026-07-06 00:47:07.7287+00
   2 | 0001_postgrest_roles.sql  | 2026-07-06 00:47:08.279678+00
 (2 rows)
 
-
-$ \dt public.* (banco vazio além da SchemaMigration — Prompt A)
                List of relations
  Schema |      Name       | Type  |    Owner    
 --------+-----------------+-------+-------------
  public | SchemaMigration | table | hub_homolog
 (1 row)
 
-
-smoke Traefik hub:
-  https://localhost:8443/ (placeholder) -> HTTP=200
+smoke pelo domínio público (HUB_DOMAIN/HUB_HTTPS_PORT via Go templating do Traefik):
+  https://hub-homolog.todo-tips.com:8443/ -> HTTP=200
+  http://hub-homolog.todo-tips.com:8880/ -> HTTP=301 Location=https://hub-homolog.todo-tips.com:8443/
   banner: AMBIENTE DE HOMOLOGAÇÃO
-  banner: AMBIENTE DE HOMOLOGAÇÃO — HUB DE FROTA — DADOS SINTÉTICOS/ANONIMIZADOS — NÃO É PRODUÇÃO
+  banner: AMBIENTE DE HOMOLOGAÇÃO

@@ -32,5 +32,6 @@ while true; do
     rm -f "$out"
   fi
 
-  find /backups -name "${PGDATABASE}_*.dump" -mtime +"$RETENTION" -delete || true
+  # -mtime +N apaga arquivos com idade >= N+1 dias → reter RETENTION dias = +$((RETENTION-1))
+  find /backups -name "${PGDATABASE}_*.dump" -mtime +"$((RETENTION - 1))" -delete || true
 done
