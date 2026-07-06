@@ -1,0 +1,102 @@
+# =============================================================================
+# Hub de Gestão de Frota — ambiente DEV (iteração diária)
+# Plano técnico §4.5/§6 — portas altas SÓ em localhost; credenciais próprias.
+#
+# Comando canônico:
+#   docker compose -f infra/hub/compose.hub.dev.yml -p hub-dev \
+#     --env-file /var/lib/hub_secrets/.env.hub.dev up -d
+#
+# Preflight obrigatório antes do primeiro up (ver RUNBOOK.md).
+# =============================================================================
+
+x-hub-common: &hub-common
+  restart: unless-stopped
+  labels:
+    com.moveelog.env: "${APP_ENV:?APP_ENV obrigatorio}"
+    com.moveelog.project: "hub"
+  logging:
+    driver: json-file
+    options:
+      max-size: "5m"
+      max-file: "2"
+
+x-mock-common: &mock-common
+  <<: *hub-common
+  image: node:20-alpine
+  mem_limit: 128m
+  cpus: 0.25
+  command: ["node", "/app/server.js"]
+  networks: [hub_dev]
+  environment:
+    APP_ENV: "${APP_ENV}"
+    MOCK_PORT: "8080"
+
+services:
+  db:
+    <<: *hub-common
+    image: postgres:13
+    container_name: hub_dev_db
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      POSTGRES_DB: "${HUB_DB_NAME:?}"
+      POSTGRES_USER: "${HUB_DB_USER:?}"
+      POSTGRES_PASSWORD: "${HUB_DB_PASSWORD:?}"
+      APP_ENV: "${APP_ENV}"
+    volumes:
+      - hub_dev_pg_data:/var/lib/postgresql/data
+    networks: [hub_dev]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${HUB_DB_USER} -d ${HUB_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgrest:
+    <<: *hub-common
+    image: postgrest/postgrest:v14.1
+    container_name: hub_dev_postgrest
+    mem_limit: 256m
+    cpus: 0.5
+    environment:
+      PGRST_DB_URI: "postgres://${HUB_DB_USER}:${HUB_DB_PASSWORD}@db:5432/${HUB_DB_NAME}"
+      PGRST_DB_SCHEMAS: "public"
+      PGRST_DB_ANON_ROLE: "hub_web_anon"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?}"
+      PGRST_SERVER_PORT: "3000"
+      APP_ENV: "${APP_ENV}"
+    ports:
+      - "127.0.0.1:14801:3000"   # localhost apenas (§6: dev = portas altas, só localhost)
+    networks: [hub_dev]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  fastapi-mock:
+    <<: *mock-common
+    container_name: hub_dev_fastapi_mock
+    ports:
+      - "127.0.0.1:14802:8080"
+    volumes:
+      - ./mocks/fastapi-mock:/app:ro
+      - hub_dev_mocklogs:/data
+
+  n8n-mock:
+    <<: *mock-common
+    container_name: hub_dev_n8n_mock
+    ports:
+      - "127.0.0.1:14803:8080"
+    volumes:
+      - ./mocks/n8n-mock:/app:ro
+      - hub_dev_mocklogs:/data
+
+networks:
+  hub_dev:
+    name: hub_dev_net
+    driver: bridge
+
+volumes:
+  hub_dev_pg_data:
+    name: hub_dev_pg_data
+  hub_dev_mocklogs:
+    name: hub_dev_mocklogs

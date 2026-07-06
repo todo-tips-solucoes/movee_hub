@@ -1,0 +1,37 @@
+# Evidência 01 — preflight PASSANDO nos 3 ambientes (final pós-review, 2026-07-06 01:33:58 UTC)
+
+PREFLIGHT: ok — projeto 'hub-homolog' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=homologation
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (4 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — infra/hub/compose.hub.homolog.yml (projeto hub-homolog, APP_ENV=homologation)
+
+PREFLIGHT: ok — projeto 'hub-dev' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=development
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — infra/hub/compose.hub.dev.yml (projeto hub-dev, APP_ENV=development)
+
+PREFLIGHT: ok — projeto 'hub-test-demo' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — infra/hub/compose.hub.test.yml (projeto hub-test-demo, APP_ENV=test)

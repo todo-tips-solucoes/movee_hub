@@ -2,7 +2,19 @@
 .env
 .env.*
 !.env.example
+!.env.hub.dev.example
+!.env.hub.test.example
+!.env.hub.homolog.example
 *.pem
+
+# ---- Hub (S1): dados brutos e derivados jamais no git ----
+# CSVs/ZIPs reais (LGPD) e seeds gerados (mesmo anonimizados ficam fora do git)
+docs/documentos_apoio/*.zip
+docs/documentos_apoio/*.xlsx
+# templates de planilha sem dados pessoais continuam visíveis/versionáveis
+!docs/documentos_apoio/modelo_*.xlsx
+infra/hub/seeds/out/
+*.dump
 
 # ---- Dependencies ----
 node_modules/
@@ -37,3 +49,7 @@ Thumbs.db
 # ---- Fixtures sensíveis (NFS-e reais: CNPJs + assinatura digital) ----
 # Usados localmente nos testes/E2E (validacao-xml-lote); não versionar.
 docs/nota_entrego/
+
+# ---- Python ----
+__pycache__/
+*.pyc

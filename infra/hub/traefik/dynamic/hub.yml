@@ -1,0 +1,46 @@
+# Traefik do hub (2ª instância, portas altas) — provider FILE apenas.
+# Decisão de design da S1: sem docker.sock (não enxerga nem toca produção) e
+# sem Let's Encrypt (80/443 pertencem ao Traefik de produção; ACME
+# HTTP-01/TLS-ALPN inviáveis sem elas). TLS = self-signed do gen-secrets.sh.
+# Promoção futura a TLS válido: rota no Traefik de PRODUÇÃO — SÓ O OPERADOR
+# executa (ver RUNBOOK.md §"Roteamento TLS").
+#
+# Domínio e porta vêm do ENV do serviço traefik (compose passa HUB_DOMAIN e
+# HUB_HTTPS_PORT do .env) via Go templating do provider file — fonte única,
+# sem drift entre env e roteamento (review S1).
+
+http:
+  routers:
+    hub-placeholder-https:
+      rule: "Host(`{{ env "HUB_DOMAIN" }}`) || Host(`localhost`)"
+      entryPoints: ["websecurehub"]
+      service: hub-placeholder
+      tls: {}
+    hub-placeholder-http:
+      rule: "Host(`{{ env "HUB_DOMAIN" }}`) || Host(`localhost`)"
+      entryPoints: ["webhub"]
+      middlewares: ["hub-to-https"]
+      service: hub-placeholder
+
+  middlewares:
+    hub-to-https:
+      redirectScheme:
+        scheme: https
+        port: "{{ env "HUB_HTTPS_PORT" }}"
+        permanent: true
+
+  services:
+    hub-placeholder:
+      loadBalancer:
+        servers:
+          - url: "http://placeholder:8080"
+
+tls:
+  certificates:
+    - certFile: /certs/hub-homolog.crt
+      keyFile: /certs/hub-homolog.key
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/hub-homolog.crt
+        keyFile: /certs/hub-homolog.key

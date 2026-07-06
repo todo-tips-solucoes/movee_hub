@@ -1,0 +1,184 @@
+# =============================================================================
+# Hub de Gestão de Frota — ambiente HOMOLOGAÇÃO (estável)
+# Plano técnico §4.5/§4.6 — Alternativa B (mesmo host, isolamento Docker; G1 2026-07-05)
+#
+# Comando canônico (sempre explícito, nunca genérico):
+#   docker compose -f infra/hub/compose.hub.homolog.yml -p hub-homolog \
+#     --env-file /var/lib/hub_secrets/.env.hub.homolog up -d
+#
+# SEMPRE rodar antes do primeiro up:
+#   infra/hub/scripts/preflight.sh -f infra/hub/compose.hub.homolog.yml \
+#     -p hub-homolog -e /var/lib/hub_secrets/.env.hub.homolog
+#
+# Regras vinculantes (§4.2): todo serviço com caps de CPU/RAM (incidente de
+# starvation 2026-06-11); nenhuma imagem :latest; nenhum recurso compartilhado
+# com produção (redes, volumes, credenciais, portas, domínio).
+# =============================================================================
+
+x-hub-common: &hub-common
+  restart: unless-stopped
+  labels:
+    com.moveelog.env: "${APP_ENV:?APP_ENV obrigatorio}"
+    com.moveelog.project: "hub"
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-mock-common: &mock-common
+  <<: *hub-common
+  image: node:20-alpine
+  mem_limit: 128m
+  cpus: 0.25
+  networks: [hub_internal]
+  environment:
+    APP_ENV: "${APP_ENV}"
+    MOCK_PORT: "8080"
+
+services:
+  db:
+    <<: *hub-common
+    image: postgres:13
+    container_name: hub_homolog_db
+    mem_limit: 768m
+    cpus: 1.0
+    environment:
+      POSTGRES_DB: "${HUB_DB_NAME:?}"
+      POSTGRES_USER: "${HUB_DB_USER:?}"
+      POSTGRES_PASSWORD: "${HUB_DB_PASSWORD:?}"
+      APP_ENV: "${APP_ENV}"
+    volumes:
+      - hub_homolog_pg_data:/var/lib/postgresql/data
+    networks: [hub_internal]
+    # Porta NUNCA publicada: acesso só via docker compose exec (§4.6)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${HUB_DB_USER} -d ${HUB_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgrest:
+    <<: *hub-common
+    image: postgrest/postgrest:v14.1
+    container_name: hub_homolog_postgrest
+    mem_limit: 256m
+    cpus: 0.5
+    environment:
+      PGRST_DB_URI: "postgres://${HUB_DB_USER}:${HUB_DB_PASSWORD}@db:5432/${HUB_DB_NAME}"
+      PGRST_DB_SCHEMAS: "public"
+      PGRST_DB_ANON_ROLE: "hub_web_anon"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?}"
+      PGRST_SERVER_PORT: "3000"
+      APP_ENV: "${APP_ENV}"
+    networks: [hub_internal]
+    # Interno apenas — corrige o acoplamento de produção via URL pública (§4.6)
+    depends_on:
+      db:
+        condition: service_healthy
+
+  fastapi-mock:
+    <<: *mock-common
+    container_name: hub_homolog_fastapi_mock
+    command: ["node", "/app/server.js"]
+    volumes:
+      - ./mocks/fastapi-mock:/app:ro
+      - hub_homolog_mocklogs:/data
+
+  n8n-mock:
+    <<: *mock-common
+    container_name: hub_homolog_n8n_mock
+    command: ["node", "/app/server.js"]
+    volumes:
+      - ./mocks/n8n-mock:/app:ro
+      - hub_homolog_mocklogs:/data
+
+  placeholder:
+    <<: *hub-common
+    image: node:20-alpine
+    container_name: hub_homolog_placeholder
+    mem_limit: 64m
+    cpus: 0.25
+    command: ["node", "/app/server.js"]
+    environment:
+      APP_ENV: "${APP_ENV}"
+      MOCK_PORT: "8080"
+    volumes:
+      - ./mocks/placeholder:/app:ro
+    networks: [hub_edge]
+
+  traefik:
+    <<: *hub-common
+    image: traefik:v3.5.3
+    container_name: hub_homolog_traefik
+    mem_limit: 256m
+    cpus: 0.5
+    # Provider FILE apenas — sem docker.sock: o Traefik do hub não enxerga
+    # nem toca nada de produção. Rotas em ./traefik/dynamic/.
+    command:
+      - "--providers.file.directory=/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.webhub.address=:${HUB_HTTP_PORT:?}"
+      - "--entrypoints.websecurehub.address=:${HUB_HTTPS_PORT:?}"
+      - "--api.dashboard=false"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    environment:
+      # Consumidas pelo Go templating de traefik/dynamic/hub.yml (fonte única
+      # de domínio/porta — sem drift entre env e roteamento)
+      HUB_DOMAIN: "${HUB_DOMAIN:?}"
+      HUB_HTTPS_PORT: "${HUB_HTTPS_PORT}"
+      APP_ENV: "${APP_ENV}"
+    ports:
+      - "${HUB_HTTP_PORT}:${HUB_HTTP_PORT}"
+      - "${HUB_HTTPS_PORT}:${HUB_HTTPS_PORT}"
+    volumes:
+      - ./traefik/dynamic:/dynamic:ro
+      - "${HUB_TLS_DIR:?}:/certs:ro"
+    networks: [hub_edge, hub_internal]
+
+  backup:
+    <<: *hub-common
+    image: postgres:13
+    container_name: hub_homolog_backup
+    mem_limit: 256m
+    cpus: 0.25
+    command: ["bash", "/scripts/backup-daemon.sh"]
+    environment:
+      PGHOST: db
+      PGUSER: "${HUB_DB_USER}"
+      PGPASSWORD: "${HUB_DB_PASSWORD}"
+      PGDATABASE: "${HUB_DB_NAME}"
+      BACKUP_HOUR_UTC: "03"
+      BACKUP_RETENTION_DAYS: "14"
+      APP_ENV: "${APP_ENV}"
+    volumes:
+      - ./scripts:/scripts:ro
+      - hub_homolog_backups:/backups
+    tmpfs:
+      # postgres:13 declara VOLUME /var/lib/postgresql/data; sem isto o Docker
+      # criaria um volume anônimo (suja o teste de isolamento §4.11 item 10)
+      - /var/lib/postgresql/data
+    networks: [hub_internal]
+    depends_on:
+      db:
+        condition: service_healthy
+
+networks:
+  # internal: true — containers do miolo não alcançam a internet nem outras
+  # redes do host (teste de isolamento §4.11 item 19)
+  hub_internal:
+    name: hub_homolog_net
+    driver: bridge
+    internal: true
+  hub_edge:
+    name: hub_homolog_edge
+    driver: bridge
+
+volumes:
+  hub_homolog_pg_data:
+    name: hub_homolog_pg_data
+  hub_homolog_backups:
+    name: hub_homolog_backups
+  hub_homolog_mocklogs:
+    name: hub_homolog_mocklogs
