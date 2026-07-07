@@ -26,19 +26,19 @@ negócio (S4–S9), sem DDL, sem tocar o auth legado do envio em massa.
 Ref: `checklists/requirements.md` CHK010/CHK015; `plan.md` §1.3/§8;
 `docs/specs/hub-fundacoes/quickstart.md` linhas 35/52/55; `hub-auth.js` linhas ~151-160
 
-- [ ] 1.1.1 Corrigir `plan.md` §8 (exemplo de teste E2E): trocar o código de permissão
+- [x] 1.1.1 Corrigir `plan.md` §8 (exemplo de teste E2E): trocar o código de permissão
   citado `usuarios.manage` → `usuarios.gerenciar` (código real seedado pela fundação S2)
-- [ ] 1.1.2 Substituir a rota-exemplo `/usuarios` (inexistente nesta fase — módulos de
+- [x] 1.1.2 Substituir a rota-exemplo `/usuarios` (inexistente nesta fase — módulos de
   negócio são S4-S9) por um alvo real e exercitável do cenário "403 por acesso direto
   via URL sem permissão": usar `GET /api/v1/auditoria` (já protegida por
   `requirePermission('auditoria.consultar')` na S2) como alvo do teste; documentar essa
   substituição em `plan.md` §8
-- [ ] 1.1.3 Corrigir `spec.md` FR-014 e a nota "Decisões de infraestrutura": trocar
+- [x] 1.1.3 Corrigir `spec.md` FR-014 e a nota "Decisões de infraestrutura": trocar
   "5 falhas consecutivas / 15 minutos" pelo valor real do `authRateLimiter` que protege
   `/login` e `/recuperar-senha` (`max: 10` / `windowMs: 15*60*1000`, chave `ip:email` —
   evidência `hub-auth.js` linhas ~151-160); manter documentado, sem confundir, que o
   bloqueio de conta por falha de LOGIN da S2 é um mecanismo DIFERENTE e continua correto
-- [ ] 1.1.4 [teste/verificação] `grep` em `spec.md`/`plan.md` confirmando que nenhum
+- [x] 1.1.4 [teste/verificação] `grep` em `spec.md`/`plan.md` confirmando que nenhum
   outro trecho ainda cita `usuarios.manage`, `/usuarios` ou "5 falhas consecutivas"
   fora do contexto já corrigido
 
@@ -46,19 +46,25 @@ Ref: `checklists/requirements.md` CHK010/CHK015; `plan.md` §1.3/§8;
 
 Ref: `plan.md` §1.1/§1.3, `research.md` D1; achados desta onda (create-tasks)
 
-- [ ] 1.2.1 Reler `app_homologacao/backend/routes/hub-me.js`: reconfirmar shape exato de
+- [x] 1.2.1 Reler `app_homologacao/backend/routes/hub-me.js`: reconfirmar shape exato de
   `GET /me` e `POST /me/entidade` no momento de codar (o plano já verificou; esta task
-  reconfirma antes do adaptador)
-- [ ] 1.2.2 Reler `app_homologacao/backend/routes/hub-auth.js`: confirmar as 5 rotas reais
+  reconfirma antes do adaptador) — CONFIRMADO: shape bate 1:1 com `data-model.md` §1
+  (`usuario{id,email,nome}`, `entidades[]{empresa_id,papel,ativo}`, `entidade_ativa`,
+  `modulos[]{codigo,nome,icone,ordem,ativo}`, `permissoes[]`); `POST /me/entidade` confirma
+  `{empresa_id}` → `200{entidade_ativa}` / `400 EMPRESA_ID_INVALIDO` / `403 SEM_VINCULO`
+- [x] 1.2.2 Reler `app_homologacao/backend/routes/hub-auth.js`: confirmar as 5 rotas reais
   (`/login`, `/refresh`, `/logout`, `/recuperar-senha`, `/redefinir-senha`) e os parâmetros
-  de cada uma
-- [ ] 1.2.3 Confirmar a ausência de endpoint de "troca de senha autenticada" (com senha
+  de cada uma — CONFIRMADO via `grep -n router.post`: linhas 216/351/441/471/535; login
+  `{email,senha}`, recuperar-senha `{email}`, redefinir-senha `{token,nova_senha}`,
+  refresh/logout só cookies (sem body)
+- [x] 1.2.3 Confirmar a ausência de endpoint de "troca de senha autenticada" (com senha
   atual) — achado desta onda: **não existe** rota dedicada no backend. Decisão adotada: a
   tela de perfil (FR-011) reusa o fluxo já existente `POST /recuperar-senha` (para o
   e-mail da própria sessão) + `POST /redefinir-senha` (com o token recebido por e-mail),
   em vez de exigir um endpoint novo — preserva a fronteira dec-010 (sem nova lógica de
   backend). Registrar Decisão auditável (`state-decisions.sh`) antes de iniciar a Fase 4
-- [ ] 1.2.4 [teste] Smoke do proxy `app/api/[...path]/route.ts` contra `/api/v1/me`:
+  — REGISTRADO: dec-030
+- [x] 1.2.4 [teste] Smoke do proxy `app/api/[...path]/route.ts` contra `/api/v1/me`:
   confirmar o path de fato encaminhado ao backend. **Achado desta onda a investigar
   primeiro**: o proxy remove só o prefixo `/api` da URL recebida
   (`path = url.pathname.replace(/^\/api/, '')`), logo `/api/v1/me` chega a
@@ -67,32 +73,45 @@ Ref: `plan.md` §1.1/§1.3, `research.md` D1; achados desta onda (create-tasks)
   descompasso de rota. Confirmar o valor real de `BACKEND_URL` no ambiente hub-homolog e
   corrigir (env var do serviço frontend, ou ajuste do proxy) antes de prosseguir —
   **bloqueante** para toda a Fase 1 em diante caso o mismatch se confirme
+  — CONFIRMADO POR LEITURA (sem live smoke possível: `infra/hub/compose.hub.homolog.yml`
+  ainda NÃO tem serviço de frontend — só `backend`, criado na task 6.1.2): mismatch é REAL
+  em tese, mas NÃO ativo hoje. Resolução: NÃO editar `route.ts` (compartilhado com o
+  frontend_v2 legado de produção — risco de blast radius); documentado em `plan.md` §3.1 o
+  contrato correto para quando o serviço existir: `BACKEND_URL=http://backend:3000/api`
+  (hostname interno do compose + `/api`). Decisão registrada: dec-031
 
 ### 1.3 Adaptador de borda `lib/hub/me-dto.ts` + tipos de domínio `[C]`
 
 Ref: `plan.md` §2/§6, `data-model.md` §1-3
 
-- [ ] 1.3.1 Definir `MeResponseDTO`, `TrocarEntidadeReqDTO`, `TrocarEntidadeRespDTO`
-  (snake_case, espelho literal do contrato §1.1/§1.2 do plano)
-- [ ] 1.3.2 Definir tipos de domínio `HubUsuario`, `HubVinculo`, `HubModulo`, `HubMe`
+- [x] 1.3.1 Definir `MeResponseDTO`, `TrocarEntidadeReqDTO`, `TrocarEntidadeRespDTO`
+  (snake_case, espelho literal do contrato §1.1/§1.2 do plano) — `lib/hub/me-dto.ts`
+- [x] 1.3.2 Definir tipos de domínio `HubUsuario`, `HubVinculo`, `HubModulo`, `HubMe`
   (camelCase; `HubModulo` **não** propaga o campo `ativo` do DTO — decisão D2: presença
   no array já significa habilitado+visível)
-- [ ] 1.3.3 Implementar `toHubMe(dto)` e `toTrocarEntidadeReq(empresaId)`
-- [ ] 1.3.4 [teste] Teste unitário de paridade: os campos snake do `MeResponseDTO` batem
+- [x] 1.3.3 Implementar `toHubMe(dto)` e `toTrocarEntidadeReq(empresaId)`
+- [x] 1.3.4 [teste] Teste unitário de paridade: os campos snake do `MeResponseDTO` batem
   1:1 com o select real de `hub-me.js`; cobre a degradação `entidadeAtiva: null`
-  (perda de vínculo — FR-015)
+  (perda de vínculo — FR-015) — `lib/hub/me-dto.test.ts`, 8/8 verdes (vitest introduzido
+  nesta task via dec-032: frontend_v2 não tinha runner; `npx tsc --noEmit` e `npx eslint`
+  limpos)
 
 ### 1.4 `contexts/hub-auth-context.tsx` (provider novo, legado intocado) `[C]`
 
 Ref: `plan.md` §3.1, `research.md` D4
 
-- [ ] 1.4.1 Implementar o provider expondo: `usuario`, `entidades`, `entidadeAtiva`,
+- [x] 1.4.1 Implementar o provider expondo: `usuario`, `entidades`, `entidadeAtiva`,
   `modulos`, `permissoes`, `carregando`, `login()`, `logout()`,
-  `trocarEntidade(empresaId)`, `refetchMe()`
-- [ ] 1.4.2 Confirmar (leitura + `git diff` ao final da feature) que
+  `trocarEntidade(empresaId)`, `refetchMe()` — `contexts/hub-auth-context.tsx`. Achado
+  registrado (dec-033): `hub-auth.js` não emite códigos-enum (`CREDENCIAIS_INVALIDAS`/etc.),
+  só texto humano em `erro`; `HubApiError.status` (HTTP) é o discriminador real — documentado
+  no arquivo para orientar a task 4.1.2
+- [x] 1.4.2 Confirmar (leitura + `git diff` ao final da feature) que
   `contexts/auth-context.tsx` (legado do envio em massa) permanece intocado — FR-018/SC-007
-- [ ] 1.4.3 [teste] Teste smoke do provider com `/me` mockado: estado inicial,
-  `refetchMe()` atualiza `me`, `logout()` limpa o estado
+  — CONFIRMADO: `git diff --stat`/`git status --short` vazios para o arquivo
+- [x] 1.4.3 [teste] Teste smoke do provider com `/me` mockado: estado inicial,
+  `refetchMe()` atualiza `me`, `logout()` limpa o estado — `contexts/hub-auth-context.test.tsx`,
+  4/4 verdes (+ caso extra: degradação 401→deslogado sem lançar)
 
 ---
 

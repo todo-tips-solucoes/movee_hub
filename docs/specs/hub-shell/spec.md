@@ -25,7 +25,9 @@ contrato já mergeado da fundação S2 — `docs/specs/hub-fundacoes/contracts/`
   Cada item de `modulos[]` retornado por `GET /api/v1/me` traz os campos
   `{codigo, nome, icone, ordem, habilitado}`. A permissão de visualização de um
   módulo segue a convenção `<codigo>.view` dentro de `permissoes[]` (mesmo padrão
-  `modulo.acao` da fundação S2, ex.: `motoristas.view`, `usuarios.manage`). A
+  `modulo.acao` da fundação S2, ex.: `motoristas.view`, `usuarios.gerenciar` — código
+  real seedado pela fundação S2, confirmado em
+  `docs/specs/hub-fundacoes/quickstart.md` linhas 35/52/55; correção CHK010). A
   navegação (FR-001) e o `PermissionGate` usam essa convenção — sem mapa estático
   código→permissão no frontend.
 - **Q2 — Login/`GET /me` sem vínculo em nenhuma entidade** (dec-008, score 3): O
@@ -268,9 +270,16 @@ senha, sair, e então usar o fluxo de recuperação de senha para readquirir ace
 
 > **Decisões de infraestrutura**: N/A parcial — a única política de infraestrutura tocada
 > por esta fase é o limite de tentativas de recuperação de senha (FR-014), cujo valor
-> numérico já foi decidido e implementado na fundação anterior (S2, FR-017 daquela spec: 5
-> falhas consecutivas / 15 minutos por conta); esta fase não introduz scheduling, rotação de
-> chaves, refresh de token externo, mutex multi-processo ou backup novos.
+> numérico já foi decidido e implementado na fundação anterior (S2). **Correção CHK015**
+> (verificado por leitura de `app_homologacao/backend/routes/hub-auth.js` linhas ~151-160):
+> o mecanismo que de fato protege `/recuperar-senha` (e `/login`) é o `authRateLimiter`
+> — `max: 10` tentativas / `windowMs: 15 * 60 * 1000` (15 minutos), chave composta
+> `${ip}:${email normalizado}` — e não "5 falhas consecutivas / 15 minutos". Esse número
+> de 5 falhas existe, mas é um mecanismo DIFERENTE e continua correto: bloqueio de CONTA
+> por falhas consecutivas de LOGIN (S2, `BLOQUEIO_FALHAS_LIMITE = 5` /
+> `BLOQUEIO_JANELA_MS = 15 * 60 * 1000` em `hub-auth.js`) — não deve ser confundido com o
+> rate-limit de requisições (FR-014) corrigido acima; esta fase não introduz scheduling,
+> rotação de chaves, refresh de token externo, mutex multi-processo ou backup novos.
 
 ### Key Entities
 

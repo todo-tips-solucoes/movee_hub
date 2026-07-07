@@ -66,8 +66,10 @@ no PR #55). **Não supor — o que segue é o que o código realmente emite.**
 `POST /api/v1/auth/login`, `/api/v1/auth/logout`, recuperação/redefinição de senha e troca de
 senha vivem em `routes/hub-auth.js` (S2). O shell os CONSOME. Erros de login conhecidos:
 `CREDENCIAIS_INVALIDAS` / `CONTA_BLOQUEADA` / `RATE_LIMIT` (nunca "sem vínculo" — spec Q2/dec-008).
-Recuperação de senha responde igual exista ou não a conta (FR-012) e é rate-limited na S2
-(5 falhas / 15 min, FR-014). **O contrato exato de cada rota de auth deve ser reverificado por
+Recuperação de senha responde igual exista ou não a conta (FR-012) e é rate-limited na S2 pelo
+`authRateLimiter` (`max: 10` tentativas / `windowMs: 15*60*1000`, chave `ip:email` —
+`hub-auth.js` linhas ~151-160, FR-014; correção CHK015 — distinto do bloqueio de conta por
+5 falhas consecutivas de LOGIN, que é outro mecanismo e continua correto). **O contrato exato de cada rota de auth deve ser reverificado por
 leitura de `hub-auth.js` na primeira task da fase de execução** (mesma disciplina do §1.1).
 
 ## 2. Convenções de borda (feature multi-camada)
@@ -101,6 +103,23 @@ Isso confina a tradução snake↔camel a um só lugar (fonte da verdade da bord
 - **Proxy reusado**: `app/api/[...path]/route.ts` (encaminha `/api/…` → `${BACKEND_URL}…`) é
   reusado como está; o mapeamento exato do prefixo `/api/v1/*` deve ser confirmado na primeira
   task de execução (defesa: um teste de fumaça do proxy contra `/api/v1/me`).
+  **Achado confirmado por leitura de código (task 1.2.4)**: o proxy só remove o prefixo
+  literal `/api` — `path = url.pathname.replace(/^\/api/, '')` (route.ts linha 8) — logo
+  `GET /api/v1/me` chega como `${BACKEND_URL}/v1/me`. O backend do hub monta as rotas COM o
+  prefixo `/api/v1` (`server.js` linhas 2603/2610/2611: `app.use('/api/v1/auth', ...)`,
+  `app.use('/api/v1/me', ...)`, `app.use('/api/v1/auditoria', ...)`) — diferente do legado
+  envio-massa, que monta rotas na raiz (ex.: `/login`) e cujo `BACKEND_URL` de produção
+  (`app_homologacao/docker-compose.yml`: `https://envmassapihomologacao.todo-tips.com`) por
+  isso NÃO inclui o sufixo `/api`. **Não há mismatch a corrigir hoje**: o serviço de frontend
+  do hub ainda não existe em `infra/hub/compose.hub.homolog.yml` (só `backend`, criado na
+  task 6.1.2) — nada quebra nesta fase (1.3/1.4 só consomem o proxy via client-side fetch, sem
+  tocar env/compose). **Contrato fixado para quando o serviço for criado (task 6.1.2)**: o
+  `BACKEND_URL` do frontend do hub-homolog DEVE ser `http://backend:3000/api` (hostname
+  interno do compose + porta `3000`, `Dockerfile.hub`, **com** o sufixo `/api` — para que
+  `${BACKEND_URL}/v1/me` resolva a `http://backend:3000/api/v1/me`, batendo com o mount real).
+  Correção é só de configuração (env var), sem alterar `route.ts` — o proxy já funciona
+  corretamente para os dois deployments (legado e hub) quando cada um usa o `BACKEND_URL`
+  correto para o seu próprio padrão de mount.
 
 ### 3.2 Componentes
 
@@ -190,7 +209,9 @@ campo já contratado" vira **bloqueio para o operador** (dec-010).
 - **Unit**: `PermissionGate` (mostra/esconde por `<codigo>.<acao>`); mapeamento módulo→rota;
   adaptador `me-dto.ts` (paridade snake↔camel + degradação `entidade_ativa=null`).
 - **E2E (homolog isolada)**: 2 papéis distintos veem menus diferentes; pessoa sem
-  `usuarios.manage` não vê `/usuarios` e recebe 403 do backend ao forçar a URL; troca de
+  `auditoria.consultar` recebe `403` do backend ao acessar diretamente `GET /api/v1/auditoria`
+  por URL, mesmo sem o item aparecer no menu (correção CHK010 — substitui o exemplo
+  inexistente `/usuarios`/`usuarios.manage`, ver task 1.1.2); troca de
   entidade altera os dados exibidos; banner de ambiente visível; **axe ≥ 95** nas telas novas.
 
 ## 9. Gates desta onda

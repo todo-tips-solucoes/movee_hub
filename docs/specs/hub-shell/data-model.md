@@ -74,7 +74,8 @@ que por sua vez deriva de `me.modulos` (gotcha herdado do U-fix do painel).
 
 ## 6. Convenção de permissão (PermissionGate)
 
-`permissoes[]` contém strings `"<codigo>.<acao>"` (ex.: `motoristas.view`, `usuarios.manage`).
+`permissoes[]` contém strings `"<codigo>.<acao>"` (ex.: `motoristas.view`, `usuarios.gerenciar`
+— código real seedado pela fundação S2; correção CHK010, ver `spec.md` Q1).
 `PermissionGate action="motoristas.view"` renderiza os filhos só se a string estiver presente.
 Decorativo — a autorização real é do backend por-entidade (D3). Sem mapa estático
 código→permissão no frontend (spec Q1/dec-007).
