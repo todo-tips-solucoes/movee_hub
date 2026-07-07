@@ -158,14 +158,14 @@ Ref: `plan.md` Technical Context "Migrations" (gotcha conhecido do hub).
 
 Ref: `research.md` Decision 3; `plan.md` §Plano por fases item 2.
 
-- [ ] 2.1.1 Strip BOM UTF-8 inicial, split por `;`
-- [ ] 2.1.2 Parse por streaming linha-a-linha (sem carregar arquivo inteiro
+- [x] 2.1.1 Strip BOM UTF-8 inicial, split por `;`
+- [x] 2.1.2 Parse por streaming linha-a-linha (sem carregar arquivo inteiro
       em memória)
-- [ ] 2.1.3 Seleção de normalizador conforme campo `tipo` do multipart
+- [x] 2.1.3 Seleção de normalizador conforme campo `tipo` do multipart
       (`faturamento`|`performance`) — sem heurística de sniffing
-- [ ] 2.1.4 Extração segura de ZIP: exatamente 1 entrada, sem path
+- [x] 2.1.4 Extração segura de ZIP: exatamente 1 entrada, sem path
       traversal (`../`), descomprimido ≤ 100 MB
-- [ ] 2.1.5 Teste unit (`hub-import-parser.test.js`): BOM removido, ZIP com
+- [x] 2.1.5 Teste unit (`hub-import-parser.test.js`): BOM removido, ZIP com
       path traversal rejeitado, ZIP > 100 MB rejeitado, streaming não
       materializa arquivo inteiro
 
@@ -173,15 +173,15 @@ Ref: `research.md` Decision 3; `plan.md` §Plano por fases item 2.
 
 Ref: `research.md` Decision 3.
 
-- [ ] 2.2.1 Decimal vírgula→ponto (remover separador de milhar `.` ANTES de
+- [x] 2.2.1 Decimal vírgula→ponto (remover separador de milhar `.` ANTES de
       trocar `,`→`.`)
-- [ ] 2.2.2 Header `subpraca` (sem `_`); extrair zona quando sufixo "(ZONA)"
-- [ ] 2.2.3 `margem_fee_raw` sempre gravado (cru, trim); regex
+- [x] 2.2.2 Header `subpraca` (sem `_`); extrair zona quando sufixo "(ZONA)"
+- [x] 2.2.3 `margem_fee_raw` sempre gravado (cru, trim); regex
       `MIN:\s*([\d.,]+).*INTER:\s*([\d.,]+)` → `margem_fee_min`/`inter`;
       regex não casa = só `raw`, **sem erro de linha**
-- [ ] 2.2.4 `atingido`/`pct_*`/`criterio_*` — `numeric(8,2)`, vírgula→ponto,
+- [x] 2.2.4 `atingido`/`pct_*`/`criterio_*` — `numeric(8,2)`, vírgula→ponto,
       faixa 0–1000, sem interpretar negócio (D4 ratificado)
-- [ ] 2.2.5 Teste unit (`hub-import-normalizer.test.js`): `"1.234,56"` →
+- [x] 2.2.5 Teste unit (`hub-import-normalizer.test.js`): `"1.234,56"` →
       `1234.56`; `margem_fee` com e sem match de regex; `atingido` fora de
       faixa gera erro de linha
 
@@ -189,26 +189,26 @@ Ref: `research.md` Decision 3.
 
 Ref: `research.md` Decision 3; Decision 9.
 
-- [ ] 2.3.1 Decimal ponto direto (sem transformação)
-- [ ] 2.3.2 Header `sub_praca` (com `_`)
-- [ ] 2.3.3 `HH:MM:SS` → `interval` (`duracao`, `tempo_disponivel`)
-- [ ] 2.3.4 `soma_das_taxas_das_corridas_aceitas` em **centavos** (int
+- [x] 2.3.1 Decimal ponto direto (sem transformação)
+- [x] 2.3.2 Header `sub_praca` (com `_`)
+- [x] 2.3.3 `HH:MM:SS` → `interval` (`duracao`, `tempo_disponivel`)
+- [x] 2.3.4 `soma_das_taxas_das_corridas_aceitas` em **centavos** (int
       direto, sem divisão)
-- [ ] 2.3.5 `tempo_disponivel_escalado` — `numeric(6,2)`, faixa 0–150
-- [ ] 2.3.6 UUID de `id_da_pessoa_entregadora` **obrigatório** — ausência
+- [x] 2.3.5 `tempo_disponivel_escalado` — `numeric(6,2)`, faixa 0–150
+- [x] 2.3.6 UUID de `id_da_pessoa_entregadora` **obrigatório** — ausência
       gera erro de linha (diferente de faturamento)
-- [ ] 2.3.7 Teste unit: `HH:MM:SS` parseado corretamente, taxas em centavos
+- [x] 2.3.7 Teste unit: `HH:MM:SS` parseado corretamente, taxas em centavos
       sem divisão, linha sem UUID rejeitada com motivo claro
 
 ### 2.4 `hash_linha` determinístico `[C]`
 
 Ref: `research.md` Decision 6 — idempotência é o requisito central (US2).
 
-- [ ] 2.4.1 sha256 da linha normalizada (trim, uppercase em campos de
+- [x] 2.4.1 sha256 da linha normalizada (trim, uppercase em campos de
       domínio, decimal canônico)
-- [ ] 2.4.2 Teste unit: mesma linha normalizada 2× produz hash idêntico
+- [x] 2.4.2 Teste unit: mesma linha normalizada 2× produz hash idêntico
       (determinismo)
-- [ ] 2.4.3 Teste unit: linhas com whitespace/case de origem diferentes mas
+- [x] 2.4.3 Teste unit: linhas com whitespace/case de origem diferentes mas
       semanticamente iguais produzem o MESMO hash (normalização robusta —
       base da idempotência de reimportação)
 
