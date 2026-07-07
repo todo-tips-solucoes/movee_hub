@@ -32,6 +32,22 @@ const {
   ehZip,
   TIPOS_SUPORTADOS,
 } = require('../lib/hub-import-parser');
+// FASE 4 (tasks.md 4.1+) — path/sanitização extraídos para lib compartilhada
+// (reusada por lib/hub-import-processor.js sem dependência circular rota↔
+// processor; ver cabeçalho de hub-import-storage.js). Reexportados abaixo
+// com os MESMOS nomes para não quebrar tests/hub-importacoes-unit.test.js.
+const {
+  UPLOADS_DIR,
+  extensaoDe,
+  sanitizarNomeArquivo,
+  caminhoArmazenamento,
+} = require('../lib/hub-import-storage');
+// FASE 4 — dispara o processamento (máquina de estados + lotes) logo após
+// criar o registro `pending` e persistir o arquivo (research.md Decision 10:
+// "processamento síncrono em chunks... ou disparado logo após criar o
+// registro"). Fire-and-forget: a resposta 201 já está decidida pelo
+// contrato: cliente acompanha via GET /importacoes/:id (polling, FASE 5).
+const { processarImportacao } = require('../lib/hub-import-processor');
 
 const router = express.Router();
 
@@ -58,13 +74,6 @@ const MIME_ZIP_PERMITIDOS = new Set([
   'application/octet-stream',
 ]);
 
-// Volume privado (compose.hub.*.yml monta um named volume no ambiente real;
-// em dev/test sem volume dedicado, cai no filesystem efêmero do container —
-// aceitável, pois hub-test-* é descartado ao fim de cada corrida). NUNCA
-// dentro de um path servido estaticamente / alcançável por git ou log.
-const UPLOADS_DIR = process.env.HUB_UPLOADS_DIR
-  || path.join(__dirname, '..', 'uploads', 'importacoes');
-
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
@@ -82,25 +91,6 @@ function decodificarAccessToken(accessToken) {
   } catch (_e) {
     return null;
   }
-}
-
-/** Extensão em minúsculas (com ponto), ou '' se ausente. */
-function extensaoDe(nomeArquivo) {
-  return path.extname(nomeArquivo || '').toLowerCase();
-}
-
-/** Sanitiza o nome original para armazenamento/exibição — mantém só o
- * basename e caracteres seguros (letras/números/._-), demais viram `_`.
- * Nunca usado como parte de um path de escrita (o path real usa o `id`
- * numérico do registro — ver `caminhoArmazenamento`). */
-function sanitizarNomeArquivo(nomeOriginal) {
-  const base = path.basename(String(nomeOriginal || 'arquivo'));
-  const seguro = base.replace(/[^A-Za-z0-9._-]/g, '_');
-  return seguro.slice(0, 255) || 'arquivo';
-}
-
-function caminhoArmazenamento(importacaoId, extensao) {
-  return path.join(UPLOADS_DIR, String(importacaoId), `original${extensao}`);
 }
 
 /** Wrapper de multer.single('file') que traduz erros do multer (fileSize/
@@ -297,6 +287,22 @@ router.post('/', requirePermission('importacoes.criar'), uploadSingle, async (re
       detalhes: { tipo, nomeArquivo: nomeArquivoSanitizado, tamanhoBytes: req.file.buffer.length },
       ip,
       claims: claimsEntidade,
+    });
+
+    // FASE 4 (tasks.md 4.1-4.6) — dispara o processamento (máquina de
+    // estados pending->validating->processing->completed*/failed/
+    // cancelled). Fire-and-forget deliberado: o contrato (201) já define o
+    // efeito como "processamento inicia (ou aguarda lock)"; o processor
+    // trata TODAS as falhas de negócio internamente (marca failed/
+    // cancelled). Um erro aqui só pode ser bug do próprio processor — nunca
+    // deve derrubar a resposta HTTP já decidida.
+    processarImportacao({
+      importacaoId,
+      idEmpresa: entidadeAtiva,
+      tipo,
+      claims: claimsEntidade,
+    }).catch((errProcessor) => {
+      console.error('[hub-importacoes] falha inesperada no processamento assíncrono:', errProcessor.message);
     });
 
     return res.status(201).json({ id: importacaoId, status: 'pending' });

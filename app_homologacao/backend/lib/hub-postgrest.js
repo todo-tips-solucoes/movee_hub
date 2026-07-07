@@ -21,19 +21,33 @@ const { generateHubPostgrestJWT } = require('./hub-postgrest-jwt');
  * @param {string} [method]
  * @param {object|null} [body]
  * @param {object} [claims] - repassado a generateHubPostgrestJWT (FASE 5)
+ * @param {object} [opts] - FASE 4 (hub-importacoes) — extensão ADITIVA,
+ *   100% opcional, sem quebrar nenhum caller existente (padrão `{}`):
+ *   @param {string} [opts.resolution] - vira `Prefer: resolution=<...>`
+ *     (`merge-duplicates` para upsert de `Entregador` — research.md
+ *     Decision 9; `ignore-duplicates` para `ON CONFLICT ... DO NOTHING` no
+ *     bulk insert de fatos — Decision 6). Combina-se com `on_conflict=...`
+ *     na query string do `endpoint` (convenção do próprio PostgREST).
+ *   @param {boolean} [opts.returnMinimal] - troca `return=representation`
+ *     por `return=minimal` (corpo de resposta vazio) quando o caller não
+ *     precisa das linhas afetadas de volta.
  * @returns {Promise<any>} corpo JSON parseado (ou null em 204/corpo vazio)
  */
-async function hubPostgrestRequest(endpoint, method = 'GET', body = null, claims = {}) {
+async function hubPostgrestRequest(endpoint, method = 'GET', body = null, claims = {}, opts = {}) {
   const baseUrl = process.env.POSTGREST_URL;
   if (!baseUrl) {
     throw new Error('POSTGREST_URL ausente no ambiente do hub.');
   }
 
   const token = generateHubPostgrestJWT(claims);
+  const preferencias = [opts && opts.returnMinimal ? 'return=minimal' : 'return=representation'];
+  if (opts && opts.resolution) {
+    preferencias.push(`resolution=${opts.resolution}`);
+  }
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
-    Prefer: 'return=representation',
+    Prefer: preferencias.join(','),
     'Cache-Control': 'no-cache',
   };
 
