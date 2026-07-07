@@ -31,7 +31,18 @@ const { generateHubPostgrestJWT } = require('./hub-postgrest-jwt');
  *   @param {boolean} [opts.returnMinimal] - troca `return=representation`
  *     por `return=minimal` (corpo de resposta vazio) quando o caller não
  *     precisa das linhas afetadas de volta.
- * @returns {Promise<any>} corpo JSON parseado (ou null em 204/corpo vazio)
+ *   FASE 5 (hub-importacoes, tasks.md 5.1.1 — paginação Range PostgREST):
+ *   @param {boolean} [opts.count] - quando `true`, adiciona
+ *     `Prefer: count=exact` E MUDA O RETORNO da função para
+ *     `{ data, total }` (`total` extraído do header `Content-Range`
+ *     `<from>-<to>/<total>`). Aditivo: callers que NUNCA passam `opts.count`
+ *     continuam recebendo só o corpo, como antes (nenhum caller existente
+ *     quebra — grep confirma nenhum uso prévio de `opts.count`).
+ *   @param {{from:number,to:number}} [opts.range] - vira os headers
+ *     `Range-Unit: items` + `Range: <from>-<to>` (paginação PostgREST nativa,
+ *     0-indexed, inclusive em ambas as pontas).
+ * @returns {Promise<any>} corpo JSON parseado (ou null em 204/corpo vazio);
+ *   `{ data, total }` quando `opts.count` é `true`.
  */
 async function hubPostgrestRequest(endpoint, method = 'GET', body = null, claims = {}, opts = {}) {
   const baseUrl = process.env.POSTGREST_URL;
@@ -44,12 +55,19 @@ async function hubPostgrestRequest(endpoint, method = 'GET', body = null, claims
   if (opts && opts.resolution) {
     preferencias.push(`resolution=${opts.resolution}`);
   }
+  if (opts && opts.count) {
+    preferencias.push('count=exact');
+  }
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
     Prefer: preferencias.join(','),
     'Cache-Control': 'no-cache',
   };
+  if (opts && opts.range) {
+    headers['Range-Unit'] = 'items';
+    headers.Range = `${opts.range.from}-${opts.range.to}`;
+  }
 
   const response = await fetch(`${baseUrl}/${endpoint}`, {
     method,
@@ -65,11 +83,25 @@ async function hubPostgrestRequest(endpoint, method = 'GET', body = null, claims
     throw err;
   }
 
-  if (response.status === 204) return null;
+  const contentRange = response.headers.get('content-range');
+  const status = response.status;
 
-  const text = await response.text();
-  if (!text) return null;
-  return JSON.parse(text);
+  let data = null;
+  if (status !== 204) {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : null;
+  }
+
+  if (opts && opts.count) {
+    let total = 0;
+    if (contentRange) {
+      const m = contentRange.match(/\/(\d+|\*)$/);
+      if (m && m[1] !== '*') total = parseInt(m[1], 10);
+    }
+    return { data, total };
+  }
+
+  return data;
 }
 
 module.exports = { hubPostgrestRequest };

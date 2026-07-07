@@ -48,6 +48,16 @@ const {
 // registro"). Fire-and-forget: a resposta 201 já está decidida pelo
 // contrato: cliente acompanha via GET /importacoes/:id (polling, FASE 5).
 const { processarImportacao } = require('../lib/hub-import-processor');
+// FASE 5 (tasks.md 5.1-5.8) — helpers puros de paginação/mapeamento/CSV
+// injection, testáveis isoladamente (tests/hub-importacoes-dto.test.js).
+const {
+  parsePaginacao,
+  parseJanelaPadrao,
+  mapImportacaoListItem,
+  mapImportacaoDetalhe,
+  mapErroItem,
+  gerarCsvErros,
+} = require('../lib/hub-importacoes-dto');
 
 const router = express.Router();
 
@@ -136,6 +146,40 @@ async function validarConteudo(buffer, nomeArquivo) {
     throw new HubImportParseError('Nenhuma linha decodificável no conteúdo', 'conteudo_vazio');
   }
   return conteudo;
+}
+
+/**
+ * FASE 5 (5.8) — resolve payload+entidadeAtiva+claims do accessToken e
+ * confirma que a ENTIDADE ATIVA concede `permissao` (não só a união flat já
+ * barrada pelo `requirePermission` de nível de rota — correção pós-review
+ * PR #55 achado #1, mesmo padrão de POST / acima e `GET /auditoria` em
+ * routes/hub-me.js: alguém com o grant só na empresa B não pode agir "como"
+ * a empresa A ativa). Envia a resposta de erro e retorna `null` em caso de
+ * falha (401/400/403); retorna o contexto em caso de sucesso.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {string} permissao - ex.: `importacoes.consultar`
+ * @returns {Promise<{payload:object, entidadeAtiva:number, claims:object}|null>}
+ */
+async function resolverContextoEntidade(req, res, permissao) {
+  const accessToken = req.cookies && req.cookies.accessToken;
+  const payload = decodificarAccessToken(accessToken);
+  if (!payload || !payload.sub) {
+    res.status(401).json({ erro: 'NAO_AUTENTICADO' });
+    return null;
+  }
+  const entidadeAtiva = payload.entidade_ativa ? Number(payload.entidade_ativa) : null;
+  if (!entidadeAtiva) {
+    res.status(400).json({ erro: 'ENTIDADE_NAO_SELECIONADA' });
+    return null;
+  }
+  const permsEntidade = await obterPermissoesEfetivasPorEntidade(payload.sub, entidadeAtiva);
+  if (!permsEntidade.has(permissao)) {
+    res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+    return null;
+  }
+  const claims = { usuarioId: payload.sub, empresaAtiva: entidadeAtiva, escopo: [entidadeAtiva] };
+  return { payload, entidadeAtiva, claims };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -312,6 +356,351 @@ router.post('/', requirePermission('importacoes.criar'), uploadSingle, async (re
   }
 });
 
+// ────────────────────────────────────────────────────────────────────────────
+// GET /importacoes — histórico paginado (task 5.1)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/', requirePermission('importacoes.consultar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'importacoes.consultar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const { tipo, status, responsavel } = req.query;
+    const { de, ate } = parseJanelaPadrao(req.query);
+    const { page, pageSize, from, to } = parsePaginacao(req.query);
+
+    const filtros = [`id_empresa=eq.${entidadeAtiva}`];
+    if (tipo) filtros.push(`tipo=eq.${encodeURIComponent(tipo)}`);
+    if (status) filtros.push(`status=eq.${encodeURIComponent(status)}`);
+    if (responsavel) filtros.push(`criado_por=eq.${encodeURIComponent(responsavel)}`);
+    if (de) filtros.push(`criado_em=gte.${encodeURIComponent(de)}`);
+    if (ate) filtros.push(`criado_em=lte.${encodeURIComponent(ate)}`);
+    filtros.push('order=criado_em.desc');
+    filtros.push(
+      'select=id,tipo,status,nome_arquivo,total_linhas,linhas_validas,linhas_invalidas,'
+      + 'data_referencia,criado_por,iniciado_em,concluido_em'
+    );
+
+    const { data: linhas, total } = await hubPostgrestRequest(
+      `ImportacaoArquivo?${filtros.join('&')}`,
+      'GET', null, claims,
+      { count: true, range: { from, to } }
+    );
+    const itens = linhas || [];
+
+    // aguardandoLock (dec-032/CHK013) — derivado: existe alguma importação
+    // ATIVA (validating/processing) do MESMO (id_empresa,tipo)? Só consulta
+    // se houver algum item `pending` na página (evita query extra à toa).
+    const tiposPendentes = [...new Set(itens.filter((r) => r.status === 'pending').map((r) => r.tipo))];
+    let tiposAtivos = new Set();
+    if (tiposPendentes.length > 0) {
+      const ativos = await hubPostgrestRequest(
+        `ImportacaoArquivo?id_empresa=eq.${entidadeAtiva}&tipo=in.(${tiposPendentes.join(',')})`
+        + '&status=in.(validating,processing)&select=tipo',
+        'GET', null, claims
+      );
+      tiposAtivos = new Set((ativos || []).map((r) => r.tipo));
+    }
+
+    return res.status(200).json({
+      items: itens.map((row) => mapImportacaoListItem(row, tiposAtivos)),
+      total,
+      page,
+      pageSize,
+    });
+  } catch (e) {
+    console.error('[hub-importacoes] erro em GET /importacoes:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /importacoes/:id — detalhe + progresso, polling (task 5.2)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/:id', requirePermission('importacoes.consultar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'importacoes.consultar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    // 5.2.2 — 404 se fora do escopo do token: filtro explícito por
+    // id_empresa (defesa em profundidade — RLS já nega a linha via escopo).
+    const linhas = await hubPostgrestRequest(
+      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+      + '&select=id,tipo,status,total_linhas,linhas_validas,linhas_invalidas,'
+      + 'data_referencia,iniciado_em,concluido_em,erro_resumo',
+      'GET', null, claims
+    );
+    if (!linhas || linhas.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    return res.status(200).json(mapImportacaoDetalhe(linhas[0]));
+  } catch (e) {
+    console.error('[hub-importacoes] erro em GET /importacoes/:id:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /importacoes/:id/erros — erros paginados (+ ?format=csv) (task 5.3)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/:id/erros', requirePermission('importacoes.consultar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'importacoes.consultar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    // Confirma existência + escopo ANTES de listar erros — código correto é
+    // 404 (não lista vazia silenciosa) para um id de outro tenant.
+    const cabecalho = await hubPostgrestRequest(
+      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+      'GET', null, claims
+    );
+    if (!cabecalho || cabecalho.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    const querySelect = 'importacao_id=eq.' + id
+      + `&id_empresa=eq.${entidadeAtiva}&order=numero_linha.asc`
+      + '&select=numero_linha,campo,motivo,valor_mascarado';
+
+    // 5.3.2 — format=csv: relatório completo (sem paginação), mesmo padrão
+    // de um export/download. valorMascarado já é mascarado pelo processor
+    // (LGPD, 4.5); a proteção de CSV injection (5.3.2/5.3.3) é aplicada por
+    // `gerarCsvErros` em CIMA do valor mascarado (defesa em profundidade —
+    // `mascararValor` preserva o 1º/último char, então ainda pode começar
+    // com `=`/`+`/`-`/`@`).
+    if (req.query.format === 'csv') {
+      const todos = await hubPostgrestRequest(`ImportacaoLinhaErro?${querySelect}`, 'GET', null, claims);
+      const csv = gerarCsvErros((todos || []).map(mapErroItem));
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="importacao-${id}-erros.csv"`);
+      return res.status(200).send(csv);
+    }
+
+    const { page, pageSize, from, to } = parsePaginacao(req.query);
+    const { data: linhas, total } = await hubPostgrestRequest(
+      `ImportacaoLinhaErro?${querySelect}`,
+      'GET', null, claims,
+      { count: true, range: { from, to } }
+    );
+    return res.status(200).json({ items: (linhas || []).map(mapErroItem), total, page, pageSize });
+  } catch (e) {
+    console.error('[hub-importacoes] erro em GET /importacoes/:id/erros:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /importacoes/:id/original — download do arquivo original (task 5.4)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/:id/original', requirePermission('importacoes.exportar'), async (req, res) => {
+  try {
+    // 5.4.2 — permissão DISTINTA de `consultar`: papel só-leitura (sem
+    // `exportar`) recebe 403 já no `requirePermission` de nível de rota
+    // acima; a checagem por-entidade abaixo cobre o caso de grant só em
+    // OUTRA empresa (achado #1).
+    const ctx = await resolverContextoEntidade(req, res, 'importacoes.exportar');
+    if (!ctx) return;
+    const { payload, entidadeAtiva, claims } = ctx;
+
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    const linhas = await hubPostgrestRequest(
+      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,nome_arquivo`,
+      'GET', null, claims
+    );
+    if (!linhas || linhas.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    const nomeArquivo = linhas[0].nome_arquivo || '';
+    const extensao = extensaoDe(nomeArquivo);
+    const caminho = caminhoArmazenamento(id, extensao);
+
+    let buffer;
+    try {
+      buffer = await fs.readFile(caminho);
+    } catch (errLeitura) {
+      // 5.4.3 — CHK021 (resolvido): código de erro EXPLÍCITO (410, não 500
+      // genérico) quando o arquivo físico originalmente retido não está mais
+      // disponível. Ver atualização de contracts/importacoes-api.md.
+      if (errLeitura.code === 'ENOENT') {
+        return res.status(410).json({
+          erro: 'ARQUIVO_INDISPONIVEL',
+          motivo: 'arquivo_original_nao_encontrado_no_armazenamento',
+        });
+      }
+      throw errLeitura;
+    }
+
+    // 5.7.3 — Auditoria só no download BEM-SUCEDIDO (200); best-effort, mas
+    // aguardado (evita perder o registro se o processo encerrar logo após o
+    // send da resposta).
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: payload.sub,
+      acao: 'importacao.original_baixado',
+      recurso: 'ImportacaoArquivo',
+      recursoId: id,
+      detalhes: { nomeArquivo },
+      ip: req.ip,
+      claims,
+    });
+
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo || `original${extensao}`}"`);
+    return res.status(200).send(buffer);
+  } catch (e) {
+    console.error('[hub-importacoes] erro em GET /importacoes/:id/original:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /importacoes/:id/reprocessar (task 5.5)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/:id/reprocessar', requirePermission('importacoes.criar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'importacoes.criar');
+    if (!ctx) return;
+    const { payload, entidadeAtiva, claims } = ctx;
+
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    // 5.5.1/5.5.2 — reset atômico GUARDADO por status (mesmo espírito do
+    // mutex de 4.2: um UPDATE condicional via PostgREST; `status=in.(...)`
+    // só casa se AINDA está failed/cancelled — corrida entre 2 cliques
+    // resolve para exatamente 1 vencedor). Reusa o MESMO
+    // `ImportacaoArquivo.id` (dec-010/research.md Decision 6 — criar novo
+    // colidiria com UNIQUE(id_empresa,tipo,hash_sha256)).
+    const patched = await hubPostgrestRequest(
+      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&status=in.(failed,cancelled)`,
+      'PATCH',
+      {
+        status: 'pending',
+        total_linhas: null,
+        linhas_validas: null,
+        linhas_invalidas: null,
+        erro_resumo: null,
+        iniciado_em: null,
+        concluido_em: null,
+        data_referencia: null,
+      },
+      claims
+    );
+
+    if (!patched || patched.length === 0) {
+      const existe = await hubPostgrestRequest(
+        `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+        'GET', null, claims
+      );
+      if (!existe || existe.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+      // 5.5.1 — existe, mas não estava em failed/cancelled (ex.: completed*
+      // -> "correção entra como arquivo novo", contrato).
+      return res.status(409).json({ error: 'CONFLITO' });
+    }
+
+    const { tipo } = patched[0];
+
+    // 5.5.2 — limpa os erros da tentativa anterior (migration 0017 — GRANT
+    // DELETE escopado, dec-045). Best-effort NÃO se aplica aqui: se a
+    // limpeza falhar, o reprocessamento seguiria com erros obsoletos
+    // misturados aos novos — propaga o erro (500) em vez de mascarar.
+    await hubPostgrestRequest(
+      `ImportacaoLinhaErro?importacao_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`,
+      'DELETE', null, claims, { returnMinimal: true }
+    );
+
+    // 5.7.1
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: payload.sub,
+      acao: 'importacao.reprocessada',
+      recurso: 'ImportacaoArquivo',
+      recursoId: id,
+      detalhes: { tipo },
+      ip: req.ip,
+      claims,
+    });
+
+    // Fire-and-forget — mesmo padrão de POST / (contrato já define o efeito
+    // como "processamento inicia"; falhas de negócio são tratadas
+    // internamente pelo processor, marcando failed/cancelled de novo).
+    processarImportacao({ importacaoId: id, idEmpresa: entidadeAtiva, tipo, claims }).catch((errProcessor) => {
+      console.error('[hub-importacoes] falha inesperada no reprocessamento assíncrono:', errProcessor.message);
+    });
+
+    return res.status(202).json({ id, status: 'pending' });
+  } catch (e) {
+    console.error('[hub-importacoes] erro em POST /importacoes/:id/reprocessar:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /importacoes/:id/cancelar (task 5.6)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/:id/cancelar', requirePermission('importacoes.criar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'importacoes.criar');
+    if (!ctx) return;
+    const { payload, entidadeAtiva, claims } = ctx;
+
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    // 5.6.1/CHK023 — MESMO mecanismo de detecção já testado em 4.6: um
+    // UPDATE atômico guardado por status. Se `status ∈
+    // {pending,validating,processing}`, vira `cancelled` aqui mesmo; se já
+    // estava `validating`/`processing`, o loop do processor (foiCancelado,
+    // entre lotes) vai notar essa mudança e finalizar com os contadores
+    // corretos (marcarCancelled) — sem conflito, o UPDATE dele é
+    // incondicional por id e roda DEPOIS.
+    const patched = await hubPostgrestRequest(
+      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&status=in.(pending,validating,processing)`,
+      'PATCH',
+      { status: 'cancelled', concluido_em: new Date().toISOString() },
+      claims
+    );
+
+    if (!patched || patched.length === 0) {
+      const existe = await hubPostgrestRequest(
+        `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+        'GET', null, claims
+      );
+      if (!existe || existe.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+      return res.status(409).json({ error: 'CONFLITO' });
+    }
+
+    // 5.7.2
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: payload.sub,
+      acao: 'importacao.cancelada',
+      recurso: 'ImportacaoArquivo',
+      recursoId: id,
+      detalhes: {},
+      ip: req.ip,
+      claims,
+    });
+
+    return res.status(202).json({ id, status: 'cancelled' });
+  } catch (e) {
+    console.error('[hub-importacoes] erro em POST /importacoes/:id/cancelar:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
 module.exports = {
   router,
   // exportados para testes unitários
@@ -319,5 +708,6 @@ module.exports = {
   sanitizarNomeArquivo,
   caminhoArmazenamento,
   validarConteudo,
+  resolverContextoEntidade,
   UPLOADS_DIR,
 };

@@ -42,7 +42,14 @@ Registra `Auditoria(acao='importacao.criada')`.
 (paginação obrigatória via Range PostgREST; default últimos 30 dias).
 **Response** `200`: `{ items: [{ id, tipo, status, nomeArquivo, totalLinhas,
 linhasValidas, linhasInvalidas, dataReferencia, criadoPor, iniciadoEm, concluidoEm,
-duracaoSegundos }], total, page, pageSize }`.
+duracaoSegundos, aguardandoLock }], total, page, pageSize }`.
+
+`aguardandoLock` (task 5.1, dec-032/CHK013) é campo **derivado** (não existe
+coluna própria): `true` somente quando `status === "pending"` **e** já existe
+outra importação do MESMO `(id_empresa, tipo)` em `validating`/`processing` —
+distingue no histórico um `pending` "prestes a começar" (acabou de ser
+criado, ainda não tentou o lock) de um `pending` "esperando o lock liberar"
+(resolução de FR-019/CHK013, sem introduzir um estado novo na máquina).
 
 ---
 
@@ -71,6 +78,15 @@ em células iniciadas por `= + - @`). `valorMascarado` nunca expõe dado bruto (
 **Permissão**: `importacoes.exportar` (**distinta de `consultar`** — US4 cenário 5).
 **Response** `200`: stream do arquivo original (`Content-Disposition: attachment`).
 `403 PERMISSAO_NEGADA` se o usuário tem `consultar` mas não `exportar`.
+`404 NAO_ENCONTRADO` se o `id` não existe ou está fora do escopo do token.
+
+**`410` `{ erro: "ARQUIVO_INDISPONIVEL", motivo: "arquivo_original_nao_encontrado_no_armazenamento" }`**
+— resolve CHK021 (gap): o registro `ImportacaoArquivo` existe e está no
+escopo do token, mas o arquivo físico originalmente retido não está mais
+disponível no volume de armazenamento (`uploads/importacoes/<id>/original.*`
+ausente, ex.: `ENOENT`). Distinto de `500` genérico — mensagem de erro clara
+para a pessoa (edge case explícito da spec). Qualquer outra falha de leitura
+(permissão de disco, I/O) continua caindo em `500 ERRO_SERVIDOR`.
 
 ---
 

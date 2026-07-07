@@ -414,30 +414,30 @@ além do teste de integração).
 
 Ref: `contracts/importacoes-api.md`.
 
-- [ ] 5.1.1 Query `tipo`/`status`/`de`/`ate`/`responsavel` +
+- [x] 5.1.1 Query `tipo`/`status`/`de`/`ate`/`responsavel` +
       `page`/`pageSize` via Range PostgREST
-- [ ] 5.1.2 Default últimos 30 dias
-- [ ] 5.1.3 Mapper snake_case (PostgREST) → camelCase (API) — mesmo padrão
+- [x] 5.1.2 Default últimos 30 dias
+- [x] 5.1.3 Mapper snake_case (PostgREST) → camelCase (API) — mesmo padrão
       de `hub-me.js`/`lib/hub/me-dto.ts`
-- [ ] 5.1.4 `requirePermission('importacoes.consultar')`
-- [ ] 5.1.5 Teste integração: shape do response bate exatamente o contrato
+- [x] 5.1.4 `requirePermission('importacoes.consultar')`
+- [x] 5.1.5 Teste integração: shape do response bate exatamente o contrato
       (camelCase: `linhasValidas`, `dataReferencia`, etc.)
 
 ### 5.2 `GET /importacoes/:id` — detalhe + progresso (polling) `[A]`
 
-- [ ] 5.2.1 Response com `contadores: { total, validas, invalidas }`
-- [ ] 5.2.2 `404` se fora do escopo do token (RLS + filtro do backend)
-- [ ] 5.2.3 Teste integração: `404` cross-tenant (quickstart Cenário 8)
+- [x] 5.2.1 Response com `contadores: { total, validas, invalidas }`
+- [x] 5.2.2 `404` se fora do escopo do token (RLS + filtro do backend)
+- [x] 5.2.3 Teste integração: `404` cross-tenant (quickstart Cenário 8)
 
 ### 5.3 `GET /importacoes/:id/erros` (+ `?format=csv`) `[C]`
 
 Ref: Spec FR-016 (CSV injection); FR-015/FR-023 (LGPD).
 
-- [ ] 5.3.1 Paginação de `ImportacaoLinhaErro`
-- [ ] 5.3.2 `format=csv`: `text/csv` com proteção CSV injection (prefixar
+- [x] 5.3.1 Paginação de `ImportacaoLinhaErro`
+- [x] 5.3.2 `format=csv`: `text/csv` com proteção CSV injection (prefixar
       `'` em células iniciadas por `= + - @`)
-- [ ] 5.3.3 `valorMascarado` nunca expõe dado bruto (JSON e CSV)
-- [ ] 5.3.4 Teste integração: célula maliciosa (`=1+1`) recebe prefixo `'`
+- [x] 5.3.3 `valorMascarado` nunca expõe dado bruto (JSON e CSV)
+- [x] 5.3.4 Teste integração: célula maliciosa (`=1+1`) recebe prefixo `'`
       no CSV; JSON nunca contém UUID/nome bruto
 
 ### 5.4 `GET /importacoes/:id/original` — download + erro explícito p/ ausência `[C]`
@@ -445,14 +445,14 @@ Ref: Spec FR-016 (CSV injection); FR-015/FR-023 (LGPD).
 Ref: `checklists/requirements.md` CHK021 (gap — contrato só definia
 `200`/`403`, sem código para arquivo ausente).
 
-- [ ] 5.4.1 Stream do arquivo original com `Content-Disposition: attachment`
-- [ ] 5.4.2 `requirePermission('importacoes.exportar')` — distinta de
+- [x] 5.4.1 Stream do arquivo original com `Content-Disposition: attachment`
+- [x] 5.4.2 `requirePermission('importacoes.exportar')` — distinta de
       `consultar`; `403 PERMISSAO_NEGADA` se ausente
-- [ ] 5.4.3 Definir e implementar código de erro explícito quando o
+- [x] 5.4.3 Definir e implementar código de erro explícito quando o
       arquivo físico originalmente retido não está mais disponível (ex.:
       `410 GONE` com `motivo` claro em vez de `500` genérico) — **resolve
       CHK021**; atualizar `contracts/importacoes-api.md` com o novo código
-- [ ] 5.4.4 Teste integração: papel `leitura` (só `consultar`) → `403`;
+- [x] 5.4.4 Teste integração: papel `leitura` (só `consultar`) → `403`;
       arquivo removido do disco (simular) → código de erro explícito com
       mensagem clara (edge case da spec)
 
@@ -460,19 +460,19 @@ Ref: `checklists/requirements.md` CHK021 (gap — contrato só definia
 
 Ref: `research.md` Decision 6 (dec-010).
 
-- [ ] 5.5.1 Pré-condição `status ∈ {failed, cancelled}`; `409` se terminal
+- [x] 5.5.1 Pré-condição `status ∈ {failed, cancelled}`; `409` se terminal
       completo
-- [ ] 5.5.2 Reusa arquivo armazenado; limpa `ImportacaoLinhaErro`; zera
+- [x] 5.5.2 Reusa arquivo armazenado; limpa `ImportacaoLinhaErro`; zera
       contadores; volta a `pending` (NÃO cria novo `ImportacaoArquivo`)
-- [ ] 5.5.3 Teste integração: reprocessar `failed` → `202 pending`;
+- [x] 5.5.3 Teste integração: reprocessar `failed` → `202 pending`;
       reprocessar `completed` → `409` (quickstart Cenário 6.1/6.2)
 
 ### 5.6 `POST /importacoes/:id/cancelar` `[A]`
 
-- [ ] 5.6.1 Pré-condição `status ∈ {pending, validating, processing}`;
+- [x] 5.6.1 Pré-condição `status ∈ {pending, validating, processing}`;
       `409` se já terminal
-- [ ] 5.6.2 `202 { id, status: "cancelled" }`
-- [ ] 5.6.3 Teste integração: cancelar importação `completed` → `409`
+- [x] 5.6.2 `202 { id, status: "cancelled" }`
+- [x] 5.6.3 Teste integração: cancelar importação `completed` → `409`
       (edge case CHK023)
 
 ### 5.7 Auditoria de reprocessar/cancelar/download-original `[A]`
@@ -480,21 +480,21 @@ Ref: `research.md` Decision 6 (dec-010).
 Ref: `checklists/requirements.md` CHK005 (gap — contrato só mencionava
 `Auditoria(acao='importacao.criada')`).
 
-- [ ] 5.7.1 `Auditoria(acao='importacao.reprocessada')` em POST reprocessar
-- [ ] 5.7.2 `Auditoria(acao='importacao.cancelada')` em POST cancelar
-- [ ] 5.7.3 `Auditoria(acao='importacao.original_baixado')` em GET original
+- [x] 5.7.1 `Auditoria(acao='importacao.reprocessada')` em POST reprocessar
+- [x] 5.7.2 `Auditoria(acao='importacao.cancelada')` em POST cancelar
+- [x] 5.7.3 `Auditoria(acao='importacao.original_baixado')` em GET original
       bem-sucedido (200)
-- [ ] 5.7.4 Teste integração: cada uma das 3 ações gera o registro de
+- [x] 5.7.4 Teste integração: cada uma das 3 ações gera o registro de
       Auditoria correspondente — **resolve CHK005**
 
 ### 5.8 `requirePermission` consolidado (mapa `data-model.md`) `[C]`
 
 Ref: `data-model.md` §Mapa permissão lógica → código real.
 
-- [ ] 5.8.1 Confirmar cada endpoint usa o código real correto
+- [x] 5.8.1 Confirmar cada endpoint usa o código real correto
       (`consultar`/`criar`/`exportar`; `importar` reservado, não é gate de
       endpoint público nesta fase)
-- [ ] 5.8.2 Teste integração: matriz completa permissão × endpoint
+- [x] 5.8.2 Teste integração: matriz completa permissão × endpoint
       (fail-closed — ausência de permissão nunca abre acesso)
 
 ---
