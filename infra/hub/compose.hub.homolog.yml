@@ -130,19 +130,39 @@ services:
       postgrest:
         condition: service_started
 
-  placeholder:
+  # frontend (Next.js standalone) — a partir da S3 o shell do hub assume o
+  # banner de ambiente e SUBSTITUI o antigo `placeholder` (RUNBOOK.md §13.2).
+  # Vive em DUAS redes: hub_edge (exposto pelo Traefik do hub) e hub_internal
+  # (alcança `backend` para o proxy /api). BACKEND_URL é runtime (dec-031);
+  # NEXT_PUBLIC_APP_ENV é build arg (inlinado no bundle — banner SC-004).
+  frontend:
     <<: *hub-common
-    image: node:20-alpine
-    container_name: hub_homolog_placeholder
-    mem_limit: 64m
-    cpus: 0.25
-    command: ["node", "/app/server.js"]
+    build:
+      context: ../../app_homologacao/frontend_v2
+      dockerfile: Dockerfile.hub
+      args:
+        NEXT_PUBLIC_APP_ENV: "${APP_ENV}"
+    image: hub-frontend:homolog
+    container_name: hub_homolog_frontend
+    mem_limit: 384m
+    cpus: 0.5
     environment:
       APP_ENV: "${APP_ENV}"
-      MOCK_PORT: "8080"
-    volumes:
-      - ./mocks/placeholder:/app:ro
-    networks: [hub_edge]
+      NODE_ENV: "production"
+      # Next standalone (server.js) faz bind em process.env.HOSTNAME; o Docker
+      # injeta HOSTNAME=<id-do-container> automaticamente, o que faria o Next
+      # escutar só num IP e recusar conexões do Traefik (502). Forçar 0.0.0.0
+      # para escutar em TODAS as interfaces (edge + internal).
+      HOSTNAME: "0.0.0.0"
+      # Proxy do Next: app/api/[...path]/route.ts lê process.env.BACKEND_URL em
+      # runtime; remove o prefixo literal /api e o backend do hub monta as rotas
+      # em /api/v1/* (dec-031).
+      BACKEND_URL: "http://backend:3000/api"
+      PORT: "3000"
+    networks: [hub_edge, hub_internal]
+    depends_on:
+      backend:
+        condition: service_started
 
   traefik:
     <<: *hub-common

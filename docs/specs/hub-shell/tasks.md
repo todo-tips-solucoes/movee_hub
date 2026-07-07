@@ -333,11 +333,11 @@ Ref: `plan.md` §3.4/§3.4-bis, spec.md US4/FR-009/FR-010
 
 Ref: `plan.md` §4/§8
 
-- [ ] 6.1.1 Confirmar/gerar (via seeds `hub_*` já existentes da S2) 2 contas com papéis
+- [x] 6.1.1 Confirmar/gerar (via seeds `hub_*` já existentes da S2) 2 contas com papéis
   diferentes e conjuntos de permissão distintos, para o teste comparativo
-- [ ] 6.1.2 Build do `frontend_v2` sob cap de memória (`docker build --memory=2g`, swap
+- [x] 6.1.2 Build do `frontend_v2` sob cap de memória (`docker build --memory=2g`, swap
   ativo) — nunca `next build`/`next dev` solto no host VPSTodo
-- [ ] 6.1.3 [teste] Smoke: ambiente hub-homolog responde `200` nas rotas novas antes de
+- [x] 6.1.3 [teste] Smoke: ambiente hub-homolog responde `200` nas rotas novas antes de
   rodar os cenários E2E
 
 ### 6.2 Cenários E2E funcionais `[C]`
@@ -346,17 +346,17 @@ Ref: `plan.md` §8, task 1.1.2
 
 - [ ] 6.2.1 2 papéis distintos autenticam e veem conjuntos de itens de `ModuleNav`
   diferentes (SC-001/SC-005)
-- [ ] 6.2.2 Acesso direto por URL a `GET /api/v1/auditoria` sem `auditoria.consultar`
+- [x] 6.2.2 Acesso direto por URL a `GET /api/v1/auditoria` sem `auditoria.consultar`
   recebe `403` do backend mesmo sem aparecer no menu (SC-002 — alvo real confirmado na
   task 1.1.2, substitui o exemplo inexistente `/usuarios`)
 - [ ] 6.2.3 Troca de entidade reflete os dados exibidos em menos de 5 segundos, sem
   novo login (SC-003)
-- [ ] 6.2.4 Banner de ambiente (`EnvBadge`) visível em toda tela do shell quando
+- [x] 6.2.4 Banner de ambiente (`EnvBadge`) visível em toda tela do shell quando
   `NEXT_PUBLIC_APP_ENV != production` (SC-004)
 - [ ] 6.2.5 Sessão expira em meio de uma ação (troca de entidade / submissão de perfil)
   → redireciona a `/login` sem expor dados da sessão anterior (edge case CHK017,
   task 4.5.3)
-- [ ] 6.2.6 Login de pessoa sem vínculo em nenhuma entidade → tela "sem acesso"
+- [x] 6.2.6 Login de pessoa sem vínculo em nenhuma entidade → tela "sem acesso"
   (FR-016), sem tela quebrada ou vazia
 
 ### 6.3 Acessibilidade `[A]`
@@ -371,10 +371,10 @@ Ref: `plan.md` §8
 
 Ref: `plan.md` §9, dec-019 (arquitetural, onda plan)
 
-- [ ] 6.4.1 Revalidar contra o código real: `PermissionGate` segue decorativo (nenhuma
+- [x] 6.4.1 Revalidar contra o código real: `PermissionGate` segue decorativo (nenhuma
   ação sensível autorizada só no client); cookie httpOnly/`sameSite=strict` preservado;
   nenhum PII/segredo novo em git/log
-- [ ] 6.4.2 [teste] Confirmar por leitura de código que nenhuma tela nova introduz
+- [x] 6.4.2 [teste] Confirmar por leitura de código que nenhuma tela nova introduz
   chamada de mutação sem depender de reautorização do backend por-entidade
 
 ### 6.5 Evidências `[A]`

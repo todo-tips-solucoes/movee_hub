@@ -1,0 +1,48 @@
+# =============================================================================
+# Dockerfile.hub — build do frontend_v2 (Next.js) para o ambiente ISOLADO do
+# Hub de Frota (hub-homolog). Mesma árvore de código do frontend do envio em
+# massa; NÃO altera o `Dockerfile` de produção (que fixa
+# ENV BACKEND_URL=https://envmassapihomologacao.todo-tips.com, apontando para a
+# API de PRODUÇÃO do cliente — inválido para o hub).
+#
+# Diferenças em relação ao Dockerfile de produção (hub-shell S3, e2e-plan.md §1):
+#   1. ARG/ENV NEXT_PUBLIC_APP_ENV ANTES do `npm run build`: essa var é
+#      `NEXT_PUBLIC_*`, INLINADA no bundle do cliente em tempo de build. É o que
+#      `components/hub/env-badge.tsx` lê para exibir o banner "HOMOLOGAÇÃO —
+#      dados fictícios" (SC-004). Sem receber como build arg, o banner nunca
+#      apareceria.
+#   2. SEM `ENV BACKEND_URL` fixo: o proxy `app/api/[...path]/route.ts` lê
+#      `process.env.BACKEND_URL` em RUNTIME (uma vez na inicialização do
+#      processo Next). O valor vem do `environment:` do compose
+#      (http://backend:3000/api — hostname interno do hub + sufixo /api,
+#      decisão dec-031). Assim a mesma imagem nunca aponta para a API de prod.
+#
+# Build (cap de memória OBRIGATÓRIO — lição de starvation 2026-06-11,
+# ver RUNBOOK.md e plan.md §4):
+#   DOCKER_BUILDKIT=0 docker compose -f infra/hub/compose.hub.homolog.yml \
+#     -p hub-homolog --env-file /var/lib/hub_secrets/.env.hub.homolog \
+#     build --memory=2g frontend
+# =============================================================================
+FROM node:20-alpine AS builder
+WORKDIR /app
+# Não baixar browsers do Playwright em nenhum eventual devDependency de teste —
+# os testes E2E/axe rodam na imagem oficial mcr.microsoft.com/playwright, nunca
+# neste build (mantém o build enxuto e sem rede extra).
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+COPY package*.json ./
+RUN npm ci
+COPY . .
+# NEXT_PUBLIC_APP_ENV inlinado no bundle (banner de ambiente — SC-004).
+ARG NEXT_PUBLIC_APP_ENV
+ENV NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+# BACKEND_URL NÃO é fixado aqui — vem do compose (runtime), ver cabeçalho.
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+EXPOSE 3000
+CMD ["node", "server.js"]
