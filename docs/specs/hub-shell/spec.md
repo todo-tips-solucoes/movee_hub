@@ -11,6 +11,46 @@
 > (motoristas, faturamento, performance, importações) — apenas a casca (nav, troca de
 > entidade, identificação de ambiente, autenticação, dashboard, perfil).
 
+## Clarifications
+
+### Session 2026-07-07
+
+Ambiguidades de escopo e contrato resolvidas na etapa `clarify` (mediação
+asker/answerer, ancorada em briefing S3, `docs/constitution.md`, esta spec e o
+contrato já mergeado da fundação S2 — `docs/specs/hub-fundacoes/contracts/` e
+`docs/plans/hub-frota/01-plano-tecnico.md`). Decisões auditadas em `state.json`
+(dec-007 a dec-011).
+
+- **Q1 — Contrato de `modulos[]` e permissão de visualização** (dec-007, score 3):
+  Cada item de `modulos[]` retornado por `GET /api/v1/me` traz os campos
+  `{codigo, nome, icone, ordem, habilitado}`. A permissão de visualização de um
+  módulo segue a convenção `<codigo>.view` dentro de `permissoes[]` (mesmo padrão
+  `modulo.acao` da fundação S2, ex.: `motoristas.view`, `usuarios.manage`). A
+  navegação (FR-001) e o `PermissionGate` usam essa convenção — sem mapa estático
+  código→permissão no frontend.
+- **Q2 — Login/`GET /me` sem vínculo em nenhuma entidade** (dec-008, score 3): O
+  login sempre sucede com credenciais válidas (o `/auth/login` da S2 só recusa por
+  `CREDENCIAIS_INVALIDAS`/`CONTA_BLOQUEADA`/`RATE_LIMIT`, nunca por ausência de
+  vínculo). O `GET /me` retorna `entidades: []` e `entidade_ativa: null`; o shell
+  então apresenta uma tela dedicada de "sem acesso" pós-login (FR-016) — a
+  autenticação não é bloqueada nessa condição.
+- **Q3 — Mecanismo de reverificação de sessão para perda de vínculo** (dec-009,
+  score 2): A perda de vínculo com a entidade ativa (FR-015) é detectada por
+  refetch de `GET /me` acoplado à navegação entre rotas do shell (guard de rota),
+  sem polling temporizado adicional. Nenhuma fonte pede um timer de verificação
+  para o shell.
+- **Q4 — Fronteira de "ajuste trivial de contrato do `/me`"** (dec-010, score 3):
+  Nesta fase é permitido apenas completar/corrigir campos já contratados em
+  `GET /me` (o contrato já foi fechado pela S2), sem nova lógica de permissão nem
+  novos endpoints. Qualquer alteração de backend além disso fica fora de escopo e
+  vira bloqueio para o operador resolver antes.
+- **Q5 — Perfil, troca de senha e logout: infraestrutura ou módulo** (dec-011,
+  score 3): São infraestrutura do shell — sempre visíveis/acessíveis a qualquer
+  pessoa autenticada, independentemente de `modulos[]`/`permissoes[]`. Não contam
+  no N de blocos do dashboard (FR-009) nem aparecem como item do `ModuleNav`
+  (FR-001). O `/auth/logout` da S2 é gateado apenas por "autenticado", e o catálogo
+  de permissões não contém código de conta/perfil.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Pessoa com um papel vê só o que pode acessar (Priority: P1)
