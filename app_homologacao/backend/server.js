@@ -44,6 +44,11 @@ const hubAuthRoutes = require('./routes/hub-auth');
 // accessToken válido; GET /auditoria passa por requirePermission).
 const hubMeRoutes = require('./routes/hub-me');
 
+// hub-importacoes (S4 do hub de frota, FASE 3) — POST /api/v1/importacoes
+// (upload multipart, dedupe por sha256, requirePermission interno). Arquivo
+// 100% novo (routes/hub-importacoes.js).
+const hubImportacoesRoutes = require('./routes/hub-importacoes');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 // validacao-xml-lote (FASE 0, CHK113/CHK022): instância dedicada do multer para
@@ -2609,6 +2614,11 @@ app.use('/api/v1/auth', hubAuthRoutes.router);
 // exigência de auth (accessToken do hub, não o token do backend legado).
 app.use('/api/v1/me', hubMeRoutes.router);
 app.use('/api/v1/auditoria', hubMeRoutes.auditoriaRouter);
+
+// hub-importacoes (S4, FASE 3) — /api/v1/importacoes (upload multipart +
+// dedupe). requirePermission('importacoes.criar') é aplicado dentro do
+// próprio router (mesmo padrão do bloco /api/v1/me acima).
+app.use('/api/v1/importacoes', hubImportacoesRoutes.router);
 
 // Iniciar o servidor
 app.listen(3000, () => {

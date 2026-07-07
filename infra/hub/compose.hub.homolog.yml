@@ -124,6 +124,13 @@ services:
       FASTAPI_URL: "${FASTAPI_URL}"
       N8N_URL: "${N8N_URL}"
       MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+    # hub-importacoes (S4, FASE 3): volume privado para os originais de
+    # upload (routes/hub-importacoes.js grava em uploads/importacoes/<id>)
+    # — sem isto o filesystem do container é efêmero e o arquivo some a
+    # cada redeploy/restart (research.md Decision 8, LGPD: nunca em bind
+    # mount alcançável por git/log).
+    volumes:
+      - hub_homolog_uploads:/var/lib/envioMassa_homologacao/app_homologacao/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -239,3 +246,5 @@ volumes:
     name: hub_homolog_backups
   hub_homolog_mocklogs:
     name: hub_homolog_mocklogs
+  hub_homolog_uploads:
+    name: hub_homolog_uploads

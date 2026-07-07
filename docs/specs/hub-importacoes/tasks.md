@@ -220,42 +220,51 @@ Ref: `research.md` Decision 6 — idempotência é o requisito central (US2).
 
 Ref: `contracts/importacoes-api.md` POST /importacoes.
 
-- [ ] 3.1.1 Extensão (`.csv`/`.zip`)
-- [ ] 3.1.2 MIME type
-- [ ] 3.1.3 Tamanho ≤ 20 MB
-- [ ] 3.1.4 Conteúdo (é CSV válido? ZIP com exatamente 1 entrada — reusa
+- [x] 3.1.1 Extensão (`.csv`/`.zip`)
+- [x] 3.1.2 MIME type
+- [x] 3.1.3 Tamanho ≤ 20 MB
+- [x] 3.1.4 Conteúdo (é CSV válido? ZIP com exatamente 1 entrada — reusa
       2.1.4)
-- [ ] 3.1.5 Teste integração (`hub-importacoes.test.js`): cada validação
-      falha com `422 INVALIDO` + `motivo` legível
+- [x] 3.1.5 Teste integração (`hub-importacoes-integration.sh` +
+      `tests/hub-importacoes-integration.test.js`): cada validação falha
+      com `422 INVALIDO` + `motivo` legível (extensao_invalida,
+      tipo_invalido, arquivo_vazio, zip_multiplas_entradas — 4 cenários
+      cobertos, todos verdes)
 
 ### 3.2 sha256 + dedupe de arquivo `[C]`
 
 Ref: `research.md` Decision 6.
 
-- [ ] 3.2.1 Calcular sha256 do arquivo recebido
-- [ ] 3.2.2 Consultar `UNIQUE(id_empresa,tipo,hash_sha256)` existente →
+- [x] 3.2.1 Calcular sha256 do arquivo recebido
+- [x] 3.2.2 Consultar `UNIQUE(id_empresa,tipo,hash_sha256)` existente →
       `409 CONFLITO { importacaoOriginalId }`
-- [ ] 3.2.3 Teste integração: reenvio do mesmo arquivo (Cenário 2 do
-      quickstart) retorna 409 com id correto; zero linhas novas
+- [x] 3.2.3 Teste integração: reenvio do mesmo arquivo (Cenário 2 do
+      quickstart) retorna 409 com id correto; zero linhas novas (+
+      cenários adicionais: mesmo hash com tipo/entidade diferente -> 201,
+      dedupe é por id_empresa+tipo+hash, não só hash)
 
 ### 3.3 Armazenamento do original + criação de `ImportacaoArquivo` `[A]`
 
 Ref: `research.md` Decision 8 (LGPD).
 
-- [ ] 3.3.1 Salvar original em `uploads/importacoes/<id>` (fora de
-      git/log, volume privado)
-- [ ] 3.3.2 Criar `ImportacaoArquivo(status=pending, nome_arquivo
+- [x] 3.3.1 Salvar original em `uploads/importacoes/<id>` (fora de
+      git/log, volume privado — `.gitignore` + volume Docker nomeado
+      `hub_homolog_uploads`/`hub_dev_uploads` montado em
+      `compose.hub.homolog.yml`/`compose.hub.dev.yml`)
+- [x] 3.3.2 Criar `ImportacaoArquivo(status=pending, nome_arquivo
       sanitizado, tamanho_bytes, hash_sha256)`
-- [ ] 3.3.3 `requirePermission('importacoes.criar')` no route
-- [ ] 3.3.4 Teste integração: `201 { id, status: "pending" }`
+- [x] 3.3.3 `requirePermission('importacoes.criar')` no route (+ checagem
+      por-entidade via `obterPermissoesEfetivasPorEntidade`, mesmo padrão
+      de correção pós-review PR #55 achado #1)
+- [x] 3.3.4 Teste integração: `201 { id, status: "pending" }`
 
 ### 3.4 Auditoria de criação `[A]`
 
 Ref: `contracts/importacoes-api.md` POST /importacoes "Efeito".
 
-- [ ] 3.4.1 `Auditoria(acao='importacao.criada')` via `hub-auditoria.js`
+- [x] 3.4.1 `Auditoria(acao='importacao.criada')` via `hub-auditoria.js`
       (reusar, sem modificação)
-- [ ] 3.4.2 Teste integração: registro de Auditoria presente após upload
+- [x] 3.4.2 Teste integração: registro de Auditoria presente após upload
       bem-sucedido
 
 ---
