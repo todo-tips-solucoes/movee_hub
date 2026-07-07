@@ -640,9 +640,9 @@ Ref: `quickstart.md` Cenário 10; Constitution Princípio III.
 
 Ref: Regras invioláveis do prompt C — fechamento só em `review-task`.
 
-- [ ] 7.5.1 Atualizar `docs/plans/hub-frota/DIARIO.md` com o registro da S4
-- [ ] 7.5.2 Abrir PR draft `feat/hub-importacoes`
-- [ ] 7.5.3 SEM merge/deploy/cutover sem autorização explícita do operador
+- [x] 7.5.1 Atualizar `docs/plans/hub-frota/DIARIO.md` com o registro da S4
+- [x] 7.5.2 Abrir PR draft `feat/hub-importacoes`
+- [x] 7.5.3 SEM merge/deploy/cutover sem autorização explícita do operador
       (rito de produção — ambiente hub-homolog isolado, mas cutover final
       é decisão do operador)
 

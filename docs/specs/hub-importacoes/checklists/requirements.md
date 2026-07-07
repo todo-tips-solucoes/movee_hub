@@ -192,12 +192,20 @@ do repo), cobertura de cenários/edge cases, requisitos não-funcionais
   9 módulos citados existem hoje em `app_homologacao/backend/lib|middleware/`
   e `app_homologacao/frontend_v2/hooks|components/`.
   [Premissa, plan.md §Project Structure] {auto}
-- [ ] CHK036 - O uso de `pg_try_advisory_lock` (Decision 5) é um padrão novo
+- [x] CHK036 - O uso de `pg_try_advisory_lock` (Decision 5) é um padrão novo
   neste código-base (nenhuma ocorrência anterior encontrada em
   `app_homologacao/backend/` ou `infra/hub/`) — a equipe validou que o pool de
   conexões do backend/PostgREST sustenta uma sessão dedicada durante o
   processamento síncrono (o lock advisory libera ao fim da sessão Postgres, não
-  da transação)? [Assumption, research.md Decision 5] {humano}
+  da transação)? **Resolvido em execute-task (dec-030..033, commit
+  `c37a9ba`)**: `hub-postgrest.js` é HTTP stateless (sem pool `pg` direto no
+  backend) — `pg_try_advisory_lock` não sustentaria sessão entre chamadas.
+  Substituído por índice único parcial em `ImportacaoArquivo(id_empresa,
+  tipo) WHERE status IN ('validating','processing')`, mesmo contrato
+  funcional, documentado como ADENDO em `research.md` Decision 5 e
+  `data-model.md`. Confirmado funcionalmente pelo Cenário 9 (concorrência),
+  ver `docs/plans/hub-frota/evidencias/S4/cenarios-1-10-resultado.md`.
+  [Assumption, research.md Decision 5] {humano→resolvido}
 - [x] CHK037 - A decisão de não introduzir fila (Decision 10) declara o
   gatilho objetivo para reconsiderar (>50k linhas ou timeout de request), que é
   mensurável e não subjetivo? Sim.

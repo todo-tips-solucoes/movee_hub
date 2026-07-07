@@ -482,3 +482,142 @@ anti-starvation, RAM/swap monitorados antes/depois). Sem DDL nesta fase.
 - **Decorrência:** matriz §10 e catálogo §9.2 do plano técnico ficam **canônicos e
   vigentes** para os dois campos (nada a alterar no plano — o operador ratificou o que
   já estava lá).
+
+---
+
+## 2026-07-07 — S4 (Pipeline de Importações) CONCLUÍDA — FASES 0–7, evidências e PR draft
+
+Executada via `/feature-00c` (11 ondas, branch `feat/hub-importacoes`,
+commits `d584d5a..24e5d28`) sobre o shell da S3. Entrega: pipeline de
+ingestão de CSVs de **faturamento** e **performance** — upload com dedupe
+duplo (hash de arquivo + hash de linha), parser por dialeto (BOM, `;`,
+decimal vírgula no faturamento / ponto na performance, `HH:MM:SS`→interval,
+UUID, `margem_fee` via regex), processamento em lote de 500 com máquina de
+estados (`pending→validating→processing→completed|completed_with_errors|
+failed`), 7 endpoints (`POST /`, `GET /`, `GET /:id`, `GET /:id/erros`,
+`GET /:id/original`, `POST /:id/reprocessar`, `POST /:id/cancelar`) e 3
+telas novas (histórico, detalhe, wizard de upload) via EntreGô 2.0.
+
+### Fases (pipeline SDD completo)
+
+0. **Resolução de checklist humano pré-execução** — CHK004/007/013/036
+   resolvidos via `dec-030..033` (commit `c37a9ba`) antes de iniciar as
+   subtarefas dependentes: unit test dedicado do processor; lote 500 como
+   teto de responsividade do cancelamento; campo derivado `aguardandoLock`
+   sem coluna nova; e a mudança de design mais relevante — `pg_try_
+   advisory_lock` não é sustentável com `hub-postgrest.js` HTTP stateless
+   (sem pool `pg` direto no backend), substituído por índice único parcial
+   em `ImportacaoArquivo(id_empresa, tipo) WHERE status IN ('validating',
+   'processing')` com o mesmo contrato funcional.
+1. **Migrations 0010-0016** — `Entregador`, `ImportacaoArquivo`,
+   `ImportacaoLinhaErro`, `FaturamentoLancamento`, `PerformanceTurno`, RLS
+   por `id_empresa` nas 5 tabelas (incl. `ImportacaoLinhaErro`
+   denormalizado), seed de `importacoes.exportar` por papel. Migration
+   idempotente confirmada (rodagem dupla, `01-migrate-fase1-run1.txt` /
+   `02-migrate-fase1-run2-idempotencia.txt`); RLS confirmado por 15 asserts
+   PASS (`03-rls-importacoes-integration.txt`).
+2. **Parser + normalizador** — unit-first, dialetos faturamento/performance
+   distintos (decimal, timestamp, delimitador), hash estável por linha.
+3. **`POST /importacoes`** — upload + validações imediatas (422) + dedupe
+   por `id_empresa+tipo+hash` (409 com `importacaoOriginalId`).
+4. **Processamento em lote** — máquina de estados, mutex via índice parcial
+   (item 0 acima), rollback em falha estrutural (>50% linhas inválidas),
+   `ImportacaoLinhaErro` com valor mascarado (LGPD).
+5. **6→7 endpoints de consulta/ação** — `GET /`, `GET /:id`, `GET /:id/
+   erros`, `GET /:id/original` (gate `importacoes.exportar`), `POST /:id/
+   reprocessar`, `POST /:id/cancelar`, todos com `requirePermission`
+   escopado por-entidade + RLS.
+6. **Telas** — histórico (`page.tsx`), detalhe (`[id]/page.tsx`), wizard de
+   upload, implementadas seguindo diretamente os componentes já aprovados
+   da S2/S3 (`data-table.tsx`, `filters.tsx`) em vez de gerar do zero;
+   auditoria `ui-ux-pro-max` pós-implementação aplicou correções de
+   touch-target (44px mínimo mobile) em selects/botões/wizard, zero mudança
+   de lógica/shape de API.
+7. **E2E, evidências e segurança** (hub-homolog persistente) — Cenários
+   1-11 do `quickstart.md`: happy path 20/20 válidas (SC-001); reimportação
+   + dedupe de linha = 0 duplicatas (SC-002); dialeto performance 5/6
+   válidas; erros+LGPD 8/10 válidas com CSV-injection escapado e 0 UUID
+   bruto exposto (SC-004); falha estrutural 60%→`failed` sem intervenção
+   manual (SC-003); reprocessar/cancelar com os 4 códigos HTTP esperados;
+   gate de export 403/200 por papel (SC-006); isolamento RLS 404
+   cross-tenant (Constitution II); concorrência com 2 uploads simultâneos
+   ambos `completed` (índice parcial supre o `pg_try_advisory_lock`
+   original); roundtrip real do contrato (`GET /:id`) capturado em
+   `roundtrip-payload-exemplo.json`; branding dark/light 4 PNGs (SC-007);
+   0 ocorrências de CPF/CNPJ formatado nos logs (`lgpd-zero-vazamentos.md`,
+   SC-004). Produção confirmada 4/4 antes/depois (zero regressão no envio
+   em massa legado, SC-008).
+
+### Review-task (onda de fechamento)
+
+Relatório completo em `docs/specs/hub-importacoes/review-onda-011.md`.
+Testes **reexecutados de forma independente** nesta onda (não apenas
+citados): backend unit hub-importacoes **143/143** (`node --test`, 39
+suítes); backend unit hub completo **210/210**; frontend vitest **121/121**
+(18 arquivos); `tsc --noEmit` 0 erros; `eslint` (escopo importações) 0
+erros. Achados do review: (a) contagem real de endpoints é **7**, não 6
+(divergência textual, não funcional); (b) `CHK036` do checklist tinha
+checkbox desatualizado apesar de já resolvido por decisão — corrigido nesta
+onda; (c) SC-005 (jornada completa só pela UI) tem cobertura parcial —
+endpoints e telas corretos, mas falta uma gravação fim-a-fim só de clique
+(não bloqueante, sugerido como follow-up). Nenhum finding crítico/alto,
+nenhum gate pulado sem justificativa, veredito **APROVAR**.
+
+### Decisões-chave
+
+- **dec-030..033** (FASE 0): resolução dos 4 itens `{humano}` do checklist
+  antes de iniciar as subtarefas dependentes — a mais relevante é a
+  substituição do `pg_try_advisory_lock` por índice único parcial
+  (`hub-postgrest.js` é stateless, não sustenta sessão Postgres entre
+  chamadas).
+- **dec-048/049** (FASE 6): telas implementadas diretamente seguindo os
+  padrões já aprovados do EntreGô 2.0, com auditoria `ui-ux-pro-max`
+  pós-implementação em vez de geração do zero.
+- **dec-053** (FASE 7): fechamento da validação E2E — cenários 1-11
+  completos, migration 0017 confirmada aplicada, produção 4/4 antes/depois.
+- **dec-054**: auto-checagem de fim de turno corrigiu uma promoção
+  prematura de `execution.status=concluida` (o mesmo gotcha de S2/S3 —
+  review-task confabulando fechamento antes de rodar de fato); revertido
+  para `em_andamento` até o review-task real (esta entrada) rodar.
+
+### Evidências (`docs/plans/hub-frota/evidencias/S4/`)
+
+- `01-migrate-fase1-run1.txt` / `02-migrate-fase1-run2-idempotencia.txt` —
+  aplicação idempotente das migrations 0010-0016.
+- `03-rls-importacoes-integration.txt` — 15 asserts PASS de isolamento RLS
+  nas 5 tabelas novas.
+- `04-seed-importacoes-exportar.txt` — seed de permissão `importacoes.
+  exportar` por papel.
+- `cenarios-1-10-resultado.md` — contadores e resultados dos Cenários 1-9.
+- `lgpd-zero-vazamentos.md` — grep negativo de CPF/CNPJ nos logs.
+- `roundtrip-payload-exemplo.json` — payload real de `GET /:id`.
+- `cenario11-{lista,detalhe}-{dark,light}.png` — evidência de branding
+  preservado (SC-007).
+- Nenhum dado pessoal real: dados sintéticos de faturamento/performance
+  gerados para os cenários de teste.
+
+### Blast radius
+
+Toda escrita ficou confinada a recursos `hub-*` (`hub-homolog`, containers
+`hub_homolog_*`) — **zero escrita** no ambiente vivo do cliente
+(`chatmasterveloz`, `envio-massa-homologacao_*`, `pgadmin_db`, Traefik/tags
+de produção). `git diff --name-only main...feat/hub-importacoes` confirma
+nenhum arquivo de infraestrutura viva (`docker-compose.yml`/`.env`/swarm)
+tocado. Isolamento multi-tenant (Constitution II, NON-NEGOTIABLE) verificado
+via RLS real (Cenário 8 + evidência §RLS acima).
+
+### Estado / pendências para o operador
+
+- **PR draft** aberto pelo orquestrador desta onda na branch
+  `feat/hub-importacoes` → `main` (corpo em
+  `docs/specs/hub-importacoes/PR-BODY.md`); revisão e merge são do
+  operador.
+- **Deploy/cutover**: fora do escopo desta sessão — exige os 5 gates do
+  rito de produção do CLAUDE.md; o **gate G3** (cutover para produção) só
+  ocorre no fechamento da **S10** (plano mestre), não nesta fase.
+- Ambiente `hub-homolog` permanece NO AR, não foi derrubado.
+- Follow-up não-bloqueante: SC-005 sem gravação fim-a-fim da jornada só
+  pela UI (endpoints/telas corretos, falta só a captura visual sequencial).
+- Pendência recorrente (desde S1): divergência do trailer de commit
+  (CLAUDE.md pede "Claude Opus 4.8"; commits usam o modelo vigente) — segue
+  sem decisão do operador.
