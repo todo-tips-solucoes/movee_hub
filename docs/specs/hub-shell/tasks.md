@@ -318,12 +318,12 @@ Ref: `plan.md` §3.4/§3.4-bis, spec.md US4/FR-009/FR-010
 > Esta página vive em `app/hub/dashboard/page.tsx`, dentro do namespace já montado por
 > `app/hub/layout.tsx` (HubAuthProvider + guard) — só falta criar o `page.tsx` em si.
 
-- [ ] 5.1.1 Renderizar N blocos a partir de `me.modulos` (um por módulo habilitado e
+- [x] 5.1.1 Renderizar N blocos a partir de `me.modulos` (um por módulo habilitado e
   visível), cada um levando à rota mapeada (task 2.2.2)
-- [ ] 5.1.2 Estado "nenhum módulo disponível": mensagem clara quando
+- [x] 5.1.2 Estado "nenhum módulo disponível": mensagem clara quando
   `modulos.length === 0` (nunca uma tela vazia sem explicação — FR-010)
-- [ ] 5.1.3 Design via `/ui-ux-pro-max`
-- [ ] 5.1.4 [teste] Teste unitário dos 2 cenários (N>0 blocos; N=0 mensagem clara)
+- [x] 5.1.3 Design via `/ui-ux-pro-max`
+- [x] 5.1.4 [teste] Teste unitário dos 2 cenários (N>0 blocos; N=0 mensagem clara)
 
 ---
 
