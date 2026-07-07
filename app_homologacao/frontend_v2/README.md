@@ -23,6 +23,7 @@ Scripts: `dev` · `build` · `start` · `lint`.
 | Variável | Descrição |
 |---|---|
 | `BACKEND_URL` | URL base da API do backend (usada pelo proxy `/api/*`). Padrão: `http://localhost:3000` |
+| `NEXT_PUBLIC_APP_ENV` | (hub-shell S3) Identifica o ambiente para o `EnvBadge`. Só `"production"` esconde o banner "HOMOLOGAÇÃO — dados fictícios"; qualquer outro valor (ou ausente) é fail-safe e mostra o aviso. Pública, inlineada no build. |
 
 Configure em `.env.local` (ver `.env.example`).
 

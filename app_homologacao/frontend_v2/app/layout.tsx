@@ -6,6 +6,7 @@ import { AuthProvider } from "@/contexts/auth-context";
 import { TenantThemeProvider } from "@/contexts/tenant-theme-context";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { EnvBadge } from "@/components/hub/env-badge";
 
 // Tipografia única do Guia de Marca EntreGô 2.0: Plus Jakarta Sans.
 const jakarta = Plus_Jakarta_Sans({
@@ -46,6 +47,8 @@ export default function RootLayout({
           <AuthProvider>
             <TenantThemeProvider>
               <TooltipProvider>
+                {/* hub-shell (S3) task 2.1.4: presente em 100% das telas (FR-008/SC-004) */}
+                <EnvBadge />
                 {children}
                 <Toaster richColors position="top-right" />
               </TooltipProvider>

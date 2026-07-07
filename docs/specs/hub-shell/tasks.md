@@ -121,32 +121,48 @@ Ref: `plan.md` §3.1, `research.md` D4
 
 Ref: `plan.md` §3.2, `research.md` D6, `checklists/requirements.md` CHK029
 
-- [ ] 2.1.1 Introduzir a env var pública `NEXT_PUBLIC_APP_ENV` (documentar em
+- [x] 2.1.1 Introduzir a env var pública `NEXT_PUBLIC_APP_ENV` (documentar em
   `.env.example`/README do `frontend_v2` — não existia, verificado por `grep`)
-- [ ] 2.1.2 Implementar `EnvBadge`: banner fixo + favicon alternativo quando o valor
-  for `!= "production"`
-- [ ] 2.1.3 Fail-safe (decisão CHK029): valor **ausente** ou **não reconhecido** (nem
+- [x] 2.1.2 Implementar `EnvBadge`: banner fixo + favicon alternativo quando o valor
+  for `!= "production"` — `components/hub/env-badge.tsx`
+- [x] 2.1.3 Fail-safe (decisão CHK029): valor **ausente** ou **não reconhecido** (nem
   `"production"` nem outro valor válido) é tratado como **não-produção** — mostra o
   aviso; evita que uma env mal configurada esconda silenciosamente o alerta
-- [ ] 2.1.4 Montar `EnvBadge` no layout raiz do shell — presente em 100% das telas
-  (FR-008/SC-004)
-- [ ] 2.1.5 Design via `/ui-ux-pro-max` (EntreGô 2.0, dark/light, white-label — FR-017)
-- [ ] 2.1.6 [teste] Teste unitário dos 3 casos: `"production"` (ausente),
+- [x] 2.1.4 Montar `EnvBadge` no layout raiz do shell — presente em 100% das telas
+  (FR-008/SC-004) — `app/layout.tsx`. Achado: o "layout raiz do shell" hoje É o
+  `app/layout.tsx` compartilhado (o shell ainda não tem rotas próprias — chegam nas
+  fases 3-5); montar ali garante 100% das telas já existentes, sem duplicar layout
+- [x] 2.1.5 Design via `/ui-ux-pro-max` (EntreGô 2.0, dark/light, white-label — FR-017)
+  — usa tokens `bg-warning`/`text-warning-foreground` já definidos no design system
+  (`app/globals.css`), preservando dark/light e white-label sem cor nova
+- [x] 2.1.6 [teste] Teste unitário dos 3 casos: `"production"` (ausente),
   `"homologacao"`/`"staging"` (presente), valor ausente/inválido (presente — fail-safe)
+  — `components/hub/env-badge.test.tsx`, 7/7 verdes
 
 ### 2.2 `ModuleNav` data-driven `[C]`
 
 Ref: `plan.md` §3.2, `data-model.md` §5
 
-- [ ] 2.2.1 Renderizar itens a partir de `me.modulos` — a **presença** no array já
-  significa "visível" (D2); ordenar por `ordem`; ícone por `icone`
-- [ ] 2.2.2 Mapeamento `codigo` → rota `/dashboard/<codigo>` como função pura, sem lista
-  fixa de módulos (FR-001/SC-001)
-- [ ] 2.2.3 Responsivo: drawer no mobile (reusar o padrão do header responsivo já
-  existente no painel)
-- [ ] 2.2.4 Design via `/ui-ux-pro-max`
-- [ ] 2.2.5 [teste] Teste unitário do mapeamento módulo→rota + fixture com 2 conjuntos
+- [x] 2.2.1 Renderizar itens a partir de `me.modulos` — a **presença** no array já
+  significa "visível" (D2); ordenar por `ordem`; ícone por `icone` —
+  `components/hub/module-nav.tsx` (`useModuleNavItems`/`ModuleNav`). Achado desta
+  onda (grep em `infra/hub/migrations/`): `Modulo.icone` é `text NULL`
+  (0003_papel_permissao_modulo.sql linha 17) e o seed atual
+  (0007_seed_papeis_permissoes_modulos.sql) não povoa `icone` — chega `null` na
+  prática hoje; `resolveModuleIcon` (lib/hub/module-nav.ts) é fail-safe (mesmo
+  espírito do EnvBadge/CHK029): `icone` ausente/não reconhecido cai num ícone padrão,
+  nunca omite o item do menu
+- [x] 2.2.2 Mapeamento `codigo` → rota `/dashboard/<codigo>` como função pura, sem lista
+  fixa de módulos (FR-001/SC-001) — `moduloParaRota` em `lib/hub/module-nav.ts`
+- [x] 2.2.3 Responsivo: drawer no mobile (reusar o padrão do header responsivo já
+  existente no painel) — `Sheet`/`SheetClose` igual a `components/header.tsx`;
+  sidebar fixa em telas `>= lg`
+- [x] 2.2.4 Design via `/ui-ux-pro-max` — tokens `bg-sidebar`/`sidebar-foreground`/
+  `sidebar-primary`/`sidebar-border` do design system (já existentes em
+  `app/globals.css`), preservando dark/light e white-label
+- [x] 2.2.5 [teste] Teste unitário do mapeamento módulo→rota + fixture com 2 conjuntos
   de permissão diferentes confirmando itens de menu distintos (base para SC-001/SC-005)
+  — `lib/hub/module-nav.test.ts` (5/5) + `components/hub/module-nav.test.tsx` (4/4)
 
 ---
 
