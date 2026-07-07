@@ -457,3 +457,28 @@ anti-starvation, RAM/swap monitorados antes/depois). Sem DDL nesta fase.
 - Pendência recorrente (desde S1): divergência do trailer de commit
   (CLAUDE.md pede "Claude Opus 4.8"; commits usam o modelo vigente) — segue
   sem decisão do operador.
+
+---
+
+## 2026-07-07 — Gate D4 RESOLVIDO (destrava a S4) — decisão do operador (Paulo)
+
+- **Contexto:** o G1 (2026-07-05) confirmou só `soma_das_taxas_das_corridas_aceitas`
+  = centavos (int) e `tempo_disponivel_escalado` = percentual; `atingido` e
+  `margem_fee_porcentagem` ficaram **PENDENTES e bloqueantes da S4** (D4 PARCIAL,
+  DIARIO 2026-07-05 linhas 82–83; plano técnico §14 "o briefing s4 não inicia sem D4").
+- **D4 CONFIRMADO INTEGRALMENTE pelo operador (Paulo), 2026-07-07** — ratificou o
+  **default técnico do plano** (ingestão fiel, sem pré-interpretar negócio):
+  - **`atingido`** → persistir fielmente como `numeric(8,2) NULL` (transformação
+    vírgula→ponto), validação de faixa ampla **0–1000**; presente só em ~2,6% das
+    linhas (bônus por meta). O sentido de negócio (% de meta atingida) fica para
+    **S6/S7**, não é interpretado na S4.
+  - **`margem_fee_porcentagem`** (texto `MIN: x, INTER: y`) → guardar `margem_fee_raw`
+    **cru** + derivar `margem_fee_min`/`margem_fee_inter` (`numeric(8,2)`) via regex
+    `MIN: (x), INTER: (y)`; parse falho ⇒ só `raw`. **Sem** interpretar o que MIN/INTER
+    significam nesta fase (interpretação de comissão/faixa fica para S6).
+- **Efeito:** **D4 = RESOLVIDA (100%)**. Pré-condição bloqueante da S4 satisfeita e
+  registrada. A S4 pode iniciar. (D6 — mais dias de CSV — segue recomendado, não
+  bloqueante.)
+- **Decorrência:** matriz §10 e catálogo §9.2 do plano técnico ficam **canônicos e
+  vigentes** para os dois campos (nada a alterar no plano — o operador ratificou o que
+  já estava lá).
