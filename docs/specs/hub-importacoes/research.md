@@ -150,6 +150,39 @@ sessão — casa com processamento síncrono em chunks.
 interface `ImportJob` isolada para plugar depois); coluna de lock em tabela — mais
 estado a limpar em crash; advisory lock é auto-liberado ao fim da sessão.
 
+**ADENDO 2026-07-07 (execute-task, dec-033, CHK036) — mecanismo revisado**:
+verificação em código durante `execute-task` (FASE 0.1.4) mostrou que a premissa
+acima ("casa com processamento síncrono em chunks") não se sustenta na
+arquitetura real: `lib/hub-postgrest.js` é um cliente HTTP **stateless** — cada
+chamada abre um `fetch()` novo contra o PostgREST, que gerencia seu próprio pool
+de conexões de curta duração por-request. Não há, hoje, nenhuma conexão `pg`
+direta no backend do hub (0 ocorrências de `new Pool`/`require('pg')`, `pg`
+ausente de `package.json`) capaz de sustentar uma sessão Postgres dedicada por
+toda a duração do processamento em lotes (que faz N chamadas HTTP
+sequenciais). `pg_try_advisory_lock` adquirido numa chamada seria liberado ao
+fim **daquela chamada isolada**, não ao fim do processamento inteiro.
+
+**Mecanismo substituto** (mesmo contrato funcional — 1 importação ativa por
+`(id_empresa, tipo)`, demais ficam `pending`, sem 409, espera automática):
+mutex via **coluna `status` + índice único parcial** em `ImportacaoArquivo`:
+```sql
+CREATE UNIQUE INDEX importacaoarquivo_uma_ativa_por_tipo
+  ON "ImportacaoArquivo" (id_empresa, tipo)
+  WHERE status IN ('validating', 'processing');
+```
+"Adquirir o lock" = `UPDATE "ImportacaoArquivo" SET status='validating' WHERE
+id=... AND status='pending'` (statement atômico via PostgREST); se outra linha
+já ocupa `(id_empresa,tipo)` em `validating`/`processing`, o índice único
+rejeita a transição e a importação nova permanece em `pending` (mesmo
+comportamento de espera visível do design original). Reaproveita o timeout de
+120s (plan.md, falha por travamento) como sinal de "lock preso por crash": um
+job de reconciliação pode transicionar `validating`/`processing` parado há mais
+de 120s de volta a `failed`, liberando o índice único para a próxima espera.
+Evita introduzir uma dependência nova (`pg` driver) e uma superfície nova de
+gestão de conexão fora do padrão 100%-via-PostgREST usado pela fundação S1–S3
+(risco de bypass de RLS). Task 1.2.1 (migration 0011) inclui este índice;
+task 4.2 implementa a transição atômica.
+
 ---
 
 ## Decision 6 — Dedupe duplo + idempotência de reprocessamento

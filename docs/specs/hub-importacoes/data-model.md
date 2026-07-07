@@ -54,6 +54,13 @@ Cabeçalho de cada importação (metadado + contadores + estado).
 
 Índices: `(id_empresa, tipo, data_referencia DESC)`. RLS: `id_empresa = ANY(...)`.
 
+**Mutex de concorrência (research.md Decision 5, ADENDO dec-033/CHK036)**:
+índice único parcial `(id_empresa, tipo) WHERE status IN ('validating',
+'processing')` — substitui `pg_try_advisory_lock` (inviável via PostgREST
+stateless): "adquirir" = `UPDATE status='validating' WHERE status='pending'`
+atômico; se colidir, a importação nova permanece `pending` (espera visível,
+sem 409).
+
 **State transitions** (§12.2):
 ```
 pending → validating → processing → completed | completed_with_errors | failed

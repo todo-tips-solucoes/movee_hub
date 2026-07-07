@@ -30,20 +30,32 @@ Ref: `checklists/requirements.md` CHK004, CHK007, CHK013, CHK036 (Notes:
 Nenhuma destas bloqueia FASE 1/2/3 — bloqueiam subtarefas específicas
 indicadas abaixo.
 
-- [ ] 0.1.1 CHK004 — decidir se `hub-import-processor.js` exige teste
+- [x] 0.1.1 CHK004 — decidir se `hub-import-processor.js` exige teste
       unitário dedicado (máquina de estados/lock/rollback), além do teste de
       integração `hub-importacoes.test.js`. Decisão alimenta a tarefa 4.7.
-- [ ] 0.1.2 CHK007 — quantificar o SLA de "cancelamento surte efeito em
+      **RESOLVIDO (dec-030, score 2)**: sim, criar
+      `hub-import-processor.test.js` dedicado (mesmo padrão de parser/normalizer).
+- [x] 0.1.2 CHK007 — quantificar o SLA de "cancelamento surte efeito em
       intervalo curto" (FR-018): lote de 500 já é latência aceitável ou é
       preciso sub-lote menor? Decisão bloqueia a tarefa 4.6.
-- [ ] 0.1.3 CHK013 — decidir se a UI precisa de um sinal adicional
+      **RESOLVIDO (dec-031, score 2)**: lote de 500 é o teto aceitável
+      (checagem de `status=cancelled` entre lotes); sem sub-lote adicional.
+- [x] 0.1.3 CHK013 — decidir se a UI precisa de um sinal adicional
       (mensagem/tooltip) para diferenciar, no histórico, "pending recém-criado"
       de "pending aguardando lock de outra importação". Decisão bloqueia a
       tarefa 6.5.
-- [ ] 0.1.4 CHK036 — validar que o pool de conexões do backend/PostgREST
+      **RESOLVIDO (dec-032, score 2)**: campo derivado `aguardandoLock:boolean`
+      no GET /importacoes (sem coluna nova no banco).
+- [x] 0.1.4 CHK036 — validar que o pool de conexões do backend/PostgREST
       sustenta uma sessão dedicada durante o processamento síncrono (o
       `pg_try_advisory_lock` libera ao fim da SESSÃO Postgres, não da
       transação). Decisão bloqueia a tarefa 4.2.
+      **RESOLVIDO (dec-033, score 2) — NÃO sustenta** (`hub-postgrest.js` é
+      HTTP stateless, sem `pg` driver/pool direto no backend). Mecanismo
+      substituto: mutex via índice único parcial em `ImportacaoArquivo`
+      `(id_empresa,tipo) WHERE status IN ('validating','processing')`
+      (ver research.md Decision 5 ADENDO + data-model.md). Mesmo contrato
+      funcional (1 ativa por tipo/entidade, demais `pending`, sem 409).
 
 ---
 
@@ -69,7 +81,10 @@ Ref: `data-model.md` Entity ImportacaoArquivo/ImportacaoLinhaErro;
 - [ ] 1.2.1 Criar `0011_importacao_arquivo.sql`: `CHECK tipo IN
       ('faturamento','performance','envio_massa')` (envio_massa reservado p/
       S8, FR-026), `CHECK status IN (...)`, `UNIQUE(id_empresa, tipo,
-      hash_sha256)`, índice `(id_empresa, tipo, data_referencia DESC)`
+      hash_sha256)`, índice `(id_empresa, tipo, data_referencia DESC)`,
+      **índice único parcial `(id_empresa,tipo) WHERE status IN
+      ('validating','processing')`** (mutex de concorrência, dec-033/CHK036 —
+      substitui advisory lock, ver research.md Decision 5 ADENDO)
 - [ ] 1.2.2 Criar `0012_importacao_linha_erro.sql`: `id_empresa` FK
       **denormalizado** (Decision 4, reforça RLS uniforme), FK
       `importacao_id`, índice `(importacao_id)`
