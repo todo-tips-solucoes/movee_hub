@@ -390,16 +390,19 @@ Ref: `plan.md` §9, dec-019 (arquitetural, onda plan)
 
 ### 7.1 Abrir PR `feat/hub-shell` → `main` `[M]`
 
-- [ ] 7.1.1 Descrição do PR: resumo das 7 fases, evidências linkadas, gates rodados
-  (doc-quality, security, template-fidelity, docs-render)
+- [x] 7.1.1 Descrição do PR: resumo das 7 fases, evidências linkadas, gates rodados
+  (doc-quality, security, template-fidelity, docs-render) — escrita em
+  `docs/specs/hub-shell/PR-BODY.md`
 - [ ] 7.1.2 [teste] Confirmar CI verde (lint + testes unitários) antes de solicitar
-  revisão do operador
+  revisão do operador — **PAI executa** (push + `gh pr create` com o corpo de
+  `PR-BODY.md`; CI só roda após o push)
 
 ### 7.2 Atualizar `docs/plans/hub-frota/DIARIO.md` `[M]`
 
-- [ ] 7.2.1 Registrar o fechamento da S3: PR, evidências, decisões-chave (1.2.3 — troca
+- [x] 7.2.1 Registrar o fechamento da S3: PR, evidências, decisões-chave (1.2.3 — troca
   de senha via reuso do fluxo de recuperação; 1.2.4 — achado de descompasso do proxy;
-  CHK010/CHK015 corrigidos)
+  CHK010/CHK015 corrigidos) — entrada "2026-07-07 — S3 (Shell Modular do Hub)
+  CONCLUÍDA" adicionada ao DIARIO.md
 
 ---
 

@@ -344,3 +344,116 @@ Todo runtime em projetos compose EFÊMEROS `hub-test-*`; zero escrita no
   considerar cliente PostgREST req-scoped); incoerência GRANT×policy em
   UsuarioEntidade/ModuloEntidade; dedup dos helpers de JWT (verify/sign/cookies)
   num `lib/hub-token.js`. Todos para S3+.
+
+---
+
+## 2026-07-07 — S3 (Shell Modular do Hub) CONCLUÍDA — FASES 1–7, evidências e PR draft
+
+Executada via `/feature-00c` (13 ondas, branch `feat/hub-shell`, commits
+`e404fed..645a646`) sobre as fundações da S2. Entrega: a **casca de
+navegação** do painel do hub — `ModuleNav` data-driven por permissão,
+`EntitySwitcher`/seleção de entidade, `EnvBadge`, telas de autenticação
+(login, recuperar/redefinir senha, perfil com troca de senha, logout),
+`/hub/dashboard` por módulo. **Sem** telas de módulo de negócio (S4–S9, ficam
+para as próximas fases), **sem DDL** (o `/me` da S2 já cobre 100% dos dados
+do shell — dec-016), **sem tocar** o auth legado do envio em massa
+(`contexts/auth-context.tsx` intocado — FR-018/SC-007).
+
+### Fases (pipeline SDD completo)
+
+1. **Contratos, correções de documentação e adaptador de borda** —
+   CHK010/CHK015 corrigidos (`usuarios.manage`→`usuarios.gerenciar`,
+   `/usuarios`→`/api/v1/auditoria`, "5 falhas/15min"→`max:10`/`windowMs:15min`
+   reais do `authRateLimiter`); reverificação direta de `hub-me.js`/
+   `hub-auth.js`; `lib/hub/me-dto.ts` (adaptador snake↔camel, 8/8 vitest);
+   `HubAuthProvider` novo (dec-017: provider novo, legado intocado).
+2. **`ModuleNav` + `EnvBadge`** — navegação data-driven por `modulos[]` do
+   `/me` (sem hardcode), banner de ambiente não-produção com fail-safe
+   (CHK029).
+3. **`EntitySwitcher` e seleção de entidade** — troca de entidade ativa sem
+   novo login; `/selecionar-entidade` com 3 ramos por quantidade de vínculos.
+4. **Telas de autenticação** — `/hub/login`, `/hub/recuperar-senha`,
+   `/hub/redefinir-senha`, `/hub/dashboard/perfil` (troca de senha via reuso
+   do fluxo de recuperação — sem endpoint novo, fora da fronteira dec-010),
+   logout + guard de rota (FR-015). Namespace `/hub/*` para as rotas que
+   colidiriam com o legado (**dec-041**: `app/login` e `app/dashboard` já
+   existem como páginas do envio-massa legado; `motoristas` colidiria
+   letra-por-letra com `app/dashboard/motoristas` legado → prefixo `/hub`
+   para as rotas do shell).
+5. **Dashboard** — `/hub/dashboard` com cards por módulo + estado "sem
+   módulo disponível".
+6. **E2E, evidências e segurança** — ambiente isolado `hub-homolog` (exceção
+   standing G1, VPSTodo) com o serviço `frontend` novo (Next standalone,
+   `node:20-alpine`, `Dockerfile.hub`); build sob **rito anti-starvation**
+   (`--memory=2g`, swap 8G, RAM `available` nunca abaixo de ~6.5Gi) —
+   **produção permaneceu 8/8 Up o tempo todo**, confirmado antes/depois.
+   Resultados: **73 testes unitários (vitest) verdes** (soma das telas:
+   8+5+3+5+4 + suítes anteriores), **11/11 asserts E2E via API/proxy**
+   (`hub-shell-e2e-homolog.sh` — 403 por acesso direto sem permissão, troca
+   de entidade refletida em `/me`, `EnvBadge` presente, `entidades: []` sem
+   vínculo), **10/10 testes E2E browser** (Playwright real dentro de
+   `mcr.microsoft.com/playwright:v1.61.1-jammy`, nunca instalado no host —
+   menus por papel 8×6 itens, troca de entidade em 162ms, sessão corrompida
+   redireciona sem flash de conteúdo protegido), **axe 6/6 telas = 100/100**
+   (4 achados reais de `landmark-one-main`/`page-has-heading-one`/`region`
+   corrigidos nesta onda — `<main>` + `<h1>` em login/recuperar/redefinir/
+   selecionar-entidade). Gate de segurança pós-implementação: cookies
+   `httpOnly`+`sameSite=strict`+`secure`, **nenhum** `PermissionGate`/
+   `hasPermission` no shell (menu deriva de `me.modulos`, autorização real
+   é 100% backend — dec-015: `PermissionGate` é decorativo por design,
+   comprovado pelo 403 do cenário 6.2.2), sem PII/segredo novo (grep
+   negativo). Dois achados de ambiente corrigidos no driver de teste (não no
+   produto): seed de `ModuloEntidade` para as empresas sintéticas do browser
+   E2E, e rate limiter de `/auth/login` esgotando com múltiplos logins por
+   suíte (fix: 1 login por papel + `storageState` reusado).
+7. **PR + DIARIO (esta entrada)** — corpo do PR preparado em
+   `docs/specs/hub-shell/PR-BODY.md`; abertura do PR (`gh pr create`) e push
+   da branch ficam com o orquestrador PAI (que detém o lock e a
+   autorização); merge/deploy seguem com o operador.
+
+### Decisões-chave
+
+- **dec-014**: `/me.modulos[].ativo` (não `.habilitado`) consumido por
+  presença no array — sem tocar o backend da S2 (dec-010).
+- **dec-015**: `PermissionGate` é decorativo; autorização real é backend
+  por-entidade (RLS + `requirePermission` + `obterPermissoesEfetivasPorEntidade`
+  da S2/pós-review). Satisfaz FR-002/SC-002 sem depender do client.
+- **dec-017**: auth do shell em `contexts/hub-auth-context.tsx` **novo**;
+  legado `contexts/auth-context.tsx` (envio-massa) **intocado**.
+- **dec-019**: gate `owasp-security` arquitetural — nenhum finding
+  critical/high; A01 mitigado por design (backend reautoriza por-entidade),
+  A07/CSRF cobertos por TTL curto + `sameSite=strict`.
+- **dec-041**: namespace `/hub/*` para as rotas que colidem com o legado
+  (`app/login`, `app/dashboard`, `app/dashboard/motoristas` já existem no
+  envio-massa).
+
+### Evidências (`docs/plans/hub-frota/evidencias/S3/`)
+
+- `fase6-e2e-evidencias.md` — consolidado completo (ambiente, cenários,
+  achados, gate de segurança).
+- `fase6-browser-run-*.log` — log bruto da execução Playwright + axe.
+- `6.5.1-modulenav-admin_entidade.png` / `6.5.1-modulenav-operador.png` —
+  prints do `ModuleNav` por papel (8 vs 6 itens).
+- Nenhum dado pessoal real: contas sintéticas `e2e-teste-shell-*@example.test`
+  criadas/removidas por script em cada execução.
+
+### Blast radius
+
+Toda escrita ficou confinada a recursos `hub-*` (compose `hub-homolog`,
+containers `hub_homolog_*`) — **zero escrita** no ambiente vivo do cliente
+(`chatmasterveloz`, `envio-massa-homologacao_*`, `pgadmin_db`,
+Traefik/tags de produção). Build validado sem impacto em produção (rito
+anti-starvation, RAM/swap monitorados antes/depois). Sem DDL nesta fase.
+
+### Estado / pendências para o operador
+
+- **PR draft** a ser aberto pelo orquestrador PAI na branch `feat/hub-shell`
+  → `main` (corpo em `docs/specs/hub-shell/PR-BODY.md`); revisão e merge são
+  do operador.
+- **Deploy/cutover**: fora do escopo desta sessão — exige os 5 gates do rito
+  de produção do CLAUDE.md; o **gate G3** (cutover para produção) só ocorre
+  no fechamento da **S10** (plano mestre), não nesta fase.
+- Ambiente `hub-homolog` permanece NO AR, não foi derrubado.
+- Pendência recorrente (desde S1): divergência do trailer de commit
+  (CLAUDE.md pede "Claude Opus 4.8"; commits usam o modelo vigente) — segue
+  sem decisão do operador.
