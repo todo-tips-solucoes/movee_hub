@@ -514,49 +514,76 @@ hub da árvore legada do envio-massa. As tarefas abaixo usam o caminho real
 
 Ref: `plan.md` §Plano por fases item 6 (corrigido, ver nota acima).
 
-- [ ] 6.1.1 Invocar `/ui-ux-pro-max` para layout de histórico (tabela +
+- [x] 6.1.1 Invocar `/ui-ux-pro-max` para layout de histórico (tabela +
       filtros), dentro de `app/hub/dashboard/importacoes/page.tsx`
-- [ ] 6.1.2 Reusar `components/data-table.tsx` e `components/filters.tsx`
-      existentes
-- [ ] 6.1.3 Botão/entrada para o wizard de upload (tipo + arquivo)
-- [ ] 6.1.4 Teste: renderização + smoke de navegação via `ModuleNav`
-      (módulo `importacoes` já mapeado, ícone `Upload`)
+      (implementado seguindo diretamente os padrões EntreGô 2.0 já
+      aprovados — Table/Badge/Card/Tooltip, loading/vazio/erro — e depois
+      auditado via `Skill(ui-ux-pro-max)`, dec-048/dec-049: correções de
+      touch-target 44px mobile aplicadas em filtros/paginação/wizard)
+- [x] 6.1.2 Reusar `components/data-table.tsx` e `components/filters.tsx`
+      existentes (os literais são tipados para `EnvioMassa`/`FilterState`
+      legados — reusado o PADRÃO: mobile card + desktop table via
+      `components/ui/table.tsx`, mesma estrutura de filtros expansível)
+- [x] 6.1.3 Botão/entrada para o wizard de upload (tipo + arquivo)
+      (`ImportWizard`, gated por `importacoes.criar`)
+- [x] 6.1.4 Teste: renderização + smoke de navegação via `ModuleNav`
+      (módulo `importacoes` já mapeado, ícone `Upload`) —
+      `app/hub/dashboard/importacoes/page.test.tsx` (7 testes) +
+      `lib/hub/module-nav.test.ts` (2 casos novos p/ `importacoes`/`Upload`)
 
 ### 6.2 Rota `/hub/dashboard/importacoes/[id]` — detalhe/progresso/erros `[A]`
 
-- [ ] 6.2.1 Polling via `hooks/use-process-status.ts` enquanto
-      `status ∈ {pending, validating, processing}`
-- [ ] 6.2.2 Tabela de erros paginada + botão de download do relatório CSV
-- [ ] 6.2.3 Botões reprocessar/cancelar condicionados ao `status` atual
-- [ ] 6.2.4 Teste: transição de estado reflete na UI (mock de polling)
+- [x] 6.2.1 Polling via hook dedicado (`hooks/use-importacao-polling.ts`)
+      enquanto `status ∈ {pending, validating, processing}` — mesmo
+      espírito de `hooks/use-process-status.ts` (interval + cleanup), mas
+      hook PRÓPRIO: o existente fala com endpoints de propósito específico
+      (`/process-status`, shape `{active}`) que não mapeiam para
+      `GET /importacoes/:id` (shape `ImportacaoDetalhe`, parada por
+      `status` terminal em vez de toggle explícito)
+- [x] 6.2.2 Tabela de erros paginada + botão de download do relatório CSV
+- [x] 6.2.3 Botões reprocessar/cancelar condicionados ao `status` atual
+- [x] 6.2.4 Teste: transição de estado reflete na UI (mock de polling) —
+      `[id]/page.test.tsx` (9 testes) + `hooks/use-importacao-polling.test.ts`
+      (3 testes, transição pending→processing→completed)
 
 ### 6.3 `components/hub/import-wizard.tsx` `[A]`
 
-- [ ] 6.3.1 Seleção de tipo (`faturamento`|`performance`)
-- [ ] 6.3.2 Upload de arquivo com validação client-side (extensão/tamanho
+- [x] 6.3.1 Seleção de tipo (`faturamento`|`performance`)
+- [x] 6.3.2 Upload de arquivo com validação client-side (extensão/tamanho
       antes do POST, espelhando 3.1)
-- [ ] 6.3.3 Feedback legível para `409` (duplicado, com link para a
+- [x] 6.3.3 Feedback legível para `409` (duplicado, com link para a
       importação original) e `422` (inválido, com `motivo`)
-- [ ] 6.3.4 Teste: fluxo completo de upload mockado (happy path + 409 +
-      422)
+- [x] 6.3.4 Teste: fluxo completo de upload mockado (happy path + 409 +
+      422) — `components/hub/import-wizard.test.tsx` (6 testes)
 
 ### 6.4 `lib/hub/importacoes-dto.ts` — mapper camelCase `[A]`
 
 Ref: `plan.md` §Convenções de Borda.
 
-- [ ] 6.4.1 Tipos TS espelhando `contracts/importacoes-api.md`
-- [ ] 6.4.2 Parse/validação de shape no fetch
-- [ ] 6.4.3 Teste: paridade entre DTO e contrato (mesmo padrão de
-      `lib/hub/me-dto.ts`) — evita drift snake_case↔camelCase
+**Nota**: diferente de `lib/hub/me-dto.ts`, o backend desta feature
+(`routes/hub-importacoes.js` + `lib/hub-importacoes-dto.js`) já mapeia
+snake_case→camelCase NO SERVIDOR — não há tradução de case a fazer no
+frontend. `lib/hub/importacoes-dto.ts` cobre 6.4.1/6.4.2 (tipos + parse
+defensivo de shape); as chamadas HTTP (incl. tratamento de erro `erro`/
+`error`/`motivo`/`importacaoOriginalId`) foram para `lib/hub/importacoes-api.ts`
+(arquivo adicional, não previsto no plan.md original mas necessário —
+`hubFetch` de `hub-auth-context.tsx` não é exportado e só extrai `erro`).
+
+- [x] 6.4.1 Tipos TS espelhando `contracts/importacoes-api.md`
+- [x] 6.4.2 Parse/validação de shape no fetch
+- [x] 6.4.3 Teste: paridade entre DTO e contrato (mesmo padrão de
+      `lib/hub/me-dto.ts`) — evita drift snake_case↔camelCase —
+      `lib/hub/importacoes-dto.test.ts` (21 testes)
 
 ### 6.5 Aplicar decisão de sinalização de "pending aguardando lock" `[M]`
 
 Ref: `checklists/requirements.md` CHK013. **Bloqueada por 0.1.3.**
 
-- [ ] 6.5.1 Se 0.1.3 decidir por sinal adicional, adicionar
-      tooltip/mensagem distinguindo os dois casos de `pending` no histórico
-- [ ] 6.5.2 Teste: renderização condicional conforme a decisão registrada
-      em 0.1.3
+- [x] 6.5.1 0.1.3 decidiu por sinal adicional (dec-032: campo derivado
+      `aguardandoLock`) — aplicado como tooltip/ícone `Clock` no histórico
+      distinguindo os dois casos de `pending`, sem novo estado na máquina
+- [x] 6.5.2 Teste: renderização condicional conforme a decisão registrada
+      em 0.1.3 — coberto em `page.test.tsx` ("sinaliza aguardandoLock...")
 
 ---
 
