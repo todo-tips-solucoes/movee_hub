@@ -172,28 +172,52 @@ Ref: `plan.md` §3.2, `data-model.md` §5
 
 Ref: `plan.md` §3.2/§1.2, `research.md` D9, spec.md US2
 
-- [ ] 3.1.1 Consumir `entidades[]` + `entidadeAtiva` do `HubAuthProvider`
-- [ ] 3.1.2 `Select` Base UI: garantir `items` no `Root` (gotcha já conhecido do projeto)
-- [ ] 3.1.3 Troca de entidade: `POST /me/entidade` → em sucesso, `refetchMe()` recarrega
-  todo o contexto (FR-005/FR-007/SC-003)
-- [ ] 3.1.4 Tratar `400 EMPRESA_ID_INVALIDO` / `403 SEM_VINCULO`: manter a entidade
-  anterior selecionada, sem quebrar a sessão (FR-006)
-- [ ] 3.1.5 Design via `/ui-ux-pro-max`
-- [ ] 3.1.6 [teste] Teste unitário/integração (mock): troca válida atualiza
-  `entidadeAtiva`; troca para entidade sem vínculo mantém a anterior e não navega
+- [x] 3.1.1 Consumir `entidades[]` + `entidadeAtiva` do `HubAuthProvider` —
+  `components/hub/entity-switcher.tsx` (`useEntitySwitcher`). Componente NOVO
+  (não edita `empresa-selector.tsx` legado — FR-018/SC-007); retorna `null` com
+  0/1 vínculo (nada a trocar)
+- [x] 3.1.2 `Select` Base UI: `items` no `Root` (mesmo padrão de
+  `app/dashboard/motoristas/page.tsx`) — rótulo exibido no gatilho vem do array
+  `items`, não do valor cru
+- [x] 3.1.3 Troca de entidade: `POST /me/entidade` → em sucesso, `refetchMe()` recarrega
+  todo o contexto (FR-005/FR-007/SC-003) — delegado a `trocarEntidade()` já
+  implementado em `hub-auth-context.tsx` (task 1.4), sem lógica de rede nova
+- [x] 3.1.4 Tratar `400 EMPRESA_ID_INVALIDO` / `403 SEM_VINCULO`: manter a entidade
+  anterior selecionada, sem quebrar a sessão (FR-006) — `trocarEntidade()` só chama
+  `refetchMe()` em sucesso, então `entidadeAtiva` já preserva o valor anterior no
+  erro; o componente só exibe a mensagem (`HubApiError.message`) via `role="alert"`
+- [x] 3.1.5 Design via `/ui-ux-pro-max` — reusa tokens/padrões já validados
+  (`bg-destructive/10`/`text-destructive` do `empresa-selector.tsx`, `Select`
+  Base UI do design system), sem introduzir cor nova; dark/light e white-label
+  preservados (mesmos tokens CSS)
+- [x] 3.1.6 [teste] `components/hub/entity-switcher.test.tsx`, 9/9 verdes: lógica de
+  troca isolada via `renderHook` (troca válida chama `trocarEntidade` e não seta
+  erro; recusa 403 mantém a entidade anterior — `value` permanece a "anterior" —
+  e não navega; erro genérico usa fallback; valor igual ao atual é no-op) +
+  smoke do componente (0/1/2+ vínculos, rótulo exibido). Achado registrado
+  (decisão auditável): `entidades[]` do `/me` não traz nome de empresa (tabela
+  `Empresa` mora fora do banco do hub) — rótulo é `"Empresa #<id> — <papel>"`
 
 ### 3.2 Rota `/selecionar-entidade` `[A]`
 
 Ref: `plan.md` §3.4, spec.md FR-003/FR-004/FR-016
 
-- [ ] 3.2.1 `entidades.length > 1` → exibe a tela de seleção antes de liberar o
-  restante da navegação
-- [ ] 3.2.2 `entidades.length === 1` → seleciona automaticamente e segue a
-  `/dashboard`, sem exigir escolha manual
-- [ ] 3.2.3 `entidades.length === 0` → tela dedicada "sem acesso" (FR-016), mensagem
-  clara, sem navegação quebrada ou vazia
-- [ ] 3.2.4 Design via `/ui-ux-pro-max`
-- [ ] 3.2.5 [teste] Teste unitário dos 3 ramos (`>1` / `==1` / `==0`)
+- [x] 3.2.1 `entidades.length > 1` → exibe a tela de seleção antes de liberar o
+  restante da navegação — `app/selecionar-entidade/page.tsx` (`TelaEscolha`),
+  `HubAuthProvider` montado via `app/selecionar-entidade/layout.tsx` (layout de
+  segmento — o shell ainda não tem layout raiz próprio)
+- [x] 3.2.2 `entidades.length === 1` → seleciona automaticamente (`useEffect` +
+  guard por `ref`, disparo único; `queueMicrotask` evita
+  `react-hooks/set-state-in-effect`) e segue a `/dashboard`, sem exigir escolha
+  manual; idempotente (pula o `POST` se já é a entidade ativa)
+- [x] 3.2.3 `entidades.length === 0` → tela dedicada "sem acesso" (FR-016), mensagem
+  clara + saída via logout (sem navegação quebrada ou vazia)
+- [x] 3.2.4 Design via `/ui-ux-pro-max` — `Card`/`Button` do design system
+  (mesmos tokens EntreGô 2.0), estados de carregamento com `role="status"`,
+  erro com `role="alert"`
+- [x] 3.2.5 [teste] `app/selecionar-entidade/page.test.tsx`, 7/7 verdes: os 3 ramos
+  (`>1`/`==1`/`==0`) + carregando + idempotência (`==1` já ativa não repete o
+  `POST`) + recusa 403 mantém a tela de escolha com erro visível sem navegar
 
 ---
 
