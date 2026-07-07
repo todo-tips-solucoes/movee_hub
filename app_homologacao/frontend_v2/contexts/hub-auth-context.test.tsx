@@ -23,7 +23,8 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 function Consumidor() {
-  const { usuario, entidadeAtiva, carregando, logout, refetchMe } = useHubAuth();
+  const { usuario, entidadeAtiva, carregando, logout, refetchMe, trocarEntidade, recuperarSenha, redefinirSenha } =
+    useHubAuth();
   return (
     <div>
       <span data-testid="carregando">{String(carregando)}</span>
@@ -31,6 +32,9 @@ function Consumidor() {
       <span data-testid="entidade-ativa">{String(entidadeAtiva)}</span>
       <button onClick={() => refetchMe()}>refetch</button>
       <button onClick={() => logout()}>logout</button>
+      <button onClick={() => trocarEntidade(11).catch(() => {})}>trocar</button>
+      <button onClick={() => recuperarSenha('pessoa@exemplo.com').catch(() => {})}>recuperar</button>
+      <button onClick={() => redefinirSenha('token-bruto', 'nova-senha-123').catch(() => {})}>redefinir</button>
     </div>
   );
 }
@@ -107,5 +111,59 @@ describe('HubAuthProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('carregando').textContent).toBe('false'));
     expect(screen.getByTestId('usuario').textContent).toBe('sem-usuario');
+  });
+
+  it('task 4.5.3: 401 in-flight em trocarEntidade limpa o estado imediatamente (sem esperar refetchMe do guard)', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(ME_RESPONSE_DTO));
+
+    render(
+      <HubAuthProvider>
+        <Consumidor />
+      </HubAuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('usuario').textContent).toBe('Pessoa Exemplo'));
+
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ erro: 'Sessão inválida.' }, 401));
+    fireEvent.click(screen.getByText('trocar'));
+
+    await waitFor(() => expect(screen.getByTestId('usuario').textContent).toBe('sem-usuario'));
+    expect(screen.getByTestId('entidade-ativa').textContent).toBe('null');
+    // authenticatedFetch limpou o estado sem chamar refetchMe() de novo (só a
+    // chamada de /me/entidade que falhou) — 1 chamada inicial + 1 da troca.
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('task 4.2/4.3: recuperarSenha() e redefinirSenha() chamam os endpoints certos', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ erro: 'NAO_AUTENTICADO' }, 401));
+
+    render(
+      <HubAuthProvider>
+        <Consumidor />
+      </HubAuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('carregando').textContent).toBe('false'));
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ ok: true, mensagem: 'Se o e-mail existir, um link de redefinição foi enviado.' })
+    );
+    fireEvent.click(screen.getByText('recuperar'));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/v1/auth/recuperar-senha',
+        expect.objectContaining({ method: 'POST', body: JSON.stringify({ email: 'pessoa@exemplo.com' }) })
+      )
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true }));
+    fireEvent.click(screen.getByText('redefinir'));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/v1/auth/redefinir-senha',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ token: 'token-bruto', nova_senha: 'nova-senha-123' }),
+        })
+      )
+    );
   });
 });

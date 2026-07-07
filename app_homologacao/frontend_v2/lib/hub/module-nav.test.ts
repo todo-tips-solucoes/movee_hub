@@ -9,15 +9,15 @@ import {
 import { Truck } from 'lucide-react';
 
 describe('moduloParaRota', () => {
-  it('deriva /dashboard/<codigo> por convenção pura, sem lista fixa', () => {
-    expect(moduloParaRota('motoristas')).toBe('/dashboard/motoristas');
-    expect(moduloParaRota('faturamento')).toBe('/dashboard/faturamento');
+  it('deriva /hub/dashboard/<codigo> por convenção pura, sem lista fixa (dec-039/dec-041: prefixo /hub/ evita colisão com app/dashboard/motoristas legado)', () => {
+    expect(moduloParaRota('motoristas')).toBe('/hub/dashboard/motoristas');
+    expect(moduloParaRota('faturamento')).toBe('/hub/dashboard/faturamento');
   });
 
   it('resolve qualquer codigo futuro do backend sem precisar de mudança neste arquivo', () => {
     // SC-001: nenhum item hardcoded — um módulo nunca antes visto ainda
     // resolve corretamente pela convenção.
-    expect(moduloParaRota('modulo-novo-2027')).toBe('/dashboard/modulo-novo-2027');
+    expect(moduloParaRota('modulo-novo-2027')).toBe('/hub/dashboard/modulo-novo-2027');
   });
 });
 

@@ -14,7 +14,7 @@ vi.mock('@/contexts/hub-auth-context', () => ({
 }));
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard/motoristas',
+  usePathname: () => '/hub/dashboard/motoristas',
 }));
 
 function withModulos(modulos: Array<{ codigo: string; nome: string; icone: string | null; ordem: number }>) {
@@ -65,7 +65,7 @@ describe('ModuleNav', () => {
     expect(screen.queryAllByText('Painel Geral').length).toBe(0);
   });
 
-  it('mapeamento módulo→rota: cada link aponta para /dashboard/<codigo>', () => {
+  it('mapeamento módulo→rota: cada link aponta para /hub/dashboard/<codigo>', () => {
     withModulos([{ codigo: 'performance', nome: 'Performance', icone: null, ordem: 40 }]);
 
     render(<ModuleNav />);
@@ -73,7 +73,7 @@ describe('ModuleNav', () => {
     const links = screen.getAllByRole('link', { name: 'Performance' });
     expect(links.length).toBeGreaterThan(0);
     for (const link of links) {
-      expect(link).toHaveAttribute('href', '/dashboard/performance');
+      expect(link).toHaveAttribute('href', '/hub/dashboard/performance');
     }
   });
 

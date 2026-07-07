@@ -125,7 +125,7 @@ Isso confina a tradução snake↔camel a um só lugar (fonte da verdade da bord
 
 | Componente | Papel | Data source | Notas |
 |------------|-------|-------------|-------|
-| `ModuleNav` (sidebar) | Navegação principal data-driven | `modulos[]` do `/me` | **Presença no array = item visível.** Ordena por `ordem`. Ícone por `icone`. Responsivo: drawer no mobile (padrão do header responsivo já existente). Rota derivada por convenção `codigo`→`/dashboard/<codigo>` (mapeamento testado — briefing "mapeamento módulo→rota"). Nenhum item hardcoded (FR-001/SC-001). |
+| `ModuleNav` (sidebar) | Navegação principal data-driven | `modulos[]` do `/me` | **Presença no array = item visível.** Ordena por `ordem`. Ícone por `icone`. Responsivo: drawer no mobile (padrão do header responsivo já existente). Rota derivada por convenção `codigo`→`/hub/dashboard/<codigo>` (mapeamento testado — briefing "mapeamento módulo→rota"; prefixo `/hub/` corrigido na Fase 4, ver §3.4-bis). Nenhum item hardcoded (FR-001/SC-001). |
 | `EntitySwitcher` | Troca de entidade ativa | `entidades[]` + `entidadeAtiva` | Evolui `components/empresa-selector.tsx`. `Select` Base UI **exige `items` no Root** (gotcha). Troca → `POST /me/entidade` → `refetchMe()` recarrega todo o contexto (FR-005/FR-007/SC-003). |
 | `EnvBadge` | Aviso de ambiente | `NEXT_PUBLIC_APP_ENV` | Banner fixo + favicon alternativo quando `!= "production"` ("HOMOLOGAÇÃO — dados fictícios"). Presente em TODA tela do shell via layout (FR-008/SC-004). Nova env var pública (não existia — verificado). |
 | `PermissionGate` (client) | Esconde ações sem permissão | `permissoes[]` + `<codigo>.<acao>` | **Decorativo** — a autoridade é o backend (FR-002). Consome a convenção `<codigo>.view`/`<codigo>.<acao>` da spec Q1. Ver §3.3 sobre a natureza cross-entidade de `permissoes[]`. |
@@ -146,16 +146,44 @@ ativa. Consequências que o plano fixa:
 
 ### 3.4 Rotas do shell (App Router)
 
-`/login` · `/recuperar-senha` · `/redefinir-senha` · `/selecionar-entidade` · `/dashboard`
-(cards por módulo — FR-009) · `/dashboard/perfil` (nome/e-mail + troca de senha — FR-011) ·
-logout (ação). Guard de rota: cada navegação entre rotas do shell dispara `refetchMe()`
-(spec Q3/dec-009 — sem polling temporizado) para refletir perda de vínculo (FR-015) e expiração
-de sessão (redireciona a `/login` limpando estado — Edge Case de sessão expirada).
+`/hub/login` · `/hub/recuperar-senha` · `/hub/redefinir-senha` · `/selecionar-entidade` ·
+`/hub/dashboard` (cards por módulo — FR-009) · `/hub/dashboard/perfil` (nome/e-mail + troca de
+senha — FR-011) · logout (ação). Guard de rota: cada navegação entre rotas do shell dispara
+`refetchMe()` (spec Q3/dec-009 — sem polling temporizado) para refletir perda de vínculo
+(FR-015) e expiração de sessão (redireciona a `/hub/login` limpando estado — Edge Case de
+sessão expirada).
 
-Fluxo pós-login (FR-003/FR-004): `entidades.length > 1` → `/selecionar-entidade`;
-`=== 1` → seleciona automaticamente e segue a `/dashboard`; `=== 0` → tela dedicada "sem
-acesso" (FR-016), sem quebrar. `modulos.length === 0` com entidade ativa → dashboard/nav
-comunicam "nenhum módulo disponível" (FR-010).
+Fluxo pós-login (FR-003/FR-004): login sempre encaminha a `/selecionar-entidade`, que decide
+por `entidades.length`: `> 1` → tela de escolha explícita; `=== 1` → seleciona automaticamente
+e segue a `/hub/dashboard`; `=== 0` → tela dedicada "sem acesso" (FR-016), sem quebrar.
+`modulos.length === 0` com entidade ativa → dashboard/nav comunicam "nenhum módulo disponível"
+(FR-010).
+
+#### 3.4-bis Correção do namespace de rotas (dec-039/dec-041, Fase 4)
+
+Achado da Fase 4 (task 4.1, leitura empírica de `app/login/page.tsx` e `app/dashboard/page.tsx`):
+o texto original desta seção previa `/login` e `/dashboard` sem prefixo, mas essas duas rotas
+**já existem** como páginas do envio-massa LEGADO (`useAuth()` de `contexts/auth-context.tsx`,
+`EmpresaSelector`) — e o briefing S3 proíbe alterá-las até a S8 ("permanecem onde estão"). Achado
+adicional: `lib/hub/module-nav.ts::moduloParaRota` (Fase 2, já shipped) derivava
+`/dashboard/<codigo>` sem prefixo, e o seed canônico de módulos
+(`0007_seed_papeis_permissoes_modulos.sql`) inclui um módulo de código `motoristas` — que
+colidiria letra-por-letra com a subrota legada real `app/dashboard/motoristas/page.tsx`.
+
+**Decisão (dec-041, score 3)**: toda rota autenticada do shell passa a viver sob o namespace
+`/hub/` — `/hub/login`, `/hub/dashboard`, `/hub/dashboard/perfil`, `/hub/dashboard/<codigo>`
+(módulos) — mais `/hub/recuperar-senha` e `/hub/redefinir-senha` (agrupadas ao fluxo de auth por
+consistência, embora não colidissem). `lib/hub/module-nav.ts` foi corrigido retroativamente para
+`/hub/dashboard/<codigo>`. **Única exceção**: `/selecionar-entidade` permanece top-level (sem
+prefixo) — já shipped e testado na Fase 3, sem colisão com o legado, retrabalhar o path
+consumiria esforço sem ganho. Nenhum arquivo do envio-massa legado (`app/login/page.tsx`,
+`app/dashboard/page.tsx` e subrotas `motoristas`/`configuracoes`/`validacao-xml`) foi tocado ou
+removido — a resolução ficou inteiramente dentro do código do hub.
+
+Estrutura física: `app/hub/layout.tsx` monta `HubAuthProvider` + guard de sessão uma única vez
+para toda a subárvore `/hub/*` (em vez de um layout de segmento por rota, como fez a Fase 3 para
+`/selecionar-entidade`) — evita refetches de `/me` redundantes entre navegações dentro do shell
+autenticado.
 
 ### 3.5 Design das telas
 

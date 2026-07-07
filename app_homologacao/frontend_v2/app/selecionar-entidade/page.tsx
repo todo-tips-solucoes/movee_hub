@@ -28,7 +28,12 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 
-const DASHBOARD_ROUTE = '/dashboard';
+// dec-039/dec-041 (Fase 4): namespace /hub/ evita colisão com o envio-massa
+// legado (app/dashboard/page.tsx + subrotas reais motoristas/configuracoes/
+// validacao-xml). Ver lib/hub/module-nav.ts para a mesma convenção aplicada
+// ao ModuleNav.
+const DASHBOARD_ROUTE = '/hub/dashboard';
+const LOGIN_ROUTE = '/hub/login';
 
 type Ramo = 'carregando' | 'sem-acesso' | 'auto-selecao' | 'escolha';
 
@@ -121,7 +126,7 @@ function TelaSemAcesso() {
 
   async function handleLogout() {
     await logout();
-    router.replace('/login');
+    router.replace(LOGIN_ROUTE);
   }
 
   return (

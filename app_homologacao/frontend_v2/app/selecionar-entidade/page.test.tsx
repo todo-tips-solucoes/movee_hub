@@ -69,7 +69,7 @@ describe('/selecionar-entidade', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Sair/ }));
     await waitFor(() => expect(logout).toHaveBeenCalled());
-    expect(mockReplace).toHaveBeenCalledWith('/login');
+    expect(mockReplace).toHaveBeenCalledWith('/hub/login');
   });
 
   it('1 entidade: seleciona automaticamente e redireciona a /dashboard, sem exigir escolha manual', async () => {
@@ -80,7 +80,7 @@ describe('/selecionar-entidade', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Selecionando');
     await waitFor(() => expect(trocarEntidade).toHaveBeenCalledWith(10));
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/dashboard'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/hub/dashboard'));
   });
 
   it('1 entidade já ativa: não repete o POST (idempotente), só redireciona', async () => {
@@ -89,7 +89,7 @@ describe('/selecionar-entidade', () => {
 
     render(<SelecionarEntidadePage />);
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/dashboard'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/hub/dashboard'));
     expect(trocarEntidade).not.toHaveBeenCalled();
   });
 
@@ -110,7 +110,7 @@ describe('/selecionar-entidade', () => {
     fireEvent.click(screen.getByRole('button', { name: /Empresa #20 — operador/ }));
 
     await waitFor(() => expect(trocarEntidade).toHaveBeenCalledWith(20));
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/dashboard'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/hub/dashboard'));
   });
 
   it('>1 entidades: recusa (403 SEM_VINCULO) mantém a tela de escolha com erro visível, sem navegar', async () => {

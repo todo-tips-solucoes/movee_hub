@@ -78,6 +78,12 @@ interface HubAuthContextValue {
   logout: () => Promise<void>;
   trocarEntidade: (empresaId: number) => Promise<void>;
   refetchMe: () => Promise<void>;
+  // task 4.2/4.3 — reuso do fluxo único de recuperação/redefinição de senha
+  // (dec-030: também aciona o "trocar senha" do perfil, task 4.4, sem
+  // endpoint novo de backend). Resposta SEMPRE `{ ok, mensagem }` — o
+  // backend nunca revela se o e-mail existe (FR-020/SC-005).
+  recuperarSenha: (email: string) => Promise<{ ok: boolean; mensagem: string }>;
+  redefinirSenha: (token: string, novaSenha: string) => Promise<void>;
 }
 
 const HubAuthContext = createContext<HubAuthContextValue | null>(null);
@@ -128,19 +134,57 @@ export function HubAuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // task 4.5.3 — requisição *in-flight* de uma ação autenticada que recebe
+  // 401 (sessão expira em meio a uma ação, ex.: troca de entidade): limpa o
+  // estado IMEDIATAMENTE (não espera o próximo refetchMe do guard de rota,
+  // components/hub/session-guard.tsx), para não expor dados de uma sessão
+  // morta a uma próxima pessoa no mesmo dispositivo (edge case CHK017).
+  // NÃO usado por login/recuperarSenha/redefinirSenha: nessas, 401/400/410
+  // são desfechos de negócio (credencial inválida/token inválido), não
+  // "sessão expirou" — não há sessão para limpar.
+  const authenticatedFetch = useCallback(async <T,>(path: string, init?: RequestInit): Promise<T> => {
+    try {
+      return await hubFetch<T>(path, init);
+    } catch (e) {
+      if (e instanceof HubApiError && e.status === 401) {
+        setMe(null);
+      }
+      throw e;
+    }
+  }, []);
+
   const trocarEntidade = useCallback(
     async (empresaId: number) => {
       // 400 EMPRESA_ID_INVALIDO / 403 SEM_VINCULO (task 3.1.4): propaga o
       // erro SEM chamar refetchMe() — `me` permanece com a entidade anterior
-      // selecionada, a sessão não quebra.
-      await hubFetch<{ entidade_ativa: number }>('/me/entidade', {
+      // selecionada, a sessão não quebra. 401 (sessão expirada em meio à
+      // troca) é tratado por `authenticatedFetch` acima.
+      await authenticatedFetch<{ entidade_ativa: number }>('/me/entidade', {
         method: 'POST',
         body: JSON.stringify(toTrocarEntidadeReq(empresaId)),
       });
       await refetchMe();
     },
-    [refetchMe]
+    [authenticatedFetch, refetchMe]
   );
+
+  const recuperarSenha = useCallback(async (email: string) => {
+    // Sem 401 possível aqui (rota pública, sem sessão) — só 200/429.
+    return hubFetch<{ ok: boolean; mensagem: string }>('/auth/recuperar-senha', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }, []);
+
+  const redefinirSenha = useCallback(async (token: string, novaSenha: string) => {
+    // Propaga HubApiError (400 token/senha ausentes ou curtos, 400 token
+    // inválido, 410 token expirado) para o chamador (tela de redefinir
+    // senha, task 4.3) decidir a mensagem.
+    await hubFetch<{ ok: boolean }>('/auth/redefinir-senha', {
+      method: 'POST',
+      body: JSON.stringify({ token, nova_senha: novaSenha }),
+    });
+  }, []);
 
   const value: HubAuthContextValue = {
     usuario: me ? me.usuario : null,
@@ -153,6 +197,8 @@ export function HubAuthProvider({ children }: { children: ReactNode }) {
     logout,
     trocarEntidade,
     refetchMe,
+    recuperarSenha,
+    redefinirSenha,
   };
 
   return <HubAuthContext.Provider value={value}>{children}</HubAuthContext.Provider>;

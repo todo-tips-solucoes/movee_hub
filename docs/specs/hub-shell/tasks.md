@@ -223,82 +223,100 @@ Ref: `plan.md` §3.4, spec.md FR-003/FR-004/FR-016
 
 ## FASE 4 - Telas de Autenticação
 
-### 4.1 `/login` `[C]`
+### 4.1 `/hub/login` `[C]` `[x]`
 
-Ref: `plan.md` §1.3/§3.4, spec.md US2/Q2-dec-008
+Ref: `plan.md` §1.3/§3.4/§3.4-bis, spec.md US2/Q2-dec-008
 
-- [ ] 4.1.1 Formulário de login consumindo `POST /api/v1/auth/login`
-- [ ] 4.1.2 Tratar somente os erros reais: `CREDENCIAIS_INVALIDAS` / `CONTA_BLOQUEADA` /
+> Achado dec-039/dec-041: rota movida para `/hub/login` (era `/login` no plano
+> original) — `app/login/page.tsx` já existe como página do envio-massa
+> legado. Ver `plan.md` §3.4-bis.
+
+- [x] 4.1.1 Formulário de login consumindo `POST /api/v1/auth/login`
+- [x] 4.1.2 Tratar somente os erros reais: `CREDENCIAIS_INVALIDAS` / `CONTA_BLOQUEADA` /
   `RATE_LIMIT` (nunca mensagem de "sem vínculo" — o login nunca recusa por isso)
-- [ ] 4.1.3 Pós-login: decidir o fluxo por `entidades.length` (encaminha para
-  `/selecionar-entidade` ou `/dashboard`, conforme os ramos da task 3.2)
-- [ ] 4.1.4 Design via `/ui-ux-pro-max`
-- [ ] 4.1.5 [teste] Teste unitário dos 3 erros de login + smoke E2E de login válido
+- [x] 4.1.3 Pós-login: encaminha sempre a `/selecionar-entidade`, que decide o fluxo por
+  `entidades.length` (conforme os ramos da task 3.2) — evita duplicar a lógica de branching
+- [x] 4.1.4 Design via `/ui-ux-pro-max` (reuso do vocabulário visual já validado: aurora hero +
+  Card glass, Wordmark, ThemeToggle — mesmo padrão do `/login` legado)
+- [x] 4.1.5 [teste] Teste unitário dos 3 erros de login + smoke de login válido (5/5 vitest)
 
-### 4.2 `/recuperar-senha` `[A]`
+### 4.2 `/hub/recuperar-senha` `[A]` `[x]`
 
-Ref: `plan.md` §1.3, spec.md FR-012/FR-014
+Ref: `plan.md` §1.3/§3.4-bis, spec.md FR-012/FR-014
 
-- [ ] 4.2.1 Formulário de e-mail consumindo `POST /api/v1/auth/recuperar-senha`
-- [ ] 4.2.2 Exibir sempre a mesma resposta de sucesso — nunca revelar se o e-mail existe
+- [x] 4.2.1 Formulário de e-mail consumindo `POST /api/v1/auth/recuperar-senha`
+- [x] 4.2.2 Exibir sempre a mesma resposta de sucesso — nunca revelar se o e-mail existe
   ou não na base (FR-012)
-- [ ] 4.2.3 UI trata `429` do `authRateLimiter` (max:10/15min por ip+email, corrigido na
+- [x] 4.2.3 UI trata `429` do `authRateLimiter` (max:10/15min por ip+email, corrigido na
   task 1.1.3) sem quebrar a experiência (mensagem clara de "tente novamente mais tarde")
-- [ ] 4.2.4 Design via `/ui-ux-pro-max`
-- [ ] 4.2.5 [teste] Teste unitário: resposta de sucesso idêntica para e-mail
-  existente/inexistente (mock); tratamento do `429`
+- [x] 4.2.4 Design via `/ui-ux-pro-max` (Card centrado, mesmo vocabulário visual de
+  `/selecionar-entidade`)
+- [x] 4.2.5 [teste] Teste unitário: resposta de sucesso idêntica para e-mail
+  existente/inexistente (mock); tratamento do `429` (3/3 vitest)
 
-### 4.3 `/redefinir-senha` `[A]`
+### 4.3 `/hub/redefinir-senha` `[A]` `[x]`
 
-Ref: `plan.md` §1.3
+Ref: `plan.md` §1.3/§3.4-bis
 
-- [ ] 4.3.1 Consome o token (query string, do link recebido por e-mail) + formulário de
+- [x] 4.3.1 Consome o token (query string, do link recebido por e-mail) + formulário de
   nova senha
-- [ ] 4.3.2 Validação mínima client-side (>=8 caracteres, só UX — o servidor é a
+- [x] 4.3.2 Validação mínima client-side (>=8 caracteres, só UX — o servidor é a
   autoridade)
-- [ ] 4.3.3 Tratar `400` (token/senha ausentes ou senha curta), `400 token inválido` e
+- [x] 4.3.3 Tratar `400` (token/senha ausentes ou senha curta), `400 token inválido` e
   `410 token expirado` com mensagens claras e distintas
-- [ ] 4.3.4 Design via `/ui-ux-pro-max`
-- [ ] 4.3.5 [teste] Teste unitário dos 3 erros + fluxo de sucesso (mock)
+- [x] 4.3.4 Design via `/ui-ux-pro-max` (Card centrado, mesmo vocabulário visual de
+  `/selecionar-entidade`)
+- [x] 4.3.5 [teste] Teste unitário dos 3 erros + fluxo de sucesso (mock) (5/5 vitest)
 
-### 4.4 `/dashboard/perfil` (dados de conta + troca de senha) `[A]`
+### 4.4 `/hub/dashboard/perfil` (dados de conta + troca de senha) `[A]` `[x]`
 
-Ref: `plan.md` §3.4, spec.md FR-011, decisão da task 1.2.3
+Ref: `plan.md` §3.4/§3.4-bis, spec.md FR-011, decisão da task 1.2.3
 
-- [ ] 4.4.1 Exibir `usuario.nome`/`usuario.email` (somente leitura, vêm de `/me`)
-- [ ] 4.4.2 "Trocar senha": aciona o mesmo fluxo das tasks 4.2+4.3, pré-preenchendo o
+- [x] 4.4.1 Exibir `usuario.nome`/`usuario.email` (somente leitura, vêm de `/me`)
+- [x] 4.4.2 "Trocar senha": aciona o mesmo fluxo das tasks 4.2+4.3, pré-preenchendo o
   e-mail da própria sessão (decisão 1.2.3 — reuso do fluxo de recuperação de senha, sem
-  endpoint novo de backend)
-- [ ] 4.4.3 Botão de logout sempre visível nesta área (infraestrutura do shell — spec
+  endpoint novo de backend; implementado como 1 clique chamando `recuperarSenha(usuario.email)`
+  diretamente, sem formulário — e-mail já é conhecido da sessão)
+- [x] 4.4.3 Botão de logout sempre visível nesta área (infraestrutura do shell — spec
   Q5/dec-011, não conta como módulo)
-- [ ] 4.4.4 Design via `/ui-ux-pro-max`
-- [ ] 4.4.5 [teste] Teste unitário: exibição correta dos dados + acionamento do fluxo
-  de troca de senha
+- [x] 4.4.4 Design via `/ui-ux-pro-max`
+- [x] 4.4.5 [teste] Teste unitário: exibição correta dos dados + acionamento do fluxo
+  de troca de senha (4/4 vitest, inclui logout)
 
-### 4.5 Logout + guard de rota (refetch de sessão) `[C]`
+### 4.5 Logout + guard de rota (refetch de sessão) `[C]` `[x]`
 
 Ref: `plan.md` §3.4, spec.md FR-013/FR-015/Q3-dec-009, `checklists/requirements.md` CHK017
 
-- [ ] 4.5.1 `logout()`: `POST /api/v1/auth/logout` → limpa o estado do
-  `HubAuthProvider` → redireciona a `/login`
-- [ ] 4.5.2 Guard de rota: cada navegação entre rotas do shell dispara `refetchMe()`
+- [x] 4.5.1 `logout()`: `POST /api/v1/auth/logout` → limpa o estado do
+  `HubAuthProvider` → redireciona a `/hub/login` (já existia em `hub-auth-context.tsx`
+  desde a task 1.4; wiring do botão + redirect na task 4.4.3/perfil)
+- [x] 4.5.2 Guard de rota: cada navegação entre rotas do shell dispara `refetchMe()`
   (spec Q3/dec-009 — sem polling temporizado); perda de vínculo é refletida no próximo
-  refetch (FR-015)
-- [ ] 4.5.3 Tratar requisição *in-flight* que recebe `401` (sessão expira em meio de uma
-  ação, ex.: troca de entidade ou submissão do perfil): redireciona a `/login` limpando
-  o estado da sessão anterior, sem expor dados a uma próxima pessoa no mesmo dispositivo
-  (edge case CHK017)
-- [ ] 4.5.4 [teste] Teste unitário/integração: guard dispara refetch a cada navegação
-  (mock); simular perda de vínculo (`entidade_ativa: null`) reflete na navegação;
-  simular `401` in-flight redireciona e limpa o estado
+  refetch (FR-015) — `components/hub/session-guard.tsx`, montado em `app/hub/layout.tsx`
+- [x] 4.5.3 Tratar requisição *in-flight* que recebe `401` (sessão expira em meio de uma
+  ação, ex.: troca de entidade ou submissão do perfil): limpa o estado da sessão anterior
+  imediatamente via `authenticatedFetch` (`contexts/hub-auth-context.tsx`) — o guard reage
+  ao `usuario===null` resultante e redireciona a `/hub/login`, sem expor dados a uma
+  próxima pessoa no mesmo dispositivo (edge case CHK017)
+- [x] 4.5.4 [teste] Teste unitário/integração: guard dispara refetch a cada navegação
+  (mock, 7/7 `session-guard.test.tsx`); simular perda de vínculo (`entidade_ativa: null`) reflete na navegação
+  (`hub-auth-context.test.tsx` — refetchMe atualiza qualquer campo do `me`, incl. entidade
+  ativa); simular `401` in-flight redireciona e limpa o estado (`hub-auth-context.test.tsx`
+  "401 in-flight em trocarEntidade limpa o estado imediatamente").
 
 ---
 
 ## FASE 5 - Dashboard
 
-### 5.1 `/dashboard` — cards por módulo `[A]`
+### 5.1 `/hub/dashboard` — cards por módulo `[A]`
 
-Ref: `plan.md` §3.4, spec.md US4/FR-009/FR-010
+Ref: `plan.md` §3.4/§3.4-bis, spec.md US4/FR-009/FR-010
+
+> Achado dec-039/dec-041 (Fase 4): rota movida para `/hub/dashboard` (era `/dashboard`) —
+> `app/dashboard/page.tsx` já existe como página do envio-massa legado, e o próprio
+> `moduloParaRota` (task 2.2, corrigido na Fase 4) já deriva `/hub/dashboard/<codigo>`.
+> Esta página vive em `app/hub/dashboard/page.tsx`, dentro do namespace já montado por
+> `app/hub/layout.tsx` (HubAuthProvider + guard) — só falta criar o `page.tsx` em si.
 
 - [ ] 5.1.1 Renderizar N blocos a partir de `me.modulos` (um por módulo habilitado e
   visível), cada um levando à rota mapeada (task 2.2.2)

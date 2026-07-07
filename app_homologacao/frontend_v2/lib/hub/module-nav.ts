@@ -70,11 +70,21 @@ export function resolveModuleIcon(icone: string | null | undefined): LucideIcon 
 }
 
 /**
- * Rota do módulo — convenção pura `/dashboard/<codigo>` (FR-001/SC-001:
+ * Rota do módulo — convenção pura `/hub/dashboard/<codigo>` (FR-001/SC-001:
  * "sem lista fixa de módulos"). Não hardcoda nenhum `codigo` — qualquer
  * módulo futuro que o backend passe a devolver em `modulos[]` já resolve
  * para uma rota sem precisar tocar este arquivo.
+ *
+ * Correção retroativa (Fase 4, dec-039/dec-041): a convenção original usava
+ * `/dashboard/<codigo>` sem prefixo, mas o envio-massa LEGADO já possui
+ * `app/dashboard/page.tsx` + subrotas reais `app/dashboard/motoristas`,
+ * `app/dashboard/configuracoes`, `app/dashboard/validacao-xml` — e o próprio
+ * seed canônico de módulos do hub (`0007_seed_papeis_permissoes_modulos.sql`)
+ * inclui um módulo de código `motoristas`, que colidiria letra-por-letra com
+ * a rota legada. O prefixo `/hub/` isola TODA a árvore de rotas autenticadas
+ * do shell da árvore do envio-massa legado (que "permanece onde está" até a
+ * S8 — briefing S3), sem tocar nenhum arquivo legado.
  */
 export function moduloParaRota(codigo: string): string {
-  return `/dashboard/${codigo}`;
+  return `/hub/dashboard/${codigo}`;
 }
