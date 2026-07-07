@@ -101,7 +101,9 @@ export default function HubLoginPage() {
   if (telaCarregando) return null;
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10 sm:px-6">
+    // `<main>` — landmark único da página (achado onda E2E FASE 6.3: axe
+    // `landmark-one-main`/`region`; nenhuma outra rota de auth tinha main).
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10 sm:px-6">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-background" />
       <div className="aurora-orb bg-gradient-warm -left-24 -top-24 h-72 w-72 animate-float" aria-hidden />
       <div
@@ -117,7 +119,8 @@ export default function HubLoginPage() {
             <div className="mb-3 flex justify-center">
               <Wordmark className="h-12" />
             </div>
-            <CardTitle className="font-display text-2xl">Hub de Frota</CardTitle>
+            {/* as="h1" — achado onda E2E FASE 6.3: axe `page-has-heading-one` (login era a única tela de auth sem nível-1). */}
+            <CardTitle as="h1" className="font-display text-2xl">Hub de Frota</CardTitle>
             <CardDescription>Entre com suas credenciais</CardDescription>
           </CardHeader>
           <CardContent>
@@ -186,6 +189,6 @@ export default function HubLoginPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   );
 }

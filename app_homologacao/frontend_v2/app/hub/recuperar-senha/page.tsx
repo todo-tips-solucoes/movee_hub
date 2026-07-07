@@ -58,7 +58,8 @@ export default function RecuperarSenhaPage() {
   const { email, setEmail, carregando, estado, mensagem, submeter } = useRecuperarSenha();
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-4">
+    // `<main>` — landmark único da página (achado onda E2E FASE 6.3: axe `landmark-one-main`/`region`).
+    <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           {estado === 'enviado' ? (
@@ -111,6 +112,6 @@ export default function RecuperarSenhaPage() {
           </Link>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

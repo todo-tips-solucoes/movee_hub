@@ -13,6 +13,14 @@
 # testing
 /coverage
 
+# playwright (hub-shell FASE 6 E2E browser, playwright.config.hub.ts) —
+# artefatos efêmeros de execução local/CI; evidências reais vão para
+# docs/plans/hub-frota/evidencias/S3/, nunca aqui.
+/test-results/
+/tests/e2e-hub-browser/.report.json
+/tests/e2e-hub-browser/.evidencias/
+/playwright-report/
+
 # next.js
 /.next/
 /out/

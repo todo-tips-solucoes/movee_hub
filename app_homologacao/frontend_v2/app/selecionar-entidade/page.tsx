@@ -102,21 +102,29 @@ export function useSelecionarEntidade() {
   return { ramo, entidades, entidadeAtiva, selecionando, erro, selecionar };
 }
 
+// `<main>` externo (landmark) + `<div role="status">` interno com
+// `className="contents"` (não afeta layout) — mantém o anúncio de
+// carregamento (role=status) SEM que ele sobrescreva o role implícito de
+// landmark do `<main>` (achado onda E2E FASE 6.3: axe `landmark-one-main`).
 function TelaCarregando() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-3" role="status">
-      <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden="true" />
-      <span className="text-sm text-muted-foreground">Carregando…</span>
-    </div>
+    <main className="flex min-h-svh flex-col items-center justify-center gap-3">
+      <div className="contents" role="status">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden="true" />
+        <span className="text-sm text-muted-foreground">Carregando…</span>
+      </div>
+    </main>
   );
 }
 
 function TelaAutoSelecao() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-3" role="status">
-      <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden="true" />
-      <span className="text-sm text-muted-foreground">Selecionando sua entidade…</span>
-    </div>
+    <main className="flex min-h-svh flex-col items-center justify-center gap-3">
+      <div className="contents" role="status">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden="true" />
+        <span className="text-sm text-muted-foreground">Selecionando sua entidade…</span>
+      </div>
+    </main>
   );
 }
 
@@ -130,7 +138,8 @@ function TelaSemAcesso() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-4">
+    // `<main>` — landmark único da página (achado onda E2E FASE 6.3: axe `landmark-one-main`/`region`).
+    <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           <AlertTriangle className="mb-2 size-10 text-warning" aria-hidden="true" />
@@ -147,7 +156,7 @@ function TelaSemAcesso() {
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
 
@@ -161,7 +170,8 @@ function TelaEscolha({
   'entidades' | 'selecionando' | 'erro' | 'selecionar'
 >) {
   return (
-    <div className="flex min-h-svh items-center justify-center p-4">
+    // `<main>` — landmark único da página (achado onda E2E FASE 6.3: axe `landmark-one-main`/`region`).
+    <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle as="h1">Selecionar entidade</CardTitle>
@@ -199,7 +209,7 @@ function TelaEscolha({
           })}
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
 

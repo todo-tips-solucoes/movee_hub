@@ -82,7 +82,8 @@ function RedefinirSenhaConteudo() {
     useRedefinirSenha(token);
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-4">
+    // `<main>` — landmark único da página (achado onda E2E FASE 6.3: axe `landmark-one-main`/`region`).
+    <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           {estado === 'sucesso' ? (
@@ -147,7 +148,7 @@ function RedefinirSenhaConteudo() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
 

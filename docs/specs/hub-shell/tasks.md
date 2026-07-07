@@ -344,16 +344,16 @@ Ref: `plan.md` §4/§8
 
 Ref: `plan.md` §8, task 1.1.2
 
-- [ ] 6.2.1 2 papéis distintos autenticam e veem conjuntos de itens de `ModuleNav`
+- [x] 6.2.1 2 papéis distintos autenticam e veem conjuntos de itens de `ModuleNav`
   diferentes (SC-001/SC-005)
 - [x] 6.2.2 Acesso direto por URL a `GET /api/v1/auditoria` sem `auditoria.consultar`
   recebe `403` do backend mesmo sem aparecer no menu (SC-002 — alvo real confirmado na
   task 1.1.2, substitui o exemplo inexistente `/usuarios`)
-- [ ] 6.2.3 Troca de entidade reflete os dados exibidos em menos de 5 segundos, sem
+- [x] 6.2.3 Troca de entidade reflete os dados exibidos em menos de 5 segundos, sem
   novo login (SC-003)
 - [x] 6.2.4 Banner de ambiente (`EnvBadge`) visível em toda tela do shell quando
   `NEXT_PUBLIC_APP_ENV != production` (SC-004)
-- [ ] 6.2.5 Sessão expira em meio de uma ação (troca de entidade / submissão de perfil)
+- [x] 6.2.5 Sessão expira em meio de uma ação (troca de entidade / submissão de perfil)
   → redireciona a `/login` sem expor dados da sessão anterior (edge case CHK017,
   task 4.5.3)
 - [x] 6.2.6 Login de pessoa sem vínculo em nenhuma entidade → tela "sem acesso"
@@ -363,9 +363,9 @@ Ref: `plan.md` §8, task 1.1.2
 
 Ref: `plan.md` §8
 
-- [ ] 6.3.1 Rodar `axe` nas telas novas (login, recuperar-senha, redefinir-senha,
+- [x] 6.3.1 Rodar `axe` nas telas novas (login, recuperar-senha, redefinir-senha,
   selecionar-entidade, dashboard, perfil) — meta ≥95
-- [ ] 6.3.2 Corrigir achados abaixo de 95 antes de fechar a fase
+- [x] 6.3.2 Corrigir achados abaixo de 95 antes de fechar a fase
 
 ### 6.4 Gate de segurança sobre a implementação real `[C]`
 
@@ -379,10 +379,10 @@ Ref: `plan.md` §9, dec-019 (arquitetural, onda plan)
 
 ### 6.5 Evidências `[A]`
 
-- [ ] 6.5.1 Prints por papel (as 2 contas da task 6.1.1, menus diferentes)
-- [ ] 6.5.2 Resultado do `axe` (≥95) por tela
-- [ ] 6.5.3 Resultado dos cenários E2E (6.2.1–6.2.6)
-- [ ] 6.5.4 Consolidar evidências em `docs/specs/hub-shell/evidencias/`
+- [x] 6.5.1 Prints por papel (as 2 contas da task 6.1.1, menus diferentes)
+- [x] 6.5.2 Resultado do `axe` (≥95) por tela
+- [x] 6.5.3 Resultado dos cenários E2E (6.2.1–6.2.6)
+- [x] 6.5.4 Consolidar evidências em `docs/specs/hub-shell/evidencias/`
 
 ---
 

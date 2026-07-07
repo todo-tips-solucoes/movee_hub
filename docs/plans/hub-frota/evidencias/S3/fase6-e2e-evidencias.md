@@ -32,7 +32,7 @@ Artefatos (não alteram nada de produção):
 /hub/dashboard/perfil -> 200
 ```
 
-## 6.2 — Cenários E2E (parte API/proxy verde; DOM/menu + timing na próxima onda)
+## 6.2 — Cenários E2E (parte API/proxy)
 
 Driver: `infra/hub/testes/hub-shell-e2e-homolog.sh` (padrão S2, requisições via o
 proxy do Next — o mesmo caminho do browser real). 11/11 asserts PASS:
@@ -40,20 +40,87 @@ proxy do Next — o mesmo caminho do browser real). 11/11 asserts PASS:
 - **6.2.2 (SC-002)** — operador (sem `auditoria.consultar`) `GET /api/v1/auditoria`
   → **403**; admin_entidade (com a permissão) → **200** (contraprova). VERDE.
 - **6.2.3 (SC-003, parte API)** — `POST /me/entidade` (A→B) reflete em `GET /me`
-  (`entidade_ativa=B`) sem novo login. VERDE. (timing UI <5s → onda browser)
+  (`entidade_ativa=B`) sem novo login. VERDE.
 - **6.2.4 (SC-004)** — banner "HOMOLOGAÇÃO — dados fictícios" presente no HTML de
   `/hub/login`, `/hub/dashboard`, `/hub/dashboard/perfil`, `/hub/recuperar-senha`
   (EnvBadge global no layout raiz; `NEXT_PUBLIC_APP_ENV=homologation` inlinado). VERDE.
 - **6.2.6 (FR-016, parte API)** — login de conta sem vínculo → `GET /me` com
-  `entidades: []` (condição da tela "sem acesso"). VERDE. (print DOM → onda browser)
+  `entidades: []` (condição da tela "sem acesso"). VERDE.
 
-PENDENTE (requer Playwright/DOM, próxima onda): **6.2.1** (2 papéis veem menus
-`ModuleNav` diferentes), **6.2.5** (expiração de sessão em meio de ação → redirect).
+## 6.2/6.3 — Onda BROWSER (Playwright real, `@axe-core/playwright`)
 
-## 6.3 — Acessibilidade (axe ≥95): PENDENTE
+Driver: `infra/hub/testes/hub-shell-e2e-browser.sh` — seeds efêmeros
+(`e2e-teste-shell-browser-{admin,operador}-<HHMMSS>@example.test`, papéis
+`admin_entidade`/`operador`, empresas sintéticas `950101`/`950102`, com
+`ModuloEntidade` ativado p/ os 9 módulos — achado desta onda, ver abaixo),
+cleanup em `trap`. Playwright roda DENTRO de `mcr.microsoft.com/playwright:v1.61.1-jammy`
+(`docker run --rm --memory=1g --network host`), nunca instalado via apt/npx
+no host. Specs em `app_homologacao/frontend_v2/tests/e2e-hub-browser/`
+(config `playwright.config.hub.ts`). **10/10 testes PASS** (última execução
+verde, log completo arquivado ao lado deste arquivo,
+`fase6-browser-run-*.log`):
 
-Executar na imagem oficial `mcr.microsoft.com/playwright` (`docker run --rm
---memory=1g`, nunca apt/npx install no host), 6 telas. Próxima onda.
+- **6.2.1 (SC-001/SC-005)** — `menus-por-papel.spec.ts`: admin_entidade vê
+  8 itens no `ModuleNav` (inclui "Gestão de Usuários" + "Auditoria");
+  operador vê exatamente 6 (sem os 2 exclusivos). Prints em
+  `6.5.1-modulenav-admin_entidade.png` / `6.5.1-modulenav-operador.png`
+  (mesmo diretório). VERDE.
+- **6.2.3 (SC-003, parte UI)** — `troca-entidade-timing.spec.ts`: clique no
+  `EntitySwitcher` até o rótulo refletir a nova entidade = **162ms**
+  (gate <5000ms), sem novo login, mesma URL. VERDE.
+- **6.2.5 (CHK017/task 4.5.3)** — `sessao-expira.spec.ts`: `accessToken`
+  corrompido mid-ação (troca de entidade) → 401 → `authenticatedFetch` limpa
+  `me` → `HubSessionGuard` redireciona a `/hub/login`, sem flash de conteúdo
+  protegido residual. VERDE.
+- **6.3.1/6.3.2 (axe ≥95)** — `axe-telas.spec.ts`, `@axe-core/playwright`,
+  fórmula de score = penalidade ponderada por impacto (critical=25/serious=10/
+  moderate=5/minor=2), piso 0 (Decisão dec-051):
+
+  | Tela | Score | Violações |
+  |------|-------|-----------|
+  | `/hub/login` | **100** | 0 |
+  | `/hub/recuperar-senha` | **100** | 0 |
+  | `/hub/redefinir-senha` | **100** | 0 |
+  | `/selecionar-entidade` (ramo escolha) | **100** | 0 |
+  | `/hub/dashboard` | **100** | 0 |
+  | `/hub/dashboard/perfil` | **100** | 0 |
+
+  4 telas tinham achados reais na 1ª rodada (`landmark-one-main`,
+  `page-has-heading-one`, `region` — moderate, scores 70/75/85/90):
+  `/hub/login`, `/hub/recuperar-senha`, `/hub/redefinir-senha` e
+  `/selecionar-entidade` renderizavam sem landmark `<main>` (login também
+  sem `<h1>`). Corrigido nesta onda (6.3.2): `app/hub/login/page.tsx`,
+  `app/hub/recuperar-senha/page.tsx`, `app/hub/redefinir-senha/page.tsx` e
+  `app/selecionar-entidade/page.tsx` — outer `<div>` → `<main>` (nos ramos
+  `role="status"` de `selecionar-entidade`, o `role` foi movido para um
+  `<div className="contents">` interno, para não sobrescrever o role
+  implícito de landmark do `<main>`); `CardTitle` do login ganhou `as="h1"`.
+  20/20 testes unitários (vitest) das 4 telas continuam verdes após a mudança.
+
+### Achado de ambiente — `ModuloEntidade` (bloqueou 6.2.1 na 1ª tentativa)
+
+`GET /me` só inclui um módulo em `modulos[]` se ele estiver **ativo para a
+ENTIDADE** (`ModuloEntidade.ativo=true`, `routes/hub-me.js` linhas 122-133)
+*E* a pessoa tiver permissão nele — ter a permissão via `Papel`/`PapelPermissao`
+sozinha NÃO basta. As empresas sintéticas `950101`/`950102` (novas, criadas só
+para esta onda) não tinham nenhuma linha em `ModuloEntidade` — sem isso o
+`ModuleNav` ficava vazio (`return null`) para **qualquer** papel (rendeu "Nenhum
+módulo disponível para sua conta"). A suíte API S2/S3
+(`hub-shell-e2e-homolog.sh`) nunca precisou disso porque não inspeciona o DOM.
+Corrigido no driver browser: seed de `ModuloEntidade` (todos os 9 módulos,
+`ativo=true`) para as 2 empresas sintéticas.
+
+### Achado de robustez — rate limiter de `/auth/login`
+
+`routes/hub-auth.js` tem `authRateLimiter` (chave `IP:email`, max=10/15min).
+Como toda a suíte roda do mesmo container (mesma IP de origem, `--network
+host`), repetir login via UI em cada teste (6+ logins por execução completa)
+esgotava o limite em poucas rodadas de debug e produzia 429 em cascata — sem
+relação com bugs reais do shell (confirmado em `docker logs hub_homolog_traefik`).
+Fix: `global-setup.ts` loga **1x por papel** e persiste `storageState`
+(cookies), reusado por todos os specs via `test.use({ storageState })` — 2
+logins totais por execução da suíte. E-mails com sufixo `HHMMSS` por execução
+(chave do limiter muda a cada rodada, sem depender de esperar a janela).
 
 ## 6.4 — Gate de segurança sobre o código real: VERDE
 
@@ -68,5 +135,17 @@ Executar na imagem oficial `mcr.microsoft.com/playwright` (`docker run --rm
   arquivos do shell (grep negativo).
 
 ## 6.5 — Evidências
-- 6.5.3 (parcial): resultados API acima. 6.5.1 (prints por papel) e 6.5.2 (axe)
-  pendem da onda browser. 6.5.4: este arquivo (parcial, será completado).
+
+- **6.5.1** — prints por papel: `6.5.1-modulenav-admin_entidade.png` /
+  `6.5.1-modulenav-operador.png` (este diretório), gerados pelo próprio spec
+  Playwright (`menus-por-papel.spec.ts`).
+- **6.5.2** — resultado do axe por tela: tabela na seção 6.2/6.3 acima (todas
+  em 100/100 após as correções de 6.3.2); saída bruta (`AXE_RESULT ...`) no
+  log arquivado `fase6-browser-run-*.log`.
+- **6.5.3** — cenários E2E 6.2.1–6.2.6: todos VERDE (API + browser), ver
+  detalhamento acima.
+- **6.5.4** — consolidado neste arquivo (nota: vive em
+  `docs/plans/hub-frota/evidencias/S3/`, convenção já estabelecida na onda
+  anterior — `docs/specs/hub-shell/tasks.md` 6.5.4 referencia
+  `docs/specs/hub-shell/evidencias/`, path que diverge; nenhuma evidência
+  desta fase foi criada nesse segundo caminho).
