@@ -1,0 +1,89 @@
+PREFLIGHT: ok — projeto 'hub-test-1783453593' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783453593, APP_ENV=test)
+subindo db+postgrest+backend efêmeros (hub-test-1783453593, tmpfs)…
+ Network hub-test-1783453593_default Creating 
+ Network hub-test-1783453593_default Created 
+ Container hub-test-1783453593-db-1 Creating 
+ Container hub-test-1783453593-db-1 Created 
+ Container hub-test-1783453593-db-1 Starting 
+ Container hub-test-1783453593-db-1 Started 
+ Container hub-test-1783453593-db-1 Waiting 
+ Container hub-test-1783453593-db-1 Healthy 
+ Container hub-test-1783453593-db-1 Running 
+ Container hub-test-1783453593-postgrest-1 Creating 
+ Container hub-test-1783453593-postgrest-1 Created 
+ Container hub-test-1783453593-db-1 Waiting 
+ Container hub-test-1783453593-db-1 Healthy 
+ Container hub-test-1783453593-postgrest-1 Starting 
+ Container hub-test-1783453593-postgrest-1 Started 
+ Container hub-test-1783453593-db-1 Waiting 
+ Container hub-test-1783453593-postgrest-1 Waiting 
+ Container hub-test-1783453593-db-1 Healthy 
+ Container hub-test-1783453593-postgrest-1 Healthy 
+ Container hub-test-1783453593-mailpit-mock-1 Creating 
+ Container hub-test-1783453593-mailpit-mock-1 Created 
+ Container hub-test-1783453593-mailpit-mock-1 Starting 
+ Container hub-test-1783453593-mailpit-mock-1 Started 
+ Container hub-test-1783453593-mailpit-mock-1 Waiting 
+ Container hub-test-1783453593-mailpit-mock-1 Healthy 
+ Container hub-test-1783453593-db-1 Running 
+ Container hub-test-1783453593-postgrest-1 Running 
+ Container hub-test-1783453593-backend-1 Creating 
+ Container hub-test-1783453593-backend-1 Created 
+ Container hub-test-1783453593-db-1 Waiting 
+ Container hub-test-1783453593-db-1 Healthy 
+ Container hub-test-1783453593-db-1 Waiting 
+ Container hub-test-1783453593-db-1 Healthy 
+ Container hub-test-1783453593-backend-1 Starting 
+ Container hub-test-1783453593-backend-1 Started 
+ Container hub-test-1783453593-db-1 Waiting 
+ Container hub-test-1783453593-postgrest-1 Waiting 
+ Container hub-test-1783453593-backend-1 Waiting 
+ Container hub-test-1783453593-db-1 Healthy 
+ Container hub-test-1783453593-backend-1 Healthy 
+ Container hub-test-1783453593-postgrest-1 Healthy 
+rodando migrate.sh (0002..0016, INCLUSIVE 0015 — RLS hub-importacoes)…
+PASS: migrate.sh rodado 2x: 0010 idempotente (pulada na 2ª corrida)
+PASS: migrate.sh rodado 2x: 0011 idempotente (pulada na 2ª corrida)
+PASS: migrate.sh rodado 2x: 0015 idempotente (pulada na 2ª corrida)
+PASS: Entregador: escopo=[A] lendo id_empresa=B -> 0 linhas (RLS nega)
+PASS: Entregador: escopo=[A] lendo id_empresa=A -> retorna linha(s) própria(s)
+PASS: Entregador: SEM claims (só role=authenticated) -> 0 linhas (nega-por-padrão)
+PASS: ImportacaoArquivo: escopo=[A] lendo id_empresa=B -> 0 linhas (RLS nega)
+PASS: ImportacaoArquivo: escopo=[A] lendo id_empresa=A -> retorna linha(s) própria(s)
+PASS: ImportacaoArquivo: SEM claims (só role=authenticated) -> 0 linhas (nega-por-padrão)
+PASS: ImportacaoLinhaErro: escopo=[A] lendo id_empresa=B -> 0 linhas (RLS nega)
+PASS: ImportacaoLinhaErro: escopo=[A] lendo id_empresa=A -> retorna linha(s) própria(s)
+PASS: ImportacaoLinhaErro: SEM claims (só role=authenticated) -> 0 linhas (nega-por-padrão)
+PASS: FaturamentoLancamento: escopo=[A] lendo id_empresa=B -> 0 linhas (RLS nega)
+PASS: FaturamentoLancamento: escopo=[A] lendo id_empresa=A -> retorna linha(s) própria(s)
+PASS: FaturamentoLancamento: SEM claims (só role=authenticated) -> 0 linhas (nega-por-padrão)
+PASS: PerformanceTurno: escopo=[A] lendo id_empresa=B -> 0 linhas (RLS nega)
+PASS: PerformanceTurno: escopo=[A] lendo id_empresa=A -> retorna linha(s) própria(s)
+PASS: PerformanceTurno: SEM claims (só role=authenticated) -> 0 linhas (nega-por-padrão)
+--- saída bruta ---
+Entregador_outro_len=0
+Entregador_proprio_len=1
+Entregador_sem_claims_len=0
+ImportacaoArquivo_outro_len=0
+ImportacaoArquivo_proprio_len=1
+ImportacaoArquivo_sem_claims_len=0
+ImportacaoLinhaErro_outro_len=0
+ImportacaoLinhaErro_proprio_len=1
+ImportacaoLinhaErro_sem_claims_len=0
+FaturamentoLancamento_outro_len=0
+FaturamentoLancamento_proprio_len=1
+FaturamentoLancamento_sem_claims_len=0
+PerformanceTurno_outro_len=0
+PerformanceTurno_proprio_len=1
+PerformanceTurno_sem_claims_len=0
+=== hub-rls-importacoes-integration: TODOS OS TESTES PASSARAM ===

@@ -65,73 +65,81 @@ indicadas abaixo.
 
 Ref: `data-model.md` Entity Entregador; `research.md` Decision 1/9.
 
-- [ ] 1.1.1 Criar `infra/hub/migrations/0010_entregador.sql`: colunas
+- [x] 1.1.1 Criar `infra/hub/migrations/0010_entregador.sql`: colunas
       conforme data-model.md, `UNIQUE(id_empresa, id_externo)`, índice
       `(id_empresa, nome)`, colunas de auditoria (`criado_em`/`atualizado_em`)
-- [ ] 1.1.2 `GRANT` explícito ao role `authenticated` (padrão S2)
-- [ ] 1.1.3 Aplicar via `infra/hub/scripts/migrate.sh` no hub-homolog
+- [x] 1.1.2 `GRANT` explícito ao role `authenticated` (padrão S2)
+- [x] 1.1.3 Aplicar via `infra/hub/scripts/migrate.sh` no hub-homolog
       (registra `SchemaMigration` + `SIGUSR1`)
-- [ ] 1.1.4 Teste: reaplicar `migrate.sh` é idempotente (no-op, sem erro)
+- [x] 1.1.4 Teste: reaplicar `migrate.sh` é idempotente (no-op, sem erro) —
+      evidência `docs/plans/hub-frota/evidencias/S4/02-migrate-fase1-run2-idempotencia.txt`
 
 ### 1.2 Migrations 0011–0012 — `ImportacaoArquivo` + `ImportacaoLinhaErro` `[A]`
 
 Ref: `data-model.md` Entity ImportacaoArquivo/ImportacaoLinhaErro;
 `research.md` Decision 4.
 
-- [ ] 1.2.1 Criar `0011_importacao_arquivo.sql`: `CHECK tipo IN
+- [x] 1.2.1 Criar `0011_importacao_arquivo.sql`: `CHECK tipo IN
       ('faturamento','performance','envio_massa')` (envio_massa reservado p/
       S8, FR-026), `CHECK status IN (...)`, `UNIQUE(id_empresa, tipo,
       hash_sha256)`, índice `(id_empresa, tipo, data_referencia DESC)`,
       **índice único parcial `(id_empresa,tipo) WHERE status IN
       ('validating','processing')`** (mutex de concorrência, dec-033/CHK036 —
       substitui advisory lock, ver research.md Decision 5 ADENDO)
-- [ ] 1.2.2 Criar `0012_importacao_linha_erro.sql`: `id_empresa` FK
+- [x] 1.2.2 Criar `0012_importacao_linha_erro.sql`: `id_empresa` FK
       **denormalizado** (Decision 4, reforça RLS uniforme), FK
       `importacao_id`, índice `(importacao_id)`
-- [ ] 1.2.3 `GRANT authenticated` nas duas tabelas
-- [ ] 1.2.4 Aplicar via `migrate.sh` + teste de idempotência (re-run = no-op)
+- [x] 1.2.3 `GRANT authenticated` nas duas tabelas
+- [x] 1.2.4 Aplicar via `migrate.sh` + teste de idempotência (re-run = no-op) —
+      evidência `docs/plans/hub-frota/evidencias/S4/02-migrate-fase1-run2-idempotencia.txt`
 
 ### 1.3 Migrations 0013–0014 — `FaturamentoLancamento` + `PerformanceTurno` `[A]`
 
 Ref: `data-model.md` Entity FaturamentoLancamento/PerformanceTurno.
 
-- [ ] 1.3.1 Criar `0013_faturamento_lancamento.sql`: colunas §data-model
+- [x] 1.3.1 Criar `0013_faturamento_lancamento.sql`: colunas §data-model
       (incl. `margem_fee_raw`/`min`/`inter`, `atingido`, `pct_*`,
       `criterio_*`), `UNIQUE(id_empresa, hash_linha)`, índices
       `(id_empresa,data_referencia)` / `(id_empresa,entregador_id,
       data_referencia)` / `(id_empresa,descricao)`
-- [ ] 1.3.2 Criar `0014_performance_turno.sql`: colunas §data-model
+- [x] 1.3.2 Criar `0014_performance_turno.sql`: colunas §data-model
       (`duracao`/`tempo_disponivel` interval, `taxas_centavos` int),
       `UNIQUE(id_empresa, hash_linha)`, índices `(id_empresa,data_periodo)` /
       `(id_empresa,entregador_id,data_periodo)`
-- [ ] 1.3.3 `GRANT authenticated` nas duas tabelas
-- [ ] 1.3.4 Aplicar via `migrate.sh` + teste de idempotência
+- [x] 1.3.3 `GRANT authenticated` nas duas tabelas
+- [x] 1.3.4 Aplicar via `migrate.sh` + teste de idempotência —
+      evidência `docs/plans/hub-frota/evidencias/S4/02-migrate-fase1-run2-idempotencia.txt`
 
 ### 1.4 Migration 0015 — RLS das 5 tabelas novas `[C]`
 
 Ref: `data-model.md` Migration 0015; Constitution Princípio II
 (NON-NEGOTIABLE); mesmo padrão de `0006_rls_policies.sql`.
 
-- [ ] 1.4.1 `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY` (SELECT +
+- [x] 1.4.1 `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY` (SELECT +
       `WITH CHECK` para INSERT/UPDATE) por `id_empresa =
       ANY(hub_jwt_escopo_ids())` nas 5 tabelas
-- [ ] 1.4.2 `DROP POLICY IF EXISTS` antes de cada `CREATE POLICY`
+- [x] 1.4.2 `DROP POLICY IF EXISTS` antes de cada `CREATE POLICY`
       (idempotência)
-- [ ] 1.4.3 Teste: token sem claim `escopo` (⇒ `hub_jwt_escopo_ids()=[]`) não
-      enxerga nenhuma linha nas 5 tabelas (nega-por-padrão)
+- [x] 1.4.3 Teste: token sem claim `escopo` (⇒ `hub_jwt_escopo_ids()=[]`) não
+      enxerga nenhuma linha nas 5 tabelas (nega-por-padrão) — suite nova
+      `infra/hub/testes/hub-rls-importacoes-integration.sh` (ambiente efêmero
+      hub-test), 15/15 PASS: evidência
+      `docs/plans/hub-frota/evidencias/S4/03-rls-importacoes-integration.txt`
 
 ### 1.5 Migration 0016 — Seed corretivo `importacoes.exportar` `[C]`
 
 Ref: `data-model.md` Migration 0016; `research.md` Decision 2 (gap de
 permissão real vs plano lógico).
 
-- [ ] 1.5.1 `INSERT` em `Permissao` (`importacoes.exportar`) com
+- [x] 1.5.1 `INSERT` em `Permissao` (`importacoes.exportar`) com
       `ON CONFLICT DO NOTHING`
-- [ ] 1.5.2 `INSERT` em `PapelPermissao` concedendo a `admin_plataforma` e
+- [x] 1.5.2 `INSERT` em `PapelPermissao` concedendo a `admin_plataforma` e
       `admin_entidade` (explicitamente **NÃO** `operador`/`leitura` — export
       de original é ação sensível/LGPD)
-- [ ] 1.5.3 Teste: papel `leitura` permanece sem `importacoes.exportar`;
-      `admin_entidade` passa a ter (quickstart Cenário 7)
+- [x] 1.5.3 Teste: papel `leitura` permanece sem `importacoes.exportar`;
+      `admin_entidade` passa a ter (quickstart Cenário 7) — evidência
+      `docs/plans/hub-frota/evidencias/S4/04-seed-importacoes-exportar.txt`
+      (leitura=f, operador=f, admin_entidade=t, admin_plataforma=t)
 
 ### 1.6 Verificação de reload PostgREST `[A]`
 

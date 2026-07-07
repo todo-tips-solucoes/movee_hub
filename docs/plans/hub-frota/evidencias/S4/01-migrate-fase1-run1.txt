@@ -1,0 +1,43 @@
+=== migrate.sh 1a corrida (aplica 0010-0016) — hub-homolog — 2026-07-07T19:43:58Z ===
+pulada (já aplicada): 0000_schema_migration.sql
+pulada (já aplicada): 0001_postgrest_roles.sql
+pulada (já aplicada): 0002_usuario.sql
+pulada (já aplicada): 0003_papel_permissao_modulo.sql
+pulada (já aplicada): 0004_auditoria.sql
+pulada (já aplicada): 0005_sessao_refresh.sql
+pulada (já aplicada): 0006_rls_policies.sql
+pulada (já aplicada): 0007_seed_papeis_permissoes_modulos.sql
+pulada (já aplicada): 0008_migracao_empresa_para_usuario.sql
+pulada (já aplicada): 0009_rls_hardening_indices.sql
+pulada (já aplicada): 0010_entregador.sql
+pulada (já aplicada): 0011_importacao_arquivo.sql
+pulada (já aplicada): 0012_importacao_linha_erro.sql
+pulada (já aplicada): 0013_faturamento_lancamento.sql
+pulada (já aplicada): 0014_performance_turno.sql
+pulada (já aplicada): 0015_rls_importacoes.sql
+pulada (já aplicada): 0016_seed_importacoes_exportar.sql
+ Container hub_homolog_postgrest Killing 
+ Container hub_homolog_postgrest Killed 
+PostgREST: SIGUSR1 enviado (reload de schema)
+migrate: concluído (0 aplicadas agora)
+ id |                  nome                   |          aplicado_em          
+----+-----------------------------------------+-------------------------------
+  1 | 0000_schema_migration.sql               | 2026-07-06 00:47:07.7287+00
+  2 | 0001_postgrest_roles.sql                | 2026-07-06 00:47:08.279678+00
+  3 | 0002_usuario.sql                        | 2026-07-06 05:17:33.306439+00
+  4 | 0003_papel_permissao_modulo.sql         | 2026-07-06 05:17:33.684089+00
+  5 | 0004_auditoria.sql                      | 2026-07-06 05:17:34.002734+00
+  6 | 0005_sessao_refresh.sql                 | 2026-07-06 05:17:34.315101+00
+  7 | 0006_rls_policies.sql                   | 2026-07-06 05:17:34.63646+00
+  8 | 0007_seed_papeis_permissoes_modulos.sql | 2026-07-06 05:17:34.963802+00
+  9 | 0008_migracao_empresa_para_usuario.sql  | 2026-07-06 05:17:35.280663+00
+ 10 | 0009_rls_hardening_indices.sql          | 2026-07-06 12:48:44.974518+00
+ 11 | 0010_entregador.sql                     | 2026-07-07 19:43:27.184177+00
+ 12 | 0011_importacao_arquivo.sql             | 2026-07-07 19:43:27.496617+00
+ 13 | 0012_importacao_linha_erro.sql          | 2026-07-07 19:43:27.861003+00
+ 14 | 0013_faturamento_lancamento.sql         | 2026-07-07 19:43:28.187754+00
+ 15 | 0014_performance_turno.sql              | 2026-07-07 19:43:28.519904+00
+ 16 | 0015_rls_importacoes.sql                | 2026-07-07 19:43:28.836281+00
+ 17 | 0016_seed_importacoes_exportar.sql      | 2026-07-07 19:43:29.14845+00
+(17 rows)
+
