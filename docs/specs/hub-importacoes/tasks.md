@@ -145,9 +145,9 @@ permissão real vs plano lógico).
 
 Ref: `plan.md` Technical Context "Migrations" (gotcha conhecido do hub).
 
-- [ ] 1.6.1 Confirmar `SIGUSR1` enviado pelo `migrate.sh` após cada migration
+- [x] 1.6.1 Confirmar `SIGUSR1` enviado pelo `migrate.sh` após cada migration
       aplicada
-- [ ] 1.6.2 Smoke: PostgREST reconhece as 5 tabelas novas via schema cache
+- [x] 1.6.2 Smoke: PostgREST reconhece as 5 tabelas novas via schema cache
       (requisição direta não retorna `PGRST` de tabela desconhecida)
 
 ---
@@ -594,47 +594,47 @@ Ref: `checklists/requirements.md` CHK013. **Bloqueada por 0.1.3.**
 Ref: `quickstart.md`. Seeds anonimizados da S1; CSV real só em sandbox
 context-mode.
 
-- [ ] 7.1.1 Cenário 1 — happy path faturamento (US1)
-- [ ] 7.1.2 Cenário 2 — idempotência de arquivo + linha (US2)
-- [ ] 7.1.3 Cenário 3 — performance dialeto ponto + HH:MM:SS (US1)
-- [ ] 7.1.4 Cenário 4 — erros por linha + LGPD (US3)
-- [ ] 7.1.5 Cenário 5 — falha estrutural >50% (US3-4)
-- [ ] 7.1.6 Cenário 6 — reprocessar/cancelar (US4)
-- [ ] 7.1.7 Cenário 7 — gate de export (US4-5)
-- [ ] 7.1.8 Cenário 8 — isolamento multi-tenant (Constitution II)
-- [ ] 7.1.9 Cenário 9 — concorrência com lock advisório (Decision 5)
+- [x] 7.1.1 Cenário 1 — happy path faturamento (US1)
+- [x] 7.1.2 Cenário 2 — idempotência de arquivo + linha (US2)
+- [x] 7.1.3 Cenário 3 — performance dialeto ponto + HH:MM:SS (US1)
+- [x] 7.1.4 Cenário 4 — erros por linha + LGPD (US3)
+- [x] 7.1.5 Cenário 5 — falha estrutural >50% (US3-4)
+- [x] 7.1.6 Cenário 6 — reprocessar/cancelar (US4)
+- [x] 7.1.7 Cenário 7 — gate de export (US4-5)
+- [x] 7.1.8 Cenário 8 — isolamento multi-tenant (Constitution II)
+- [x] 7.1.9 Cenário 9 — concorrência com lock advisório (Decision 5)
 
 ### 7.2 Cenário 11 — evidência de branding/dark-light (SC-007) `[A]`
 
 Ref: `checklists/requirements.md` CHK006 (gap — nenhum dos 10 cenários
 originais testava isso explicitamente).
 
-- [ ] 7.2.1 Adicionar "Cenário 11" ao `quickstart.md`: capturar
+- [x] 7.2.1 Adicionar "Cenário 11" ao `quickstart.md`: capturar
       `/hub/dashboard/importacoes` (+ `/[id]`) em tema light e dark
-- [ ] 7.2.2 Confirmar paleta/tema EntreGô 2.0 preservados (sem cor
+- [x] 7.2.2 Confirmar paleta/tema EntreGô 2.0 preservados (sem cor
       hardcoded fora do design system nas novas telas)
-- [ ] 7.2.3 Executar e capturar evidência (screenshot dark + light) —
+- [x] 7.2.3 Executar e capturar evidência (screenshot dark + light) —
       **resolve CHK006**
 
 ### 7.3 Cenário 10 — roundtrip real (contrato) `[C]`
 
 Ref: `quickstart.md` Cenário 10; Constitution Princípio III.
 
-- [ ] 7.3.1 Chamada REAL `POST /importacoes` + `GET /importacoes/:id`
+- [x] 7.3.1 Chamada REAL `POST /importacoes` + `GET /importacoes/:id`
       contra o backend hub (não mock)
-- [ ] 7.3.2 Confirmar shape do JSON exatamente igual ao contrato
+- [x] 7.3.2 Confirmar shape do JSON exatamente igual ao contrato
       (camelCase: `linhasValidas`, `dataReferencia`,
       `importacaoOriginalId`), sem drift snake_case↔camelCase
-- [ ] 7.3.3 Capturar evidência do payload real (sandbox context-mode; sem
+- [x] 7.3.3 Capturar evidência do payload real (sandbox context-mode; sem
       CSV bruto/PII em log/git/contexto)
 
 ### 7.4 Coletar evidências consolidadas `[A]`
 
-- [ ] 7.4.1 Contadores (total/válidas/inválidas) por cenário executado
-- [ ] 7.4.2 Confirmação de idempotência (0 duplicatas em reimportação do
+- [x] 7.4.1 Contadores (total/válidas/inválidas) por cenário executado
+- [x] 7.4.2 Confirmação de idempotência (0 duplicatas em reimportação do
       mesmo arquivo)
-- [ ] 7.4.3 Confirmação do gate de export (`403` sem `importacoes.exportar`)
-- [ ] 7.4.4 Confirmação de isolamento RLS (`404` cross-tenant)
+- [x] 7.4.3 Confirmação do gate de export (`403` sem `importacoes.exportar`)
+- [x] 7.4.4 Confirmação de isolamento RLS (`404` cross-tenant)
 
 ### 7.5 Fechamento `[C]`
 

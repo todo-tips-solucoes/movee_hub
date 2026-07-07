@@ -87,3 +87,33 @@ Usar seeds anonimizados da S1; CSV real só no sandbox context-mode. Unit-first
    → **Expected**: shape do JSON casa exatamente o contrato em
    `contracts/importacoes-api.md` (camelCase: `linhasValidas`, `dataReferencia`,
    `importacaoOriginalId`), sem drift snake_case↔camelCase entre PostgREST e a API.
+
+## Cenário 11 — Branding / dark-light das telas novas (SC-007, resolve CHK006)
+
+Nenhum dos Cenários 1–10 exercitava tema/branding explicitamente nas telas
+novas de importações. Este cenário fecha o gap (CHK006).
+
+1. Autenticar no hub com papel que tem `importacoes.consultar` (usuário
+   sintético `e2e-teste-branding-*`, empresa `950201`, vínculo único —
+   auto-seleção de entidade). Semear 1 `ImportacaoArquivo`
+   `completed_with_errors` + 2 `ImportacaoLinhaErro` (valores mascarados,
+   sem PII bruto) para dar conteúdo à tela de detalhe.
+2. Alternar o tema via `next-themes` (`attribute="class"`, storageKey
+   `theme` em `localStorage`, injetado por `addInitScript` ANTES da
+   navegação — o shell do hub não expõe toggle de UI).
+3. Capturar `/hub/dashboard/importacoes` (lista) e
+   `/hub/dashboard/importacoes/:id` (detalhe) em `light` e `dark`.
+   → **Expected**: as 4 telas renderizam na paleta EntreGô 2.0 correta do
+   tema ativo (`html` recebe a classe `light`/`dark`); nenhuma cor
+   hardcoded fora do design system (varredura confirma 0 hex/`rgb()`/`hsl()`/
+   `style` inline — só tokens semânticos `text-muted-foreground`,
+   `bg-card`, `text-destructive`, `bg-background`, `border-input`, …).
+   A tela de detalhe também evidencia o mascaramento LGPD (coluna Valor com
+   `**.***.***/****-**` e `R$ ***,**`, nunca dado bruto).
+
+**Execução**: `infra/hub` — driver Playwright na imagem oficial
+`mcr.microsoft.com/playwright` (`--network host --add-host` p/ o domínio
+isolado do hub, `--memory=1g`), rito anti-starvation + verificação de
+produção `envio-massa-homologacao_*` 4/4 antes/depois, cleanup dos dados
+sintéticos em `trap`. Evidência: `docs/plans/hub-frota/evidencias/S4/
+cenario11-{lista,detalhe}-{light,dark}.png`.
