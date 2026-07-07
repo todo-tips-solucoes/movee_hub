@@ -1,0 +1,258 @@
+# Implementation Plan: Shell Modular do Hub (hub-shell)
+
+**Feature**: `hub-shell` · **Branch**: `feat/hub-shell` · **Fase**: S3 do hub-frota
+**Spec**: [`spec.md`](./spec.md) · **Research**: [`research.md`](./research.md) · **Data model**: [`data-model.md`](./data-model.md)
+**Created**: 2026-07-07
+
+> Camada de **shell** (casca de navegação) sobre as fundações da S2. Feature de frontend:
+> Next.js 16 App Router / React 19 / Tailwind v4 / Base UI + shadcn, design system EntreGô 2.0,
+> em `app_homologacao/frontend_v2`. **Provável sem DDL** (ver §7). Backend só tocado se um
+> ajuste TRIVIAL de contrato do `/me` for necessário (spec Q4/dec-010) — do contrário, imutável.
+
+## 1. Contrato de backend — VERIFICADO EMPIRICAMENTE
+
+Fonte da verdade: leitura direta de `app_homologacao/backend/routes/hub-me.js` (S2, já mergeada
+no PR #55). **Não supor — o que segue é o que o código realmente emite.**
+
+### 1.1 `GET /api/v1/me`
+
+- **Auth**: cookie `accessToken` (httpOnly, sameSite=strict, secure fora de `dev`), JWT HS256
+  pinado. Sem cookie/inválido/usuário inativo → `401 {erro:"NAO_AUTENTICADO"}`.
+- **Não** exige `requirePermission` (qualquer autenticado lê o próprio perfil).
+- **Corpo de resposta 200** (todos os campos em **snake_case**):
+
+```jsonc
+{
+  "usuario":        { "id": <int>, "email": <string>, "nome": <string> },
+  "entidades":      [ { "empresa_id": <int>, "papel": <string|null>, "ativo": <bool> } ],
+  "entidade_ativa": <int|null>,
+  "modulos":        [ { "codigo": <string>, "nome": <string>, "icone": <string>,
+                        "ordem": <int>, "ativo": <bool> } ],
+  "permissoes":     [ "<codigo>.<acao>", ... ]
+}
+```
+
+- **`entidades[]`**: TODOS os vínculos ativos da pessoa (`UsuarioEntidade.ativo=true`),
+  independentemente da entidade ativa. `papel` = nome do papel naquele vínculo.
+- **`entidade_ativa`**: claim `entidade_ativa` do JWT; **degrada para `null`** se essa
+  entidade não é mais um vínculo ativo (FR-013 do backend / FR-015 desta spec — perda de
+  acesso reflete no próximo `/me`, sem novo login).
+- **`modulos[]`**: já FILTRADO server-side por `ModuloEntidade.ativo=true` para a entidade
+  ativa **cruzado** com "a pessoa possui ≥1 permissão com prefixo `<codigo>`". Ordenado por
+  `ordem`. Se `entidade_ativa` é `null`, `modulos = []`.
+- **`permissoes[]`**: `Array.from(obterPermissoesEfetivas(sub))` — **união achatada das
+  permissões da pessoa em TODOS os vínculos** (NÃO escopada à entidade ativa).
+
+> ⚠️ **Discrepância spec×código a reconciliar (dec a registrar nesta onda)**: a spec Q1
+> (dec-007) contratou `modulos[]` com campo **`habilitado`**; o backend real emite **`ativo`**.
+> Além disso, o backend inclui um módulo por "≥1 permissão com o prefixo `<codigo>`", não
+> especificamente por `<codigo>.view`. Reconciliação adotada (§3.2): o frontend trata a
+> **presença** de um item em `modulos[]` como "habilitado E visível" (o backend já fez o
+> cruzamento), e reserva a convenção `<codigo>.view`/`<codigo>.<acao>` para o `PermissionGate`
+> de ações DENTRO das telas. Isso mantém dec-010 (só usar campos já contratados; sem nova
+> lógica de permissão nem endpoint novo) e **não exige tocar o backend**.
+
+### 1.2 `POST /api/v1/me/entidade`
+
+- **Auth**: mesmo cookie. Body: `{ "empresa_id": <int> }`.
+- Respostas: `200 {entidade_ativa:<int>}` (reemite cookie `accessToken` com a claim
+  atualizada — sem novo login); `400 {erro:"EMPRESA_ID_INVALIDO"}` (não-inteiro/ausente);
+  `403 {erro:"SEM_VINCULO"}` (sem `UsuarioEntidade` ativo p/ aquele `empresa_id`);
+  `401 {erro:"NAO_AUTENTICADO"}`.
+- Registra `Auditoria` `acao:"troca_entidade_ativa"` server-side.
+
+### 1.3 Endpoints de auth (S2 — reusar, NÃO reescrever)
+
+`POST /api/v1/auth/login`, `/api/v1/auth/logout`, recuperação/redefinição de senha e troca de
+senha vivem em `routes/hub-auth.js` (S2). O shell os CONSOME. Erros de login conhecidos:
+`CREDENCIAIS_INVALIDAS` / `CONTA_BLOQUEADA` / `RATE_LIMIT` (nunca "sem vínculo" — spec Q2/dec-008).
+Recuperação de senha responde igual exista ou não a conta (FR-012) e é rate-limited na S2 pelo
+`authRateLimiter` (`max: 10` tentativas / `windowMs: 15*60*1000`, chave `ip:email` —
+`hub-auth.js` linhas ~151-160, FR-014; correção CHK015 — distinto do bloqueio de conta por
+5 falhas consecutivas de LOGIN, que é outro mecanismo e continua correto). **O contrato exato de cada rota de auth deve ser reverificado por
+leitura de `hub-auth.js` na primeira task da fase de execução** (mesma disciplina do §1.1).
+
+## 2. Convenções de borda (feature multi-camada)
+
+| Camada | Convenção | Fonte da verdade | Evidência |
+|--------|-----------|------------------|-----------|
+| Banco (PostgREST) | `snake_case` | schema hub (`Usuario`, `UsuarioEntidade`, `ModuloEntidade`, `Auditoria`) | `hub-me.js` selects: `empresa_id`, `usuario_id`, `criado_em`, `recurso_id` |
+| DTO da API (JSON `/me`, `/me/entidade`) | `snake_case` | resposta real de `hub-me.js` | §1.1/§1.2 |
+| URL / rotas de API | `/api/v1/<recurso>` (path snake); body snake | `hub-me.js` monta em `/api/v1/me`, `/api/v1/me/entidade` | montagem dos routers |
+| Domínio/UI do shell (React) | `camelCase` | convenção TS do `frontend_v2` | tipos existentes em `types/` |
+| **Validação** | **server-side é a autoridade** (`Number.isInteger`, `requirePermission`, RLS FASE 5); cliente valida só p/ UX | backend | `hub-me.js` valida `empresa_id` e vínculo server-side |
+
+**Regra de borda adotada**: existe **um único adaptador** `lib/hub/me-dto.ts` que converte a
+resposta snake_case da API para os tipos de domínio camelCase do shell (e o inverso para o body
+de `/me/entidade`). Nenhum componente consome o JSON cru: todos consomem o tipo de domínio.
+Isso confina a tradução snake↔camel a um só lugar (fonte da verdade da borda) e evita
+`empresa_id` vazando para JSX. O adaptador é a superfície testada por paridade (§6/§8).
+
+## 3. Arquitetura do shell
+
+### 3.1 Auth do shell — contexto PRÓPRIO, legado intocado
+
+- **Legado (NÃO tocar)**: `contexts/auth-context.tsx` fala com o backend **envio-massa** via
+  `api.get('/verify-auth')` + `api.post('/login')` — verificado por leitura. É o auth do painel
+  de envio em massa e permanece funcionando (FR-018/SC-007).
+- **Novo (esta fase)**: `contexts/hub-auth-context.tsx` — provider distinto que fala com
+  `/api/v1/auth/*` e `/api/v1/me`. Expõe: `usuario`, `entidades`, `entidadeAtiva`, `modulos`,
+  `permissoes`, `carregando`, `login()`, `logout()`, `trocarEntidade(empresaId)`,
+  `refetchMe()`. **Os dois providers coexistem sem se cruzar**; nenhuma linha do legado é
+  editada. O shell do hub monta apenas o `HubAuthProvider`.
+- **Proxy reusado**: `app/api/[...path]/route.ts` (encaminha `/api/…` → `${BACKEND_URL}…`) é
+  reusado como está; o mapeamento exato do prefixo `/api/v1/*` deve ser confirmado na primeira
+  task de execução (defesa: um teste de fumaça do proxy contra `/api/v1/me`).
+  **Achado confirmado por leitura de código (task 1.2.4)**: o proxy só remove o prefixo
+  literal `/api` — `path = url.pathname.replace(/^\/api/, '')` (route.ts linha 8) — logo
+  `GET /api/v1/me` chega como `${BACKEND_URL}/v1/me`. O backend do hub monta as rotas COM o
+  prefixo `/api/v1` (`server.js` linhas 2603/2610/2611: `app.use('/api/v1/auth', ...)`,
+  `app.use('/api/v1/me', ...)`, `app.use('/api/v1/auditoria', ...)`) — diferente do legado
+  envio-massa, que monta rotas na raiz (ex.: `/login`) e cujo `BACKEND_URL` de produção
+  (`app_homologacao/docker-compose.yml`: `https://envmassapihomologacao.todo-tips.com`) por
+  isso NÃO inclui o sufixo `/api`. **Não há mismatch a corrigir hoje**: o serviço de frontend
+  do hub ainda não existe em `infra/hub/compose.hub.homolog.yml` (só `backend`, criado na
+  task 6.1.2) — nada quebra nesta fase (1.3/1.4 só consomem o proxy via client-side fetch, sem
+  tocar env/compose). **Contrato fixado para quando o serviço for criado (task 6.1.2)**: o
+  `BACKEND_URL` do frontend do hub-homolog DEVE ser `http://backend:3000/api` (hostname
+  interno do compose + porta `3000`, `Dockerfile.hub`, **com** o sufixo `/api` — para que
+  `${BACKEND_URL}/v1/me` resolva a `http://backend:3000/api/v1/me`, batendo com o mount real).
+  Correção é só de configuração (env var), sem alterar `route.ts` — o proxy já funciona
+  corretamente para os dois deployments (legado e hub) quando cada um usa o `BACKEND_URL`
+  correto para o seu próprio padrão de mount.
+
+### 3.2 Componentes
+
+| Componente | Papel | Data source | Notas |
+|------------|-------|-------------|-------|
+| `ModuleNav` (sidebar) | Navegação principal data-driven | `modulos[]` do `/me` | **Presença no array = item visível.** Ordena por `ordem`. Ícone por `icone`. Responsivo: drawer no mobile (padrão do header responsivo já existente). Rota derivada por convenção `codigo`→`/hub/dashboard/<codigo>` (mapeamento testado — briefing "mapeamento módulo→rota"; prefixo `/hub/` corrigido na Fase 4, ver §3.4-bis). Nenhum item hardcoded (FR-001/SC-001). |
+| `EntitySwitcher` | Troca de entidade ativa | `entidades[]` + `entidadeAtiva` | Evolui `components/empresa-selector.tsx`. `Select` Base UI **exige `items` no Root** (gotcha). Troca → `POST /me/entidade` → `refetchMe()` recarrega todo o contexto (FR-005/FR-007/SC-003). |
+| `EnvBadge` | Aviso de ambiente | `NEXT_PUBLIC_APP_ENV` | Banner fixo + favicon alternativo quando `!= "production"` ("HOMOLOGAÇÃO — dados fictícios"). Presente em TODA tela do shell via layout (FR-008/SC-004). Nova env var pública (não existia — verificado). |
+| `PermissionGate` (client) | Esconde ações sem permissão | `permissoes[]` + `<codigo>.<acao>` | **Decorativo** — a autoridade é o backend (FR-002). Consome a convenção `<codigo>.view`/`<codigo>.<acao>` da spec Q1. Ver §3.3 sobre a natureza cross-entidade de `permissoes[]`. |
+
+### 3.3 Nota de segurança sobre `permissoes[]` (cross-entidade)
+
+`permissoes[]` do `/me` é a UNIÃO achatada entre TODOS os vínculos da pessoa, não a da entidade
+ativa. Consequências que o plano fixa:
+- O `PermissionGate` (client) pode, para uma pessoa multi-entidade, mostrar uma ação com base
+  numa permissão que ela só tem em OUTRA entidade. Por isso `PermissionGate` **nunca** é
+  barreira de segurança — é conveniência de UI. Toda ação real é reautorizada pelo backend
+  por-entidade (RLS FASE 5 + `requirePermission` + verificação por-entidade, como já feito no
+  `GET /auditoria`). Isso satisfaz FR-002/SC-002 sem depender do client.
+- `modulos[]`, ao contrário, JÁ é escopado à entidade ativa pelo backend → a navegação
+  (FR-001) é confiável. Não replicamos essa lógica no client.
+- Esta assimetria é herança do contrato S2 e, por dec-010, **não** será "corrigida" nesta fase
+  (seria nova lógica de permissão). Fica documentada e mitigada pela reautorização de backend.
+
+### 3.4 Rotas do shell (App Router)
+
+`/hub/login` · `/hub/recuperar-senha` · `/hub/redefinir-senha` · `/selecionar-entidade` ·
+`/hub/dashboard` (cards por módulo — FR-009) · `/hub/dashboard/perfil` (nome/e-mail + troca de
+senha — FR-011) · logout (ação). Guard de rota: cada navegação entre rotas do shell dispara
+`refetchMe()` (spec Q3/dec-009 — sem polling temporizado) para refletir perda de vínculo
+(FR-015) e expiração de sessão (redireciona a `/hub/login` limpando estado — Edge Case de
+sessão expirada).
+
+Fluxo pós-login (FR-003/FR-004): login sempre encaminha a `/selecionar-entidade`, que decide
+por `entidades.length`: `> 1` → tela de escolha explícita; `=== 1` → seleciona automaticamente
+e segue a `/hub/dashboard`; `=== 0` → tela dedicada "sem acesso" (FR-016), sem quebrar.
+`modulos.length === 0` com entidade ativa → dashboard/nav comunicam "nenhum módulo disponível"
+(FR-010).
+
+#### 3.4-bis Correção do namespace de rotas (dec-039/dec-041, Fase 4)
+
+Achado da Fase 4 (task 4.1, leitura empírica de `app/login/page.tsx` e `app/dashboard/page.tsx`):
+o texto original desta seção previa `/login` e `/dashboard` sem prefixo, mas essas duas rotas
+**já existem** como páginas do envio-massa LEGADO (`useAuth()` de `contexts/auth-context.tsx`,
+`EmpresaSelector`) — e o briefing S3 proíbe alterá-las até a S8 ("permanecem onde estão"). Achado
+adicional: `lib/hub/module-nav.ts::moduloParaRota` (Fase 2, já shipped) derivava
+`/dashboard/<codigo>` sem prefixo, e o seed canônico de módulos
+(`0007_seed_papeis_permissoes_modulos.sql`) inclui um módulo de código `motoristas` — que
+colidiria letra-por-letra com a subrota legada real `app/dashboard/motoristas/page.tsx`.
+
+**Decisão (dec-041, score 3)**: toda rota autenticada do shell passa a viver sob o namespace
+`/hub/` — `/hub/login`, `/hub/dashboard`, `/hub/dashboard/perfil`, `/hub/dashboard/<codigo>`
+(módulos) — mais `/hub/recuperar-senha` e `/hub/redefinir-senha` (agrupadas ao fluxo de auth por
+consistência, embora não colidissem). `lib/hub/module-nav.ts` foi corrigido retroativamente para
+`/hub/dashboard/<codigo>`. **Única exceção**: `/selecionar-entidade` permanece top-level (sem
+prefixo) — já shipped e testado na Fase 3, sem colisão com o legado, retrabalhar o path
+consumiria esforço sem ganho. Nenhum arquivo do envio-massa legado (`app/login/page.tsx`,
+`app/dashboard/page.tsx` e subrotas `motoristas`/`configuracoes`/`validacao-xml`) foi tocado ou
+removido — a resolução ficou inteiramente dentro do código do hub.
+
+Estrutura física: `app/hub/layout.tsx` monta `HubAuthProvider` + guard de sessão uma única vez
+para toda a subárvore `/hub/*` (em vez de um layout de segmento por rota, como fez a Fase 3 para
+`/selecionar-entidade`) — evita refetches de `/me` redundantes entre navegações dentro do shell
+autenticado.
+
+### 3.5 Design das telas
+
+Todas as telas novas desenhadas via **/ui-ux-pro-max** sobre EntreGô 2.0, preservando
+dark/light e white-label (`tenant-theme-context.tsx` reusado) — FR-017/SC-006. Gotcha turbopack:
+comentário `{/* */}` logo após `return (` quebra o build — usar `//` acima do return.
+
+## 4. Stack e restrições herdadas
+
+- **Sem nova dependência** salvo justificativa (o shell usa Base UI/shadcn/Tailwind já presentes).
+- **Build Next SEMPRE sob cap de memória** (`docker build --memory=2g`, swap ativo) ou CI —
+  nunca `next build`/`dev` solto no host VPSTodo (rito anti-starvation; memória do projeto).
+- Ambiente vivo do cliente É PRODUÇÃO: trabalho só em recursos isolados `hub-*`/`hub_*`.
+  Merge/deploy são do operador. Nenhuma escrita em produção por esta feature.
+
+## 5. Fases de execução (ordem do briefing S3)
+
+1. **Contratos `/me` e auth verificados** (reler `hub-me.js` já feito; reler `hub-auth.js`) +
+   `lib/hub/me-dto.ts` (adaptador de borda) + tipos de domínio + smoke do proxy.
+2. **`ModuleNav` + `EnvBadge`** (nav data-driven + banner de ambiente).
+3. **`EntitySwitcher` + `/selecionar-entidade`** (evolui empresa-selector; troca de entidade).
+4. **Telas de auth**: `/login`, `/recuperar-senha`, `/redefinir-senha`, perfil + troca de senha,
+   logout.
+5. **`/dashboard`** (cards por módulo; estados "sem módulo"/"sem acesso").
+6. **E2E na homolog isolada** + **evidências** (prints por papel, axe ≥95, troca de entidade).
+7. **PR + DIARIO.md**.
+
+Design (/ui-ux-pro-max) aplicado dentro das fases 2–5.
+
+## 6. Paridade de tipos (obrigatório — feature multi-camada)
+
+Se o shell replicar validação/tipos do backend no frontend (ex.: schema Zod do body de
+`/me/entidade`, shape do `MeResponse`), CADA replicação exige **subtarefa de paridade** que
+compara o tipo do frontend com o contrato real do backend (leitura de `hub-me.js`/`hub-auth.js`)
+e falha o build/teste se divergir. O adaptador `lib/hub/me-dto.ts` é o ponto único onde a
+paridade é asseverada (teste unitário compara os campos snake do contrato §1.1 com o mapeamento).
+
+## 7. DDL — decisão: NÃO é necessário
+
+Esta é uma fase de frontend sobre um contrato de backend JÁ existente (S2). `GET /me` e
+`POST /me/entidade` já entregam tudo que o shell precisa. Nenhum campo novo, tabela nova ou
+índice é requerido. **Confirmação**: os 4 requisitos de dados do shell (perfil, vínculos,
+entidade ativa, módulos, permissões) são 100% cobertos pela resposta atual do `/me` (§1.1).
+→ **Sem migration nesta fase.** SE, durante a execução, um ajuste TRIVIAL de contrato do `/me`
+exigir persistência (não previsto), a série é `app_homologacao/backend/db/` **011+**,
+expand-only idempotente — mas o default é: não criar. Qualquer necessidade além de "completar
+campo já contratado" vira **bloqueio para o operador** (dec-010).
+
+## 8. Testes exigidos (do briefing)
+
+- **Unit**: `PermissionGate` (mostra/esconde por `<codigo>.<acao>`); mapeamento módulo→rota;
+  adaptador `me-dto.ts` (paridade snake↔camel + degradação `entidade_ativa=null`).
+- **E2E (homolog isolada)**: 2 papéis distintos veem menus diferentes; pessoa sem
+  `auditoria.consultar` recebe `403` do backend ao acessar diretamente `GET /api/v1/auditoria`
+  por URL, mesmo sem o item aparecer no menu (correção CHK010 — substitui o exemplo
+  inexistente `/usuarios`/`usuarios.manage`, ver task 1.1.2); troca de
+  entidade altera os dados exibidos; banner de ambiente visível; **axe ≥ 95** nas telas novas.
+
+## 9. Gates desta onda
+
+- **doc-quality** (`validate-documentation`) sobre spec+plan — ciente de que o template
+  Spec-Kit (FR-/SC-/US-) difere do UC-*/RB-*; a divergência é registrada como decisão
+  informativa (mesma postura da onda-001), não como falha.
+- **security** (`owasp-security`) sobre a arquitetura proposta — foco: sessão por cookie
+  httpOnly, escopo cross-tenant de `permissoes[]` (§3.3), enumeração de conta no fluxo de
+  recuperação (FR-012), rate-limit (FR-014), reautorização de backend por-entidade.
+
+## 10. Rastreabilidade FR → plano
+
+FR-001→ModuleNav+§1.1; FR-002→§3.3 (backend); FR-003/004→§3.4; FR-005/006/007→EntitySwitcher+§1.2;
+FR-008→EnvBadge; FR-009/010→/dashboard; FR-011→perfil; FR-012/014→auth S2 reusado; FR-013→logout;
+FR-015→guard refetch (§3.4); FR-016→tela "sem acesso"; FR-017→§3.5; FR-018→§3.1 (legado intocado).

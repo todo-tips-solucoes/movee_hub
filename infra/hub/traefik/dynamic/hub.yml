@@ -11,16 +11,16 @@
 
 http:
   routers:
-    hub-placeholder-https:
+    hub-frontend-https:
       rule: "Host(`{{ env "HUB_DOMAIN" }}`) || Host(`localhost`)"
       entryPoints: ["websecurehub"]
-      service: hub-placeholder
+      service: hub-frontend
       tls: {}
-    hub-placeholder-http:
+    hub-frontend-http:
       rule: "Host(`{{ env "HUB_DOMAIN" }}`) || Host(`localhost`)"
       entryPoints: ["webhub"]
       middlewares: ["hub-to-https"]
-      service: hub-placeholder
+      service: hub-frontend
 
   middlewares:
     hub-to-https:
@@ -30,10 +30,10 @@ http:
         permanent: true
 
   services:
-    hub-placeholder:
+    hub-frontend:
       loadBalancer:
         servers:
-          - url: "http://placeholder:8080"
+          - url: "http://frontend:3000"
 
 tls:
   certificates:
