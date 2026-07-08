@@ -231,20 +231,20 @@ Ref: plan Fase 7, spec FR-006/FR-008/FR-009, quickstart Cenário 5/6/7
 
 Ref: plan Fase 8, quickstart Cenários 1–12, briefing s5-modulo-motoristas
 
-- [ ] 8.1.1 Rodar E2E da jornada completa: buscar → detalhe → vincular via sugestão → desvincular (SC-005)
-- [ ] 8.1.2 E2E do usuário só-leitura: 100% dos controles de edição ausentes (SC-006) + `403` se forçar a chamada de escrita
-- [ ] 8.1.3 E2E do conflito de vínculo duplo (Cenário 8 / FR-012) e do ramo não-elegível (Cenário 9 / FR-010/FR-011)
-- [ ] 8.1.4 E2E de isolamento multi-tenant (Cenário 10 / Constitution II)
-- [ ] 8.1.5 Roundtrip real contra contrato (Cenário 11, não mock) e branding claro/escuro (Cenário 12)
+- [x] 8.1.1 Rodar E2E da jornada completa: buscar → detalhe → vincular via sugestão → desvincular (SC-005) <!-- onda-012, chamadas HTTP reais contra hub-homolog: C1 busca (209 Entregador reais via /importacoes), C5/C6 sugestao+POST vinculo, DELETE desvinculo final -- ver docs/plans/hub-frota/evidencias/S5/fase8-e2e-resultado.md -->
+- [x] 8.1.2 E2E do usuário só-leitura: 100% dos controles de edição ausentes (SC-006) + `403` se forçar a chamada de escrita <!-- onda-012: PATCH com qa.motoristas.leitura@moveelog.local (papel leitura, empresa 9001) -> 403, nome nao alterado; ocultacao 100% dos controles na UI ja unit-testada na FASE 7 (page.test.tsx "gate de permissao FR-005/SC-006"), nao re-verificada visualmente nesta onda -->
+- [x] 8.1.3 E2E do conflito de vínculo duplo (Cenário 8 / FR-012) e do ramo não-elegível (Cenário 9 / FR-010/FR-011) <!-- onda-012: POST vinculo duplicado -> 409 conta_ja_vinculada; substituicao em 1 acao -> 200; DELETE idempotente -> 204; empresa 9002 fora do EmpresaGrupoMovee -> entidadeElegivel:false sem erro, POST forcado -> 422 entidade_fora_do_grupo -->
+- [x] 8.1.4 E2E de isolamento multi-tenant (Cenário 10 / Constitution II) <!-- onda-012: usuario da empresa 9002 -> GET /motoristas/305 (empresa 9001) = 404; listagem com nome=Adriano = total 0 -->
+- [x] 8.1.5 Roundtrip real contra contrato (Cenário 11, não mock) e branding claro/escuro (Cenário 12) <!-- onda-012: PATCH->GET real confirma shape camelCase (nomeEditadoManualmente, sem nome_editado_manualmente) e cnpjPrestadorMascarado mascarado; Cenario 12 via Playwright (tests/e2e-hub-cenario12/), 4 screenshots reais (lista/detalhe x light/dark) em docs/plans/hub-frota/evidencias/S5/ -->
 
 ### 8.2 Coleta de evidências e fechamento `[M]`
 
 Ref: plan Fase 8, briefing (ordem: E2E → evidências)
 
-- [ ] 8.2.1 Coletar evidências dos E2E (saídas/prints) no hub-homolog isolado
-- [ ] 8.2.2 Verificar SC-007 (zero alterações observáveis na base de contas do app motorista) e FR-015/FR-016 (nenhuma escrita/regressão fora do escopo)
-- [ ] 8.2.3 Consolidar evidências no diário/PR da S5 para revisão do operador
-- [ ] 8.2.4 Revisitar achado emergente da tarefa 4.1 (trigger `trg_entregador_protege_nome`, migration 0019, bloqueia um 2º `PATCH` de nome mesmo do próprio operador — não só reimportação): decidir com o operador se reedição deve ser permitida e, se sim, desenhar o mecanismo (nova migration expand-only)
+- [x] 8.2.1 Coletar evidências dos E2E (saídas/prints) no hub-homolog isolado <!-- onda-012: docs/plans/hub-frota/evidencias/S5/fase8-e2e-resultado.md (log de PASS + contagem de auditoria) + 4 screenshots do Cenario 12 -->
+- [x] 8.2.2 Verificar SC-007 (zero alterações observáveis na base de contas do app motorista) e FR-015/FR-016 (nenhuma escrita/regressão fora do escopo) <!-- onda-012: verificado por arquitetura -- hub_homolog_backend so fala com seu proprio PostgREST interno (POSTGREST_URL=http://postgrest:3000, rede hub_internal); grep vazio para chatmasterveloz/pgadmin_db em infra/hub/compose.hub.homolog.yml e em routes/hub-motoristas.js/lib/hub-motoristas-*.js; producao envio-massa-homologacao_* 4/4 servicos 1/1 antes/depois do deploy+seed+E2E -->
+- [x] 8.2.3 Consolidar evidências no diário/PR da S5 para revisão do operador <!-- onda-012: evidencias consolidadas em docs/plans/hub-frota/evidencias/S5/; PR/push pendente de autorizacao explicita do operador (CLAUDE.md Governanca) -->
+- [ ] 8.2.4 Revisitar achado emergente da tarefa 4.1 (trigger `trg_entregador_protege_nome`, migration 0019, bloqueia um 2º `PATCH` de nome mesmo do próprio operador — não só reimportação): decidir com o operador se reedição deve ser permitida e, se sim, desenhar o mecanismo (nova migration expand-only) <!-- onda-012: achado RECONFIRMADO empiricamente (Cenario 4 do E2E); e decisao de produto, nao derivavel da spec com confianca -- ESCALADO para bloqueio humano block-004 (dec-048), aguardando resposta do operador via /feature-00c-resume -->
 
 ---
 
