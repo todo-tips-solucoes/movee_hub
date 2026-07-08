@@ -653,3 +653,47 @@ via RLS real (Cenário 8 + evidência §RLS acima).
 - **PR #57 atualizado** (push da branch; **sem merge/deploy** — decisão do operador; cutover
   do hub para produção é G3/S10). Deploy de S4 nos serviços do cliente NÃO se aplica: a S4
   roda só no `hub-homolog` isolado.
+
+---
+
+## 2026-07-08 — S5 (Módulo Motoristas) CONCLUÍDA — branch feat/hub-motoristas + PR draft
+
+- **Pipeline /feature-00c completa** (13 ondas, `status=concluida`, review-task veredito
+  **APROVAR**): specify → clarify (2 respostas automáticas + 3 bloqueios de produto
+  respondidos pelo operador) → plan (OWASP: 3 gaps corrigidos nos artefatos) → checklist
+  (34 itens) + create-tasks (8 fases / 17 tarefas / 75 subtarefas) → execute-task
+  (FASES 1–8, 100% `[x]`) → review-task (métricas determinísticas via `metrics.sh`).
+- **Decisões do operador integradas**: D3 já estava decidida no plano (§18, a+b);
+  block-001 subpraça = **todas as áreas distintas** no filtro; block-002 sugestões =
+  **top 10 por similaridade com limiar mínimo**; block-003 **edição manual de nome
+  prevalece** sobre reimportação; block-004 **reeditar sempre** (trigger protege só
+  contra o caminho de importação — claim JWT `origem_importacao`, migration 0025).
+- **Entregue**: migrations **0019–0025** em `infra/hub/migrations/` (coluna+trigger de
+  edição manual; índices de subpraça; `ContaMotorista` espelho local + `pg_trgm`/`unaccent`
+  + FK `Entregador.motorista_id`; allowlist `EmpresaGrupoMovee`; RPCs parametrizadas
+  `hub_motoristas_candidatos`/`hub_motoristas_busca` SECURITY INVOKER; view de áreas
+  anti-N+1; 0025 = proteção só-import); **7 endpoints** `/api/v1/motoristas*`
+  (lista paginada server-side com filtros, detalhe all-time, PATCH com allowlist,
+  sugestões/busca/contas-elegíveis, vínculo POST com 409/422/404-RLS e DELETE
+  idempotente 204); **telas** `/hub/dashboard/motoristas` e `/[id]` + diálogo de vínculo
+  em 2 passos (confirmação humana obrigatória — nunca auto-vincular).
+- **Validação (números reais, reexecutados na onda de review)**: backend hub-motoristas
+  **133/133** unit, frontend **165/165** vitest, integração **122/122** em stacks
+  `hub-test-*` efêmeros, `tsc --noEmit` 0, eslint 0; `npm test` geral 372/380 (8 falhas
+  pré-existentes em `motorista-integration.test.js`, confirmadas via `git stash` baseline).
+  **E2E real** contra `https://hub-homolog.todo-tips.com:8443`: 11 cenários do quickstart
+  + 4 screenshots (Cenário 12/branding) em `docs/plans/hub-frota/evidencias/S5/`;
+  209 Entregador reais seedados via import; auditoria `motorista.*` 1-para-1.
+- **Migration 0025 APLICADA no `hub_homolog_db` persistente** sob autorização explícita
+  do operador (exceção G1, recurso `hub_*`): `SchemaMigration` registro 26/26; validação
+  em transação+rollback provou 2ª edição manual passando e sobrescrita por import
+  bloqueada; SIGUSR1 no PostgREST.
+- **Critérios de aceite do briefing**: 1) lista/filtros/edição/vínculo sobre dados
+  importados ✔; 2) tela funciona com Entregador sem vínculo ✔; 3) **zero mudanças** na
+  tabela `Motorista` e no app motorista ✔; 4) permissões `motoristas.*` no backend
+  (403 fail-closed p/ papel leitura) ✔; 5) PR + DIARIO ✔ (esta entrada).
+- **Produção intocada**: serviços `envio-massa-homologacao_*` 4/4 Up durante toda a fase
+  (deploys/builds só nos recursos `hub-*` sob rito anti-starvation). Merge do PR e
+  cutover (G3/S10) seguem com o operador.
+- Relatório terminal: `docs/specs/hub-motoristas/review-onda-013.md`. Próxima fase da
+  ordem S3→S10 = **S6 (módulo faturamento, briefings/s6-modulo-faturamento.md)**.
