@@ -209,19 +209,19 @@ Ref: plan Fase 6, spec FR-014, research Decision 9, checklists/requirements.md C
 
 Ref: plan Fase 7, spec FR-017/SC-006/SC-008, research Decision 8, quickstart Cenário 12
 
-- [ ] 7.1.1 Criar `/hub/dashboard/motoristas` (lista com filtros) e `/hub/dashboard/motoristas/:id` (detalhe) via `/ui-ux-pro-max`, reusando padrões shadcn/hook server-side da S4
-- [ ] 7.1.2 Ocultar 100% dos controles de edição para usuário sem permissão (FR-005/SC-006); nunca depender só do frontend (backend 403 já garante)
-- [ ] 7.1.3 Preservar identidade visual EntreGô/design system e branding claro/escuro via `next-themes` (FR-017/SC-008)
-- [ ] 7.1.4 **Fechar gap CHK033**: garantir acessibilidade das telas novas (navegação por teclado, foco visível, rótulos/aria) além da identidade visual
+- [x] 7.1.1 Criar `/hub/dashboard/motoristas` (lista com filtros) e `/hub/dashboard/motoristas/:id` (detalhe) via `/ui-ux-pro-max`, reusando padrões shadcn/hook server-side da S4 <!-- app/hub/dashboard/motoristas/page.tsx (lista: filtros nome/ativo/area/comVinculo, paginação, cards mobile + Table desktop) + [id]/page.tsx (detalhe: indicadores, edição nome/ativo, painel de vínculo); lib/hub/motoristas-{api,dto}.ts espelham contracts/motoristas-api.md; mesmo molde de importacoes-{api,dto,page}.tsx (S4), sem componente <DataTable> genérico (não existe no hub) -->
+- [x] 7.1.2 Ocultar 100% dos controles de edição para usuário sem permissão (FR-005/SC-006); nunca depender só do frontend (backend 403 já garante) <!-- `permissoes.includes('motoristas.editar')`/`'motoristas.consultar'` via useHubAuth() gateia Editar/Trocar/Desvincular/Vincular + o fetch de /sugestoes; testado em page.test.tsx "gate de permissão (FR-005/SC-006)" -->
+- [x] 7.1.3 Preservar identidade visual EntreGô/design system e branding claro/escuro via `next-themes` (FR-017/SC-008) <!-- 100% componentes shadcn (Card/Badge/Table/Dialog/AlertDialog/Input/Checkbox/Button) com tokens bg-card/text-foreground/text-muted-foreground já theme-aware; nenhuma cor hardcoded; next-themes já global em app/layout.tsx, nenhuma config adicional necessária -->
+- [x] 7.1.4 **Fechar gap CHK033**: garantir acessibilidade das telas novas (navegação por teclado, foco visível, rótulos/aria) além da identidade visual <!-- todo <select>/<Input> com <label htmlFor>; ícones decorativos aria-hidden; role="status"/"alert" em loading/erro/vazio; foco visível herdado dos primitivos shadcn (focus-visible:ring); botões/links 100% navegáveis por teclado (sem onClick em <div> não-interativo); axe E2E (tests/e2e-hub-browser/axe-telas.spec.ts) estende essas rotas na FASE 8 contra o hub-homolog real -->
 
 ### 7.2 Diálogo de vínculo (sugestões + busca manual + confirmação) `[A]`
 
 Ref: plan Fase 7, spec FR-006/FR-008/FR-009, quickstart Cenário 5/6/7
 
-- [ ] 7.2.1 Implementar diálogo de vínculo consumindo `/sugestoes` e `/contas-elegiveis`
-- [ ] 7.2.2 Exigir ação de confirmação humana explícita antes de chamar `POST .../vinculo` (FR-008)
-- [ ] 7.2.3 Exibir aviso quando a conta candidata já está vinculada a outro Entregador (sem bloquear a listagem; o 409 do backend é a barreira real)
-- [ ] 7.2.4 Ação de desvínculo com confirmação; refletir estado após vincular/desvincular
+- [x] 7.2.1 Implementar diálogo de vínculo consumindo `/sugestoes` e `/contas-elegiveis` <!-- components/hub/vinculo-motorista-dialog.tsx: sugestões pré-carregadas pela página-mãe (evita round-trip duplicado) + busca manual com debounce 300ms (mín. 2 chars) via buscarContasElegiveis -->
+- [x] 7.2.2 Exigir ação de confirmação humana explícita antes de chamar `POST .../vinculo` (FR-008) <!-- passo 'confirmar' separado do passo 'buscar'; vincularMotorista só é chamado ao clicar "Confirmar vínculo" no 2º passo, nunca ao escolher a conta; testado explicitamente (nenhuma chamada disparada só ao escolher) -->
+- [x] 7.2.3 Exibir aviso quando a conta candidata já está vinculada a outro Entregador (sem bloquear a listagem; o 409 do backend é a barreira real) <!-- CandidatoItem mostra "Já vinculada a <nome>" (AlertTriangle) tanto na lista quanto no passo de confirmação; item continua clicável/selecionável (SC-003); 409 do backend tratado no catch do confirmar sem fechar o diálogo -->
+- [x] 7.2.4 Ação de desvínculo com confirmação; refletir estado após vincular/desvincular <!-- AlertDialog na página de detalhe (mesmo padrão de delete-dialog.tsx); onVinculado/confirmarDesvinculo chamam refetch() do detalhe após sucesso -->
 
 ---
 
