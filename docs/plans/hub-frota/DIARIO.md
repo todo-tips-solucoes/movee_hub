@@ -983,3 +983,126 @@ F2+F3+F4 — todas prontas. Próxima onda: FASE 5 (DTO/API client
 frontend + página com cards/filtros/tabela/export, seguindo
 `/ui-ux-pro-max` e o padrão de `.../faturamento/page.tsx`), depois FASE 6
 (E2E completo no `hub-homolog` + evidências + DIÁRIO final).
+
+## 2026-07-08 — S7 (módulo Performance): FASE 5 (frontend) via /feature-00c
+
+Onda 5 de `/feature-00c hub-performance` (branch `feat/hub-performance`,
+commit `7acc0a3`): DTO/API client `lib/hub/performance-dto.ts` +
+`lib/hub/performance-api.ts` e a tela `/hub/dashboard/performance` (cards de
+resumo, filtros server-side, tabela paginada, export CSV condicionado a
+`performance.exportar`, **sem** navegação para detalhe do entregador —
+research.md Decision 11, ao contrário de `hub-faturamento`), mesmo padrão de
+`.../faturamento/page.tsx`. `tsc --noEmit`/`eslint` limpos (0 erros). Duas
+subtarefas (roundtrip real contra hub-homolog e smoke/E2E de UI) foram
+deliberadamente deferidas para a FASE 6 (dec-027) — evita rebuild duplicado
+do container `hub_homolog_frontend`. Onda fechada por corte de dependência
+(FASE 6 depende de F5 completa). Próxima onda: FASE 6 completa.
+
+## 2026-07-08 — S7 (módulo Performance) CONCLUÍDA — FASE 6, evidências e E2E ao vivo
+
+- **Pipeline `/feature-00c` em andamento** (short_name `hub-performance`,
+  onda-006, `execute-task` → transição para `review-task`): specify →
+  clarify → plan (gate OWASP A05 PASS) → checklist (39 itens, 2 gaps
+  `{humano}`) → create-tasks (6 fases/12 tarefas/74 subtarefas, gates
+  template-fidelity + docs-render verdes) → execute-task (**FASES 1-6,
+  12/12 tarefas `[x]`**).
+- **Deploy prévio necessário**: a imagem `hub-backend:homolog`/
+  `hub-frontend:homolog` em execução no hub-homolog **ainda não** tinha o
+  código das FASES 1-5 (só as migrations `0029`/`0030` já aplicadas desde a
+  onda-004) — rebuild + redeploy de ambos (`docker compose build` com cap de
+  memória `--memory=2g` no frontend, lição 2026-06-11) antes do quickstart.
+  Smoke pós-deploy: `/hub/login`/`/hub/dashboard/performance` 200.
+- **Entregue**: migrations **0029/0030** (permissão `performance.listar`
+  corretiva + RPCs `hub_performance_totais`/`hub_performance_agrupado`,
+  `SECURITY INVOKER`, fórmula ponderada Σ(pct×duração)/Σduração com fallback
+  para média simples quando `duracao IS NULL` — OWASP A05 PASS); **2
+  endpoints** `GET /api/v1/performance` (lista paginada + `?format=csv`
+  streaming em lotes de 1.000) e `GET /api/v1/performance/resumo` (cards +
+  `groupBy=dia|periodo|entregador`); DTO/API client
+  (`lib/hub/performance-dto.ts`/`performance-api.ts`); tela
+  `/hub/dashboard/performance` (cards, filtros, tabela paginada, export CSV
+  condicionado a `performance.exportar`, **sem** navegação para detalhe do
+  entregador — Decision 11, estados vazio/loading/erro).
+- **Validação determinística** (re-executada/reafirmada): `node --test`
+  `hub-performance-dto.test.js` (34/34) + `hub-performance.test.js` (26/26)
+  + `hub-csv.test.js` (9/9, sem regressão); `infra/hub/testes/hub-performance-integration.sh`
+  (ambiente `hub-test-*` efêmero) **60/60 asserts PASS**; `tsc --noEmit`/
+  `eslint` limpos.
+- **E2E real contra `https://hub-homolog.todo-tips.com:8443`** (persistente,
+  usuários QA reais `qa.importacoes@moveelog.local`/
+  `qa.motoristas.leitura@moveelog.local`/
+  `qa.motoristas.outraempresa@moveelog.local`, login real via cookie de
+  sessão): **35 PASS / 0 FAIL** cobrindo os Cenários 1/2/3(+fallback)/4/6/7/
+  8(+CHK031)/9/10(parcial)/11/13/14 do `quickstart.md` — totais batendo com
+  `SUM` SQL direto no `hub_homolog_db`, taxa agregada = razão de somas
+  (nunca média de percentuais, SC-002), tempo disponível ponderado por
+  duração com fallback correto (FR-003/dec-011), período vazio sem erro,
+  export CSV com contagem batendo com a tela, CSV injection neutralizada
+  (`=`/`@`/`+` + os 2 casos CHK031: apóstrofo pré-existente sem dupla
+  neutralização e caractere neutro sem prefixo espúrio), bypass de permissão
+  via papel `leitura` real (`403 PERMISSAO_NEGADA` no export mesmo com
+  `.listar`), isolamento multi-tenant real (marcador único 777 em 9002, zero
+  vazamento nos dois sentidos), roundtrip/contrato exato (camelCase
+  completo). **Cenário 5** (data do turno é o único filtro de data) coberto
+  por leitura de código + teste unitário, sem novo teste ao vivo. **Cenário
+  10** (combinações de permissão com papéis sintéticos "só consultar"/"só
+  listar") parcialmente coberto ao vivo (papel `leitura` real) + backstop no
+  teste determinístico (papéis sintéticos efêmeros, mesma decisão de
+  governança de `hub-faturamento`).
+- **Cenário 12 (identidade visual)**: Playwright real (imagem oficial
+  `mcr.microsoft.com/playwright`, zero apt/npx install no host) — **2/2
+  passed**, screenshots claro/escuro anexadas.
+- **Cenário 15 (performance, SC-004) — ACHADO REAL, dec-029**: seed de
+  900.000 linhas (~1 ano, `id_empresa=9001`, `generate_series`, 31s de
+  INSERT) — `GET /performance/resumo` sobre o ano inteiro populado mediu
+  **1,8-2,2s sem `groupBy`** e **1,6-2,2s com `groupBy=dia/periodo/
+  entregador`**, **todas excedendo o limite de 1s de SC-004** (mesmo achado
+  formal de dec-035 em `hub-faturamento`/S6). `EXPLAIN (ANALYZE, BUFFERS)`
+  confirma Index Scan na CTE de `hub_performance_totais` mas re-materializada
+  5x (1 por agregado), e Seq Scan+HashAggregate em `hub_performance_agrupado`
+  (859ms isolado, próximo do limite mesmo sem overhead de rede). **Decisão
+  dec-029 registrada (score 3, evidência empírica)**: `mv_performance_dia`
+  (research.md Decision 8, plano técnico §12.6) é a mitigação pré-aprovada,
+  mas implementá-la é escopo novo além do backlog de 12 tarefas já revisado
+  — **não implementada nesta onda**, escalada para decisão do operador,
+  mesmo padrão de governança de dec-035/D3/D4. Detalhe completo em
+  `docs/plans/hub-frota/evidencias/S7/fase6-e2e-perf-resultado.md`.
+- **Limpeza do seed de volume — EXECUTADA nesta onda** (ao contrário da 1ª
+  tentativa em `hub-faturamento`, que foi bloqueada pelo classificador de
+  auto mode): `DELETE FROM "PerformanceTurno"` (faixa exata dos 900000
+  registros, `id_empresa=9001`) + `VACUUM ANALYZE`/`VACUUM FULL` — tabela
+  337 MB → 96 kB. Preservados: 14 linhas do seed funcional + 1 linha da
+  prova de isolamento (9002). Smoke pós-limpeza: hub-homolog 200, produção
+  (`app.moveelog.com.br`/`app.motorista.moveelog.com.br`) 200 (intocada).
+- **Gate `validate-docs-rendered`** sobre `tasks.md`/`quickstart.md` — ver
+  resultado registrado na própria onda (0 erro esperado, mesmo padrão de
+  S6).
+- **2 gaps `{humano}` do checklist** (CHK022 — procedimento de medição de
+  SC-003; CHK024 — critério objetivo de SC-008) permanecem `[ ]`,
+  explicitamente registrados como pendência do operador (mesmo padrão já
+  aceito em `hub-faturamento` CHK020/CHK023) — não bloqueiam o fechamento.
+- **Produção intocada**: toda escrita confinada a recursos `hub-*`/`hub_*`
+  (exceção G1); serviços `envio-massa-homologacao_*`/`chatmasterveloz` não
+  tocados nesta sessão.
+
+### Pendências para o operador
+
+1. **`mv_performance_dia`** (dec-029): SC-004 formalmente violado sob volume
+   anual de um tenant grande — decidir se implementa a view materializada
+   (nova fase) ou aceita o risco por enquanto (mesmo dilema de
+   `mv_faturamento_dia`/dec-035 em S6).
+2. **CHK022/CHK024** (gaps `{humano}` do checklist): decidir procedimento de
+   medição de SC-003 e critério objetivo de SC-008, ou aceitar que ficam
+   como julgamento humano contínuo.
+3. Pendência recorrente (desde S1): divergência do trailer de commit
+   (CLAUDE.md pede "Claude Opus 4.8"; commits usam o modelo vigente) — segue
+   sem decisão do operador.
+4. PR ainda não aberto para `feat/hub-performance` — previsto para o
+   fechamento de `review-task` (próxima onda), mesmo padrão das fases
+   anteriores.
+
+Relatório de `review-task` (próxima onda) fará a síntese final e decidirá
+sobre a abertura do PR. Após S7 (última da ordem original S3→S10 antes de
+possíveis follow-ups), o plano mestre S0-S10 do hub-frota fica com todas as
+fases funcionais principais entregues — follow-ups de performance
+(`mv_faturamento_dia`/`mv_performance_dia`) ficam a critério do operador.

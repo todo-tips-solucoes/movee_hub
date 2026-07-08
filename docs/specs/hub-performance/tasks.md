@@ -243,40 +243,40 @@ Ref: plan.md "Plano por fases" passo 5; research.md Decision 10/11;
 
 Ref: quickstart.md Cenários 1-15; plan.md "Plano por fases" passo 6
 
-- [ ] 6.1.1 Rodar Cenário 1 (resumo e filtros combinados batem com o banco) e registrar a query SQL de referência como evidência
-- [ ] 6.1.2 Rodar Cenário 2 (taxa agregada nunca é média de percentuais — SC-002)
-- [ ] 6.1.3 Rodar Cenário 3 (tempo disponível médio ponderado pela duração do turno, incluindo o caso de fallback com `duracao IS NULL` — FR-003/dec-011)
-- [ ] 6.1.4 Rodar Cenário 4 (agrupamentos por dia/período/entregador, soma bate com `corridasCompletadas` do resumo; incluir valor de `periodo` fora dos 16 turnos documentados)
-- [ ] 6.1.5 Rodar Cenário 5 (data do turno é o único campo usado no filtro de data)
-- [ ] 6.1.6 Rodar Cenário 6 (período sem dados — `200` com zeros/nulls/lista vazia)
-- [ ] 6.1.7 Rodar Cenário 7 (export CSV: conteúdo e contagem batem com a tela)
-- [ ] 6.1.8 Rodar Cenário 8 (CSV injection neutralizada — `=`/`+`/`-`/`@` E o caso apóstrofo-inicial fechado na tarefa 4.2)
-- [ ] 6.1.9 Rodar Cenário 9 (export vazio gera só cabeçalho)
-- [ ] 6.1.10 Rodar Cenário 10 (permissões independentes listar/consultar/exportar em todas as combinações, incluindo bypass de UI via `curl`)
-- [ ] 6.1.11 Rodar Cenário 11 (isolamento multi-tenant em lista, resumo, agregado e export)
-- [ ] 6.1.12 Rodar Cenário 12 (identidade visual preservada claro/escuro/branding)
-- [ ] 6.1.13 Rodar Cenário 13 (roundtrip End-to-End real, contrato exato, sem mock)
-- [ ] 6.1.14 Rodar Cenário 14 (divisão por zero nunca produz erro — SC-009)
-- [ ] 6.1.15 Rodar Cenário 15 (performance sob volume ampliado — ver 6.2)
+- [x] 6.1.1 Rodar Cenário 1 (resumo e filtros combinados batem com o banco) e registrar a query SQL de referência como evidência
+- [x] 6.1.2 Rodar Cenário 2 (taxa agregada nunca é média de percentuais — SC-002)
+- [x] 6.1.3 Rodar Cenário 3 (tempo disponível médio ponderado pela duração do turno, incluindo o caso de fallback com `duracao IS NULL` — FR-003/dec-011)
+- [x] 6.1.4 Rodar Cenário 4 (agrupamentos por dia/período/entregador, soma bate com `corridasCompletadas` do resumo; incluir valor de `periodo` fora dos 16 turnos documentados)
+- [x] 6.1.5 Rodar Cenário 5 (data do turno é o único campo usado no filtro de data)
+- [x] 6.1.6 Rodar Cenário 6 (período sem dados — `200` com zeros/nulls/lista vazia)
+- [x] 6.1.7 Rodar Cenário 7 (export CSV: conteúdo e contagem batem com a tela)
+- [x] 6.1.8 Rodar Cenário 8 (CSV injection neutralizada — `=`/`+`/`-`/`@` E o caso apóstrofo-inicial fechado na tarefa 4.2)
+- [x] 6.1.9 Rodar Cenário 9 (export vazio gera só cabeçalho)
+- [x] 6.1.10 Rodar Cenário 10 (permissões independentes listar/consultar/exportar em todas as combinações, incluindo bypass de UI via `curl`)
+- [x] 6.1.11 Rodar Cenário 11 (isolamento multi-tenant em lista, resumo, agregado e export)
+- [x] 6.1.12 Rodar Cenário 12 (identidade visual preservada claro/escuro/branding)
+- [x] 6.1.13 Rodar Cenário 13 (roundtrip End-to-End real, contrato exato, sem mock)
+- [x] 6.1.14 Rodar Cenário 14 (divisão por zero nunca produz erro — SC-009)
+- [x] 6.1.15 Rodar Cenário 15 (performance sob volume ampliado — ver 6.2)
 
 ### 6.2 Performance sob volume ampliado — Cenário 15 `[M]`
 
 Ref: quickstart.md Cenário 15; research.md Decision 8; spec.md SC-004
 
-- [ ] 6.2.1 Gerar seed de volume ampliado (~1 ano de operação) dedicado para um `id_empresa` de teste em `"PerformanceTurno"` (`infra/hub/scripts/gen-seeds.py --perf` ou `generate_series` direto, mesma técnica de `hub-faturamento`)
-- [ ] 6.2.2 Medir tempo de resposta de `GET /performance/resumo` sem `groupBy` sobre o intervalo do ano populado (1 aquecimento + 2 rodadas)
-- [ ] 6.2.3 Medir tempo de resposta de `GET /performance/resumo?groupBy=dia`, `?groupBy=periodo` e `?groupBy=entregador` sobre o mesmo intervalo
-- [ ] 6.2.4 Capturar `EXPLAIN (ANALYZE, BUFFERS)` das 2 funções RPC nas medições acima
-- [ ] 6.2.5 Registrar evidência (tempos medidos + `EXPLAIN ANALYZE`) como Decisão auditável; se todas as medições ficarem abaixo de 1s, SC-004 passa sem mitigação; se alguma exceder, propor `mv_performance_dia` (plano técnico §12.6) como escopo de follow-up — nunca implementar preventivamente antes da medição
+- [x] 6.2.1 Gerar seed de volume ampliado (~1 ano de operação) dedicado para um `id_empresa` de teste em `"PerformanceTurno"` (`infra/hub/scripts/gen-seeds.py --perf` ou `generate_series` direto, mesma técnica de `hub-faturamento`)
+- [x] 6.2.2 Medir tempo de resposta de `GET /performance/resumo` sem `groupBy` sobre o intervalo do ano populado (1 aquecimento + 2 rodadas)
+- [x] 6.2.3 Medir tempo de resposta de `GET /performance/resumo?groupBy=dia`, `?groupBy=periodo` e `?groupBy=entregador` sobre o mesmo intervalo
+- [x] 6.2.4 Capturar `EXPLAIN (ANALYZE, BUFFERS)` das 2 funções RPC nas medições acima
+- [x] 6.2.5 Registrar evidência (tempos medidos + `EXPLAIN ANALYZE`) como Decisão auditável; se todas as medições ficarem abaixo de 1s, SC-004 passa sem mitigação; se alguma exceder, propor `mv_performance_dia` (plano técnico §12.6) como escopo de follow-up — nunca implementar preventivamente antes da medição (dec-029: TODAS excederam 1s — SC-004 violado, escalado para o operador)
 
 ### 6.3 DIÁRIO e evidências finais `[M]`
 
 Ref: docs/plans/hub-frota/DIARIO.md; review-task (relatório final)
 
-- [ ] 6.3.1 Registrar no DIÁRIO do hub-frota a conclusão da S7 com evidências (link `tasks.md`, resultados do quickstart, PR)
-- [ ] 6.3.2 Coletar prints/logs de smoke test como evidência anexada ao relatório de `review-task`
-- [ ] 6.3.3 Conferir gate `validate-docs-rendered` sobre `tasks.md`/`quickstart.md` atualizados (Mermaid, links, frontmatter)
-- [ ] 6.3.4 Confirmar decisão do dono do produto sobre os 2 gaps `{humano}` do checklist (CHK022 — procedimento de medição de SC-003; CHK024 — critério objetivo de SC-008) antes do fechamento, ou registrar explicitamente que ficam para depois (mesmo padrão já aceito em `hub-faturamento` CHK020/CHK023)
+- [x] 6.3.1 Registrar no DIÁRIO do hub-frota a conclusão da S7 com evidências (link `tasks.md`, resultados do quickstart, PR)
+- [x] 6.3.2 Coletar prints/logs de smoke test como evidência anexada ao relatório de `review-task`
+- [x] 6.3.3 Conferir gate `validate-docs-rendered` sobre `tasks.md`/`quickstart.md` atualizados (Mermaid, links, frontmatter)
+- [x] 6.3.4 Confirmar decisão do dono do produto sobre os 2 gaps `{humano}` do checklist (CHK022 — procedimento de medição de SC-003; CHK024 — critério objetivo de SC-008) antes do fechamento, ou registrar explicitamente que ficam para depois (mesmo padrão já aceito em `hub-faturamento` CHK020/CHK023) — registrado como pendência do operador (DIÁRIO + §6 da evidência), não bloqueia o fechamento
 
 ---
 
