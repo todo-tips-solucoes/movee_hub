@@ -31,6 +31,30 @@
 > dela); qualquer alteração na importação, na dimensão de pessoas entregadoras ou no
 > vínculo com contas de acesso (fases anteriores, preservadas sem mudança).
 
+## Clarifications
+
+### Session 2026-07-08
+
+- Q: Subpraça é coluna própria em `FaturamentoLancamento` ou derivada via join com a
+  dimensão de pessoa entregadora (S5)? → A: Coluna própria (`subpraca`, migration 0013),
+  com índice dedicado já entregue na S5 (`idx_faturamento_empresa_subpraca`, migration
+  0020) — não é derivada via join e nenhum índice novo é criado nesta fase. (dec-009)
+- Q: No resumo `group_by=entregador`, lançamentos sem `entregador_id` são consolidados em
+  bucket único ou separados por valor de `recebedor_agregado`? → A: Bucket ÚNICO
+  consolidado "agregados/bônus", independente do rótulo específico de
+  `recebedor_agregado`. (dec-010)
+- Q: A exportação CSV tem teto de linhas/período ou suporta qualquer volume filtrado? →
+  A: Sem teto explícito nesta fase — a resposta é gerada via streaming, sem carregar
+  todas as linhas em memória. (dec-011)
+- Q: O link do lançamento para o detalhe do entregador (módulo S5) fica visível para quem
+  não tem permissão do módulo de motoristas? → A: Fica OCULTO quando a pessoa usuária não
+  tem a permissão de visualização do módulo de motoristas; o backend do módulo de destino
+  permanece a autoridade final (padrão RBAC vigente do hub: frontend oculta, backend
+  nega). (dec-012)
+- Q: Critério de desempate do card "categoria de maior valor" quando há empate exato
+  entre categorias? → A: [PENDENTE: block-001 — aguardando decisão humana; FR-003
+  inalterado até a resposta]
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Consultar e filtrar o faturamento de um período (Priority: P1)
@@ -191,7 +215,10 @@ pessoa entregadora correta — sem depender de nenhum filtro ou exportação esp
   lançamentos agregados/bônus) — isoladamente ou em combinação. O filtro de datas MUST
   usar a data de competência do lançamento como campo padrão, e a interface MUST deixar
   explícito que essa é a data usada (distinguindo-a das demais datas existentes no
-  lançamento, que não participam deste filtro).
+  lançamento, que não participam deste filtro). O filtro por subpraça MUST usar o
+  atributo de área de atuação próprio do lançamento (já existente no fato desde a fase
+  S4/S5, com estrutura de consulta dedicada já entregue) — não derivado do cadastro da
+  pessoa entregadora; nenhuma estrutura nova de índice é introduzida por esta fase.
 - **FR-003**: O sistema MUST exibir, para o período e filtros aplicados, um resumo
   agregado calculado no sistema (não no cliente) contendo pelo menos: o total geral em
   valor, a categoria de maior valor no período, e o número de entregadores distintos com
@@ -199,7 +226,10 @@ pessoa entregadora correta — sem depender de nenhum filtro ou exportação esp
   precisão decimal do valor monetário original — nenhuma soma de valores monetários MUST
   ser realizada com aritmética de ponto flutuante.
 - **FR-004**: O sistema MUST também oferecer um resumo agregável por dia, por categoria e
-  por entregador, para o intervalo de datas e demais filtros informados.
+  por entregador, para o intervalo de datas e demais filtros informados. No agrupamento
+  por entregador, todos os lançamentos sem vínculo com entregador individual MUST ser
+  consolidados em um único bucket rotulado "agregados/bônus" — não separados por cada
+  valor distinto do rótulo de recebedor agregado.
 - **FR-005**: Lançamentos agregados/bônus que não pertencem a nenhuma pessoa entregadora
   individual MUST permanecer incluídos nos totais gerais e nos resumos por dia/categoria
   sempre que o filtro não excluir explicitamente a ausência de vínculo — MUST NUNCA ser
@@ -208,7 +238,9 @@ pessoa entregadora correta — sem depender de nenhum filtro ou exportação esp
   a um entregador que não é o seu.
 - **FR-006**: O sistema MUST permitir exportar em CSV a lista de lançamentos resultante
   dos filtros correntes, com o mesmo conjunto e a mesma contagem de linhas que a lista
-  exibida na tela para aquele filtro.
+  exibida na tela para aquele filtro. A exportação MUST NOT impor teto de linhas ou de
+  período nesta fase e MUST ser gerada de forma incremental (streaming), sem carregar o
+  conjunto completo de linhas em memória.
 - **FR-007**: Toda célula exportada em CSV cujo conteúdo comece com um dos caracteres
   `=`, `+`, `-` ou `@` MUST ser neutralizada com um prefixo que impeça sua interpretação
   como fórmula por um programa de planilha comum, preservando o conteúdo original como
@@ -226,7 +258,10 @@ pessoa entregadora correta — sem depender de nenhum filtro ou exportação esp
 - **FR-010**: O sistema MUST permitir navegar, a partir de um lançamento vinculado a uma
   pessoa entregadora, diretamente para o detalhe dessa pessoa entregadora no módulo de
   motoristas. Lançamentos agregados/bônus sem entregador MUST NOT oferecer esse controle
-  de navegação (não há detalhe individual para o qual navegar).
+  de navegação (não há detalhe individual para o qual navegar). O controle de navegação
+  MUST também ficar oculto quando a pessoa usuária não possui a permissão de visualização
+  do módulo de motoristas — seguindo o padrão de permissões vigente do hub (a interface
+  oculta o controle; o módulo de destino permanece a autoridade final de acesso).
 - **FR-011**: O sistema MUST NOT permitir, por esta fase, nenhuma criação, edição ou
   remoção de lançamento de faturamento — toda a superfície entregue é somente leitura
   sobre os dados já trazidos pela importação (S4); qualquer correção necessária MUST
