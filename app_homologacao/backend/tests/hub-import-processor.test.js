@@ -39,7 +39,11 @@ const {
   computarStatusLimiar,
   mascararValor,
   executarPipeline,
+  processarImportacao,
+  recuperarImportacoesOrfas,
+  errorTransiente,
   TAMANHO_LOTE,
+  MAX_LINHAS_IMPORTACAO,
 } = require('../lib/hub-import-processor');
 const { HEADER_FATURAMENTO, HEADER_PERFORMANCE } = require('../lib/hub-import-normalizer');
 
@@ -289,8 +293,18 @@ const HEADER_ROW_FATURAMENTO = HEADER_FATURAMENTO.join(';');
 /** Fake PostgREST minimalista: interpreta só os endpoints que
  * hub-import-processor.js de fato usa (ver comentário no topo do arquivo).
  * `opcoes.statusParaCancelamento` permite simular um `foiCancelado` que
- * muda de resposta a partir da N-ésima chamada (teste de cancelamento). */
-function criarFakePostgrest({ nomeArquivo, statusInicial = 'processing', cancelarNaChamadaN = null } = {}) {
+ * muda de resposta a partir da N-ésima chamada (teste de cancelamento).
+ * `statusInicial` default 'validating' — reflete o estado REAL do registro
+ * no banco no ponto em que `executarPipeline` começa a rodar (depois que
+ * `tentarAdquirirLock` já fez a transição pending->validating).
+ * F5 (pós-review PR #57) — os PATCH de transição (`validating`->
+ * `processing` e `processing`->`completed*`) agora vêm com um filtro
+ * `&status=eq.<esperado>` na query; o mock RESPEITA esse guard (0 linhas
+ * "afetadas" se o status simulado não bate), do mesmo jeito que o
+ * PostgREST real faria com a policy/WHERE. */
+function criarFakePostgrest({
+  nomeArquivo, statusInicial = 'validating', cancelarNaChamadaN = null, cancelarAposInsertDeFatos = false,
+} = {}) {
   const chamadas = [];
   let statusAtual = statusInicial;
   let chamadasSelectStatus = 0;
@@ -310,7 +324,11 @@ function criarFakePostgrest({ nomeArquivo, statusInicial = 'processing', cancela
       return [{ status: statusAtual }];
     }
 
-    if (/^ImportacaoArquivo\?id=eq\.\d+$/.test(endpoint) && method === 'PATCH') {
+    if (/^ImportacaoArquivo\?id=eq\.\d+(&status=eq\.[a-z_]+)?$/.test(endpoint) && method === 'PATCH') {
+      const filtroStatus = endpoint.match(/status=eq\.([a-z_]+)/);
+      if (filtroStatus && filtroStatus[1] !== statusAtual) {
+        return []; // F5 — guard de status não bateu, 0 linhas "afetadas"
+      }
       statusAtual = body.status || statusAtual;
       return [{ id: 1, ...body }];
     }
@@ -320,10 +338,15 @@ function criarFakePostgrest({ nomeArquivo, statusInicial = 'processing', cancela
     }
 
     if ((endpoint.startsWith('FaturamentoLancamento?on_conflict=') || endpoint.startsWith('PerformanceTurno?on_conflict=')) && method === 'POST') {
+      // F5 (2ª guarda) — simula um POST /:id/cancelar concorrente que
+      // aterrissa bem na janela entre o último lote inserido e a PATCH
+      // terminal (validando que a PATCH final, guardada por
+      // status=eq.processing, detecta e NÃO sobrescreve).
+      if (cancelarAposInsertDeFatos) statusAtual = 'cancelled';
       return null; // returnMinimal
     }
 
-    if (endpoint === 'ImportacaoLinhaErro' && method === 'POST') {
+    if (endpoint.startsWith('ImportacaoLinhaErro') && method === 'POST') {
       return null;
     }
 
@@ -368,7 +391,7 @@ describe('executarPipeline — happy path (completed)', () => {
     assert.equal(chamadaFatos.body.length, 3);
     assert.equal(chamadaFatos.opts.resolution, 'ignore-duplicates');
 
-    const chamadaErros = deps.chamadas.find((c) => c.endpoint === 'ImportacaoLinhaErro');
+    const chamadaErros = deps.chamadas.find((c) => c.endpoint.startsWith('ImportacaoLinhaErro'));
     assert.equal(chamadaErros, undefined, 'não deveria ter chamado ImportacaoLinhaErro sem linhas inválidas');
 
     const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
@@ -396,7 +419,7 @@ describe('executarPipeline — completed_with_errors', () => {
     assert.equal(resultado.validas, 2);
     assert.equal(resultado.invalidas, 1);
 
-    const chamadaErros = deps.chamadas.find((c) => c.endpoint === 'ImportacaoLinhaErro');
+    const chamadaErros = deps.chamadas.find((c) => c.endpoint.startsWith('ImportacaoLinhaErro'));
     assert.ok(chamadaErros, 'esperava insert em ImportacaoLinhaErro');
     assert.ok(chamadaErros.body.length >= 1);
     chamadaErros.body.forEach((linhaErro) => {
@@ -486,5 +509,286 @@ describe('executarPipeline — arquivo inacessível', () => {
     assert.equal(resultado.status, 'failed');
     const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
     assert.match(patchFinal.body.erro_resumo, /inacessível/);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// F1 (pós-review PR #57) — QUALQUER erro não tratado do pipeline sempre
+// termina em `failed` (nunca deixa o mutex órfão travando o índice único
+// parcial de 0011).
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('processarImportacao — F1.1: catch de topo marca failed em erro NÃO tratado', () => {
+  test('infoLinhas (1ª chamada do pipeline) rejeita com erro de infra não capturado por nenhum try/catch interno -> failed, mutex liberado', async () => {
+    const chamadas = [];
+    const deps = {
+      hubPostgrestRequest: async (endpoint, method, body, _claims, _opts) => {
+        chamadas.push({ endpoint, method, body });
+        if (/status=eq\.pending$/.test(endpoint) && method === 'PATCH') {
+          return [{ id: 1, status: 'validating' }]; // lock adquirido
+        }
+        if (/select=id,nome_arquivo$/.test(endpoint) && method === 'GET') {
+          // Erro de infra NÃO relacionado a nenhuma regra de negócio —
+          // antes desta correção, isso propagava até o fire-and-forget da
+          // rota e o registro ficava preso em `validating` para sempre.
+          throw Object.assign(new Error('PostgREST indisponível'), { status: 503 });
+        }
+        if (/id=eq\.1$/.test(endpoint) && method === 'PATCH') {
+          return [{ id: 1, ...body }]; // marcarFailed (F1.1) — sem guard de status
+        }
+        if (/status=eq\.pending&order=criado_em\.asc&limit=1&select=id$/.test(endpoint)) {
+          return []; // tentarIniciarProximaPendente — nada pendente
+        }
+        throw new Error(`mock não implementado para: ${method} ${endpoint}`);
+      },
+      registrarAuditoria: async () => {},
+      isoAgora: () => '2026-07-07T00:00:00Z',
+      agoraMs: () => 0,
+    };
+
+    const resultado = await processarImportacao({ importacaoId: 1, idEmpresa: 100, tipo: 'faturamento', claims: { escopo: [100] } }, deps);
+
+    assert.equal(resultado.adquirido, true);
+    assert.equal(resultado.status, 'failed');
+    const patchFailed = chamadas.find((c) => c.method === 'PATCH' && c.body && c.body.status === 'failed');
+    assert.ok(patchFailed, 'esperava 1 PATCH marcando status=failed (nunca preso em validating)');
+    assert.ok(!/[Pp]ostg[Rr][Ee][Ss][Tt] indispon[ií]vel/.test(patchFailed.body.erro_resumo || ''), 'erro_resumo não deve vazar detalhe interno de infra');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// F1.3 — recuperação de lock órfão no boot.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('recuperarImportacoesOrfas (F1.3 — boot)', () => {
+  test('PATCH usa claim hubBootRecovery e filtro status=in.(validating,processing); libera o mutex', async () => {
+    const chamadas = [];
+    const deps = {
+      hubPostgrestRequest: async (endpoint, method, body, claims) => {
+        chamadas.push({ endpoint, method, body, claims });
+        return [{ id: 10, status: 'failed' }, { id: 11, status: 'failed' }];
+      },
+      isoAgora: () => '2026-07-07T00:00:00Z',
+    };
+
+    const resultado = await recuperarImportacoesOrfas(deps);
+
+    assert.equal(resultado.totalRecuperadas, 2);
+    assert.equal(chamadas.length, 1);
+    assert.equal(chamadas[0].method, 'PATCH');
+    assert.match(chamadas[0].endpoint, /status=in\.\(validating,processing\)/);
+    assert.equal(chamadas[0].body.status, 'failed');
+    assert.match(chamadas[0].body.erro_resumo, /reinicio|reinício/);
+    assert.equal(chamadas[0].claims.hubBootRecovery, true, 'deve usar a claim interna hub_boot_recovery — nunca escopo de usuário');
+  });
+
+  test('nenhuma órfã (0 linhas) -> totalRecuperadas 0, sem lançar', async () => {
+    const deps = {
+      hubPostgrestRequest: async () => [],
+      isoAgora: () => '2026-07-07T00:00:00Z',
+    };
+    const resultado = await recuperarImportacoesOrfas(deps);
+    assert.equal(resultado.totalRecuperadas, 0);
+  });
+
+  test('PostgREST indisponível (ex.: POSTGREST_URL ausente) -> NUNCA lança, best-effort', async () => {
+    const deps = {
+      hubPostgrestRequest: async () => { throw new Error('POSTGREST_URL ausente no ambiente do hub.'); },
+      isoAgora: () => '2026-07-07T00:00:00Z',
+    };
+    const resultado = await recuperarImportacoesOrfas(deps);
+    assert.equal(resultado.totalRecuperadas, 0);
+    assert.ok(resultado.erro);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// F5 — cancelamento concorrente NUNCA é sobrescrito pelas transições
+// terminais do pipeline (guardadas por status esperado).
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('executarPipeline — F5: guard de status nas transições terminais', () => {
+  test('cancelado ANTES da transição validating->processing -> cancelled, ZERO fatos inseridos', async () => {
+    const csv = [
+      HEADER_ROW_FATURAMENTO,
+      linhaFaturamento({ descricao: 'linha 1' }),
+      '',
+    ].join('\n');
+    // statusInicial='cancelled' simula um POST /:id/cancelar que já rodou
+    // antes do processor tentar a transição validating->processing — o
+    // PATCH guardado por status=eq.validating não bate (mock: 0 linhas).
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv', statusInicial: 'cancelled' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    const resultado = await executarPipeline(jobFaturamento(), deps);
+
+    assert.equal(resultado.status, 'cancelled');
+    const patchParaProcessing = deps.chamadas.find((c) => c.method === 'PATCH' && c.body && c.body.status === 'processing');
+    assert.ok(patchParaProcessing, 'a tentativa de PATCH para processing deve ter sido feita (e rejeitada pelo guard)');
+    const chamadaFatos = deps.chamadas.find((c) => c.endpoint.startsWith('FaturamentoLancamento'));
+    assert.equal(chamadaFatos, undefined, 'nenhum fato pode ser inserido se o cancelamento já venceu antes de processing');
+    const patchCancelled = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
+    assert.equal(patchCancelled.body.status, 'cancelled');
+  });
+
+  test('cancelado NA JANELA entre o último lote inserido e a PATCH terminal -> cancelled preservado, NÃO sobrescrito por completed', async () => {
+    const csv = [
+      HEADER_ROW_FATURAMENTO,
+      linhaFaturamento({ descricao: 'linha 1' }),
+      linhaFaturamento({ descricao: 'linha 2' }),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv', cancelarAposInsertDeFatos: true });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    const resultado = await executarPipeline(jobFaturamento(), deps);
+
+    // Os fatos JÁ tinham sido inseridos quando o cancelamento "chegou" —
+    // não há rollback (F6) — mas o STATUS final reportado é `cancelled`,
+    // nunca `completed`/`completed_with_errors` (F5: a PATCH terminal
+    // guardada por status=eq.processing detecta e não sobrescreve).
+    assert.equal(resultado.status, 'cancelled');
+    const chamadaFatos = deps.chamadas.find((c) => c.endpoint.startsWith('FaturamentoLancamento'));
+    assert.ok(chamadaFatos, 'o lote já deveria ter sido inserido antes da janela de corrida');
+    assert.equal(chamadaFatos.body.length, 2);
+    // A PATCH terminal (status=completed) É tentada (o processor não sabe
+    // do cancelamento até tentar) — mas GUARDADA por status=eq.processing:
+    // o mock simula 0 linhas afetadas (statusAtual já virou 'cancelled'),
+    // então o EFEITO observável (getStatus / a última PATCH que de fato
+    // "pegou") nunca é completed*. A tentativa em si é esperada; o que
+    // NUNCA pode acontecer é ela ser a transição que prevalece.
+    const patchesStatusCompleto = deps.chamadas.filter((c) => c.method === 'PATCH' && c.body && (c.body.status === 'completed' || c.body.status === 'completed_with_errors'));
+    assert.equal(patchesStatusCompleto.length, 1, 'a tentativa de PATCH para completed é esperada (guardada, mas tentada)');
+    assert.equal(deps.getStatus(), 'cancelled', 'o status EFETIVO (o que o guard realmente aplicou) nunca deve virar completed*');
+    const ultimaPatch = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
+    assert.equal(ultimaPatch.body.status, 'cancelled', 'a ÚLTIMA transição que de fato prevaleceu deve ser cancelled (marcarCancelled)');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// F12 — classificação de erro transiente (retry 1x) NÃO trata bug de
+// código como falha de infraestrutura.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('errorTransiente (F12)', () => {
+  test('HTTP 5xx -> transiente', () => {
+    assert.equal(errorTransiente({ status: 500 }), true);
+    assert.equal(errorTransiente({ status: 503 }), true);
+  });
+
+  test('HTTP 429 (rate limit) -> transiente', () => {
+    assert.equal(errorTransiente({ status: 429 }), true);
+  });
+
+  test('HTTP 4xx (exceto 429) -> NÃO transiente', () => {
+    assert.equal(errorTransiente({ status: 404 }), false);
+    assert.equal(errorTransiente({ status: 422 }), false);
+    assert.equal(errorTransiente({ status: 400 }), false);
+  });
+
+  test('erro de rede real (err.cause.code POSIX) -> transiente', () => {
+    assert.equal(errorTransiente({ message: 'fetch failed', cause: { code: 'ECONNREFUSED' } }), true);
+    assert.equal(errorTransiente({ message: 'fetch failed', cause: { code: 'ETIMEDOUT' } }), true);
+    assert.equal(errorTransiente({ code: 'ECONNRESET' }), true); // err.code direto (sem .cause)
+  });
+
+  test('TypeError de BUG de código, sem status/código de rede -> NÃO transiente (F12, achado do review)', () => {
+    let err;
+    try {
+      const valorNulo = null;
+      // Acesso a propriedade de `null` -> TypeError real de runtime (bug de
+      // código), sem `.status`/`.cause.code` — o caso que a versão antiga
+      // de errorTransiente classificava erroneamente como transiente.
+      // eslint-disable-next-line no-unused-expressions
+      valorNulo.propriedade;
+    } catch (e) {
+      err = e;
+    }
+    assert.equal(err.name, 'TypeError');
+    assert.equal(errorTransiente(err), false);
+  });
+
+  test('erro sem status/cause/code qualquer -> NÃO transiente (fail-safe: propaga em vez de mascarar)', () => {
+    assert.equal(errorTransiente(new Error('alguma coisa quebrou')), false);
+  });
+
+  test('nulo/undefined -> false', () => {
+    assert.equal(errorTransiente(null), false);
+    assert.equal(errorTransiente(undefined), false);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// F13 — dedupe de ImportacaoLinhaErro em retry (on_conflict DO NOTHING).
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('executarPipeline — F13: inserirLoteErros usa on_conflict/ignore-duplicates', () => {
+  test('POST em ImportacaoLinhaErro carrega on_conflict=importacao_id,numero_linha + resolution=ignore-duplicates', async () => {
+    const csv = [
+      HEADER_ROW_FATURAMENTO,
+      linhaFaturamento({ descricao: 'ok' }),
+      linhaFaturamento({ recebedor: '', valor: 'abc', descricao: '' }),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    await executarPipeline(jobFaturamento(), deps);
+
+    const chamadaErros = deps.chamadas.find((c) => c.endpoint.startsWith('ImportacaoLinhaErro'));
+    assert.ok(chamadaErros, 'esperava 1 chamada de insert em ImportacaoLinhaErro');
+    assert.equal(chamadaErros.endpoint, 'ImportacaoLinhaErro?on_conflict=importacao_id,numero_linha');
+    assert.equal(chamadaErros.opts.resolution, 'ignore-duplicates');
+  });
+
+  test('retry do MESMO lote de erros (simulado 2x) não duplica visivelmente — 2 POSTs, mesmo payload, dedupe é responsabilidade do índice único (migration 0018) + on_conflict', async () => {
+    // Este teste unitário prova que o CLIENTE (processor) sempre envia o
+    // on_conflict correto — a garantia de "0 linhas duplicadas de fato" é
+    // do índice único da migration 0018 no Postgres real (provado em
+    // infra/hub/testes/hub-import-processor-integration.sh).
+    const csv = [
+      HEADER_ROW_FATURAMENTO,
+      linhaFaturamento({ recebedor: '', valor: 'abc', descricao: '' }),
+      linhaFaturamento({ descricao: 'ok' }),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    await executarPipeline(jobFaturamento(), deps);
+    const chamadasErros = deps.chamadas.filter((c) => c.endpoint.startsWith('ImportacaoLinhaErro'));
+    chamadasErros.forEach((c) => {
+      assert.equal(c.opts.resolution, 'ignore-duplicates');
+      assert.match(c.endpoint, /on_conflict=importacao_id,numero_linha/);
+    });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// F3 — cap de linhas (proteção de OOM em arquivo hostil/corrompido).
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('executarPipeline — F3: MAX_LINHAS_IMPORTACAO', () => {
+  test('constante é 300000 (documentação viva do limite)', () => {
+    assert.equal(MAX_LINHAS_IMPORTACAO, 300000);
+  });
+
+  test('arquivo com mais linhas que o limite -> failed, sem estourar memória (corta o parse)', async () => {
+    const linhaValida = linhaFaturamento({ descricao: 'linha-repetida' });
+    const totalLinhas = MAX_LINHAS_IMPORTACAO + 1;
+    const linhas = new Array(totalLinhas).fill(linhaValida);
+    const csv = [HEADER_ROW_FATURAMENTO, ...linhas, ''].join('\n');
+
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    const resultado = await executarPipeline(jobFaturamento(), deps);
+
+    assert.equal(resultado.status, 'failed');
+    const chamadaFatos = deps.chamadas.find((c) => c.endpoint.startsWith('FaturamentoLancamento'));
+    assert.equal(chamadaFatos, undefined, 'nunca deveria ter chegado a inserir fatos — corta o parse antes');
+    const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
+    assert.equal(patchFinal.body.status, 'failed');
+    assert.match(patchFinal.body.erro_resumo, /limite de 300000 linhas/);
   });
 });

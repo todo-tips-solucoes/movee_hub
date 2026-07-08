@@ -52,6 +52,19 @@
  * research.md Decision 7 (zero linhas persistidas em caso de falha
  * estrutural) — na verdade uma garantia MAIS forte (nenhuma linha fica
  * visível nem transitoriamente a um leitor concorrente).
+ *
+ * F6 (pós-review PR #57) — IMPORTANTE: "rollback por construção" descrito
+ * acima vale SÓ para o caminho pré-insert (decisão >50% inválidas, ANTES do
+ * 1º INSERT de fato). Ele NÃO se aplica a um cancelamento NO MEIO dos
+ * lotes (`processarLotesValidas`/4.6): nesse caso os lotes JÁ inseridos
+ * ficam persistidos — não há DELETE disponível para desfazê-los, nem faz
+ * sentido tentar (fatos são append-only e idempotentes por
+ * `hash_linha`/`ON CONFLICT DO NOTHING`). Semântica assumida: uma
+ * importação cancelada NO MEIO do processamento fica `cancelled` com
+ * contadores parciais e é RETOMÁVEL via `POST .../reprocessar` — o reparse
+ * do MESMO arquivo produz os MESMOS `hash_linha`, então as linhas já
+ * inseridas são puladas (idempotência) e só as restantes são gravadas.
+ * Nunca tentar apagar linhas parciais de um cancelamento mid-batch.
  */
 
 'use strict';
@@ -60,7 +73,7 @@ const { hubPostgrestRequest: hubPostgrestRequestReal } = require('./hub-postgres
 const { registrarAuditoria: registrarAuditoriaReal } = require('./hub-auditoria');
 const { extensaoDe, caminhoArmazenamento } = require('./hub-import-storage');
 const {
-  resolverConteudoCsv,
+  resolverConteudoCsvAsync,
   iterarLinhas,
   bufferParaStream,
 } = require('./hub-import-parser');
@@ -81,6 +94,13 @@ const { hashLinha } = require('./hub-import-hash');
 const TAMANHO_LOTE = 500;
 const LIMIAR_INVALIDAS = 0.5; // >50% -> failed (research.md Decision 7)
 const TIMEOUT_IMPORTACAO_MS = 120 * 1000; // plano técnico §12.6
+// F3 (pós-review PR #57, OOM) — 100MB de ZIP descomprimido comportam ~1M
+// linhas no formato observado; 300k é uma margem generosa acima do volume
+// real (arquivos reais: 4-8k linhas, §7.1 do plano técnico) sem deixar o
+// parse-completo-em-memória (necessário para o rollback "por construção",
+// ver F6/cabeçalho) crescer sem limite em caso de arquivo hostil/corrompido
+// que passe pelas defesas de tamanho de bytes mas tenha linhas minúsculas.
+const MAX_LINHAS_IMPORTACAO = 300000;
 
 const TABELA_FATO = { faturamento: 'FaturamentoLancamento', performance: 'PerformanceTurno' };
 const NORMALIZAR = { faturamento: normalizarLinhaFaturamento, performance: normalizarLinhaPerformance };
@@ -240,10 +260,34 @@ function computarStatusLimiar(total, invalidas) {
 // Retentativa 1x em erro transiente (4.3.3).
 // ────────────────────────────────────────────────────────────────────────────
 
+// F12 (pós-review PR #57) — códigos POSIX de rede que o `fetch`/undici do
+// Node expõe em `err.cause.code` (ou, em versões mais antigas, `err.code`)
+// quando a falha é DE FATO de infraestrutura (conexão recusada/resetada,
+// DNS, timeout de socket) — nunca um bug de código.
+const CODIGOS_REDE_TRANSIENTES = new Set([
+  'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT',
+  'EAI_AGAIN', 'EPIPE', 'EHOSTUNREACH', 'ENETUNREACH', 'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/**
+ * F12 — a versão anterior (`!err.status -> true`) classificava QUALQUER
+ * erro sem status HTTP como transiente, incluindo bugs de programação
+ * (`TypeError: Cannot read properties of undefined`, etc. — que também não
+ * têm `.status`) — um erro assim era retentado 1x e, na 2ª falha idêntica
+ * (determinística, não é rede), ainda assim seguia o caminho de "falha de
+ * infraestrutura" em vez de propagar como erro real. Regra corrigida: só é
+ * transiente (a) HTTP 5xx ou 429 (rate limit — vale retry), OU (b) uma
+ * falha de rede IDENTIFICÁVEL pelo código POSIX da causa
+ * (`err.cause.code`/`err.code`). Qualquer outro erro sem status (TypeError
+ * de bug, erro de asserção, etc.) NÃO é transiente — propaga imediatamente
+ * para `marcarFailed` (via o catch de `executarPipeline`), sem re-tentar
+ * silenciosamente um bug determinístico.
+ */
 function errorTransiente(err) {
   if (!err) return false;
-  if (!err.status) return true; // falha de rede (fetch rejeitou sem status)
-  return err.status >= 500;
+  if (typeof err.status === 'number') return err.status >= 500 || err.status === 429;
+  const codigo = (err.cause && err.cause.code) || err.code;
+  return Boolean(codigo && CODIGOS_REDE_TRANSIENTES.has(codigo));
 }
 
 async function executarComRetry(fn) {
@@ -370,13 +414,18 @@ async function inserirLoteFatos(job, lote, deps) {
   ));
 }
 
+/** F13 (pós-review PR #57) — `on_conflict=importacao_id,numero_linha` +
+ * `resolution=ignore-duplicates` (ON CONFLICT DO NOTHING, migration 0018):
+ * se a 1ª tentativa deste lote já tiver gravado no servidor mas a resposta
+ * se perdesse (erro transiente -> `executarComRetry` reenvia o MESMO
+ * lote), o retry não duplica as linhas de erro já persistidas. */
 async function inserirLoteErros(job, lote, deps) {
   await executarComRetry(() => deps.hubPostgrestRequest(
-    'ImportacaoLinhaErro',
+    'ImportacaoLinhaErro?on_conflict=importacao_id,numero_linha',
     'POST',
     lote,
     job.claims,
-    { returnMinimal: true }
+    { resolution: 'ignore-duplicates', returnMinimal: true }
   ));
 }
 
@@ -429,14 +478,39 @@ async function marcarFailed(job, motivo, deps, extra = {}) {
     linhas_validas: extra.validas ?? null,
     linhas_invalidas: extra.invalidas ?? null,
   }, job.claims);
-  await deps.registrarAuditoria({
-    idEmpresa: job.idEmpresa,
-    acao: 'importacao.falhou',
-    recurso: 'ImportacaoArquivo',
-    recursoId: job.importacaoId,
-    detalhes: { motivo, ...extra },
-    claims: job.claims,
-  });
+  // Auditoria é best-effort (mesmo padrão de hub-auditoria.js): se falhar
+  // AQUI, o PATCH acima (o que de fato destrava o mutex) já teve sucesso —
+  // não deixa a transição de status inteira propagar como erro por causa
+  // de um problema só no registro de auditoria (F1 — nenhum erro pode
+  // impedir a marcação de `failed`).
+  try {
+    await deps.registrarAuditoria({
+      idEmpresa: job.idEmpresa,
+      acao: 'importacao.falhou',
+      recurso: 'ImportacaoArquivo',
+      recursoId: job.importacaoId,
+      detalhes: { motivo, ...extra },
+      claims: job.claims,
+    });
+  } catch (errAuditoria) {
+    console.error('[hub-import-processor] falha ao registrar auditoria de failed (best-effort):', errAuditoria && errAuditoria.message);
+  }
+}
+
+/** F1.1 (pós-review PR #57) — wrapper NUNCA lança: usado no catch de topo
+ * de `processarImportacao` para garantir que uma falha ao TENTAR marcar
+ * failed (ex.: PostgREST também fora do ar no momento) não impede o
+ * `finally` de rodar `tentarIniciarProximaPendente` nem propaga como
+ * unhandled rejection do fire-and-forget da rota. */
+async function marcarFailedSeguro(job, motivo, deps, extra = {}) {
+  try {
+    await marcarFailed(job, motivo, deps, extra);
+  } catch (err) {
+    console.error(
+      '[hub-import-processor] falha ao marcar failed (best-effort) — registro pode ficar preso em validating/processing até o próximo boot (recuperarImportacoesOrfas):',
+      err && err.message
+    );
+  }
 }
 
 async function marcarCancelled(job, deps, extra = {}) {
@@ -447,14 +521,18 @@ async function marcarCancelled(job, deps, extra = {}) {
     linhas_validas: extra.validas ?? null,
     linhas_invalidas: extra.invalidas ?? null,
   }, job.claims);
-  await deps.registrarAuditoria({
-    idEmpresa: job.idEmpresa,
-    acao: 'importacao.cancelada_durante_processamento',
-    recurso: 'ImportacaoArquivo',
-    recursoId: job.importacaoId,
-    detalhes: extra,
-    claims: job.claims,
-  });
+  try {
+    await deps.registrarAuditoria({
+      idEmpresa: job.idEmpresa,
+      acao: 'importacao.cancelada_durante_processamento',
+      recurso: 'ImportacaoArquivo',
+      recursoId: job.importacaoId,
+      detalhes: extra,
+      claims: job.claims,
+    });
+  } catch (errAuditoria) {
+    console.error('[hub-import-processor] falha ao registrar auditoria de cancelamento (best-effort):', errAuditoria && errAuditoria.message);
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -469,173 +547,252 @@ async function marcarCancelled(job, deps, extra = {}) {
 async function executarPipeline(job, deps = DEFAULT_DEPS) {
   const inicioMs = deps.agoraMs();
 
-  const infoLinhas = await deps.hubPostgrestRequest(
-    `ImportacaoArquivo?id=eq.${job.importacaoId}&select=id,nome_arquivo`,
-    'GET', null, job.claims
-  );
-  if (!infoLinhas || infoLinhas.length === 0) {
-    throw new Error(`ImportacaoArquivo ${job.importacaoId} não encontrada — não é possível processar`);
-  }
-  const nomeArquivo = infoLinhas[0].nome_arquivo || '';
-  const extensao = extensaoDe(nomeArquivo);
-  const caminho = caminhoArmazenamento(job.importacaoId, extensao);
+  // F1.2 (pós-review PR #57) — watchdog: NENHUMA chamada hubPostgrestRequest
+  // deste pipeline fica pendente além de TIMEOUT_IMPORTACAO_MS (a lacuna que
+  // motivou F1.3 — mutex órfão — inclui uma request de rede que nunca
+  // resolve nem rejeita). `trabalho` é uma view de `deps` com o
+  // AbortSignal injetado em toda chamada; as transições TERMINAIS
+  // (marcarFailed/marcarCancelled, chamadas no catch/pontos de saída deste
+  // pipeline) usam sempre `deps` ORIGINAL — precisam conseguir gravar o
+  // status mesmo depois do abort disparar, senão o próprio watchdog
+  // impediria a recuperação que ele deveria viabilizar.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new Error(`timeout de processamento (${TIMEOUT_IMPORTACAO_MS}ms) excedido`));
+  }, TIMEOUT_IMPORTACAO_MS);
+  const trabalho = {
+    ...deps,
+    hubPostgrestRequest: (endpoint, method, body, claims, opts = {}) => (
+      deps.hubPostgrestRequest(endpoint, method, body, claims, { ...opts, signal: controller.signal })
+    ),
+  };
 
-  let bufferArquivo;
   try {
-    bufferArquivo = await deps.lerArquivo(caminho);
-  } catch (errLeitura) {
-    await marcarFailed(job, `arquivo original inacessível: ${errLeitura.code || errLeitura.message}`, deps);
-    return { status: 'failed' };
-  }
-
-  let conteudoCsv;
-  try {
-    conteudoCsv = resolverConteudoCsv(bufferArquivo, { nomeArquivo });
-  } catch (errParse) {
-    await marcarFailed(job, `conteúdo inválido: ${errParse.motivo || errParse.message}`, deps);
-    return { status: 'failed' };
-  }
-
-  const iterador = iterarLinhas(bufferParaStream(conteudoCsv));
-  const primeira = await iterador.next();
-  if (primeira.done) {
-    await marcarFailed(job, 'arquivo vazio (sem cabeçalho)', deps, { total: 0, validas: 0, invalidas: 0 });
-    return { status: 'failed' };
-  }
-
-  // status=validating: cabeçalho esperado? (01-plano-tecnico.md §12.1)
-  const { valido } = validarHeader(primeira.value.campos, job.tipo);
-  if (!valido) {
-    await marcarFailed(job, 'cabeçalho não corresponde ao esperado para este tipo de importação', deps, { total: 0, validas: 0, invalidas: 0 });
-    return { status: 'failed' };
-  }
-
-  // status=processing (transição validating->processing; não conflita com
-  // o índice único parcial — ambos os estados contam como "ativo").
-  await deps.hubPostgrestRequest(`ImportacaoArquivo?id=eq.${job.importacaoId}`, 'PATCH', { status: 'processing' }, job.claims);
-
-  const idx = indiceHeader(primeira.value.campos);
-  const normalizarLinha = NORMALIZAR[job.tipo];
-  const camposHash = CAMPOS_HASH[job.tipo];
-
-  const linhasValidas = [];
-  const errosLinha = [];
-  let total = 0;
-  let invalidasCount = 0;
-
-  // Parse COMPLETO em memória antes de qualquer INSERT (ver cabeçalho do
-  // arquivo — evita depender de DELETE, que a tabela de fatos não concede).
-  // eslint-disable-next-line no-restricted-syntax
-  for await (const linha of iterador) {
-    total += 1;
-    const { valores, erros } = normalizarLinha(linha.campos, idx);
-    if (erros.length > 0) {
-      invalidasCount += 1;
-      erros.forEach((erro) => {
-        errosLinha.push({
-          importacao_id: job.importacaoId,
-          id_empresa: job.idEmpresa,
-          numero_linha: linha.numeroLinha,
-          motivo: erro.motivo,
-          campo: erro.campo || null,
-          valor_mascarado: mascararValor(erro.valorBruto),
-        });
-      });
-    } else {
-      linhasValidas.push({ valores, hash: hashLinha(valores, camposHash), numeroLinha: linha.numeroLinha });
-    }
-  }
-
-  const validasCount = linhasValidas.length;
-
-  if (total === 0) {
-    await marcarFailed(job, 'arquivo sem linhas de dados (apenas cabeçalho)', deps, { total: 0, validas: 0, invalidas: 0 });
-    return { status: 'failed' };
-  }
-
-  // 4.4 — regra >50% inválidas: decide ANTES de qualquer INSERT (rollback
-  // "por construção" — nenhuma linha desta importação jamais foi gravada).
-  if (computarStatusLimiar(total, invalidasCount) === 'failed') {
-    const pct = Math.round((invalidasCount / total) * 1000) / 10;
-    await marcarFailed(
-      job,
-      `${invalidasCount}/${total} linhas inválidas (${pct}% > limiar de ${LIMIAR_INVALIDAS * 100}%) — importação recusada, nenhuma linha persistida`,
-      deps,
-      { total, validas: validasCount, invalidas: invalidasCount }
+    const infoLinhas = await trabalho.hubPostgrestRequest(
+      `ImportacaoArquivo?id=eq.${job.importacaoId}&select=id,nome_arquivo`,
+      'GET', null, job.claims
     );
-    return { status: 'failed' };
+    if (!infoLinhas || infoLinhas.length === 0) {
+      throw new Error(`ImportacaoArquivo ${job.importacaoId} não encontrada — não é possível processar`);
+    }
+    const nomeArquivo = infoLinhas[0].nome_arquivo || '';
+    const extensao = extensaoDe(nomeArquivo);
+    const caminho = caminhoArmazenamento(job.importacaoId, extensao);
+
+    let bufferArquivo;
+    try {
+      bufferArquivo = await deps.lerArquivo(caminho);
+    } catch (errLeitura) {
+      await marcarFailed(job, `arquivo original inacessível: ${errLeitura.code || errLeitura.message}`, deps);
+      return { status: 'failed' };
+    }
+
+    let conteudoCsv;
+    try {
+      // F2 (pós-review PR #57) — versão ASSÍNCRONA: a descompressão de até
+      // 100MB (quando o original é .zip) não trava o event loop aqui (já
+      // estamos fora do ciclo request/response — fire-and-forget — mas o
+      // processo Node é compartilhado, um bloqueio síncrono ainda atrasaria
+      // TODAS as outras requisições em andamento).
+      conteudoCsv = await resolverConteudoCsvAsync(bufferArquivo, { nomeArquivo });
+    } catch (errParse) {
+      await marcarFailed(job, `conteúdo inválido: ${errParse.motivo || errParse.message}`, deps);
+      return { status: 'failed' };
+    }
+
+    const iterador = iterarLinhas(bufferParaStream(conteudoCsv));
+    const primeira = await iterador.next();
+    if (primeira.done) {
+      await marcarFailed(job, 'arquivo vazio (sem cabeçalho)', deps, { total: 0, validas: 0, invalidas: 0 });
+      return { status: 'failed' };
+    }
+
+    // status=validating: cabeçalho esperado? (01-plano-tecnico.md §12.1)
+    const { valido } = validarHeader(primeira.value.campos, job.tipo);
+    if (!valido) {
+      await marcarFailed(job, 'cabeçalho não corresponde ao esperado para este tipo de importação', deps, { total: 0, validas: 0, invalidas: 0 });
+      return { status: 'failed' };
+    }
+
+    // status=processing (transição validating->processing) — F5 (pós-review
+    // PR #57): GUARDADA por `status=eq.validating`. Se um
+    // `POST .../cancelar` concorrente já moveu o registro para `cancelled`
+    // ANTES desta transição, 0 linhas afetadas -> NÃO sobrescreve (detecta
+    // e para aqui, preservando a transição já feita pelo cancelamento).
+    const patchProcessing = await trabalho.hubPostgrestRequest(
+      `ImportacaoArquivo?id=eq.${job.importacaoId}&status=eq.validating`,
+      'PATCH', { status: 'processing' }, job.claims
+    );
+    if (!patchProcessing || patchProcessing.length === 0) {
+      await marcarCancelled(job, deps, {});
+      return { status: 'cancelled' };
+    }
+
+    const idx = indiceHeader(primeira.value.campos);
+    const normalizarLinha = NORMALIZAR[job.tipo];
+    const camposHash = CAMPOS_HASH[job.tipo];
+
+    const linhasValidas = [];
+    const errosLinha = [];
+    let total = 0;
+    let invalidasCount = 0;
+    let excedeuLimiteLinhas = false;
+
+    // Parse COMPLETO em memória antes de qualquer INSERT (ver cabeçalho do
+    // arquivo — evita depender de DELETE, que a tabela de fatos não concede).
+    // F3 (pós-review PR #57, OOM) — corta em MAX_LINHAS_IMPORTACAO: um
+    // arquivo hostil/corrompido com linhas minúsculas poderia ficar dentro
+    // do limite de BYTES (100MB) mas ter milhões de linhas — o corte evita
+    // que o array `linhasValidas`/`errosLinha` cresça sem limite.
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const linha of iterador) {
+      total += 1;
+      if (total > MAX_LINHAS_IMPORTACAO) {
+        excedeuLimiteLinhas = true;
+        break;
+      }
+      const { valores, erros } = normalizarLinha(linha.campos, idx);
+      if (erros.length > 0) {
+        invalidasCount += 1;
+        erros.forEach((erro) => {
+          errosLinha.push({
+            importacao_id: job.importacaoId,
+            id_empresa: job.idEmpresa,
+            numero_linha: linha.numeroLinha,
+            motivo: erro.motivo,
+            campo: erro.campo || null,
+            valor_mascarado: mascararValor(erro.valorBruto),
+          });
+        });
+      } else {
+        linhasValidas.push({ valores, hash: hashLinha(valores, camposHash), numeroLinha: linha.numeroLinha });
+      }
+    }
+
+    if (excedeuLimiteLinhas) {
+      await marcarFailed(
+        job,
+        `arquivo excede o limite de ${MAX_LINHAS_IMPORTACAO} linhas — importação recusada`,
+        deps,
+        { total: MAX_LINHAS_IMPORTACAO, validas: null, invalidas: null }
+      );
+      return { status: 'failed' };
+    }
+
+    const validasCount = linhasValidas.length;
+
+    if (total === 0) {
+      await marcarFailed(job, 'arquivo sem linhas de dados (apenas cabeçalho)', deps, { total: 0, validas: 0, invalidas: 0 });
+      return { status: 'failed' };
+    }
+
+    // 4.4 — regra >50% inválidas: decide ANTES de qualquer INSERT (rollback
+    // "por construção" — nenhuma linha desta importação jamais foi gravada;
+    // ver F6/cabeçalho do arquivo sobre o alcance dessa garantia).
+    if (computarStatusLimiar(total, invalidasCount) === 'failed') {
+      const pct = Math.round((invalidasCount / total) * 1000) / 10;
+      await marcarFailed(
+        job,
+        `${invalidasCount}/${total} linhas inválidas (${pct}% > limiar de ${LIMIAR_INVALIDAS * 100}%) — importação recusada, nenhuma linha persistida`,
+        deps,
+        { total, validas: validasCount, invalidas: invalidasCount }
+      );
+      return { status: 'failed' };
+    }
+
+    // 4.6 — ponto seguro de cancelamento antes de iniciar os inserts.
+    if (await foiCancelado(job, trabalho)) {
+      await marcarCancelled(job, deps, { total, validas: validasCount, invalidas: invalidasCount });
+      return { status: 'cancelled' };
+    }
+
+    let resultadoLotes;
+    try {
+      resultadoLotes = await processarLotesValidas(job, linhasValidas, trabalho);
+    } catch (errLote) {
+      // 4.3.3 — falha transiente já foi retentada 1x dentro do lote; se
+      // ainda assim falhou, é falha de infraestrutura (não de dado) ->
+      // failed com resumo explícito (distinto do >50% inválidas).
+      await marcarFailed(job, `falha de infraestrutura ao inserir lote: ${errLote.message}`, deps, { total, validas: validasCount, invalidas: invalidasCount });
+      return { status: 'failed' };
+    }
+
+    if (resultadoLotes.cancelado) {
+      await marcarCancelled(job, deps, { total, validas: validasCount, invalidas: invalidasCount });
+      return { status: 'cancelled' };
+    }
+
+    // 4.5 — erros por linha (best-effort de detalhamento: os fatos JÁ foram
+    // gravados com sucesso; uma falha aqui não deve reverter isso).
+    try {
+      await processarLotesErros(job, errosLinha, trabalho);
+    } catch (errErros) {
+      console.error('[hub-import-processor] falha ao gravar ImportacaoLinhaErro (não bloqueia a importação):', errErros.message);
+    }
+
+    const dataReferencia = linhasValidas.length > 0
+      ? (job.tipo === 'faturamento' ? linhasValidas[0].valores.data_referencia : linhasValidas[0].valores.data_periodo)
+      : null;
+    const statusFinal = invalidasCount > 0 ? 'completed_with_errors' : 'completed';
+
+    // F5 (pós-review PR #57) — transição terminal GUARDADA por
+    // `status=eq.processing`: se um cancelamento concorrente entrou na
+    // janela ESTREITA entre o último lote e esta PATCH, 0 linhas afetadas
+    // -> NÃO sobrescreve `cancelled` com `completed*` (os fatos já
+    // inseridos permanecem — não há rollback, ver F6 — mas o STATUS
+    // reportado ao usuário reflete o cancelamento, não uma conclusão
+    // enganosa).
+    const patchFinal = await trabalho.hubPostgrestRequest(
+      `ImportacaoArquivo?id=eq.${job.importacaoId}&status=eq.processing`,
+      'PATCH',
+      {
+        status: statusFinal,
+        total_linhas: total,
+        linhas_validas: validasCount,
+        linhas_invalidas: invalidasCount,
+        data_referencia: dataReferencia,
+        concluido_em: deps.isoAgora(),
+      },
+      job.claims
+    );
+    if (!patchFinal || patchFinal.length === 0) {
+      await marcarCancelled(job, deps, { total, validas: validasCount, invalidas: invalidasCount });
+      return { status: 'cancelled' };
+    }
+
+    try {
+      await deps.registrarAuditoria({
+        idEmpresa: job.idEmpresa,
+        acao: 'importacao.processada',
+        recurso: 'ImportacaoArquivo',
+        recursoId: job.importacaoId,
+        detalhes: { status: statusFinal, total, validas: validasCount, invalidas: invalidasCount },
+        claims: job.claims,
+      });
+    } catch (errAuditoria) {
+      console.error('[hub-import-processor] falha ao registrar auditoria de conclusão (best-effort):', errAuditoria && errAuditoria.message);
+    }
+
+    // Log estruturado (plano técnico §12.6) — SEM dado pessoal (só contadores
+    // e timing; nunca nome/UUID/linha de CSV).
+    const duracaoMs = deps.agoraMs() - inicioMs;
+    console.log(JSON.stringify({
+      evento: 'hub_import_processado',
+      importacaoId: job.importacaoId,
+      idEmpresa: job.idEmpresa,
+      tipo: job.tipo,
+      status: statusFinal,
+      totalLinhas: total,
+      linhasValidas: validasCount,
+      linhasInvalidas: invalidasCount,
+      duracaoMs,
+      linhasPorSegundo: duracaoMs > 0 ? Math.round((total / duracaoMs) * 1000) : total,
+    }));
+
+    return { status: statusFinal, total, validas: validasCount, invalidas: invalidasCount };
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  // 4.6 — ponto seguro de cancelamento antes de iniciar os inserts.
-  if (await foiCancelado(job, deps)) {
-    await marcarCancelled(job, deps, { total, validas: validasCount, invalidas: invalidasCount });
-    return { status: 'cancelled' };
-  }
-
-  let resultadoLotes;
-  try {
-    resultadoLotes = await processarLotesValidas(job, linhasValidas, deps);
-  } catch (errLote) {
-    // 4.3.3 — falha transiente já foi retentada 1x dentro do lote; se
-    // ainda assim falhou, é falha de infraestrutura (não de dado) ->
-    // failed com resumo explícito (distinto do >50% inválidas).
-    await marcarFailed(job, `falha de infraestrutura ao inserir lote: ${errLote.message}`, deps, { total, validas: validasCount, invalidas: invalidasCount });
-    return { status: 'failed' };
-  }
-
-  if (resultadoLotes.cancelado) {
-    await marcarCancelled(job, deps, { total, validas: validasCount, invalidas: invalidasCount });
-    return { status: 'cancelled' };
-  }
-
-  // 4.5 — erros por linha (best-effort de detalhamento: os fatos JÁ foram
-  // gravados com sucesso; uma falha aqui não deve reverter isso).
-  try {
-    await processarLotesErros(job, errosLinha, deps);
-  } catch (errErros) {
-    console.error('[hub-import-processor] falha ao gravar ImportacaoLinhaErro (não bloqueia a importação):', errErros.message);
-  }
-
-  const dataReferencia = linhasValidas.length > 0
-    ? (job.tipo === 'faturamento' ? linhasValidas[0].valores.data_referencia : linhasValidas[0].valores.data_periodo)
-    : null;
-  const statusFinal = invalidasCount > 0 ? 'completed_with_errors' : 'completed';
-
-  await deps.hubPostgrestRequest(`ImportacaoArquivo?id=eq.${job.importacaoId}`, 'PATCH', {
-    status: statusFinal,
-    total_linhas: total,
-    linhas_validas: validasCount,
-    linhas_invalidas: invalidasCount,
-    data_referencia: dataReferencia,
-    concluido_em: deps.isoAgora(),
-  }, job.claims);
-
-  await deps.registrarAuditoria({
-    idEmpresa: job.idEmpresa,
-    acao: 'importacao.processada',
-    recurso: 'ImportacaoArquivo',
-    recursoId: job.importacaoId,
-    detalhes: { status: statusFinal, total, validas: validasCount, invalidas: invalidasCount },
-    claims: job.claims,
-  });
-
-  // Log estruturado (plano técnico §12.6) — SEM dado pessoal (só contadores
-  // e timing; nunca nome/UUID/linha de CSV).
-  const duracaoMs = deps.agoraMs() - inicioMs;
-  console.log(JSON.stringify({
-    evento: 'hub_import_processado',
-    importacaoId: job.importacaoId,
-    idEmpresa: job.idEmpresa,
-    tipo: job.tipo,
-    status: statusFinal,
-    totalLinhas: total,
-    linhasValidas: validasCount,
-    linhasInvalidas: invalidasCount,
-    duracaoMs,
-    linhasPorSegundo: duracaoMs > 0 ? Math.round((total / duracaoMs) * 1000) : total,
-  }));
-
-  return { status: statusFinal, total, validas: validasCount, invalidas: invalidasCount };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -656,16 +813,89 @@ async function processarImportacao(job, deps = DEFAULT_DEPS) {
     return { adquirido: false, status: 'pending' };
   }
   try {
-    const resultado = await executarPipeline(job, deps);
-    return { adquirido: true, ...resultado };
+    try {
+      const resultado = await executarPipeline(job, deps);
+      return { adquirido: true, ...resultado };
+    } catch (errPipeline) {
+      // F1.1 (pós-review PR #57) — o achado MAIS grave do review: antes,
+      // só falhas de NEGÓCIO (header inválido, >50% inválidas, etc.)
+      // marcavam `failed` — qualquer erro NÃO tratado aqui dentro (infra
+      // OU bug de código: PostgREST fora do ar na 1ª chamada, exceção em
+      // `registrarAuditoria` fora dos best-effort já tratados, um bug
+      // futuro qualquer) propagava até este ponto e o `catch` do
+      // fire-and-forget na rota só LOGAVA — o registro ficava preso em
+      // `validating`/`processing` PARA SEMPRE, e o índice único parcial
+      // (migration 0011) bloqueava TODO upload futuro do mesmo
+      // (id_empresa,tipo). Este catch garante que QUALQUER erro não
+      // tratado do pipeline sempre termina em `failed` (erro_resumo
+      // genérico, sem detalhe interno/PII) — nunca deixa o mutex órfão.
+      console.error(
+        '[hub-import-processor] erro não tratado no pipeline — marcando failed (F1):',
+        errPipeline && errPipeline.message
+      );
+      await marcarFailedSeguro(job, 'falha inesperada no processamento (infraestrutura ou erro interno)', deps);
+      return { adquirido: true, status: 'failed' };
+    }
   } finally {
     await tentarIniciarProximaPendente(job, deps);
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// F1.3 (pós-review PR #57) — recuperação de lock órfão no BOOT.
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Roda 1x na inicialização do backend (server.js, ADITIVA — chamada dentro
+ * de try/catch, NUNCA gateia o boot): um restart no meio de uma importação
+ * (deploy) deixa o registro preso em `validating`/`processing` — o índice
+ * único parcial (migration 0011, "1 importação ativa por (id_empresa,tipo)")
+ * bloqueia TODO upload futuro daquele (id_empresa,tipo) até alguém destravar
+ * manualmente. Esta função move QUALQUER `ImportacaoArquivo` ainda em
+ * `validating`/`processing` (de TODOS os tenants — é manutenção do próprio
+ * hub, não uma operação de negócio escopada por usuário; ver
+ * lib/hub-postgrest-jwt.js) para `failed`, com `erro_resumo` explícito.
+ *
+ * Auth: usa a claim interna `hubBootRecovery` (nunca emitida por nenhuma
+ * rota que atende requisição de usuário), que habilita SÓ a policy
+ * `importacaoarquivo_update_recuperacao_orfa` (migration 0018) — essa
+ * policy permite APENAS a transição `validating`/`processing` -> `failed`,
+ * nada além disso (não é um bypass geral de RLS). Best-effort: NUNCA lança
+ * — uma falha aqui (ex.: POSTGREST_URL ausente neste deployment, ou
+ * PostgREST momentaneamente fora) só significa que a recuperação não
+ * rodou desta vez, não pode derrubar o processo.
+ * @param {typeof DEFAULT_DEPS} [deps]
+ * @returns {Promise<{totalRecuperadas: number, erro?: string}>}
+ */
+async function recuperarImportacoesOrfas(deps = DEFAULT_DEPS) {
+  try {
+    const claimsRecuperacao = { hubBootRecovery: true };
+    const recuperadas = await deps.hubPostgrestRequest(
+      'ImportacaoArquivo?status=in.(validating,processing)',
+      'PATCH',
+      {
+        status: 'failed',
+        erro_resumo: 'recuperada apos reinicio',
+        concluido_em: deps.isoAgora(),
+      },
+      claimsRecuperacao
+    );
+    const total = Array.isArray(recuperadas) ? recuperadas.length : 0;
+    if (total > 0) {
+      console.log(JSON.stringify({ evento: 'hub_import_recuperacao_orfa_boot', totalRecuperadas: total }));
+    }
+    return { totalRecuperadas: total };
+  } catch (err) {
+    console.error('[hub-import-processor] recuperarImportacoesOrfas falhou (best-effort, não bloqueia o boot):', err && err.message);
+    return { totalRecuperadas: 0, erro: err && err.message };
   }
 }
 
 module.exports = {
   // entrada pública (ImportJob)
   processarImportacao,
+  // F1.3 — recuperação de lock órfão no boot (server.js)
+  recuperarImportacoesOrfas,
   // máquina de estados (4.1 — testável isoladamente, 4.7.1)
   ESTADOS,
   ESTADOS_TERMINAIS,
@@ -679,11 +909,14 @@ module.exports = {
   computarStatusLimiar,
   // LGPD (4.5)
   mascararValor,
+  // F12 — classificação de erro transiente (testável isoladamente)
+  errorTransiente,
   // pipeline completo (para testes de integração com deps reais/mocks)
   executarPipeline,
   // constantes
   TAMANHO_LOTE,
   LIMIAR_INVALIDAS,
   TIMEOUT_IMPORTACAO_MS,
+  MAX_LINHAS_IMPORTACAO,
   DEFAULT_DEPS,
 };

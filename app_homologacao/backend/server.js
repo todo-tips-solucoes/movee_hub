@@ -48,6 +48,9 @@ const hubMeRoutes = require('./routes/hub-me');
 // (upload multipart, dedupe por sha256, requirePermission interno). Arquivo
 // 100% novo (routes/hub-importacoes.js).
 const hubImportacoesRoutes = require('./routes/hub-importacoes');
+// hub-importacoes (pós-review PR #57, F1.3) — recuperarImportacoesOrfas,
+// chamada 1x no boot (ver bloco perto de app.listen abaixo).
+const hubImportProcessor = require('./lib/hub-import-processor');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
@@ -2619,6 +2622,26 @@ app.use('/api/v1/auditoria', hubMeRoutes.auditoriaRouter);
 // dedupe). requirePermission('importacoes.criar') é aplicado dentro do
 // próprio router (mesmo padrão do bloco /api/v1/me acima).
 app.use('/api/v1/importacoes', hubImportacoesRoutes.router);
+
+// hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
+// boot: um restart no meio de uma importação (deploy) deixa o registro
+// preso em validating/processing, e o índice único parcial (migration
+// 0011) bloqueia todo upload futuro do mesmo (id_empresa,tipo) até alguém
+// destravar manualmente. ADITIVA, best-effort, fire-and-forget — NUNCA
+// gateia o boot (`app.listen` abaixo roda de qualquer forma; `.catch`
+// cobre até a rejeição da própria função, embora ela já seja best-effort
+// internamente). Guardada por POSTGREST_URL: este mesmo server.js também
+// serve o backend LEGADO (envio-massa, sem hub configurado) — sem
+// POSTGREST_URL não há hub neste deployment, então nem tenta.
+if (process.env.POSTGREST_URL) {
+  hubImportProcessor.recuperarImportacoesOrfas().then((resultado) => {
+    if (resultado && resultado.totalRecuperadas > 0) {
+      console.log(`[boot] hub-importacoes: ${resultado.totalRecuperadas} importação(ões) órfã(s) recuperada(s) após reinício.`);
+    }
+  }).catch((err) => {
+    console.error('[boot] hub-importacoes: falha ao recuperar importações órfãs (não bloqueia o boot):', err && err.message);
+  });
+}
 
 // Iniciar o servidor
 app.listen(3000, () => {

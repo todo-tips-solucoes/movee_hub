@@ -15,6 +15,7 @@
 'use strict';
 
 const path = require('node:path');
+const fs = require('node:fs/promises');
 
 // Volume privado (compose.hub.*.yml monta um named volume no ambiente real;
 // em dev/test sem volume dedicado, cai no filesystem efêmero do container —
@@ -42,9 +43,33 @@ function caminhoArmazenamento(importacaoId, extensao) {
   return path.join(UPLOADS_DIR, String(importacaoId), `original${extensao}`);
 }
 
+/**
+ * F10 (pós-review PR #57, LGPD) — grava o arquivo ORIGINAL (pode conter
+ * CNPJ/UUID/nome — PII) com permissões restritas: diretório `0700` (só o
+ * dono do processo lista/entra) e arquivo `0600` (só o dono lê/escreve).
+ * Sem isso, o volume ficava com o `umask` padrão do container (tipicamente
+ * `022` -> diretório `0755`/arquivo `0644`, legível por qualquer processo
+ * no mesmo host/container que tenha acesso ao volume).
+ *
+ * TODO (D5, futuro — fora do escopo desta correção): retenção/expurgo do
+ * arquivo original após um prazo — hoje ele fica indefinidamente no volume.
+ *
+ * @param {number} importacaoId
+ * @param {string} extensao - ex.: '.csv' ou '.zip'
+ * @param {Buffer} buffer
+ * @returns {Promise<string>} o caminho onde foi gravado
+ */
+async function armazenarOriginal(importacaoId, extensao, buffer) {
+  const destino = caminhoArmazenamento(importacaoId, extensao);
+  await fs.mkdir(path.dirname(destino), { recursive: true, mode: 0o700 });
+  await fs.writeFile(destino, buffer, { mode: 0o600 });
+  return destino;
+}
+
 module.exports = {
   UPLOADS_DIR,
   extensaoDe,
   sanitizarNomeArquivo,
   caminhoArmazenamento,
+  armazenarOriginal,
 };

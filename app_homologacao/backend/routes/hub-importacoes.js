@@ -11,7 +11,6 @@
 // do multipart.
 'use strict';
 
-const path = require('node:path');
 const fs = require('node:fs/promises');
 const crypto = require('node:crypto');
 
@@ -25,7 +24,7 @@ const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { requirePermission } = require('../middleware/hub-require-permission');
 const {
   HubImportParseError,
-  resolverConteudoCsv,
+  validarZipLeve,
   iterarLinhas,
   bufferParaStream,
   validarTipo,
@@ -41,6 +40,7 @@ const {
   extensaoDe,
   sanitizarNomeArquivo,
   caminhoArmazenamento,
+  armazenarOriginal,
 } = require('../lib/hub-import-storage');
 // FASE 4 — dispara o processamento (máquina de estados + lotes) logo após
 // criar o registro `pending` e persistir o arquivo (research.md Decision 10:
@@ -122,20 +122,32 @@ function uploadSingle(req, res, next) {
 }
 
 /**
- * Valida que o conteúdo é minimamente um CSV/ZIP legível: resolve o ZIP (se
- * for o caso — reusa 2.1.4, inclusive as defesas de path-traversal/zip-bomb/
- * múltiplas entradas) e confirma que há ao menos 1 linha decodificável.
- * NÃO valida o header aqui (isso é responsabilidade do processamento —
- * FASE 4, contracts/importacoes-api.md "cabeçalho errado -> failed").
- * @returns {Promise<Buffer>} conteúdo CSV resolvido
+ * F2 (pós-review PR #57) — validação BARATA do conteúdo, pensada para
+ * devolver 201 rápido: para `.zip`, confirma SÓ a estrutura (EOCD, 1
+ * entrada, nome seguro, tamanho DECLARADO dentro do limite) via
+ * `validarZipLeve` — NUNCA infla o conteúdo aqui (o inflate de até 100MB é
+ * síncrono/pesado e bloquearia a thread de request; fica reservado para o
+ * processor, fire-and-forget, `lib/hub-import-processor.js`). Para CSV
+ * puro (sem custo de descompressão), mantém a checagem original de "ao
+ * menos 1 linha decodificável" — é barata (não envolve zlib) e dá feedback
+ * de erro imediato ao usuário em vez de um 201 seguido de `failed`
+ * silencioso. NÃO valida o header aqui (isso é responsabilidade do
+ * processamento — FASE 4, contracts/importacoes-api.md "cabeçalho errado
+ * -> failed"); e, para `.zip`, também não confirma "tem linha
+ * decodificável" (exigiria inflar) — um ZIP estruturalmente válido mas com
+ * conteúdo vazio só é pego no processor (`arquivo vazio`, 4.1).
+ * @returns {Promise<Buffer>} o buffer recebido (sem transformação)
  * @throws {HubImportParseError}
  */
 async function validarConteudo(buffer, nomeArquivo) {
-  const conteudo = resolverConteudoCsv(buffer, { nomeArquivo });
-  if (!conteudo || conteudo.length === 0) {
+  if (ehZip(nomeArquivo)) {
+    validarZipLeve(buffer, { nomeArquivo });
+    return buffer;
+  }
+  if (!buffer || buffer.length === 0) {
     throw new HubImportParseError('Conteúdo vazio após resolução', 'conteudo_vazio');
   }
-  const stream = bufferParaStream(conteudo);
+  const stream = bufferParaStream(buffer);
   let temLinha = false;
   // eslint-disable-next-line no-unused-vars
   for await (const _linha of iterarLinhas(stream)) {
@@ -145,7 +157,16 @@ async function validarConteudo(buffer, nomeArquivo) {
   if (!temLinha) {
     throw new HubImportParseError('Nenhuma linha decodificável no conteúdo', 'conteudo_vazio');
   }
-  return conteudo;
+  return buffer;
+}
+
+/** F11 (pós-review PR #57) — `parseInt('123abc', 10)` retorna `123`
+ * (ignora lixo à direita) e `Number.isFinite(123)` é `true` — um path
+ * `/importacoes/123abc-DROP-TABLE` ou similar era tratado como id=123 em
+ * vez de rejeitado. Valida o formato ANTES de converter: só dígitos, do
+ * início ao fim. */
+function idValido(raw) {
+  return typeof raw === 'string' && /^\d+$/.test(raw);
 }
 
 /**
@@ -303,21 +324,32 @@ router.post('/', requirePermission('importacoes.criar'), uploadSingle, async (re
     const importacaoId = inseridos[0].id;
 
     // 3.3.1 — armazenamento do original (fora de git/log, volume privado).
+    // F10 (pós-review PR #57, LGPD) — grava com permissões restritas
+    // (diretório 0700 / arquivo 0600) via helper compartilhado
+    // (lib/hub-import-storage.js#armazenarOriginal).
     try {
-      const destino = caminhoArmazenamento(importacaoId, extensao);
-      await fs.mkdir(path.dirname(destino), { recursive: true });
-      await fs.writeFile(destino, req.file.buffer);
+      await armazenarOriginal(importacaoId, extensao, req.file.buffer);
     } catch (errStorage) {
-      console.error('[hub-importacoes] falha ao armazenar original, revertendo registro:', errStorage.message);
-      // Best-effort: sem o arquivo em disco a importação nunca poderá ser
-      // processada/reprocessada — reverte o cabeçalho para não deixar um
-      // registro `pending` órfão, sem CSV correspondente.
+      console.error('[hub-importacoes] falha ao armazenar original, marcando registro como failed:', errStorage.message);
+      // F7 (pós-review PR #57) — ANTES fazia `DELETE`, mas `authenticated`
+      // NÃO tem GRANT DELETE em `ImportacaoArquivo` (histórico é
+      // append-only por desenho, migration 0011) — o DELETE sempre falhava
+      // silenciosamente (capturado só pelo `.catch` de log abaixo) e o
+      // registro ficava `pending` ÓRFÃO, sem arquivo em disco: o dedupe por
+      // `hash_sha256` rejeitaria um novo upload do MESMO arquivo (409), e
+      // nada reprocessa um `pending` sozinho — bloqueado até intervenção
+      // manual. `UPDATE status='failed'` usa o GRANT UPDATE já concedido e
+      // deixa um estado TERMINAL visível ao usuário, com `erro_resumo`
+      // explicando o motivo; reprocessar um `failed` sem arquivo em disco
+      // falha cedo com erro claro (`executarPipeline` -> `lerArquivo` ->
+      // ENOENT -> "arquivo original inacessível" -> `failed` de novo, sem
+      // loop).
       await hubPostgrestRequest(
         `ImportacaoArquivo?id=eq.${importacaoId}`,
-        'DELETE',
-        null,
+        'PATCH',
+        { status: 'failed', erro_resumo: 'falha ao armazenar o arquivo', concluido_em: new Date().toISOString() },
         claimsEntidade
-      ).catch((e) => console.error('[hub-importacoes] rollback do registro também falhou:', e.message));
+      ).catch((e) => console.error('[hub-importacoes] marcação de failed após falha de armazenamento também falhou:', e.message));
       return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
     }
 
@@ -425,8 +457,11 @@ router.get('/:id', requirePermission('importacoes.consultar'), async (req, res) 
     if (!ctx) return;
     const { entidadeAtiva, claims } = ctx;
 
+    // F11 (pós-review PR #57) — valida o FORMATO antes de converter:
+    // `parseInt('123abc', 10)` retorna 123 (ignora lixo à direita) e
+    // passaria pela checagem antiga de `Number.isFinite`.
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
-    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
     // 5.2.2 — 404 se fora do escopo do token: filtro explícito por
     // id_empresa (defesa em profundidade — RLS já nega a linha via escopo).
@@ -455,8 +490,11 @@ router.get('/:id/erros', requirePermission('importacoes.consultar'), async (req,
     if (!ctx) return;
     const { entidadeAtiva, claims } = ctx;
 
+    // F11 (pós-review PR #57) — valida o FORMATO antes de converter:
+    // `parseInt('123abc', 10)` retorna 123 (ignora lixo à direita) e
+    // passaria pela checagem antiga de `Number.isFinite`.
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
-    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
     // Confirma existência + escopo ANTES de listar erros — código correto é
     // 404 (não lista vazia silenciosa) para um id de outro tenant.
@@ -511,8 +549,11 @@ router.get('/:id/original', requirePermission('importacoes.exportar'), async (re
     if (!ctx) return;
     const { payload, entidadeAtiva, claims } = ctx;
 
+    // F11 (pós-review PR #57) — valida o FORMATO antes de converter:
+    // `parseInt('123abc', 10)` retorna 123 (ignora lixo à direita) e
+    // passaria pela checagem antiga de `Number.isFinite`.
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
-    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
     const linhas = await hubPostgrestRequest(
       `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,nome_arquivo`,
@@ -573,8 +614,11 @@ router.post('/:id/reprocessar', requirePermission('importacoes.criar'), async (r
     if (!ctx) return;
     const { payload, entidadeAtiva, claims } = ctx;
 
+    // F11 (pós-review PR #57) — valida o FORMATO antes de converter:
+    // `parseInt('123abc', 10)` retorna 123 (ignora lixo à direita) e
+    // passaria pela checagem antiga de `Number.isFinite`.
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
-    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
     // 5.5.1/5.5.2 — reset atômico GUARDADO por status (mesmo espírito do
     // mutex de 4.2: um UPDATE condicional via PostgREST; `status=in.(...)`
@@ -656,8 +700,11 @@ router.post('/:id/cancelar', requirePermission('importacoes.criar'), async (req,
     if (!ctx) return;
     const { payload, entidadeAtiva, claims } = ctx;
 
+    // F11 (pós-review PR #57) — valida o FORMATO antes de converter:
+    // `parseInt('123abc', 10)` retorna 123 (ignora lixo à direita) e
+    // passaria pela checagem antiga de `Number.isFinite`.
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
-    if (!Number.isFinite(id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
     // 5.6.1/CHK023 — MESMO mecanismo de detecção já testado em 4.6: um
     // UPDATE atômico guardado por status. Se `status ∈
@@ -709,5 +756,6 @@ module.exports = {
   caminhoArmazenamento,
   validarConteudo,
   resolverContextoEntidade,
+  idValido,
   UPLOADS_DIR,
 };

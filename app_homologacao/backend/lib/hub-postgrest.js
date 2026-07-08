@@ -41,6 +41,12 @@ const { generateHubPostgrestJWT } = require('./hub-postgrest-jwt');
  *   @param {{from:number,to:number}} [opts.range] - vira os headers
  *     `Range-Unit: items` + `Range: <from>-<to>` (paginação PostgREST nativa,
  *     0-indexed, inclusive em ambas as pontas).
+ *   F4 (pós-review PR #57, F1.2) — watchdog do pipeline de importações:
+ *   @param {AbortSignal} [opts.signal] - repassado direto a `fetch`; permite
+ *     ao caller (lib/hub-import-processor.js) abortar uma chamada pendente
+ *     depois de `TIMEOUT_IMPORTACAO_MS` em vez de deixá-la pendurada
+ *     indefinidamente (o cenário que motivou o registro travado em
+ *     `validating`/`processing` — ver cabeçalho de hub-import-processor.js).
  * @returns {Promise<any>} corpo JSON parseado (ou null em 204/corpo vazio);
  *   `{ data, total }` quando `opts.count` é `true`.
  */
@@ -73,6 +79,7 @@ async function hubPostgrestRequest(endpoint, method = 'GET', body = null, claims
     method,
     headers,
     body: body ? JSON.stringify(body) : null,
+    ...(opts && opts.signal ? { signal: opts.signal } : {}),
   });
 
   if (!response.ok) {
@@ -93,10 +100,26 @@ async function hubPostgrestRequest(endpoint, method = 'GET', body = null, claims
   }
 
   if (opts && opts.count) {
-    let total = 0;
-    if (contentRange) {
-      const m = contentRange.match(/\/(\d+|\*)$/);
-      if (m && m[1] !== '*') total = parseInt(m[1], 10);
+    // F9 (pós-review PR #57) — Content-Range ausente OU terminado em `*`
+    // (PostgREST devolve `*` quando não consegue contar, ex.: query custosa
+    // sob certas configs) NÃO pode virar `total: 0` — isso faz a paginação
+    // "sumir" na UI (ex.: total=0 com `data.length>0` esconde linhas
+    // reais). Fallback: `offset + data.length` (o mínimo comprovadamente
+    // existente pelas linhas já retornadas) — nunca menor que o real.
+    let total;
+    let totalAproximado = false;
+    const linhasRetornadas = Array.isArray(data) ? data.length : 0;
+    const m = contentRange && contentRange.match(/\/(\d+|\*)$/);
+    if (m && m[1] !== '*') {
+      total = parseInt(m[1], 10);
+    } else {
+      totalAproximado = true;
+      const offsetAtual = (opts.range && Number.isFinite(opts.range.from)) ? opts.range.from : 0;
+      total = offsetAtual + linhasRetornadas;
+    }
+    if (totalAproximado && !hubPostgrestRequest._avisouContentRangeAusente) {
+      hubPostgrestRequest._avisouContentRangeAusente = true;
+      console.warn('[hub-postgrest] Content-Range ausente/`*` em resposta com count=exact — usando fallback offset+data.length (total pode estar subestimado se houver mais páginas além da atual).');
     }
     return { data, total };
   }

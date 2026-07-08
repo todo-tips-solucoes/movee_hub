@@ -140,6 +140,60 @@ describe('extrairZonaDePraca (2.2.2)', () => {
   test('vazio retorna praca null', () => {
     assert.equal(extrairZonaDePraca('').praca, null);
   });
+
+  // F4 (pós-review PR #57, ReDoS) ───────────────────────────────────────
+  test('múltiplas ocorrências de " - " -> usa a ÚLTIMA antes de "(ZONA)" (mesmo comportamento do regex antigo, guloso)', () => {
+    const { praca, zonaExtraida } = extrairZonaDePraca('SP - Sub - Centro (ZONA)');
+    assert.equal(praca, 'SP - Sub - Centro (ZONA)');
+    assert.equal(zonaExtraida, 'Centro');
+  });
+
+  test('célula acima do cap de 200 chars -> NÃO tenta extrair zona, mesmo terminando em "(ZONA)"', () => {
+    const pracaLonga = `${'A'.repeat(195)} - X (ZONA)`; // > 200 chars
+    assert.ok(pracaLonga.length > 200);
+    const { praca, zonaExtraida } = extrairZonaDePraca(pracaLonga);
+    assert.equal(praca, pracaLonga);
+    assert.equal(zonaExtraida, null);
+  });
+
+  test('célula dentro do cap (<=200 chars) continua extraindo normalmente', () => {
+    const pracaOk = `${'A'.repeat(180)} - X (ZONA)`; // < 200 chars
+    assert.ok(pracaOk.length <= 200);
+    const { zonaExtraida } = extrairZonaDePraca(pracaOk);
+    assert.equal(zonaExtraida, 'X');
+  });
+
+  test('entrada adversarial (muitos " - " sem sufixo "(ZONA)") resolve em tempo LINEAR — sem travar (prova de não-ReDoS)', () => {
+    // Sob o regex antigo (`/^(.*)\s-\s(.+)\s\(ZONA\)$/i`), uma entrada com
+    // muitas repetições de " - " e SEM o sufixo esperado força o motor a
+    // backtrackear por múltiplas combinações de onde os 2 grupos gulosos
+    // "cortam" a string — custo que cresce rapidamente com o tamanho da
+    // entrada. A nova implementação (teste de sufixo + lastIndexOf) é O(n)
+    // sempre. Este teste prova isso empiricamente: mesmo uma entrada de
+    // ~50k chars com ~10k repetições de " - " termina em milissegundos.
+    const entradaAdversarial = `${'a - '.repeat(10000)}b`; // ~40KB, sem "(ZONA)"
+    const inicio = Date.now();
+    const { zonaExtraida } = extrairZonaDePraca(entradaAdversarial);
+    const duracaoMs = Date.now() - inicio;
+    // Cap de 200 chars já cortaria isso (entrada bem > 200 chars) — mas o
+    // teste importa mesmo é o tempo: mesmo SEM o cap ajudando aqui (ele
+    // ajuda), a extração não pode travar.
+    assert.equal(zonaExtraida, null);
+    assert.ok(duracaoMs < 100, `esperava <100ms, levou ${duracaoMs}ms — possível regressão de performance/ReDoS`);
+  });
+
+  test('entrada adversarial DENTRO do cap (<=200 chars, sem "(ZONA)") também resolve rápido — prova que é a REESCRITA da regex (não só o cap) que remove o backtracking', () => {
+    // 50 repetições de "a - " = 200 chars exatos, sem sufixo "(ZONA)" — sob
+    // o regex antigo isso já era o suficiente para custo perceptível de
+    // backtracking (2 grupos gulosos tentando cada combinação de corte).
+    const entradaDentroDoCap = 'a - '.repeat(50); // 200 chars, no limite do cap
+    assert.equal(entradaDentroDoCap.length, 200);
+    const inicio = Date.now();
+    const { zonaExtraida } = extrairZonaDePraca(entradaDentroDoCap);
+    const duracaoMs = Date.now() - inicio;
+    assert.equal(zonaExtraida, null);
+    assert.ok(duracaoMs < 20, `esperava <20ms, levou ${duracaoMs}ms`);
+  });
 });
 
 describe('normalizarMargemFee (2.2.3)', () => {

@@ -28,7 +28,12 @@
 
 const readline = require('readline');
 const { Readable } = require('stream');
-const { extractSingleEntryZip, HubImportZipError } = require('./hub-import-zip');
+const {
+  extractSingleEntryZip,
+  extractSingleEntryZipAsync,
+  inspecionarEntrada,
+  HubImportZipError,
+} = require('./hub-import-zip');
 
 const BOM_UTF8 = Buffer.from([0xef, 0xbb, 0xbf]);
 const BOM_UTF8_CHAR = '﻿';
@@ -96,6 +101,57 @@ function resolverConteudoCsv(buffer, { nomeArquivo, maxZipDescomprimidoBytes = M
 }
 
 /**
+ * F2 (pós-review PR #57) — versão ASSÍNCRONA de `resolverConteudoCsv`: a
+ * descompressão do ZIP (única parte cara de CPU) roda via
+ * `zlib.inflateRaw` promisificado em vez de `inflateRawSync`, não
+ * bloqueando o event loop. Usada pelo processor (fire-and-forget, fora do
+ * ciclo de request/response); a rota de upload usa `validarZipLeve`
+ * (abaixo), que nem chega a inflar.
+ * @returns {Promise<Buffer>}
+ */
+async function resolverConteudoCsvAsync(buffer, { nomeArquivo, maxZipDescomprimidoBytes = MAX_ZIP_DESCOMPRIMIDO_BYTES } = {}) {
+  if (!ehZip(nomeArquivo)) {
+    return buffer;
+  }
+  try {
+    const { conteudo } = await extractSingleEntryZipAsync(buffer, {
+      maxUncompressedBytes: maxZipDescomprimidoBytes,
+    });
+    return conteudo;
+  } catch (err) {
+    if (err instanceof HubImportZipError) {
+      throw new HubImportParseError(err.message, err.motivo);
+    }
+    throw err;
+  }
+}
+
+/**
+ * F2 (pós-review PR #57) — validação BARATA de upload: se `nomeArquivo` for
+ * `.zip`, confirma que tem EXATAMENTE 1 entrada, nome seguro (sem path
+ * traversal) e tamanho DECLARADO dentro do limite — tudo via
+ * `inspecionarEntrada` (hub-import-zip.js), que NUNCA chama `zlib.inflate*`
+ * (o inflate de até 100MB fica só para o processor, fora do ciclo de
+ * request). Se não for `.zip`, no-op (CSV puro não tem custo de
+ * descompressão a evitar). Lança `HubImportParseError` na mesma taxonomia
+ * de motivos que `resolverConteudoCsv` (o caller/rota não precisa
+ * distinguir).
+ * @returns {void}
+ * @throws {HubImportParseError}
+ */
+function validarZipLeve(buffer, { nomeArquivo, maxZipDescomprimidoBytes = MAX_ZIP_DESCOMPRIMIDO_BYTES } = {}) {
+  if (!ehZip(nomeArquivo)) return;
+  try {
+    inspecionarEntrada(buffer, { maxUncompressedBytes: maxZipDescomprimidoBytes });
+  } catch (err) {
+    if (err instanceof HubImportZipError) {
+      throw new HubImportParseError(err.message, err.motivo);
+    }
+    throw err;
+  }
+}
+
+/**
  * Itera linhas de um Readable stream (2.1.2 — streaming linha-a-linha).
  * Usa `readline` sobre o stream: cada linha é processada assim que chega,
  * SEM buffer intermediário do conteúdo inteiro. O BOM (se presente) é
@@ -143,6 +199,8 @@ module.exports = {
   stripBom,
   splitLinhaCsv,
   resolverConteudoCsv,
+  resolverConteudoCsvAsync,
+  validarZipLeve,
   iterarLinhas,
   bufferParaStream,
   validarTipo,

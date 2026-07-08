@@ -43,7 +43,23 @@ const REGEX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 // regra (Decision 3) sem esse efeito colateral.
 const REGEX_MARGEM_FEE = /MIN:\s*([\d.,]+?)\s*,\s*INTER:\s*([\d.,]+)/i;
 const REGEX_HHMMSS = /^(\d{1,4}):([0-5]\d):([0-5]\d)$/;
-const REGEX_ZONA_SUFIXO = /^(.*)\s-\s(.+)\s\(ZONA\)$/i;
+// F4 (pós-review PR #57, ReDoS) — a forma antiga `/^(.*)\s-\s(.+)\s\(ZONA\)$/i`
+// tinha 2 grupos gulosos que podiam degenerar em custo QUADRÁTICO (ou pior)
+// para entradas adversariais com muitas ocorrências de " - " seguidas de
+// texto sem o sufixo "(ZONA)" (o motor de regex re-tenta cada posição de
+// backtracking). `extrairZonaDePraca` abaixo substitui isso por: (1) um
+// teste de SUFIXO simples, sem grupos, O(n) e sem backtracking; (2)
+// `lastIndexOf`/`slice` (também O(n), sem regex) para separar o texto da
+// zona — mesmo resultado observável (grupo 2 do regex antigo = texto entre
+// o ÚLTIMO " - " e o sufixo), sem a superfície de ataque.
+const REGEX_ZONA_SUFIXO_TERMINACAO = /\s\(ZONA\)$/i;
+const SUFIXO_ZONA_LITERAL_LEN = ' (ZONA)'.length;
+const SEPARADOR_ZONA = ' - ';
+// Cap de tamanho por célula (F4) — nenhuma célula de praça legítima da
+// plataforma parceira chega perto de 200 chars; acima disso, nem tenta
+// extrair zona (barato: só um `.length`, evita qualquer custo de regex/scan
+// em payload hostil).
+const TAMANHO_MAXIMO_PRACA_PARA_ZONA = 200;
 
 const TIPOS_LANCAMENTO_CONHECIDOS = ['Credito', 'Debito'];
 
@@ -168,14 +184,26 @@ function normalizarDecimalPonto(valorBruto) {
   return Number.isFinite(numero) ? numero : null;
 }
 
-/** Extrai a zona do sufixo "... - <ZONA> (ZONA)" quando presente (2.2.2). */
+/** Extrai a zona do sufixo "... - <ZONA> (ZONA)" quando presente (2.2.2).
+ * F4 (ReDoS) — ver comentário das constantes REGEX_ZONA_SUFIXO_TERMINACAO/
+ * TAMANHO_MAXIMO_PRACA_PARA_ZONA acima: sem grupos gulosos, sem
+ * backtracking, com cap de tamanho antes de qualquer teste. */
 function extrairZonaDePraca(pracaBruta) {
   const trimmed = (pracaBruta || '').trim();
-  const match = trimmed.match(REGEX_ZONA_SUFIXO);
-  if (match) {
-    return { praca: trimmed, zonaExtraida: match[2].trim() };
+  if (trimmed === '') return { praca: null, zonaExtraida: null };
+  if (trimmed.length > TAMANHO_MAXIMO_PRACA_PARA_ZONA) {
+    return { praca: trimmed, zonaExtraida: null };
   }
-  return { praca: trimmed || null, zonaExtraida: null };
+  if (!REGEX_ZONA_SUFIXO_TERMINACAO.test(trimmed)) {
+    return { praca: trimmed, zonaExtraida: null };
+  }
+  const semSufixo = trimmed.slice(0, trimmed.length - SUFIXO_ZONA_LITERAL_LEN);
+  const idxSeparador = semSufixo.lastIndexOf(SEPARADOR_ZONA);
+  if (idxSeparador === -1) {
+    return { praca: trimmed, zonaExtraida: null };
+  }
+  const zona = semSufixo.slice(idxSeparador + SEPARADOR_ZONA.length).trim();
+  return { praca: trimmed, zonaExtraida: zona === '' ? null : zona };
 }
 
 /** margem_fee_porcentagem (só faturamento): raw sempre gravado; min/inter só
