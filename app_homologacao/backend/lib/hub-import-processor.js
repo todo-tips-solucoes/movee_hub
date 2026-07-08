@@ -779,6 +779,23 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
       console.error('[hub-import-processor] falha ao registrar auditoria de conclusão (best-effort):', errAuditoria && errAuditoria.message);
     }
 
+    // Refresh da mv_faturamento_dia (migration 0028 — follow-up SC-004):
+    // única fonte de escrita nos fatos é este pipeline, então o refresh ao
+    // final de toda importação de FATURAMENTO bem-sucedida mantém o staleness
+    // da MV na janela do próprio processamento. Best-effort: uma falha aqui
+    // NÃO reverte a importação (fatos já gravados; GET /faturamento lê a
+    // tabela-base, sempre fresca) — o próximo import/refresh manual
+    // (rpc/hub_faturamento_refresh_mv) reconcilia. `deps` direto (sem o
+    // signal de timeout de `trabalho`): o refresh não deve ser abortado
+    // pelo timeout da importação que ACABOU de concluir.
+    if (job.tipo === 'faturamento') {
+      try {
+        await deps.hubPostgrestRequest('rpc/hub_faturamento_refresh_mv', 'POST', {}, job.claims);
+      } catch (errRefresh) {
+        console.error('[hub-import-processor] falha ao atualizar mv_faturamento_dia (best-effort, staleness até o próximo refresh):', errRefresh && errRefresh.message);
+      }
+    }
+
     // Log estruturado (plano técnico §12.6) — SEM dado pessoal (só contadores
     // e timing; nunca nome/UUID/linha de CSV).
     const duracaoMs = deps.agoraMs() - inicioMs;

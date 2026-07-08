@@ -71,9 +71,9 @@ check() { # check <descricao> <valor-obtido> <valor-esperado>
   fi
 }
 
-echo "rodando migrate.sh (0002..0027)…"
+echo "rodando migrate.sh (0002..0028)…"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1
-grep -q "0027_hub_faturamento_rpc_resumo.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo (0027 ausente)"; cat "$TMP/migrate.log"; exit 1; }
+grep -q "0028_mv_faturamento_dia.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo (0028 ausente)"; cat "$TMP/migrate.log"; exit 1; }
 
 # --- Seed: 2 Usuarios (leitura com faturamento.listar; papel sintético SEM
 # a permissão, para o teste de 403) -----------------------------------------
@@ -192,6 +192,13 @@ INSERT INTO "FaturamentoLancamento"
 VALUES
   ($E_TESTE, $IMPORT_ID, $ENT_INJECAO, '2026-09-01', '2026-09-01', 'Zona Sul', 'Sao Paulo', 'ALMOCO', 'Credito', 77.00, '=SOMA(A1:A10)', md5('injecao-1'));
 SQL
+
+# Follow-up SC-004 (migration 0028): as RPCs de /resumo agora leem da
+# mv_faturamento_dia — como os fatos acima entraram por SQL direto (não pelo
+# pipeline de importação, que faz o refresh sozinho), refresh explícito aqui
+# para os asserts de resumo enxergarem os seeds. O fato de TODOS os asserts
+# (k)-(p) abaixo continuarem passando prova a paridade MV × tabela-base.
+psql_t -c 'REFRESH MATERIALIZED VIEW mv_faturamento_dia;' >/dev/null
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Script Node único: login + troca de entidade + chamadas GET.
@@ -503,6 +510,99 @@ check "export CSV sem faturamento.exportar -> erro=PERMISSAO_NEGADA" "$(jget csv
 # (5.1.5) só para os exports BEM-SUCEDIDOS (q/r/s = 3), NUNCA para o 403 (t)
 N_AUDITORIA_CSV="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='faturamento.csv_exportado' AND id_empresa=$E_TESTE" | tr -d '[:space:]')"
 check "DB: Auditoria 'faturamento.csv_exportado' registrada 3x (só nos exports bem-sucedidos)" "$N_AUDITORIA_CSV" "3"
+
+# ── mv_faturamento_dia (migration 0028, follow-up SC-004) ────────────────────
+# (u) paridade: total agregado da MV = SUM direto na tabela-base, por empresa
+# (v) isolamento: SELECT direto na MV como `authenticated` -> permission denied
+#     (MV não tem RLS; REVOKE é a barreira — acesso só via RPC)
+# (w) isolamento via RPC: escopo do JWT != p_id_empresa -> linha zerada
+#     (guard explícito `p_id_empresa = ANY (hub_jwt_escopo_ids())` nas funções
+#     SECURITY DEFINER — mesma semântica da RLS de 0027)
+# (x) staleness/refresh: fato inserido por SQL só entra no /resumo após
+#     hub_faturamento_refresh_mv() (modo concurrent via dblink); refresh com
+#     escopo vazio é negado (42501)
+
+# Executa <sql> numa transação como o role do PostgREST, com a claim de
+# escopo <escopo-json> na GUC (mesmo mecanismo do PostgREST real).
+rpc_como_authenticated() { # rpc_como_authenticated <escopo-json> <sql>
+  # psql imprime as tags de comando (BEGIN/SET/ROLLBACK) mesmo com -t —
+  # filtra as tags e fica com a ÚLTIMA linha de tupla (o resultado do <sql>;
+  # a linha anterior é o retorno do set_config).
+  psql_t -tA <<SQL | grep -vE '^(BEGIN|SET|ROLLBACK|COMMIT|RESET)$' | tail -n 1
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"escopo": $1}', true);
+$2;
+ROLLBACK;
+SQL
+}
+
+# (u) paridade MV × tabela-base (as duas empresas seedadas)
+for EMP in $E_TESTE $E_OUTRA; do
+  MV_TOTAL="$(psql_t -tAc "SELECT COALESCE(SUM(total),0)::numeric(12,2)::text FROM mv_faturamento_dia WHERE id_empresa=$EMP" | tr -d '[:space:]')"
+  BASE_TOTAL="$(psql_t -tAc "SELECT COALESCE(SUM(valor),0)::numeric(12,2)::text FROM \"FaturamentoLancamento\" WHERE id_empresa=$EMP" | tr -d '[:space:]')"
+  check "MV (u): SUM(mv_faturamento_dia) = SUM(FaturamentoLancamento) para empresa $EMP" "$MV_TOTAL" "$BASE_TOTAL"
+done
+MV_QTD="$(psql_t -tAc "SELECT COALESCE(SUM(quantidade),0) FROM mv_faturamento_dia WHERE id_empresa=$E_TESTE" | tr -d '[:space:]')"
+BASE_QTD="$(psql_t -tAc "SELECT count(*) FROM \"FaturamentoLancamento\" WHERE id_empresa=$E_TESTE" | tr -d '[:space:]')"
+check "MV (u): SUM(quantidade) = count(*) da tabela-base para empresa $E_TESTE" "$MV_QTD" "$BASE_QTD"
+
+# (v) SELECT direto na MV como authenticated -> permission denied
+NEG_SELECT="$(psql_t -tA 2>&1 <<'SQL' || true
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT count(*) FROM mv_faturamento_dia;
+ROLLBACK;
+SQL
+)"
+case "$NEG_SELECT" in
+  *"permission denied"*) check "MV (v): SELECT direto como authenticated -> permission denied" "ok" "ok" ;;
+  *) check "MV (v): SELECT direto como authenticated -> permission denied" "$NEG_SELECT" "permission denied" ;;
+esac
+
+# (w) RPC com p_id_empresa FORA do escopo do JWT -> linha zerada (nunca vaza)
+CROSS_TOTAIS="$(rpc_como_authenticated "[$E_TESTE]" "SELECT total_geral || '|' || COALESCE(categoria_maior_valor,'') || '|' || entregadores_distintos FROM hub_faturamento_totais($E_OUTRA, '2026-07-01', '2026-07-04', NULL, NULL, NULL, NULL)")"
+check "MV (w): hub_faturamento_totais de OUTRA empresa (fora do escopo) -> zerado" "$CROSS_TOTAIS" "0.00||0"
+CROSS_AGRUPADO="$(rpc_como_authenticated "[$E_TESTE]" "SELECT count(*) FROM hub_faturamento_agrupado($E_OUTRA, '2026-07-01', '2026-07-04', NULL, NULL, NULL, NULL, 'categoria')")"
+check "MV (w): hub_faturamento_agrupado de OUTRA empresa (fora do escopo) -> 0 grupos" "$CROSS_AGRUPADO" "0"
+# controle positivo: MESMA empresa dentro do escopo -> dado real (via MV)
+PROPRIO_TOTAIS="$(rpc_como_authenticated "[$E_OUTRA]" "SELECT total_geral || '|' || categoria_maior_valor || '|' || entregadores_distintos FROM hub_faturamento_totais($E_OUTRA, '2026-07-01', '2026-07-04', NULL, NULL, NULL, NULL)")"
+check "MV (w): controle positivo — a própria empresa continua enxergando seus totais" "$PROPRIO_TOTAIS" "999.00|Nao deve vazar|1"
+# fallback tabela-base (p_subpraca) mantém o MESMO guard de escopo
+CROSS_SUBPRACA="$(rpc_como_authenticated "[$E_TESTE]" "SELECT total_geral FROM hub_faturamento_totais($E_OUTRA, '2026-07-01', '2026-07-04', NULL, NULL, 'Zona Norte', NULL)")"
+check "MV (w): fallback por subpraça de OUTRA empresa (fora do escopo) -> zerado" "$CROSS_SUBPRACA" "0.00"
+
+# (x) staleness + refresh: fato NOVO em janela isolada (2026-10-01), inserido
+# por SQL APÓS o refresh inicial -> /resumo (MV) ainda não vê; após
+# hub_faturamento_refresh_mv() passa a ver. GET /faturamento (tabela-base)
+# permanece sempre fresco por construção (lê a tabela, não a MV).
+psql_t <<SQL >/dev/null
+INSERT INTO "FaturamentoLancamento"
+  (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, subpraca, praca, periodo, tipo, valor, descricao, hash_linha)
+VALUES
+  ($E_TESTE, $IMPORT_ID, $ENT_JOAO, '2026-10-01', '2026-10-01', 'Zona Sul', 'Sao Paulo', 'ALMOCO', 'Credito', 40.00, 'Staleness Teste', md5('staleness-1'));
+SQL
+STALE_TOTAL="$(rpc_como_authenticated "[$E_TESTE]" "SELECT total_geral FROM hub_faturamento_totais($E_TESTE, '2026-10-01', '2026-10-01', NULL, NULL, NULL, NULL)")"
+check "MV (x): fato inserido por SQL ainda NÃO aparece no resumo (MV stale, comportamento documentado)" "$STALE_TOTAL" "0.00"
+
+REFRESH_MODO="$(rpc_como_authenticated "[$E_TESTE]" "SELECT hub_faturamento_refresh_mv()->>'modo'")"
+check "MV (x): hub_faturamento_refresh_mv() como authenticated -> modo=concurrent (dblink fora da transação)" "$REFRESH_MODO" "concurrent"
+
+POS_REFRESH_TOTAL="$(rpc_como_authenticated "[$E_TESTE]" "SELECT total_geral FROM hub_faturamento_totais($E_TESTE, '2026-10-01', '2026-10-01', NULL, NULL, NULL, NULL)")"
+check "MV (x): após o refresh o fato novo aparece no resumo" "$POS_REFRESH_TOTAL" "40.00"
+
+NEG_REFRESH="$(psql_t -tA 2>&1 <<'SQL' || true
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"escopo": []}', true);
+SELECT hub_faturamento_refresh_mv();
+ROLLBACK;
+SQL
+)"
+case "$NEG_REFRESH" in
+  *"refresh negado"*) check "MV (x): refresh com escopo vazio -> negado (42501)" "ok" "ok" ;;
+  *) check "MV (x): refresh com escopo vazio -> negado (42501)" "$NEG_REFRESH" "refresh negado" ;;
+esac
 
 echo
 if [ "$fails" = "0" ]; then

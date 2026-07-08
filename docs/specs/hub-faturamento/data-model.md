@@ -83,6 +83,7 @@ lançamentos correntes.
 |----|---------|----------|
 | 0026 | `seed_permissao_faturamento_listar.sql` | `INSERT INTO "Permissao"` (`faturamento.listar`) + concessão a `admin_plataforma`/`admin_entidade`/`operador`/`leitura` (research.md Decision 1) |
 | 0027 | `hub_faturamento_rpc_resumo.sql` | funções `hub_faturamento_totais`/`hub_faturamento_agrupado` (`SECURITY INVOKER`, filtradas pela mesma RLS de `FaturamentoLancamento`) + `GRANT EXECUTE` ao role `authenticated` (research.md Decision 2) |
+| 0028 | `mv_faturamento_dia.sql` | **follow-up SC-004** (dec-035, mitigação pré-aprovada §12.6): MV `mv_faturamento_dia` (grão `id_empresa`+`data_referencia`+`descricao`+`entregador_id`, ~32x menor que o fato; índice ÚNICO p/ `REFRESH CONCURRENTLY`; **REVOKE de SELECT direto** aos papéis PostgREST — MV não tem RLS) + reescreve as 2 RPCs (`SECURITY DEFINER` + guard explícito `p_id_empresa = ANY (hub_jwt_escopo_ids())`, lê MV; fallback tabela-base p/ filtro `subpraca`) + `hub_faturamento_refresh_mv()` (CONCURRENTLY via dblink, chamada pelo pipeline de importação) |
 
 ## State transitions
 

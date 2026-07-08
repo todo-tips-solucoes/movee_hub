@@ -831,3 +831,55 @@ abertura do PR. Próxima fase da ordem S3→S10 (após S6) = **S7**.
 
 Relatório terminal: `docs/specs/hub-faturamento/review-onda-009.md`. Próxima
 fase da ordem S3→S10 = **S7**.
+
+## 2026-07-08 — Follow-up S6: SC-004 sanado com `mv_faturamento_dia` (migration 0028)
+
+Follow-up autorizado pelo operador para resolver a ressalva formal do
+review da onda-009 (SC-004 violado sob ~900k linhas — dec-035). Mesma
+branch `feat/hub-faturamento` (PR draft #59). Mitigação pré-aprovada no
+plano técnico §12.6, acionada pela evidência da onda-008.
+
+**O que mudou**
+
+- `infra/hub/migrations/0028_mv_faturamento_dia.sql` — MV
+  `mv_faturamento_dia` (grão `id_empresa`+`data_referencia`+`descricao`+
+  `entregador_id`; 27.960 linhas ≈ 32x menor que o fato; 4,5 MB vs 320 MB),
+  índice ÚNICO (pré-requisito do `REFRESH CONCURRENTLY`), índices de
+  filtro, **REVOKE de SELECT direto** para `authenticated`/`hub_web_anon`
+  (MV não tem RLS — acesso só via RPC), RPCs `hub_faturamento_totais`/
+  `hub_faturamento_agrupado` reescritas (`SECURITY DEFINER` + guard
+  explícito `p_id_empresa = ANY (hub_jwt_escopo_ids())`, lendo da MV;
+  fallback tabela-base só para filtro `subpraca`) e
+  `hub_faturamento_refresh_mv()` (CONCURRENTLY via dblink — PostgREST
+  envolve RPC em transação e CONCURRENTLY não roda em transação; fallback
+  bloqueante). Contrato da API **inalterado**.
+- `backend/lib/hub-import-processor.js` — refresh best-effort da MV ao
+  final de toda importação de faturamento bem-sucedida (único caminho de
+  escrita nos fatos). Staleness documentado em
+  `contracts/faturamento-api.md`.
+
+**Resultado (mesma metodologia/volume da onda-008, HTTP end-to-end)**
+
+| Medição | antes | depois |
+|---|---|---|
+| `/resumo` sem `groupBy` | 2600.5/2230.6ms | **33.6/40.4ms** |
+| `groupBy=categoria` | 1678.0/1625.2ms | **19.5/20.5ms** |
+| `groupBy=dia` | — | **30.6/35.4ms** |
+| `groupBy=entregador` | — | **39.9/64.9ms** |
+
+**SC-004 PASSA com folga (~25-50x)**. EXPLAIN: 1737.8ms → 28.5ms, zero temp.
+
+**Validação**: 73/73 integração faturamento (12 novos asserts: paridade
+MV×base, negativo cross-tenant direto na MV e via RPC — inclusive no
+fallback —, staleness/refresh, refresh negado sem escopo); 54/54 unit
+processor (+2); 363/363 hub unit; 25/25 integração processor; E2E ao vivo
+no hub-homolog (import real `id=30` → auto-refresh → resumo atualizado).
+0028 aplicada no `hub_homolog_db` via migrate.sh e backend hub-homolog
+redeployado (build com cap `--memory=2g`). Produção nunca tocada — smoke
+`app.moveelog.com.br/login` = 200 antes/depois. Evidência literal:
+`docs/plans/hub-frota/evidencias/S6/followup-sc004-mv.md`; adendo no
+`review-onda-009.md`.
+
+**Pendências**: seed de ~900k linhas (`id_empresa=9001`) mantido de
+propósito (fixture da re-medição) — DELETE segue com o operador; PR #59
+segue draft aguardando revisão/merge do operador.

@@ -118,6 +118,18 @@ nunca corpo vazio.
 
 **Erros**: `401`/`403` (mesmo padrão); `400` `groupBy` fora do enum.
 
+**Frescor dos dados (follow-up SC-004, migration `0028`)**: os agregados
+deste endpoint são servidos pela materialized view `mv_faturamento_dia`
+(exceto quando o filtro `subpraca` é usado — dimensão fora da MV, cai na
+tabela-base). O **contrato não muda** (mesmos shapes, valores monetários como
+`text`), mas o resumo pode estar **defasado até o fim do processamento da
+importação em curso**: a MV é atualizada (`REFRESH ... CONCURRENTLY`)
+automaticamente ao final de toda importação de faturamento bem-sucedida —
+único caminho de escrita nos fatos — e manualmente via RPC
+`hub_faturamento_refresh_mv`. Casos residuais (falha best-effort do refresh;
+importação cancelada após inserir lotes) entram no resumo no próximo
+refresh. `GET /faturamento` (lista) lê a tabela-base e é sempre fresco.
+
 ---
 
 ## Acesso negado (FR-008)

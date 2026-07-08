@@ -196,6 +196,21 @@ Ref: docs/plans/hub-frota/DIARIO.md; review-task (relatório final)
 
 ---
 
+## FASE 8 - Follow-up SC-004: `mv_faturamento_dia` (pós-review onda-009, autorizado pelo operador)
+
+### 8.1 MV + refresh + RPCs lendo da MV `[C]`
+
+Ref: plano técnico §12.6 (mitigação pré-aprovada); dec-035; review-onda-009.md
+(ADENDO 2026-07-08); evidência `docs/plans/hub-frota/evidencias/S6/followup-sc004-mv.md`
+
+- [x] 8.1.1 Migration `0028_mv_faturamento_dia.sql` — MV (grão empresa+data+categoria+entregador), índice ÚNICO p/ `REFRESH CONCURRENTLY`, índices de filtro, REVOKE de SELECT direto (MV sem RLS), RPCs `SECURITY DEFINER` com guard explícito de escopo + fallback tabela-base p/ `subpraca`, `hub_faturamento_refresh_mv()` (CONCURRENTLY via dblink)
+- [x] 8.1.2 Refresh acoplado ao pipeline (`hub-import-processor.js`, best-effort ao final de importação de faturamento bem-sucedida) + staleness documentado em `contracts/faturamento-api.md`
+- [x] 8.1.3 Testes: +12 asserts em `hub-faturamento-integration.sh` (73/73 — paridade MV×base, negativo cross-tenant direto e via RPC, staleness/refresh) e +2 unit no processor (54/54); suíte hub 363/363; processor-integration 25/25
+- [x] 8.1.4 Aplicada no `hub_homolog_db` (migrate.sh, 29ª migration) + backend hub-homolog redeployado + E2E ao vivo import real → auto-refresh
+- [x] 8.1.5 Re-medição SC-004 (mesma metodologia da onda-008): 33.6-64.9ms em todos os agrupamentos (limite 1000ms) — **SC-004 PASSA**; produção nunca tocada (smoke 200 antes/depois)
+
+---
+
 ## Matriz de Dependências
 
 ```mermaid
@@ -229,7 +244,8 @@ flowchart TD
 | 5 - Export CSV | 1 | 7 | C |
 | 6 - Tela /hub/dashboard/faturamento | 2 | 11 | A |
 | 7 - E2E e Evidências | 3 | 21 | A/M |
-| **Total** | **13** | **73** | - |
+| 8 - Follow-up SC-004 (`mv_faturamento_dia`) | 1 | 5 | C |
+| **Total** | **14** | **78** | - |
 
 ## Escopo Coberto
 

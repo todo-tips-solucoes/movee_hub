@@ -350,6 +350,12 @@ function criarFakePostgrest({
       return null;
     }
 
+    // Follow-up SC-004 (migration 0028) — refresh best-effort da
+    // mv_faturamento_dia ao final de importação de faturamento bem-sucedida.
+    if (endpoint === 'rpc/hub_faturamento_refresh_mv' && method === 'POST') {
+      return { modo: 'concurrent', duracao_ms: 1 };
+    }
+
     throw new Error(`mock não implementado para: ${method} ${endpoint}`);
   }
 
@@ -397,6 +403,36 @@ describe('executarPipeline — happy path (completed)', () => {
     const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
     assert.equal(patchFinal.body.status, 'completed');
     assert.equal(patchFinal.body.linhas_validas, 3);
+
+    // Follow-up SC-004 (migration 0028) — refresh da mv_faturamento_dia
+    // exatamente 1x, e DEPOIS da PATCH terminal (fatos já commitados).
+    const refreshes = deps.chamadas.filter((c) => c.endpoint === 'rpc/hub_faturamento_refresh_mv');
+    assert.equal(refreshes.length, 1, 'esperava exatamente 1 chamada de refresh da MV');
+    assert.ok(
+      deps.chamadas.indexOf(refreshes[0]) > deps.chamadas.indexOf(patchFinal),
+      'refresh da MV deve acontecer APÓS a transição terminal'
+    );
+  });
+
+  test('falha no refresh da mv_faturamento_dia é best-effort — importação segue completed', async () => {
+    const csv = [
+      HEADER_ROW_FATURAMENTO,
+      linhaFaturamento({ descricao: 'linha 1' }),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+    const mockOriginal = deps.hubPostgrestRequest;
+    deps.hubPostgrestRequest = async (endpoint, method, body, claims, opts) => {
+      if (endpoint === 'rpc/hub_faturamento_refresh_mv') {
+        throw new Error('PostgREST indisponível (simulado)');
+      }
+      return mockOriginal(endpoint, method, body, claims, opts);
+    };
+
+    const resultado = await executarPipeline(jobFaturamento(), deps);
+
+    assert.equal(resultado.status, 'completed', 'falha no refresh NÃO pode reverter a importação');
   });
 
   // S5/hub-motoristas (tasks.md 8.2.4, block-004/dec-048) — o upsert de
@@ -482,6 +518,11 @@ describe('executarPipeline — failed (>50% inválidas, rollback por construçã
     const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
     assert.equal(patchFinal.body.status, 'failed');
     assert.match(patchFinal.body.erro_resumo, /inválidas/);
+
+    // Follow-up SC-004 (migration 0028) — refresh da MV só em conclusão
+    // BEM-SUCEDIDA (completed/completed_with_errors), nunca em failed.
+    const refresh = deps.chamadas.find((c) => c.endpoint === 'rpc/hub_faturamento_refresh_mv');
+    assert.equal(refresh, undefined, 'refresh da MV não deve ocorrer em importação failed');
   });
 });
 

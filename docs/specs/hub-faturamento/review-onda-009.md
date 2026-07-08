@@ -256,3 +256,37 @@ mergeavel sem decisao do operador.
 3. **Revisar e mergear PR draft** `feat/hub-faturamento` → `main` quando
    a ressalva SC-004 estiver resolvida/aceita.
 4. Proxima fase da ordem S3→S10: **S7**.
+
+---
+
+## ADENDO 2026-07-08 — SC-004 SANADO (follow-up autorizado pelo operador)
+
+A ressalva formal deste review (Cenario 15 / SC-004 VIOLADO, dec-035) foi
+**resolvida** no follow-up autorizado pelo operador, na mesma branch
+`feat/hub-faturamento` (PR draft #59): migration
+`0028_mv_faturamento_dia.sql` implementa a mitigacao pre-aprovada do plano
+tecnico §12.6 (`mv_faturamento_dia` + RPCs lendo da MV + refresh
+CONCURRENTLY acoplado ao pipeline de importacoes + RPC de refresh manual),
+com REVOKE de SELECT direto na MV e guard explicito de escopo nas RPCs
+(teste negativo cross-tenant PASS).
+
+Re-medicao no MESMO ambiente/volume/metodologia da medicao original
+(hub-homolog, ~900k linhas de `id_empresa=9001`, `2025-07-01..2026-06-30`,
+HTTP end-to-end, 1 aquecimento + 2 rodadas):
+
+| Medicao | onda-008 (antes) | follow-up (depois) | Limite SC-004 |
+|---|---|---|---|
+| `/resumo` sem `groupBy` | 2600.5ms / 2230.6ms | **33.6ms / 40.4ms** | 1000ms |
+| `/resumo?groupBy=categoria` | 1678.0ms / 1625.2ms | **19.5ms / 20.5ms** | 1000ms |
+| `/resumo?groupBy=dia` | — | **30.6ms / 35.4ms** | 1000ms |
+| `/resumo?groupBy=entregador` | — | **39.9ms / 64.9ms** | 1000ms |
+
+**SC-004 PASSA com folga (~25-50x abaixo do limite).** Testes: 73/73
+integracao faturamento (12 novos asserts de MV/isolamento/staleness),
+54/54 unit processor (+2), 363/363 hub unit, 25/25 integracao processor,
+E2E ao vivo de import real → auto-refresh no hub-homolog. Contrato da API
+inalterado. Evidencia completa (outputs literais + EXPLAIN ANALYZE):
+`docs/plans/hub-frota/evidencias/S6/followup-sc004-mv.md`.
+
+A "Acao Imediata 1" acima esta CONCLUIDA; a 2 (limpeza do seed de 900k —
+mantido de proposito para esta re-medicao) permanece com o operador.
