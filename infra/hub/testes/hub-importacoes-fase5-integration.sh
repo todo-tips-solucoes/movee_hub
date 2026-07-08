@@ -68,9 +68,9 @@ check() { # check <descricao> <valor-obtido> <valor-esperado>
   fi
 }
 
-echo "rodando migrate.sh (0002..0017, INCLUSIVE 0017 — DELETE ImportacaoLinhaErro)…"
+echo "rodando migrate.sh (0002..0018)…"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1
-grep -q "0017_grant_delete_importacao_linha_erro.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo (0017 ausente)"; cat "$TMP/migrate.log"; exit 1; }
+grep -q "0018_dedupe_erro_recuperacao_orfa.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo (0018 ausente)"; cat "$TMP/migrate.log"; exit 1; }
 
 # --- Seed: 3 Usuarios (admin_entidade E_A; leitura E_A; admin_entidade E_B) -
 SENHA_OK='SenhaSinteticaFase5#1'

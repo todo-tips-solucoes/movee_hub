@@ -75,9 +75,9 @@ check() { # check <descricao> <valor-obtido> <valor-esperado>
   fi
 }
 
-echo "rodando migrate.sh (0002..0016)…"
+echo "rodando migrate.sh (0002..0018)…"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1
-grep -q "0016_seed_importacoes_exportar.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo"; cat "$TMP/migrate.log"; exit 1; }
+grep -q "0018_dedupe_erro_recuperacao_orfa.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo"; cat "$TMP/migrate.log"; exit 1; }
 
 # --- Seed: 1 Usuario operador (importacoes.criar) --------------------------
 SENHA_OK='SenhaSinteticaProcessor#1'
@@ -379,9 +379,215 @@ case "$N_GRANDE" in
   *) echo "FAIL: (d) contagem inesperada de linhas persistidas: $N_GRANDE (esperado 500)"; fails=$((fails + 1));;
 esac
 
+# ─────────────────────────────────────────────────────────────────────────────
+# (e) F13 (pós-review PR #57) — dedupe de ImportacaoLinhaErro (migration
+# 0018): sobe 1 arquivo com 1 linha inválida conhecida (gera exatamente 1
+# ImportacaoLinhaErro), depois simula um RETRY do MESMO POST diretamente
+# contra o Postgres (mesma forma que `inserirLoteErros` faz via PostgREST —
+# on_conflict=importacao_id,numero_linha DO NOTHING) e confirma que a
+# contagem de linhas de erro NÃO cresce.
+# ─────────────────────────────────────────────────────────────────────────────
+E_OP3=940003
+psql_t <<SQL >/dev/null
+INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
+  ($UID_OP, $E_OP3, $PAPEL_OPERADOR, true);
+SQL
+
+OUT_E="$(run_node "$SENHA_OK" "$E_OP3" <<'JS'
+const BASE = 'http://localhost:3000/api/v1';
+const { HEADER_FATURAMENTO } = require('/var/lib/envioMassa_homologacao/app_homologacao/lib/hub-import-normalizer');
+
+function parseSetCookie(res) {
+  const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  const jar = {};
+  for (const c of raw) { const [pair] = c.split(';'); const idx = pair.indexOf('='); jar[pair.slice(0, idx)] = pair.slice(idx + 1); }
+  return jar;
+}
+function cookieHeader(jar) { return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '); }
+async function login(email, senha) {
+  const r = await fetch(`${BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, senha }) });
+  return parseSetCookie(r);
+}
+async function trocarEntidade(jar, empresaId) {
+  const r = await fetch(`${BASE}/me/entidade`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) }, body: JSON.stringify({ empresa_id: empresaId }) });
+  return { ...jar, ...parseSetCookie(r) };
+}
+async function upload(jar, { tipo, nomeArquivo, conteudo }) {
+  const fd = new FormData();
+  fd.append('tipo', tipo);
+  fd.append('file', new Blob([Buffer.from(conteudo, 'utf8')], { type: 'text/csv' }), nomeArquivo);
+  const r = await fetch(`${BASE}/importacoes`, { method: 'POST', headers: { Cookie: cookieHeader(jar) }, body: fd });
+  const body = await r.json().catch(() => null);
+  return { status: r.status, body };
+}
+function linhaValida(idx) {
+  const c = {
+    data_do_lancamento_financeiro: '2026-01-05', data_do_periodo_de_referencia: '2026-01-01', data_do_repasse: '',
+    periodo: 'SEMANAL', praca: 'SP', subpraca: 'ZonaSul', origem: 'App',
+    id_da_pessoa_entregadora: `11111111-1111-1111-1111-${idx.toString(16).padStart(12, '0')}`,
+    recebedor: `Entregador F13 ${idx}`, tipo: 'Credito', valor: '50,00', descricao: `linha-f13-${idx}`,
+    atingido: '', percentual_de_tempo_disponivel: '', percentual_de_aceitacao: '', percentual_de_conclusao: '',
+    criterio_tempo_disponivel: '', criterio_rotas_aceitas: '', criterio_rotas_concluidas: '', margem_fee_porcentagem: '',
+  };
+  return HEADER_FATURAMENTO.map((h) => c[h]).join(';');
+}
+function linhaInvalida() {
+  // recebedor E valor ausentes/inválidos -> 2 erros na MESMA numero_linha
+  // (prova que o índice único (importacao_id,numero_linha) — não
+  // (importacao_id,numero_linha,campo) — é o comportamento aceito por
+  // desenho, ver comentário da migration 0018).
+  const c = {
+    data_do_lancamento_financeiro: '2026-01-05', data_do_periodo_de_referencia: '2026-01-01', data_do_repasse: '',
+    periodo: 'SEMANAL', praca: 'SP', subpraca: 'ZonaSul', origem: 'App',
+    id_da_pessoa_entregadora: '', recebedor: '', tipo: 'Credito', valor: 'xx', descricao: 'linha-f13-invalida',
+    atingido: '', percentual_de_tempo_disponivel: '', percentual_de_aceitacao: '', percentual_de_conclusao: '',
+    criterio_tempo_disponivel: '', criterio_rotas_aceitas: '', criterio_rotas_concluidas: '', margem_fee_porcentagem: '',
+  };
+  return HEADER_FATURAMENTO.map((h) => c[h]).join(';');
+}
+async function main() {
+  const senha = process.argv[2];
+  const empresa = Number(process.argv[3]);
+  let jar = await login('processor-operador@example.test', senha);
+  jar = await trocarEntidade(jar, empresa);
+  const csv = [HEADER_FATURAMENTO.join(';'), linhaValida(1), linhaInvalida(), ''].join('\n');
+  const r = await upload(jar, { tipo: 'faturamento', nomeArquivo: 'f13-dedupe.csv', conteudo: csv });
+  console.log('___RESULT_JSON___' + JSON.stringify({ status: r.status, id: r.body && r.body.id }));
+}
+main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
+JS
+)"
+echo "$OUT_E" | grep -v '___RESULT_JSON___' || true
+F13_LINE="$(echo "$OUT_E" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+F13_ID="$(printf '%s' "$F13_LINE" | node_e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).id)")"
+check "(e) upload F13 (1 válida + 1 inválida) -> 201" "$(printf '%s' "$F13_LINE" | node_e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).status)")" "201"
+
+ST_F13="$(aguardar_status "$F13_ID" 30)"
+check "(e) F13: importação processa até terminal" "$ST_F13" "completed_with_errors"
+
+N_ERROS_ANTES="$(psql_t -tAc "SELECT count(*) FROM \"ImportacaoLinhaErro\" WHERE importacao_id=$F13_ID" | tr -d '[:space:]')"
+echo "INFO: (e) F13 — ${N_ERROS_ANTES} linha(s) de erro após 1ª gravação (importacao_id=$F13_ID)"
+
+# Simula o RETRY: reinsere a MESMA linha de erro já existente, com o MESMO
+# on_conflict/DO NOTHING que `inserirLoteErros` usa via PostgREST — prova a
+# garantia de fato (índice único da migration 0018), não só que o CLIENTE
+# manda o header certo (isso já é coberto pelo unit test).
+psql_t <<SQL >/dev/null
+INSERT INTO "ImportacaoLinhaErro" (importacao_id, id_empresa, numero_linha, motivo, campo, valor_mascarado)
+SELECT importacao_id, id_empresa, numero_linha, motivo, campo, valor_mascarado
+FROM "ImportacaoLinhaErro" WHERE importacao_id=$F13_ID
+ON CONFLICT (importacao_id, numero_linha) DO NOTHING;
+SQL
+N_ERROS_DEPOIS="$(psql_t -tAc "SELECT count(*) FROM \"ImportacaoLinhaErro\" WHERE importacao_id=$F13_ID" | tr -d '[:space:]')"
+check "(e) F13: retry do mesmo (importacao_id,numero_linha) NÃO duplica (índice único + on_conflict)" "$N_ERROS_DEPOIS" "$N_ERROS_ANTES"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (f) F1.3 (pós-review PR #57) — recuperação de lock órfão no boot: força um
+# registro em `processing` via SQL direto (simula um processo morto no meio
+# do processamento, sem passar pelo mutex) e chama
+# `recuperarImportacoesOrfas` diretamente no backend efêmero (MESMO código
+# desta branch, buildado no início deste script) — confirma que ele vira
+# `failed` E que o mutex (índice único parcial, 0011) libera: um upload NOVO
+# do MESMO (id_empresa,tipo) é aceito e processa normalmente depois.
+# ─────────────────────────────────────────────────────────────────────────────
+E_OP4=940004
+HASH_ORFA="$(printf 'orfa-boot-teste' | sha256sum | cut -d' ' -f1)"
+# INSERT sem RETURNING (saída para /dev/null) + SELECT separado para pegar o
+# id — `psql -tAc` com RETURNING também imprime o tag de comando ("INSERT 0
+# 1") numa linha subsequente; combinado com `tr -d '[:space:]'` isso
+# corrompe a captura (ex.: "7INSERT01"). Mesmo padrão já usado acima no
+# script para UID_OP/PAPEL_OPERADOR.
+psql_t <<SQL >/dev/null
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, nome_arquivo, hash_sha256, status)
+VALUES ($E_OP4, 'faturamento', 'orfa-boot-teste.csv', '$HASH_ORFA', 'processing');
+SQL
+ORFA_ID="$(psql_t -tAc "SELECT id FROM \"ImportacaoArquivo\" WHERE id_empresa=$E_OP4 AND nome_arquivo='orfa-boot-teste.csv'" | tr -d '[:space:]')"
+[ -n "$ORFA_ID" ] || { echo "FAIL: (f) não conseguiu inserir a linha órfã sintética"; fails=$((fails + 1)); }
+
+RECUP_OUT="$(dc exec -T backend node -e "
+require('./lib/hub-import-processor').recuperarImportacoesOrfas()
+  .then((r) => { console.log('___RECUP_JSON___' + JSON.stringify(r)); process.exit(0); })
+  .catch((e) => { console.error('RECUP_ERROR', e); process.exit(1); });
+" 2>&1)"
+echo "$RECUP_OUT" | grep -v '___RECUP_JSON___' || true
+RECUP_LINE="$(echo "$RECUP_OUT" | grep '___RECUP_JSON___' | sed 's/^___RECUP_JSON___//')"
+[ -n "$RECUP_LINE" ] || { echo "FAIL: (f) recuperarImportacoesOrfas não retornou resultado"; fails=$((fails + 1)); }
+RECUP_TOTAL="$(printf '%s' "$RECUP_LINE" | node_e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).totalRecuperadas)" 2>/dev/null)"
+case "$RECUP_TOTAL" in
+  ''|0) echo "FAIL: (f) totalRecuperadas esperado >=1, obtido '$RECUP_TOTAL'"; fails=$((fails + 1));;
+  *) echo "PASS: (f) recuperarImportacoesOrfas recuperou $RECUP_TOTAL importação(ões)";;
+esac
+
+ST_ORFA="$(psql_t -tAc "SELECT status FROM \"ImportacaoArquivo\" WHERE id=$ORFA_ID" | tr -d '[:space:]')"
+check "(f) linha órfã (processing) -> failed após recuperarImportacoesOrfas" "$ST_ORFA" "failed"
+ERRO_ORFA="$(psql_t -tAc "SELECT erro_resumo FROM \"ImportacaoArquivo\" WHERE id=$ORFA_ID" | tr -d '\n')"
+case "$ERRO_ORFA" in
+  *reinicio*|*reinício*) echo "PASS: (f) erro_resumo explica a recuperação (reinício)";;
+  *) echo "FAIL: (f) erro_resumo inesperado: '$ERRO_ORFA'"; fails=$((fails + 1));;
+esac
+
+# Mutex liberado: upload NOVO do MESMO (id_empresa,tipo) precisa ser aceito
+# (índice único parcial 0011 só bloqueia se ainda houvesse uma linha
+# validating/processing — a órfã virou failed, terminal).
+psql_t <<SQL >/dev/null
+INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
+  ($UID_OP, $E_OP4, $PAPEL_OPERADOR, true);
+SQL
+OUT_F="$(run_node "$SENHA_OK" "$E_OP4" <<'JS'
+const BASE = 'http://localhost:3000/api/v1';
+const { HEADER_FATURAMENTO } = require('/var/lib/envioMassa_homologacao/app_homologacao/lib/hub-import-normalizer');
+function parseSetCookie(res) {
+  const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  const jar = {};
+  for (const c of raw) { const [pair] = c.split(';'); const idx = pair.indexOf('='); jar[pair.slice(0, idx)] = pair.slice(idx + 1); }
+  return jar;
+}
+function cookieHeader(jar) { return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '); }
+async function login(email, senha) {
+  const r = await fetch(`${BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, senha }) });
+  return parseSetCookie(r);
+}
+async function trocarEntidade(jar, empresaId) {
+  const r = await fetch(`${BASE}/me/entidade`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) }, body: JSON.stringify({ empresa_id: empresaId }) });
+  return { ...jar, ...parseSetCookie(r) };
+}
+async function main() {
+  const senha = process.argv[2];
+  const empresa = Number(process.argv[3]);
+  let jar = await login('processor-operador@example.test', senha);
+  jar = await trocarEntidade(jar, empresa);
+  const c = {
+    data_do_lancamento_financeiro: '2026-01-05', data_do_periodo_de_referencia: '2026-01-01', data_do_repasse: '',
+    periodo: 'SEMANAL', praca: 'SP', subpraca: 'ZonaSul', origem: 'App',
+    id_da_pessoa_entregadora: '11111111-1111-1111-1111-000000000f01',
+    recebedor: 'Entregador Pos Recuperacao', tipo: 'Credito', valor: '10,00', descricao: 'pos-recuperacao',
+    atingido: '', percentual_de_tempo_disponivel: '', percentual_de_aceitacao: '', percentual_de_conclusao: '',
+    criterio_tempo_disponivel: '', criterio_rotas_aceitas: '', criterio_rotas_concluidas: '', margem_fee_porcentagem: '',
+  };
+  const csv = [HEADER_FATURAMENTO.join(';'), HEADER_FATURAMENTO.map((h) => c[h]).join(';'), ''].join('\n');
+  const fd = new FormData();
+  fd.append('tipo', 'faturamento');
+  fd.append('file', new Blob([Buffer.from(csv, 'utf8')], { type: 'text/csv' }), 'pos-recuperacao.csv');
+  const r = await fetch(`${BASE}/importacoes`, { method: 'POST', headers: { Cookie: cookieHeader(jar) }, body: fd });
+  const body = await r.json().catch(() => null);
+  console.log('___RESULT_JSON___' + JSON.stringify({ status: r.status, id: body && body.id }));
+}
+main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
+JS
+)"
+echo "$OUT_F" | grep -v '___RESULT_JSON___' || true
+F_LINE="$(echo "$OUT_F" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+POS_STATUS="$(printf '%s' "$F_LINE" | node_e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).status)" 2>/dev/null)"
+check "(f) upload NOVO do mesmo (id_empresa,tipo) da órfã -> 201 (mutex liberado)" "$POS_STATUS" "201"
+POS_ID="$(printf '%s' "$F_LINE" | node_e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).id)" 2>/dev/null)"
+if [ -n "$POS_ID" ] && [ "$POS_ID" != "undefined" ] && [ "$POS_ID" != "null" ]; then
+  ST_POS="$(aguardar_status "$POS_ID" 30)"
+  check "(f) upload pós-recuperação processa normalmente até terminal" "$ST_POS" "completed"
+fi
+
 echo
 if [ "$fails" = "0" ]; then
-  echo "HUB-IMPORT-PROCESSOR-INTEGRATION: OK — todos os asserts passaram (FASE 4: 4.1-4.6)"
+  echo "HUB-IMPORT-PROCESSOR-INTEGRATION: OK — todos os asserts passaram (FASE 4: 4.1-4.6 + pós-review PR #57 F1/F5/F13)"
 else
   echo "HUB-IMPORT-PROCESSOR-INTEGRATION: $fails assert(s) FALHARAM" >&2
   exit 1

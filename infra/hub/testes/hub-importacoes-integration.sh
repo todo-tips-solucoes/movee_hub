@@ -63,9 +63,9 @@ check() { # check <descricao> <valor-obtido> <valor-esperado>
   fi
 }
 
-echo "rodando migrate.sh (0002..0016, INCLUSIVE 0015/0016 — hub-importacoes)…"
+echo "rodando migrate.sh (0002..0018)…"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1
-grep -q "0016_seed_importacoes_exportar.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo"; cat "$TMP/migrate.log"; exit 1; }
+grep -q "0018_dedupe_erro_recuperacao_orfa.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo"; cat "$TMP/migrate.log"; exit 1; }
 
 # --- Seed: 2 Usuarios (operador com importacoes.criar; leitura, SEM) --------
 SENHA_OK='SenhaSinteticaImport#1'
@@ -313,6 +313,12 @@ N_REGISTROS_OK="$(psql_t -tAc "SELECT count(*) FROM \"ImportacaoArquivo\" WHERE 
 check "DB: exatamente 1 registro ImportacaoArquivo para o id retornado" "$N_REGISTROS_OK" "1"
 
 STATUS_DB="$(psql_t -tAc "SELECT status FROM \"ImportacaoArquivo\" WHERE id=$OK_ID" | tr -d '[:space:]')"
+if [ "$STATUS_DB" != "pending" ]; then
+  echo "DEBUG: status inesperado='$STATUS_DB' para id=$OK_ID — erro_resumo:"
+  psql_t -tAc "SELECT erro_resumo FROM \"ImportacaoArquivo\" WHERE id=$OK_ID"
+  echo "DEBUG: logs do backend (últimas 40 linhas):"
+  dc logs --tail 40 backend
+fi
 check "DB: status=pending" "$STATUS_DB" "pending"
 
 # Conta só pelo MESMO hash do upload original (não pelo total empresa+tipo —
