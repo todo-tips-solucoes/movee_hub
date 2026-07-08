@@ -27,12 +27,12 @@ Ref: plan.md "Plano por fases" passo 1; data-model.md "Migrations desta
 fase"; research.md Decision 1; contracts/faturamento-api.md (permissão de
 rota `GET /faturamento`)
 
-- [ ] 1.1.1 Criar `infra/hub/migrations/0026_seed_permissao_faturamento_listar.sql`
-- [ ] 1.1.2 `INSERT INTO "Permissao"` (`codigo='faturamento.listar'`, `modulo_id` correspondente) idempotente (`ON CONFLICT DO NOTHING`)
-- [ ] 1.1.3 Conceder a permissão aos papéis `admin_plataforma`/`admin_entidade`/`operador`/`leitura`, idempotente
-- [ ] 1.1.4 Aplicar via `infra/hub/scripts/migrate.sh` no `hub-homolog`
-- [ ] 1.1.5 Verificar reload do PostgREST (SIGUSR1) e confirmar a permissão nova refletida em `obterPermissoesEfetivas` (`lib/hub-rbac-cache.js`)
-- [ ] 1.1.6 Teste: consulta confirmando que o papel `operador` possui `faturamento.listar` após a migration; re-rodar `migrate.sh` e confirmar no-op (idempotência)
+- [x] 1.1.1 Criar `infra/hub/migrations/0026_seed_permissao_faturamento_listar.sql`
+- [x] 1.1.2 `INSERT INTO "Permissao"` (`codigo='faturamento.listar'`, `modulo_id` correspondente) idempotente (`ON CONFLICT DO NOTHING`)
+- [x] 1.1.3 Conceder a permissão aos papéis `admin_plataforma`/`admin_entidade`/`operador`/`leitura`, idempotente
+- [x] 1.1.4 Aplicar via `infra/hub/scripts/migrate.sh` no `hub-homolog`
+- [x] 1.1.5 Verificar reload do PostgREST (SIGUSR1) e confirmar a permissão nova refletida em `obterPermissoesEfetivas` (`lib/hub-rbac-cache.js`)
+- [x] 1.1.6 Teste: consulta confirmando que o papel `operador` possui `faturamento.listar` após a migration; re-rodar `migrate.sh` e confirmar no-op (idempotência)
 
 ### 1.2 Migration 0027 — funções RPC `hub_faturamento_totais`/`hub_faturamento_agrupado` `[C]`
 
@@ -40,12 +40,12 @@ Ref: plan.md "Plano por fases" passo 1; data-model.md "Migrations desta
 fase"; research.md Decision 2/3/4/7; plan.md "Gate owasp-security" (A05
 Injection PASS — parametrização nativa)
 
-- [ ] 1.2.1 Criar `infra/hub/migrations/0027_hub_faturamento_rpc_resumo.sql`
-- [ ] 1.2.2 Implementar `hub_faturamento_totais(...)` `SECURITY INVOKER`, com `SUM(valor)::text` (`totalGeral`), desempate alfabético embutido para `categoriaMaiorValor` (Decision 3), `COUNT(DISTINCT entregador_id)` para `entregadoresDistintos`, parâmetros tipados (nunca concatenação de SQL)
-- [ ] 1.2.3 Implementar `hub_faturamento_agrupado(...)` `SECURITY INVOKER`, `group_by` ∈ {`dia`,`categoria`,`entregador`}, bucket `agregados_bonus` embutido para `entregador_id IS NULL` (Decision 4), parâmetros tipados
-- [ ] 1.2.4 `GRANT EXECUTE` das 2 funções ao role `authenticated`
-- [ ] 1.2.5 Aplicar via `migrate.sh` no `hub-homolog`; validar idempotência (`CREATE OR REPLACE FUNCTION`, re-rodar = no-op)
-- [ ] 1.2.6 Teste: chamar as 2 funções via SQL direto no `hub_homolog_db` com filtros básicos e confirmar que `SECURITY INVOKER` respeita a RLS existente de `FaturamentoLancamento` (rodar como usuário de outro `id_empresa` e confirmar zero linhas)
+- [x] 1.2.1 Criar `infra/hub/migrations/0027_hub_faturamento_rpc_resumo.sql`
+- [x] 1.2.2 Implementar `hub_faturamento_totais(...)` `SECURITY INVOKER`, com `SUM(valor)::text` (`totalGeral`), desempate alfabético embutido para `categoriaMaiorValor` (Decision 3), `COUNT(DISTINCT entregador_id)` para `entregadoresDistintos`, parâmetros tipados (nunca concatenação de SQL)
+- [x] 1.2.3 Implementar `hub_faturamento_agrupado(...)` `SECURITY INVOKER`, `group_by` ∈ {`dia`,`categoria`,`entregador`}, bucket `agregados_bonus` embutido para `entregador_id IS NULL` (Decision 4), parâmetros tipados
+- [x] 1.2.4 `GRANT EXECUTE` das 2 funções ao role `authenticated`
+- [x] 1.2.5 Aplicar via `migrate.sh` no `hub-homolog`; validar idempotência (`CREATE OR REPLACE FUNCTION`, re-rodar = no-op)
+- [x] 1.2.6 Teste: chamar as 2 funções via SQL direto no `hub_homolog_db` com filtros básicos e confirmar que `SECURITY INVOKER` respeita a RLS existente de `FaturamentoLancamento` (rodar como usuário de outro `id_empresa` e confirmar zero linhas)
 
 ---
 
