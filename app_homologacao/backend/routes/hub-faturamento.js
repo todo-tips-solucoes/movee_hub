@@ -16,8 +16,10 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
-const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
+const { obterPermissoesEfetivas, obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { requirePermission } = require('../middleware/hub-require-permission');
+const { registrarAuditoria } = require('../lib/hub-auditoria');
+const { escaparCelulaCsvInjection, quotarCelulaCsv } = require('../lib/hub-csv');
 const {
   parseFiltros,
   parsePaginacao,
@@ -29,6 +31,14 @@ const {
 } = require('../lib/hub-faturamento-dto');
 
 const router = express.Router();
+
+// Export CSV (research.md Decision 5) — lote de LEITURA paginada, não de
+// escrita (LOTE_EXPORT_CSV=1000; conservador dentro da faixa já validada em
+// produção pelo pipeline de importação, §12.6 do plano técnico usa 500 para
+// ESCRITA — 1.000 para leitura paginada é só um número maior de itens por
+// página do mesmo mecanismo Range, não um padrão novo).
+const LOTE_EXPORT_CSV = 1000;
+const CABECALHO_CSV = ['dataReferencia', 'categoria', 'valor', 'entregadorNome', 'subpraca', 'praca', 'periodo'];
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers (DUPLICADOS deliberadamente — mesmo padrão de routes/hub-importacoes.js
@@ -103,20 +113,133 @@ function montarFiltrosQuery(entidadeAtiva, f) {
   return filtros;
 }
 
+/**
+ * Neutraliza + quota (RFC 4180) 1 célula de texto livre do CSV de
+ * faturamento. Aplicado a TODO campo de texto livre potencialmente
+ * influenciado pelo arquivo original importado (categoria/entregadorNome/
+ * subpraca/praca/periodo) — FR-007 exige "toda célula", não só as 2
+ * citadas nominalmente em tasks.md 5.1.4 (categoria/entregadorNome); os
+ * demais campos de texto livre do mesmo registro recebem a MESMA proteção
+ * por construção, defesa em profundidade sem custo adicional (mesma função
+ * já reusada em `lib/hub-csv.js`). `dataReferencia`/`valor` NÃO passam por
+ * aqui — formato fixo (`YYYY-MM-DD` / decimal, nunca começam com
+ * `= + - @`, gerados pelo próprio backend, nunca texto livre do usuário).
+ * @param {string|null} valor
+ * @returns {string}
+ */
+function celulaCsv(valor) {
+  return quotarCelulaCsv(escaparCelulaCsvInjection(valor === null || valor === undefined ? '' : valor));
+}
+
+/**
+ * `GET /faturamento?format=csv` — export streaming em lotes de
+ * `LOTE_EXPORT_CSV` linhas (research.md Decision 5): busca 1 lote via
+ * paginação `Range` do PostgREST, converte para linhas CSV, `res.write()`,
+ * descarta o lote da memória antes do próximo — o corpo completo do CSV
+ * NUNCA existe de uma vez no processo (FR-006). Filtro vazio -> arquivo só
+ * com cabeçalho, `200` (tasks.md 5.1.6 — nunca erro).
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {number} entidadeAtiva
+ * @param {object} claims
+ * @param {object} payload - do accessToken (`payload.sub` -> auditoria)
+ * @param {ReturnType<import('../lib/hub-faturamento-dto').parseFiltros>} f
+ */
+async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
+  const filtrosBase = montarFiltrosQuery(entidadeAtiva, f);
+  filtrosBase.push('order=data_referencia.desc,id.desc');
+  filtrosBase.push(
+    'select=data_referencia,descricao,valor::text,entregador_id,subpraca,praca,periodo,entregador:Entregador(nome)'
+  );
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="faturamento-${f.de}_${f.ate}.csv"`);
+  res.write(`${CABECALHO_CSV.join(',')}\r\n`);
+
+  let from = 0;
+  let totalLinhas = 0;
+  for (;;) {
+    const to = from + LOTE_EXPORT_CSV - 1;
+    // eslint-disable-next-line no-await-in-loop -- paginação SEQUENCIAL é
+    // intencional (Decision 5): 1 lote de cada vez, nunca em paralelo —
+    // é exatamente isso que limita a memória a ~1 lote, não ao total do
+    // período.
+    const lote = await hubPostgrestRequest(
+      `FaturamentoLancamento?${filtrosBase.join('&')}`,
+      'GET', null, claims,
+      { range: { from, to } }
+    );
+    const linhas = lote || [];
+    if (linhas.length === 0) break;
+
+    let bloco = '';
+    for (const row of linhas) {
+      const comEntregador = row.entregador_id !== null && row.entregador_id !== undefined;
+      const entregadorNome = comEntregador && row.entregador ? row.entregador.nome : '';
+      bloco += [
+        row.data_referencia,
+        celulaCsv(row.descricao),
+        row.valor,
+        celulaCsv(entregadorNome),
+        celulaCsv(row.subpraca),
+        celulaCsv(row.praca),
+        celulaCsv(row.periodo),
+      ].join(',') + '\r\n';
+    }
+    res.write(bloco);
+    totalLinhas += linhas.length;
+
+    if (linhas.length < LOTE_EXPORT_CSV) break; // último lote (parcial)
+    from += LOTE_EXPORT_CSV;
+  }
+
+  // 5.1.5 — auditoria só no SUCESSO (arquivo completo já foi escrito ao
+  // cliente), best-effort mas aguardado (mesmo padrão de
+  // routes/hub-importacoes.js#original_baixado). Nenhum dado sensível em
+  // `detalhes` — só metadados do filtro aplicado e a contagem.
+  await registrarAuditoria({
+    idEmpresa: entidadeAtiva,
+    usuarioId: payload.sub,
+    acao: 'faturamento.csv_exportado',
+    recurso: 'FaturamentoLancamento',
+    recursoId: null,
+    detalhes: {
+      de: f.de, ate: f.ate, categoria: f.categoria, entregadorId: f.entregadorId,
+      subpraca: f.subpraca, comEntregador: f.comEntregador, totalLinhas,
+    },
+    ip: req.ip,
+    claims,
+  });
+
+  return res.end();
+}
+
 // ────────────────────────────────────────────────────────────────────────────
-// GET /faturamento — lista paginada de lançamentos (JSON; `?format=csv` na
-// FASE 5, tasks.md 5.1) — task 3.2
+// GET /faturamento — lista paginada de lançamentos (JSON; `?format=csv` —
+// task 5.1) — task 3.2
 // ────────────────────────────────────────────────────────────────────────────
 
 router.get('/', requirePermission('faturamento.listar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'faturamento.listar');
     if (!ctx) return;
-    const { entidadeAtiva, claims } = ctx;
+    const { payload, entidadeAtiva, claims } = ctx;
 
     const f = parseFiltros(req.query);
     if (!f.ok) {
       return res.status(400).json({ erro: f.erro });
+    }
+
+    if (req.query.format === 'csv') {
+      // Decision 9 — checagem INLINE e EXPLÍCITA de `faturamento.exportar`
+      // (união flat, `req.hubUsuarioId` setado pelo `requirePermission` de
+      // nível de rota) ANTES de qualquer query ao PostgREST — ter
+      // `faturamento.listar` NUNCA autoriza extrair o arquivo.
+      const permissoesFlat = await obterPermissoesEfetivas(req.hubUsuarioId);
+      if (!permissoesFlat.has('faturamento.exportar')) {
+        return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+      }
+      return exportarCsv(req, res, entidadeAtiva, claims, payload, f);
     }
 
     const { page, pageSize, from, to } = parsePaginacao(req.query);

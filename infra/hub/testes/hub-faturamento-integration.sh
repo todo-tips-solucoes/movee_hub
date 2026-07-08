@@ -90,12 +90,20 @@ E_SEM_PERM=950003
 psql_t <<SQL >/dev/null
 INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES
   ('faturamento-leitura@example.test', '$HASH_OK', 'Usuario Teste Faturamento Leitura', true),
-  ('faturamento-sempermissao@example.test', '$HASH_OK', 'Usuario Teste Faturamento Sem Permissao', true);
+  ('faturamento-sempermissao@example.test', '$HASH_OK', 'Usuario Teste Faturamento Sem Permissao', true),
+  ('faturamento-exportador@example.test', '$HASH_OK', 'Usuario Teste Faturamento Exportador', true);
 SQL
 UID_LEITURA="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='faturamento-leitura@example.test'" | tr -d '[:space:]')"
 UID_SEMPERM="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='faturamento-sempermissao@example.test'" | tr -d '[:space:]')"
+UID_EXPORTADOR="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='faturamento-exportador@example.test'" | tr -d '[:space:]')"
 PAPEL_LEITURA="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='leitura'" | tr -d '[:space:]')"
 [ -n "$PAPEL_LEITURA" ] || { echo "FAIL: seed 0007 não populou o papel 'leitura' esperado"; exit 1; }
+# 'admin_entidade' é um dos 2 únicos papéis-seed com faturamento.exportar
+# (0007 concede exportar só a admin_plataforma/admin_entidade — 'leitura'/
+# 'operador' NUNCA têm, mesmo padrão de importacoes.exportar/0016) — usado
+# nos cenários de export CSV bem-sucedido (q/r/s) abaixo.
+PAPEL_ADMIN_ENTIDADE="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='admin_entidade'" | tr -d '[:space:]')"
+[ -n "$PAPEL_ADMIN_ENTIDADE" ] || { echo "FAIL: seed 0007 não populou o papel 'admin_entidade' esperado"; exit 1; }
 
 # Papel sintético SEM faturamento.listar (os 4 papéis-seed — admin_plataforma/
 # admin_entidade/operador/leitura — TODOS concedem faturamento.listar desde a
@@ -115,7 +123,8 @@ psql_t <<SQL >/dev/null
 INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ($UID_LEITURA, $E_TESTE, $PAPEL_LEITURA, true),
   ($UID_LEITURA, $E_OUTRA, $PAPEL_LEITURA, true),
-  ($UID_SEMPERM, $E_SEM_PERM, $PAPEL_SEM_PERM, true);
+  ($UID_SEMPERM, $E_SEM_PERM, $PAPEL_SEM_PERM, true),
+  ($UID_EXPORTADOR, $E_TESTE, $PAPEL_ADMIN_ENTIDADE, true);
 SQL
 
 # --- Seed: Entregadores + ImportacaoArquivo-cabeçalho fake + fatos --------
@@ -123,12 +132,14 @@ psql_t <<SQL >/dev/null
 INSERT INTO "Entregador" (id_empresa, id_externo, nome, ativo, motorista_id) VALUES
   ($E_TESTE, gen_random_uuid(), 'Joao Faturamento', true, NULL),
   ($E_TESTE, gen_random_uuid(), 'Maria Faturamento', true, NULL),
+  ($E_TESTE, gen_random_uuid(), '@Perigoso Nome', true, NULL),
   ($E_OUTRA, gen_random_uuid(), 'Entregador De Outro Tenant', true, NULL);
 SQL
 ENT_JOAO="$(psql_t -tAc "SELECT id FROM \"Entregador\" WHERE id_empresa=$E_TESTE AND nome='Joao Faturamento'" | tr -d '[:space:]')"
 ENT_MARIA="$(psql_t -tAc "SELECT id FROM \"Entregador\" WHERE id_empresa=$E_TESTE AND nome='Maria Faturamento'" | tr -d '[:space:]')"
+ENT_INJECAO="$(psql_t -tAc "SELECT id FROM \"Entregador\" WHERE id_empresa=$E_TESTE AND nome='@Perigoso Nome'" | tr -d '[:space:]')"
 ENT_OUTRA="$(psql_t -tAc "SELECT id FROM \"Entregador\" WHERE id_empresa=$E_OUTRA" | tr -d '[:space:]')"
-for v in ENT_JOAO ENT_MARIA ENT_OUTRA; do
+for v in ENT_JOAO ENT_MARIA ENT_INJECAO ENT_OUTRA; do
   [ -n "${!v}" ] || { echo "FAIL: $v não foi criado"; exit 1; }
 done
 
@@ -171,6 +182,17 @@ VALUES
   ($E_TESTE, $IMPORT_ID, $ENT_MARIA, '2026-08-01', '2026-08-01', 'Centro',   'Sao Paulo', 'ALMOCO', 'Credito', 50.00, 'Alfa', md5('empate-alfa'));
 SQL
 
+# Fato dedicado a CSV injection (FASE 5/tasks.md 5.1.7, Cenário 8) — janela
+# ISOLADA (2026-09-01): categoria começa com '=' (fórmula), entregador
+# (`@Perigoso Nome`, seed acima) começa com '@'. Ambas as células MUST vir
+# neutralizadas (prefixo `'`) no CSV exportado.
+psql_t <<SQL >/dev/null
+INSERT INTO "FaturamentoLancamento"
+  (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, subpraca, praca, periodo, tipo, valor, descricao, hash_linha)
+VALUES
+  ($E_TESTE, $IMPORT_ID, $ENT_INJECAO, '2026-09-01', '2026-09-01', 'Zona Sul', 'Sao Paulo', 'ALMOCO', 'Credito', 77.00, '=SOMA(A1:A10)', md5('injecao-1'));
+SQL
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Script Node único: login + troca de entidade + chamadas GET.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -197,6 +219,16 @@ async function getJson(jar, path) {
   const r = await fetch(`${BASE}${path}`, { headers: jar ? { Cookie: cookieHeader(jar) } : {} });
   const body = await r.json().catch(() => null);
   return { status: r.status, body };
+}
+async function getCsv(jar, path) {
+  const r = await fetch(`${BASE}${path}`, { headers: jar ? { Cookie: cookieHeader(jar) } : {} });
+  const text = await r.text();
+  return {
+    status: r.status,
+    text,
+    contentType: r.headers.get('content-type'),
+    contentDisposition: r.headers.get('content-disposition'),
+  };
 }
 
 async function main() {
@@ -342,6 +374,45 @@ async function main() {
   const rResumoSemPermissao = await getJson(jarSemPerm, '/faturamento/resumo');
   out.resumoSemPermissao_status = rResumoSemPermissao.status;
 
+  // ── GET /faturamento?format=csv (FASE 5, tasks.md 5.1.7) ────────────────
+  // Usuário DEDICADO com faturamento.exportar (papel admin_entidade) — o
+  // jarLeitura ('leitura') NUNCA teve exportar (0007 original), usado só no
+  // cenário negativo (t) abaixo.
+  let jarExportador = await login('faturamento-exportador@example.test', senha);
+  jarExportador = await trocarEntidade(jarExportador, empresaTeste);
+
+  // (q) export completo bate contagem com a tela — janela 2026-07-01..04,
+  // 4 linhas conhecidas (mesma janela do cenário 'lista básica' acima).
+  const rCsv = await getCsv(jarExportador, '/faturamento?format=csv&de=2026-07-01&ate=2026-07-04');
+  out.csv_status = rCsv.status;
+  out.csv_contentType = rCsv.contentType;
+  out.csv_contentDisposition = rCsv.contentDisposition;
+  const csvLinhas = rCsv.text.split('\r\n').filter((l) => l.length > 0);
+  out.csv_cabecalho = csvLinhas[0];
+  out.csv_qtd_linhas_dados = csvLinhas.length - 1; // exclui cabeçalho
+
+  // (r) CSV injection neutralizada — janela isolada 2026-09-01: categoria
+  // '=SOMA(A1:A10)' e entregadorNome '@Perigoso Nome' MUST vir com prefixo
+  // `'` (única ocorrência, sem dupla neutralização).
+  const rCsvInjecao = await getCsv(jarExportador, '/faturamento?format=csv&de=2026-09-01&ate=2026-09-01');
+  const linhasInjecao = rCsvInjecao.text.split('\r\n').filter((l) => l.length > 0);
+  out.csvInjecao_linha_dados = linhasInjecao[1] || null;
+
+  // (s) export vazio — período sem nenhum lançamento -> só cabeçalho, 200
+  const rCsvVazio = await getCsv(jarExportador, '/faturamento?format=csv&de=2019-01-01&ate=2019-01-02');
+  out.csvVazio_status = rCsvVazio.status;
+  const linhasVazio = rCsvVazio.text.split('\r\n').filter((l) => l.length > 0);
+  out.csvVazio_qtd_linhas = linhasVazio.length; // só cabeçalho = 1
+
+  // (t) 403 sem faturamento.exportar MESMO COM faturamento.listar — o
+  // próprio jarLeitura (papel 'leitura': tem .listar/.consultar, NÃO tem
+  // .exportar desde a 0007 original) — Cenário 10 passos 3-4 (bypass da UI).
+  const rCsvSemExportar = await getCsv(jarLeitura, '/faturamento?format=csv&de=2026-07-01&ate=2026-07-04');
+  out.csvSemExportar_status = rCsvSemExportar.status;
+  let csvSemExportarErro = null;
+  try { csvSemExportarErro = JSON.parse(rCsvSemExportar.text).erro; } catch { /* ignore */ }
+  out.csvSemExportar_erro = csvSemExportarErro;
+
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
 main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
@@ -412,9 +483,30 @@ check "resumo groupBy inválido -> erro=GROUP_BY_INVALIDO" "$(jget groupByInvali
 
 check "resumo sem faturamento.consultar (papel sintético) -> 403" "$(jget resumoSemPermissao_status)" "403"
 
+# ── GET /faturamento?format=csv (FASE 5, tasks.md 5.1.7) ────────────────────
+check "export CSV -> 200" "$(jget csv_status)" "200"
+check "export CSV -> Content-Type text/csv; charset=utf-8" "$(jget csv_contentType)" "text/csv; charset=utf-8"
+check "export CSV -> Content-Disposition com nome de arquivo esperado" "$(jget csv_contentDisposition)" 'attachment; filename="faturamento-2026-07-01_2026-07-04.csv"'
+check "export CSV -> cabeçalho fixo do contrato" "$(jget csv_cabecalho)" "dataReferencia,categoria,valor,entregadorNome,subpraca,praca,periodo"
+check "export CSV -> 4 linhas de dados (bate com a tela, mesma janela)" "$(jget csv_qtd_linhas_dados)" "4"
+
+check "export CSV injection -> categoria '=' e entregadorNome '@' neutralizados (prefixo único ')" \
+  "$(jget csvInjecao_linha_dados)" "2026-09-01,'=SOMA(A1:A10),77.00,'@Perigoso Nome,Zona Sul,Sao Paulo,ALMOCO"
+
+check "export CSV vazio -> 200 (tasks.md 5.1.6, nunca erro)" "$(jget csvVazio_status)" "200"
+check "export CSV vazio -> só a linha de cabeçalho" "$(jget csvVazio_qtd_linhas)" "1"
+
+check "export CSV sem faturamento.exportar (só .listar) -> 403 (Cenário 10 passos 3-4, bypass da UI)" "$(jget csvSemExportar_status)" "403"
+check "export CSV sem faturamento.exportar -> erro=PERMISSAO_NEGADA" "$(jget csvSemExportar_erro)" "PERMISSAO_NEGADA"
+
+# ── Validação no banco: auditoria 'faturamento.csv_exportado' registrada
+# (5.1.5) só para os exports BEM-SUCEDIDOS (q/r/s = 3), NUNCA para o 403 (t)
+N_AUDITORIA_CSV="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='faturamento.csv_exportado' AND id_empresa=$E_TESTE" | tr -d '[:space:]')"
+check "DB: Auditoria 'faturamento.csv_exportado' registrada 3x (só nos exports bem-sucedidos)" "$N_AUDITORIA_CSV" "3"
+
 echo
 if [ "$fails" = "0" ]; then
-  echo "HUB-FATURAMENTO-INTEGRATION: OK — todos os asserts passaram (FASE 3/4: 3.1/3.2/4.1)"
+  echo "HUB-FATURAMENTO-INTEGRATION: OK — todos os asserts passaram (FASE 3/4/5: 3.1/3.2/4.1/5.1)"
 else
   echo "HUB-FATURAMENTO-INTEGRATION: $fails assert(s) FALHARAM" >&2
   exit 1

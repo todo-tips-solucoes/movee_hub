@@ -120,13 +120,13 @@ Ref: contracts/faturamento-api.md "Resposta 200 (`?format=csv`)";
 research.md Decision 5/6/9; spec.md FR-006/FR-007/FR-008; plan.md "Gate
 owasp-security" (finding informativo API4, risco aceito)
 
-- [ ] 5.1.1 Implementar branch `format=csv` em `GET /faturamento`: checagem inline de `faturamento.exportar` ANTES de qualquer query (Decision 9)
-- [ ] 5.1.2 Implementar laço de paginação `Range` em lotes de 1.000 + `res.write()` incremental (sem carregar o período inteiro em memória)
-- [ ] 5.1.3 Setar headers `Content-Type: text/csv; charset=utf-8` + `Content-Disposition: attachment; filename="faturamento-<de>_<ate>.csv"`, cabeçalho `dataReferencia,categoria,valor,entregadorNome,subpraca,praca,periodo`
-- [ ] 5.1.4 Neutralizar células (`categoria`, `entregadorNome`) via `lib/hub-csv.js` (`escaparCelulaCsvInjection`/`quotarCelulaCsv`)
-- [ ] 5.1.5 Registrar auditoria `faturamento.csv_exportado` só no sucesso, via `hub-auditoria.js` (mesmo padrão de `importacao.original_baixado`)
-- [ ] 5.1.6 Tratar filtro vazio: gerar arquivo só com linha de cabeçalho (`200`, não erro)
-- [ ] 5.1.7 Teste integração: export completo bate contagem+soma com a tela (Cenário 7), CSV injection neutralizada com `=`/`@` (Cenário 8), export vazio só cabeçalho (Cenário 9), `403` sem `faturamento.exportar` mesmo com `faturamento.listar` (Cenário 10 passos 3-4)
+- [x] 5.1.1 Implementar branch `format=csv` em `GET /faturamento`: checagem inline de `faturamento.exportar` ANTES de qualquer query (Decision 9)
+- [x] 5.1.2 Implementar laço de paginação `Range` em lotes de 1.000 + `res.write()` incremental (sem carregar o período inteiro em memória)
+- [x] 5.1.3 Setar headers `Content-Type: text/csv; charset=utf-8` + `Content-Disposition: attachment; filename="faturamento-<de>_<ate>.csv"`, cabeçalho `dataReferencia,categoria,valor,entregadorNome,subpraca,praca,periodo`
+- [x] 5.1.4 Neutralizar células (`categoria`, `entregadorNome`) via `lib/hub-csv.js` (`escaparCelulaCsvInjection`/`quotarCelulaCsv`)
+- [x] 5.1.5 Registrar auditoria `faturamento.csv_exportado` só no sucesso, via `hub-auditoria.js` (mesmo padrão de `importacao.original_baixado`)
+- [x] 5.1.6 Tratar filtro vazio: gerar arquivo só com linha de cabeçalho (`200`, não erro)
+- [x] 5.1.7 Teste integração: export completo bate contagem+soma com a tela (Cenário 7), CSV injection neutralizada com `=`/`@` (Cenário 8), export vazio só cabeçalho (Cenário 9), `403` sem `faturamento.exportar` mesmo com `faturamento.listar` (Cenário 10 passos 3-4)
 
 ---
 
