@@ -21,6 +21,7 @@ const {
   agruparAreasPorEntregador,
   mapMotoristaListItem,
   mapMotoristaDetalhe,
+  validarPatchMotorista,
   mascararCnpj,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
@@ -240,5 +241,86 @@ describe('mascararCnpj — LGPD, formato NN.***.***/NNNN-**', () => {
 
   test('entrada com dígitos além de 14 (inválida) -> null', () => {
     assert.equal(mascararCnpj('123456780001955555'), null);
+  });
+});
+
+describe('validarPatchMotorista — allowlist estrita FASE 4 (task 4.1), contracts/motoristas-api.md §PATCH', () => {
+  test('só nome -> patch com nome + nome_editado_manualmente=true', () => {
+    const r = validarPatchMotorista({ nome: 'Novo Nome' });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.patch, { nome: 'Novo Nome', nome_editado_manualmente: true });
+    assert.deepEqual(r.camposAlterados, ['nome']);
+  });
+
+  test('nome com espaços nas pontas -> trim aplicado', () => {
+    const r = validarPatchMotorista({ nome: '  Fulano de Tal  ' });
+    assert.equal(r.ok, true);
+    assert.equal(r.patch.nome, 'Fulano de Tal');
+  });
+
+  test('só ativo -> patch com ativo, SEM nome_editado_manualmente', () => {
+    const r = validarPatchMotorista({ ativo: false });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.patch, { ativo: false });
+    assert.deepEqual(r.camposAlterados, ['ativo']);
+  });
+
+  test('nome + ativo juntos -> ambos no patch, 1 único UPDATE (FR-004)', () => {
+    const r = validarPatchMotorista({ nome: 'X', ativo: true });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.patch, { nome: 'X', nome_editado_manualmente: true, ativo: true });
+    assert.deepEqual(r.camposAlterados, ['nome', 'ativo']);
+  });
+
+  test('nome vazio -> erro INVALIDO (422)', () => {
+    const r = validarPatchMotorista({ nome: '' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'INVALIDO');
+  });
+
+  test('nome só espaços -> erro INVALIDO (422)', () => {
+    const r = validarPatchMotorista({ nome: '   ' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'INVALIDO');
+  });
+
+  test('nome não-string (ex.: número) -> erro INVALIDO', () => {
+    const r = validarPatchMotorista({ nome: 123 });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'INVALIDO');
+  });
+
+  test('ativo não-booleano -> erro INVALIDO', () => {
+    const r = validarPatchMotorista({ ativo: 'true' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'INVALIDO');
+  });
+
+  test('corpo vazio (nenhum campo) -> erro VAZIO', () => {
+    const r = validarPatchMotorista({});
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'VAZIO');
+  });
+
+  test('corpo null/undefined -> erro VAZIO, nunca lança', () => {
+    assert.equal(validarPatchMotorista(null).erro, 'VAZIO');
+    assert.equal(validarPatchMotorista(undefined).erro, 'VAZIO');
+  });
+
+  test('mass-assignment/BOPLA — campos extras são IGNORADOS, nunca vazam para o patch (Decision 12)', () => {
+    const r = validarPatchMotorista({
+      nome: 'Fulano',
+      motoristaId: 999,
+      id: 1,
+      idEmpresa: 42,
+      nomeEditadoManualmente: false,
+      __proto__: { hacked: true },
+    });
+    assert.equal(r.ok, true);
+    const chaves = Object.keys(r.patch).sort();
+    assert.deepEqual(chaves, ['nome', 'nome_editado_manualmente']);
+    assert.equal(r.patch.hacked, undefined);
+    assert.equal(r.patch.motoristaId, undefined);
+    assert.equal(r.patch.idEmpresa, undefined);
   });
 });

@@ -24,6 +24,20 @@
 #   (k) GET /motoristas/:id fora do escopo (outro tenant) -> 404
 #   (l) GET /motoristas/:id inexistente -> 404
 #
+# FASE 4 (task 4.1) — PATCH /motoristas/:id:
+#   (m) PATCH nome -> 200, persiste, seta nomeEditadoManualmente=true,
+#       histórico (resumo) intacto (FR-004)
+#   (n) PATCH ativo (só situação) -> 200, persiste, NÃO seta
+#       nomeEditadoManualmente nem toca nome
+#   (o) PATCH nome vazio/só espaços -> 422; corpo sem nenhum campo -> 422
+#   (p) PATCH sem permissão `motoristas.editar` (usuário de leitura) -> 403
+#   (q) PATCH em Entregador fora do escopo (outro tenant) -> 404
+#   (r) PATCH em id inexistente -> 404
+#   (s) PATCH com campo fora da allowlist (`motoristaId`) -> 200, campo
+#       IGNORADO (nunca chega ao PostgREST, sem efeito colateral no vínculo)
+#   Cenário 4: nome editado manualmente sobrevive a um UPDATE de
+#     reimportação subsequente (trigger 0019, hub_protege_nome_editado_entregador)
+#
 # Uso: infra/hub/testes/hub-motoristas-integration.sh
 # =============================================================================
 set -uo pipefail
@@ -92,12 +106,18 @@ E_SEM_PERM=940003
 psql_t <<SQL >/dev/null
 INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES
   ('motoristas-leitura@example.test', '$HASH_OK', 'Usuario Teste Motoristas Leitura', true),
-  ('motoristas-sempermissao@example.test', '$HASH_OK', 'Usuario Teste Motoristas Sem Permissao', true);
+  ('motoristas-sempermissao@example.test', '$HASH_OK', 'Usuario Teste Motoristas Sem Permissao', true),
+  ('motoristas-editor@example.test', '$HASH_OK', 'Usuario Teste Motoristas Editor', true);
 SQL
 UID_LEITURA="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='motoristas-leitura@example.test'" | tr -d '[:space:]')"
 UID_SEMPERM="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='motoristas-sempermissao@example.test'" | tr -d '[:space:]')"
+UID_EDITOR="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='motoristas-editor@example.test'" | tr -d '[:space:]')"
 PAPEL_LEITURA="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='leitura'" | tr -d '[:space:]')"
 [ -n "$PAPEL_LEITURA" ] || { echo "FAIL: seed 0007 não populou o papel 'leitura' esperado"; exit 1; }
+# 'operador' concede motoristas.editar (0007); 'leitura' NÃO — usado abaixo
+# para o teste bônus 403 de PATCH com o MESMO usuário de leitura já criado.
+PAPEL_OPERADOR="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='operador'" | tr -d '[:space:]')"
+[ -n "$PAPEL_OPERADOR" ] || { echo "FAIL: seed 0007 não populou o papel 'operador' esperado"; exit 1; }
 
 # Papel sintético SEM motoristas.listar/consultar (os 4 papéis-seed de 0007 —
 # admin_plataforma/admin_entidade/operador/leitura — TODOS concedem
@@ -117,7 +137,8 @@ psql_t <<SQL >/dev/null
 INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ($UID_LEITURA, $E_TESTE, $PAPEL_LEITURA, true),
   ($UID_LEITURA, $E_OUTRA, $PAPEL_LEITURA, true),
-  ($UID_SEMPERM, $E_SEM_PERM, $PAPEL_SEM_PERM, true);
+  ($UID_SEMPERM, $E_SEM_PERM, $PAPEL_SEM_PERM, true),
+  ($UID_EDITOR, $E_TESTE, $PAPEL_OPERADOR, true);
 SQL
 
 # --- Seed: ContaMotorista + Entregadores + fatos (INSERT direto via psql,
@@ -202,6 +223,15 @@ async function trocarEntidade(jar, empresaId) {
 }
 async function getJson(jar, path) {
   const r = await fetch(`${BASE}${path}`, { headers: jar ? { Cookie: cookieHeader(jar) } : {} });
+  const body = await r.json().catch(() => null);
+  return { status: r.status, body };
+}
+async function patchJson(jar, path, corpo) {
+  const r = await fetch(`${BASE}${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...(jar ? { Cookie: cookieHeader(jar) } : {}) },
+    body: JSON.stringify(corpo),
+  });
   const body = await r.json().catch(() => null);
   return { status: r.status, body };
 }
@@ -326,6 +356,58 @@ async function main() {
   const rSemPermDetalhe = await getJson(jarSemPerm, `/motoristas/${entJose}`);
   out.sem_permissao_detalhe_status = rSemPermDetalhe.status;
 
+  // ── FASE 4 (task 4.1) — PATCH /motoristas/:id ───────────────────────────
+  let jarEditor = await login('motoristas-editor@example.test', senha);
+  jarEditor = await trocarEntidade(jarEditor, empresaTeste);
+
+  // (m) PATCH nome -> 200, nome atualizado, nomeEditadoManualmente=true
+  const rPatchNome = await patchJson(jarEditor, `/motoristas/${entAna}`, { nome: 'Ana Costa Editada' });
+  out.patch_nome_status = rPatchNome.status;
+  out.patch_nome_valor = rPatchNome.body && rPatchNome.body.nome;
+  out.patch_nome_editado_manualmente = rPatchNome.body && rPatchNome.body.nomeEditadoManualmente;
+  // histórico intacto: resumo/areas de Ana continuam zerados (PATCH não toca fatos)
+  out.patch_nome_resumo_intacto = rPatchNome.body && rPatchNome.body.resumo
+    && rPatchNome.body.resumo.totalFaturamento === 0 && rPatchNome.body.resumo.totalPerformance === 0 ? 'true' : 'false';
+
+  // (n) PATCH ativo (só situação, sem tocar nome) -> 200, nomeEditadoManualmente NÃO muda
+  const rPatchAtivo = await patchJson(jarEditor, `/motoristas/${entMaria}`, { ativo: true });
+  out.patch_ativo_status = rPatchAtivo.status;
+  out.patch_ativo_valor = rPatchAtivo.body && rPatchAtivo.body.ativo;
+  out.patch_ativo_nome_inalterado = rPatchAtivo.body && rPatchAtivo.body.nome === 'Maria Santos' ? 'true' : 'false';
+  out.patch_ativo_nome_editado_manualmente = rPatchAtivo.body && rPatchAtivo.body.nomeEditadoManualmente;
+
+  // (o) PATCH nome vazio -> 422
+  const rPatchInvalido = await patchJson(jarEditor, `/motoristas/${entJose}`, { nome: '   ' });
+  out.patch_invalido_status = rPatchInvalido.status;
+
+  // (o.bis) PATCH corpo vazio (nenhum campo) -> 422
+  const rPatchVazio = await patchJson(jarEditor, `/motoristas/${entJose}`, {});
+  out.patch_vazio_status = rPatchVazio.status;
+
+  // (p) PATCH sem permissão motoristas.editar (usuário de leitura) -> 403
+  const rPatchSemPerm = await patchJson(jar, `/motoristas/${entJose}`, { nome: 'Tentativa Nao Autorizada' });
+  out.patch_sem_permissao_status = rPatchSemPerm.status;
+
+  // (q) PATCH em Entregador fora do escopo (do outro tenant) -> 404
+  const rPatchForaEscopo = await patchJson(jarEditor, `/motoristas/${entOutra}`, { nome: 'Nao Deveria Editar' });
+  out.patch_fora_escopo_status = rPatchForaEscopo.status;
+
+  // (r) PATCH em id inexistente -> 404
+  const rPatchInexistente = await patchJson(jarEditor, '/motoristas/999999999', { nome: 'X' });
+  out.patch_inexistente_status = rPatchInexistente.status;
+
+  // (s) mass-assignment: campos fora da allowlist são ignorados (200, nome
+  // persiste, sem efeito colateral) — usa José (nome_editado_manualmente
+  // ainda `false` neste ponto: os PATCHs anteriores sobre ele foram 422/403,
+  // nenhum tocou o banco) para não conflitar com o Cenário 4 abaixo, que
+  // precisa de Ana com EXATAMENTE 1 edição manual prévia (trigger 0019 só
+  // protege a partir da 2ª escrita — reeditar de novo aqui reproduziria o
+  // mesmo efeito de um "reimport" sobre a própria Ana, poluindo o cenário).
+  const rPatchMassAssign = await patchJson(jarEditor, `/motoristas/${entJose}`, { nome: 'Jose Mass Assign', motoristaId: 999999 });
+  out.patch_mass_assign_status = rPatchMassAssign.status;
+  out.patch_mass_assign_nome = rPatchMassAssign.body && rPatchMassAssign.body.nome;
+  out.patch_mass_assign_sem_vinculo = rPatchMassAssign.body && rPatchMassAssign.body.vinculo === null ? 'true' : 'false';
+
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
 main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
@@ -395,9 +477,43 @@ check "detalhe de id inexistente -> 404" "$(jget detalhe_inexistente_status)" "4
 check "usuário sem motoristas.listar -> GET /motoristas 403" "$(jget sem_permissao_lista_status)" "403"
 check "usuário sem motoristas.consultar -> GET /motoristas/:id 403" "$(jget sem_permissao_detalhe_status)" "403"
 
+# ── FASE 4 (task 4.1.6) — PATCH /motoristas/:id ──────────────────────────
+check "PATCH nome -> 200" "$(jget patch_nome_status)" "200"
+check "PATCH nome -> valor persistido" "$(jget patch_nome_valor)" "Ana Costa Editada"
+check "PATCH nome -> nomeEditadoManualmente=true" "$(jget patch_nome_editado_manualmente)" "true"
+check "PATCH nome -> histórico (resumo) intacto (FR-004)" "$(jget patch_nome_resumo_intacto)" "true"
+
+check "PATCH ativo -> 200" "$(jget patch_ativo_status)" "200"
+check "PATCH ativo -> valor persistido" "$(jget patch_ativo_valor)" "true"
+check "PATCH ativo -> nome NÃO tocado" "$(jget patch_ativo_nome_inalterado)" "true"
+check "PATCH ativo (só situação) -> nomeEditadoManualmente NÃO muda (permanece false)" "$(jget patch_ativo_nome_editado_manualmente)" "false"
+
+check "PATCH nome vazio/só espaços -> 422" "$(jget patch_invalido_status)" "422"
+check "PATCH corpo vazio (nenhum campo) -> 422" "$(jget patch_vazio_status)" "422"
+check "PATCH sem motoristas.editar (usuário de leitura) -> 403" "$(jget patch_sem_permissao_status)" "403"
+check "PATCH em Entregador fora do escopo (outro tenant) -> 404" "$(jget patch_fora_escopo_status)" "404"
+check "PATCH em id inexistente -> 404" "$(jget patch_inexistente_status)" "404"
+
+check "PATCH mass-assignment (motoristaId fora da allowlist) -> 200 (ignorado, não quebra)" "$(jget patch_mass_assign_status)" "200"
+check "PATCH mass-assignment -> nome persiste normalmente (1ª edição de José)" "$(jget patch_mass_assign_nome)" "Jose Mass Assign"
+check "PATCH mass-assignment -> vinculo continua null (motoristaId do corpo NUNCA chega ao PostgREST)" "$(jget patch_mass_assign_sem_vinculo)" "true"
+
+# ── Cenário 4 (task 4.1.6) — sobrevivência à reimportação ────────────────
+# Ana tem EXATAMENTE 1 edição manual prévia (PATCH nome, cenário (m) acima) —
+# nome_editado_manualmente=true. Simula o pipeline S4 de reimportação fazendo
+# um UPDATE direto na linha (mesmo caminho que hub-import-processor.js usaria
+# num upsert por id_externo) tentando sobrescrever o nome — o trigger 0019
+# (trg_entregador_protege_nome) deve reverter NEW.nome para o valor editado
+# manualmente, incondicionalmente, não importa quem fez o UPDATE.
+psql_t <<SQL >/dev/null
+UPDATE "Entregador" SET nome = 'Nome Vindo Da Reimportacao' WHERE id = $ENT_ANA;
+SQL
+NOME_APOS_REIMPORT="$(psql_t -tAc "SELECT nome FROM \"Entregador\" WHERE id=$ENT_ANA" | sed 's/[[:space:]]*$//')"
+check "Cenário 4: nome editado manualmente sobrevive a UPDATE de reimportação (trigger 0019)" "$NOME_APOS_REIMPORT" "Ana Costa Editada"
+
 echo
 if [ "$fails" = "0" ]; then
-  echo "HUB-MOTORISTAS-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2)"
+  echo "HUB-MOTORISTAS-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2; FASE 4: 4.1)"
 else
   echo "HUB-MOTORISTAS-INTEGRATION: $fails assert(s) FALHARAM" >&2
   exit 1

@@ -154,6 +154,60 @@ function mapMotoristaDetalhe(row, areas, resumo) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// FASE 4 — PATCH /motoristas/:id (task 4.1): allowlist estrita do corpo
+// (contracts/motoristas-api.md §PATCH, research.md Decision 12 — guarda
+// anti mass-assignment/BOPLA). Extraído para função pura testável sem
+// PostgREST/Express real, mesmo padrão do resto deste arquivo.
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Valida e extrai SOMENTE `nome`/`ativo` do corpo cru da requisição — qualquer
+ * outra chave (`motoristaId`, `id`, `idEmpresa`, `nomeEditadoManualmente`,
+ * etc.) é ignorada, nunca repassada ao PostgREST (allowlist estrita,
+ * contracts/motoristas-api.md §PATCH).
+ *
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, patch:object, camposAlterados:string[]}|{ok:false, erro:'VAZIO'|'INVALIDO'}}
+ *   `ok:false, erro:'VAZIO'` — nem `nome` nem `ativo` presentes no corpo (nada a alterar).
+ *   `ok:false, erro:'INVALIDO'` — `nome` presente mas vazio/só espaços (422).
+ *   `ok:true` — `patch` é o objeto pronto para o PATCH no PostgREST
+ *   (snake_case; inclui `nome_editado_manualmente:true` quando `nome` muda) e
+ *   `camposAlterados` é a lista (para o detalhe de auditoria).
+ */
+function validarPatchMotorista(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+  const temNome = Object.prototype.hasOwnProperty.call(corpo, 'nome');
+  const temAtivo = Object.prototype.hasOwnProperty.call(corpo, 'ativo');
+
+  if (!temNome && !temAtivo) {
+    return { ok: false, erro: 'VAZIO' };
+  }
+
+  const patch = {};
+  const camposAlterados = [];
+
+  if (temNome) {
+    const nome = typeof corpo.nome === 'string' ? corpo.nome.trim() : '';
+    if (!nome) {
+      return { ok: false, erro: 'INVALIDO' };
+    }
+    patch.nome = nome;
+    patch.nome_editado_manualmente = true;
+    camposAlterados.push('nome');
+  }
+
+  if (temAtivo) {
+    if (typeof corpo.ativo !== 'boolean') {
+      return { ok: false, erro: 'INVALIDO' };
+    }
+    patch.ativo = corpo.ativo;
+    camposAlterados.push('ativo');
+  }
+
+  return { ok: true, patch, camposAlterados };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Máscara de CNPJ (LGPD, contracts/motoristas-api.md §Mascaramento de CNPJ)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -189,5 +243,6 @@ module.exports = {
   agruparAreasPorEntregador,
   mapMotoristaListItem,
   mapMotoristaDetalhe,
+  validarPatchMotorista,
   mascararCnpj,
 };

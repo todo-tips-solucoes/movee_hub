@@ -133,12 +133,28 @@ esse caso — todos concedem `motoristas.consultar`/`listar`).
 
 Ref: plan Fase 4, spec FR-004/FR-005, research Decision 6/9/12, contracts PATCH /:id
 
-- [ ] 4.1.1 Implementar handler `PATCH /motoristas/:id` com allowlist de campos (só nome/situação — nenhum campo extra, guarda anti mass-assignment/BOPLA — Decision 12)
-- [ ] 4.1.2 Gravar `nome_editado_manualmente=true` quando `nome` muda; NÃO tocar `FaturamentoLancamento`/`PerformanceTurno` (FR-004)
-- [ ] 4.1.3 Validar `nome` vazio/só espaços → `422 INVALIDO`; fora do escopo → `404`
-- [ ] 4.1.4 Exigir permissão RBAC via `requirePermission` (FR-005, Decision 7); `403` fail-closed sem permissão
-- [ ] 4.1.5 Registrar auditoria `motorista.editado` via `registrarAuditoria()` (FR-014, Decision 9)
-- [ ] 4.1.6 Testes de integração: edição persiste, histórico intacto, 422/403/404; sobrevivência à reimportação (Cenário 4)
+- [x] 4.1.1 Implementar handler `PATCH /motoristas/:id` com allowlist de campos (só nome/situação — nenhum campo extra, guarda anti mass-assignment/BOPLA — Decision 12) <!-- routes/hub-motoristas.js PATCH /:id + lib/hub-motoristas-dto.js#validarPatchMotorista -->
+- [x] 4.1.2 Gravar `nome_editado_manualmente=true` quando `nome` muda; NÃO tocar `FaturamentoLancamento`/`PerformanceTurno` (FR-004) <!-- validarPatchMotorista seta ambos no mesmo objeto de patch; único UPDATE em Entregador -->
+- [x] 4.1.3 Validar `nome` vazio/só espaços → `422 INVALIDO`; fora do escopo → `404` <!-- validarPatchMotorista + checagem de escopo por id_empresa antes do UPDATE -->
+- [x] 4.1.4 Exigir permissão RBAC via `requirePermission` (FR-005, Decision 7); `403` fail-closed sem permissão <!-- requirePermission('motoristas.editar') -->
+- [x] 4.1.5 Registrar auditoria `motorista.editado` via `registrarAuditoria()` (FR-014, Decision 9) <!-- detalhes: {camposAlterados} -->
+- [x] 4.1.6 Testes de integração: edição persiste, histórico intacto, 422/403/404; sobrevivência à reimportação (Cenário 4) <!-- infra/hub/testes/hub-motoristas-integration.sh cenários (m)-(s) + Cenário 4; unit validarPatchMotorista em tests/hub-motoristas-dto.test.js (11 casos) -->
+
+**Achado emergente (não-bloqueante para 4.1, registrado p/ decisão de produto futura)**:
+o trigger `trg_entregador_protege_nome` (migration 0019, Decision 6) protege o
+`nome` de QUALQUER `UPDATE` subsequente assim que `nome_editado_manualmente=true`
+— inclusive um **2º `PATCH` legítimo** feito pelo próprio operador para corrigir
+a edição anterior (não só a reimportação do S4, único caso coberto pelo
+Clarification Q5/quickstart Cenário 4). Confirmado empiricamente durante os
+testes de integração desta tarefa: um 2º `PATCH {nome}` no mesmo Entregador
+retorna `200` mas o `nome` no corpo da resposta permanece o valor da 1ª edição
+(o trigger reverte `NEW.nome` incondicionalmente, sem diferenciar
+app-legítima de upsert-de-reimportação). Não é regressão de 4.1 nem estava no
+escopo do Clarification Q5 — é uma limitação pré-existente da Decision 6 que só
+se manifesta ao tentar reeditar. Sem ação nesta onda (exigiria decisão de
+produto sobre se reedição deve ser permitida + possível nova migration
+expand-only com um mecanismo de bypass transacional). Ver FASE 8 para revisitar
+antes do fechamento da feature.
 
 ---
 
@@ -228,6 +244,7 @@ Ref: plan Fase 8, briefing (ordem: E2E → evidências)
 - [ ] 8.2.1 Coletar evidências dos E2E (saídas/prints) no hub-homolog isolado
 - [ ] 8.2.2 Verificar SC-007 (zero alterações observáveis na base de contas do app motorista) e FR-015/FR-016 (nenhuma escrita/regressão fora do escopo)
 - [ ] 8.2.3 Consolidar evidências no diário/PR da S5 para revisão do operador
+- [ ] 8.2.4 Revisitar achado emergente da tarefa 4.1 (trigger `trg_entregador_protege_nome`, migration 0019, bloqueia um 2º `PATCH` de nome mesmo do próprio operador — não só reimportação): decidir com o operador se reedição deve ser permitida e, se sim, desenhar o mecanismo (nova migration expand-only)
 
 ---
 

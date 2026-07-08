@@ -37,6 +37,7 @@ const jwt = require('jsonwebtoken');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { requirePermission } = require('../middleware/hub-require-permission');
+const { registrarAuditoria } = require('../lib/hub-auditoria');
 const {
   parsePaginacao,
   nomeCasa,
@@ -44,6 +45,7 @@ const {
   agruparAreasPorEntregador,
   mapMotoristaListItem,
   mapMotoristaDetalhe,
+  validarPatchMotorista,
 } = require('../lib/hub-motoristas-dto');
 
 const router = express.Router();
@@ -187,6 +189,74 @@ router.get('/', requirePermission('motoristas.listar'), async (req, res) => {
 // GET /motoristas/:id — detalhe com indicadores all-time (task 3.2)
 // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Busca 1 Entregador (escopado por `id_empresa`) + embed `ContaMotorista` +
+ * areas + resumo de indicadores all-time e monta o shape de detalhe do
+ * contrato (`GET /motoristas/:id`). Extraído para ser reusado por
+ * `PATCH /motoristas/:id` (task 4.1 — "Response 200: mesmo shape do
+ * detalhe", contracts/motoristas-api.md §PATCH), evitando duplicar as 3
+ * queries (Entregador+embed, áreas, resumo) entre os dois handlers.
+ * @returns {Promise<object|null>} `null` se `id` fora do escopo/inexistente.
+ */
+async function buscarDetalheMotorista(id, entidadeAtiva, claims) {
+  // 404 se fora do escopo do token: filtro explícito por id_empresa (defesa
+  // em profundidade — RLS já nega a linha via escopo). Embed nativo do
+  // PostgREST via FK física Entregador.motorista_id -> ContaMotorista(id)
+  // (migration 0021) — confirmado empiricamente no teste de integração.
+  const linhas = await hubPostgrestRequest(
+    `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+    + '&select=id,nome,ativo,nome_editado_manualmente,motorista_id,'
+    + 'ContaMotorista(id,nome,cnpj_prestador)',
+    'GET', null, claims
+  );
+  if (!linhas || linhas.length === 0) return null;
+  const row = linhas[0];
+  // PostgREST embed 1:1 via FK única pode devolver objeto único ou array
+  // de 1 elemento dependendo da versão/config — normaliza para objeto.
+  if (Array.isArray(row.ContaMotorista)) {
+    row.ContaMotorista = row.ContaMotorista[0] || null;
+  }
+
+  // Entregador sem histórico de importação: `areas`/`resumo` zerados, sem
+  // erro (as queries abaixo naturalmente retornam vazio/0).
+  const areasMap = await buscarAreasPorEntregador([id], claims);
+  const areas = areasMap.get(id) || [];
+
+  // Resumo de indicadores all-time (data-model.md §Resumo de indicadores):
+  // 1 query por tabela, combinando count=exact (header Content-Range) com
+  // a linha mais recente (order+limit via range 0-0) — nenhuma linha de
+  // fato crua além da 1 necessária para `dataMaisRecente`.
+  const fatur = await hubPostgrestRequest(
+    `FaturamentoLancamento?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+    + '&select=data_referencia&order=data_referencia.desc',
+    'GET', null, claims,
+    { count: true, range: { from: 0, to: 0 } }
+  );
+  const perf = await hubPostgrestRequest(
+    `PerformanceTurno?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+    + '&select=data_periodo&order=data_periodo.desc',
+    'GET', null, claims,
+    { count: true, range: { from: 0, to: 0 } }
+  );
+
+  const dataFatur = fatur.data && fatur.data[0] ? fatur.data[0].data_referencia : null;
+  const dataPerf = perf.data && perf.data[0] ? perf.data[0].data_periodo : null;
+  let dataMaisRecente = null;
+  if (dataFatur && dataPerf) {
+    dataMaisRecente = dataFatur >= dataPerf ? dataFatur : dataPerf;
+  } else {
+    dataMaisRecente = dataFatur || dataPerf || null;
+  }
+
+  const resumo = {
+    totalFaturamento: fatur.total || 0,
+    totalPerformance: perf.total || 0,
+    dataMaisRecente,
+  };
+
+  return mapMotoristaDetalhe(row, areas, resumo);
+}
+
 router.get('/:id', requirePermission('motoristas.consultar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'motoristas.consultar');
@@ -196,65 +266,69 @@ router.get('/:id', requirePermission('motoristas.consultar'), async (req, res) =
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
 
-    // 3.2.2 — 404 se fora do escopo do token: filtro explícito por
-    // id_empresa (defesa em profundidade — RLS já nega a linha via escopo).
-    // Embed nativo do PostgREST via FK física Entregador.motorista_id ->
-    // ContaMotorista(id) (migration 0021) — confirmado empiricamente no
-    // teste de integração.
-    const linhas = await hubPostgrestRequest(
-      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
-      + '&select=id,nome,ativo,nome_editado_manualmente,motorista_id,'
-      + 'ContaMotorista(id,nome,cnpj_prestador)',
-      'GET', null, claims
-    );
-    if (!linhas || linhas.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
-    const row = linhas[0];
-    // PostgREST embed 1:1 via FK única pode devolver objeto único ou array
-    // de 1 elemento dependendo da versão/config — normaliza para objeto.
-    if (Array.isArray(row.ContaMotorista)) {
-      row.ContaMotorista = row.ContaMotorista[0] || null;
-    }
+    const detalhe = await buscarDetalheMotorista(id, entidadeAtiva, claims);
+    if (!detalhe) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
-    // 3.2.3 — Entregador sem histórico de importação: `areas`/`resumo`
-    // zerados, sem erro (as queries abaixo naturalmente retornam vazio/0).
-    const areasMap = await buscarAreasPorEntregador([id], claims);
-    const areas = areasMap.get(id) || [];
-
-    // Resumo de indicadores all-time (data-model.md §Resumo de indicadores):
-    // 1 query por tabela, combinando count=exact (header Content-Range) com
-    // a linha mais recente (order+limit via range 0-0) — nenhuma linha de
-    // fato crua além da 1 necessária para `dataMaisRecente`.
-    const fatur = await hubPostgrestRequest(
-      `FaturamentoLancamento?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
-      + '&select=data_referencia&order=data_referencia.desc',
-      'GET', null, claims,
-      { count: true, range: { from: 0, to: 0 } }
-    );
-    const perf = await hubPostgrestRequest(
-      `PerformanceTurno?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
-      + '&select=data_periodo&order=data_periodo.desc',
-      'GET', null, claims,
-      { count: true, range: { from: 0, to: 0 } }
-    );
-
-    const dataFatur = fatur.data && fatur.data[0] ? fatur.data[0].data_referencia : null;
-    const dataPerf = perf.data && perf.data[0] ? perf.data[0].data_periodo : null;
-    let dataMaisRecente = null;
-    if (dataFatur && dataPerf) {
-      dataMaisRecente = dataFatur >= dataPerf ? dataFatur : dataPerf;
-    } else {
-      dataMaisRecente = dataFatur || dataPerf || null;
-    }
-
-    const resumo = {
-      totalFaturamento: fatur.total || 0,
-      totalPerformance: perf.total || 0,
-      dataMaisRecente,
-    };
-
-    return res.status(200).json(mapMotoristaDetalhe(row, areas, resumo));
+    return res.status(200).json(detalhe);
   } catch (e) {
     console.error('[hub-motoristas] erro em GET /motoristas/:id:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PATCH /motoristas/:id — editar nome/situação com allowlist estrita (task 4.1)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.patch('/:id', requirePermission('motoristas.editar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.editar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    // Allowlist estrita — só `nome`/`ativo` do corpo cru chegam ao PostgREST
+    // (guarda anti mass-assignment/BOPLA, research.md Decision 12).
+    const validado = validarPatchMotorista(req.body);
+    if (!validado.ok) {
+      return res.status(422).json({ erro: 'INVALIDO' });
+    }
+
+    // 404 fora do escopo ANTES do PATCH — filtro explícito por id_empresa
+    // (defesa em profundidade, mesmo padrão de GET /:id); evita um PATCH
+    // "no-op" silencioso contra 0 linhas de outro tenant.
+    const existente = await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+      'GET', null, claims
+    );
+    if (!existente || existente.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    // Único UPDATE (nome/ativo/nome_editado_manualmente juntos, FR-004) —
+    // nunca toca FaturamentoLancamento/PerformanceTurno.
+    await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`,
+      'PATCH', validado.patch, claims,
+      { returnMinimal: true }
+    );
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.editado',
+      recurso: 'Entregador',
+      recursoId: id,
+      detalhes: { camposAlterados: validado.camposAlterados },
+      claims,
+    });
+
+    const detalhe = await buscarDetalheMotorista(id, entidadeAtiva, claims);
+    if (!detalhe) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    return res.status(200).json(detalhe);
+  } catch (e) {
+    console.error('[hub-motoristas] erro em PATCH /motoristas/:id:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
