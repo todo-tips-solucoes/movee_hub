@@ -136,23 +136,23 @@ owasp-security" (finding informativo API4, risco aceito)
 
 Ref: plan.md "Project Structure" (frontend_v2); contracts/faturamento-api.md; research.md Decision 7 (valor como string)
 
-- [ ] 6.1.1 Criar `app_homologacao/frontend_v2/lib/hub/faturamento-dto.ts`: tipos + parse defensivo (padrão de `motoristas-dto.ts`), `valor`/`total`/`totalGeral` tipados como `string`
-- [ ] 6.1.2 Criar `app_homologacao/frontend_v2/lib/hub/faturamento-api.ts`: chamadas a `GET /faturamento`, `GET /faturamento/resumo` (com/sem `groupBy`) e export CSV
-- [ ] 6.1.3 Teste: roundtrip real contra o backend vivo do `hub-homolog` (Cenário 13) usando `faturamento-dto.ts` — nenhum mock no meio, evita drift snake_case↔camelCase
+- [x] 6.1.1 Criar `app_homologacao/frontend_v2/lib/hub/faturamento-dto.ts`: tipos + parse defensivo (padrão de `motoristas-dto.ts`), `valor`/`total`/`totalGeral` tipados como `string`
+- [x] 6.1.2 Criar `app_homologacao/frontend_v2/lib/hub/faturamento-api.ts`: chamadas a `GET /faturamento`, `GET /faturamento/resumo` (com/sem `groupBy`) e export CSV
+- [x] 6.1.3 Teste: roundtrip real contra o backend vivo do `hub-homolog` (Cenário 13) usando `faturamento-dto.ts` — nenhum mock no meio, evita drift snake_case↔camelCase
 
 ### 6.2 Página `/hub/dashboard/faturamento` `[A]`
 
 Ref: plan.md "Plano por fases" passo 6; research.md Decision 10/11;
 `/ui-ux-pro-max`; padrão de `.../importacoes/page.tsx`; spec.md FR-010/FR-013
 
-- [ ] 6.2.1 Criar `app_homologacao/frontend_v2/app/hub/dashboard/faturamento/page.tsx` com cards de totais (total geral, categoria de maior valor, entregadores distintos)
-- [ ] 6.2.2 Implementar filtros server-side (`de`/`ate`/`categoria`/`entregadorId`/`subpraca`/`comEntregador`), rotulando explicitamente o filtro de data como "data de competência" (Cenário 5)
-- [ ] 6.2.3 Implementar tabela paginada de lançamentos
-- [ ] 6.2.4 Implementar botão de export condicionado à permissão `faturamento.exportar` (via `GET /me`) — não aparece quando ausente (Cenário 10)
-- [ ] 6.2.5 Implementar link condicional para `/hub/dashboard/motoristas/{entregadorId}` quando `entregadorId != null` E `motoristas.consultar` presente (Cenário 12)
-- [ ] 6.2.6 Implementar estados "período sem dados" / loading / erro (Cenário 6)
-- [ ] 6.2.7 Validar identidade visual EntreGô 2.0 (tokens de cor/tipografia) em tema claro/escuro (Cenário 14)
-- [ ] 6.2.8 Teste: smoke/E2E de UI cobrindo filtros, paginação, export condicionado, navegação condicional, estados vazio/loading/erro
+- [x] 6.2.1 Criar `app_homologacao/frontend_v2/app/hub/dashboard/faturamento/page.tsx` com cards de totais (total geral, categoria de maior valor, entregadores distintos)
+- [x] 6.2.2 Implementar filtros server-side (`de`/`ate`/`categoria`/`entregadorId`/`subpraca`/`comEntregador`), rotulando explicitamente o filtro de data como "data de competência" (Cenário 5)
+- [x] 6.2.3 Implementar tabela paginada de lançamentos
+- [x] 6.2.4 Implementar botão de export condicionado à permissão `faturamento.exportar` (via `GET /me`) — não aparece quando ausente (Cenário 10)
+- [x] 6.2.5 Implementar link condicional para `/hub/dashboard/motoristas/{entregadorId}` quando `entregadorId != null` E `motoristas.consultar` presente (Cenário 12)
+- [x] 6.2.6 Implementar estados "período sem dados" / loading / erro (Cenário 6)
+- [x] 6.2.7 Validar identidade visual EntreGô 2.0 (tokens de cor/tipografia) em tema claro/escuro (Cenário 14)
+- [x] 6.2.8 Teste: smoke/E2E de UI cobrindo filtros, paginação, export condicionado, navegação condicional, estados vazio/loading/erro
 
 ---
 
