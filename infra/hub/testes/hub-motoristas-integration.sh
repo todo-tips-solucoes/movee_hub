@@ -35,8 +35,15 @@
 #   (r) PATCH em id inexistente -> 404
 #   (s) PATCH com campo fora da allowlist (`motoristaId`) -> 200, campo
 #       IGNORADO (nunca chega ao PostgREST, sem efeito colateral no vínculo)
-#   Cenário 4: nome editado manualmente sobrevive a um UPDATE de
-#     reimportação subsequente (trigger 0019, hub_protege_nome_editado_entregador)
+#   tasks.md 8.2.4 (block-004/dec-048, migration 0025) — reedição manual sem
+#     limite: (m.bis) 2ª/3ª PATCH de nome pelo operador (mesmo Entregador,
+#     nome_editado_manualmente já true) -> sempre 200, sempre persiste
+#   Cenário 4 (trigger 0019/0025, hub_protege_nome_editado_entregador +
+#     hub_jwt_origem_importacao):
+#     (b) reimportação S4 (claim origem_importacao=true) sobre Entregador
+#         editado manualmente -> nome NUNCA sobrescrito
+#     (c) reimportação S4 sobre Entregador NUNCA editado manualmente ->
+#         nome atualizado normalmente
 #
 # FASE 5 (tasks.md 5.1/5.2) — GET /motoristas/:id/sugestoes e
 # GET /motoristas/contas-elegiveis (quickstart Cenários 5/7/9):
@@ -462,6 +469,23 @@ async function main() {
   out.patch_nome_resumo_intacto = rPatchNome.body && rPatchNome.body.resumo
     && rPatchNome.body.resumo.totalFaturamento === 0 && rPatchNome.body.resumo.totalPerformance === 0 ? 'true' : 'false';
 
+  // (m.bis) tasks.md 8.2.4 (block-004/dec-048) — decisão do operador: reedição
+  // manual SEMPRE permitida, quantas vezes o operador quiser. Ana já está com
+  // nome_editado_manualmente=true (PATCH acima); um 2º e um 3º PATCH de nome
+  // pelo MESMO caminho manual (routes/hub-motoristas.js, sem a claim
+  // origemImportacao) MUST continuar retornando 200 e persistindo o novo
+  // valor — antes da migration 0025 o trigger 0019 bloqueava
+  // incondicionalmente a partir da 1ª edição (achado da tarefa 4.1).
+  const rPatchNome2 = await patchJson(jarEditor, `/motoristas/${entAna}`, { nome: 'Ana Costa Reeditada' });
+  out.patch_nome2_status = rPatchNome2.status;
+  out.patch_nome2_valor = rPatchNome2.body && rPatchNome2.body.nome;
+  out.patch_nome2_editado_manualmente = rPatchNome2.body && rPatchNome2.body.nomeEditadoManualmente;
+
+  const rPatchNome3 = await patchJson(jarEditor, `/motoristas/${entAna}`, { nome: 'Ana Costa Re-Reeditada' });
+  out.patch_nome3_status = rPatchNome3.status;
+  out.patch_nome3_valor = rPatchNome3.body && rPatchNome3.body.nome;
+  out.patch_nome3_editado_manualmente = rPatchNome3.body && rPatchNome3.body.nomeEditadoManualmente;
+
   // (n) PATCH ativo (só situação, sem tocar nome) -> 200, nomeEditadoManualmente NÃO muda
   const rPatchAtivo = await patchJson(jarEditor, `/motoristas/${entMaria}`, { ativo: true });
   out.patch_ativo_status = rPatchAtivo.status;
@@ -571,10 +595,11 @@ async function main() {
   // (s) mass-assignment: campos fora da allowlist são ignorados (200, nome
   // persiste, sem efeito colateral) — usa José (nome_editado_manualmente
   // ainda `false` neste ponto: os PATCHs anteriores sobre ele foram 422/403,
-  // nenhum tocou o banco) para não conflitar com o Cenário 4 abaixo, que
-  // precisa de Ana com EXATAMENTE 1 edição manual prévia (trigger 0019 só
-  // protege a partir da 2ª escrita — reeditar de novo aqui reproduziria o
-  // mesmo efeito de um "reimport" sobre a própria Ana, poluindo o cenário).
+  // nenhum tocou o banco) em vez de reusar Ana, mantendo o rastro de edições
+  // de Ana previsível para o Cenário 4 abaixo (que agora, pós-migration 0025/
+  // tasks.md 8.2.4, valida contra o valor da SUA 3ª edição manual — a
+  // proteção do trigger 0019 não depende mais de "quantas escritas manuais
+  // já ocorreram", só da claim origemImportacao do caller).
   const rPatchMassAssign = await patchJson(jarEditor, `/motoristas/${entJose}`, { nome: 'Jose Mass Assign', motoristaId: 999999 });
   out.patch_mass_assign_status = rPatchMassAssign.status;
   out.patch_mass_assign_nome = rPatchMassAssign.body && rPatchMassAssign.body.nome;
@@ -722,6 +747,17 @@ check "PATCH nome -> valor persistido" "$(jget patch_nome_valor)" "Ana Costa Edi
 check "PATCH nome -> nomeEditadoManualmente=true" "$(jget patch_nome_editado_manualmente)" "true"
 check "PATCH nome -> histórico (resumo) intacto (FR-004)" "$(jget patch_nome_resumo_intacto)" "true"
 
+# ── tasks.md 8.2.4 (block-004/dec-048) — reedição manual SEM LIMITE ──────
+# decisão do operador: o próprio operador pode corrigir o nome quantas vezes
+# quiser pela tela; migration 0025 restringe a proteção do trigger 0019
+# SÓ à sobrescrita vinda da reimportação S4 (claim origemImportacao).
+check "PATCH nome (2ª edição manual, nome_editado_manualmente já true) -> 200" "$(jget patch_nome2_status)" "200"
+check "PATCH nome (2ª edição) -> valor persistido" "$(jget patch_nome2_valor)" "Ana Costa Reeditada"
+check "PATCH nome (2ª edição) -> nomeEditadoManualmente continua true" "$(jget patch_nome2_editado_manualmente)" "true"
+check "PATCH nome (3ª edição manual) -> 200" "$(jget patch_nome3_status)" "200"
+check "PATCH nome (3ª edição) -> valor persistido" "$(jget patch_nome3_valor)" "Ana Costa Re-Reeditada"
+check "PATCH nome (3ª edição) -> nomeEditadoManualmente continua true" "$(jget patch_nome3_editado_manualmente)" "true"
+
 check "PATCH ativo -> 200" "$(jget patch_ativo_status)" "200"
 check "PATCH ativo -> valor persistido" "$(jget patch_ativo_valor)" "true"
 check "PATCH ativo -> nome NÃO tocado" "$(jget patch_ativo_nome_inalterado)" "true"
@@ -812,18 +848,41 @@ check "auditoria motorista.desvinculado gravada 1x para José (DELETE com víncu
 N_AUD_DESVINCULADO_MARIA="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='motorista.desvinculado' AND recurso_id='$ENT_MARIA'" | tr -d '[:space:]')"
 check "DELETE idempotente (sem vínculo prévio) NUNCA gera auditoria vazia" "$N_AUD_DESVINCULADO_MARIA" "0"
 
-# ── Cenário 4 (task 4.1.6) — sobrevivência à reimportação ────────────────
-# Ana tem EXATAMENTE 1 edição manual prévia (PATCH nome, cenário (m) acima) —
-# nome_editado_manualmente=true. Simula o pipeline S4 de reimportação fazendo
-# um UPDATE direto na linha (mesmo caminho que hub-import-processor.js usaria
-# num upsert por id_externo) tentando sobrescrever o nome — o trigger 0019
-# (trg_entregador_protege_nome) deve reverter NEW.nome para o valor editado
-# manualmente, incondicionalmente, não importa quem fez o UPDATE.
+# ── Cenário 4 (task 4.1.6) — sobrevivência à reimportação (migration 0025,
+# tasks.md 8.2.4/block-004/dec-048) ───────────────────────────────────────
+# Ana já tem 3 edições manuais prévias (cenário (m)/(m.bis) acima) —
+# nome_editado_manualmente=true, nome atual = 'Ana Costa Re-Reeditada'.
+# Simula o pipeline S4 de reimportação (lib/hub-import-processor.js#
+# upsertEntregadoresDoLote) fazendo um UPDATE direto na linha DENTRO de uma
+# transação que seta o GUC `request.jwt.claims` com origem_importacao=true —
+# o mesmo GUC que o PostgREST derivaria da claim JWT emitida por
+# lib/hub-postgrest-jwt.js quando `claims.origemImportacao=true`. O trigger
+# 0019/0025 (trg_entregador_protege_nome / hub_jwt_origem_importacao) deve
+# reverter NEW.nome para o valor manualmente editado SÓ quando esta claim
+# está presente — provando (b) que a reimportação continua não sobrescrevendo
+# um nome editado, mesmo após múltiplas reedições manuais.
 psql_t <<SQL >/dev/null
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"origem_importacao": true}', true);
 UPDATE "Entregador" SET nome = 'Nome Vindo Da Reimportacao' WHERE id = $ENT_ANA;
+COMMIT;
 SQL
 NOME_APOS_REIMPORT="$(psql_t -tAc "SELECT nome FROM \"Entregador\" WHERE id=$ENT_ANA" | sed 's/[[:space:]]*$//')"
-check "Cenário 4: nome editado manualmente sobrevive a UPDATE de reimportação (trigger 0019)" "$NOME_APOS_REIMPORT" "Ana Costa Editada"
+check "Cenário 4 (b): nome editado manualmente (3ª edição) sobrevive a UPDATE de reimportação com claim origem_importacao (trigger 0019/0025)" "$NOME_APOS_REIMPORT" "Ana Costa Re-Reeditada"
+
+# (c) reimportação sobre um Entregador NUNCA editado manualmente (Carlos,
+# nome_editado_manualmente ainda `false` — nenhum PATCH de nome foi feito
+# sobre ele neste script) — a mesma claim origem_importacao=true NÃO deve
+# impedir a atualização normal do nome (a condição do trigger exige AMBOS
+# OLD.nome_editado_manualmente E a claim; aqui só a claim está presente).
+psql_t <<SQL >/dev/null
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"origem_importacao": true}', true);
+UPDATE "Entregador" SET nome = 'Carlos Pereira Reimportado' WHERE id = $ENT_CARLOS;
+COMMIT;
+SQL
+NOME_CARLOS_APOS_REIMPORT="$(psql_t -tAc "SELECT nome FROM \"Entregador\" WHERE id=$ENT_CARLOS" | sed 's/[[:space:]]*$//')"
+check "Cenário 4 (c): reimportação ATUALIZA nome de Entregador nunca editado manualmente" "$NOME_CARLOS_APOS_REIMPORT" "Carlos Pereira Reimportado"
 
 echo
 if [ "$fails" = "0" ]; then

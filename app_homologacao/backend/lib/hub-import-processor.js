@@ -321,11 +321,17 @@ async function upsertEntregadoresDoLote(job, lote, deps) {
     nome,
   }));
 
+  // claim `origemImportacao: true` (aditiva a job.claims, nunca sobrescreve
+  // usuarioId/empresaAtiva/escopo) -- habilita hub_jwt_origem_importacao()
+  // no trigger trg_entregador_protege_nome (migration 0025, tasks.md 8.2.4/
+  // block-004/dec-048), que só protege nome_editado_manualmente=true contra
+  // ESTE caminho (reimportação S4); o PATCH manual (routes/hub-motoristas.js)
+  // nunca emite esta claim e por isso sempre pode reeditar o nome.
   const resultado = await executarComRetry(() => deps.hubPostgrestRequest(
     'Entregador?on_conflict=id_empresa,id_externo',
     'POST',
     payload,
-    job.claims,
+    { ...job.claims, origemImportacao: true },
     { resolution: 'merge-duplicates' }
   ));
 
