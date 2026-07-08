@@ -924,3 +924,62 @@ ou reaproveita as duas permissões já seedadas (`performance.consultar`,
 permissão. Gate `validate-documentation` aplicado no espírito (perfil
 UC/RB não se aplica a `spec.md` SDD) — sem findings críticos. Onda fechada,
 `current_stage=clarify`. Próxima onda: mediação clarify (asker/answerer).
+
+### 2026-07-08 — S7 (módulo Performance): FASE 1-4 (backend) via /feature-00c
+
+Onda 5 de `/feature-00c hub-performance` (branch `feat/hub-performance`,
+criada a partir da main; commit dos artefatos SDD specify→create-tasks das
+ondas 1-4 + backend das FASES 1-4 nesta onda). clarify/plan/checklist/
+create-tasks já haviam concluído (12 tarefas/74 subtarefas em 6 fases,
+gates template-fidelity + docs-render sem findings).
+
+**FASE 1 — Migrations e RBAC**: `0029_seed_permissao_performance_listar.sql`
+(permissão `performance.listar`, mesmo padrão de `0026`/faturamento — os 4
+papéis-seed ganham `listar`, só `admin_plataforma`/`admin_entidade` mantêm
+`exportar`) e `0030_hub_performance_rpc_resumo.sql`
+(`hub_performance_totais`/`hub_performance_agrupado`, `SECURITY INVOKER`,
+fórmula ponderada Σ(pct×duração)/Σduração com fallback para média simples
+quando `duracao IS NULL` no conjunto — research.md Decision 2/3). Aplicadas
+no `hub_homolog_db` via `migrate.sh`; idempotência confirmada por
+re-execução direta via `psql` (não só skip do registro em
+`SchemaMigration`). RLS/`SECURITY INVOKER` provados com dados sintéticos
+inseridos e removidos no `hub_homolog_db` (escopo `[9001]` chamando
+`p_id_empresa=9002` retornou zerado; fórmula ponderada bateu com cálculo
+manual: `78.42` = `2682000/34200`; fallback bateu com média simples
+`80.00`).
+
+**FASE 2 — Lista `GET /performance`**: `lib/hub-performance-dto.js` +
+`routes/hub-performance.js` (arquivo novo, registrado em `server.js`),
+mirror do padrão `hub-faturamento` (S6). `entregadorId`/`entregadorNome`
+sempre presentes (Decision 4, sem bucket "sem entregador"). 34/34 testes
+unit (`hub-performance-dto.test.js`).
+
+**FASE 3 — Resumo `GET /performance/resumo`**: implementado no mesmo
+arquivo de rota da FASE 2 (cards + agrupado por `dia`/`periodo`/
+`entregador`, Decision 12 — literal `periodo`, não `turno`).
+
+**FASE 4 — Export CSV**: streaming em lotes de 1.000 (Decision 5), reuso
+de `lib/hub-csv.js` (Decision 6), checagem inline de `performance.exportar`
+independente de `.listar` (Decision 9), auditoria só no sucesso. Gap
+CHK031 (célula já-neutra por apóstrofo) fechado também no consumidor
+`performance` (não só em `hub-csv.js`).
+
+**Verificação E2E real**: `infra/hub/testes/hub-performance-integration.sh`
+(ambiente `hub-test-<runid>` efêmero, build do backend com o código novo,
+migrations 0002-0030 aplicadas, seeds sintéticos) — **60/60 asserts PASS**
+cobrindo lista/paginação/filtros/isolamento multi-tenant/401/403 (FASE 2),
+cards/agrupado/SC-002 (taxa=razão de somas, nunca média)/SC-009 (divisão
+por zero=null)/período vazio (FASE 3), export completo/CSV
+injection/gap CHK031/auditoria (FASE 4). Ambiente efêmero limpo
+automaticamente ao final (`docker compose down -v`, confirmado sem
+resíduo). `node --test` local: 34 (dto) + 9 (hub-csv, sem regressão) +
+2 wrappers de integração, todos verdes.
+
+7 tasks concluídas nesta onda (1.1, 1.2, 2.1, 2.2, 3.1, 4.1, 4.2) via
+`state-ondas.sh record-task`. Onda fechada por corte natural na Matriz de
+Dependências: FASE 5 (tela `/hub/dashboard/performance`, frontend
+Next.js) é domínio distinto (UI/UX) das FASES 1-4 (backend), e depende de
+F2+F3+F4 — todas prontas. Próxima onda: FASE 5 (DTO/API client
+frontend + página com cards/filtros/tabela/export, seguindo
+`/ui-ux-pro-max` e o padrão de `.../faturamento/page.tsx`), depois FASE 6
+(E2E completo no `hub-homolog` + evidências + DIÁRIO final).
