@@ -68,10 +68,10 @@ Ref: plan Fase 5, research Decision 10/11, data-model §uso combinado
 
 Ref: plan Fase 2, research Decision 2, docs/plans/hub-frota (S10-safe)
 
-- [ ] 2.1.1 Estender `infra/hub/scripts/gen-seeds.py` para gerar `ContaMotorista` com nomes variando acento/caixa/espaçamento contra `Entregador` existentes (exercita normalização/similaridade)
-- [ ] 2.1.2 Gerar `EmpresaGrupoMovee` incluindo o `id_empresa` de teste elegível e deixando outro de fora (ramo não-elegível, FR-011)
-- [ ] 2.1.3 Incluir par de nomes idênticos/quase-idênticos e conta já vinculada a outro Entregador (para exercitar SC-003 e o 409 do FR-012)
-- [ ] 2.1.4 Garantir seeds S10-safe/idempotentes; aplicar no hub-homolog e validar contagens
+- [x] 2.1.1 Estender `infra/hub/scripts/gen-seeds.py` para gerar `ContaMotorista` com nomes variando acento/caixa/espaçamento contra `Entregador` existentes (exercita normalização/similaridade) — 12 variantes do 1º nome fake do `anon.name_map` (mesma execução que gera as CSVs de faturamento/performance, garantindo que o nome bate 1:1 quando o Entregador correspondente for importado); validado empiricamente via `similarity()` real no hub-homolog: variantes de caixa/acento/espaçamento = 1.0 (>= limiar 0.3)
+- [x] 2.1.2 Gerar `EmpresaGrupoMovee` incluindo o `id_empresa` de teste elegível e deixando outro de fora (ramo não-elegível, FR-011) — `--id-empresa-elegivel` (default 9001, mesmo tenant da S4) inserido; `--id-empresa-nao-elegivel` (default 9002) deliberadamente NÃO inserido; validado: `SELECT id_empresa FROM "EmpresaGrupoMovee"` retorna só `9001`
+- [x] 2.1.3 Incluir par de nomes idênticos/quase-idênticos e conta já vinculada a outro Entregador (para exercitar SC-003 e o 409 do FR-012) — par quase-idêntico entre si (independente de Entregador) + 6 contas "ruído" (nomes não relacionados, similaridade validada empiricamente abaixo do limiar: 0,2667 e 0 no hub-homolog) para o corte do limiar 0.3; `UPDATE` best-effort idempotente (`WHERE motorista_id IS NULL`) que vincula 1 conta a um Entregador por nome exato — ativa sozinho quando o Entregador correspondente existir (FASE 3+/8), sem erro quando não existe (0 rows, validado)
+- [x] 2.1.4 Garantir seeds S10-safe/idempotentes; aplicar no hub-homolog e validar contagens — gerado `infra/hub/seeds/out/hub_motoristas_seed.sql` (idempotente, `ON CONFLICT DO NOTHING`, transação única); aplicado via psql no hub-homolog: `ContaMotorista`=20 linhas, `EmpresaGrupoMovee`={9001}; reaplicado 2x — 2ª rodada `INSERT 0 0` em todas as linhas e contagem inalterada (20), confirmando idempotência empírica
 
 ---
 
