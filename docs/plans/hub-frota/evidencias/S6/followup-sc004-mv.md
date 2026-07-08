@@ -175,10 +175,33 @@ só que sobre 27.960 linhas em vez de 900.220.
   ficou no tenant 9001: `id=900300`, `12.34`, `Followup MV Refresh` —
   mesmo tenant sintético QA das ondas anteriores.)
 
-## 5. Pendências que permanecem
+## 5. Limpeza do seed sintético (EXECUTADA 2026-07-08, pós-SC-004 verde)
 
-- Seed de ~900k linhas em `id_empresa=9001` **mantido de propósito**
-  (fixture desta re-medição) — DELETE continua com o operador (mesma
-  pendência da onda-009).
+Autorização explícita do operador na sessão ("manter, depois de resolvido
+o item 1 pode realizar o delete") — condição satisfeita pela re-medição
+acima (SC-004 PASSA). Executado no `hub_homolog_db` (recurso `hub-*`,
+exceção G1), via `docker exec hub_homolog_backup psql` — outputs literais:
+
+```
+SELECT count(*) ... WHERE id_empresa = 9001 AND id BETWEEN 300 AND 900299;
+900000
+DELETE FROM "FaturamentoLancamento" WHERE id_empresa = 9001 AND id BETWEEN 300 AND 900299;
+DELETE 900000
+VACUUM ANALYZE + REFRESH MATERIALIZED VIEW CONCURRENTLY mv_faturamento_dia
+count tabela = 221 · count mv = 221 (consistentes)
+VACUUM FULL ANALYZE "FaturamentoLancamento";
+pg_total_relation_size: 320 MB -> 192 kB
+distribuição final: id_empresa 9001 = 220 linhas · 9002 = 1 linha
+```
+
+Preservados de propósito: as 221 linhas legítimas de teste, incluindo o
+fato do E2E do refresh (`id=900300`, "Followup MV Refresh", tenant 9001,
+fora da faixa do seed) e a linha de prova de isolamento do tenant 9002.
+Smoke pós-limpeza: hub-homolog `/hub/login` = 200; produção
+`app.moveelog.com.br/login` = 200 (intocada).
+
+## 6. Pendências que permanecem
+
+- Revisão/merge do PR #59 pelo operador (única pendência da S6).
 - `swapoff`/limpeza não aplicável (nenhum swap temporário adicionado; build
   do backend com cap `--memory=2g`, padrão RUNBOOK).

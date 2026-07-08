@@ -883,3 +883,17 @@ redeployado (build com cap `--memory=2g`). Produção nunca tocada — smoke
 **Pendências**: seed de ~900k linhas (`id_empresa=9001`) mantido de
 propósito (fixture da re-medição) — DELETE segue com o operador; PR #59
 segue draft aguardando revisão/merge do operador.
+
+### 2026-07-08 — S6 follow-up (parte 2): limpeza do seed de performance EXECUTADA
+
+Com o SC-004 verde (re-medição acima), o operador autorizou explicitamente
+o DELETE na sessão ("manter, depois de resolvido o item 1 pode realizar o
+delete"). Executado no `hub_homolog_db` (recurso `hub-*`, exceção G1):
+`DELETE 900000` (faixa ids 300–900299, `id_empresa=9001`), `VACUUM ANALYZE`
++ `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_faturamento_dia` (tabela e MV
+consistentes em 221 linhas) e `VACUUM FULL` (320 MB → 192 kB devolvidos ao
+disco). Preservados: 220 linhas legítimas de teste do tenant 9001 (incl. o
+fato `id=900300` do E2E do refresh) + 1 linha da prova de isolamento do
+tenant 9002. Smoke pós-limpeza: hub-homolog 200, produção 200 (intocada).
+Outputs literais na §5 de `evidencias/S6/followup-sc004-mv.md`. **Única
+pendência restante da S6: revisão/merge do PR #59.**
