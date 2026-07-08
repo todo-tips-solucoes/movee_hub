@@ -621,3 +621,35 @@ via RLS real (Cenário 8 + evidência §RLS acima).
 - Pendência recorrente (desde S1): divergência do trailer de commit
   (CLAUDE.md pede "Claude Opus 4.8"; commits usam o modelo vigente) — segue
   sem decisão do operador.
+
+---
+
+## 2026-07-07 — Code review do PR #57 (S4) + correções pós-review
+
+- **Code review** (a pedido do operador) do diff de código da S4 (28 arquivos-fonte,
+  ~5k linhas) via 8 ângulos de finder + 2 verificadores independentes. Base sólida
+  (RLS multi-tenant correto, mutex serializado, sem regressão no backend de produção —
+  legado usa `postgrestRequest` separado, convenções OK). **13 achados reais confirmados**
+  (1 refutado: hash `toFixed(2)` é correto pois colunas de fato são `numeric(_,2)`).
+- **Correções F1–F13 aplicadas** na branch (3 commits `95f9905`/`5ee2845`/`6912a66`):
+  **F1** deadlock de importação (o mais grave — restart/deploy deixava registro preso
+  em `processing` e o índice parcial bloqueava todo o tenant+tipo): try/catch de topo →
+  `failed`, timeout real via AbortController, e **recuperação de órfã no boot**
+  (`recuperarImportacoesOrfas` em `server.js`, aditivo/try-catch, claim JWT estreito
+  `hub_boot_recovery` + policy RLS que só permite `validating/processing→failed` — não
+  fura RLS); **F2** inflate async + inspeção barata (não bloqueia o event loop, sem inflar 2×);
+  **F3** cap `MAX_LINHAS_IMPORTACAO=300000` (anti-OOM); **F4** regex de zona linear + cap
+  (anti-ReDoS); **F5** PATCH terminal guardado por status (cancel não é sobrescrito);
+  **F7** rollback de upload por `UPDATE→failed` (não DELETE sem grant); **F8** polling
+  robusto (reinício após reprocessar, refetch de erros ao concluir, tolera 3 falhas,
+  guarda in-flight); **F9** fallback do `Content-Range` (paginação não some); **F10** original
+  com PII em `0600`/dir `0700`; **F11** id só numérico (404 p/ lixo); **F12** `errorTransiente`
+  só 5xx/429; **F13** dedupe de linha de erro (`on_conflict` + índice único, migration 0018).
+- **Migration 0018** (idempotente) aplicada no hub-homolog; **produção 4/4 Up** antes/depois.
+- **Validação (números reais auditados pelo PAI):** backend unit **250/250**, vitest
+  frontend **124/124** (43/43 no escopo importações reexecutado pelo PAI), `tsc` 0, integração
+  hub-homolog `processor` 25/25 + `fase5` 43/43 (1 falha pré-existente não-relacionada no
+  `hub-importacoes-integration.sh`, header de fixture, idêntica no baseline via `git stash`).
+- **PR #57 atualizado** (push da branch; **sem merge/deploy** — decisão do operador; cutover
+  do hub para produção é G3/S10). Deploy de S4 nos serviços do cliente NÃO se aplica: a S4
+  roda só no `hub-homolog` isolado.
