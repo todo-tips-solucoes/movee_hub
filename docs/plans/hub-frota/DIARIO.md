@@ -697,3 +697,78 @@ via RLS real (Cenário 8 + evidência §RLS acima).
   cutover (G3/S10) seguem com o operador.
 - Relatório terminal: `docs/specs/hub-motoristas/review-onda-013.md`. Próxima fase da
   ordem S3→S10 = **S6 (módulo faturamento, briefings/s6-modulo-faturamento.md)**.
+
+---
+
+## 2026-07-08 — S6 (Módulo Faturamento) — FASES 1–7 concluídas, branch feat/hub-faturamento
+
+- **Pipeline `/feature-00c` em andamento** (short_name `hub-faturamento`, onda-008,
+  `execute-task` → transição para `review-task`): specify → clarify → plan (gate OWASP
+  A05 Injection PASS) → checklist (39 itens) → create-tasks (7 fases / 13 tarefas /
+  73 subtarefas, gates verdes) → execute-task (**FASES 1–7, 13/13 tarefas `[x]`**).
+- **Entregue**: migrations **0026/0027** (`faturamento.listar` corretivo + RPCs
+  parametrizadas `hub_faturamento_totais`/`hub_faturamento_agrupado`, `SECURITY INVOKER`,
+  sem SQL montado por concatenação — OWASP A05 PASS); `lib/hub-csv.js` compartilhada
+  (neutralização de CSV injection `= + - @`, com gap CHK029 fechado: célula já iniciada
+  por apóstrofo/caractere neutro nunca sofre dupla neutralização); **2 endpoints**
+  `GET /api/v1/faturamento` (lista paginada + `?format=csv` streaming em lotes de 1.000)
+  e `GET /api/v1/faturamento/resumo` (cards + `groupBy=dia|categoria|entregador`);
+  DTO/API client (`lib/hub/faturamento-dto.ts`/`faturamento-api.ts`, `valor` sempre
+  `string`); tela `/hub/dashboard/faturamento` (cards, filtros server-side rotulados
+  explicitamente "data de competência", tabela paginada, export CSV condicionado a
+  `faturamento.exportar`, link condicional para `/hub/dashboard/motoristas/{id}` quando
+  `motoristas.consultar`, estados vazio/loading/erro).
+- **Validação determinística**: backend unit `node --test tests/hub-csv.test.js`
+  **9/9 PASS** (inclui CHK029); `infra/hub/testes/hub-faturamento-integration.sh`
+  (projeto `hub-test-*` efêmero) **62/62 asserts PASS** (contrato completo de
+  `GET /faturamento`/`GET /faturamento/resumo`, isolamento multi-tenant, CSV injection,
+  permissões independentes listar/consultar/exportar); frontend `npx vitest run
+  lib/hub/faturamento-dto.test.ts` **11/11 PASS**; `tsc --noEmit`/`eslint` limpos;
+  `npm run build` OK.
+- **E2E real contra `https://hub-homolog.todo-tips.com:8443`** (persistente, usuários QA
+  reais `qa.importacoes@moveelog.local`/`qa.motoristas.leitura@moveelog.local`/
+  `qa.motoristas.outraempresa@moveelog.local`, login real via cookie de sessão): **42
+  PASS / 0 FAIL** cobrindo os 14 cenários do `quickstart.md` — totais batendo com `SUM`
+  SQL direto no `hub_homolog_db`, empate alfabético determinístico (dec-014), filtro por
+  `data_referencia` (nunca `data_repasse`), período vazio sem erro, export CSV com
+  contagem/soma batendo com a tela, CSV injection neutralizada (`=`/`@` + os 2 casos
+  CHK029: apóstrofo pré-existente sem dupla neutralização e caractere neutro sem prefixo
+  espúrio), bypass de permissão via `curl` direto (`403 PERMISSAO_NEGADA`), isolamento
+  multi-tenant real (empresa 9002 sintética inserida só para a prova, zero vazamento nos
+  dois sentidos), navegação condicional ao detalhe do entregador (código +
+  re-execução do backstop 403 de `hub-motoristas-integration.sh`), roundtrip/identidade
+  visual (herdados da FASE 6, sem regressão).
+- **Cenário 15 (performance, SC-004) — ACHADO REAL, dec-035**: seed de ~900 mil linhas
+  (~1 ano, `id_empresa=9001`, gerado via `generate_series` direto no `hub_homolog_db`,
+  32,5s de INSERT) — `GET /faturamento/resumo` sobre o ano inteiro populado mediu
+  **2,2–2,6s sem `groupBy`** e **1,6–1,7s com `groupBy=categoria`**, **ambos excedendo o
+  limite de 1s de SC-004**. `EXPLAIN (ANALYZE, BUFFERS)` confirma Seq Scan sobre ~900k
+  linhas (esperado — o filtro cobre ~100% da tabela no pior caso) e overhead adicional de
+  `temp`/ordenação na RPC de cards. **Decisão dec-035 registrada (score 3, evidência
+  empírica)**: `mv_faturamento_dia` (§12.6 do plano técnico) é a mitigação pré-aprovada,
+  mas implementá-la é escopo novo (nova migration + refresh + mudança nas 2 RPCs) além do
+  backlog de 13 tarefas já revisado — **não implementada nesta onda**, escalada para
+  decisão do operador (mesmo padrão de governança de D3/D4). Detalhe completo em
+  `docs/plans/hub-frota/evidencias/S6/fase7-e2e-perf-resultado.md`.
+- **Gate `validate-docs-rendered`** sobre `tasks.md`/`quickstart.md` — **0 ERRO / 0
+  AVISO** em ambos.
+- **Produção intocada**: toda escrita confinada a recursos `hub-*`/`hub_*` (exceção G1);
+  serviços `envio-massa-homologacao_*` não tocados nesta sessão.
+
+### Pendências para o operador
+
+1. **`mv_faturamento_dia`** (dec-035): SC-004 formalmente violado sob volume anual de um
+   tenant grande — decidir se implementa a view materializada (nova fase) ou aceita o
+   risco por enquanto.
+2. **Limpeza do seed de performance** (~900 mil linhas, `id_empresa=9001`, ids
+   300–900299, em `hub_homolog_db`): tentativa de `DELETE` foi **bloqueada pelo
+   classificador de auto mode** ("mass delete... run outside auto mode") — requer ação
+   humana direta (dentro do escopo `hub-*` já autorizado por G1) ou decisão de manter
+   como fixture de regressão de performance.
+3. Pendência recorrente (desde S1): divergência do trailer de commit (CLAUDE.md pede
+   "Claude Opus 4.8"; commits usam o modelo vigente) — segue sem decisão do operador.
+4. PR ainda não aberto para `feat/hub-faturamento` — previsto para o fechamento de
+   `review-task` (próxima onda), mesmo padrão das fases anteriores.
+
+Relatório de `review-task` (próxima onda) fará a síntese final e decidirá sobre a
+abertura do PR. Próxima fase da ordem S3→S10 (após S6) = **S7**.

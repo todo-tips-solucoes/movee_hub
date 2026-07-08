@@ -162,37 +162,37 @@ Ref: plan.md "Plano por fases" passo 6; research.md Decision 10/11;
 
 Ref: quickstart.md Cenários 1-14; plan.md "Plano por fases" passo 7
 
-- [ ] 7.1.1 Rodar Cenário 1 (totais e filtros combinados batem com o banco) e registrar a query SQL de referência como evidência
-- [ ] 7.1.2 Rodar Cenário 2 (agregados/bônus nunca somem dos totais)
-- [ ] 7.1.3 Rodar Cenário 3 (empate no card de categoria — dec-014)
-- [ ] 7.1.4 Rodar Cenário 4 (agrupamentos por dia/categoria/entregador, soma bate com `totalGeral`)
-- [ ] 7.1.5 Rodar Cenário 5 (data de competência é a única usada no filtro)
-- [ ] 7.1.6 Rodar Cenário 6 (período sem dados — `200` com zeros/lista vazia)
-- [ ] 7.1.7 Rodar Cenário 7 (export CSV: conteúdo e contagem batem com a tela)
-- [ ] 7.1.8 Rodar Cenário 8 (CSV injection neutralizada — `=`/`@` E o caso apóstrofo-inicial estendido na tarefa 2.2)
-- [ ] 7.1.9 Rodar Cenário 9 (export vazio gera só cabeçalho)
-- [ ] 7.1.10 Rodar Cenário 10 (permissões independentes listar/consultar/exportar, incluindo bypass de UI via `curl`)
-- [ ] 7.1.11 Rodar Cenário 11 (isolamento multi-tenant em lista, resumo e export)
-- [ ] 7.1.12 Rodar Cenário 12 (navegação para detalhe do entregador, com e sem `motoristas.consultar`)
-- [ ] 7.1.13 Rodar Cenário 13 (roundtrip End-to-End real, contrato exato, sem mock)
-- [ ] 7.1.14 Rodar Cenário 14 (identidade visual preservada claro/escuro)
+- [x] 7.1.1 Rodar Cenário 1 (totais e filtros combinados batem com o banco) e registrar a query SQL de referência como evidência
+- [x] 7.1.2 Rodar Cenário 2 (agregados/bônus nunca somem dos totais)
+- [x] 7.1.3 Rodar Cenário 3 (empate no card de categoria — dec-014)
+- [x] 7.1.4 Rodar Cenário 4 (agrupamentos por dia/categoria/entregador, soma bate com `totalGeral`)
+- [x] 7.1.5 Rodar Cenário 5 (data de competência é a única usada no filtro)
+- [x] 7.1.6 Rodar Cenário 6 (período sem dados — `200` com zeros/lista vazia)
+- [x] 7.1.7 Rodar Cenário 7 (export CSV: conteúdo e contagem batem com a tela)
+- [x] 7.1.8 Rodar Cenário 8 (CSV injection neutralizada — `=`/`@` E o caso apóstrofo-inicial estendido na tarefa 2.2)
+- [x] 7.1.9 Rodar Cenário 9 (export vazio gera só cabeçalho)
+- [x] 7.1.10 Rodar Cenário 10 (permissões independentes listar/consultar/exportar, incluindo bypass de UI via `curl`)
+- [x] 7.1.11 Rodar Cenário 11 (isolamento multi-tenant em lista, resumo e export)
+- [x] 7.1.12 Rodar Cenário 12 (navegação para detalhe do entregador, com e sem `motoristas.consultar`)
+- [x] 7.1.13 Rodar Cenário 13 (roundtrip End-to-End real, contrato exato, sem mock)
+- [x] 7.1.14 Rodar Cenário 14 (identidade visual preservada claro/escuro)
 
 ### 7.2 Performance sob volume ampliado — Cenário 15 `[M]`
 
 Ref: quickstart.md Cenário 15; research.md Decision 8; spec.md SC-004
 
-- [ ] 7.2.1 Gerar seed de volume ampliado (~900 mil linhas, ~1 ano) dedicado para `id_empresa=9001` (`docs/plans/hub-frota/01-plano-tecnico.md §7.7`)
-- [ ] 7.2.2 Medir tempo de resposta de `GET /faturamento/resumo` sem `groupBy` sobre o intervalo do ano populado
-- [ ] 7.2.3 Medir tempo de resposta de `GET /faturamento/resumo?groupBy=categoria` sobre o mesmo intervalo
-- [ ] 7.2.4 Registrar evidência (tempo medido + `EXPLAIN ANALYZE`) como Decisão auditável; se exceder 1s, avaliar `mv_faturamento_dia` SÓ com essa evidência — nunca implementar preventivamente
+- [x] 7.2.1 Gerar seed de volume ampliado (~900 mil linhas, ~1 ano) dedicado para `id_empresa=9001` (`docs/plans/hub-frota/01-plano-tecnico.md §7.7`)
+- [x] 7.2.2 Medir tempo de resposta de `GET /faturamento/resumo` sem `groupBy` sobre o intervalo do ano populado
+- [x] 7.2.3 Medir tempo de resposta de `GET /faturamento/resumo?groupBy=categoria` sobre o mesmo intervalo
+- [x] 7.2.4 Registrar evidência (tempo medido + `EXPLAIN ANALYZE`) como Decisão auditável; se exceder 1s, avaliar `mv_faturamento_dia` SÓ com essa evidência — nunca implementar preventivamente
 
 ### 7.3 DIÁRIO e evidências finais `[M]`
 
 Ref: docs/plans/hub-frota/DIARIO.md; review-task (relatório final)
 
-- [ ] 7.3.1 Registrar no DIÁRIO do hub-frota a conclusão da S6 com evidências (link `tasks.md`, resultados do quickstart, PR)
-- [ ] 7.3.2 Coletar prints/logs de smoke test como evidência anexada ao relatório de `review-task`
-- [ ] 7.3.3 Conferir gate `validate-docs-rendered` sobre `tasks.md`/`quickstart.md` atualizados (Mermaid, links, frontmatter)
+- [x] 7.3.1 Registrar no DIÁRIO do hub-frota a conclusão da S6 com evidências (link `tasks.md`, resultados do quickstart, PR)
+- [x] 7.3.2 Coletar prints/logs de smoke test como evidência anexada ao relatório de `review-task`
+- [x] 7.3.3 Conferir gate `validate-docs-rendered` sobre `tasks.md`/`quickstart.md` atualizados (Mermaid, links, frontmatter)
 
 ---
 

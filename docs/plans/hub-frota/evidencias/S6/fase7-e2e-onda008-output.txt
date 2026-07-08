@@ -1,0 +1,47 @@
+(node:1662665) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+(Use `node --trace-warnings ...` to show where the warning was created)
+INFO C1: cards default (ultimos 30 dias) = {"totalGeral":"20917.00","categoriaMaiorValor":"seed FASE 8 hub-motoristas","entregadoresDistintos":207}
+PASS: C1: resumo default -> 200
+PASS: C1: filtro categoria+data -> totalGeral=11.00 (bate com SQL SUM)
+PASS: C1: filtro categoria+data -> entregadoresDistintos=1
+PASS: C2: baseline janela 1900-08-08 (sem filtro) -> totalGeral=46.00 (10+11+12+13)
+PASS: C2: comEntregador=false -> total=3 (formula/apostrofo/neutro)
+PASS: C2: comEntregador=false -> todos os itens sem entregador
+PASS: C2: entregadorId=317 -> total=1 (só CategoriaNormalOnda8)
+PASS: C2: entregadorId=317 -> nenhum agregado/bônus aparece
+PASS: C2: baseline permanece igual ao remover filtro por entregador
+PASS: C3: empate Alfa-Onda8/Zebra-Onda8 (42.00 cada) -> vence Alfa-Onda8
+PASS: C3: repetição da mesma consulta -> mesmo resultado (determinístico)
+PASS: C4: groupBy=entregador -> bucket agregados_bonus presente
+PASS: C4: groupBy=entregador -> rótulo do bucket = "Agregados/bônus"
+PASS: C4: groupBy=entregador -> soma dos grupos bate com totalGeral (default)
+PASS: C4: groupBy=categoria -> soma dos grupos bate com totalGeral (default)
+PASS: C4: groupBy=dia -> soma dos grupos bate com totalGeral (default)
+PASS: C5: item com data_repasse fora da janela aparece (filtro usa data_referencia)
+PASS: C5: item C5 -> dataReferencia = hoje
+PASS: C5: item C5 -> dataRepasse = hoje+200 (fora da janela, mas irrelevante ao filtro)
+PASS: C6: lista período vazio -> 200
+PASS: C6: lista período vazio -> items=[]
+PASS: C6: lista período vazio -> total=0
+PASS: C6: resumo período vazio -> totalGeral="0.00"
+PASS: C6: resumo período vazio -> categoriaMaiorValor=null
+PASS: C6: resumo período vazio -> entregadoresDistintos=0
+PASS: C7: CSV -> 200
+PASS: C7: CSV -> (linhas-1) bate com total da tela
+PASS: C7: CSV -> soma da coluna valor bate com totalGeral do resumo
+PASS: C8: categoria '=SOMA...' -> prefixada com ' único
+PASS: C8: entregadorNome '@Perigoso...' -> prefixado com ' único
+PASS: C8 (CHK029): categoria já com apóstrofo -> continua com UM único apóstrofo (sem dupla)
+PASS: C8 (CHK029): categoria com # (neutro) -> sem prefixo adicional
+PASS: C9: CSV vazio -> 200
+PASS: C9: CSV vazio -> só 1 linha (cabeçalho)
+PASS: C10: papel leitura (tem listar) -> GET /faturamento 200
+PASS: C10: papel leitura (SEM exportar) -> bypass curl ?format=csv -> 403
+PASS: C10: bypass csv -> erro=PERMISSAO_NEGADA
+PASS: C11: 9001 -> totalGeral amplo NÃO inclui a linha 555.00 da 9002
+PASS: C11: 9002 -> total=1 (só a linha de teste desta empresa)
+PASS: C11: 9002 -> valor da única linha = 555.00
+PASS: C11: 9002 -> totalGeral=555.00 (isolado, não vê os 219 lançamentos da 9001)
+PASS: C11: export CSV 9002 -> 1 linha de dados (isolado)
+
+___SUMMARY___ fails=0
