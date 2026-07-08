@@ -23,6 +23,7 @@ const {
   mapMotoristaDetalhe,
   validarPatchMotorista,
   mascararCnpj,
+  validarVinculoBody,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
 } = require('../lib/hub-motoristas-dto');
@@ -322,5 +323,67 @@ describe('validarPatchMotorista — allowlist estrita FASE 4 (task 4.1), contrac
     assert.equal(r.patch.hacked, undefined);
     assert.equal(r.patch.motoristaId, undefined);
     assert.equal(r.patch.idEmpresa, undefined);
+  });
+});
+
+describe('validarVinculoBody — allowlist estrita FASE 6 (task 6.1), contracts/motoristas-api.md §POST vinculo', () => {
+  test('contaMotoristaId numérico -> ok, origem default "nao_informado"', () => {
+    const r = validarVinculoBody({ contaMotoristaId: 42 });
+    assert.equal(r.ok, true);
+    assert.equal(r.contaMotoristaId, 42);
+    assert.equal(r.origem, 'nao_informado');
+  });
+
+  test('contaMotoristaId como string numérica -> ok', () => {
+    const r = validarVinculoBody({ contaMotoristaId: '42' });
+    assert.equal(r.ok, true);
+    assert.equal(r.contaMotoristaId, 42);
+  });
+
+  test('origem="sugestao" -> preservada', () => {
+    const r = validarVinculoBody({ contaMotoristaId: 7, origem: 'sugestao' });
+    assert.equal(r.ok, true);
+    assert.equal(r.origem, 'sugestao');
+  });
+
+  test('origem="busca_manual" -> preservada', () => {
+    const r = validarVinculoBody({ contaMotoristaId: 7, origem: 'busca_manual' });
+    assert.equal(r.ok, true);
+    assert.equal(r.origem, 'busca_manual');
+  });
+
+  test('origem com valor fora do enum -> "nao_informado", nunca rejeita a requisição', () => {
+    const r = validarVinculoBody({ contaMotoristaId: 7, origem: 'valor-invalido-qualquer' });
+    assert.equal(r.ok, true);
+    assert.equal(r.origem, 'nao_informado');
+  });
+
+  test('contaMotoristaId ausente -> erro INVALIDO (422)', () => {
+    const r = validarVinculoBody({});
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'INVALIDO');
+  });
+
+  test('contaMotoristaId não-numérico (string) -> erro INVALIDO', () => {
+    const r = validarVinculoBody({ contaMotoristaId: 'abc' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'INVALIDO');
+  });
+
+  test('contaMotoristaId negativo/float -> erro INVALIDO', () => {
+    assert.equal(validarVinculoBody({ contaMotoristaId: -1 }).ok, false);
+    assert.equal(validarVinculoBody({ contaMotoristaId: 1.5 }).ok, false);
+  });
+
+  test('corpo null/undefined -> erro INVALIDO, nunca lança', () => {
+    assert.equal(validarVinculoBody(null).ok, false);
+    assert.equal(validarVinculoBody(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA — campos extras (ex.: idEmpresa, id) nunca aparecem no retorno', () => {
+    const r = validarVinculoBody({ contaMotoristaId: 7, idEmpresa: 999, id: 1 });
+    assert.equal(r.ok, true);
+    const chaves = Object.keys(r).sort();
+    assert.deepEqual(chaves, ['contaMotoristaId', 'ok', 'origem']);
   });
 });

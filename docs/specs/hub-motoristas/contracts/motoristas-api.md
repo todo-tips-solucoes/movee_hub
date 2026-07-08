@@ -133,20 +133,33 @@ Usado quando a sugestão automática (FR-007) não é suficiente (FR-009).
 ## POST /motoristas/:id/vinculo — criar ou substituir vínculo
 
 **Permissão**: `motoristas.editar`.
-**Request**: `{ contaMotoristaId }`. **Allowlist estrita** (research.md
-Decision 12): só `contaMotoristaId` é lido do corpo — nenhum outro campo
-(ex.: `idEmpresa`, `nome`) influencia o UPDATE.
+**Request**: `{ contaMotoristaId, origem? }`. **Allowlist estrita**
+(research.md Decision 12): só `contaMotoristaId` **influencia o UPDATE** —
+nenhum outro campo (ex.: `idEmpresa`, `nome`) chega ao PostgREST. `origem`
+é **aditivo e opcional** (`"sugestao"` | `"busca_manual"`), lido só para
+preencher `detalhes.origem` da entrada de auditoria `motorista.vinculado`
+(research.md Decision 9 — distingue se o vínculo veio da sugestão
+automática ou da busca manual); nunca influencia a escrita em `Entregador`,
+e um valor ausente/fora do enum vira `"nao_informado"` sem rejeitar a
+requisição (implementado em `lib/hub-motoristas-dto.js#validarVinculoBody`,
+tasks.md 6.1.1).
 **Efeito**: `UPDATE Entregador SET motorista_id=$contaMotoristaId`. Se o
 Entregador já tinha vínculo, substitui em uma única ação (FR-013) — não exige
 desvínculo prévio.
 **Responses**:
 - `200` `{ id, vinculo: { contaMotoristaId, nome, cnpjPrestadorMascarado } }`
   — sucesso.
-- `409 CONFLITO` `{ error: "CONFLITO", motivo: "conta_ja_vinculada",
+- `409 CONFLITO` `{ erro: "CONFLITO", motivo: "conta_ja_vinculada",
   vinculadaA: { entregadorId, nome } }` — a conta já está vinculada a outra
   pessoa entregadora (FR-012; violação da constraint única traduzida em erro
   amigável, motivo consultado antes de tentar o UPDATE para poder informar o
-  nome).
+  nome). Chave `erro` (não `error`) — corrigido para consistência com o
+  restante deste contrato e com o padrão já implementado em todas as demais
+  rotas do módulo (`{erro: "NAO_ENCONTRADO"}` etc., FASE 3-5). Se o conflito
+  for cross-tenant (índice único global sobre `motorista_id`, invisível pela
+  RLS do pre-check — ver `routes/hub-motoristas.js` FASE 6), a resposta é o
+  mesmo `409` porém **sem** `vinculadaA` (nunca expõe dados de outro tenant,
+  Constitution II).
 - `422 INVALIDO` `{ motivo: "entidade_fora_do_grupo" }` — tentativa de vincular
   fora do grupo elegível (FR-010/FR-011 Edge Case), mesmo que o
   `contaMotoristaId` exista no banco.

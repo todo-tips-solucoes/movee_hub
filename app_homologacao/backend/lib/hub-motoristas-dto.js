@@ -233,6 +233,40 @@ function mascararCnpj(cnpjBruto) {
   return `${prefixo}.***.***/${ordemFilial}-**`;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 6 — POST /motoristas/:id/vinculo (task 6.1.1): allowlist estrita do
+// corpo (contracts/motoristas-api.md §POST vinculo, research.md Decision 12,
+// mesmo padrão de `validarPatchMotorista`).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Valida e extrai o corpo de `POST /motoristas/:id/vinculo`. `contaMotoristaId`
+ * é o ÚNICO campo que influencia o `UPDATE` (allowlist estrita — qualquer
+ * outro campo é ignorado no INSERT/UPDATE real). `origem` é um campo
+ * ADITIVO, opcional, lido só para preencher `detalhes.origem` da auditoria
+ * `motorista.vinculado` (research.md Decision 9) — NUNCA chega ao PostgREST,
+ * nunca influencia a escrita em `Entregador`. Valor fora de
+ * `{sugestao, busca_manual}` (ausente/mal-formado) -> `"nao_informado"`,
+ * nunca rejeita a requisição por causa dele.
+ *
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, contaMotoristaId:number, origem:string}|{ok:false, erro:'INVALIDO'}}
+ *   `ok:false` — `contaMotoristaId` ausente/não é inteiro positivo (422).
+ */
+function validarVinculoBody(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+  const bruto = corpo.contaMotoristaId;
+  const strBruto = (typeof bruto === 'number' && Number.isFinite(bruto)) || typeof bruto === 'string'
+    ? String(bruto)
+    : '';
+  if (!/^\d+$/.test(strBruto)) {
+    return { ok: false, erro: 'INVALIDO' };
+  }
+  const contaMotoristaId = parseInt(strBruto, 10);
+  const origem = corpo.origem === 'sugestao' || corpo.origem === 'busca_manual' ? corpo.origem : 'nao_informado';
+  return { ok: true, contaMotoristaId, origem };
+}
+
 module.exports = {
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
@@ -245,4 +279,5 @@ module.exports = {
   mapMotoristaDetalhe,
   validarPatchMotorista,
   mascararCnpj,
+  validarVinculoBody,
 };

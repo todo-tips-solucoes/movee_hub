@@ -55,6 +55,24 @@
 #   (z) Cenário 9: entidade FORA do grupo Movee -> AMBOS endpoints respondem
 #       200, `entidadeElegivel:false`, `items:[]`, sem erro (FR-010/FR-011)
 #
+# FASE 6 (tasks.md 6.1/6.2) — POST/DELETE /motoristas/:id/vinculo (quickstart
+# Cenário 8):
+#   (aa) POST vinculo -> 200, persiste (visível em GET /motoristas/:id),
+#        auditoria motorista.vinculado gravada
+#   (bb) POST vinculo com a MESMA conta em OUTRO Entregador -> 409 CONFLITO,
+#        vinculadaA aponta pro Entregador A, motorista_id de B continua NULL
+#   (cc) POST vinculo substituindo o vínculo do Entregador A por OUTRA conta,
+#        SEM desvincular antes -> 200 em ação única (FR-013)
+#   (dd) POST vinculo com contaMotoristaId inexistente (violação de FK) -> 404
+#   (ee) POST vinculo com corpo fora da allowlist (sem contaMotoristaId) -> 422
+#   (ff) POST vinculo sem motoristas.editar -> 403; fora do escopo -> 404;
+#        entidade fora do grupo Movee -> 422 entidade_fora_do_grupo
+#   (gg) DELETE vinculo persiste (visível em GET /motoristas/:id ->
+#        vinculo:null), auditoria motorista.desvinculado gravada
+#   (hh) DELETE vinculo em Entregador que NUNCA teve vínculo -> 204 idempotente
+#        (CHK006), sem erro, sem auditoria vazia
+#   (ii) DELETE vinculo sem motoristas.editar -> 403
+#
 # Uso: infra/hub/testes/hub-motoristas-integration.sh
 # =============================================================================
 set -uo pipefail
@@ -281,6 +299,23 @@ async function patchJson(jar, path, corpo) {
     body: JSON.stringify(corpo),
   });
   const body = await r.json().catch(() => null);
+  return { status: r.status, body };
+}
+async function postJson(jar, path, corpo) {
+  const r = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(jar ? { Cookie: cookieHeader(jar) } : {}) },
+    body: JSON.stringify(corpo),
+  });
+  const body = await r.json().catch(() => null);
+  return { status: r.status, body };
+}
+async function deleteReq(jar, path) {
+  const r = await fetch(`${BASE}${path}`, {
+    method: 'DELETE',
+    headers: jar ? { Cookie: cookieHeader(jar) } : {},
+  });
+  const body = r.status === 204 ? null : await r.json().catch(() => null);
   return { status: r.status, body };
 }
 
@@ -545,6 +580,73 @@ async function main() {
   out.patch_mass_assign_nome = rPatchMassAssign.body && rPatchMassAssign.body.nome;
   out.patch_mass_assign_sem_vinculo = rPatchMassAssign.body && rPatchMassAssign.body.vinculo === null ? 'true' : 'false';
 
+  // ── FASE 6 (tasks.md 6.1/6.2) — POST/DELETE /motoristas/:id/vinculo ─────
+  // José e Maria estão AMBOS sem vínculo neste ponto (nenhum PATCH/GET
+  // anterior tocou motorista_id). contaSugestaoJose/contaRuido estão livres
+  // (nunca usadas em vinculo antes). Cenário 8 do quickstart, passos 1-4.
+
+  // (aa) POST vinculo José<-contaSugestaoJose -> 200, persiste
+  const rVinculoJose = await postJson(jarEditor, `/motoristas/${entJose}/vinculo`, { contaMotoristaId: contaSugestaoJose, origem: 'sugestao' });
+  out.vinculo_jose_status = rVinculoJose.status;
+  out.vinculo_jose_body_contaId = rVinculoJose.body && rVinculoJose.body.vinculo && rVinculoJose.body.vinculo.contaMotoristaId;
+  const rDetalheJoseVinculado = await getJson(jarEditor, `/motoristas/${entJose}`);
+  out.vinculo_jose_persistiu = rDetalheJoseVinculado.body && rDetalheJoseVinculado.body.vinculo
+    && rDetalheJoseVinculado.body.vinculo.contaMotoristaId === contaSugestaoJose ? 'true' : 'false';
+
+  // (bb) POST vinculo Maria<-MESMA contaSugestaoJose -> 409 CONFLITO
+  // apontando pro José; motorista_id de Maria continua NULL
+  const rVinculoConflito = await postJson(jarEditor, `/motoristas/${entMaria}/vinculo`, { contaMotoristaId: contaSugestaoJose });
+  out.vinculo_conflito_status = rVinculoConflito.status;
+  out.vinculo_conflito_motivo = rVinculoConflito.body && rVinculoConflito.body.motivo;
+  out.vinculo_conflito_vinculadaA_id = rVinculoConflito.body && rVinculoConflito.body.vinculadaA && rVinculoConflito.body.vinculadaA.entregadorId;
+  const rDetalheMariaAposConflito = await getJson(jarEditor, `/motoristas/${entMaria}`);
+  out.vinculo_conflito_maria_continua_sem_vinculo = rDetalheMariaAposConflito.body && rDetalheMariaAposConflito.body.vinculo === null ? 'true' : 'false';
+
+  // (cc) Substituir vínculo do José por contaRuido, SEM desvincular antes
+  // (FR-013 — ação única)
+  const rVinculoSubstitui = await postJson(jarEditor, `/motoristas/${entJose}/vinculo`, { contaMotoristaId: contaRuido });
+  out.vinculo_substitui_status = rVinculoSubstitui.status;
+  out.vinculo_substitui_contaId = rVinculoSubstitui.body && rVinculoSubstitui.body.vinculo && rVinculoSubstitui.body.vinculo.contaMotoristaId;
+
+  // (dd) POST vinculo com contaMotoristaId inexistente -> 404 (FK)
+  const rVinculoFkInvalida = await postJson(jarEditor, `/motoristas/${entMaria}/vinculo`, { contaMotoristaId: 999999999 });
+  out.vinculo_fk_invalida_status = rVinculoFkInvalida.status;
+
+  // (ee) POST vinculo sem contaMotoristaId no corpo -> 422
+  const rVinculoSemCampo = await postJson(jarEditor, `/motoristas/${entMaria}/vinculo`, {});
+  out.vinculo_sem_campo_status = rVinculoSemCampo.status;
+
+  // (ff) POST vinculo sem motoristas.editar (usuário de leitura) -> 403
+  const rVinculoSemPerm = await postJson(jar, `/motoristas/${entMaria}/vinculo`, { contaMotoristaId: contaWagner });
+  out.vinculo_sem_permissao_status = rVinculoSemPerm.status;
+
+  // POST vinculo fora do escopo (Entregador de outro tenant) -> 404
+  const rVinculoForaEscopo = await postJson(jarEditor, `/motoristas/${entOutra}/vinculo`, { contaMotoristaId: contaWagner });
+  out.vinculo_fora_escopo_status = rVinculoForaEscopo.status;
+
+  // POST vinculo entidade fora do grupo Movee -> 422 entidade_fora_do_grupo
+  // (jarEditorOutra: motoristas.editar, ativo na entidade OUTRA, que NÃO
+  // está em EmpresaGrupoMovee)
+  const rVinculoNaoElegivel = await postJson(jarEditorOutra, `/motoristas/${entOutra}/vinculo`, { contaMotoristaId: contaWagner });
+  out.vinculo_nao_elegivel_status = rVinculoNaoElegivel.status;
+  out.vinculo_nao_elegivel_motivo = rVinculoNaoElegivel.body && rVinculoNaoElegivel.body.motivo;
+
+  // (gg) DELETE vinculo José (atualmente vinculado a contaRuido, passo cc) ->
+  // 204, persiste (GET mostra vinculo:null)
+  const rDesvinculoJose = await deleteReq(jarEditor, `/motoristas/${entJose}/vinculo`);
+  out.desvinculo_jose_status = rDesvinculoJose.status;
+  const rDetalheJoseAposDesvinculo = await getJson(jarEditor, `/motoristas/${entJose}`);
+  out.desvinculo_jose_persistiu = rDetalheJoseAposDesvinculo.body && rDetalheJoseAposDesvinculo.body.vinculo === null ? 'true' : 'false';
+
+  // (hh) DELETE vinculo em Maria (NUNCA teve vínculo) -> 204 idempotente
+  // (CHK006), sem erro
+  const rDesvinculoIdempotente = await deleteReq(jarEditor, `/motoristas/${entMaria}/vinculo`);
+  out.desvinculo_idempotente_status = rDesvinculoIdempotente.status;
+
+  // (ii) DELETE vinculo sem motoristas.editar -> 403
+  const rDesvinculoSemPerm = await deleteReq(jar, `/motoristas/${entMaria}/vinculo`);
+  out.desvinculo_sem_permissao_status = rDesvinculoSemPerm.status;
+
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
 main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
@@ -673,6 +775,43 @@ check "PATCH mass-assignment (motoristaId fora da allowlist) -> 200 (ignorado, n
 check "PATCH mass-assignment -> nome persiste normalmente (1ª edição de José)" "$(jget patch_mass_assign_nome)" "Jose Mass Assign"
 check "PATCH mass-assignment -> vinculo continua null (motoristaId do corpo NUNCA chega ao PostgREST)" "$(jget patch_mass_assign_sem_vinculo)" "true"
 
+# ── FASE 6 (tasks.md 6.1/6.2) — POST/DELETE /motoristas/:id/vinculo ──────
+check "POST vinculo José<-contaSugestaoJose -> 200" "$(jget vinculo_jose_status)" "200"
+check "POST vinculo -> body.vinculo.contaMotoristaId correto" "$(jget vinculo_jose_body_contaId)" "$CONTA_SUGESTAO_JOSE"
+check "POST vinculo -> persiste (GET /motoristas/:id reflete)" "$(jget vinculo_jose_persistiu)" "true"
+
+check "POST vinculo Maria<-MESMA conta (Cenário 8 passo 2) -> 409 CONFLITO" "$(jget vinculo_conflito_status)" "409"
+check "409 -> motivo=conta_ja_vinculada" "$(jget vinculo_conflito_motivo)" "conta_ja_vinculada"
+check "409 -> vinculadaA.entregadorId aponta pro José" "$(jget vinculo_conflito_vinculadaA_id)" "$ENT_JOSE"
+check "409 -> Maria.motorista_id continua NULL (sem efeito colateral)" "$(jget vinculo_conflito_maria_continua_sem_vinculo)" "true"
+
+check "POST vinculo substitui José->contaRuido SEM desvincular antes (FR-013, Cenário 8 passo 3) -> 200" "$(jget vinculo_substitui_status)" "200"
+check "substituição -> nova conta persistida em 1 ação" "$(jget vinculo_substitui_contaId)" "$CONTA_RUIDO"
+
+check "POST vinculo contaMotoristaId inexistente (violação de FK) -> 404" "$(jget vinculo_fk_invalida_status)" "404"
+check "POST vinculo sem contaMotoristaId no corpo -> 422" "$(jget vinculo_sem_campo_status)" "422"
+check "POST vinculo sem motoristas.editar (usuário de leitura) -> 403" "$(jget vinculo_sem_permissao_status)" "403"
+check "POST vinculo em Entregador fora do escopo (outro tenant) -> 404" "$(jget vinculo_fora_escopo_status)" "404"
+check "POST vinculo entidade fora do grupo Movee -> 422" "$(jget vinculo_nao_elegivel_status)" "422"
+check "422 -> motivo=entidade_fora_do_grupo" "$(jget vinculo_nao_elegivel_motivo)" "entidade_fora_do_grupo"
+
+check "DELETE vinculo José (tinha vínculo) -> 204 (Cenário 8 passo 4 variante 'com vínculo')" "$(jget desvinculo_jose_status)" "204"
+check "DELETE vinculo -> persiste (GET /motoristas/:id -> vinculo:null)" "$(jget desvinculo_jose_persistiu)" "true"
+check "DELETE vinculo em Maria (NUNCA teve vínculo, Cenário 8 passo 4) -> 204 idempotente (CHK006)" "$(jget desvinculo_idempotente_status)" "204"
+check "DELETE vinculo sem motoristas.editar -> 403" "$(jget desvinculo_sem_permissao_status)" "403"
+
+# ── FASE 6 (tasks.md 6.1.4/6.2.3) — auditoria motorista.vinculado/desvinculado ──
+# José recebeu 2 POST /vinculo bem-sucedidos (contaSugestaoJose, depois
+# contaRuido via substituição) + 1 DELETE bem-sucedido -> 2 entradas
+# motorista.vinculado + 1 motorista.desvinculado. O DELETE idempotente sobre
+# Maria (sem vínculo prévio) NUNCA deve gerar entrada de auditoria (no-op).
+N_AUD_VINCULADO="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='motorista.vinculado' AND recurso_id='$ENT_JOSE'" | tr -d '[:space:]')"
+check "auditoria motorista.vinculado gravada 2x para José (POST inicial + substituição)" "$N_AUD_VINCULADO" "2"
+N_AUD_DESVINCULADO_JOSE="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='motorista.desvinculado' AND recurso_id='$ENT_JOSE'" | tr -d '[:space:]')"
+check "auditoria motorista.desvinculado gravada 1x para José (DELETE com vínculo)" "$N_AUD_DESVINCULADO_JOSE" "1"
+N_AUD_DESVINCULADO_MARIA="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='motorista.desvinculado' AND recurso_id='$ENT_MARIA'" | tr -d '[:space:]')"
+check "DELETE idempotente (sem vínculo prévio) NUNCA gera auditoria vazia" "$N_AUD_DESVINCULADO_MARIA" "0"
+
 # ── Cenário 4 (task 4.1.6) — sobrevivência à reimportação ────────────────
 # Ana tem EXATAMENTE 1 edição manual prévia (PATCH nome, cenário (m) acima) —
 # nome_editado_manualmente=true. Simula o pipeline S4 de reimportação fazendo
@@ -688,7 +827,7 @@ check "Cenário 4: nome editado manualmente sobrevive a UPDATE de reimportação
 
 echo
 if [ "$fails" = "0" ]; then
-  echo "HUB-MOTORISTAS-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2; FASE 4: 4.1; FASE 5: 5.1/5.2)"
+  echo "HUB-MOTORISTAS-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2; FASE 4: 4.1; FASE 5: 5.1/5.2; FASE 6: 6.1/6.2)"
 else
   echo "HUB-MOTORISTAS-INTEGRATION: $fails assert(s) FALHARAM" >&2
   exit 1

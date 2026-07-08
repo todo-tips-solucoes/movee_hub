@@ -46,6 +46,8 @@ const {
   mapMotoristaListItem,
   mapMotoristaDetalhe,
   validarPatchMotorista,
+  validarVinculoBody,
+  mascararCnpj,
 } = require('../lib/hub-motoristas-dto');
 const {
   termoBuscaValido,
@@ -465,6 +467,182 @@ router.patch('/:id', requirePermission('motoristas.editar'), async (req, res) =>
     return res.status(200).json(detalhe);
   } catch (e) {
     console.error('[hub-motoristas] erro em PATCH /motoristas/:id:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /motoristas/:id/vinculo — criar ou substituir vínculo (task 6.1)
+//
+// FR-013: se o Entregador já tinha vínculo, substitui em uma única ação —
+// nenhuma chamada de desvínculo prévia é exigida (o handler nunca checa o
+// motorista_id atual antes de sobrescrever). NUNCA automático — este
+// endpoint só é alcançado por ação explícita da pessoa usuária (a
+// confirmação humana em si é responsabilidade da UI, FASE 7); o backend
+// apenas garante que a operação é idempotente-substitutiva e auditada.
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/:id/vinculo', requirePermission('motoristas.editar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.editar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    // Allowlist estrita (Decision 12, mesmo padrão do PATCH) — só
+    // `contaMotoristaId` influencia o UPDATE; `origem` é lida só para a
+    // auditoria (lib/hub-motoristas-dto.js#validarVinculoBody).
+    const validado = validarVinculoBody(req.body);
+    if (!validado.ok) {
+      return res.status(422).json({ erro: 'INVALIDO' });
+    }
+    const { contaMotoristaId, origem } = validado;
+
+    // 404 fora do escopo (Decision 11, mesmo padrão de /sugestoes/PATCH).
+    const existe = await entregadorExisteNoEscopo(id, entidadeAtiva, claims);
+    if (!existe) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    // 422 entidade fora do grupo elegível (FR-010/FR-011 Edge Case) — mesmo
+    // que `contaMotoristaId` exista no banco (contracts/motoristas-api.md
+    // §POST vinculo).
+    const elegivel = await entidadeEhElegivel(entidadeAtiva, claims);
+    if (!elegivel) {
+      return res.status(422).json({ erro: 'INVALIDO', motivo: 'entidade_fora_do_grupo' });
+    }
+
+    // FK: `contaMotoristaId` precisa existir em `ContaMotorista` -> 404
+    // (distinto do 409 de conflito abaixo — contrato §POST vinculo, "404 ...
+    // OU contaMotoristaId inexistente").
+    const contaLinhas = await hubPostgrestRequest(
+      `ContaMotorista?id=eq.${contaMotoristaId}&select=id,nome,cnpj_prestador`,
+      'GET', null, claims
+    );
+    if (!contaLinhas || contaLinhas.length === 0) {
+      return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    }
+    const conta = contaLinhas[0];
+
+    // Conflito (FR-012): a conta já vinculada a OUTRO Entregador. Consultado
+    // ANTES do UPDATE para poder informar o nome no 409 amigável (contrato
+    // — "motivo consultado antes de tentar o UPDATE"). Escopado
+    // explicitamente por `id_empresa` (defesa em profundidade, RLS já filtra
+    // por escopo) — só enxerga conflito DENTRO do tenant da entidade ativa;
+    // um conflito cross-tenant (índice único é GLOBAL sobre `motorista_id`)
+    // é pego pelo catch abaixo, sem expor dados de outro tenant.
+    const conflitoLinhas = await hubPostgrestRequest(
+      `Entregador?motorista_id=eq.${contaMotoristaId}&id=neq.${id}`
+      + `&id_empresa=eq.${entidadeAtiva}&select=id,nome`,
+      'GET', null, claims
+    );
+    if (conflitoLinhas && conflitoLinhas.length > 0) {
+      return res.status(409).json({
+        erro: 'CONFLITO',
+        motivo: 'conta_ja_vinculada',
+        vinculadaA: { entregadorId: conflitoLinhas[0].id, nome: conflitoLinhas[0].nome },
+      });
+    }
+
+    try {
+      await hubPostgrestRequest(
+        `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`,
+        'PATCH', { motorista_id: contaMotoristaId }, claims,
+        { returnMinimal: true }
+      );
+    } catch (updateErr) {
+      // Defesa em profundidade: violação do índice único não detectada pelo
+      // pre-check acima (conflito cross-tenant, invisível pela RLS — o
+      // índice único é GLOBAL e a checagem de constraint do Postgres não
+      // respeita RLS). Sem visibilidade sobre a linha conflitante
+      // (isolamento multi-tenant, Constitution II), o 409 aqui NUNCA expõe
+      // entregadorId/nome de outro tenant.
+      if (updateErr && updateErr.status === 409) {
+        return res.status(409).json({ erro: 'CONFLITO', motivo: 'conta_ja_vinculada' });
+      }
+      throw updateErr;
+    }
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.vinculado',
+      recurso: 'Entregador',
+      recursoId: id,
+      detalhes: { contaMotoristaId, origem },
+      claims,
+    });
+
+    return res.status(200).json({
+      id,
+      vinculo: {
+        contaMotoristaId: conta.id,
+        nome: conta.nome,
+        cnpjPrestadorMascarado: mascararCnpj(conta.cnpj_prestador),
+      },
+    });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em POST /motoristas/:id/vinculo:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// DELETE /motoristas/:id/vinculo — desfazer vínculo (task 6.2, fecha CHK006)
+//
+// Semântica idempotente (CHK006 — contracts/motoristas-api.md §DELETE
+// vinculo): chamar sobre um Entregador que já está sem vínculo é um no-op
+// que retorna `204` sem erro (não `404`) — o estado-alvo do DELETE
+// ("Entregador sem vínculo") já está satisfeito, consistente com a
+// semântica REST padrão de idempotência (RFC 7231 §4.2.2, chamadas
+// repetidas produzem o mesmo efeito). Auditoria `motorista.
+// desvinculado` só é registrada quando havia de fato um vínculo antes
+// (no-op nunca gera entrada de auditoria vazia).
+// ────────────────────────────────────────────────────────────────────────────
+
+router.delete('/:id/vinculo', requirePermission('motoristas.editar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.editar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    // 404 fora do escopo — filtro explícito por id_empresa (defesa em
+    // profundidade, mesmo padrão de GET/PATCH /:id).
+    const linhas = await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,motorista_id`,
+      'GET', null, claims
+    );
+    if (!linhas || linhas.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const contaMotoristaIdAnterior = linhas[0].motorista_id;
+
+    // No-op idempotente (CHK006): já sem vínculo -> 204 direto, sem UPDATE
+    // nem auditoria.
+    if (contaMotoristaIdAnterior === null || contaMotoristaIdAnterior === undefined) {
+      return res.status(204).end();
+    }
+
+    await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`,
+      'PATCH', { motorista_id: null }, claims,
+      { returnMinimal: true }
+    );
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.desvinculado',
+      recurso: 'Entregador',
+      recursoId: id,
+      detalhes: { contaMotoristaIdAnterior },
+      claims,
+    });
+
+    return res.status(204).end();
+  } catch (e) {
+    console.error('[hub-motoristas] erro em DELETE /motoristas/:id/vinculo:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });

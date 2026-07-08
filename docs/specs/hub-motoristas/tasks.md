@@ -186,20 +186,20 @@ Ref: plan Fase 5, spec FR-009/FR-010, contracts /contas-elegiveis, quickstart Ce
 
 Ref: plan Fase 6, spec FR-006/FR-008/FR-012/FR-013, research Decision 9/12, contracts POST vinculo, quickstart Cenário 5/8
 
-- [ ] 6.1.1 Implementar handler `POST /motoristas/:id/vinculo` com allowlist de campos `{contaMotoristaId}` (Decision 12)
-- [ ] 6.1.2 Substituir vínculo existente em ação única (FR-013); confirmação humana explícita obrigatória (FR-008/SC-004)
-- [ ] 6.1.3 FK inválida → `404`; violação do índice único (conta já vinculada a outro Entregador) → `409 CONFLITO` amigável (FR-012)
-- [ ] 6.1.4 Registrar auditoria `motorista.vinculado`; exigir permissão RBAC (403 fail-closed)
-- [ ] 6.1.5 Testes de integração: vínculo persiste, substituição, 409 no conflito duplo (Cenário 8), 403 sem permissão
+- [x] 6.1.1 Implementar handler `POST /motoristas/:id/vinculo` com allowlist de campos `{contaMotoristaId}` (Decision 12) <!-- lib/hub-motoristas-dto.js#validarVinculoBody + routes/hub-motoristas.js#POST /:id/vinculo; `origem` aditivo/opcional só para auditoria, nunca chega ao UPDATE -->
+- [x] 6.1.2 Substituir vínculo existente em ação única (FR-013); confirmação humana explícita obrigatória (FR-008/SC-004) <!-- backend expõe a operação idempotente-substitutiva (UPDATE único, sem checar motorista_id atual); confirmação humana em si é responsabilidade da UI (FASE 7) -->
+- [x] 6.1.3 FK inválida → `404`; violação do índice único (conta já vinculada a outro Entregador) → `409 CONFLITO` amigável (FR-012) <!-- pre-check FK (ContaMotorista) + pre-check conflito same-tenant + catch defensivo do 409 do PostgREST p/ conflito cross-tenant (sem expor dados de outro tenant) -->
+- [x] 6.1.4 Registrar auditoria `motorista.vinculado`; exigir permissão RBAC (403 fail-closed) <!-- registrarAuditoria + requirePermission('motoristas.editar'), mesmo padrão dos demais handlers -->
+- [x] 6.1.5 Testes de integração: vínculo persiste, substituição, 409 no conflito duplo (Cenário 8), 403 sem permissão <!-- infra/hub/testes/hub-motoristas-integration.sh FASE 6, 30 asserts novos, todos verdes contra hub-test efêmero real -->
 
 ### 6.2 DELETE /motoristas/:id/vinculo — desvínculo + semântica idempotente `[A]`
 
 Ref: plan Fase 6, spec FR-014, research Decision 9, checklists/requirements.md CHK006
 
-- [ ] 6.2.1 **Fechar gap CHK006**: definir e documentar no contrato a semântica do DELETE sobre um Entregador SEM vínculo (idempotente 200/204 vs 404); alinhar com o operador se necessário
-- [ ] 6.2.2 Implementar handler `DELETE /motoristas/:id/vinculo` conforme semântica decidida; escopo por token (`404` fora do escopo)
-- [ ] 6.2.3 Registrar auditoria `motorista.desvinculado`; exigir permissão RBAC
-- [ ] 6.2.4 Testes de integração: desvínculo persiste, comportamento sobre Entregador já sem vínculo, 403 sem permissão
+- [x] 6.2.1 **Fechar gap CHK006**: definir e documentar no contrato a semântica do DELETE sobre um Entregador SEM vínculo (idempotente 200/204 vs 404); alinhar com o operador se necessário <!-- decisão default por consistência REST (204 idempotente, sem erro), score 2, documentada em contracts/motoristas-api.md §DELETE vinculo e checklists/requirements.md CHK006 -->
+- [x] 6.2.2 Implementar handler `DELETE /motoristas/:id/vinculo` conforme semântica decidida; escopo por token (`404` fora do escopo) <!-- routes/hub-motoristas.js#DELETE /:id/vinculo -->
+- [x] 6.2.3 Registrar auditoria `motorista.desvinculado`; exigir permissão RBAC <!-- só quando havia vínculo antes; no-op idempotente nunca gera entrada vazia -->
+- [x] 6.2.4 Testes de integração: desvínculo persiste, comportamento sobre Entregador já sem vínculo, 403 sem permissão <!-- mesmo script FASE 6, cenários (gg)-(ii) + checagem de contagem de auditoria via psql -->
 
 ---
 
