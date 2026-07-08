@@ -60,6 +60,28 @@ Ref: plan Fase 5, research Decision 10/11, data-model §uso combinado
 - [x] 1.5.3 Expor as funções ao PostgREST via GRANT ao role `authenticated`; confirmar bind nativo de parâmetros (sem concatenação de string — OWASP A05) — `\df` confirma assinatura com parâmetros tipados (não concatenação); RPC PostgREST despacha via bind nativo
 - [x] 1.5.4 Garantir idempotência (`CREATE OR REPLACE FUNCTION`); aplicar via `migrate.sh` + reload PostgREST — validado empiricamente (re-execução direta, exit 0)
 
+### 1.6 Migration 0024 — view agregada `hub_areas_por_entregador` (trabalho emergente da FASE 3) `[A]`
+
+Ref: tasks.md FASE 3 (3.1.2), data-model.md §Área de atuação (só cobria a
+agregação de UM `entregador_id` por vez, "Áreas distintas do detalhe")
+
+Gap identificado ao implementar `GET /motoristas` (lista, 3.1): a agregação
+de áreas distintas por entregador descrita em data-model.md só resolve o
+caso do DETALHE (1 `entregador_id`). A lista precisa da mesma agregação para
+VÁRIOS entregadores de uma vez, sem N+1 query por linha nem puxar linhas de
+fato cruas para o Node. Decisão tomada e aplicada: migration aditiva nova
+`infra/hub/migrations/0024_areas_por_entregador.sql`, criando a view
+`hub_areas_por_entregador` (`UNION ALL` de `FaturamentoLancamento`/
+`PerformanceTurno` agrupado por `entregador_id, subpraca`, `MAX(data)`),
+consumida tanto pela lista (`entregador_id=in.(<ids-do-conjunto-candidato>)`,
+`routes/hub-motoristas.js#buscarAreasPorEntregador`) quanto pelo detalhe
+(reaproveitada no lugar da query single-entregador que o data-model.md
+descrevia).
+
+- [x] 1.6.1 Criar `infra/hub/migrations/0024_areas_por_entregador.sql`: `CREATE OR REPLACE VIEW hub_areas_por_entregador AS SELECT entregador_id, subpraca, MAX(data) AS data_mais_recente FROM (...) GROUP BY entregador_id, subpraca` + `GRANT SELECT ... TO authenticated`
+- [x] 1.6.2 Confirmar empiricamente que a RLS das tabelas BASE (`FaturamentoLancamento`/`PerformanceTurno`, já cobertas desde `0015`) continua se aplicando através da view (Postgres aplica RLS conforme o role/sessão que EXECUTA a query, não o dono da view — sem `security_barrier` especial necessário) — validado no teste de integração (`infra/hub/testes/hub-motoristas-integration.sh`, assert "isolamento multi-tenant -> não vaza Entregadores do outro tenant": usuário escopado a uma `id_empresa` só recebe áreas/Entregadores da própria empresa ao consultar `GET /motoristas` via a view)
+- [x] 1.6.3 Garantir idempotência (`CREATE OR REPLACE VIEW`); aplicar via `infra/hub/scripts/migrate.sh` no ambiente de teste efêmero E em `hub-homolog` (projeto docker compose `hub-homolog`, confirmado via `docker compose ls` antes de rodar; env-file `/var/lib/hub_secrets/.env.hub.homolog`) — migration `0024_areas_por_entregador.sql` registrada em `SchemaMigration` (id=25, `aplicado_em` 2026-07-08) + SIGUSR1 enviado ao PostgREST; validado com query `psql` real: `\d hub_areas_por_entregador` confirma as 3 colunas (`entregador_id`, `subpraca`, `data_mais_recente`) e `SELECT count(*) FROM hub_areas_por_entregador` retorna `0` sem erro (tabelas de fato ainda vazias em hub-homolog — esperado, ninguém rodou o pipeline de importação real lá ainda)
+
 ---
 
 ## FASE 2 - Seeds sintéticos para teste
@@ -81,21 +103,27 @@ Ref: plan Fase 2, research Decision 2, docs/plans/hub-frota (S10-safe)
 
 Ref: plan Fase 3, spec FR-001/FR-002, contracts GET /motoristas, quickstart Cenário 1/2
 
-- [ ] 3.1.1 Implementar handler `GET /api/v1/motoristas`: filtros por nome (parcial, sem acento — Clarification Q2), `ativo`, área, `comVinculo`; paginação `page`/`pageSize` (default 20, máx 100)
-- [ ] 3.1.2 Computar `areas: string[]` distintas por linha (mesma fonte de FR-003), ordenadas por recência
-- [ ] 3.1.3 Retornar estado vazio como `{items: [], total: 0}` — nunca erro (FR-002 Edge Case)
-- [ ] 3.1.4 Aplicar RLS/escopo por token; garantir isolamento multi-tenant
-- [ ] 3.1.5 Testes unit do mapper/máscara em `tests/hub-motoristas-dto.test.js`
-- [ ] 3.1.6 Testes de integração dos filtros com seeds em `tests/hub-motoristas.test.js` (PostgREST hub)
+- [x] 3.1.1 Implementar handler `GET /api/v1/motoristas` (`routes/hub-motoristas.js`): filtros por nome (parcial, sem acento — Clarification Q2), `ativo`, área, `comVinculo`; paginação `page`/`pageSize` (default 20, máx 100). Decisão registrada no cabeçalho do arquivo: filtros baratos/exatos (`id_empresa`, `ativo`, `motorista_id is/is-not null`) empurrados ao PostgREST; nome/área resolvidos em JS (`lib/hub-motoristas-dto.js#nomeCasa`/`areaCasa`, tolerantes a acento) — validado empiricamente (assert "filtro nome=jose (sem acento) -> encontra 'José da Silva'")
+- [x] 3.1.2 Computar `areas: string[]` distintas por linha (mesma fonte de FR-003), ordenadas por recência — via view `hub_areas_por_entregador` (migration 0024, item 1.6 emergente), 1 query em lote para todos os candidatos da página (`buscarAreasPorEntregador`, sem N+1); validado empiricamente (asserts "lista -> Carlos.areas"/"lista -> José.areas")
+- [x] 3.1.3 Retornar estado vazio como `{items: [], total: 0}` — nunca erro (FR-002 Edge Case) — caminho curto no handler quando o conjunto candidato do PostgREST já vem vazio
+- [x] 3.1.4 Aplicar RLS/escopo por token; garantir isolamento multi-tenant — validado empiricamente (assert "isolamento multi-tenant -> não vaza Entregadores do outro tenant", troca de entidade ativa do MESMO usuário)
+- [x] 3.1.5 Testes unit do mapper/máscara em `tests/hub-motoristas-dto.test.js` — 33/33 PASS (`node --test tests/hub-motoristas-dto.test.js`)
+- [x] 3.1.6 Testes de integração dos filtros com seeds em `tests/hub-motoristas.test.js` (PostgREST hub) — script `infra/hub/testes/hub-motoristas-integration.sh` rodado de verdade contra projeto `hub-test-<runid>` efêmero: 44/44 asserts PASS, incl. filtros nome/ativo/comVinculo/area e isolamento multi-tenant
 
 ### 3.2 GET /motoristas/:id — detalhe com indicadores all-time `[A]`
 
 Ref: plan Fase 3, spec FR-003, contracts GET /:id, data-model §Resumo de indicadores
 
-- [ ] 3.2.1 Implementar handler `GET /motoristas/:id`: indicadores all-time, `areas` (subpraça + dataMaisRecente) ordenadas por recência, `cnpjPrestadorMascarado`
-- [ ] 3.2.2 Retornar `404 NAO_ENCONTRADO` fora do escopo do token (RLS + filtro `id_empresa`)
-- [ ] 3.2.3 Tratar Entregador sem histórico de importação (Edge Case FR-003) sem erro
-- [ ] 3.2.4 Testes de integração do detalhe + máscara de CNPJ em `tests/hub-motoristas.test.js`
+- [x] 3.2.1 Implementar handler `GET /motoristas/:id` (`routes/hub-motoristas.js`): indicadores all-time (`FaturamentoLancamento`/`PerformanceTurno` via count=exact + range 0-0 combinando total e linha mais recente numa única query por tabela), `areas` (subpraça + dataMaisRecente) ordenadas por recência (view `hub_areas_por_entregador`), `cnpjPrestadorMascarado` via `lib/hub-motoristas-dto.js#mascararCnpj` (função pura, testada isoladamente); embed nativo do PostgREST `Entregador...ContaMotorista(id,nome,cnpj_prestador)` via FK física (migration 0021) confirmado empiricamente (assert "detalhe Carlos -> vinculo.nome"/"vinculo.cnpjPrestadorMascarado")
+- [x] 3.2.2 Retornar `404 NAO_ENCONTRADO` fora do escopo do token (RLS + filtro `id_empresa`) — validado empiricamente (asserts "detalhe de Entregador fora do escopo -> 404" e "detalhe de Entregador de outro tenant (via entidade OUTRA) -> 404")
+- [x] 3.2.3 Tratar Entregador sem histórico de importação (Edge Case FR-003) sem erro — validado empiricamente (asserts "detalhe Ana (sem nenhum fato) -> 200", resumo zerado, `areas: []`, `vinculo: null`)
+- [x] 3.2.4 Testes de integração do detalhe + máscara de CNPJ em `tests/hub-motoristas.test.js` — cobertos pelo mesmo script `hub-motoristas-integration.sh` (happy path, sem vínculo, sem fato, fora do escopo, id inexistente — 404) + unit da máscara em `tests/hub-motoristas-dto.test.js` (6 casos, incl. formatado/dígitos puros/entrada inválida)
+
+Bônus (fora do escopo mínimo de 3.1/3.2, mas coberto no mesmo script por ser
+barato): `GET /motoristas` e `GET /motoristas/:id` sem `motoristas.listar`/
+`motoristas.consultar` -> `403 PERMISSAO_NEGADA` (papel sintético
+`sem_motoristas_teste`, sem nenhum dos 4 papéis-seed de `0007` servir para
+esse caso — todos concedem `motoristas.consultar`/`listar`).
 
 ---
 
