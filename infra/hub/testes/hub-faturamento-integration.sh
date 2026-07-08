@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================================
-# hub-faturamento-integration.sh — tasks.md FASE 3 (3.2.5): prova E2E de
-# GET /api/v1/faturamento contra um projeto hub-test EFÊMERO e descartável.
-# Mesmo padrão de isolamento de infra/hub/testes/hub-motoristas-integration.sh
-# / hub-importacoes-integration.sh — nunca toca chatmasterveloz/produção.
+# hub-faturamento-integration.sh — tasks.md FASE 3/4 (3.2.5/4.1.5): prova E2E
+# de GET /api/v1/faturamento e GET /api/v1/faturamento/resumo contra um
+# projeto hub-test EFÊMERO e descartável. Mesmo padrão de isolamento de
+# infra/hub/testes/hub-motoristas-integration.sh/hub-importacoes-integration.sh
+# — nunca toca chatmasterveloz/produção.
 #
-# Cobre:
+# GET /faturamento cobre:
 #   (a) sem cookie -> 401
 #   (b) lista básica (sem filtro) -> 200, items/total corretos
 #   (c) filtros combinados (categoria+data) -> subconjunto correto
@@ -17,6 +18,14 @@
 #   (i) isolamento multi-tenant: lançamentos de OUTRA entidade nunca aparecem
 #   (j) lançamento agregado/bônus (entregador_id NULL) aparece com
 #       comEntregador:false, entregadorId/Nome null — nunca omitido (FR-005)
+#
+# GET /faturamento/resumo cobre (tasks.md 4.1.5):
+#   (k) cards sem groupBy -> totalGeral/categoriaMaiorValor/entregadoresDistintos
+#   (l) agrupado por dia/categoria/entregador -> soma bate com o total geral
+#   (m) empate alfabético no card de categoria (dec-014)
+#   (n) período vazio -> cards zerados / grupos:[] (FR-012, nunca erro)
+#   (o) groupBy inválido -> 400
+#   (p) bucket agregados/bônus aparece com rótulo fixo no agrupado por entregador
 #
 # Uso: infra/hub/testes/hub-faturamento-integration.sh
 # =============================================================================
@@ -149,6 +158,19 @@ VALUES
   ($E_OUTRA, $IMPORT_ID_OUTRA, $ENT_OUTRA, '2026-07-01', '2026-07-01', 'Zona Norte', 'Rio', 'ALMOCO', 'Credito', 999.00, 'Nao deve vazar', md5('outra-1'));
 SQL
 
+# Fatos dedicados ao empate alfabético (dec-014, Cenário 3/tasks.md 4.1.5) —
+# janela ISOLADA (2026-08-01) para não interferir na soma/contagem dos
+# cenários de GET /faturamento acima: 'Alfa' e 'Zeta' somam EXATAMENTE
+# 50.00 cada -> categoriaMaiorValor MUST ser 'Alfa' (primeira em ordem
+# alfabética entre as empatadas).
+psql_t <<SQL >/dev/null
+INSERT INTO "FaturamentoLancamento"
+  (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, subpraca, praca, periodo, tipo, valor, descricao, hash_linha)
+VALUES
+  ($E_TESTE, $IMPORT_ID, $ENT_JOAO,  '2026-08-01', '2026-08-01', 'Zona Sul', 'Sao Paulo', 'ALMOCO', 'Credito', 50.00, 'Zeta', md5('empate-zeta')),
+  ($E_TESTE, $IMPORT_ID, $ENT_MARIA, '2026-08-01', '2026-08-01', 'Centro',   'Sao Paulo', 'ALMOCO', 'Credito', 50.00, 'Alfa', md5('empate-alfa'));
+SQL
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Script Node único: login + troca de entidade + chamadas GET.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -261,6 +283,65 @@ async function main() {
   out.bonus_entregadorNome = bonusItem ? bonusItem.entregadorNome : null;
   out.bonus_categoria = bonusItem ? bonusItem.categoria : null;
 
+  // ── GET /faturamento/resumo (FASE 4, tasks.md 4.1.5) ────────────────────
+
+  // (k) cards sem groupBy — janela 2026-07-01..04 (joao 150 + maria 80 +
+  // bonus 30 = 260.00; maior categoria = 'Corridas concluidas' (150); 2
+  // entregadores distintos, bônus/NULL não conta).
+  const rCards = await getJson(jarLeitura, '/faturamento/resumo?de=2026-07-01&ate=2026-07-04');
+  out.cards_status = rCards.status;
+  out.cards_totalGeral = rCards.body && rCards.body.totalGeral;
+  out.cards_categoriaMaiorValor = rCards.body && rCards.body.categoriaMaiorValor;
+  out.cards_entregadoresDistintos = rCards.body && rCards.body.entregadoresDistintos;
+
+  // (l) agrupado por dia — 4 dias distintos, soma das linhas bate com o total
+  const rDia = await getJson(jarLeitura, '/faturamento/resumo?de=2026-07-01&ate=2026-07-04&groupBy=dia');
+  out.dia_status = rDia.status;
+  out.dia_groupBy = rDia.body && rDia.body.groupBy;
+  out.dia_qtd_grupos = rDia.body && rDia.body.grupos ? rDia.body.grupos.length : null;
+  out.dia_soma = rDia.body && rDia.body.grupos
+    ? rDia.body.grupos.reduce((acc, g) => acc + Number(g.total), 0).toFixed(2)
+    : null;
+
+  // agrupado por categoria — 3 grupos (Corridas concluidas/Gorjeta/Bonus semanal)
+  const rCategoriaGrp = await getJson(jarLeitura, '/faturamento/resumo?de=2026-07-01&ate=2026-07-04&groupBy=categoria');
+  out.categoriaGrp_qtd = rCategoriaGrp.body && rCategoriaGrp.body.grupos ? rCategoriaGrp.body.grupos.length : null;
+
+  // agrupado por entregador — joao/maria (nome via rótulo) + agregados_bonus
+  const rEntregadorGrp = await getJson(jarLeitura, '/faturamento/resumo?de=2026-07-01&ate=2026-07-04&groupBy=entregador');
+  const grupos = (rEntregadorGrp.body && rEntregadorGrp.body.grupos) || [];
+  out.entregadorGrp_qtd = grupos.length;
+  const grupoJoao = grupos.find((g) => g.total === '150.00');
+  out.entregadorGrp_rotuloJoao = grupoJoao ? grupoJoao.rotulo : null;
+  const grupoBonus = grupos.find((g) => g.chave === 'agregados_bonus');
+  out.entregadorGrp_rotuloBonus = grupoBonus ? grupoBonus.rotulo : null;
+  out.entregadorGrp_totalBonus = grupoBonus ? grupoBonus.total : null;
+
+  // (m) empate alfabético (dec-014) — janela isolada 2026-08-01, 'Alfa' vs
+  // 'Zeta' empatados em 50.00 -> vence 'Alfa'
+  const rEmpate = await getJson(jarLeitura, '/faturamento/resumo?de=2026-08-01&ate=2026-08-01');
+  out.empate_categoriaMaiorValor = rEmpate.body && rEmpate.body.categoriaMaiorValor;
+
+  // (n) período vazio — cards zerados / grupos:[] (FR-012, nunca erro)
+  const rCardsVazio = await getJson(jarLeitura, '/faturamento/resumo?de=2020-01-01&ate=2020-01-31');
+  out.cardsVazio_status = rCardsVazio.status;
+  out.cardsVazio_totalGeral = rCardsVazio.body && rCardsVazio.body.totalGeral;
+  out.cardsVazio_categoriaMaiorValor = rCardsVazio.body && rCardsVazio.body.categoriaMaiorValor;
+  out.cardsVazio_entregadoresDistintos = rCardsVazio.body && rCardsVazio.body.entregadoresDistintos;
+
+  const rGrupoVazio = await getJson(jarLeitura, '/faturamento/resumo?de=2020-01-01&ate=2020-01-31&groupBy=categoria');
+  out.grupoVazio_status = rGrupoVazio.status;
+  out.grupoVazio_len = rGrupoVazio.body && rGrupoVazio.body.grupos ? rGrupoVazio.body.grupos.length : null;
+
+  // (o) groupBy inválido -> 400
+  const rGroupByInvalido = await getJson(jarLeitura, '/faturamento/resumo?groupBy=mes');
+  out.groupByInvalido_status = rGroupByInvalido.status;
+  out.groupByInvalido_erro = rGroupByInvalido.body && rGroupByInvalido.body.erro;
+
+  // resumo sem faturamento.consultar -> 403 (mesmo papel sintético do teste (h))
+  const rResumoSemPermissao = await getJson(jarSemPerm, '/faturamento/resumo');
+  out.resumoSemPermissao_status = rResumoSemPermissao.status;
+
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
 main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
@@ -299,9 +380,41 @@ check "bônus -> entregadorId=null" "$(jget bonus_entregadorId)" ""
 check "bônus -> entregadorNome=null" "$(jget bonus_entregadorNome)" ""
 check "bônus -> categoria preservada ('Bonus semanal')" "$(jget bonus_categoria)" "Bonus semanal"
 
+# ── GET /faturamento/resumo (FASE 4, tasks.md 4.1.5) ────────────────────────
+check "resumo cards -> 200" "$(jget cards_status)" "200"
+check "resumo cards -> totalGeral=260.00 (100+50+80+30)" "$(jget cards_totalGeral)" "260.00"
+check "resumo cards -> categoriaMaiorValor='Corridas concluidas' (150, sem empate nesta janela)" "$(jget cards_categoriaMaiorValor)" "Corridas concluidas"
+check "resumo cards -> entregadoresDistintos=2 (bônus/NULL não conta)" "$(jget cards_entregadoresDistintos)" "2"
+
+check "resumo agrupado por dia -> 200" "$(jget dia_status)" "200"
+check "resumo agrupado por dia -> groupBy='dia' ecoado" "$(jget dia_groupBy)" "dia"
+check "resumo agrupado por dia -> 4 grupos (4 dias distintos)" "$(jget dia_qtd_grupos)" "4"
+check "resumo agrupado por dia -> soma dos grupos bate com totalGeral (260.00)" "$(jget dia_soma)" "260.00"
+
+check "resumo agrupado por categoria -> 3 grupos" "$(jget categoriaGrp_qtd)" "3"
+
+check "resumo agrupado por entregador -> 3 grupos (joao+maria+agregados_bonus)" "$(jget entregadorGrp_qtd)" "3"
+check "resumo agrupado por entregador -> rótulo do joao = nome (join Entregador)" "$(jget entregadorGrp_rotuloJoao)" "Joao Faturamento"
+check "resumo agrupado por entregador -> rótulo do bucket bônus = 'Agregados/bônus' fixo" "$(jget entregadorGrp_rotuloBonus)" "Agregados/bônus"
+check "resumo agrupado por entregador -> total do bucket bônus = 30.00" "$(jget entregadorGrp_totalBonus)" "30.00"
+
+check "empate alfabético (dec-014): 'Alfa' vs 'Zeta' empatados em 50.00 -> vence 'Alfa'" "$(jget empate_categoriaMaiorValor)" "Alfa"
+
+check "resumo cards período vazio -> 200 (FR-012, nunca erro)" "$(jget cardsVazio_status)" "200"
+check "resumo cards período vazio -> totalGeral='0.00'" "$(jget cardsVazio_totalGeral)" "0.00"
+check "resumo cards período vazio -> categoriaMaiorValor=null" "$(jget cardsVazio_categoriaMaiorValor)" ""
+check "resumo cards período vazio -> entregadoresDistintos=0" "$(jget cardsVazio_entregadoresDistintos)" "0"
+check "resumo agrupado período vazio -> 200" "$(jget grupoVazio_status)" "200"
+check "resumo agrupado período vazio -> grupos=[]" "$(jget grupoVazio_len)" "0"
+
+check "resumo groupBy inválido ('mes') -> 400" "$(jget groupByInvalido_status)" "400"
+check "resumo groupBy inválido -> erro=GROUP_BY_INVALIDO" "$(jget groupByInvalido_erro)" "GROUP_BY_INVALIDO"
+
+check "resumo sem faturamento.consultar (papel sintético) -> 403" "$(jget resumoSemPermissao_status)" "403"
+
 echo
 if [ "$fails" = "0" ]; then
-  echo "HUB-FATURAMENTO-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2)"
+  echo "HUB-FATURAMENTO-INTEGRATION: OK — todos os asserts passaram (FASE 3/4: 3.1/3.2/4.1)"
 else
   echo "HUB-FATURAMENTO-INTEGRATION: $fails assert(s) FALHARAM" >&2
   exit 1

@@ -22,6 +22,10 @@ const {
   parseFiltros,
   parsePaginacao,
   mapFaturamentoListItem,
+  groupByValido,
+  mapResumoCards,
+  mapResumoAgrupado,
+  CHAVE_AGREGADOS_BONUS,
 } = require('../lib/hub-faturamento-dto');
 
 const router = express.Router();
@@ -147,4 +151,108 @@ router.get('/', requirePermission('faturamento.listar'), async (req, res) => {
   }
 });
 
-module.exports = { router, resolverContextoEntidade, montarFiltrosQuery };
+/**
+ * Monta o corpo do `POST /rpc/hub_faturamento_totais|hub_faturamento_agrupado`
+ * — TODOS os parâmetros SEMPRE presentes (as funções SQL não têm `DEFAULT`,
+ * migration 0027), filtros ausentes viram `null` explícito (a própria RPC
+ * já trata `p_x IS NULL` como "sem filtro", research.md Decision 2).
+ * @param {number} entidadeAtiva
+ * @param {ReturnType<import('../lib/hub-faturamento-dto').parseFiltros>} f
+ * @returns {object}
+ */
+function montarParamsRpc(entidadeAtiva, f) {
+  return {
+    p_id_empresa: entidadeAtiva,
+    p_de: f.de,
+    p_ate: f.ate,
+    p_categoria: f.categoria,
+    p_entregador_id: f.entregadorId,
+    p_subpraca: f.subpraca,
+    p_com_entregador: f.comEntregador,
+  };
+}
+
+/**
+ * Resolve `Entregador.nome` para o subconjunto de `chave`s numéricas
+ * (ids) presentes num resultado de `hub_faturamento_agrupado` com
+ * `groupBy=entregador` — NUNCA a tabela inteira, só os ids que de fato
+ * aparecem no agrupamento, escopados por `entidadeAtiva` (defesa em
+ * profundidade complementar à RLS, mesmo padrão de
+ * `routes/hub-motoristas.js#entregadorExisteNoEscopo`).
+ * @param {Array<{chave:string}>} grupos
+ * @param {number} entidadeAtiva
+ * @param {object} claims
+ * @returns {Promise<Map<string,string>>}
+ */
+async function resolverNomesEntregadores(grupos, entidadeAtiva, claims) {
+  const ids = [...new Set(
+    (grupos || [])
+      .map((g) => g.chave)
+      .filter((chave) => chave !== CHAVE_AGREGADOS_BONUS)
+  )];
+  if (ids.length === 0) return new Map();
+  const linhas = await hubPostgrestRequest(
+    `Entregador?id=in.(${ids.join(',')})&id_empresa=eq.${entidadeAtiva}&select=id,nome`,
+    'GET', null, claims
+  );
+  const mapa = new Map();
+  for (const row of linhas || []) {
+    mapa.set(String(row.id), row.nome);
+  }
+  return mapa;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /faturamento/resumo — cards (sem groupBy) / agregados (com groupBy) —
+// task 4.1
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/resumo', requirePermission('faturamento.consultar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'faturamento.consultar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const f = parseFiltros(req.query);
+    if (!f.ok) {
+      return res.status(400).json({ erro: f.erro });
+    }
+
+    const groupByBruto = req.query.groupBy;
+    if (groupByBruto !== undefined && !groupByValido(groupByBruto)) {
+      return res.status(400).json({ erro: 'GROUP_BY_INVALIDO' });
+    }
+
+    if (!groupByBruto) {
+      // FR-003 — cards. A RPC já retorna 1 linha zerada (COALESCE/subquery
+      // vazia) quando não há lançamento no filtro — FR-012 satisfeito sem
+      // caminho especial aqui (mapResumoCards ainda cobre defensivamente
+      // um retorno vazio inesperado).
+      const linhas = await hubPostgrestRequest(
+        'rpc/hub_faturamento_totais', 'POST',
+        montarParamsRpc(entidadeAtiva, f), claims
+      );
+      return res.status(200).json(mapResumoCards(linhas && linhas[0]));
+    }
+
+    // FR-004 — agregado por dia/categoria/entregador.
+    const linhasAgrupado = await hubPostgrestRequest(
+      'rpc/hub_faturamento_agrupado', 'POST',
+      { ...montarParamsRpc(entidadeAtiva, f), p_group_by: groupByBruto }, claims
+    );
+    const grupos = linhasAgrupado || [];
+    const nomeMap = groupByBruto === 'entregador'
+      ? await resolverNomesEntregadores(grupos, entidadeAtiva, claims)
+      : new Map();
+
+    return res.status(200).json({
+      groupBy: groupByBruto,
+      grupos: mapResumoAgrupado(grupos, groupByBruto, nomeMap),
+    });
+  } catch (e) {
+    console.error('[hub-faturamento] erro em GET /faturamento/resumo:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+module.exports = { router, resolverContextoEntidade, montarFiltrosQuery, montarParamsRpc };

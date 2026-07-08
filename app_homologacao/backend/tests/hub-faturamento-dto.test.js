@@ -1,9 +1,11 @@
 /**
  * Testes unitários — lib/hub-faturamento-dto.js (hub-faturamento/S6,
- * tasks.md 3.1.4). Rodam com: node --test tests/hub-faturamento-dto.test.js
+ * tasks.md 3.1.4/4.1.5). Rodam com: node --test tests/hub-faturamento-dto.test.js
  *
- * Cobre o mapper (comEntregador derivado), parseFiltros (válidos/inválidos/
- * contraditório, default de 30 dias) e parsePaginacao (limites/defaults).
+ * Cobre o mapper de lista (comEntregador derivado), parseFiltros (válidos/
+ * inválidos/contraditório, default de 30 dias), parsePaginacao (limites/
+ * defaults) e os mappers de resumo (cards/agregado, bucket agregados/bônus,
+ * FR-003/FR-004/FR-012).
  */
 
 'use strict';
@@ -14,10 +16,15 @@ const assert = require('node:assert/strict');
 const {
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
+  CHAVE_AGREGADOS_BONUS,
+  ROTULO_AGREGADOS_BONUS,
   dataValida,
   parseFiltros,
   parsePaginacao,
+  groupByValido,
   mapFaturamentoListItem,
+  mapResumoCards,
+  mapResumoAgrupado,
 } = require('../lib/hub-faturamento-dto');
 
 describe('mapFaturamentoListItem', () => {
@@ -182,5 +189,88 @@ describe('parsePaginacao', () => {
     const r = parsePaginacao({ page: '0', pageSize: 'abc' });
     assert.equal(r.page, 1);
     assert.equal(r.pageSize, PAGE_SIZE_DEFAULT);
+  });
+});
+
+describe('groupByValido', () => {
+  test('aceita exatamente dia/categoria/entregador', () => {
+    assert.equal(groupByValido('dia'), true);
+    assert.equal(groupByValido('categoria'), true);
+    assert.equal(groupByValido('entregador'), true);
+  });
+
+  test('rejeita qualquer outro valor', () => {
+    assert.equal(groupByValido('mes'), false);
+    assert.equal(groupByValido(''), false);
+    assert.equal(groupByValido(undefined), false);
+    assert.equal(groupByValido('Dia'), false); // case-sensitive
+  });
+});
+
+describe('mapResumoCards (FR-003/FR-012)', () => {
+  test('mapeia total_geral/categoria_maior_valor/entregadores_distintos -> camelCase', () => {
+    const r = mapResumoCards({ total_geral: '98135.40', categoria_maior_valor: 'Corridas concluidas', entregadores_distintos: 691 });
+    assert.deepEqual(r, { totalGeral: '98135.40', categoriaMaiorValor: 'Corridas concluidas', entregadoresDistintos: 691 });
+  });
+
+  test('período sem dados (row undefined) -> shape zerado, nunca erro (FR-012)', () => {
+    const r = mapResumoCards(undefined);
+    assert.deepEqual(r, { totalGeral: '0.00', categoriaMaiorValor: null, entregadoresDistintos: 0 });
+  });
+
+  test('row com categoria_maior_valor null (RPC já retorna null quando vazio) é preservado', () => {
+    const r = mapResumoCards({ total_geral: '0.00', categoria_maior_valor: null, entregadores_distintos: 0 });
+    assert.equal(r.categoriaMaiorValor, null);
+  });
+});
+
+describe('mapResumoAgrupado (FR-004/FR-005, Decision 4)', () => {
+  test('groupBy=dia -> rotulo === chave (sem lookup)', () => {
+    const rows = [{ chave: '2026-07-01', total: '150.00', quantidade: 3 }];
+    const r = mapResumoAgrupado(rows, 'dia');
+    assert.deepEqual(r, [{ chave: '2026-07-01', rotulo: '2026-07-01', total: '150.00', quantidade: 3 }]);
+  });
+
+  test('groupBy=categoria -> rotulo === chave (sem lookup)', () => {
+    const rows = [{ chave: 'Corridas concluidas', total: '500.00', quantidade: 10 }];
+    const r = mapResumoAgrupado(rows, 'categoria');
+    assert.equal(r[0].rotulo, 'Corridas concluidas');
+  });
+
+  test('groupBy=entregador -> rotulo resolvido via nomeMap (join Entregador.nome)', () => {
+    const rows = [{ chave: '42', total: '1250.00', quantidade: 18 }];
+    const nomeMap = new Map([['42', 'F*** S***']]);
+    const r = mapResumoAgrupado(rows, 'entregador', nomeMap);
+    assert.deepEqual(r, [{ chave: '42', rotulo: 'F*** S***', total: '1250.00', quantidade: 18 }]);
+  });
+
+  test('groupBy=entregador, chave sem entrada no nomeMap -> rotulo cai para a própria chave (defensivo)', () => {
+    const rows = [{ chave: '999', total: '10.00', quantidade: 1 }];
+    const r = mapResumoAgrupado(rows, 'entregador', new Map());
+    assert.equal(r[0].rotulo, '999');
+  });
+
+  test('bucket agregados_bonus -> rotulo literal "Agregados/bônus", SEMPRE (independente do nomeMap)', () => {
+    const rows = [{ chave: CHAVE_AGREGADOS_BONUS, total: '3940.40', quantidade: 885 }];
+    const r = mapResumoAgrupado(rows, 'entregador', new Map([[CHAVE_AGREGADOS_BONUS, 'nao deveria ser usado']]));
+    assert.equal(r[0].rotulo, ROTULO_AGREGADOS_BONUS);
+  });
+
+  test('array vazio -> array vazio (período sem dados no agrupado)', () => {
+    assert.deepEqual(mapResumoAgrupado([], 'dia'), []);
+    assert.deepEqual(mapResumoAgrupado(undefined, 'dia'), []);
+  });
+
+  test('exemplo do contrato (faturamento-api.md): grupo com entregador + bucket bônus juntos', () => {
+    const rows = [
+      { chave: '42', total: '1250.00', quantidade: 18 },
+      { chave: CHAVE_AGREGADOS_BONUS, total: '3940.40', quantidade: 885 },
+    ];
+    const nomeMap = new Map([['42', 'F*** S***']]);
+    const r = mapResumoAgrupado(rows, 'entregador', nomeMap);
+    assert.deepEqual(r, [
+      { chave: '42', rotulo: 'F*** S***', total: '1250.00', quantidade: 18 },
+      { chave: 'agregados_bonus', rotulo: 'Agregados/bônus', total: '3940.40', quantidade: 885 },
+    ]);
   });
 });

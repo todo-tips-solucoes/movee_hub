@@ -136,12 +136,83 @@ function mapFaturamentoListItem(row) {
   };
 }
 
+const GROUP_BY_VALIDOS = ['dia', 'categoria', 'entregador'];
+
+/** `true` se `valor` é um dos 3 valores aceitos de `groupBy`
+ * (contracts/faturamento-api.md "GET /faturamento/resumo"). */
+function groupByValido(valor) {
+  return GROUP_BY_VALIDOS.includes(valor);
+}
+
+/** Rótulo literal do bucket agregados/bônus (Decision 4/dec-010) — chave
+ * fixa usada tanto pela RPC (`hub_faturamento_agrupado`) quanto pelo mapper
+ * de resposta, para nunca divergir. */
+const CHAVE_AGREGADOS_BONUS = 'agregados_bonus';
+const ROTULO_AGREGADOS_BONUS = 'Agregados/bônus';
+
+/**
+ * Mapeia a linha única retornada por `hub_faturamento_totais` (RPC,
+ * `total_geral`/`categoria_maior_valor`/`entregadores_distintos` já como
+ * `text`/`text`/`int`) para o shape de cards do contrato (FR-003/FR-012).
+ * `row` ausente/undefined (RPC nunca deveria retornar 0 linhas — sempre 1,
+ * mesmo com filtro vazio via COALESCE/subquery — mas o fallback cobre
+ * defensivamente um retorno inesperado) -> shape zerado.
+ * @param {{total_geral:string, categoria_maior_valor:string|null, entregadores_distintos:number}|undefined} row
+ * @returns {{totalGeral:string, categoriaMaiorValor:string|null, entregadoresDistintos:number}}
+ */
+function mapResumoCards(row) {
+  if (!row) {
+    return { totalGeral: '0.00', categoriaMaiorValor: null, entregadoresDistintos: 0 };
+  }
+  return {
+    totalGeral: row.total_geral,
+    categoriaMaiorValor: row.categoria_maior_valor,
+    entregadoresDistintos: row.entregadores_distintos,
+  };
+}
+
+/**
+ * Mapeia as linhas de `hub_faturamento_agrupado` (RPC) para o shape de
+ * `grupos` do contrato (FR-004), resolvendo `rotulo`:
+ * - `chave === 'agregados_bonus'` -> literal `"Agregados/bônus"` (nunca
+ *   depende de `nomeMap`).
+ * - `groupBy === 'entregador'` (chave = `entregador_id::text`) -> nome via
+ *   `nomeMap` (join `Entregador.nome` feito pelo caller, `entregadorId` não
+ *   exposto na página inteira — `nomeMap` é um `Map<string, string>` chave
+ *   por `chave` textual, resolvido só para os ids REALMENTE presentes no
+ *   resultado, nunca a tabela inteira).
+ * - `groupBy` ∈ {`categoria`,`dia`} -> `rotulo === chave` (a própria
+ *   categoria/data, sem lookup).
+ * @param {Array<{chave:string, total:string, quantidade:number}>} rows
+ * @param {'dia'|'categoria'|'entregador'} groupBy
+ * @param {Map<string,string>} [nomeMap] - só usado quando `groupBy==='entregador'`
+ * @returns {Array<{chave:string, rotulo:string, total:string, quantidade:number}>}
+ */
+function mapResumoAgrupado(rows, groupBy, nomeMap = new Map()) {
+  return (rows || []).map((row) => {
+    let rotulo;
+    if (row.chave === CHAVE_AGREGADOS_BONUS) {
+      rotulo = ROTULO_AGREGADOS_BONUS;
+    } else if (groupBy === 'entregador') {
+      rotulo = nomeMap.get(row.chave) || row.chave;
+    } else {
+      rotulo = row.chave;
+    }
+    return { chave: row.chave, rotulo, total: row.total, quantidade: row.quantidade };
+  });
+}
+
 module.exports = {
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
   JANELA_PADRAO_DIAS,
+  CHAVE_AGREGADOS_BONUS,
+  ROTULO_AGREGADOS_BONUS,
   dataValida,
   parseFiltros,
   parsePaginacao,
+  groupByValido,
   mapFaturamentoListItem,
+  mapResumoCards,
+  mapResumoAgrupado,
 };

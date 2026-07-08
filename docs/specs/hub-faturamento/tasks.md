@@ -104,11 +104,11 @@ Ref: contracts/faturamento-api.md "GET /faturamento"; middleware/hub-require-per
 Ref: contracts/faturamento-api.md "GET /faturamento/resumo"; research.md
 Decision 2/3/4; spec.md FR-003/FR-004/FR-012
 
-- [ ] 4.1.1 Implementar handler `GET /resumo` com `requirePermission('faturamento.consultar')`
-- [ ] 4.1.2 Sem `groupBy`: chamar `hub_faturamento_totais` via RPC do PostgREST, mapear `totalGeral`/`categoriaMaiorValor`/`entregadoresDistintos`
-- [ ] 4.1.3 Com `groupBy` (enum `dia`\|`categoria`\|`entregador`, `400` se fora do enum): chamar `hub_faturamento_agrupado`, resolver `rotulo` (join `Entregador.nome` quando `chave` é id; literal `"Agregados/bônus"` quando `chave === 'agregados_bonus'`; a própria categoria/data para `groupBy=categoria`/`dia`)
-- [ ] 4.1.4 Tratar período vazio (FR-012): `{ totalGeral: "0.00", categoriaMaiorValor: null, entregadoresDistintos: 0 }` — nunca erro, nunca corpo vazio
-- [ ] 4.1.5 Teste integração: cards sem `groupBy`, agrupado por `dia`/`categoria`/`entregador`, empate alfabético (Cenário 3), período vazio (Cenário 6), `400` `groupBy` inválido
+- [x] 4.1.1 Implementar handler `GET /resumo` com `requirePermission('faturamento.consultar')`
+- [x] 4.1.2 Sem `groupBy`: chamar `hub_faturamento_totais` via RPC do PostgREST, mapear `totalGeral`/`categoriaMaiorValor`/`entregadoresDistintos`
+- [x] 4.1.3 Com `groupBy` (enum `dia`\|`categoria`\|`entregador`, `400` se fora do enum): chamar `hub_faturamento_agrupado`, resolver `rotulo` (join `Entregador.nome` quando `chave` é id; literal `"Agregados/bônus"` quando `chave === 'agregados_bonus'`; a própria categoria/data para `groupBy=categoria`/`dia`)
+- [x] 4.1.4 Tratar período vazio (FR-012): `{ totalGeral: "0.00", categoriaMaiorValor: null, entregadoresDistintos: 0 }` — nunca erro, nunca corpo vazio
+- [x] 4.1.5 Teste integração: cards sem `groupBy`, agrupado por `dia`/`categoria`/`entregador`, empate alfabético (Cenário 3), período vazio (Cenário 6), `400` `groupBy` inválido
 
 ---
 
