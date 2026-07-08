@@ -697,3 +697,203 @@ via RLS real (Cenário 8 + evidência §RLS acima).
   cutover (G3/S10) seguem com o operador.
 - Relatório terminal: `docs/specs/hub-motoristas/review-onda-013.md`. Próxima fase da
   ordem S3→S10 = **S6 (módulo faturamento, briefings/s6-modulo-faturamento.md)**.
+
+---
+
+## 2026-07-08 — S6 (Módulo Faturamento) — FASES 1–7 concluídas, branch feat/hub-faturamento
+
+- **Pipeline `/feature-00c` em andamento** (short_name `hub-faturamento`, onda-008,
+  `execute-task` → transição para `review-task`): specify → clarify → plan (gate OWASP
+  A05 Injection PASS) → checklist (39 itens) → create-tasks (7 fases / 13 tarefas /
+  73 subtarefas, gates verdes) → execute-task (**FASES 1–7, 13/13 tarefas `[x]`**).
+- **Entregue**: migrations **0026/0027** (`faturamento.listar` corretivo + RPCs
+  parametrizadas `hub_faturamento_totais`/`hub_faturamento_agrupado`, `SECURITY INVOKER`,
+  sem SQL montado por concatenação — OWASP A05 PASS); `lib/hub-csv.js` compartilhada
+  (neutralização de CSV injection `= + - @`, com gap CHK029 fechado: célula já iniciada
+  por apóstrofo/caractere neutro nunca sofre dupla neutralização); **2 endpoints**
+  `GET /api/v1/faturamento` (lista paginada + `?format=csv` streaming em lotes de 1.000)
+  e `GET /api/v1/faturamento/resumo` (cards + `groupBy=dia|categoria|entregador`);
+  DTO/API client (`lib/hub/faturamento-dto.ts`/`faturamento-api.ts`, `valor` sempre
+  `string`); tela `/hub/dashboard/faturamento` (cards, filtros server-side rotulados
+  explicitamente "data de competência", tabela paginada, export CSV condicionado a
+  `faturamento.exportar`, link condicional para `/hub/dashboard/motoristas/{id}` quando
+  `motoristas.consultar`, estados vazio/loading/erro).
+- **Validação determinística**: backend unit `node --test tests/hub-csv.test.js`
+  **9/9 PASS** (inclui CHK029); `infra/hub/testes/hub-faturamento-integration.sh`
+  (projeto `hub-test-*` efêmero) **62/62 asserts PASS** (contrato completo de
+  `GET /faturamento`/`GET /faturamento/resumo`, isolamento multi-tenant, CSV injection,
+  permissões independentes listar/consultar/exportar); frontend `npx vitest run
+  lib/hub/faturamento-dto.test.ts` **11/11 PASS**; `tsc --noEmit`/`eslint` limpos;
+  `npm run build` OK.
+- **E2E real contra `https://hub-homolog.todo-tips.com:8443`** (persistente, usuários QA
+  reais `qa.importacoes@moveelog.local`/`qa.motoristas.leitura@moveelog.local`/
+  `qa.motoristas.outraempresa@moveelog.local`, login real via cookie de sessão): **42
+  PASS / 0 FAIL** cobrindo os 14 cenários do `quickstart.md` — totais batendo com `SUM`
+  SQL direto no `hub_homolog_db`, empate alfabético determinístico (dec-014), filtro por
+  `data_referencia` (nunca `data_repasse`), período vazio sem erro, export CSV com
+  contagem/soma batendo com a tela, CSV injection neutralizada (`=`/`@` + os 2 casos
+  CHK029: apóstrofo pré-existente sem dupla neutralização e caractere neutro sem prefixo
+  espúrio), bypass de permissão via `curl` direto (`403 PERMISSAO_NEGADA`), isolamento
+  multi-tenant real (empresa 9002 sintética inserida só para a prova, zero vazamento nos
+  dois sentidos), navegação condicional ao detalhe do entregador (código +
+  re-execução do backstop 403 de `hub-motoristas-integration.sh`), roundtrip/identidade
+  visual (herdados da FASE 6, sem regressão).
+- **Cenário 15 (performance, SC-004) — ACHADO REAL, dec-035**: seed de ~900 mil linhas
+  (~1 ano, `id_empresa=9001`, gerado via `generate_series` direto no `hub_homolog_db`,
+  32,5s de INSERT) — `GET /faturamento/resumo` sobre o ano inteiro populado mediu
+  **2,2–2,6s sem `groupBy`** e **1,6–1,7s com `groupBy=categoria`**, **ambos excedendo o
+  limite de 1s de SC-004**. `EXPLAIN (ANALYZE, BUFFERS)` confirma Seq Scan sobre ~900k
+  linhas (esperado — o filtro cobre ~100% da tabela no pior caso) e overhead adicional de
+  `temp`/ordenação na RPC de cards. **Decisão dec-035 registrada (score 3, evidência
+  empírica)**: `mv_faturamento_dia` (§12.6 do plano técnico) é a mitigação pré-aprovada,
+  mas implementá-la é escopo novo (nova migration + refresh + mudança nas 2 RPCs) além do
+  backlog de 13 tarefas já revisado — **não implementada nesta onda**, escalada para
+  decisão do operador (mesmo padrão de governança de D3/D4). Detalhe completo em
+  `docs/plans/hub-frota/evidencias/S6/fase7-e2e-perf-resultado.md`.
+- **Gate `validate-docs-rendered`** sobre `tasks.md`/`quickstart.md` — **0 ERRO / 0
+  AVISO** em ambos.
+- **Produção intocada**: toda escrita confinada a recursos `hub-*`/`hub_*` (exceção G1);
+  serviços `envio-massa-homologacao_*` não tocados nesta sessão.
+
+### Pendências para o operador
+
+1. **`mv_faturamento_dia`** (dec-035): SC-004 formalmente violado sob volume anual de um
+   tenant grande — decidir se implementa a view materializada (nova fase) ou aceita o
+   risco por enquanto.
+2. **Limpeza do seed de performance** (~900 mil linhas, `id_empresa=9001`, ids
+   300–900299, em `hub_homolog_db`): tentativa de `DELETE` foi **bloqueada pelo
+   classificador de auto mode** ("mass delete... run outside auto mode") — requer ação
+   humana direta (dentro do escopo `hub-*` já autorizado por G1) ou decisão de manter
+   como fixture de regressão de performance.
+3. Pendência recorrente (desde S1): divergência do trailer de commit (CLAUDE.md pede
+   "Claude Opus 4.8"; commits usam o modelo vigente) — segue sem decisão do operador.
+4. PR ainda não aberto para `feat/hub-faturamento` — previsto para o fechamento de
+   `review-task` (próxima onda), mesmo padrão das fases anteriores.
+
+Relatório de `review-task` (próxima onda) fará a síntese final e decidirá sobre a
+abertura do PR. Próxima fase da ordem S3→S10 (após S6) = **S7**.
+
+---
+
+## 2026-07-08 — S6 (Módulo Faturamento) CONCLUÍDA — review-task (onda-009), veredito APROVAR com ressalva, PR draft
+
+- **Pipeline `/feature-00c` completa** (short_name `hub-faturamento`, 9 ondas,
+  `status=concluida`): specify → clarify → plan (gate OWASP A05 PASS) → checklist
+  (39 itens) → create-tasks (7 fases/13 tarefas/73 subtarefas) → execute-task
+  (FASES 1–7, 100% `[x]`) → **review-task (onda-009, veredito APROVAR com ressalva
+  formal de SC-004)**.
+- **Retry de onda registrado**: a 1ª tentativa da onda-009 (roteada `haiku` pelo
+  mapa de model-routing) retornou em ~64s com só 3 tool-uses e nenhuma escrita de
+  estado — bug recorrente de parada precoce, agravado em haiku. O comando PAI
+  registrou override para `sonnet` (**dec-038**) e a onda foi reaberta do zero
+  (**dec-039**) — sem perda: `waves=8` antes do retry, nada havia sido persistido.
+- **Reconciliação `.tasks[]`↔`tasks.md`**: 0 divergências pré-reconcile — as 13
+  tasks já tinham sido gravadas ao vivo pelo `execute-task` nas ondas 005–007
+  (nenhum back-fill necessário).
+- **Re-execução ao vivo da validação determinística** (dec-040, não só confiar em
+  evidência gravada): `npm test` backend (`hub-faturamento-dto.test.js` +
+  `hub-faturamento.test.js`, inclui a suíte `hub-faturamento-integration.sh`
+  embutida em projeto `hub-test-*` efêmero) **32/32 PASS**; `hub-csv.test.js`
+  **9/9 PASS**; `vitest lib/hub/faturamento-dto.test.ts` **11/11 PASS**;
+  `tsc --noEmit` e `eslint` (4 arquivos novos) limpos. Containers `hub-test-*`
+  auto-limpos após o run (confirmado via `docker ps -a`).
+- **Model-routing**: 0 half-records (`state-decisions-reconcile.sh check` exit 0);
+  agregado por-subagente e por-onda colados verbatim no relatório (§ dedicada).
+- **ACHADO FORMAL não mascarado — Cenário 15/SC-004 (dec-035)**: sob volume
+  ampliado (~900.219 linhas/1 ano, `id_empresa=9001`), `GET /faturamento/resumo`
+  mediu 2,2–2,6s sem `groupBy` e 1,6–1,7s com `groupBy=categoria` — **ambos
+  excedem o limite de 1s de SC-004**. `mv_faturamento_dia` (mitigação
+  pré-aprovada em research.md/plan.md §12.6) **não implementada nesta onda**
+  (escopo novo além do backlog de 13 tarefas já revisado) — escalada para
+  decisão do operador, mesmo padrão de governança de D3/D4.
+- **Veredito (dec-041, score 3): APROVAR — com ressalva formal de SC-004**,
+  pendente de decisão do operador sobre `mv_faturamento_dia`. Toda a superfície
+  funcional (US1/US2/US3, FR-001..FR-012) está implementada, testada e
+  evidenciada; o único achado é um NFR de performance sob pior-caso de volume
+  anual de 1 tenant grande, não um bug funcional nem falha de segurança/
+  isolamento.
+- **PR draft aberto**: `feat/hub-faturamento` → `main` (não mergeável sem decisão
+  do operador sobre a ressalva SC-004).
+- **Produção intocada**: toda escrita confinada a recursos `hub-*`/`hub_*`
+  (exceção G1); `envio-massa-homologacao_*` não tocado nesta onda.
+
+### Pendências para o operador (reafirmadas, sem mudança)
+
+1. **`mv_faturamento_dia`** (dec-035) — decidir se implementa a view materializada
+   (nova FASE/S6.1 ou S7 antecipada) ou aceita o risco por enquanto.
+2. **Limpeza do seed de ~900k linhas** em `hub_homolog_db` (`id_empresa=9001`,
+   ids 300–900299) — bloqueada pelo classificador de auto mode; requer ação
+   humana direta (escopo `hub-*` já autorizado por G1) ou manter como fixture de
+   regressão de performance.
+3. Pendência recorrente (desde S1): trailer de commit do CLAUDE.md ("Claude Opus
+   4.8") desatualizado vs modelo vigente — sem decisão do operador.
+4. Revisar e mergear o PR draft quando a ressalva SC-004 estiver resolvida/aceita.
+
+Relatório terminal: `docs/specs/hub-faturamento/review-onda-009.md`. Próxima
+fase da ordem S3→S10 = **S7**.
+
+## 2026-07-08 — Follow-up S6: SC-004 sanado com `mv_faturamento_dia` (migration 0028)
+
+Follow-up autorizado pelo operador para resolver a ressalva formal do
+review da onda-009 (SC-004 violado sob ~900k linhas — dec-035). Mesma
+branch `feat/hub-faturamento` (PR draft #59). Mitigação pré-aprovada no
+plano técnico §12.6, acionada pela evidência da onda-008.
+
+**O que mudou**
+
+- `infra/hub/migrations/0028_mv_faturamento_dia.sql` — MV
+  `mv_faturamento_dia` (grão `id_empresa`+`data_referencia`+`descricao`+
+  `entregador_id`; 27.960 linhas ≈ 32x menor que o fato; 4,5 MB vs 320 MB),
+  índice ÚNICO (pré-requisito do `REFRESH CONCURRENTLY`), índices de
+  filtro, **REVOKE de SELECT direto** para `authenticated`/`hub_web_anon`
+  (MV não tem RLS — acesso só via RPC), RPCs `hub_faturamento_totais`/
+  `hub_faturamento_agrupado` reescritas (`SECURITY DEFINER` + guard
+  explícito `p_id_empresa = ANY (hub_jwt_escopo_ids())`, lendo da MV;
+  fallback tabela-base só para filtro `subpraca`) e
+  `hub_faturamento_refresh_mv()` (CONCURRENTLY via dblink — PostgREST
+  envolve RPC em transação e CONCURRENTLY não roda em transação; fallback
+  bloqueante). Contrato da API **inalterado**.
+- `backend/lib/hub-import-processor.js` — refresh best-effort da MV ao
+  final de toda importação de faturamento bem-sucedida (único caminho de
+  escrita nos fatos). Staleness documentado em
+  `contracts/faturamento-api.md`.
+
+**Resultado (mesma metodologia/volume da onda-008, HTTP end-to-end)**
+
+| Medição | antes | depois |
+|---|---|---|
+| `/resumo` sem `groupBy` | 2600.5/2230.6ms | **33.6/40.4ms** |
+| `groupBy=categoria` | 1678.0/1625.2ms | **19.5/20.5ms** |
+| `groupBy=dia` | — | **30.6/35.4ms** |
+| `groupBy=entregador` | — | **39.9/64.9ms** |
+
+**SC-004 PASSA com folga (~25-50x)**. EXPLAIN: 1737.8ms → 28.5ms, zero temp.
+
+**Validação**: 73/73 integração faturamento (12 novos asserts: paridade
+MV×base, negativo cross-tenant direto na MV e via RPC — inclusive no
+fallback —, staleness/refresh, refresh negado sem escopo); 54/54 unit
+processor (+2); 363/363 hub unit; 25/25 integração processor; E2E ao vivo
+no hub-homolog (import real `id=30` → auto-refresh → resumo atualizado).
+0028 aplicada no `hub_homolog_db` via migrate.sh e backend hub-homolog
+redeployado (build com cap `--memory=2g`). Produção nunca tocada — smoke
+`app.moveelog.com.br/login` = 200 antes/depois. Evidência literal:
+`docs/plans/hub-frota/evidencias/S6/followup-sc004-mv.md`; adendo no
+`review-onda-009.md`.
+
+**Pendências**: seed de ~900k linhas (`id_empresa=9001`) mantido de
+propósito (fixture da re-medição) — DELETE segue com o operador; PR #59
+segue draft aguardando revisão/merge do operador.
+
+### 2026-07-08 — S6 follow-up (parte 2): limpeza do seed de performance EXECUTADA
+
+Com o SC-004 verde (re-medição acima), o operador autorizou explicitamente
+o DELETE na sessão ("manter, depois de resolvido o item 1 pode realizar o
+delete"). Executado no `hub_homolog_db` (recurso `hub-*`, exceção G1):
+`DELETE 900000` (faixa ids 300–900299, `id_empresa=9001`), `VACUUM ANALYZE`
++ `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_faturamento_dia` (tabela e MV
+consistentes em 221 linhas) e `VACUUM FULL` (320 MB → 192 kB devolvidos ao
+disco). Preservados: 220 linhas legítimas de teste do tenant 9001 (incl. o
+fato `id=900300` do E2E do refresh) + 1 linha da prova de isolamento do
+tenant 9002. Smoke pós-limpeza: hub-homolog 200, produção 200 (intocada).
+Outputs literais na §5 de `evidencias/S6/followup-sc004-mv.md`. **Única
+pendência restante da S6: revisão/merge do PR #59.**

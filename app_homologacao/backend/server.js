@@ -57,6 +57,12 @@ const hubImportProcessor = require('./lib/hub-import-processor');
 // interno. Arquivo 100% novo (routes/hub-motoristas.js).
 const hubMotoristasRoutes = require('./routes/hub-motoristas');
 
+// hub-faturamento (S6 do hub de frota, FASE 3) — GET /api/v1/faturamento
+// (lista paginada + export CSV) e GET /api/v1/faturamento/resumo (cards/
+// agregados), requirePermission interno. Arquivo 100% novo
+// (routes/hub-faturamento.js). Somente leitura (FR-011).
+const hubFaturamentoRoutes = require('./routes/hub-faturamento');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 // validacao-xml-lote (FASE 0, CHK113/CHK022): instância dedicada do multer para
@@ -2632,6 +2638,12 @@ app.use('/api/v1/importacoes', hubImportacoesRoutes.router);
 // requirePermission('motoristas.listar'|'motoristas.consultar') é aplicado
 // dentro do próprio router (mesmo padrão do bloco /api/v1/importacoes acima).
 app.use('/api/v1/motoristas', hubMotoristasRoutes.router);
+
+// hub-faturamento (S6, FASE 3) — /api/v1/faturamento (lista/resumo/export,
+// leitura). requirePermission('faturamento.listar'|'faturamento.consultar')
+// é aplicado dentro do próprio router (mesmo padrão do bloco
+// /api/v1/motoristas acima).
+app.use('/api/v1/faturamento', hubFaturamentoRoutes.router);
 
 // hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
 // boot: um restart no meio de uma importação (deploy) deixa o registro

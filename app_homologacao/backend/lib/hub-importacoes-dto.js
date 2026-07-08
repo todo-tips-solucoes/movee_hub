@@ -14,6 +14,8 @@
 
 'use strict';
 
+const { escaparCelulaCsvInjection, quotarCelulaCsv } = require('./hub-csv');
+
 const PAGE_SIZE_DEFAULT = 20;
 const PAGE_SIZE_MAX = 100;
 const JANELA_PADRAO_DIAS = 30;
@@ -132,32 +134,12 @@ function mapErroItem(row) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Proteção CSV injection (FR-016; CHK017; tasks.md 5.3.2/5.3.4)
+// Proteção CSV injection (FR-016; CHK017; tasks.md 5.3.2/5.3.4) — implementação
+// movida para `lib/hub-csv.js` (hub-faturamento/S6, research.md Decision 6,
+// tasks.md 2.1); reexportada aqui para não quebrar o contrato externo deste
+// módulo (`escaparCelulaCsvInjection`/`quotarCelulaCsv` continuam disponíveis
+// via `require('./hub-importacoes-dto')`, sem mudança de comportamento).
 // ────────────────────────────────────────────────────────────────────────────
-
-const PREFIXOS_PERIGOSOS = ['=', '+', '-', '@'];
-
-/** Prefixa `'` quando a célula começa com `= + - @` (fórmula/injeção em
- * Excel/Sheets ao abrir o CSV) — regra exata de CHK017/contrato. Não altera
- * células que não começam com esses caracteres. */
-function escaparCelulaCsvInjection(valor) {
-  if (valor === null || valor === undefined) return '';
-  const str = String(valor);
-  if (str.length > 0 && PREFIXOS_PERIGOSOS.includes(str[0])) {
-    return `'${str}`;
-  }
-  return str;
-}
-
-/** Quoting CSV padrão (RFC 4180): envolve em aspas duplas se a célula contém
- * vírgula, aspas ou quebra de linha; aspas internas viram `""`. Aplicado
- * APÓS a proteção de injeção (a célula já pode ter ganhado o prefixo `'`). */
-function quotarCelulaCsv(celula) {
-  if (/[",\r\n]/.test(celula)) {
-    return `"${celula.replace(/"/g, '""')}"`;
-  }
-  return celula;
-}
 
 /**
  * Gera o corpo `text/csv` de `GET /importacoes/:id/erros?format=csv`
