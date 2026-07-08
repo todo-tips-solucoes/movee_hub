@@ -52,8 +52,11 @@
   permanece a autoridade final (padrão RBAC vigente do hub: frontend oculta, backend
   nega). (dec-012)
 - Q: Critério de desempate do card "categoria de maior valor" quando há empate exato
-  entre categorias? → A: [PENDENTE: block-001 — aguardando decisão humana; FR-003
-  inalterado até a resposta]
+  entre categorias? → A: Desempate determinístico pela primeira categoria em ordem
+  alfabética da `descricao`, dentre as empatadas no maior valor total do período; o card
+  sempre exibe uma única categoria (dec-014, decisão do operador — empate exato em
+  `numeric(12,2)` é raro; opção A mantém a UI simples e estável frente à alternativa de
+  exibir múltiplas categorias empatadas).
 
 ## User Scenarios & Testing
 
@@ -224,7 +227,11 @@ pessoa entregadora correta — sem depender de nenhum filtro ou exportação esp
   valor, a categoria de maior valor no período, e o número de entregadores distintos com
   ao menos um lançamento no período. O cálculo de somatórios MUST ser feito preservando a
   precisão decimal do valor monetário original — nenhuma soma de valores monetários MUST
-  ser realizada com aritmética de ponto flutuante.
+  ser realizada com aritmética de ponto flutuante. Em caso de empate exato no maior valor
+  total do período entre duas ou mais categorias, o sistema MUST desempatar
+  deterministicamente escolhendo a primeira categoria em ordem alfabética (lexicográfica)
+  da `descricao` dentre as empatadas — o card de "categoria de maior valor" MUST sempre
+  exibir exatamente uma categoria, nunca múltiplas.
 - **FR-004**: O sistema MUST também oferecer um resumo agregável por dia, por categoria e
   por entregador, para o intervalo de datas e demais filtros informados. No agrupamento
   por entregador, todos os lançamentos sem vínculo com entregador individual MUST ser
