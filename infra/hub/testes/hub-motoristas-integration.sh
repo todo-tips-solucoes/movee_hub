@@ -38,6 +38,23 @@
 #   Cenário 4: nome editado manualmente sobrevive a um UPDATE de
 #     reimportação subsequente (trigger 0019, hub_protege_nome_editado_entregador)
 #
+# FASE 5 (tasks.md 5.1/5.2) — GET /motoristas/:id/sugestoes e
+# GET /motoristas/contas-elegiveis (quickstart Cenários 5/7/9):
+#   (t) sugestoes: entidade elegível -> conta quase-idêntica ao nome do
+#       Entregador aparece com similaridade alta, jaVinculadoA=null
+#   (u) sugestoes: conta com nome bem diferente (abaixo do limiar 0.3) NUNCA
+#       aparece (Clarification Q4/block-002)
+#   (v) sugestoes: Entregador JÁ vinculado também responde normalmente
+#       (FR-013) — a própria conta vinculada aparece com jaVinculadoA=null
+#       (vinculada a si mesmo, não a "outra pessoa")
+#   (w) sugestoes: fora do escopo (outro tenant) -> 404; sem permissão -> 403
+#   (x) contas-elegiveis: busca manual por termo (`q`) acha conta que a
+#       sugestão automática não acharia (nome bem diferente) — FR-009
+#   (y) contas-elegiveis: `entregadorId` ausente -> 422; termo abaixo do
+#       corte mínimo (1 char) -> items:[] sem erro; fora do escopo -> 404
+#   (z) Cenário 9: entidade FORA do grupo Movee -> AMBOS endpoints respondem
+#       200, `entidadeElegivel:false`, `items:[]`, sem erro (FR-010/FR-011)
+#
 # Uso: infra/hub/testes/hub-motoristas-integration.sh
 # =============================================================================
 set -uo pipefail
@@ -138,8 +155,13 @@ INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ($UID_LEITURA, $E_TESTE, $PAPEL_LEITURA, true),
   ($UID_LEITURA, $E_OUTRA, $PAPEL_LEITURA, true),
   ($UID_SEMPERM, $E_SEM_PERM, $PAPEL_SEM_PERM, true),
-  ($UID_EDITOR, $E_TESTE, $PAPEL_OPERADOR, true);
+  ($UID_EDITOR, $E_TESTE, $PAPEL_OPERADOR, true),
+  ($UID_EDITOR, $E_OUTRA, $PAPEL_OPERADOR, true);
 SQL
+# ($UID_EDITOR também ativo em $E_OUTRA, com motoristas.editar — usado pelo
+# Cenário 9/FASE 5 abaixo para exercitar o ramo "entidade fora do grupo
+# Movee" em /sugestoes e /contas-elegiveis, que exige motoristas.editar; o
+# usuário de leitura já ativo em $E_OUTRA não tem essa permissão.)
 
 # --- Seed: ContaMotorista + Entregadores + fatos (INSERT direto via psql,
 # sem depender de gen-seeds.py) --------------------------------------------
@@ -199,10 +221,36 @@ VALUES
   ($E_TESTE, $IMPORT_ID, $ENT_CARLOS, '2026-06-25', 'manha', 'Zona Sul', md5('carlos-perf-1'));
 SQL
 
+# --- Seed FASE 5 (5.1/5.2): EmpresaGrupoMovee + ContaMotorista extras -----
+# $E_TESTE é elegível (inserido); $E_OUTRA e $E_SEM_PERM deliberadamente NÃO
+# (Cenário 9/FR-010/FR-011 — testam o ramo entidadeElegivel:false abaixo).
+psql_t <<SQL >/dev/null
+INSERT INTO "EmpresaGrupoMovee" (id_empresa) VALUES ($E_TESTE)
+ON CONFLICT (id_empresa) DO NOTHING;
+SQL
+
+# 3 contas novas: (1) quase-idêntica a "José da Silva" (sugestão automática,
+# similaridade alta, jaVinculadoA=null); (2) nome bem diferente (ruído,
+# similaridade < 0.3, NUNCA deve aparecer em /sugestoes — corte por limiar);
+# (3) nome bem diferente, achável só por busca manual via `q` (FR-009).
+psql_t <<SQL >/dev/null
+INSERT INTO "ContaMotorista" (cnpj_prestador, nome, ativo, cadastro_completo) VALUES
+  ('11122233000144', 'jose  da  silva',          true, true),
+  ('55566677000188', 'Zelinda Aparecida Nunes',  true, true),
+  ('99988877000166', 'Wagner Souza Bittencourt', true, true)
+ON CONFLICT (cnpj_prestador) DO NOTHING;
+SQL
+CONTA_SUGESTAO_JOSE="$(psql_t -tAc "SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='11122233000144'" | tr -d '[:space:]')"
+CONTA_RUIDO="$(psql_t -tAc "SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='55566677000188'" | tr -d '[:space:]')"
+CONTA_WAGNER="$(psql_t -tAc "SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='99988877000166'" | tr -d '[:space:]')"
+for v in CONTA_SUGESTAO_JOSE CONTA_RUIDO CONTA_WAGNER; do
+  [ -n "${!v}" ] || { echo "FAIL: $v (seed FASE 5) não foi criada"; exit 1; }
+done
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Script Node único: login + troca de entidade + chamadas GET.
 # ─────────────────────────────────────────────────────────────────────────────
-OUT="$(run_node "$SENHA_OK" "$E_TESTE" "$E_OUTRA" "$E_SEM_PERM" "$ENT_JOSE" "$ENT_MARIA" "$ENT_CARLOS" "$ENT_ANA" "$ENT_OUTRA" <<'JS'
+OUT="$(run_node "$SENHA_OK" "$E_TESTE" "$E_OUTRA" "$E_SEM_PERM" "$ENT_JOSE" "$ENT_MARIA" "$ENT_CARLOS" "$ENT_ANA" "$ENT_OUTRA" "$CONTA_SUGESTAO_JOSE" "$CONTA_RUIDO" "$CONTA_WAGNER" <<'JS'
 const BASE = 'http://localhost:3000/api/v1';
 
 function parseSetCookie(res) {
@@ -246,6 +294,9 @@ async function main() {
   const entCarlos = Number(process.argv[8]);
   const entAna = Number(process.argv[9]);
   const entOutra = Number(process.argv[10]);
+  const contaSugestaoJose = Number(process.argv[11]);
+  const contaRuido = Number(process.argv[12]);
+  const contaWagner = Number(process.argv[13]);
   const out = {};
 
   // (a) sem autenticação -> 401
@@ -359,6 +410,13 @@ async function main() {
   // ── FASE 4 (task 4.1) — PATCH /motoristas/:id ───────────────────────────
   let jarEditor = await login('motoristas-editor@example.test', senha);
   jarEditor = await trocarEntidade(jarEditor, empresaTeste);
+  // jarEditor TAMBÉM ativo em empresaOutra (motoristas.editar em ambas —
+  // seed UsuarioEntidade acima) — usado pelas checagens de escopo/RLS de
+  // FASE 5 abaixo (403 de permissão já é coberto por jarOutra/leitura; aqui
+  // precisamos de um usuário COM motoristas.editar, só que na entidade
+  // ERRADA, para provar que é a RLS/filtro por id_empresa que barra, não a
+  // permissão). trocarEntidade retorna um jar NOVO — não muta `jarEditor`.
+  const jarEditorOutra = await trocarEntidade(jarEditor, empresaOutra);
 
   // (m) PATCH nome -> 200, nome atualizado, nomeEditadoManualmente=true
   const rPatchNome = await patchJson(jarEditor, `/motoristas/${entAna}`, { nome: 'Ana Costa Editada' });
@@ -395,6 +453,85 @@ async function main() {
   // (r) PATCH em id inexistente -> 404
   const rPatchInexistente = await patchJson(jarEditor, '/motoristas/999999999', { nome: 'X' });
   out.patch_inexistente_status = rPatchInexistente.status;
+
+  // ── FASE 5 (tasks.md 5.1/5.2) — GET /sugestoes e GET /contas-elegiveis ──
+  // Roda ANTES do PATCH mass-assignment (s) abaixo, que muda o nome de José
+  // — as sugestões desta seção dependem do nome ORIGINAL "José da Silva"
+  // para casar com a conta "jose  da  silva" semeada acima (Cenário 5).
+
+  // (t) sugestoes: entidade elegível -> conta quase-idêntica aparece com
+  // similaridade alta e jaVinculadoA=null (Cenário 5.2/5.3, SC-003)
+  const rSugestoesJose = await getJson(jarEditor, `/motoristas/${entJose}/sugestoes`);
+  out.sugestoes_jose_status = rSugestoesJose.status;
+  out.sugestoes_jose_elegivel = rSugestoesJose.body && rSugestoesJose.body.entidadeElegivel;
+  const itensSugJose = (rSugestoesJose.body && rSugestoesJose.body.items) || [];
+  const candSugestao = itensSugJose.find((i) => i.contaMotoristaId === contaSugestaoJose);
+  out.sugestoes_jose_achou_candidato = candSugestao ? 'true' : 'false';
+  out.sugestoes_jose_candidato_ja_vinculado = candSugestao ? JSON.stringify(candSugestao.jaVinculadoA) : 'ERRO';
+  out.sugestoes_jose_candidato_similaridade_alta = candSugestao && candSugestao.similaridade >= 0.3 ? 'true' : 'false';
+  // (u) ruído (nome bem diferente) NUNCA aparece — corte por limiar 0.3
+  out.sugestoes_jose_nao_inclui_ruido = itensSugJose.some((i) => i.contaMotoristaId === contaRuido) ? 'false' : 'true';
+  // top N <= 10 (FR-007)
+  out.sugestoes_jose_top_n_respeitado = itensSugJose.length <= 10 ? 'true' : 'false';
+
+  // (v) Entregador JÁ vinculado (Carlos) também responde normalmente
+  // (FR-013) — a própria conta vinculada aparece com jaVinculadoA=null
+  // (vinculada a si mesmo, não a "outra pessoa").
+  const rSugestoesCarlos = await getJson(jarEditor, `/motoristas/${entCarlos}/sugestoes`);
+  out.sugestoes_carlos_status = rSugestoesCarlos.status;
+  out.sugestoes_carlos_elegivel = rSugestoesCarlos.body && rSugestoesCarlos.body.entidadeElegivel;
+  const itensSugCarlos = (rSugestoesCarlos.body && rSugestoesCarlos.body.items) || [];
+  const carlosPropriaConta = itensSugCarlos.find((i) => i.nome === 'Carlos Pereira');
+  out.sugestoes_carlos_propria_conta_ja_vinculado = carlosPropriaConta ? JSON.stringify(carlosPropriaConta.jaVinculadoA) : 'ERRO';
+
+  // (w) sugestoes fora do escopo (outro tenant) -> 404. Usa jarEditorOutra
+  // (TEM motoristas.editar, só que ativo na entidade ERRADA) para provar que
+  // é a RLS/filtro por id_empresa que barra — não a permissão (que já está
+  // presente). Usar um usuário de leitura aqui bateria no 403 do middleware
+  // de rota antes de alcançar a checagem de escopo, mascarando o que se
+  // quer provar.
+  const rSugestoesForaEscopo = await getJson(jarEditorOutra, `/motoristas/${entJose}/sugestoes`);
+  out.sugestoes_fora_escopo_status = rSugestoesForaEscopo.status;
+  // sem permissão (usuário de leitura, SEM motoristas.editar) -> 403
+  const rSugestoesSemPerm = await getJson(jar, `/motoristas/${entJose}/sugestoes`);
+  out.sugestoes_sem_permissao_status = rSugestoesSemPerm.status;
+
+  // (x) contas-elegiveis: busca manual por termo acha conta que a sugestão
+  // automática não acharia (nome bem diferente do Entregador) — FR-009
+  const rBuscaWagner = await getJson(jarEditor, `/motoristas/contas-elegiveis?entregadorId=${entJose}&q=wagner`);
+  out.busca_wagner_status = rBuscaWagner.status;
+  out.busca_wagner_elegivel = rBuscaWagner.body && rBuscaWagner.body.entidadeElegivel;
+  const itensBuscaWagner = (rBuscaWagner.body && rBuscaWagner.body.items) || [];
+  out.busca_wagner_achou = itensBuscaWagner.some((i) => i.contaMotoristaId === contaWagner) ? 'true' : 'false';
+  out.busca_wagner_total = rBuscaWagner.body && rBuscaWagner.body.total;
+
+  // (y) entregadorId ausente -> 422
+  const rBuscaSemEntregadorId = await getJson(jarEditor, '/motoristas/contas-elegiveis?q=wagner');
+  out.busca_sem_entregadorid_status = rBuscaSemEntregadorId.status;
+
+  // (y.bis) termo abaixo do corte mínimo (1 char) -> items:[] sem erro
+  const rBuscaTermoCurto = await getJson(jarEditor, `/motoristas/contas-elegiveis?entregadorId=${entJose}&q=w`);
+  out.busca_termo_curto_status = rBuscaTermoCurto.status;
+  out.busca_termo_curto_total = rBuscaTermoCurto.body && rBuscaTermoCurto.body.total;
+  out.busca_termo_curto_elegivel = rBuscaTermoCurto.body && rBuscaTermoCurto.body.entidadeElegivel;
+
+  // (y.ter) fora do escopo (entregadorId de outro tenant) -> 404
+  const rBuscaForaEscopo = await getJson(jarEditor, `/motoristas/contas-elegiveis?entregadorId=${entOutra}&q=wagner`);
+  out.busca_fora_escopo_status = rBuscaForaEscopo.status;
+
+  // (z) Cenário 9: entidade FORA do grupo Movee -> AMBOS endpoints 200,
+  // entidadeElegivel:false, items:[] (FR-010/FR-011) — reusa jarEditorOutra
+  // (já ativo na entidade OUTRA, que não está em EmpresaGrupoMovee) e o
+  // próprio Entregador do tenant OUTRA (entOutra, dentro do escopo agora).
+  const rSugestoesNaoElegivel = await getJson(jarEditorOutra, `/motoristas/${entOutra}/sugestoes`);
+  out.sugestoes_nao_elegivel_status = rSugestoesNaoElegivel.status;
+  out.sugestoes_nao_elegivel_elegivel = rSugestoesNaoElegivel.body && rSugestoesNaoElegivel.body.entidadeElegivel;
+  out.sugestoes_nao_elegivel_items_vazio = rSugestoesNaoElegivel.body && Array.isArray(rSugestoesNaoElegivel.body.items) && rSugestoesNaoElegivel.body.items.length === 0 ? 'true' : 'false';
+
+  const rBuscaNaoElegivel = await getJson(jarEditorOutra, `/motoristas/contas-elegiveis?entregadorId=${entOutra}&q=wagner`);
+  out.busca_nao_elegivel_status = rBuscaNaoElegivel.status;
+  out.busca_nao_elegivel_elegivel = rBuscaNaoElegivel.body && rBuscaNaoElegivel.body.entidadeElegivel;
+  out.busca_nao_elegivel_total = rBuscaNaoElegivel.body && rBuscaNaoElegivel.body.total;
 
   // (s) mass-assignment: campos fora da allowlist são ignorados (200, nome
   // persiste, sem efeito colateral) — usa José (nome_editado_manualmente
@@ -494,6 +631,44 @@ check "PATCH sem motoristas.editar (usuário de leitura) -> 403" "$(jget patch_s
 check "PATCH em Entregador fora do escopo (outro tenant) -> 404" "$(jget patch_fora_escopo_status)" "404"
 check "PATCH em id inexistente -> 404" "$(jget patch_inexistente_status)" "404"
 
+# ── FASE 5 (tasks.md 5.1/5.2) — GET /sugestoes e GET /contas-elegiveis ───
+check "sugestoes José -> 200" "$(jget sugestoes_jose_status)" "200"
+check "sugestoes José -> entidadeElegivel=true" "$(jget sugestoes_jose_elegivel)" "true"
+check "sugestoes José -> achou candidato quase-idêntico ('jose  da  silva')" "$(jget sugestoes_jose_achou_candidato)" "true"
+check "sugestoes José -> candidato jaVinculadoA=null" "$(jget sugestoes_jose_candidato_ja_vinculado)" "null"
+check "sugestoes José -> candidato com similaridade >= 0.3" "$(jget sugestoes_jose_candidato_similaridade_alta)" "true"
+check "sugestoes José -> NÃO inclui conta-ruído (abaixo do limiar 0.3, Clarification Q4)" "$(jget sugestoes_jose_nao_inclui_ruido)" "true"
+check "sugestoes José -> top N <= 10 (FR-007)" "$(jget sugestoes_jose_top_n_respeitado)" "true"
+
+check "sugestoes Carlos (JÁ vinculado) -> 200, responde normalmente (FR-013)" "$(jget sugestoes_carlos_status)" "200"
+check "sugestoes Carlos -> entidadeElegivel=true" "$(jget sugestoes_carlos_elegivel)" "true"
+check "sugestoes Carlos -> própria conta vinculada aparece com jaVinculadoA=null (vinculada a si mesmo)" "$(jget sugestoes_carlos_propria_conta_ja_vinculado)" "null"
+
+check "sugestoes fora do escopo (outro tenant) -> 404" "$(jget sugestoes_fora_escopo_status)" "404"
+check "sugestoes sem motoristas.editar (usuário de leitura) -> 403" "$(jget sugestoes_sem_permissao_status)" "403"
+
+check "busca manual q=wagner -> 200" "$(jget busca_wagner_status)" "200"
+check "busca manual q=wagner -> entidadeElegivel=true" "$(jget busca_wagner_elegivel)" "true"
+check "busca manual q=wagner -> achou conta que a sugestão automática não acharia (FR-009)" "$(jget busca_wagner_achou)" "true"
+check "busca manual q=wagner -> total=1" "$(jget busca_wagner_total)" "1"
+
+check "busca manual sem entregadorId -> 422" "$(jget busca_sem_entregadorid_status)" "422"
+
+check "busca manual termo abaixo do corte (1 char) -> 200 sem erro" "$(jget busca_termo_curto_status)" "200"
+check "busca manual termo abaixo do corte -> total=0 (sem chamar o RPC)" "$(jget busca_termo_curto_total)" "0"
+check "busca manual termo abaixo do corte -> entidadeElegivel=true (só o termo é curto, entidade continua elegível)" "$(jget busca_termo_curto_elegivel)" "true"
+
+check "busca manual entregadorId de outro tenant -> 404" "$(jget busca_fora_escopo_status)" "404"
+
+# ── Cenário 9 (FR-010/FR-011) — entidade FORA do grupo Movee ─────────────
+check "sugestoes entidade não-elegível -> 200 (sem erro)" "$(jget sugestoes_nao_elegivel_status)" "200"
+check "sugestoes entidade não-elegível -> entidadeElegivel=false" "$(jget sugestoes_nao_elegivel_elegivel)" "false"
+check "sugestoes entidade não-elegível -> items=[] " "$(jget sugestoes_nao_elegivel_items_vazio)" "true"
+
+check "busca manual entidade não-elegível -> 200 (sem erro)" "$(jget busca_nao_elegivel_status)" "200"
+check "busca manual entidade não-elegível -> entidadeElegivel=false" "$(jget busca_nao_elegivel_elegivel)" "false"
+check "busca manual entidade não-elegível -> total=0" "$(jget busca_nao_elegivel_total)" "0"
+
 check "PATCH mass-assignment (motoristaId fora da allowlist) -> 200 (ignorado, não quebra)" "$(jget patch_mass_assign_status)" "200"
 check "PATCH mass-assignment -> nome persiste normalmente (1ª edição de José)" "$(jget patch_mass_assign_nome)" "Jose Mass Assign"
 check "PATCH mass-assignment -> vinculo continua null (motoristaId do corpo NUNCA chega ao PostgREST)" "$(jget patch_mass_assign_sem_vinculo)" "true"
@@ -513,7 +688,7 @@ check "Cenário 4: nome editado manualmente sobrevive a UPDATE de reimportação
 
 echo
 if [ "$fails" = "0" ]; then
-  echo "HUB-MOTORISTAS-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2; FASE 4: 4.1)"
+  echo "HUB-MOTORISTAS-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2; FASE 4: 4.1; FASE 5: 5.1/5.2)"
 else
   echo "HUB-MOTORISTAS-INTEGRATION: $fails assert(s) FALHARAM" >&2
   exit 1

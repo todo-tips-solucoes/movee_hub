@@ -47,6 +47,11 @@ const {
   mapMotoristaDetalhe,
   validarPatchMotorista,
 } = require('../lib/hub-motoristas-dto');
+const {
+  termoBuscaValido,
+  buscarCandidatos,
+  buscarContasElegiveis,
+} = require('../lib/hub-motoristas-similaridade');
 
 const router = express.Router();
 
@@ -122,6 +127,47 @@ async function buscarAreasPorEntregador(entregadorIds, claims) {
   return agruparAreasPorEntregador(linhas || []);
 }
 
+/**
+ * `true` se `id` referencia um `Entregador` DENTRO do escopo (`id_empresa`)
+ * da entidade ativa do token — mesmo padrão de defesa em profundidade já
+ * usado por `buscarDetalheMotorista`/`PATCH /:id` (filtro explícito por
+ * `id_empresa`, complementar à RLS). Usado por `/:id/sugestoes` e
+ * `/contas-elegiveis` (via `entregadorId`) para produzir `404` ANTES de
+ * chamar o RPC de similaridade/busca — dec-038 (FASE 5).
+ * @param {number} id
+ * @param {number} entidadeAtiva
+ * @param {object} claims
+ * @returns {Promise<boolean>}
+ */
+async function entregadorExisteNoEscopo(id, entidadeAtiva, claims) {
+  const linhas = await hubPostgrestRequest(
+    `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+    'GET', null, claims
+  );
+  return !!(linhas && linhas.length > 0);
+}
+
+/**
+ * `true` se a entidade ativa (`id_empresa`) pertence ao grupo elegível para
+ * vínculo (`EmpresaGrupoMovee`, migration 0022 — allowlist global, sem RLS,
+ * `GRANT SELECT ... TO authenticated`). Query direta e barata (chave
+ * primária), resolvida ANTES do RPC para poder responder `entidadeElegivel:
+ * false` sem executar `hub_motoristas_candidatos`/`hub_motoristas_busca`
+ * (FR-011, dec-038 — distinção entre "0 linhas porque não-elegível" e "0
+ * linhas porque não há candidatos" fica explícita no backend, não inferida
+ * do resultado vazio do RPC).
+ * @param {number} entidadeAtiva
+ * @param {object} claims
+ * @returns {Promise<boolean>}
+ */
+async function entidadeEhElegivel(entidadeAtiva, claims) {
+  const linhas = await hubPostgrestRequest(
+    `EmpresaGrupoMovee?id_empresa=eq.${entidadeAtiva}&select=id_empresa`,
+    'GET', null, claims
+  );
+  return !!(linhas && linhas.length > 0);
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // GET /motoristas — lista paginada (task 3.1)
 // ────────────────────────────────────────────────────────────────────────────
@@ -181,6 +227,60 @@ router.get('/', requirePermission('motoristas.listar'), async (req, res) => {
     return res.status(200).json({ items, total, page, pageSize });
   } catch (e) {
     console.error('[hub-motoristas] erro em GET /motoristas:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /motoristas/contas-elegiveis — busca manual de conta de acesso (task 5.2)
+//
+// DECLARADA ANTES de `GET /:id` deliberadamente: Express casa rotas na ordem
+// de registro — se `/:id` viesse primeiro, `/contas-elegiveis` seria
+// capturada como `req.params.id = 'contas-elegiveis'` (e falharia em
+// `idValido`, nunca alcançando este handler). Mesma restrição vale para
+// qualquer rota literal de 1 segmento futura sob `/motoristas/*`.
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/contas-elegiveis', requirePermission('motoristas.editar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.editar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    // `entregadorId` obrigatório (contracts/motoristas-api.md §contas-elegiveis)
+    // — ancora a checagem de escopo/elegibilidade no mesmo Entregador do
+    // fluxo de vínculo. Ausente/malformado -> 422 (erro de parâmetro de
+    // requisição, distinto do 404 de "existe mas fora do escopo").
+    if (!idValido(req.query.entregadorId)) {
+      return res.status(422).json({ erro: 'INVALIDO' });
+    }
+    const entregadorId = parseInt(req.query.entregadorId, 10);
+
+    // 404 fora do escopo (Decision 11) — mesma regra de `/:id/sugestoes`.
+    const existe = await entregadorExisteNoEscopo(entregadorId, entidadeAtiva, claims);
+    if (!existe) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    const { page, pageSize, from } = parsePaginacao(req.query);
+
+    // entidadeElegivel=false -> lista vazia sem erro (FR-011), sem chamar o RPC.
+    const elegivel = await entidadeEhElegivel(entidadeAtiva, claims);
+    if (!elegivel) {
+      return res.status(200).json({ items: [], total: 0, page, pageSize, entidadeElegivel: false });
+    }
+
+    // `q` abaixo do mínimo (2 chars, dec-038/termoBuscaValido) -> lista vazia
+    // sem erro, mesmo padrão de "estado vazio claro" do resto do módulo —
+    // evita golpear o RPC com um termo vazio/de 1 caractere antes mesmo de a
+    // pessoa usuária terminar de digitar.
+    const termoBruto = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!termoBuscaValido(termoBruto)) {
+      return res.status(200).json({ items: [], total: 0, page, pageSize, entidadeElegivel: true });
+    }
+
+    const { items, total } = await buscarContasElegiveis(entregadorId, termoBruto, pageSize, from, claims);
+    return res.status(200).json({ items, total, page, pageSize, entidadeElegivel: true });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em GET /motoristas/contas-elegiveis:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
@@ -272,6 +372,42 @@ router.get('/:id', requirePermission('motoristas.consultar'), async (req, res) =
     return res.status(200).json(detalhe);
   } catch (e) {
     console.error('[hub-motoristas] erro em GET /motoristas/:id:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /motoristas/:id/sugestoes — candidatos por semelhança de nome (task 5.1)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/:id/sugestoes', requirePermission('motoristas.editar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.editar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    // 404 fora do escopo (Decision 11) — Entregador já vinculado TAMBÉM
+    // responde normalmente aqui (permite trocar — FR-013); não há checagem
+    // de "já vinculado" nesta rota.
+    const existe = await entregadorExisteNoEscopo(id, entidadeAtiva, claims);
+    if (!existe) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    // entidadeElegivel=false -> items:[] sem erro (FR-011), sem chamar o RPC.
+    const elegivel = await entidadeEhElegivel(entidadeAtiva, claims);
+    if (!elegivel) {
+      return res.status(200).json({ items: [], entidadeElegivel: false });
+    }
+
+    // RPC hub_motoristas_candidatos já resolve corte top-10 + limiar 0.3
+    // (migration 0023, Decision 10) — este handler nunca reimplementa a
+    // lógica de similaridade.
+    const items = await buscarCandidatos(id, claims);
+    return res.status(200).json({ items, entidadeElegivel: true });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em GET /motoristas/:id/sugestoes:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });

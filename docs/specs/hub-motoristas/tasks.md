@@ -164,19 +164,19 @@ antes do fechamento da feature.
 
 Ref: plan Fase 5, spec FR-007/FR-008, research Decision 10/11, contracts /sugestoes, quickstart Cenário 5/6
 
-- [ ] 5.1.1 Implementar `hub-motoristas-similaridade.js`: chamar `POST /rpc/hub_motoristas_candidatos` e mapear resposta (sem lógica de similaridade em JS — só chama o RPC)
-- [ ] 5.1.2 Implementar handler `GET /motoristas/:id/sugestoes`: responder mesmo para Entregador já vinculado (permite trocar — FR-013); `jaVinculadoA` não impede listagem (SC-003)
-- [ ] 5.1.3 `entidadeElegivel=false` → `items: []` sem erro (FR-011); `404` se `:id` fora do escopo (Decision 11)
-- [ ] 5.1.4 Garantir que candidatos abaixo do limiar 0.3 nunca aparecem (Clarification Q4)
-- [ ] 5.1.5 Testes unit de normalização/corte/limiar em `tests/hub-motoristas-similaridade.test.js`
+- [x] 5.1.1 Implementar `hub-motoristas-similaridade.js`: chamar `POST /rpc/hub_motoristas_candidatos` e mapear resposta (sem lógica de similaridade em JS — só chama o RPC)
+- [x] 5.1.2 Implementar handler `GET /motoristas/:id/sugestoes`: responder mesmo para Entregador já vinculado (permite trocar — FR-013); `jaVinculadoA` não impede listagem (SC-003)
+- [x] 5.1.3 `entidadeElegivel=false` → `items: []` sem erro (FR-011); `404` se `:id` fora do escopo (Decision 11)
+- [x] 5.1.4 Garantir que candidatos abaixo do limiar 0.3 nunca aparecem (Clarification Q4)
+- [x] 5.1.5 Testes unit de normalização/corte/limiar em `tests/hub-motoristas-similaridade.test.js`
 
 ### 5.2 GET /motoristas/contas-elegiveis — busca manual `[A]`
 
 Ref: plan Fase 5, spec FR-009/FR-010, contracts /contas-elegiveis, quickstart Cenário 7/9
 
-- [ ] 5.2.1 Implementar handler `GET /motoristas/contas-elegiveis`: chamar `POST /rpc/hub_motoristas_busca`, mapear resposta
-- [ ] 5.2.2 Aplicar mesma regra de `404` por `entregadorId` fora do escopo e `entidadeElegivel=false` → lista vazia sem erro
-- [ ] 5.2.3 Testes de integração da busca manual com seeds (elegível vs não-elegível)
+- [x] 5.2.1 Implementar handler `GET /motoristas/contas-elegiveis`: chamar `POST /rpc/hub_motoristas_busca`, mapear resposta
+- [x] 5.2.2 Aplicar mesma regra de `404` por `entregadorId` fora do escopo e `entidadeElegivel=false` → lista vazia sem erro
+- [x] 5.2.3 Testes de integração da busca manual com seeds (elegível vs não-elegível)
 
 ---
 
