@@ -1106,3 +1106,61 @@ sobre a abertura do PR. Após S7 (última da ordem original S3→S10 antes de
 possíveis follow-ups), o plano mestre S0-S10 do hub-frota fica com todas as
 fases funcionais principais entregues — follow-ups de performance
 (`mv_faturamento_dia`/`mv_performance_dia`) ficam a critério do operador.
+
+---
+
+## 2026-07-08 — S7 (Módulo Performance) FECHADA — review-task, PR #60 aberto
+
+- **`review-task` concluída** (onda-006/onda de fechamento, `status` promovido
+  a `concluida`): auditoria contra evidência real (não apenas sumários) —
+  `.tasks[]` 12/12 `pass`, `.decisions[]` 32 registradas, model-routing I3
+  íntegro (2 decisões de spawn de subagente = 2 `record-skill
+  model-selector`), 0 bloqueios pendentes.
+- **Testes determinísticos re-executados nesta onda** (não apenas citados do
+  relatório anterior): `node --test hub-performance-dto.test.js
+  hub-performance.test.js hub-csv.test.js` → **44/44 pass**, incluindo
+  `infra/hub/testes/hub-performance-integration.sh` (60/60 asserts, ambiente
+  `hub-test-*` efêmero, sem containers residuais após). Smoke pós-review:
+  `hub-homolog` `/hub/login`/`/hub/dashboard/performance` = 200/200; produção
+  (`app.moveelog.com.br`/`app.motorista.moveelog.com.br`) intocada = 200/200.
+- **13 subtarefas de granularidade fina** seguem `[ ]` no `tasks.md` (ex.:
+  4.2.4 "rodar suíte CSV completa", 5.1.3 "roundtrip real hub-homolog") apesar
+  de já cobertas por evidência equivalente registrada no DIÁRIO/
+  `fase6-e2e-perf-resultado.md` (Cenário 13 = roundtrip; suíte CSV
+  reconfirmada 9/9 nesta própria onda) — checkbox não fecha 1:1 com o
+  trabalho realizado, mas sem lacuna funcional real; anotado como aspereza de
+  disciplina de checklist, não bloqueante.
+- **Veredito: APROVAR-COM-RESSALVA** (dec-032, score 3) — mesmo padrão de
+  `hub-faturamento`/S6 (dec-035): a única pendência material é SC-004 sob
+  volume anual (dec-029, já escalada) + os 2 gaps `{humano}` CHK022/CHK024
+  (mesmo padrão já aceito em S6 CHK020/CHK023, não bloqueantes por definição).
+- **Push + PR draft aberto**: branch `feat/hub-performance` (4 commits
+  `359e621..6077c17`) enviada para `origin`; **PR #60**
+  (`feat/hub-performance` → `main`, **draft**) com resumo do módulo,
+  evidências (44/44 determinístico + 35/35 E2E + Playwright 2/2), a ressalva
+  SC-004/dec-029 destacada e as pendências do operador (mv_performance_dia,
+  CHK022/CHK024, trailer de commit). Merge é decisão do operador.
+- **Produção intocada** durante toda a review (verificado antes e depois).
+  `hub-homolog` permanece NO AR, não foi derrubado.
+- **S7 é a última fase funcional da ordem original S3→S10** do plano mestre
+  hub-frota — as 5 fases funcionais (S3 shell, S4 importações, S5 motoristas,
+  S6 faturamento, S7 performance) estão todas implementadas, testadas e com
+  PR aberto (#56/#57/#58/#59/#60). Pendências agregadas para o operador:
+  merges, decisão sobre as 2 views materializadas (`mv_faturamento_dia` já
+  aplicada/resolvida em S6; `mv_performance_dia` ainda pendente), gaps
+  `{humano}` de checklist acumulados (CHK020/CHK023 em S6, CHK022/CHK024 em
+  S7), cutover de produção (G3), e a pendência recorrente do trailer de
+  commit (desde S1, sem decisão).
+
+### Pendências para o operador
+
+1. **Revisar e decidir o merge do PR #60** (`feat/hub-performance` → `main`).
+2. **`mv_performance_dia`** (dec-029): implementar a view materializada
+   (nova fase) ou aceitar o risco de SC-004 por enquanto.
+3. **CHK022/CHK024**: decidir procedimento de medição de SC-003 e critério
+   objetivo de SC-008, ou aceitar como julgamento humano contínuo.
+4. Pendência recorrente (desde S1): trailer de commit "Claude Opus 4.8" no
+   CLAUDE.md vs. modelo vigente nos commits — sem decisão do operador.
+5. **Próximos passos do plano mestre**: decidir se seguem follow-ups
+   (`mv_performance_dia`, S8-S10 se aplicável) ou se o hub de frota entra em
+   fase de estabilização/cutover (G3).
