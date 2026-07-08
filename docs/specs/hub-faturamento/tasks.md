@@ -55,10 +55,10 @@ Injection PASS — parametrização nativa)
 
 Ref: plan.md "Plano por fases" passo 2; research.md Decision 6
 
-- [ ] 2.1.1 Criar `app_homologacao/backend/lib/hub-csv.js` com `escaparCelulaCsvInjection`/`quotarCelulaCsv` movidos de `hub-importacoes-dto.js`, sem mudar comportamento
-- [ ] 2.1.2 Atualizar `hub-importacoes-dto.js` para importar de `hub-csv.js` (sem mudança de contrato externo)
-- [ ] 2.1.3 Criar `tests/hub-csv.test.js` portando os testes unitários já existentes para `escaparCelulaCsvInjection`/`quotarCelulaCsv`
-- [ ] 2.1.4 Teste de regressão: rodar `hub-importacoes-dto.test.js` completo e confirmar 100% verde sem alteração de comportamento
+- [x] 2.1.1 Criar `app_homologacao/backend/lib/hub-csv.js` com `escaparCelulaCsvInjection`/`quotarCelulaCsv` movidos de `hub-importacoes-dto.js`, sem mudar comportamento
+- [x] 2.1.2 Atualizar `hub-importacoes-dto.js` para importar de `hub-csv.js` (sem mudança de contrato externo)
+- [x] 2.1.3 Criar `tests/hub-csv.test.js` portando os testes unitários já existentes para `escaparCelulaCsvInjection`/`quotarCelulaCsv`
+- [x] 2.1.4 Teste de regressão: rodar `hub-importacoes-dto.test.js` completo e confirmar 100% verde sem alteração de comportamento
 
 ### 2.2 Fechar gap CHK029 — célula já neutra por apóstrofo/caractere neutro `[A]`
 
@@ -66,10 +66,10 @@ Ref: checklists/requirements.md CHK029 `[Gap]`; state.json dec-025; spec.md
 Edge Cases; quickstart.md Cenário 8 (cobre hoje só `=`/`@`, não o caso de
 não-duplo-prefixo)
 
-- [ ] 2.2.1 Adicionar caso em `hub-csv.test.js`: célula já iniciada por apóstrofo (`'...`) — confirmar saída com um único apóstrofo prefixado, nunca dois (sem dupla neutralização)
-- [ ] 2.2.2 Adicionar caso em `hub-csv.test.js`: célula iniciada por outro caractere já neutro/não-perigoso (fora do conjunto `= + - @`) — confirmar que nenhuma neutralização adicional é aplicada, célula preservada tal como veio
-- [ ] 2.2.3 Estender `quickstart.md` Cenário 8 com o passo de validação manual do caso "célula já começa com apóstrofo/caractere neutro" no `hub-homolog` (abrir em LibreOffice Calc/Excel e confirmar ausência de duplo prefixo)
-- [ ] 2.2.4 Rodar `hub-csv.test.js` completo (incluindo os casos novos) e confirmar 100% verde
+- [x] 2.2.1 Adicionar caso em `hub-csv.test.js`: célula já iniciada por apóstrofo (`'...`) — confirmar saída com um único apóstrofo prefixado, nunca dois (sem dupla neutralização)
+- [x] 2.2.2 Adicionar caso em `hub-csv.test.js`: célula iniciada por outro caractere já neutro/não-perigoso (fora do conjunto `= + - @`) — confirmar que nenhuma neutralização adicional é aplicada, célula preservada tal como veio
+- [x] 2.2.3 Estender `quickstart.md` Cenário 8 com o passo de validação manual do caso "célula já começa com apóstrofo/caractere neutro" no `hub-homolog` (abrir em LibreOffice Calc/Excel e confirmar ausência de duplo prefixo)
+- [x] 2.2.4 Rodar `hub-csv.test.js` completo (incluindo os casos novos) e confirmar 100% verde
 
 ---
 

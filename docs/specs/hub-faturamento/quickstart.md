@@ -85,6 +85,16 @@ já existentes (herdados da S4/S5, tenant sintético `id_empresa=9001`).
 3. **Expected**: as células correspondentes aparecem no arquivo prefixadas
    com `'` (ex.: `'=SOMA(A1:A10)`); abrir em LibreOffice Calc/Excel e
    confirmar que a célula é exibida como TEXTO, nenhuma fórmula executada.
+4. Via seed controlado, criar um lançamento cujo `descricao` (categoria) já
+   comece com apóstrofo (ex.: `'já protegida`) e outro que comece com um
+   caractere neutro fora do conjunto perigoso (ex.: `#tag-interna`) — caso
+   CHK029 (gap fechado por `lib/hub-csv.js`, tasks.md 2.2).
+5. Exportar CSV incluindo esses lançamentos.
+6. **Expected**: a célula com apóstrofo aparece com um ÚNICO apóstrofo no
+   arquivo (`'já protegida`, nunca `''já protegida` — sem dupla
+   neutralização); a célula com `#tag-interna` aparece EXATAMENTE como veio,
+   sem qualquer prefixo adicionado. Abrir em LibreOffice Calc/Excel e
+   confirmar ausência de duplo prefixo/corrupção visual em ambas.
 
 ## Cenário 9 — Export vazio gera só cabeçalho (edge case explícito)
 
