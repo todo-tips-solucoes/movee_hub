@@ -22,6 +22,21 @@
 # GET /performance/resumo e GET /performance?format=csv são cobertos pelos
 # scripts das FASES 3/4 (ainda não implementadas nesta execução).
 #
+# mv_performance_dia (migration 0031, follow-up SC-004 da S7 — mesmo padrão
+# do follow-up 0028 da S6): os asserts de /resumo acima passam a exercer o
+# caminho MV (paridade comportamental — valores esperados calculados da
+# semântica da tabela-base) + asserts dedicados no final:
+#   (u) paridade: agregados da MV = agregados diretos na tabela-base
+#   (v) isolamento: SELECT direto na MV como `authenticated` -> permission denied
+#       (MV não tem RLS; REVOKE é a barreira — acesso só via RPC)
+#   (w) isolamento via RPC: escopo do JWT != p_id_empresa -> zerado/0 grupos
+#       (guard explícito `p_id_empresa = ANY (hub_jwt_escopo_ids())` nas
+#       funções SECURITY DEFINER — mesma semântica da RLS de 0030), inclusive
+#       no fallback por subpraça; controle positivo do próprio tenant
+#   (x) staleness/refresh: fato inserido por SQL só entra no /resumo após
+#       hub_performance_refresh_mv() (modo concurrent via dblink); refresh
+#       com escopo vazio é negado (42501)
+#
 # Uso: infra/hub/testes/hub-performance-integration.sh
 # =============================================================================
 set -uo pipefail
@@ -66,9 +81,9 @@ check() { # check <descricao> <valor-obtido> <valor-esperado>
   fi
 }
 
-echo "rodando migrate.sh (0002..0030)…"
+echo "rodando migrate.sh (0002..0031)…"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1
-grep -q "0030_hub_performance_rpc_resumo.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo (0030 ausente)"; cat "$TMP/migrate.log"; exit 1; }
+grep -q "0031_mv_performance_dia.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo (0031 ausente)"; cat "$TMP/migrate.log"; exit 1; }
 
 # --- Seed: 2 Usuarios (leitura com performance.listar; papel sintético SEM
 # a permissão, para o teste de 403) -----------------------------------------
@@ -211,6 +226,13 @@ VALUES
   ($E_TESTE, $IMPORT_ID, $ENT_JANEUTRO, '2026-09-02', 'ALMOCO 11H30-15H29', '02:00:00', 'Zona Sul', 'Sao Paulo',
    85.00, 5, 5, 0, 5, 0, 5, 100, md5('ja-neutro-1'));
 SQL
+
+# mv_performance_dia — como os fatos acima entraram por SQL direto (não pelo
+# pipeline de importação, que faz o refresh sozinho), refresh explícito aqui
+# para os asserts de /resumo abaixo exercitarem o caminho MV (0031). Os
+# valores esperados foram calculados da semântica da tabela-base — os checks
+# de /resumo continuarem passando prova a paridade MV × tabela-base.
+psql_t -c 'REFRESH MATERIALIZED VIEW mv_performance_dia;' >/dev/null
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Script Node único: login + troca de entidade + chamadas GET.
@@ -391,6 +413,24 @@ async function main() {
   const rResumoSemPermissao = await getJson(jarSemPerm, '/performance/resumo');
   out.resumoSemPermissao_status = rResumoSemPermissao.status;
 
+  // (MV/0031) fallback subpraça — dimensão FORA da MV, RPC cai na
+  // tabela-base: Zona Sul em 2026-07-01..04 = joao-1 + joao-2 ->
+  // completadas 7+9=16; taxaAceitacao=(8+9)/(10+10)=0.8500;
+  // taxasReais=(1000+2000)/100=30.00; groupBy=dia -> 2 grupos.
+  const rSubpraca = await getJson(jarLeitura, '/performance/resumo?de=2026-07-01&ate=2026-07-04&subpraca=Zona%20Sul');
+  out.subpraca_status = rSubpraca.status;
+  out.subpraca_corridasCompletadas = rSubpraca.body && rSubpraca.body.corridasCompletadas;
+  out.subpraca_taxaAceitacao = rSubpraca.body && rSubpraca.body.taxaAceitacao;
+  out.subpraca_taxasReais = rSubpraca.body && rSubpraca.body.taxasReais;
+  const rSubpracaDia = await getJson(jarLeitura, '/performance/resumo?de=2026-07-01&ate=2026-07-04&subpraca=Zona%20Sul&groupBy=dia');
+  out.subpracaDia_qtd = rSubpracaDia.body && rSubpracaDia.body.grupos ? rSubpracaDia.body.grupos.length : null;
+
+  // (MV/0031) isolamento multi-tenant do /resumo via HTTP (caminho MV):
+  // entidade OUTRA vê SÓ o próprio fato (5 completadas, 9.99 de taxas).
+  const rResumoOutra = await getJson(jarOutra, '/performance/resumo?de=2026-07-01&ate=2026-07-04');
+  out.resumoOutra_corridasCompletadas = rResumoOutra.body && rResumoOutra.body.corridasCompletadas;
+  out.resumoOutra_taxasReais = rResumoOutra.body && rResumoOutra.body.taxasReais;
+
   // ── GET /performance?format=csv (FASE 4, tasks.md 4.1.7) ────────────────
   // Usuário DEDICADO com performance.exportar (papel admin_entidade) — o
   // jarLeitura ('leitura') NUNCA tem exportar (0029), usado só no cenário
@@ -508,6 +548,15 @@ check "resumo groupBy inválido -> erro=GROUP_BY_INVALIDO" "$(jget groupByInvali
 
 check "resumo sem performance.consultar (papel sintético) -> 403" "$(jget resumoSemPermissao_status)" "403"
 
+# ── mv_performance_dia (migration 0031) — fallback subpraça + multi-tenant HTTP
+check "resumo fallback subpraça (fora da MV -> tabela-base) -> 200" "$(jget subpraca_status)" "200"
+check "resumo fallback subpraça -> corridasCompletadas=16 (7+9, só Zona Sul)" "$(jget subpraca_corridasCompletadas)" "16"
+check "resumo fallback subpraça -> taxaAceitacao=0.8500 (17/20)" "$(jget subpraca_taxaAceitacao)" "0.8500"
+check "resumo fallback subpraça -> taxasReais=30.00 ((1000+2000)/100)" "$(jget subpraca_taxasReais)" "30.00"
+check "resumo fallback subpraça groupBy=dia -> 2 grupos (07-01 e 07-02)" "$(jget subpracaDia_qtd)" "2"
+check "resumo multi-tenant HTTP (caminho MV): E_OUTRA só vê o próprio -> corridasCompletadas=5" "$(jget resumoOutra_corridasCompletadas)" "5"
+check "resumo multi-tenant HTTP (caminho MV): E_OUTRA -> taxasReais=9.99" "$(jget resumoOutra_taxasReais)" "9.99"
+
 # ── GET /performance?format=csv (FASE 4, tasks.md 4.1.7/4.2) ────────────────
 check "export CSV -> 200" "$(jget csv_status)" "200"
 check "export CSV -> Content-Type text/csv; charset=utf-8" "$(jget csv_contentType)" "text/csv; charset=utf-8"
@@ -531,6 +580,99 @@ check "export CSV sem performance.exportar -> erro=PERMISSAO_NEGADA" "$(jget csv
 # (4.1.5) só para os exports BEM-SUCEDIDOS (r/s/t/u = 4), NUNCA para o 403 (v)
 N_AUDITORIA_CSV="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='performance.csv_exportado' AND id_empresa=$E_TESTE" | tr -d '[:space:]')"
 check "DB: Auditoria 'performance.csv_exportado' registrada 4x (só nos exports bem-sucedidos)" "$N_AUDITORIA_CSV" "4"
+
+# ── mv_performance_dia (migration 0031, follow-up SC-004 da S7) ──────────────
+# Mesmos 4 ângulos do follow-up 0028 da S6 (hub-faturamento-integration.sh):
+# (u) paridade MV × tabela-base; (v) SELECT direto negado; (w) cross-tenant
+# via RPC zerado (MV e fallback); (x) staleness + refresh via dblink.
+
+# Executa <sql> numa transação como o role do PostgREST, com a claim de
+# escopo <escopo-json> na GUC (mesmo mecanismo do PostgREST real).
+rpc_como_authenticated() { # rpc_como_authenticated <escopo-json> <sql>
+  # psql imprime as tags de comando (BEGIN/SET/ROLLBACK) mesmo com -t —
+  # filtra as tags e fica com a ÚLTIMA linha de tupla (o resultado do <sql>;
+  # a linha anterior é o retorno do set_config).
+  psql_t -tA <<SQL | grep -vE '^(BEGIN|SET|ROLLBACK|COMMIT|RESET)$' | tail -n 1
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"escopo": $1}', true);
+$2;
+ROLLBACK;
+SQL
+}
+
+# (u) paridade MV × tabela-base (as duas empresas seedadas)
+for EMP in $E_TESTE $E_OUTRA; do
+  MV_COMPLETADAS="$(psql_t -tAc "SELECT COALESCE(SUM(corridas_completadas),0) FROM mv_performance_dia WHERE id_empresa=$EMP" | tr -d '[:space:]')"
+  BASE_COMPLETADAS="$(psql_t -tAc "SELECT COALESCE(SUM(corridas_completadas),0) FROM \"PerformanceTurno\" WHERE id_empresa=$EMP" | tr -d '[:space:]')"
+  check "MV (u): SUM(mv_performance_dia.corridas_completadas) = SUM(PerformanceTurno) para empresa $EMP" "$MV_COMPLETADAS" "$BASE_COMPLETADAS"
+  MV_TAXAS="$(psql_t -tAc "SELECT COALESCE(SUM(taxas_centavos),0) FROM mv_performance_dia WHERE id_empresa=$EMP" | tr -d '[:space:]')"
+  BASE_TAXAS="$(psql_t -tAc "SELECT COALESCE(SUM(COALESCE(taxas_centavos,0)),0) FROM \"PerformanceTurno\" WHERE id_empresa=$EMP" | tr -d '[:space:]')"
+  check "MV (u): SUM(mv_performance_dia.taxas_centavos) = SUM(COALESCE(taxas_centavos,0)) para empresa $EMP" "$MV_TAXAS" "$BASE_TAXAS"
+done
+MV_QTD="$(psql_t -tAc "SELECT COALESCE(SUM(quantidade),0) FROM mv_performance_dia WHERE id_empresa=$E_TESTE" | tr -d '[:space:]')"
+BASE_QTD="$(psql_t -tAc "SELECT count(*) FROM \"PerformanceTurno\" WHERE id_empresa=$E_TESTE" | tr -d '[:space:]')"
+check "MV (u): SUM(quantidade) = count(*) da tabela-base para empresa $E_TESTE" "$MV_QTD" "$BASE_QTD"
+
+# (v) SELECT direto na MV como authenticated -> permission denied
+DIRETO="$(psql_t -tA 2>&1 <<'SQL' || true
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT count(*) FROM mv_performance_dia;
+ROLLBACK;
+SQL
+)"
+case "$DIRETO" in
+  *"permission denied"*) check "MV (v): SELECT direto na MV como authenticated -> permission denied" "ok" "ok" ;;
+  *) check "MV (v): SELECT direto na MV como authenticated -> permission denied" "$DIRETO" "permission denied" ;;
+esac
+
+# (w) RPC com p_id_empresa FORA do escopo do JWT -> zerado (nunca vaza)
+CROSS_TOTAIS="$(rpc_como_authenticated "[$E_TESTE]" "SELECT corridas_completadas || '|' || COALESCE(taxa_aceitacao,'') || '|' || COALESCE(taxas_reais,'') FROM hub_performance_totais($E_OUTRA, '2026-07-01', '2026-07-04', NULL, NULL, NULL)")"
+check "MV (w): hub_performance_totais de OUTRA empresa (fora do escopo) -> zerado" "$CROSS_TOTAIS" "0||0.00"
+CROSS_AGRUPADO="$(rpc_como_authenticated "[$E_TESTE]" "SELECT count(*) FROM hub_performance_agrupado($E_OUTRA, '2026-07-01', '2026-07-04', NULL, NULL, NULL, 'dia')")"
+check "MV (w): hub_performance_agrupado de OUTRA empresa (fora do escopo) -> 0 grupos" "$CROSS_AGRUPADO" "0"
+# fallback tabela-base (p_subpraca) mantém o MESMO guard de escopo
+CROSS_FALLBACK="$(rpc_como_authenticated "[$E_TESTE]" "SELECT corridas_completadas || '|' || COALESCE(taxa_aceitacao,'') || '|' || COALESCE(taxas_reais,'') FROM hub_performance_totais($E_OUTRA, '2026-07-01', '2026-07-04', NULL, 'Zona Norte', NULL)")"
+check "MV (w): fallback por subpraça de OUTRA empresa (fora do escopo) -> zerado" "$CROSS_FALLBACK" "0||0.00"
+# controle positivo: MESMA empresa dentro do escopo -> dado real (via MV)
+POSITIVO="$(rpc_como_authenticated "[$E_TESTE]" "SELECT corridas_completadas || '|' || taxa_aceitacao || '|' || taxas_reais FROM hub_performance_totais($E_TESTE, '2026-07-01', '2026-07-04', NULL, NULL, NULL)")"
+check "MV (w): controle positivo — própria empresa no escopo -> 26|0.8182|35.00" "$POSITIVO" "26|0.8182|35.00"
+
+# (x) staleness + refresh: fato NOVO em janela isolada (2026-10-01), inserido
+# por SQL APÓS o refresh inicial -> /resumo (MV) ainda não vê; após
+# hub_performance_refresh_mv() passa a ver. GET /performance (tabela-base)
+# permanece sempre fresco por construção (lê a tabela, não a MV).
+psql_t <<SQL >/dev/null
+INSERT INTO "PerformanceTurno"
+  (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, praca,
+   tempo_disponivel_pct, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
+   corridas_completadas, corridas_canceladas, pedidos_concluidos, taxas_centavos, hash_linha)
+VALUES
+  ($E_TESTE, $IMPORT_ID, $ENT_JOAO, '2026-10-01', 'ALMOCO 11H30-15H29', '02:00:00', 'Zona Sul', 'Sao Paulo',
+   50.00, 4, 4, 0, 4, 0, 4, 4000, md5('staleness-perf-1'));
+SQL
+STALE_COMPLETADAS="$(rpc_como_authenticated "[$E_TESTE]" "SELECT corridas_completadas FROM hub_performance_totais($E_TESTE, '2026-10-01', '2026-10-01', NULL, NULL, NULL)")"
+check "MV (x): fato inserido por SQL ainda NÃO aparece no resumo (MV stale, comportamento documentado)" "$STALE_COMPLETADAS" "0"
+
+REFRESH_MODO="$(rpc_como_authenticated "[$E_TESTE]" "SELECT hub_performance_refresh_mv()->>'modo'")"
+check "MV (x): hub_performance_refresh_mv() como authenticated -> modo=concurrent (dblink fora da transação)" "$REFRESH_MODO" "concurrent"
+
+POS_REFRESH_COMPLETADAS="$(rpc_como_authenticated "[$E_TESTE]" "SELECT corridas_completadas FROM hub_performance_totais($E_TESTE, '2026-10-01', '2026-10-01', NULL, NULL, NULL)")"
+check "MV (x): após o refresh o fato novo aparece no resumo" "$POS_REFRESH_COMPLETADAS" "4"
+
+NEG_REFRESH="$(psql_t -tA 2>&1 <<'SQL' || true
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"escopo": []}', true);
+SELECT hub_performance_refresh_mv();
+ROLLBACK;
+SQL
+)"
+case "$NEG_REFRESH" in
+  *"refresh negado"*) check "MV (x): refresh com escopo vazio -> negado (42501)" "ok" "ok" ;;
+  *) check "MV (x): refresh com escopo vazio -> negado (42501)" "$NEG_REFRESH" "refresh negado" ;;
+esac
 
 echo
 if [ "$fails" = "0" ]; then

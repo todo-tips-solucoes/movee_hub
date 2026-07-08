@@ -145,6 +145,18 @@ exceção.
 **Erros**: `401`/`400`/`403` (mesmo padrão); `400
 { "erro": "GROUP_BY_INVALIDO" }` — `groupBy` fora do enum.
 
+**Frescor dos dados (follow-up SC-004, migration `0031`)**: os agregados
+deste endpoint são servidos pela materialized view `mv_performance_dia`
+(exceto quando o filtro `subpraca` é usado — dimensão fora da MV, cai na
+tabela-base). O **contrato não muda** (mesmos shapes, taxas/valores como
+`text`), mas o resumo pode estar **defasado até o fim do processamento da
+importação em curso**: a MV é atualizada (`REFRESH ... CONCURRENTLY`)
+automaticamente ao final de toda importação de performance bem-sucedida —
+único caminho de escrita nos fatos — e manualmente via RPC
+`hub_performance_refresh_mv`. Casos residuais (falha best-effort do refresh;
+importação cancelada após inserir lotes) entram no resumo no próximo
+refresh. `GET /performance` (lista) lê a tabela-base e é sempre fresco.
+
 ## Acesso negado (FR-008)
 
 Uma pessoa sem `performance.listar` MUST não ver a lista (controle

@@ -85,6 +85,7 @@ seedadas desde `0007`.
 |---|---|---|
 | `0029_seed_permissao_performance_listar.sql` | `INSERT "Permissao"` (`performance.listar`) + `INSERT "PapelPermissao"` para os 4 papéis-seed | `ON CONFLICT DO NOTHING` em ambos |
 | `0030_hub_performance_rpc_resumo.sql` | `CREATE OR REPLACE FUNCTION hub_performance_totais(...)` + `hub_performance_agrupado(...)` + `GRANT EXECUTE` | `CREATE OR REPLACE` — re-rodar é no-op |
+| `0031_mv_performance_dia.sql` (follow-up SC-004, dec-029) | MV `mv_performance_dia` (grão empresa+dia+periodo+entregador, métricas decomponíveis) + índice único p/ `REFRESH CONCURRENTLY` + `REVOKE` SELECT direto + RPCs reescritas (SECURITY DEFINER + guard de escopo; fallback tabela-base p/ `subpraca`) + `hub_performance_refresh_mv()` via dblink | `IF NOT EXISTS` / `CREATE OR REPLACE` — re-rodar é no-op |
 
 ## State transitions
 

@@ -1164,3 +1164,64 @@ fases funcionais principais entregues — follow-ups de performance
 5. **Próximos passos do plano mestre**: decidir se seguem follow-ups
    (`mv_performance_dia`, S8-S10 se aplicável) ou se o hub de frota entra em
    fase de estabilização/cutover (G3).
+
+## 2026-07-08 — Follow-up S7: SC-004 sanado com `mv_performance_dia` (migration 0031)
+
+Follow-up autorizado pelo operador ("implementa a mv_performance_dia como
+follow-up, igual fizemos na S6") para resolver a ressalva formal do review
+da S7 (SC-004 violado sob ~900k linhas — dec-029/dec-032). Mesma branch
+`feat/hub-performance` (PR draft #60). Replica o padrão do follow-up da S6
+(`mv_faturamento_dia`/0028, commit `d3b5dab`).
+
+**O que mudou**
+
+- `infra/hub/migrations/0031_mv_performance_dia.sql` — MV
+  `mv_performance_dia` (grão `id_empresa`+`data_periodo`+`periodo`+
+  `entregador_id`, todas NOT NULL no fato 0014 — índice ÚNICO direto no
+  grão p/ `REFRESH CONCURRENTLY`), métricas DECOMPONÍVEIS (Σ contadores,
+  Σ`taxas_centavos`, e p/ o `tempo_disponivel_medio` ponderado por duração:
+  Σ(pct×duração)/Σduração + Σpct/count(pct) p/ o fallback + flag do ramo —
+  nunca média de médias), **REVOKE de SELECT direto** (MV não tem RLS),
+  RPCs `hub_performance_totais`/`_agrupado` reescritas (`SECURITY DEFINER`
+  + guard `p_id_empresa = ANY (hub_jwt_escopo_ids())`, lendo da MV;
+  fallback tabela-base só p/ filtro `subpraca`) e
+  `hub_performance_refresh_mv()` (CONCURRENTLY via dblink; bloqueante como
+  fallback; negado sem escopo, 42501). Contrato da API **inalterado**.
+- `backend/lib/hub-import-processor.js` — refresh pós-import agora é um
+  mapa por tipo: performance→`rpc/hub_performance_refresh_mv` (best-effort,
+  após a transição terminal), como faturamento→0028. Staleness documentado
+  em `contracts/performance-api.md`; 0031 listada no `data-model.md`.
+
+**Resultado (mesma metodologia/volume da dec-029, HTTP end-to-end, seed de
+900k recriado e depois deletado)**
+
+| Medição | antes (dec-029) | depois |
+|---|---|---|
+| `/resumo` sem `groupBy` | 1983.0/1794.0ms | **146.7/139.4ms** |
+| `groupBy=dia` | 2192.7/2198.8ms | **164.7/189.2ms** |
+| `groupBy=periodo` | 1866.3/1629.1ms | **134.0/151.2ms** |
+| `groupBy=entregador` | 1572.5/1618.3ms | **198.7/197.5ms** |
+
+**SC-004 PASSA em todos (folga ~5-7x sob o limite de 1000ms; ~8-16x mais
+rápido)**. MV = 122.657 linhas (~7,3x menor; 26 MB vs 336 MB); EXPLAIN sem
+temp em disco (antes: 5 re-scans de 900k + temp). Paridade de valores sob
+volume EXATA (fórmula original de 0030 na base = resposta HTTP via MV).
+
+**Validação**: paridade ANTES×DEPOIS **byte a byte** das RPCs no
+hub_homolog_db com dados reais (diff vazio, incl. fallback subpraça e
+cross-tenant); 0031 idempotente (migrate re-run + SQL bruto 2x); 84/84
+integração performance (21 novos asserts: paridade MV×base, SELECT direto
+negado, cross-tenant via RPC incl. fallback, staleness/refresh
+modo=concurrent, refresh negado sem escopo, fallback subpraça via HTTP);
+56/56 unit processor (+2); 365/365 hub unit; 35/35 hub-performance;
+E2E ao vivo no hub-homolog (import real `id=37` → auto-refresh → resumo
+`{11, 0.8000, 0.9167, 72.00, 20.00}` = cálculo manual). Backend hub-homolog
+rebuildado (cap `--memory=2g`, sem swap). Seed de volume DELETADO ao final
+(lição da S6): `DELETE 900000` + REFRESH + `VACUUM FULL` — **336 MB → 96 kB**
+(fato) e **26 MB → 64 kB** (MV). Produção nunca tocada — smoke
+`app.moveelog.com.br/login` = 200 e Swarm 1/1 antes/depois; hub-homolog
+`/hub/login` e `/hub/dashboard/performance` = 200. Evidência literal:
+`docs/plans/hub-frota/evidencias/S7/followup-sc004-mv.md`.
+
+**Pendências**: revisão/merge do PR #60 (ressalva SC-004 RESOLVIDA;
+permanecem CHK022/CHK024 `{humano}` e o trailer de commit).

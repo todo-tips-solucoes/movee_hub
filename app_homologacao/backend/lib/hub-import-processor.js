@@ -779,20 +779,24 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
       console.error('[hub-import-processor] falha ao registrar auditoria de conclusão (best-effort):', errAuditoria && errAuditoria.message);
     }
 
-    // Refresh da mv_faturamento_dia (migration 0028 — follow-up SC-004):
-    // única fonte de escrita nos fatos é este pipeline, então o refresh ao
-    // final de toda importação de FATURAMENTO bem-sucedida mantém o staleness
-    // da MV na janela do próprio processamento. Best-effort: uma falha aqui
-    // NÃO reverte a importação (fatos já gravados; GET /faturamento lê a
-    // tabela-base, sempre fresca) — o próximo import/refresh manual
-    // (rpc/hub_faturamento_refresh_mv) reconcilia. `deps` direto (sem o
-    // signal de timeout de `trabalho`): o refresh não deve ser abortado
-    // pelo timeout da importação que ACABOU de concluir.
-    if (job.tipo === 'faturamento') {
+    // Refresh da MV de resumo do tipo importado (migrations 0028/0031 —
+    // follow-ups SC-004 de S6/S7): única fonte de escrita nos fatos é este
+    // pipeline, então o refresh ao final de toda importação bem-sucedida
+    // mantém o staleness da MV na janela do próprio processamento.
+    // Best-effort: uma falha aqui NÃO reverte a importação (fatos já
+    // gravados; GET /faturamento e GET /performance leem a tabela-base,
+    // sempre fresca) — o próximo import/refresh manual reconcilia. `deps`
+    // direto (sem o signal de timeout de `trabalho`): o refresh não deve
+    // ser abortado pelo timeout da importação que ACABOU de concluir.
+    const rpcRefreshMv = {
+      faturamento: 'rpc/hub_faturamento_refresh_mv', // mv_faturamento_dia (0028)
+      performance: 'rpc/hub_performance_refresh_mv', // mv_performance_dia (0031)
+    }[job.tipo];
+    if (rpcRefreshMv) {
       try {
-        await deps.hubPostgrestRequest('rpc/hub_faturamento_refresh_mv', 'POST', {}, job.claims);
+        await deps.hubPostgrestRequest(rpcRefreshMv, 'POST', {}, job.claims);
       } catch (errRefresh) {
-        console.error('[hub-import-processor] falha ao atualizar mv_faturamento_dia (best-effort, staleness até o próximo refresh):', errRefresh && errRefresh.message);
+        console.error(`[hub-import-processor] falha ao atualizar a MV de resumo (${rpcRefreshMv}, best-effort, staleness até o próximo refresh):`, errRefresh && errRefresh.message);
       }
     }
 
