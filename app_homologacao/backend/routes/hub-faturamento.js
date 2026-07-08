@@ -1,0 +1,150 @@
+// hub-faturamento (S6 do hub de frota) — routes/hub-faturamento.js
+//
+// GET /api/v1/faturamento (lista paginada, JSON e `?format=csv`) e
+// GET /api/v1/faturamento/resumo (cards/agregados) — FASE 3/4/5 (tasks.md
+// 3.2/4.1/5.1). Ref: docs/specs/hub-faturamento/contracts/faturamento-api.md,
+// data-model.md, research.md.
+//
+// Arquivo 100% NOVO — nenhuma linha de server.js legado é editada (mesmo
+// padrão de routes/hub-importacoes.js/hub-motoristas.js). id_empresa SEMPRE
+// resolvido da claim `entidade_ativa` do accessToken (Princípio II) — nunca
+// da query/corpo. Superfície 100% leitura sobre `FaturamentoLancamento`
+// (FR-011) — nenhum INSERT/UPDATE/DELETE nesta rota.
+'use strict';
+
+const express = require('express');
+const jwt = require('jsonwebtoken');
+
+const { hubPostgrestRequest } = require('../lib/hub-postgrest');
+const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
+const { requirePermission } = require('../middleware/hub-require-permission');
+const {
+  parseFiltros,
+  parsePaginacao,
+  mapFaturamentoListItem,
+} = require('../lib/hub-faturamento-dto');
+
+const router = express.Router();
+
+// ────────────────────────────────────────────────────────────────────────────
+// Helpers (DUPLICADOS deliberadamente — mesmo padrão de routes/hub-importacoes.js
+// e routes/hub-motoristas.js: cada arquivo de rota do hub mantém sua própria
+// cópia destes helpers pequenos, sem import cross-domain)
+// ────────────────────────────────────────────────────────────────────────────
+
+function decodificarAccessToken(accessToken) {
+  if (!accessToken) return null;
+  try {
+    // Pinagem de algoritmo obrigatória (owasp-security) em TODO jwt.verify do hub.
+    return jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+  } catch (_e) {
+    return null;
+  }
+}
+
+/**
+ * Resolve payload+entidadeAtiva+claims do accessToken e confirma que a
+ * ENTIDADE ATIVA concede `permissao` (não só a união flat já barrada pelo
+ * `requirePermission` de nível de rota — mesmo padrão de
+ * routes/hub-importacoes.js#resolverContextoEntidade / routes/hub-motoristas.js).
+ * Envia a resposta de erro e retorna `null` em caso de falha (401/400/403);
+ * retorna o contexto em caso de sucesso.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {string} permissao - ex.: `faturamento.listar`
+ * @returns {Promise<{payload:object, entidadeAtiva:number, claims:object,
+ *   permissoes:Set<string>}|null>}
+ */
+async function resolverContextoEntidade(req, res, permissao) {
+  const accessToken = req.cookies && req.cookies.accessToken;
+  const payload = decodificarAccessToken(accessToken);
+  if (!payload || !payload.sub) {
+    res.status(401).json({ erro: 'NAO_AUTENTICADO' });
+    return null;
+  }
+  const entidadeAtiva = payload.entidade_ativa ? Number(payload.entidade_ativa) : null;
+  if (!entidadeAtiva) {
+    res.status(400).json({ erro: 'ENTIDADE_NAO_SELECIONADA' });
+    return null;
+  }
+  const permsEntidade = await obterPermissoesEfetivasPorEntidade(payload.sub, entidadeAtiva);
+  if (!permsEntidade.has(permissao)) {
+    res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+    return null;
+  }
+  const claims = { usuarioId: payload.sub, empresaAtiva: entidadeAtiva, escopo: [entidadeAtiva] };
+  return { payload, entidadeAtiva, claims, permissoes: permsEntidade };
+}
+
+/**
+ * Monta a cláusula de filtros PostgREST comum a `GET /faturamento` e
+ * `GET /faturamento/resumo`, a partir do resultado já validado de
+ * `parseFiltros` (contracts/faturamento-api.md — mesmos filtros nos 2
+ * endpoints). Sempre inclui `id_empresa=eq.<entidadeAtiva>` (Princípio II).
+ * @param {number} entidadeAtiva
+ * @param {ReturnType<import('../lib/hub-faturamento-dto').parseFiltros>} f
+ * @returns {string[]}
+ */
+function montarFiltrosQuery(entidadeAtiva, f) {
+  const filtros = [
+    `id_empresa=eq.${entidadeAtiva}`,
+    `data_referencia=gte.${f.de}`,
+    `data_referencia=lte.${f.ate}`,
+  ];
+  if (f.categoria) filtros.push(`descricao=eq.${encodeURIComponent(f.categoria)}`);
+  if (f.entregadorId !== null) filtros.push(`entregador_id=eq.${f.entregadorId}`);
+  if (f.subpraca) filtros.push(`subpraca=eq.${encodeURIComponent(f.subpraca)}`);
+  if (f.comEntregador === true) filtros.push('entregador_id=not.is.null');
+  else if (f.comEntregador === false) filtros.push('entregador_id=is.null');
+  return filtros;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /faturamento — lista paginada de lançamentos (JSON; `?format=csv` na
+// FASE 5, tasks.md 5.1) — task 3.2
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/', requirePermission('faturamento.listar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'faturamento.listar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const f = parseFiltros(req.query);
+    if (!f.ok) {
+      return res.status(400).json({ erro: f.erro });
+    }
+
+    const { page, pageSize, from, to } = parsePaginacao(req.query);
+
+    const filtros = montarFiltrosQuery(entidadeAtiva, f);
+    filtros.push('order=data_referencia.desc,id.desc');
+    filtros.push(
+      'select=id,data_referencia,data_lancamento,data_repasse,descricao,valor::text,'
+      + 'entregador_id,subpraca,praca,periodo,entregador:Entregador(nome)'
+    );
+
+    // FR-012 (tratado de forma idêntica ao filtro vazio de importações/
+    // motoristas): período/filtro vazio NUNCA é erro — resposta 200 com
+    // items:[] e total:0. Não há necessidade de um caminho especial: a
+    // query PostgREST já retorna 0 linhas naturalmente quando o filtro não
+    // casa nada, e o `count=exact` já reporta total:0 nesse caso.
+    const { data: linhas, total } = await hubPostgrestRequest(
+      `FaturamentoLancamento?${filtros.join('&')}`,
+      'GET', null, claims,
+      { count: true, range: { from, to } }
+    );
+
+    return res.status(200).json({
+      items: (linhas || []).map(mapFaturamentoListItem),
+      total: total || 0,
+      page,
+      pageSize,
+    });
+  } catch (e) {
+    console.error('[hub-faturamento] erro em GET /faturamento:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+module.exports = { router, resolverContextoEntidade, montarFiltrosQuery };

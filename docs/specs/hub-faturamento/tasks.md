@@ -80,20 +80,20 @@ não-duplo-prefixo)
 Ref: contracts/faturamento-api.md "GET /faturamento"; data-model.md "Mapa
 permissão lógica → código real"; plan.md "Convenções de Borda"
 
-- [ ] 3.1.1 Criar `app_homologacao/backend/lib/hub-faturamento-dto.js`: mapper snake_case→camelCase (`id`, `dataReferencia`, `dataLancamento`, `dataRepasse`, `categoria`, `valor` como `text`, `entregadorId`, `entregadorNome`, `subpraca`, `praca`, `periodo`, `comEntregador` derivado)
-- [ ] 3.1.2 Implementar `parseFiltros` (`de`/`ate` default últimos 30 dias, `categoria`, `entregadorId`, `subpraca`, `comEntregador`) com validação de filtro contraditório (`entregadorId` + `comEntregador=false` → 400)
-- [ ] 3.1.3 Implementar `parsePaginacao` (`page` default 1, `pageSize` default 20, máx. 100 — mesmas constantes `PAGE_SIZE_DEFAULT`/`PAGE_SIZE_MAX` de `importacoes`/`motoristas`)
-- [ ] 3.1.4 Teste unit: `tests/hub-faturamento-dto.test.js` cobrindo mapper, `parseFiltros` (válidos/inválidos/contraditório) e `parsePaginacao` (limites, defaults)
+- [x] 3.1.1 Criar `app_homologacao/backend/lib/hub-faturamento-dto.js`: mapper snake_case→camelCase (`id`, `dataReferencia`, `dataLancamento`, `dataRepasse`, `categoria`, `valor` como `text`, `entregadorId`, `entregadorNome`, `subpraca`, `praca`, `periodo`, `comEntregador` derivado)
+- [x] 3.1.2 Implementar `parseFiltros` (`de`/`ate` default últimos 30 dias, `categoria`, `entregadorId`, `subpraca`, `comEntregador`) com validação de filtro contraditório (`entregadorId` + `comEntregador=false` → 400)
+- [x] 3.1.3 Implementar `parsePaginacao` (`page` default 1, `pageSize` default 20, máx. 100 — mesmas constantes `PAGE_SIZE_DEFAULT`/`PAGE_SIZE_MAX` de `importacoes`/`motoristas`)
+- [x] 3.1.4 Teste unit: `tests/hub-faturamento-dto.test.js` cobrindo mapper, `parseFiltros` (válidos/inválidos/contraditório) e `parsePaginacao` (limites, defaults)
 
 ### 3.2 Endpoint `GET /faturamento` (JSON) `[A]`
 
 Ref: contracts/faturamento-api.md "GET /faturamento"; middleware/hub-require-permission.js; spec.md FR-001/FR-002/FR-009/FR-011/FR-012
 
-- [ ] 3.2.1 Criar `app_homologacao/backend/routes/hub-faturamento.js` com router Express
-- [ ] 3.2.2 Implementar `GET /` com `requirePermission('faturamento.listar')`, consulta PostgREST em `FaturamentoLancamento` com filtros + join `Entregador` para `entregadorNome` + paginação `Range`
-- [ ] 3.2.3 Registrar a rota em `server.js` (~linha 2634): `app.use('/api/v1/faturamento', hubFaturamentoRoutes.router);` (mesmo padrão de `hubMotoristasRoutes`/`hubImportacoesRoutes`)
-- [ ] 3.2.4 Tratar período/filtro vazio como `200` com `{ items: [], total: 0, ... }` (FR-012), nunca erro
-- [ ] 3.2.5 Teste integração: `tests/hub-faturamento.test.js` cenários lista básica, filtros combinados (categoria+data), paginação, período vazio, `401`/`403` sem permissão
+- [x] 3.2.1 Criar `app_homologacao/backend/routes/hub-faturamento.js` com router Express
+- [x] 3.2.2 Implementar `GET /` com `requirePermission('faturamento.listar')`, consulta PostgREST em `FaturamentoLancamento` com filtros + join `Entregador` para `entregadorNome` + paginação `Range`
+- [x] 3.2.3 Registrar a rota em `server.js` (~linha 2634): `app.use('/api/v1/faturamento', hubFaturamentoRoutes.router);` (mesmo padrão de `hubMotoristasRoutes`/`hubImportacoesRoutes`)
+- [x] 3.2.4 Tratar período/filtro vazio como `200` com `{ items: [], total: 0, ... }` (FR-012), nunca erro
+- [x] 3.2.5 Teste integração: `tests/hub-faturamento.test.js` cenários lista básica, filtros combinados (categoria+data), paginação, período vazio, `401`/`403` sem permissão
 
 ---
 
