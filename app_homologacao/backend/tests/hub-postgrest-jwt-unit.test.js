@@ -108,6 +108,26 @@ describe('lib/hub-postgrest-jwt — claims por request (FASE 3 -> FASE 5)', () =
       assert.equal('hub_boot_recovery' in recoveryFalso, false, 'hubBootRecovery:false não deve virar claim (só true habilita)');
     });
   });
+
+  // S5/hub-motoristas (tasks.md 8.2.4, block-004/dec-048) — claim interna
+  // origem_importacao, usada só por
+  // lib/hub-import-processor.js#upsertEntregadoresDoLote para distinguir a
+  // reimportação S4 de um PATCH manual do operador (trigger
+  // trg_entregador_protege_nome, migration 0025).
+  test('origemImportacao=true -> payload.origem_importacao=true; ausente/false -> claim NUNCA aparece', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      const comOrigem = jwt.decode(generateHubPostgrestJWT({ usuarioId: 5, escopo: [5], origemImportacao: true }));
+      assert.equal(comOrigem.origem_importacao, true);
+      assert.equal(comOrigem.sub, '5', 'claim de origem coexiste com claims normais de usuário (aditiva)');
+      assert.deepEqual(comOrigem.escopo, [5]);
+
+      const semOrigem = jwt.decode(generateHubPostgrestJWT({ usuarioId: 1 }));
+      assert.equal('origem_importacao' in semOrigem, false, 'requests normais (PATCH manual) NUNCA devem carregar esta claim');
+
+      const origemFalsa = jwt.decode(generateHubPostgrestJWT({ origemImportacao: false }));
+      assert.equal('origem_importacao' in origemFalsa, false, 'origemImportacao:false não deve virar claim (só true habilita)');
+    });
+  });
 });
 
 describe('lib/hub-postgrest-jwt — alg-pinning (research.md Decision 12, owasp-security)', () => {

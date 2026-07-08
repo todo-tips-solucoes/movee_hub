@@ -309,8 +309,8 @@ function criarFakePostgrest({
   let statusAtual = statusInicial;
   let chamadasSelectStatus = 0;
 
-  async function mock(endpoint, method = 'GET', body = null, _claims = {}, opts = {}) {
-    chamadas.push({ endpoint, method, body, opts });
+  async function mock(endpoint, method = 'GET', body = null, claims = {}, opts = {}) {
+    chamadas.push({ endpoint, method, body, claims, opts });
 
     if (/^ImportacaoArquivo\?id=eq\.\d+&select=id,nome_arquivo$/.test(endpoint) && method === 'GET') {
       return [{ id: 1, nome_arquivo: nomeArquivo }];
@@ -397,6 +397,31 @@ describe('executarPipeline — happy path (completed)', () => {
     const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
     assert.equal(patchFinal.body.status, 'completed');
     assert.equal(patchFinal.body.linhas_validas, 3);
+  });
+
+  // S5/hub-motoristas (tasks.md 8.2.4, block-004/dec-048) — o upsert de
+  // Entregador MUST carregar a claim origemImportacao:true (nunca outros
+  // callers), para o trigger trg_entregador_protege_nome (migration 0025)
+  // distinguir reimportação S4 de PATCH manual.
+  test('upsert de Entregador carrega claim origemImportacao=true, aditiva ao escopo do job', async () => {
+    const csv = [
+      HEADER_ROW_FATURAMENTO,
+      linhaFaturamento({ descricao: 'linha 1' }),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    await executarPipeline(jobFaturamento({ claims: { escopo: [100] } }), deps);
+
+    const chamadaEntregador = deps.chamadas.find((c) => c.endpoint.startsWith('Entregador?on_conflict='));
+    assert.ok(chamadaEntregador, 'esperava 1 chamada de upsert em Entregador');
+    assert.equal(chamadaEntregador.claims.origemImportacao, true, 'upsert de Entregador deve emitir a claim origemImportacao');
+    assert.deepEqual(chamadaEntregador.claims.escopo, [100], 'claim origemImportacao é aditiva — não deve apagar o escopo do job');
+
+    const chamadaFatos = deps.chamadas.find((c) => c.endpoint.startsWith('FaturamentoLancamento?on_conflict='));
+    assert.ok(chamadaFatos, 'esperava 1 chamada de insert em FaturamentoLancamento');
+    assert.equal('origemImportacao' in (chamadaFatos.claims || {}), false, 'insert de fatos NUNCA deve carregar a claim de origem de importação — só o upsert de Entregador');
   });
 });
 

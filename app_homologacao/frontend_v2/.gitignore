@@ -19,6 +19,8 @@
 /test-results/
 /tests/e2e-hub-browser/.report.json
 /tests/e2e-hub-browser/.evidencias/
+/tests/e2e-hub-cenario11/.evidencias/
+/tests/e2e-hub-cenario12/.evidencias/
 /playwright-report/
 
 # next.js

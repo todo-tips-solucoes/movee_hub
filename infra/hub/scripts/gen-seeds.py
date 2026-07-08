@@ -35,6 +35,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 import uuid
 import zipfile
 from datetime import date, timedelta
@@ -154,6 +155,14 @@ class Anon:
                     break
             self.name_map[k] = fake
         return self.name_map[k]
+
+    def fake_cnpj(self, seed_key):
+        """CNPJ sintético (14 dígitos), determinístico-na-execução via HMAC.
+        Nunca corresponde a um CNPJ real — usado só para popular
+        ContaMotorista.cnpj_prestador (S5 hub-motoristas, FASE 2)."""
+        d = self._h("cnpj", seed_key)
+        n = int.from_bytes(d[:8], "big") % (10 ** 14)
+        return "{:014d}".format(n)
 
     def fake_origem(self, real):
         real = real.strip()
@@ -299,6 +308,146 @@ def write_csv(path, cols, rows):
         w.writerows(rows)
 
 
+# ------------------------------------------- seed ContaMotorista/EmpresaGrupoMovee
+# S5 hub-motoristas, FASE 2 (plan.md Fase 2 / research.md Decision 2 / data-model.md
+# §ContaMotorista, §EmpresaGrupoMovee). Gera um .sql idempotente (ON CONFLICT DO
+# NOTHING) aplicado separadamente via psql — NÃO faz parte do pipeline CSV de
+# faturamento/performance (ContaMotorista/EmpresaGrupoMovee não têm formato CSV
+# de importação; são tabelas locais do hub, populadas só por seed determinístico).
+
+def strip_accents(s):
+    nfkd = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _sql_str(s):
+    return "'" + s.replace("'", "''") + "'"
+
+
+def _insert_conta_motorista(anon, seed_key, nome, ativo=True, cadastro_completo=True):
+    cnpj = anon.fake_cnpj(seed_key)
+    return (
+        'INSERT INTO "ContaMotorista" (cnpj_prestador, nome, ativo, cadastro_completo) '
+        "VALUES ({}, {}, {}, {}) "
+        "ON CONFLICT (cnpj_prestador) DO NOTHING;"
+    ).format(_sql_str(cnpj), _sql_str(nome), "true" if ativo else "false",
+             "true" if cadastro_completo else "false")
+
+
+def build_motoristas_seed_sql(anon, id_empresa_elegivel, id_empresa_nao_elegivel,
+                              n_variantes_acima_limiar=12, n_ruido_abaixo_limiar=6):
+    """Monta o SQL idempotente de ContaMotorista/EmpresaGrupoMovee (FASE 2).
+
+    Cenários cobertos (quickstart.md Cenário 5/7/8, spec FR-007/FR-009/FR-010/
+    FR-011/FR-012):
+      - variações de acento/caixa/espaçamento de um nome JÁ usado como
+        Entregador (mesmo anon.name_map desta execução) — >10 contas acima
+        do limiar 0.3 para o mesmo alvo (Cenário 5.4, truncamento top 10).
+      - contas "ruído": nomes fake não relacionados a nenhum Entregador desta
+        execução — abaixo do limiar esperado (Cenário 5.3).
+      - par de nomes quase-idênticos ENTRE SI (independente de Entregador,
+        2.1.3) — exercita a busca manual (Cenário 7) sem depender do corte de
+        similaridade.
+      - UPDATE best-effort (idempotente via `motorista_id IS NULL`) que
+        vincula UMA conta marcada a um Entregador existente por nome exato
+        — só tem efeito quando o Entregador já foi importado (FASE 3+); serve
+        para exercitar o 409 de vínculo duplo (Cenário 8 / FR-012) numa
+        segunda entidade que tente vincular a MESMA conta.
+      - EmpresaGrupoMovee: inclui só `id_empresa_elegivel`; `id_empresa_nao_elegivel`
+        é deliberadamente deixado de fora (FR-010/FR-011).
+
+    Retorna (sql_text, stats_dict). Não persiste nada — quem chama grava o
+    arquivo e aplica via psql.
+    """
+    entregador_names = sorted(set(anon.name_map.values()))
+    alvo = entregador_names[0] if entregador_names else "Entregador Sintetico Teste"
+
+    lines = [
+        "-- hub_motoristas_seed.sql — gerado por infra/hub/scripts/gen-seeds.py",
+        "-- (S5 hub-motoristas, FASE 2). IDEMPOTENTE (ON CONFLICT DO NOTHING) —",
+        "-- reexecutar e' seguro. Nomes/CNPJs 100% sinteticos (HMAC, salt descartado).",
+        "BEGIN;",
+        "",
+        "-- EmpresaGrupoMovee: elegivel incluido, nao-elegivel deliberadamente ausente",
+        'INSERT INTO "EmpresaGrupoMovee" (id_empresa) VALUES ({}) '
+        "ON CONFLICT (id_empresa) DO NOTHING;".format(id_empresa_elegivel),
+        "-- id_empresa_nao_elegivel={} NAO inserido de proposito (FR-010/FR-011)"
+        .format(id_empresa_nao_elegivel),
+        "",
+        "-- ContaMotorista: variacoes de acento/caixa/espacamento do alvo '{}'"
+        .format(alvo.replace("'", "")),
+    ]
+
+    variant_fns = [
+        lambda n: n,
+        lambda n: n.upper(),
+        lambda n: n.lower(),
+        lambda n: strip_accents(n),
+        lambda n: strip_accents(n).upper(),
+        lambda n: "  ".join(n.lower().split()),
+        lambda n: "  " + n + "  ",
+        lambda n: strip_accents(n.lower()),
+        lambda n: n.replace(" ", "  "),
+        lambda n: n.title(),
+        lambda n: strip_accents(n).lower().replace(" ", "  "),
+        lambda n: " ".join(reversed(n.split())) if len(n.split()) > 1 else n,
+    ]
+    n_variantes = max(n_variantes_acima_limiar, 1)
+    for i in range(n_variantes):
+        fn = variant_fns[i % len(variant_fns)]
+        vname = fn(alvo)
+        lines.append(_insert_conta_motorista(anon, "match-{}".format(i), vname))
+
+    lines.append("")
+    lines.append("-- ContaMotorista: ruido (nomes nao relacionados a nenhum Entregador"
+                 " desta execucao) — abaixo do limiar esperado")
+    ruido_pool = [n for n in entregador_names[1:1 + n_ruido_abaixo_limiar * 3]
+                 if n != alvo]
+    ruido_nomes = []
+    idx = 0
+    while len(ruido_nomes) < n_ruido_abaixo_limiar and idx < len(FIRST) * len(LAST):
+        cand = "{} {}".format(FIRST[idx % len(FIRST)], LAST[(idx * 7) % len(LAST)])
+        if cand not in entregador_names and cand != alvo:
+            ruido_nomes.append(cand)
+        idx += 1
+    for i, nome in enumerate(ruido_nomes):
+        lines.append(_insert_conta_motorista(anon, "noise-{}".format(i), nome))
+
+    lines.append("")
+    lines.append("-- ContaMotorista: par quase-identico ENTRE SI (independente de"
+                 " Entregador) — exercita busca manual/ambiguidade (2.1.3)")
+    par_base = ruido_nomes[0] if ruido_nomes else "Fulano De Tal Sintetico"
+    lines.append(_insert_conta_motorista(anon, "par-quase-identico-a", par_base))
+    lines.append(_insert_conta_motorista(
+        anon, "par-quase-identico-b", "  " + strip_accents(par_base.lower()) + "  "))
+
+    lines.append("")
+    lines.append("-- Vinculo pre-existente best-effort (idempotente): só tem efeito se")
+    lines.append("-- ja houver Entregador com nome == alvo e sem vinculo (FASE 3+/8);")
+    lines.append("-- usado para exercitar o 409 de vinculo duplo (Cenario 8 / FR-012).")
+    lines.append(
+        'UPDATE "Entregador" e SET motorista_id = cm.id '
+        'FROM "ContaMotorista" cm '
+        "WHERE cm.cnpj_prestador = {} AND e.nome = {} AND e.motorista_id IS NULL;"
+        .format(_sql_str(anon.fake_cnpj("match-0")), _sql_str(alvo))
+    )
+
+    lines.append("")
+    lines.append("COMMIT;")
+    sql_text = "\n".join(lines) + "\n"
+
+    stats = {
+        "id_empresa_elegivel": id_empresa_elegivel,
+        "id_empresa_nao_elegivel_excluido": id_empresa_nao_elegivel,
+        "conta_motorista_variantes_alvo": n_variantes,
+        "conta_motorista_ruido": len(ruido_nomes),
+        "conta_motorista_par_quase_identico": 2,
+        "alvo_entregador_existente": bool(entregador_names),
+        "nome_alvo_amostra_hash": hashlib.sha256(alvo.encode("utf-8")).hexdigest()[:12],
+    }
+    return sql_text, stats
+
+
 UUID_RE = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 
@@ -357,6 +506,17 @@ def main():
     ap.add_argument("--out", default="infra/hub/seeds/out")
     ap.add_argument("--synthesize-days", type=int, default=0,
                     help="replica cada dia disponível N vezes com datas deslocadas (S10)")
+    ap.add_argument("--id-empresa-elegivel", type=int, default=9001,
+                    help="id_empresa sintético do grupo Movee (S5 hub-motoristas, "
+                         "FASE 2) — inserido em EmpresaGrupoMovee (default: 9001, "
+                         "mesmo tenant de teste da S4)")
+    ap.add_argument("--id-empresa-nao-elegivel", type=int, default=9002,
+                    help="id_empresa sintético deliberadamente FORA de "
+                         "EmpresaGrupoMovee — exercita o ramo não-elegível "
+                         "(FR-010/FR-011)")
+    ap.add_argument("--skip-motoristas-seed", action="store_true",
+                    help="não gerar hub_motoristas_seed.sql (ContaMotorista/"
+                         "EmpresaGrupoMovee)")
     args = ap.parse_args()
 
     anon = Anon()
@@ -398,6 +558,19 @@ def main():
             }
 
     manifest["leak_assertion"] = assert_no_leak(args.out, anon)
+
+    if not args.skip_motoristas_seed:
+        # DEVE rodar ANTES do wipe() — build_motoristas_seed_sql usa
+        # anon.fake_cnpj()/anon._h(), que dependem do salt ainda vivo.
+        sql_text, motoristas_stats = build_motoristas_seed_sql(
+            anon, args.id_empresa_elegivel, args.id_empresa_nao_elegivel)
+        seed_path = os.path.join(args.out, "hub_motoristas_seed.sql")
+        os.makedirs(os.path.dirname(seed_path), exist_ok=True)
+        with open(seed_path, "w", encoding="utf-8") as fh:
+            fh.write(sql_text)
+        manifest["hub_motoristas_seed"] = motoristas_stats
+        manifest["hub_motoristas_seed"]["arquivo"] = os.path.relpath(seed_path, args.out)
+
     anon.wipe()  # descarte do salt — irreversibilidade
 
     with open(os.path.join(args.out, "manifest.json"), "w", encoding="utf-8") as fh:
@@ -407,6 +580,13 @@ def main():
     for label, info in manifest["datasets"].items():
         print("  {}: {} dia(s), {} linhas".format(label, info["dias_gerados"],
                                                   info["linhas_total"]))
+    if not args.skip_motoristas_seed:
+        ms = manifest["hub_motoristas_seed"]
+        print("  hub_motoristas_seed.sql: {} variantes-alvo + {} ruido + {} "
+              "quase-identicos (id_empresa elegivel={}, nao-elegivel excluido={})"
+              .format(ms["conta_motorista_variantes_alvo"], ms["conta_motorista_ruido"],
+                      ms["conta_motorista_par_quase_identico"],
+                      ms["id_empresa_elegivel"], ms["id_empresa_nao_elegivel_excluido"]))
     print("  saida: {} (gitignored)".format(args.out))
 
 

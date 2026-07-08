@@ -39,6 +39,15 @@ const jwt = require('jsonwebtoken');
  *   mutex (índice único parcial, migration 0011) depois de um restart no
  *   meio do processamento. NÃO é um bypass geral de RLS: a policy não
  *   libera SELECT nem qualquer outra transição de status.
+ * @param {boolean} [claims.origemImportacao] - vira `origem_importacao`
+ *   (S5/hub-motoristas, tasks.md 8.2.4, block-004/dec-048) — claim INTERNA
+ *   emitida SÓ por `lib/hub-import-processor.js#upsertEntregadoresDoLote`
+ *   (pipeline de reimportação S4, nunca pelo PATCH manual de
+ *   routes/hub-motoristas.js). Usada pelo trigger
+ *   `trg_entregador_protege_nome` (migration 0019/0025,
+ *   `hub_jwt_origem_importacao()`) para distinguir: reimportação S4 NUNCA
+ *   sobrescreve um nome já editado manualmente; PATCH manual do operador
+ *   (sem esta claim) sempre pode reeditar o nome, mesmo repetidamente.
  * @returns {string} JWT assinado (HS256)
  */
 function generateHubPostgrestJWT(claims = {}) {
@@ -54,6 +63,9 @@ function generateHubPostgrestJWT(claims = {}) {
   }
   if (claims.hubBootRecovery === true) {
     payload.hub_boot_recovery = true;
+  }
+  if (claims.origemImportacao === true) {
+    payload.origem_importacao = true;
   }
 
   const secret = process.env.PGRST_JWT_SECRET;
