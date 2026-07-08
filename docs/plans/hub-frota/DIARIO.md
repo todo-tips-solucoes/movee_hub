@@ -772,3 +772,62 @@ via RLS real (Cenário 8 + evidência §RLS acima).
 
 Relatório de `review-task` (próxima onda) fará a síntese final e decidirá sobre a
 abertura do PR. Próxima fase da ordem S3→S10 (após S6) = **S7**.
+
+---
+
+## 2026-07-08 — S6 (Módulo Faturamento) CONCLUÍDA — review-task (onda-009), veredito APROVAR com ressalva, PR draft
+
+- **Pipeline `/feature-00c` completa** (short_name `hub-faturamento`, 9 ondas,
+  `status=concluida`): specify → clarify → plan (gate OWASP A05 PASS) → checklist
+  (39 itens) → create-tasks (7 fases/13 tarefas/73 subtarefas) → execute-task
+  (FASES 1–7, 100% `[x]`) → **review-task (onda-009, veredito APROVAR com ressalva
+  formal de SC-004)**.
+- **Retry de onda registrado**: a 1ª tentativa da onda-009 (roteada `haiku` pelo
+  mapa de model-routing) retornou em ~64s com só 3 tool-uses e nenhuma escrita de
+  estado — bug recorrente de parada precoce, agravado em haiku. O comando PAI
+  registrou override para `sonnet` (**dec-038**) e a onda foi reaberta do zero
+  (**dec-039**) — sem perda: `waves=8` antes do retry, nada havia sido persistido.
+- **Reconciliação `.tasks[]`↔`tasks.md`**: 0 divergências pré-reconcile — as 13
+  tasks já tinham sido gravadas ao vivo pelo `execute-task` nas ondas 005–007
+  (nenhum back-fill necessário).
+- **Re-execução ao vivo da validação determinística** (dec-040, não só confiar em
+  evidência gravada): `npm test` backend (`hub-faturamento-dto.test.js` +
+  `hub-faturamento.test.js`, inclui a suíte `hub-faturamento-integration.sh`
+  embutida em projeto `hub-test-*` efêmero) **32/32 PASS**; `hub-csv.test.js`
+  **9/9 PASS**; `vitest lib/hub/faturamento-dto.test.ts` **11/11 PASS**;
+  `tsc --noEmit` e `eslint` (4 arquivos novos) limpos. Containers `hub-test-*`
+  auto-limpos após o run (confirmado via `docker ps -a`).
+- **Model-routing**: 0 half-records (`state-decisions-reconcile.sh check` exit 0);
+  agregado por-subagente e por-onda colados verbatim no relatório (§ dedicada).
+- **ACHADO FORMAL não mascarado — Cenário 15/SC-004 (dec-035)**: sob volume
+  ampliado (~900.219 linhas/1 ano, `id_empresa=9001`), `GET /faturamento/resumo`
+  mediu 2,2–2,6s sem `groupBy` e 1,6–1,7s com `groupBy=categoria` — **ambos
+  excedem o limite de 1s de SC-004**. `mv_faturamento_dia` (mitigação
+  pré-aprovada em research.md/plan.md §12.6) **não implementada nesta onda**
+  (escopo novo além do backlog de 13 tarefas já revisado) — escalada para
+  decisão do operador, mesmo padrão de governança de D3/D4.
+- **Veredito (dec-041, score 3): APROVAR — com ressalva formal de SC-004**,
+  pendente de decisão do operador sobre `mv_faturamento_dia`. Toda a superfície
+  funcional (US1/US2/US3, FR-001..FR-012) está implementada, testada e
+  evidenciada; o único achado é um NFR de performance sob pior-caso de volume
+  anual de 1 tenant grande, não um bug funcional nem falha de segurança/
+  isolamento.
+- **PR draft aberto**: `feat/hub-faturamento` → `main` (não mergeável sem decisão
+  do operador sobre a ressalva SC-004).
+- **Produção intocada**: toda escrita confinada a recursos `hub-*`/`hub_*`
+  (exceção G1); `envio-massa-homologacao_*` não tocado nesta onda.
+
+### Pendências para o operador (reafirmadas, sem mudança)
+
+1. **`mv_faturamento_dia`** (dec-035) — decidir se implementa a view materializada
+   (nova FASE/S6.1 ou S7 antecipada) ou aceita o risco por enquanto.
+2. **Limpeza do seed de ~900k linhas** em `hub_homolog_db` (`id_empresa=9001`,
+   ids 300–900299) — bloqueada pelo classificador de auto mode; requer ação
+   humana direta (escopo `hub-*` já autorizado por G1) ou manter como fixture de
+   regressão de performance.
+3. Pendência recorrente (desde S1): trailer de commit do CLAUDE.md ("Claude Opus
+   4.8") desatualizado vs modelo vigente — sem decisão do operador.
+4. Revisar e mergear o PR draft quando a ressalva SC-004 estiver resolvida/aceita.
+
+Relatório terminal: `docs/specs/hub-faturamento/review-onda-009.md`. Próxima
+fase da ordem S3→S10 = **S7**.
