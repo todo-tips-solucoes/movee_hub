@@ -43,6 +43,7 @@ import {
 } from '@/lib/hub/importacoes-api';
 import {
   STATUS_CANCELAVEL,
+  STATUS_EM_ANDAMENTO,
   STATUS_LABELS,
   STATUS_REPROCESSAVEL,
   TIPO_LABELS,
@@ -100,7 +101,9 @@ export default function ImportacaoDetalhePage() {
   const podeCriar = permissoes.includes('importacoes.criar');
   const podeExportar = permissoes.includes('importacoes.exportar');
 
-  const { detalhe, carregando, erro, refetch } = useImportacaoPolling(id);
+  const {
+    detalhe, carregando, erro, atualizacaoPausada, refetch, iniciarPolling,
+  } = useImportacaoPolling(id);
   const errosState = useImportacaoErros(id);
 
   const [acaoEmAndamento, setAcaoEmAndamento] = useState<'reprocessar' | 'cancelar' | 'original' | null>(null);
@@ -111,13 +114,21 @@ export default function ImportacaoDetalhePage() {
     setAcaoEmAndamento('reprocessar');
     try {
       await reprocessarImportacao(id);
-      await refetch();
+      const novoDetalhe = await refetch();
+      // F8.1 (pós-review PR #57) — o polling anterior já tinha parado (a
+      // importação estava num status TERMINAL, failed/cancelled, senão o
+      // botão "Reprocessar" nem apareceria — STATUS_REPROCESSAVEL). O
+      // reprocessamento volta o status a `pending`; sem reiniciar aqui, a
+      // tela ficaria "congelada" mostrando o status antigo até um F5 manual.
+      if (novoDetalhe && STATUS_EM_ANDAMENTO.has(novoDetalhe.status)) {
+        iniciarPolling();
+      }
     } catch (e) {
       setErroAcao(e instanceof ImportacaoApiError ? e.message : 'Falha ao reprocessar a importação.');
     } finally {
       setAcaoEmAndamento(null);
     }
-  }, [id, refetch]);
+  }, [id, refetch, iniciarPolling]);
 
   const acionarCancelar = useCallback(async () => {
     setErroAcao(null);
@@ -143,6 +154,18 @@ export default function ImportacaoDetalhePage() {
       setAcaoEmAndamento(null);
     }
   }, [id]);
+
+  // F8.2 (pós-review PR #57) — a tabela de erros é buscada 1x no mount de
+  // `useImportacaoErros` (antes de a importação terminar); se o polling do
+  // detalhe chegar a um status TERMINAL com `invalidas > 0`, a tabela de
+  // erros precisa ser refeita — senão a UI mostra "Erros (0)" para sempre
+  // mesmo quando o processamento encontrou linhas inválidas.
+  useEffect(() => {
+    if (detalhe && !STATUS_EM_ANDAMENTO.has(detalhe.status) && (detalhe.contadores.invalidas ?? 0) > 0) {
+      errosState.refetch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só refaz quando status/invalidas mudam, não a cada render de errosState
+  }, [detalhe?.status, detalhe?.contadores.invalidas]);
 
   if (!Number.isFinite(id)) {
     return (
@@ -219,6 +242,28 @@ export default function ImportacaoDetalhePage() {
                 <p role="alert" className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
                   <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
                   {erroAcao}
+                </p>
+              )}
+
+              {/* F8.3 (pós-review PR #57) — indicador de atualização automática
+                  pausada: aparece MESMO com `detalhe` presente (dados antigos
+                  continuam na tela, mas parou de se atualizar sozinho) — antes
+                  só existia um erro de tela cheia, e SÓ quando `!detalhe`. */}
+              {atualizacaoPausada && STATUS_EM_ANDAMENTO.has(detalhe.status) && (
+                <p role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+                  Atualização automática pausada — não foi possível consultar o status mais recente.
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-auto min-h-0 p-0 underline"
+                    onClick={async () => {
+                      const d = await refetch();
+                      if (d && STATUS_EM_ANDAMENTO.has(d.status)) iniciarPolling();
+                    }}
+                  >
+                    Tentar novamente
+                  </Button>
                 </p>
               )}
 

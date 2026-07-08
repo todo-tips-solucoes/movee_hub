@@ -77,14 +77,82 @@ describe('useImportacaoPolling', () => {
     expect(mockObterImportacao.mock.calls.length).toBe(chamadasAoParar);
   });
 
-  it('falha de rede: expõe mensagem de erro e para o polling', async () => {
-    mockObterImportacao.mockRejectedValueOnce(new ImportacaoApiError(500, 'Erro no servidor.'));
+  // F8.3 (pós-review PR #57) — 1 falha transiente de fetch NÃO deve encerrar
+  // o polling permanentemente: tolera N falhas CONSECUTIVAS antes de parar.
+  // Nas 3 cenários abaixo, a 1ª consulta (a do mount) sempre TEM sucesso com
+  // status `processing` — precisa iniciar o polling de fato antes de testar
+  // sua resiliência a falhas (o hook, por design, só liga o intervalo
+  // depois de uma 1ª leitura bem-sucedida em andamento).
+  it('1 falha isolada de rede (após polling já ativo): expõe `erro` mas NÃO para o polling (tolerância a falha transiente)', async () => {
+    mockObterImportacao
+      .mockResolvedValueOnce({ ...DETALHE, status: 'processing' }) // mount: inicia o polling
+      .mockRejectedValueOnce(new ImportacaoApiError(500, 'Erro no servidor.'))
+      .mockResolvedValueOnce({ ...DETALHE, status: 'completed' });
     const { result } = renderHook(() => useImportacaoPolling(1, INTERVALO_TESTE_MS));
 
-    await waitFor(() => expect(result.current.erro).toBe('Erro no servidor.'));
-    expect(result.current.detalhe).toBeNull();
+    // Não afirma o estado intermediário 'processing' via waitFor — o
+    // intervalo de teste (20ms) é mais rápido que o polling do próprio
+    // `waitFor` (padrão ~50ms), então a sequência pode avançar direto até
+    // 'completed' antes da 1ª checagem rodar (flakiness de timing, não um
+    // bug do hook). O que importa é o estado FINAL + nunca ter pausado.
+    await waitFor(() => expect(result.current.detalhe?.status).toBe('completed'));
+    expect(result.current.erro).toBeNull();
+    expect(result.current.atualizacaoPausada).toBe(false);
+    expect(mockObterImportacao.mock.calls.length).toBeGreaterThanOrEqual(3); // 1 sucesso + 1 falha + 1 sucesso
+  });
 
+  it('3 falhas CONSECUTIVAS de rede (após polling já ativo): pausa a atualização automática (atualizacaoPausada=true) e para o polling', async () => {
+    mockObterImportacao
+      .mockResolvedValueOnce({ ...DETALHE, status: 'processing' }) // mount: inicia o polling
+      .mockRejectedValue(new ImportacaoApiError(500, 'Erro no servidor.')); // todas as próximas falham
+    const { result } = renderHook(() => useImportacaoPolling(1, INTERVALO_TESTE_MS));
+
+    await waitFor(() => expect(result.current.detalhe?.status).toBe('processing'));
+    await waitFor(() => expect(result.current.atualizacaoPausada).toBe(true));
+    expect(mockObterImportacao.mock.calls.length).toBeGreaterThanOrEqual(4); // 1 sucesso + 3 falhas
+
+    const chamadasAoPausar = mockObterImportacao.mock.calls.length;
     await esperarMs(INTERVALO_TESTE_MS * 5);
+    // Depois de pausado, o intervalo foi de fato limpo — sem chamadas extras.
+    expect(mockObterImportacao.mock.calls.length).toBe(chamadasAoPausar);
+  });
+
+  it('falha seguida de sucesso zera o contador de falhas consecutivas (não acumula entre ciclos separados)', async () => {
+    mockObterImportacao
+      .mockResolvedValueOnce({ ...DETALHE, status: 'processing' }) // mount: inicia o polling
+      .mockRejectedValueOnce(new ImportacaoApiError(500, 'x'))
+      .mockResolvedValueOnce({ ...DETALHE, status: 'processing' })
+      .mockRejectedValueOnce(new ImportacaoApiError(500, 'x'))
+      .mockResolvedValueOnce({ ...DETALHE, status: 'completed' });
+    const { result } = renderHook(() => useImportacaoPolling(1, INTERVALO_TESTE_MS));
+
+    await waitFor(() => expect(result.current.detalhe?.status).toBe('completed'));
+    // Nunca deveria ter pausado — as falhas estavam intercaladas com
+    // sucessos, nunca 3 seguidas.
+    expect(result.current.atualizacaoPausada).toBe(false);
+  });
+
+  // F8.1 — `iniciarPolling` exposto para o caller reiniciar depois de
+  // "Reprocessar" (o polling anterior já tinha parado em status terminal).
+  it('iniciarPolling reinicia a consulta periódica depois de já ter parado (fluxo de "Reprocessar")', async () => {
+    mockObterImportacao.mockResolvedValueOnce({ ...DETALHE, status: 'failed' });
+    const { result } = renderHook(() => useImportacaoPolling(1, INTERVALO_TESTE_MS));
+
+    await waitFor(() => expect(result.current.detalhe?.status).toBe('failed'));
     expect(mockObterImportacao).toHaveBeenCalledTimes(1);
+
+    // Sem reiniciar, nenhuma chamada extra (comportamento pré-existente).
+    await esperarMs(INTERVALO_TESTE_MS * 3);
+    expect(mockObterImportacao).toHaveBeenCalledTimes(1);
+
+    // Simula reprocessar: status volta a `pending`, caller chama
+    // iniciarPolling() explicitamente.
+    mockObterImportacao
+      .mockResolvedValueOnce({ ...DETALHE, status: 'pending' })
+      .mockResolvedValueOnce({ ...DETALHE, status: 'completed' });
+    result.current.iniciarPolling();
+
+    await waitFor(() => expect(result.current.detalhe?.status).toBe('completed'));
+    expect(mockObterImportacao.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 });
