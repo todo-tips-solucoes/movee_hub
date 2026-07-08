@@ -6,12 +6,16 @@ import {
   moduloParaRota,
   resolveModuleIcon,
 } from './module-nav';
-import { Truck } from 'lucide-react';
+import { Truck, Upload } from 'lucide-react';
 
 describe('moduloParaRota', () => {
   it('deriva /hub/dashboard/<codigo> por convenção pura, sem lista fixa (dec-039/dec-041: prefixo /hub/ evita colisão com app/dashboard/motoristas legado)', () => {
     expect(moduloParaRota('motoristas')).toBe('/hub/dashboard/motoristas');
     expect(moduloParaRota('faturamento')).toBe('/hub/dashboard/faturamento');
+  });
+
+  it('módulo importacoes (S4, tasks.md 6.1.4): resolve para /hub/dashboard/importacoes — mesma rota real da página', () => {
+    expect(moduloParaRota('importacoes')).toBe('/hub/dashboard/importacoes');
   });
 
   it('resolve qualquer codigo futuro do backend sem precisar de mudança neste arquivo', () => {
@@ -36,5 +40,10 @@ describe('resolveModuleIcon', () => {
   it('fail-safe: string não reconhecida cai no ícone padrão, não lança', () => {
     expect(resolveModuleIcon('valor-inexistente-no-mapa')).toBe(DEFAULT_MODULE_ICON);
     expect(resolveModuleIcon('')).toBe(DEFAULT_MODULE_ICON);
+  });
+
+  it('módulo importacoes (S4, tasks.md 6.1.4): ícone Upload já mapeado, nenhuma mudança necessária neste arquivo', () => {
+    expect(resolveModuleIcon('importacoes')).toBe(Upload);
+    expect(resolveModuleIcon('upload')).toBe(Upload);
   });
 });

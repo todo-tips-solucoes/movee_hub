@@ -121,6 +121,10 @@ services:
       FASTAPI_URL: "${FASTAPI_URL}"
       N8N_URL: "${N8N_URL}"
       MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+    # hub-importacoes (S4, FASE 3): mesmo volume privado do homolog — ver
+    # comentário em compose.hub.homolog.yml.
+    volumes:
+      - hub_dev_uploads:/var/lib/envioMassa_homologacao/app_homologacao/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -137,3 +141,5 @@ volumes:
     name: hub_dev_pg_data
   hub_dev_mocklogs:
     name: hub_dev_mocklogs
+  hub_dev_uploads:
+    name: hub_dev_uploads

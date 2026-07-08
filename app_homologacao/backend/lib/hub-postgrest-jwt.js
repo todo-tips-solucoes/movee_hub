@@ -29,6 +29,16 @@ const jwt = require('jsonwebtoken');
  * @param {number|string} [claims.usuarioId] - vira `sub` (FASE 3+)
  * @param {number|string} [claims.empresaAtiva] - vira `empresa_ativa` (FASE 5)
  * @param {Array<number|string>} [claims.escopo] - vira `escopo` (FASE 5)
+ * @param {boolean} [claims.hubBootRecovery] - vira `hub_boot_recovery`
+ *   (pós-review PR #57, F1.3) — claim INTERNA emitida SÓ por
+ *   `lib/hub-import-processor.js#recuperarImportacoesOrfas` (job de boot,
+ *   nunca por uma rota que atende requisição de usuário). Habilita a
+ *   policy `importacaoarquivo_update_recuperacao_orfa` (migration 0018),
+ *   que permite APENAS a transição `validating`/`processing` -> `failed`
+ *   em `ImportacaoArquivo`, cruzando tenants — necessário para destravar o
+ *   mutex (índice único parcial, migration 0011) depois de um restart no
+ *   meio do processamento. NÃO é um bypass geral de RLS: a policy não
+ *   libera SELECT nem qualquer outra transição de status.
  * @returns {string} JWT assinado (HS256)
  */
 function generateHubPostgrestJWT(claims = {}) {
@@ -41,6 +51,9 @@ function generateHubPostgrestJWT(claims = {}) {
   }
   if (claims.escopo !== undefined && claims.escopo !== null) {
     payload.escopo = claims.escopo;
+  }
+  if (claims.hubBootRecovery === true) {
+    payload.hub_boot_recovery = true;
   }
 
   const secret = process.env.PGRST_JWT_SECRET;

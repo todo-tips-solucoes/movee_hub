@@ -118,6 +118,14 @@ services:
       FASTAPI_URL: "${FASTAPI_URL}"
       N8N_URL: "${N8N_URL}"
       MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+      # hub-importacoes FASE 4 (tasks.md 4.6.3) — janela OPCIONAL de teste
+      # entre lotes do processador (lib/hub-import-processor.js), usada
+      # SOMENTE por infra/hub/testes/hub-import-processor-integration.sh
+      # para observar cancelamento real entre 2 lotes de um arquivo grande.
+      # Default 0 = no-op (idêntico ao comportamento de produção/dev, que
+      # não define esta var). NUNCA presente em compose.hub.dev.yml/
+      # compose.hub.homolog.yml.
+      HUB_IMPORT_TEST_LOTE_DELAY_MS: "${HUB_IMPORT_TEST_LOTE_DELAY_MS:-0}"
     depends_on:
       db:
         condition: service_healthy

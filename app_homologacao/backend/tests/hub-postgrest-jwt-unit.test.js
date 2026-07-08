@@ -91,6 +91,23 @@ describe('lib/hub-postgrest-jwt — claims por request (FASE 3 -> FASE 5)', () =
       assert.throws(() => generateHubPostgrestJWT({ usuarioId: 1 }), /PGRST_JWT_SECRET ausente/);
     });
   });
+
+  // F1.3 (pós-review PR #57) — claim interna hub_boot_recovery, usada só
+  // por lib/hub-import-processor.js#recuperarImportacoesOrfas.
+  test('hubBootRecovery=true -> payload.hub_boot_recovery=true; ausente/false -> claim NUNCA aparece', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      const comRecovery = jwt.decode(generateHubPostgrestJWT({ hubBootRecovery: true }));
+      assert.equal(comRecovery.hub_boot_recovery, true);
+      assert.equal('sub' in comRecovery, false, 'claim de recuperação não deve carregar sub de usuário');
+      assert.equal('escopo' in comRecovery, false, 'claim de recuperação não deve carregar escopo de tenant');
+
+      const semRecovery = jwt.decode(generateHubPostgrestJWT({ usuarioId: 1 }));
+      assert.equal('hub_boot_recovery' in semRecovery, false, 'requests normais NUNCA devem carregar esta claim');
+
+      const recoveryFalso = jwt.decode(generateHubPostgrestJWT({ hubBootRecovery: false }));
+      assert.equal('hub_boot_recovery' in recoveryFalso, false, 'hubBootRecovery:false não deve virar claim (só true habilita)');
+    });
+  });
 });
 
 describe('lib/hub-postgrest-jwt — alg-pinning (research.md Decision 12, owasp-security)', () => {

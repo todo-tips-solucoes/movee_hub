@@ -1,0 +1,8 @@
+      papel       | tem_exportar 
+------------------+--------------
+ admin_entidade   | t
+ admin_plataforma | t
+ leitura          | f
+ operador         | f
+(4 rows)
+
