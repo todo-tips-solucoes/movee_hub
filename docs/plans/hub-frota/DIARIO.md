@@ -896,4 +896,31 @@ disco). Preservados: 220 linhas legítimas de teste do tenant 9001 (incl. o
 fato `id=900300` do E2E do refresh) + 1 linha da prova de isolamento do
 tenant 9002. Smoke pós-limpeza: hub-homolog 200, produção 200 (intocada).
 Outputs literais na §5 de `evidencias/S6/followup-sc004-mv.md`. **Única
-pendência restante da S6: revisão/merge do PR #59.**
+pendência restante da S6: revisão/merge do PR #59.** (Nota: PR #59 foi
+mergeado em seguida — squash `b499d8c`, branch deletada, S6 100% fechada.)
+
+### 2026-07-08 — S7 (módulo Performance): specify concluída via /feature-00c
+
+Onda 1 de `/feature-00c hub-performance` (branch alvo `feat/hub-performance`).
+Fase `specify` gerou `docs/specs/hub-performance/spec.md` a partir do
+briefing `docs/plans/hub-frota/briefings/s7-modulo-performance.md`, com o
+schema real do fato `PerformanceTurno` inspecionado no repo antes de
+escrever os FRs (migration 0014: `entregador_id` NOT NULL — diferente do
+faturamento, aqui **não existe** registro "agregado/sem entregador";
+`taxas_centavos`/`tempo_disponivel_pct` nullable; RLS já escopada por
+`id_empresa` desde a migration 0015; índice de subpraça já entregue na
+0020; nenhuma biblioteca de gráfico no `frontend_v2/package.json` — logo a
+tela fica só cards+tabela, sem gráfico novo, conforme o briefing previa).
+
+3 user stories (P1 consultar/filtrar + resumo ponderado; P2 agregado por
+dimensão dia/turno/entregador; P3 exportar CSV com a mesma proteção
+CSV-injection da S6). 2 marcadores `[NEEDS CLARIFICATION]` deixados para a
+fase `clarify`: (1) se a média de `tempo_disponivel_pct` do período é
+aritmética simples (default assumido) ou ponderada por outro campo; (2) se
+esta fase introduz a permissão `performance.listar` (paridade com a
+migration corretiva 0026 que a S6 precisou fazer para `faturamento.listar`)
+ou reaproveita as duas permissões já seedadas (`performance.consultar`,
+`performance.exportar`) — default assumido: introduzir a terceira
+permissão. Gate `validate-documentation` aplicado no espírito (perfil
+UC/RB não se aplica a `spec.md` SDD) — sem findings críticos. Onda fechada,
+`current_stage=clarify`. Próxima onda: mediação clarify (asker/answerer).
