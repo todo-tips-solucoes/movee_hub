@@ -290,6 +290,34 @@ function linhaFaturamento(overrides = {}) {
 
 const HEADER_ROW_FATURAMENTO = HEADER_FATURAMENTO.join(';');
 
+function linhaPerformance(overrides = {}) {
+  const base = {
+    data_do_periodo: '2026-01-01',
+    periodo: 'ALMOCO 11H30-15H29',
+    duracao_do_periodo: '03:00:00',
+    numero_minimo_de_entregadores_regulares_na_escala: '5',
+    tag: 'REGULAR',
+    id_da_pessoa_entregadora: '22222222-2222-2222-2222-222222222222',
+    pessoa_entregadora: 'Fulana de Tal',
+    praca: 'SP',
+    sub_praca: 'ZonaSul',
+    origem: 'App',
+    tempo_disponivel_escalado: '80.00',
+    tempo_disponivel_absoluto: '02:24:00',
+    numero_de_corridas_ofertadas: '10',
+    numero_de_corridas_aceitas: '8',
+    numero_de_corridas_rejeitadas: '2',
+    numero_de_corridas_completadas: '7',
+    numero_de_corridas_canceladas_pela_pessoa_entregadora: '1',
+    numero_de_pedidos_aceitos_e_concluidos: '7',
+    soma_das_taxas_das_corridas_aceitas: '1000',
+  };
+  const linha = { ...base, ...overrides };
+  return HEADER_PERFORMANCE.map((campo) => linha[campo]).join(';');
+}
+
+const HEADER_ROW_PERFORMANCE = HEADER_PERFORMANCE.join(';');
+
 /** Fake PostgREST minimalista: interpreta só os endpoints que
  * hub-import-processor.js de fato usa (ver comentário no topo do arquivo).
  * `opcoes.statusParaCancelamento` permite simular um `foiCancelado` que
@@ -350,9 +378,9 @@ function criarFakePostgrest({
       return null;
     }
 
-    // Follow-up SC-004 (migration 0028) — refresh best-effort da
-    // mv_faturamento_dia ao final de importação de faturamento bem-sucedida.
-    if (endpoint === 'rpc/hub_faturamento_refresh_mv' && method === 'POST') {
+    // Follow-ups SC-004 (migrations 0028/0031) — refresh best-effort da MV
+    // de resumo ao final de importação bem-sucedida (por tipo).
+    if ((endpoint === 'rpc/hub_faturamento_refresh_mv' || endpoint === 'rpc/hub_performance_refresh_mv') && method === 'POST') {
       return { modo: 'concurrent', duracao_ms: 1 };
     }
 
@@ -371,6 +399,10 @@ function criarFakePostgrest({
 
 function jobFaturamento(overrides = {}) {
   return { importacaoId: 1, idEmpresa: 100, tipo: 'faturamento', claims: { escopo: [100] }, ...overrides };
+}
+
+function jobPerformance(overrides = {}) {
+  return { importacaoId: 1, idEmpresa: 100, tipo: 'performance', claims: { escopo: [100] }, ...overrides };
 }
 
 describe('executarPipeline — happy path (completed)', () => {
@@ -412,6 +444,11 @@ describe('executarPipeline — happy path (completed)', () => {
       deps.chamadas.indexOf(refreshes[0]) > deps.chamadas.indexOf(patchFinal),
       'refresh da MV deve acontecer APÓS a transição terminal'
     );
+
+    // Follow-up SC-004 da S7 (0031): o refresh é POR TIPO — importação de
+    // faturamento nunca dispara o refresh da mv_performance_dia.
+    const refreshPerformance = deps.chamadas.find((c) => c.endpoint === 'rpc/hub_performance_refresh_mv');
+    assert.equal(refreshPerformance, undefined, 'importação de faturamento NUNCA dispara o refresh da mv_performance_dia');
   });
 
   test('falha no refresh da mv_faturamento_dia é best-effort — importação segue completed', async () => {
@@ -431,6 +468,57 @@ describe('executarPipeline — happy path (completed)', () => {
     };
 
     const resultado = await executarPipeline(jobFaturamento(), deps);
+
+    assert.equal(resultado.status, 'completed', 'falha no refresh NÃO pode reverter a importação');
+  });
+
+  // Follow-up SC-004 da S7 (migration 0031) — importação de PERFORMANCE
+  // bem-sucedida dispara o refresh da mv_performance_dia (e NUNCA o da
+  // mv_faturamento_dia), espelhando o comportamento da 0028 para faturamento.
+  test('performance: refresh da mv_performance_dia exatamente 1x, APÓS a transição terminal; nunca o RPC de faturamento', async () => {
+    const csv = [
+      HEADER_ROW_PERFORMANCE,
+      linhaPerformance({ data_do_periodo: '2026-01-01' }),
+      linhaPerformance({ data_do_periodo: '2026-01-02' }),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'performance.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    const resultado = await executarPipeline(jobPerformance(), deps);
+
+    assert.equal(resultado.status, 'completed');
+    const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
+    assert.equal(patchFinal.body.status, 'completed');
+
+    const refreshes = deps.chamadas.filter((c) => c.endpoint === 'rpc/hub_performance_refresh_mv');
+    assert.equal(refreshes.length, 1, 'esperava exatamente 1 chamada de refresh da mv_performance_dia');
+    assert.ok(
+      deps.chamadas.indexOf(refreshes[0]) > deps.chamadas.indexOf(patchFinal),
+      'refresh da MV deve acontecer APÓS a transição terminal'
+    );
+
+    const refreshFaturamento = deps.chamadas.find((c) => c.endpoint === 'rpc/hub_faturamento_refresh_mv');
+    assert.equal(refreshFaturamento, undefined, 'importação de performance NUNCA dispara o refresh da mv_faturamento_dia');
+  });
+
+  test('performance: falha no refresh da mv_performance_dia é best-effort — importação segue completed', async () => {
+    const csv = [
+      HEADER_ROW_PERFORMANCE,
+      linhaPerformance(),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'performance.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+    const mockOriginal = deps.hubPostgrestRequest;
+    deps.hubPostgrestRequest = async (endpoint, method, body, claims, opts) => {
+      if (endpoint === 'rpc/hub_performance_refresh_mv') {
+        throw new Error('PostgREST indisponível (simulado)');
+      }
+      return mockOriginal(endpoint, method, body, claims, opts);
+    };
+
+    const resultado = await executarPipeline(jobPerformance(), deps);
 
     assert.equal(resultado.status, 'completed', 'falha no refresh NÃO pode reverter a importação');
   });

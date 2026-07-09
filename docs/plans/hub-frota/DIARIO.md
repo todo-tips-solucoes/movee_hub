@@ -896,4 +896,332 @@ disco). Preservados: 220 linhas legítimas de teste do tenant 9001 (incl. o
 fato `id=900300` do E2E do refresh) + 1 linha da prova de isolamento do
 tenant 9002. Smoke pós-limpeza: hub-homolog 200, produção 200 (intocada).
 Outputs literais na §5 de `evidencias/S6/followup-sc004-mv.md`. **Única
-pendência restante da S6: revisão/merge do PR #59.**
+pendência restante da S6: revisão/merge do PR #59.** (Nota: PR #59 foi
+mergeado em seguida — squash `b499d8c`, branch deletada, S6 100% fechada.)
+
+### 2026-07-08 — S7 (módulo Performance): specify concluída via /feature-00c
+
+Onda 1 de `/feature-00c hub-performance` (branch alvo `feat/hub-performance`).
+Fase `specify` gerou `docs/specs/hub-performance/spec.md` a partir do
+briefing `docs/plans/hub-frota/briefings/s7-modulo-performance.md`, com o
+schema real do fato `PerformanceTurno` inspecionado no repo antes de
+escrever os FRs (migration 0014: `entregador_id` NOT NULL — diferente do
+faturamento, aqui **não existe** registro "agregado/sem entregador";
+`taxas_centavos`/`tempo_disponivel_pct` nullable; RLS já escopada por
+`id_empresa` desde a migration 0015; índice de subpraça já entregue na
+0020; nenhuma biblioteca de gráfico no `frontend_v2/package.json` — logo a
+tela fica só cards+tabela, sem gráfico novo, conforme o briefing previa).
+
+3 user stories (P1 consultar/filtrar + resumo ponderado; P2 agregado por
+dimensão dia/turno/entregador; P3 exportar CSV com a mesma proteção
+CSV-injection da S6). 2 marcadores `[NEEDS CLARIFICATION]` deixados para a
+fase `clarify`: (1) se a média de `tempo_disponivel_pct` do período é
+aritmética simples (default assumido) ou ponderada por outro campo; (2) se
+esta fase introduz a permissão `performance.listar` (paridade com a
+migration corretiva 0026 que a S6 precisou fazer para `faturamento.listar`)
+ou reaproveita as duas permissões já seedadas (`performance.consultar`,
+`performance.exportar`) — default assumido: introduzir a terceira
+permissão. Gate `validate-documentation` aplicado no espírito (perfil
+UC/RB não se aplica a `spec.md` SDD) — sem findings críticos. Onda fechada,
+`current_stage=clarify`. Próxima onda: mediação clarify (asker/answerer).
+
+### 2026-07-08 — S7 (módulo Performance): FASE 1-4 (backend) via /feature-00c
+
+Onda 5 de `/feature-00c hub-performance` (branch `feat/hub-performance`,
+criada a partir da main; commit dos artefatos SDD specify→create-tasks das
+ondas 1-4 + backend das FASES 1-4 nesta onda). clarify/plan/checklist/
+create-tasks já haviam concluído (12 tarefas/74 subtarefas em 6 fases,
+gates template-fidelity + docs-render sem findings).
+
+**FASE 1 — Migrations e RBAC**: `0029_seed_permissao_performance_listar.sql`
+(permissão `performance.listar`, mesmo padrão de `0026`/faturamento — os 4
+papéis-seed ganham `listar`, só `admin_plataforma`/`admin_entidade` mantêm
+`exportar`) e `0030_hub_performance_rpc_resumo.sql`
+(`hub_performance_totais`/`hub_performance_agrupado`, `SECURITY INVOKER`,
+fórmula ponderada Σ(pct×duração)/Σduração com fallback para média simples
+quando `duracao IS NULL` no conjunto — research.md Decision 2/3). Aplicadas
+no `hub_homolog_db` via `migrate.sh`; idempotência confirmada por
+re-execução direta via `psql` (não só skip do registro em
+`SchemaMigration`). RLS/`SECURITY INVOKER` provados com dados sintéticos
+inseridos e removidos no `hub_homolog_db` (escopo `[9001]` chamando
+`p_id_empresa=9002` retornou zerado; fórmula ponderada bateu com cálculo
+manual: `78.42` = `2682000/34200`; fallback bateu com média simples
+`80.00`).
+
+**FASE 2 — Lista `GET /performance`**: `lib/hub-performance-dto.js` +
+`routes/hub-performance.js` (arquivo novo, registrado em `server.js`),
+mirror do padrão `hub-faturamento` (S6). `entregadorId`/`entregadorNome`
+sempre presentes (Decision 4, sem bucket "sem entregador"). 34/34 testes
+unit (`hub-performance-dto.test.js`).
+
+**FASE 3 — Resumo `GET /performance/resumo`**: implementado no mesmo
+arquivo de rota da FASE 2 (cards + agrupado por `dia`/`periodo`/
+`entregador`, Decision 12 — literal `periodo`, não `turno`).
+
+**FASE 4 — Export CSV**: streaming em lotes de 1.000 (Decision 5), reuso
+de `lib/hub-csv.js` (Decision 6), checagem inline de `performance.exportar`
+independente de `.listar` (Decision 9), auditoria só no sucesso. Gap
+CHK031 (célula já-neutra por apóstrofo) fechado também no consumidor
+`performance` (não só em `hub-csv.js`).
+
+**Verificação E2E real**: `infra/hub/testes/hub-performance-integration.sh`
+(ambiente `hub-test-<runid>` efêmero, build do backend com o código novo,
+migrations 0002-0030 aplicadas, seeds sintéticos) — **60/60 asserts PASS**
+cobrindo lista/paginação/filtros/isolamento multi-tenant/401/403 (FASE 2),
+cards/agrupado/SC-002 (taxa=razão de somas, nunca média)/SC-009 (divisão
+por zero=null)/período vazio (FASE 3), export completo/CSV
+injection/gap CHK031/auditoria (FASE 4). Ambiente efêmero limpo
+automaticamente ao final (`docker compose down -v`, confirmado sem
+resíduo). `node --test` local: 34 (dto) + 9 (hub-csv, sem regressão) +
+2 wrappers de integração, todos verdes.
+
+7 tasks concluídas nesta onda (1.1, 1.2, 2.1, 2.2, 3.1, 4.1, 4.2) via
+`state-ondas.sh record-task`. Onda fechada por corte natural na Matriz de
+Dependências: FASE 5 (tela `/hub/dashboard/performance`, frontend
+Next.js) é domínio distinto (UI/UX) das FASES 1-4 (backend), e depende de
+F2+F3+F4 — todas prontas. Próxima onda: FASE 5 (DTO/API client
+frontend + página com cards/filtros/tabela/export, seguindo
+`/ui-ux-pro-max` e o padrão de `.../faturamento/page.tsx`), depois FASE 6
+(E2E completo no `hub-homolog` + evidências + DIÁRIO final).
+
+## 2026-07-08 — S7 (módulo Performance): FASE 5 (frontend) via /feature-00c
+
+Onda 5 de `/feature-00c hub-performance` (branch `feat/hub-performance`,
+commit `7acc0a3`): DTO/API client `lib/hub/performance-dto.ts` +
+`lib/hub/performance-api.ts` e a tela `/hub/dashboard/performance` (cards de
+resumo, filtros server-side, tabela paginada, export CSV condicionado a
+`performance.exportar`, **sem** navegação para detalhe do entregador —
+research.md Decision 11, ao contrário de `hub-faturamento`), mesmo padrão de
+`.../faturamento/page.tsx`. `tsc --noEmit`/`eslint` limpos (0 erros). Duas
+subtarefas (roundtrip real contra hub-homolog e smoke/E2E de UI) foram
+deliberadamente deferidas para a FASE 6 (dec-027) — evita rebuild duplicado
+do container `hub_homolog_frontend`. Onda fechada por corte de dependência
+(FASE 6 depende de F5 completa). Próxima onda: FASE 6 completa.
+
+## 2026-07-08 — S7 (módulo Performance) CONCLUÍDA — FASE 6, evidências e E2E ao vivo
+
+- **Pipeline `/feature-00c` em andamento** (short_name `hub-performance`,
+  onda-006, `execute-task` → transição para `review-task`): specify →
+  clarify → plan (gate OWASP A05 PASS) → checklist (39 itens, 2 gaps
+  `{humano}`) → create-tasks (6 fases/12 tarefas/74 subtarefas, gates
+  template-fidelity + docs-render verdes) → execute-task (**FASES 1-6,
+  12/12 tarefas `[x]`**).
+- **Deploy prévio necessário**: a imagem `hub-backend:homolog`/
+  `hub-frontend:homolog` em execução no hub-homolog **ainda não** tinha o
+  código das FASES 1-5 (só as migrations `0029`/`0030` já aplicadas desde a
+  onda-004) — rebuild + redeploy de ambos (`docker compose build` com cap de
+  memória `--memory=2g` no frontend, lição 2026-06-11) antes do quickstart.
+  Smoke pós-deploy: `/hub/login`/`/hub/dashboard/performance` 200.
+- **Entregue**: migrations **0029/0030** (permissão `performance.listar`
+  corretiva + RPCs `hub_performance_totais`/`hub_performance_agrupado`,
+  `SECURITY INVOKER`, fórmula ponderada Σ(pct×duração)/Σduração com fallback
+  para média simples quando `duracao IS NULL` — OWASP A05 PASS); **2
+  endpoints** `GET /api/v1/performance` (lista paginada + `?format=csv`
+  streaming em lotes de 1.000) e `GET /api/v1/performance/resumo` (cards +
+  `groupBy=dia|periodo|entregador`); DTO/API client
+  (`lib/hub/performance-dto.ts`/`performance-api.ts`); tela
+  `/hub/dashboard/performance` (cards, filtros, tabela paginada, export CSV
+  condicionado a `performance.exportar`, **sem** navegação para detalhe do
+  entregador — Decision 11, estados vazio/loading/erro).
+- **Validação determinística** (re-executada/reafirmada): `node --test`
+  `hub-performance-dto.test.js` (34/34) + `hub-performance.test.js` (26/26)
+  + `hub-csv.test.js` (9/9, sem regressão); `infra/hub/testes/hub-performance-integration.sh`
+  (ambiente `hub-test-*` efêmero) **60/60 asserts PASS**; `tsc --noEmit`/
+  `eslint` limpos.
+- **E2E real contra `https://hub-homolog.todo-tips.com:8443`** (persistente,
+  usuários QA reais `qa.importacoes@moveelog.local`/
+  `qa.motoristas.leitura@moveelog.local`/
+  `qa.motoristas.outraempresa@moveelog.local`, login real via cookie de
+  sessão): **35 PASS / 0 FAIL** cobrindo os Cenários 1/2/3(+fallback)/4/6/7/
+  8(+CHK031)/9/10(parcial)/11/13/14 do `quickstart.md` — totais batendo com
+  `SUM` SQL direto no `hub_homolog_db`, taxa agregada = razão de somas
+  (nunca média de percentuais, SC-002), tempo disponível ponderado por
+  duração com fallback correto (FR-003/dec-011), período vazio sem erro,
+  export CSV com contagem batendo com a tela, CSV injection neutralizada
+  (`=`/`@`/`+` + os 2 casos CHK031: apóstrofo pré-existente sem dupla
+  neutralização e caractere neutro sem prefixo espúrio), bypass de permissão
+  via papel `leitura` real (`403 PERMISSAO_NEGADA` no export mesmo com
+  `.listar`), isolamento multi-tenant real (marcador único 777 em 9002, zero
+  vazamento nos dois sentidos), roundtrip/contrato exato (camelCase
+  completo). **Cenário 5** (data do turno é o único filtro de data) coberto
+  por leitura de código + teste unitário, sem novo teste ao vivo. **Cenário
+  10** (combinações de permissão com papéis sintéticos "só consultar"/"só
+  listar") parcialmente coberto ao vivo (papel `leitura` real) + backstop no
+  teste determinístico (papéis sintéticos efêmeros, mesma decisão de
+  governança de `hub-faturamento`).
+- **Cenário 12 (identidade visual)**: Playwright real (imagem oficial
+  `mcr.microsoft.com/playwright`, zero apt/npx install no host) — **2/2
+  passed**, screenshots claro/escuro anexadas.
+- **Cenário 15 (performance, SC-004) — ACHADO REAL, dec-029**: seed de
+  900.000 linhas (~1 ano, `id_empresa=9001`, `generate_series`, 31s de
+  INSERT) — `GET /performance/resumo` sobre o ano inteiro populado mediu
+  **1,8-2,2s sem `groupBy`** e **1,6-2,2s com `groupBy=dia/periodo/
+  entregador`**, **todas excedendo o limite de 1s de SC-004** (mesmo achado
+  formal de dec-035 em `hub-faturamento`/S6). `EXPLAIN (ANALYZE, BUFFERS)`
+  confirma Index Scan na CTE de `hub_performance_totais` mas re-materializada
+  5x (1 por agregado), e Seq Scan+HashAggregate em `hub_performance_agrupado`
+  (859ms isolado, próximo do limite mesmo sem overhead de rede). **Decisão
+  dec-029 registrada (score 3, evidência empírica)**: `mv_performance_dia`
+  (research.md Decision 8, plano técnico §12.6) é a mitigação pré-aprovada,
+  mas implementá-la é escopo novo além do backlog de 12 tarefas já revisado
+  — **não implementada nesta onda**, escalada para decisão do operador,
+  mesmo padrão de governança de dec-035/D3/D4. Detalhe completo em
+  `docs/plans/hub-frota/evidencias/S7/fase6-e2e-perf-resultado.md`.
+- **Limpeza do seed de volume — EXECUTADA nesta onda** (ao contrário da 1ª
+  tentativa em `hub-faturamento`, que foi bloqueada pelo classificador de
+  auto mode): `DELETE FROM "PerformanceTurno"` (faixa exata dos 900000
+  registros, `id_empresa=9001`) + `VACUUM ANALYZE`/`VACUUM FULL` — tabela
+  337 MB → 96 kB. Preservados: 14 linhas do seed funcional + 1 linha da
+  prova de isolamento (9002). Smoke pós-limpeza: hub-homolog 200, produção
+  (`app.moveelog.com.br`/`app.motorista.moveelog.com.br`) 200 (intocada).
+- **Gate `validate-docs-rendered`** sobre `tasks.md`/`quickstart.md` — ver
+  resultado registrado na própria onda (0 erro esperado, mesmo padrão de
+  S6).
+- **2 gaps `{humano}` do checklist** (CHK022 — procedimento de medição de
+  SC-003; CHK024 — critério objetivo de SC-008) permanecem `[ ]`,
+  explicitamente registrados como pendência do operador (mesmo padrão já
+  aceito em `hub-faturamento` CHK020/CHK023) — não bloqueiam o fechamento.
+- **Produção intocada**: toda escrita confinada a recursos `hub-*`/`hub_*`
+  (exceção G1); serviços `envio-massa-homologacao_*`/`chatmasterveloz` não
+  tocados nesta sessão.
+
+### Pendências para o operador
+
+1. **`mv_performance_dia`** (dec-029): SC-004 formalmente violado sob volume
+   anual de um tenant grande — decidir se implementa a view materializada
+   (nova fase) ou aceita o risco por enquanto (mesmo dilema de
+   `mv_faturamento_dia`/dec-035 em S6).
+2. **CHK022/CHK024** (gaps `{humano}` do checklist): decidir procedimento de
+   medição de SC-003 e critério objetivo de SC-008, ou aceitar que ficam
+   como julgamento humano contínuo.
+3. Pendência recorrente (desde S1): divergência do trailer de commit
+   (CLAUDE.md pede "Claude Opus 4.8"; commits usam o modelo vigente) — segue
+   sem decisão do operador.
+4. PR ainda não aberto para `feat/hub-performance` — previsto para o
+   fechamento de `review-task` (próxima onda), mesmo padrão das fases
+   anteriores.
+
+Relatório de `review-task` (próxima onda) fará a síntese final e decidirá
+sobre a abertura do PR. Após S7 (última da ordem original S3→S10 antes de
+possíveis follow-ups), o plano mestre S0-S10 do hub-frota fica com todas as
+fases funcionais principais entregues — follow-ups de performance
+(`mv_faturamento_dia`/`mv_performance_dia`) ficam a critério do operador.
+
+---
+
+## 2026-07-08 — S7 (Módulo Performance) FECHADA — review-task, PR #60 aberto
+
+- **`review-task` concluída** (onda-006/onda de fechamento, `status` promovido
+  a `concluida`): auditoria contra evidência real (não apenas sumários) —
+  `.tasks[]` 12/12 `pass`, `.decisions[]` 32 registradas, model-routing I3
+  íntegro (2 decisões de spawn de subagente = 2 `record-skill
+  model-selector`), 0 bloqueios pendentes.
+- **Testes determinísticos re-executados nesta onda** (não apenas citados do
+  relatório anterior): `node --test hub-performance-dto.test.js
+  hub-performance.test.js hub-csv.test.js` → **44/44 pass**, incluindo
+  `infra/hub/testes/hub-performance-integration.sh` (60/60 asserts, ambiente
+  `hub-test-*` efêmero, sem containers residuais após). Smoke pós-review:
+  `hub-homolog` `/hub/login`/`/hub/dashboard/performance` = 200/200; produção
+  (`app.moveelog.com.br`/`app.motorista.moveelog.com.br`) intocada = 200/200.
+- **13 subtarefas de granularidade fina** seguem `[ ]` no `tasks.md` (ex.:
+  4.2.4 "rodar suíte CSV completa", 5.1.3 "roundtrip real hub-homolog") apesar
+  de já cobertas por evidência equivalente registrada no DIÁRIO/
+  `fase6-e2e-perf-resultado.md` (Cenário 13 = roundtrip; suíte CSV
+  reconfirmada 9/9 nesta própria onda) — checkbox não fecha 1:1 com o
+  trabalho realizado, mas sem lacuna funcional real; anotado como aspereza de
+  disciplina de checklist, não bloqueante.
+- **Veredito: APROVAR-COM-RESSALVA** (dec-032, score 3) — mesmo padrão de
+  `hub-faturamento`/S6 (dec-035): a única pendência material é SC-004 sob
+  volume anual (dec-029, já escalada) + os 2 gaps `{humano}` CHK022/CHK024
+  (mesmo padrão já aceito em S6 CHK020/CHK023, não bloqueantes por definição).
+- **Push + PR draft aberto**: branch `feat/hub-performance` (4 commits
+  `359e621..6077c17`) enviada para `origin`; **PR #60**
+  (`feat/hub-performance` → `main`, **draft**) com resumo do módulo,
+  evidências (44/44 determinístico + 35/35 E2E + Playwright 2/2), a ressalva
+  SC-004/dec-029 destacada e as pendências do operador (mv_performance_dia,
+  CHK022/CHK024, trailer de commit). Merge é decisão do operador.
+- **Produção intocada** durante toda a review (verificado antes e depois).
+  `hub-homolog` permanece NO AR, não foi derrubado.
+- **S7 é a última fase funcional da ordem original S3→S10** do plano mestre
+  hub-frota — as 5 fases funcionais (S3 shell, S4 importações, S5 motoristas,
+  S6 faturamento, S7 performance) estão todas implementadas, testadas e com
+  PR aberto (#56/#57/#58/#59/#60). Pendências agregadas para o operador:
+  merges, decisão sobre as 2 views materializadas (`mv_faturamento_dia` já
+  aplicada/resolvida em S6; `mv_performance_dia` ainda pendente), gaps
+  `{humano}` de checklist acumulados (CHK020/CHK023 em S6, CHK022/CHK024 em
+  S7), cutover de produção (G3), e a pendência recorrente do trailer de
+  commit (desde S1, sem decisão).
+
+### Pendências para o operador
+
+1. **Revisar e decidir o merge do PR #60** (`feat/hub-performance` → `main`).
+2. **`mv_performance_dia`** (dec-029): implementar a view materializada
+   (nova fase) ou aceitar o risco de SC-004 por enquanto.
+3. **CHK022/CHK024**: decidir procedimento de medição de SC-003 e critério
+   objetivo de SC-008, ou aceitar como julgamento humano contínuo.
+4. Pendência recorrente (desde S1): trailer de commit "Claude Opus 4.8" no
+   CLAUDE.md vs. modelo vigente nos commits — sem decisão do operador.
+5. **Próximos passos do plano mestre**: decidir se seguem follow-ups
+   (`mv_performance_dia`, S8-S10 se aplicável) ou se o hub de frota entra em
+   fase de estabilização/cutover (G3).
+
+## 2026-07-08 — Follow-up S7: SC-004 sanado com `mv_performance_dia` (migration 0031)
+
+Follow-up autorizado pelo operador ("implementa a mv_performance_dia como
+follow-up, igual fizemos na S6") para resolver a ressalva formal do review
+da S7 (SC-004 violado sob ~900k linhas — dec-029/dec-032). Mesma branch
+`feat/hub-performance` (PR draft #60). Replica o padrão do follow-up da S6
+(`mv_faturamento_dia`/0028, commit `d3b5dab`).
+
+**O que mudou**
+
+- `infra/hub/migrations/0031_mv_performance_dia.sql` — MV
+  `mv_performance_dia` (grão `id_empresa`+`data_periodo`+`periodo`+
+  `entregador_id`, todas NOT NULL no fato 0014 — índice ÚNICO direto no
+  grão p/ `REFRESH CONCURRENTLY`), métricas DECOMPONÍVEIS (Σ contadores,
+  Σ`taxas_centavos`, e p/ o `tempo_disponivel_medio` ponderado por duração:
+  Σ(pct×duração)/Σduração + Σpct/count(pct) p/ o fallback + flag do ramo —
+  nunca média de médias), **REVOKE de SELECT direto** (MV não tem RLS),
+  RPCs `hub_performance_totais`/`_agrupado` reescritas (`SECURITY DEFINER`
+  + guard `p_id_empresa = ANY (hub_jwt_escopo_ids())`, lendo da MV;
+  fallback tabela-base só p/ filtro `subpraca`) e
+  `hub_performance_refresh_mv()` (CONCURRENTLY via dblink; bloqueante como
+  fallback; negado sem escopo, 42501). Contrato da API **inalterado**.
+- `backend/lib/hub-import-processor.js` — refresh pós-import agora é um
+  mapa por tipo: performance→`rpc/hub_performance_refresh_mv` (best-effort,
+  após a transição terminal), como faturamento→0028. Staleness documentado
+  em `contracts/performance-api.md`; 0031 listada no `data-model.md`.
+
+**Resultado (mesma metodologia/volume da dec-029, HTTP end-to-end, seed de
+900k recriado e depois deletado)**
+
+| Medição | antes (dec-029) | depois |
+|---|---|---|
+| `/resumo` sem `groupBy` | 1983.0/1794.0ms | **146.7/139.4ms** |
+| `groupBy=dia` | 2192.7/2198.8ms | **164.7/189.2ms** |
+| `groupBy=periodo` | 1866.3/1629.1ms | **134.0/151.2ms** |
+| `groupBy=entregador` | 1572.5/1618.3ms | **198.7/197.5ms** |
+
+**SC-004 PASSA em todos (folga ~5-7x sob o limite de 1000ms; ~8-16x mais
+rápido)**. MV = 122.657 linhas (~7,3x menor; 26 MB vs 336 MB); EXPLAIN sem
+temp em disco (antes: 5 re-scans de 900k + temp). Paridade de valores sob
+volume EXATA (fórmula original de 0030 na base = resposta HTTP via MV).
+
+**Validação**: paridade ANTES×DEPOIS **byte a byte** das RPCs no
+hub_homolog_db com dados reais (diff vazio, incl. fallback subpraça e
+cross-tenant); 0031 idempotente (migrate re-run + SQL bruto 2x); 84/84
+integração performance (21 novos asserts: paridade MV×base, SELECT direto
+negado, cross-tenant via RPC incl. fallback, staleness/refresh
+modo=concurrent, refresh negado sem escopo, fallback subpraça via HTTP);
+56/56 unit processor (+2); 365/365 hub unit; 35/35 hub-performance;
+E2E ao vivo no hub-homolog (import real `id=37` → auto-refresh → resumo
+`{11, 0.8000, 0.9167, 72.00, 20.00}` = cálculo manual). Backend hub-homolog
+rebuildado (cap `--memory=2g`, sem swap). Seed de volume DELETADO ao final
+(lição da S6): `DELETE 900000` + REFRESH + `VACUUM FULL` — **336 MB → 96 kB**
+(fato) e **26 MB → 64 kB** (MV). Produção nunca tocada — smoke
+`app.moveelog.com.br/login` = 200 e Swarm 1/1 antes/depois; hub-homolog
+`/hub/login` e `/hub/dashboard/performance` = 200. Evidência literal:
+`docs/plans/hub-frota/evidencias/S7/followup-sc004-mv.md`.
+
+**Pendências**: revisão/merge do PR #60 (ressalva SC-004 RESOLVIDA;
+permanecem CHK022/CHK024 `{humano}` e o trailer de commit).
