@@ -401,6 +401,23 @@ Ref: contracts/usuarios-api.md (GET/POST/PUT `/usuarios`,
 POST/PUT `/usuarios/:id/vinculos`); spec.md FR-009/FR-011;
 checklists/requirements.md CHK033 `[Ambiguity]` ("editar" inclui desativar?)
 
+- [x] 4.2.0 **(EMERGENTE — dec-032)** Migration `0039_usuarioentidade_escrita_admin.sql`: RLS de `"UsuarioEntidade"` (migration 0006) tinha SOMENTE a policy SELECT `usuarioentidade_select_proprio` (`usuario_id = claim.sub`) e NENHUMA policy de INSERT/UPDATE — o plano das migrations 0035-0038 não previu isso (plan.md linha 16-19 lista só 4 mudanças, nenhuma toca `UsuarioEntidade`); GRANT INSERT/UPDATE existe desde 0003 mas RLS enabled sem policy nega por padrão. Bloqueava TODA a FASE 4.2 (admin não conseguiria listar/criar/editar vínculos de outras pessoas). Migration adiciona: SELECT ampliado (`usuario_id=claim.sub OR hub_jwt_admin_plataforma() OR empresa_id=ANY(hub_jwt_escopo_ids())` — união nunca reduz acesso existente, GET /me continua igual); INSERT/UPDATE escopados por `hub_jwt_admin_plataforma() OR empresa_id=ANY(hub_jwt_escopo_ids())` (NÃO exclusivo admin_plataforma, diferente de ModuloEntidade/0036 — contracts/usuarios-api.md exige que admin_entidade também escreva vínculos na própria entidade). RLS = backstop de isolamento de tenant; o gate fino (`usuarios.gerenciar`) fica em `requirePermission`/`requireModuloAtivo` no router (defesa em profundidade, mesmo padrão de Decisions 2/4).
+
+  Evidência: Decisão dec-032 registrada (score 3, evidência empírica
+  `grep -rn "CREATE POLICY.*UsuarioEntidade" infra/hub/migrations/*.sql`
+  -> só 1 resultado antes desta migration). Aplicada em hub-homolog via
+  `infra/hub/scripts/migrate.sh -f infra/hub/compose.hub.homolog.yml -p
+  hub-homolog -e /var/lib/hub_secrets/.env.hub.homolog`: `SchemaMigration`
+  linha 40 `0039_usuarioentidade_escrita_admin.sql`. Confirmado via `psql
+  \d "UsuarioEntidade"` (ao vivo): 3 policies presentes
+  (`usuarioentidade_select_proprio` r, `usuarioentidade_insert_admin` a,
+  `usuarioentidade_update_admin` w) com as expressões exatas do arquivo.
+  Regressão AO VIVO (Docker efêmero `hub-test-<runid>`, migrate.sh aplica
+  TODAS as migrations até 0039 inclusive):
+  `bash infra/hub/testes/hub-rbac-integration.sh` ->
+  `HUB-RBAC-INTEGRATION: OK`, 36/36 PASS (0 FAIL) — SELECT ampliado não
+  quebrou nenhum cenário de GET /me/GET /auditoria já cobertos.
+
 - [ ] 4.2.1 Criar `app_homologacao/backend/routes/hub-usuarios.js`, todas as rotas sob `requireModuloAtivo('usuarios')` + `requirePermission('usuarios.gerenciar')` + checagem por-entidade
 - [ ] 4.2.2 Implementar `GET /usuarios` (busca `ilike` nome/email, `entidadeId` — só admin_plataforma pode divergir da ativa, paginação)
 - [ ] 4.2.3 Implementar `POST /usuarios` (criação + primeiro vínculo em um passo, senha validada por `isStrongPassword`, `vinculo.papelId` deve existir no catálogo fixo — dec-008, e-mail duplicado → `409 EMAIL_JA_CADASTRADO`), auditoria `usuario_criado` sem senha em `detalhes`
@@ -605,10 +622,10 @@ flowchart TD
 | 1 - Fundação de Dados (0035-0038) | 4 | 22 | C |
 | 2 - Cobertura de Auditoria + SC-006 | 3 | 15 | C/A |
 | 3 - Endpoint Auditoria evoluído | 3 | 14 | C/A |
-| 4 - Administração Backend | 5 | 36 | C/A |
+| 4 - Administração Backend (+1 subtarefa emergente 4.2.0 — dec-032) | 5 | 37 | C/A |
 | 5 - Telas | 4 | 22 | A |
 | 6 - E2E e Evidências | 4 | 15 | C/A/M |
-| **Total** | **23** | **124** | - |
+| **Total** | **23** | **125** | - |
 
 ## Escopo Coberto
 
