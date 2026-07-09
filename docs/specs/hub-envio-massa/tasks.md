@@ -74,14 +74,33 @@ Scenarios; contracts/legacy-endpoints.md; research.md Decision 3
 Ref: contracts/claims-adapter.md "Middleware: hubEnvioMassaClaimsBridge";
 research.md Decision 1/2; plan.md §Constitution Check Princípio I/II
 
-- [ ] 2.1.1 Criar `app_homologacao/backend/middleware/hub-envio-massa-claims.js`
-- [ ] 2.1.2 Implementar discriminador de ramo com **`req.user.sub` testado SEMPRE primeiro** (gate `owasp-security` achado F1, research.md Decision 2 — falha para o lado restrito em caso de drift futura no payload do token hub)
-- [ ] 2.1.3 Ramo 1 (sessão hub, `sub` presente): `entidade_ativa` ausente/null → `403 SEM_ENTIDADE_ATIVA` sem `next()` (FR-004); `entidade_ativa` presente e resolução de `Empresa`/`Grupo` OK → reescrever `req.user = {empresaId: entidade_ativa, id_grupo, is_grupo_pai}` + `req.hubContext = {viaHub: true, usuarioId: sub}` + `next()`; resolução falha (infra) → `502 ADAPTADOR_INDISPONIVEL` sem `next()`
-- [ ] 2.1.4 Ramo 2 (sessão legada, `sub` ausente e `empresaId` presente): `next()` imediato, nenhuma leitura/mutação adicional de `req` (FR-018 — zero-risco para o painel legado)
-- [ ] 2.1.5 Ramo 3 (nem legado nem hub): `401 TOKEN_INVALIDO`
-- [ ] 2.1.6 Teste unit: `tests/hub-envio-massa-claims-unit.test.js` cobrindo os 3 ramos + resolução de `id_grupo`/`is_grupo_pai` mockada + caso de drift (payload com `sub` E `empresaId` simultâneos, confirmando que cai no ramo 1 — ordem de discriminação do achado F1)
+- [x] 2.1.1 Criar `app_homologacao/backend/middleware/hub-envio-massa-claims.js`
+- [x] 2.1.2 Implementar discriminador de ramo com **`req.user.sub` testado SEMPRE primeiro** (gate `owasp-security` achado F1, research.md Decision 2 — falha para o lado restrito em caso de drift futura no payload do token hub)
+- [x] 2.1.3 Ramo 1 (sessão hub, `sub` presente): `entidade_ativa` ausente/null → `403 SEM_ENTIDADE_ATIVA` sem `next()` (FR-004); `entidade_ativa` presente e resolução de `Empresa`/`Grupo` OK → reescrever `req.user = {empresaId: entidade_ativa, id_grupo, is_grupo_pai}` + `req.hubContext = {viaHub: true, usuarioId: sub}` + `next()`; resolução falha (infra) → `502 ADAPTADOR_INDISPONIVEL` sem `next()`
+- [x] 2.1.4 Ramo 2 (sessão legada, `sub` ausente e `empresaId` presente): `next()` imediato, nenhuma leitura/mutação adicional de `req` (FR-018 — zero-risco para o painel legado)
+- [x] 2.1.5 Ramo 3 (nem legado nem hub): `401 TOKEN_INVALIDO`
+- [x] 2.1.6 Teste unit: `tests/hub-envio-massa-claims-unit.test.js` cobrindo os 3 ramos + resolução de `id_grupo`/`is_grupo_pai` mockada + caso de drift (payload com `sub` E `empresaId` simultâneos, confirmando que cai no ramo 1 — ordem de discriminação do achado F1)
 
-  Evidência: <preencher durante execução>
+  Evidência: `node --test tests/hub-envio-massa-claims-unit.test.js` = 8/8 passando
+  (3 ramos + sub-casos de grupo/pai + falha infra + drift F1). Mock de
+  `global.fetch` (mesmo padrão de `hub-postgrest-unit.test.js`), sem rede real,
+  sem depender de hub-homolog de pé. `npm test` completo (431 testes) rodado
+  ANTES e DEPOIS desta mudança via `git stash`: mesmos 8 fails pré-existentes em
+  `motorista-integration.test.js` (não relacionados, precisam de servidor HTTP
+  vivo — ambiente de execução deste agente não sobe `server.js`), +8 nesta
+  suíte nova, nenhuma regressão introduzida (FR-017: zero alteração de arquivo
+  de teste existente, só `package.json` ganhou a suíte nova em `test`/
+  `test:hub:unit`).
+  Resolução de `Empresa`/`Grupo` usa `hubPostgrestRequest` (`lib/hub-postgrest.js`,
+  intocado, plan.md confirma reuso) — mesma instância/URL compartilhada entre
+  tabelas legadas e tabelas do hub (research.md "Technical Context"). NOTA
+  (achado de ambiente, não bloqueante para FASE 2 pois testes são mockados):
+  `hub_homolog_db` hoje NÃO tem as tabelas `Empresa`/`Grupo`/`EnvioMassa`/
+  `ProcessControl` (confirmado via `\dt`) — só as tabelas hub-nativas (Usuario,
+  Papel, Entregador, FaturamentoLancamento, etc.). Isso bloqueará testes de
+  INTEGRAÇÃO reais (FASE 3.1.13 contra hub-homolog, FASE 6 E2E) até essas
+  tabelas serem provisionadas no ambiente isolado — registrado como Decisão
+  auditável para retomar antes da FASE 6.
 
 ### 2.2 `hubEnvioMassaRequirePermission(codigo)` — gate de permissão + flag `HUB_RBAC_ENVIO` `[C]`
 
