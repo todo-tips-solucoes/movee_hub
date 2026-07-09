@@ -173,6 +173,50 @@ async function usuarioEhAdminPlataforma(usuarioId) {
   return resultado.has('admin_plataforma');
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Cache de módulos ATIVOS por entidade (hub-auditoria-admin S9, tasks.md
+// FASE 4.1, research.md Decision 3) — namespace de chave PRÓPRIO (`mod:<id>`,
+// nunca colide com as chaves de usuário acima: `usuarioId`, `usuarioId:*`).
+// Mesmo núcleo `obterComCache` (TTL 60s + fail-closed, NUNCA cacheia erro).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna o Set de códigos de módulo ATIVOS (`ModuloEntidade.ativo=true`,
+ * join `Modulo.codigo`) para a entidade `empresaId` — usado por
+ * `middleware/hub-require-modulo.js#requireModuloAtivo` para bloquear acesso
+ * direto a rotas de módulo desabilitado (FR-008/SC-005). NUNCA lança —
+ * fail-closed resolve para Set vazio (nenhum módulo ativo, nega tudo).
+ * @param {number|string} empresaId
+ * @returns {Promise<Set<string>>}
+ */
+async function obterModulosAtivosPorEntidade(empresaId) {
+  const chave = `mod:${empresaId}`;
+  return obterComCache(chave, async () => {
+    const linhas = await hubPostgrestRequest(
+      `ModuloEntidade?empresa_id=eq.${empresaId}&ativo=eq.true&select=modulo:Modulo(codigo)`,
+      'GET',
+      null,
+      { empresaAtiva: empresaId, escopo: [empresaId] }
+    );
+    const codigos = new Set();
+    for (const linha of linhas || []) {
+      if (linha && linha.modulo && linha.modulo.codigo) codigos.add(linha.modulo.codigo);
+    }
+    return codigos;
+  });
+}
+
+/**
+ * Invalidação ativa e SÍNCRONA do cache de módulos de UMA entidade — chamada
+ * OBRIGATÓRIA em todo `PUT /admin/entidades/:id/modulos/:codigo`
+ * (`routes/hub-admin.js`, FASE 4.4) que altere `ModuloEntidade` (FR-008/
+ * SC-005: efeito imediato, sem esperar o TTL de 60s).
+ * @param {number|string} entidadeId
+ */
+function invalidarEntidadeModulos(entidadeId) {
+  cache.delete(`mod:${entidadeId}`);
+}
+
 /**
  * Invalidação ativa (Decision 7) — a ser chamada por qualquer operação
  * administrativa que altere `UsuarioEntidade`/`PapelPermissao` do usuário
@@ -200,6 +244,8 @@ module.exports = {
   obterPermissoesEfetivas,
   obterPermissoesEfetivasPorEntidade,
   usuarioEhAdminPlataforma,
+  obterModulosAtivosPorEntidade,
+  invalidarEntidadeModulos,
   invalidarUsuario,
   limparCache,
   carregarPermissoesDoBanco,

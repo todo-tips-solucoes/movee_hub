@@ -378,12 +378,22 @@ Ref: plan.md "Project Structure" (`middleware/hub-require-modulo.js` NOVO,
 `lib/hub-rbac-cache.js` EDIT aditivo); spec.md FR-008/SC-005;
 contracts/admin-modulos-api.md (efeitos colaterais do PUT)
 
-- [ ] 4.1.1 Adicionar em `lib/hub-rbac-cache.js` (EDIT aditivo, sem alterar o cache de permissões existente) a função `obterModulosAtivosPorEntidade(empresaId)` — consulta `ModuloEntidade` e retorna o Set de códigos de módulo ativos para a entidade, com o mesmo padrão de cache TTL 60s + fail-closed (erro de infra → Set vazio, nunca cacheado) já usado para permissões
-- [ ] 4.1.2 Adicionar `invalidarEntidadeModulos(entidadeId)` — invalidação síncrona e imediata do cache de módulos daquela entidade (chamada obrigatória em todo PUT de `hub-admin.js`)
-- [ ] 4.1.3 Criar `middleware/hub-require-modulo.js` exportando `requireModuloAtivo(codigo)`: extrai a entidade ativa do request, consulta `obterModulosAtivosPorEntidade`, responde `403 { "erro": "MODULO_DESABILITADO" }` se o módulo não estiver no Set — fail-closed em qualquer erro (mesmo padrão de `hub-require-permission.js`)
-- [ ] 4.1.4 Teste unit: `obterModulosAtivosPorEntidade`/`invalidarEntidadeModulos` (cache hit/miss/TTL/invalidação/fail-closed); `requireModuloAtivo` (módulo ativo → `next()`, inativo → `403 MODULO_DESABILITADO`, erro de infra → `403`, nunca `next()`)
+- [x] 4.1.1 Adicionar em `lib/hub-rbac-cache.js` (EDIT aditivo, sem alterar o cache de permissões existente) a função `obterModulosAtivosPorEntidade(empresaId)` — consulta `ModuloEntidade` e retorna o Set de códigos de módulo ativos para a entidade, com o mesmo padrão de cache TTL 60s + fail-closed (erro de infra → Set vazio, nunca cacheado) já usado para permissões
+- [x] 4.1.2 Adicionar `invalidarEntidadeModulos(entidadeId)` — invalidação síncrona e imediata do cache de módulos daquela entidade (chamada obrigatória em todo PUT de `hub-admin.js`)
+- [x] 4.1.3 Criar `middleware/hub-require-modulo.js` exportando `requireModuloAtivo(codigo)`: extrai a entidade ativa do request, consulta `obterModulosAtivosPorEntidade`, responde `403 { "erro": "MODULO_DESABILITADO" }` se o módulo não estiver no Set — fail-closed em qualquer erro (mesmo padrão de `hub-require-permission.js`)
+- [x] 4.1.4 Teste unit: `obterModulosAtivosPorEntidade`/`invalidarEntidadeModulos` (cache hit/miss/TTL/invalidação/fail-closed); `requireModuloAtivo` (módulo ativo → `next()`, inativo → `403 MODULO_DESABILITADO`, erro de infra → `403`, nunca `next()`)
 
-  Evidência: _preencher na execução_
+  Evidência: `lib/hub-rbac-cache.js` ganhou `obterModulosAtivosPorEntidade`/
+  `invalidarEntidadeModulos` (namespace de chave `mod:<id>`, distinto de
+  `usuarioId`/`usuarioId:*` — sem colisão, mesmo núcleo `obterComCache`
+  TTL 60s + fail-closed). `middleware/hub-require-modulo.js` (novo)
+  exportando `requireModuloAtivo(codigo)`: 401 sem token válido, 403
+  `MODULO_DESABILITADO` sem entidade ativa OU módulo ausente do Set OU
+  erro de infra (fail-closed, nunca `next()` em catch), `next()` só
+  quando o módulo está no Set. Testes novos em
+  `tests/hub-require-modulo-unit.test.js` (12 casos). `npm run
+  test:hub:unit`: saída final `# tests 468 / # suites 106 / # pass 468 /
+  # fail 0` (era 456/456 antes — +12 novos, zero regressão).
 
 ### 4.2 Router `hub-usuarios.js` `[A]`
 
