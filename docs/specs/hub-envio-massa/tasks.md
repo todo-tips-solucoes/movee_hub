@@ -477,6 +477,16 @@ garantidos pela infra S1)
   abertos e formalmente deferidos via 6.3.5, mesmo padrão de ressalva já
   aceito pelo operador em `hub-faturamento`/`hub-performance`.
 
+  Corroboração independente (`evidencias/6.2.3-decisao-fr014-fr006-
+  insumo.txt`): análise complementar confirma byte a byte a mesma leitura
+  crítica acima (`grep -rn ENVIO_DRY_RUN app_homologacao/backend` → zero
+  ocorrências em código) e chega à mesma recomendação — manter CHK018/
+  CHK037 deferidos (não regressão desta feature) e abrir item de
+  follow-up FORA do escopo S8 para tornar `ENVIO_DRY_RUN`/allowlist
+  efetivos no código legado (dívida de segurança pré-existente, herdada,
+  não introduzida pela S8) — decisão final de escopo/priorização
+  permanece com o dono do produto.
+
 ### 6.3 Suíte legada intacta + DIÁRIO + evidências finais `[M]`
 
 Ref: spec.md FR-017/SC-002; docs/plans/hub-frota/DIARIO.md; review-task
@@ -509,13 +519,16 @@ Ref: spec.md FR-017/SC-002; docs/plans/hub-frota/DIARIO.md; review-task
   — abertura é responsabilidade da fase `review-task`, fora do escopo
   desta onda `execute-task`).
 
-  Evidência (6.3.3): os 4 arquivos de evidência em
+  Evidência (6.3.3): os arquivos de evidência em
   `docs/specs/hub-envio-massa/evidencias/` (`diff-endpoints-legados.txt`,
   `e2e-run-20260709T082218Z.log`, `npm-test-20260709T082325Z.log`,
-  `5.1.6-roundtrip-sem-entidade-ativa.txt`) já estão persistidos no repo
-  e disponíveis para o relatório de `review-task` anexar/citar
-  diretamente — nenhum print adicional necessário além dos logs literais
-  já coletados.
+  `5.1.6-roundtrip-sem-entidade-ativa.txt`, `5.2.1-tab-walk.json`,
+  `5.2.2-aria-hub-vs-legado.json`, `5.2.3-smoke-a11y-resultado.txt`,
+  `5.2-a11y-smoke-run-20260709T083732Z.log`,
+  `6.2.3-decisao-fr014-fr006-insumo.txt`) já estão persistidos no repo e
+  disponíveis para o relatório de `review-task` anexar/citar diretamente
+  — nenhum print adicional necessário além dos logs literais já
+  coletados.
 
   Evidência (6.3.4): `tasks.md` contém 1 bloco `mermaid` (`flowchart TD`,
   seção "Matriz de Dependências") com sintaxe válida (6 nós, 6 arestas,
@@ -525,21 +538,41 @@ Ref: spec.md FR-017/SC-002; docs/plans/hub-frota/DIARIO.md; review-task
   demais artefatos de `docs/specs/*` deste projeto (sem gate de
   frontmatter aplicável).
 
-  Evidência (6.3.5, dec-052): confirmação formal registrada — dos 5 gaps
-  `{humano}` originais do checklist (CHK006, CHK010, CHK018, CHK031,
-  CHK037), 2 foram fechados durante esta execução (CHK006 pela matriz
-  explícita ação×papel da FASE 1.2; CHK010 pela medição empírica do
-  toggle, dec-040). Os 3 remanescentes — CHK018 (SC-006 sem mecanismo
-  automatizável que re-verifique `ENVIO_DRY_RUN` no escopo desta
-  feature), CHK031 (a11y smoke manual dos componentes reaproveitados),
-  CHK037 (independência FR-014/FR-006 não confirmável em código, mesma
-  causa-raiz de CHK018) — ficam formalmente deferidos para decisão
-  pós-merge do dono do produto, documentados nesta seção e no DIÁRIO.
-  Nenhum é bloqueante de segurança introduzido por esta feature: CHK018/
-  CHK037 descrevem um gap PRÉ-EXISTENTE do fluxo legado (fora do diff,
-  confirmado por 3.2), e CHK031 cobre componentes 100% reaproveitados sem
-  alteração. Mesmo padrão de ressalva formal já aceito pelo operador em
-  `hub-faturamento` (PR #59) e `hub-performance` (PR #60).
+  Evidência (6.3.5, dec-052 atualizada por dec-053): confirmação formal
+  registrada — dos 5 gaps `{humano}` originais do checklist (CHK006,
+  CHK010, CHK018, CHK031, CHK037), 3 foram fechados durante esta execução
+  (CHK006 pela matriz explícita ação×papel da FASE 1.2; CHK010 pela
+  medição empírica do toggle, dec-040; **CHK031 pelo smoke de a11y real
+  via Playwright contra o `hub-homolog` vivo, 2/2 passed, commit
+  `48198f9`/`06f3f0d`** — closure não previsto no plano original desta
+  onda, incorporado após reconciliação de trabalho concorrente na mesma
+  branch, ver nota abaixo). Os 2 remanescentes — CHK018 (SC-006 sem
+  mecanismo automatizável que re-verifique `ENVIO_DRY_RUN` no escopo
+  desta feature) e CHK037 (independência FR-014/FR-006 não confirmável em
+  código, mesma causa-raiz de CHK018) — ficam formalmente deferidos para
+  decisão pós-merge do dono do produto, documentados nesta seção, em 6.2
+  e no DIÁRIO. Nenhum é bloqueante de segurança introduzido por esta
+  feature: descrevem um gap PRÉ-EXISTENTE do fluxo legado, fora do diff,
+  confirmado por 3.2. Mesmo padrão de ressalva formal já aceito pelo
+  operador em `hub-faturamento` (PR #59) e `hub-performance` (PR #60).
+
+  **Nota de processo (dec-053):** entre o início e o fim desta onda de
+  fechamento, uma sessão Claude Code independente (mesmo repositório,
+  fora do lock/state machine do `feature-00c`) commitou diretamente na
+  branch `feat/hub-envio-massa` 3 commits que completaram trabalho real
+  nos itens que esta onda havia planejado deferir: `2a1c23a` (5.1.6,
+  roundtrip real), `48198f9` (5.2, a11y smoke via Playwright) e
+  `06f3f0d` (marcação de 5.2 como concluído em `tasks.md`), além de
+  `73f3127` (insumo complementar para 6.2, sem alterar checkboxes,
+  deixando a decisão formal para este orquestrador). Nenhum conflito de
+  merge ocorreu (arquivos distintos, exceto `tasks.md` em `06f3f0d`, que
+  precedeu e foi incorporado antes desta reconciliação). Esta onda
+  reconciliou o resultado: promoveu 5.2 de "deferido" (dec-051) para
+  "concluído com evidência real", e citou o insumo de `73f3127` como
+  corroboração independente da análise de 6.2 (dec-050). Registrado para
+  visibilidade do operador — duas sessões escrevendo na mesma branch sem
+  coordenação explícita é um risco de corrupção silenciosa de trabalho
+  (lost update) mesmo quando, como aqui, o resultado final foi benéfico.
 
 ---
 
