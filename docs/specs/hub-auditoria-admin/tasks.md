@@ -142,13 +142,53 @@ Ref: plan.md "Plano por fases" passo 2; spec.md FR-006/SC-002/Edge Cases
 ("endpoints de fases anteriores que ainda não registravam auditoria");
 quickstart.md Cenário 9
 
-- [ ] 2.1.1 Rodar `grep -n "router\.\(post\|put\|patch\|delete\)"` em todos os `app_homologacao/backend/routes/hub-*.js` (fundações, importações, motoristas, faturamento, performance) e listar cada rota de escrita encontrada
-- [ ] 2.1.2 Rodar o mesmo inventário sobre `lib/hub-import-processor.js` (processamento assíncrono de importação, fora do ciclo request/response direto)
-- [ ] 2.1.3 Inventariar as rotas de escrita LEGADAS de envio em massa em `server.js` (módulo `envio_massa`, S8) — hoje cobertas apenas pelo log dedicado `lib/hub-envio-massa-import-log.js` (flag `HUB_IMPORT_LOG_ENVIO`), NÃO pela trilha `Auditoria` — confirmar se algum evento de escrita relevante do envio em massa está fora da trilha unificada
-- [ ] 2.1.4 Para cada rota de escrita inventariada, verificar (via leitura do handler) se já existe uma chamada a `registrarAuditoria` cobrindo aquela ação; montar checklist endpoint-a-endpoint (ação → tem/não tem auditoria) como insumo do PR (critério de aceite do briefing)
-- [ ] 2.1.5 Teste: nenhum (tarefa de levantamento); o checklist endpoint-a-endpoint resultante é o artefato de saída, anexado como evidência
+- [x] 2.1.1 Rodar `grep -n "router\.\(post\|put\|patch\|delete\)"` em todos os `app_homologacao/backend/routes/hub-*.js` (fundações, importações, motoristas, faturamento, performance) e listar cada rota de escrita encontrada
+- [x] 2.1.2 Rodar o mesmo inventário sobre `lib/hub-import-processor.js` (processamento assíncrono de importação, fora do ciclo request/response direto)
+- [x] 2.1.3 Inventariar as rotas de escrita LEGADAS de envio em massa em `server.js` (módulo `envio_massa`, S8) — hoje cobertas apenas pelo log dedicado `lib/hub-envio-massa-import-log.js` (flag `HUB_IMPORT_LOG_ENVIO`), NÃO pela trilha `Auditoria` — confirmar se algum evento de escrita relevante do envio em massa está fora da trilha unificada
+- [x] 2.1.4 Para cada rota de escrita inventariada, verificar (via leitura do handler) se já existe uma chamada a `registrarAuditoria` cobrindo aquela ação; montar checklist endpoint-a-endpoint (ação → tem/não tem auditoria) como insumo do PR (critério de aceite do briefing)
+- [x] 2.1.5 Teste: nenhum (tarefa de levantamento); o checklist endpoint-a-endpoint resultante é o artefato de saída, anexado como evidência
 
-  Evidência: _preencher na execução_
+  Evidência: `grep -n "router\.\(post\|put\|patch\|delete\)" routes/hub-*.js` (2026-07-09)
+  encontrou escritas SÓ em `hub-me.js`, `hub-auth.js`, `hub-importacoes.js`,
+  `hub-motoristas.js` — ZERO match em `hub-faturamento.js`/`hub-performance.js`
+  (só GET/export, já auditados nas linhas 200/206 desde S6/S7). Checklist
+  endpoint-a-endpoint (ação → tem/não tem auditoria), com nº de linha do
+  handler e do `registrarAuditoria` correspondente quando existe:
+
+  | Arquivo | Rota | Ação auditada | Tem auditoria? |
+  |---|---|---|---|
+  | routes/hub-me.js:154 | POST /me/entidade | troca_entidade_ativa | SIM (linha 190) |
+  | routes/hub-auth.js:216 | POST /login | login_sucesso/login_falha | SIM (linhas 230/246/260/284/302) |
+  | routes/hub-auth.js:351 | POST /refresh | refresh_* | SIM (linha 332/387) |
+  | routes/hub-auth.js:441 | POST /logout | logout | SIM (linha 458) |
+  | routes/hub-auth.js:471 | POST /recuperar-senha | recuperacao_senha_* | SIM (linha 514) |
+  | routes/hub-auth.js:535 | POST /redefinir-senha | redefinicao_senha_* | SIM (linha 585) |
+  | routes/hub-importacoes.js:210 | POST / (upload) | importação criada | SIM (linha 357) |
+  | routes/hub-importacoes.js:611 | POST /:id/reprocessar | reprocessamento | SIM (linha 668) |
+  | routes/hub-importacoes.js:697 | POST /:id/cancelar | cancelamento | SIM (linha 733) |
+  | routes/hub-motoristas.js:421 | PATCH /:id | entregador editado | SIM (linha 454) |
+  | routes/hub-motoristas.js:485 | POST /:id/vinculo | vínculo criado | SIM (linha 566) |
+  | routes/hub-motoristas.js:603 | DELETE /:id/vinculo | vínculo removido | SIM (linha 633) |
+  | lib/hub-import-processor.js `marcarFailed` | transição → failed | importacao.falhou | SIM (linha 493) |
+  | lib/hub-import-processor.js `marcarCancelled` | transição → cancelled | importacao.cancelada_durante_processamento | SIM (linha 531) |
+  | lib/hub-import-processor.js `executarPipeline` (PATCH final) | transição → completed/partial | importacao concluída | SIM (linha 770) |
+  | **lib/hub-import-processor.js `recuperarImportacoesOrfas`** (boot, todos os tenants) | PATCH em massa validating/processing→failed | recuperação órfã no boot | **NÃO — GAP** (fechado na 2.2) |
+  | **server.js:929 PATCH /update-envio-massa/:id** (envio_massa.criar) | edição de movimento | movimento_editado | **NÃO — GAP** |
+  | **server.js:1033 DELETE /envio-massa/:id** (envio_massa.aprovar) | exclusão de movimento | movimento_excluido | **NÃO — GAP** |
+  | **server.js:1291 POST /start-process** (envio_massa.enviar) | início do processo de envio | envio_massa_iniciado | **NÃO — GAP** |
+  | **server.js:1331 POST /stop-process** (envio_massa.enviar) | parada do processo de envio | envio_massa_parado | **NÃO — GAP** |
+  | **server.js:1611 POST /upload** (envio_massa.criar) | import de planilha (só log dedicado `HUB_IMPORT_LOG_ENVIO`, não a trilha `Auditoria`) | envio_massa_importado | **NÃO — GAP** |
+  | **server.js:2290 POST /validate-xml-batch** (envio_massa.enviar) | validação de XML em lote | envio_massa_xml_validado | **NÃO — GAP** |
+  | **server.js:2573 POST /close-movimento** (envio_massa.aprovar) | fechamento de movimento | movimento_fechado | **NÃO — GAP** |
+  | server.js:250/366/2596/2635 POST /login,/token/refresh,/register,/logout | auth LEGADA pré-hub (sem `hubEnvioMassaClaimsBridge`/`hubEnvioMassaRequirePermission`, não é "módulo envio_massa") | — | FORA DE ESCOPO (2.1.3 escopa só o módulo `envio_massa`; auth legada é sistema próprio pré-existente, não coberto por FR-006/S2-S8) |
+
+  Total: 15 escritas já cobertas, 8 gaps reais (7 em `server.js` módulo
+  `envio_massa` + 1 em `recuperarImportacoesOrfas`), insumo direto da 2.2.
+  `req.hubContext` (setado por `hubEnvioMassaClaimsBridge`) só existe quando
+  `viaHub===true` — os `registrarAuditoria` a acrescentar em `server.js`
+  devem seguir o MESMO guard já usado por `logImportacaoEnvioMassa`
+  (`req.hubContext && req.hubContext.viaHub === true`), pois sessão legada
+  não tem `usuario_id` hub para preencher a trilha.
 
 ### 2.2 Fechar lacunas de `registrarAuditoria` identificadas `[A]`
 
@@ -156,13 +196,47 @@ Ref: tarefa 2.1 (checklist endpoint-a-endpoint); spec.md FR-006; lib/hub-auditor
 (`registrarAuditoria`/`scrubDetalhes` — reuso, sem alterar o helper);
 contexto operacional vinculante item 4 (diff mínimo em `server.js` legado)
 
-- [ ] 2.2.1 Para cada lacuna identificada em `routes/hub-*.js`, adicionar a chamada `registrarAuditoria` faltante (ação nomeada no padrão já usado: `<recurso>_<verbo>`, ex. `entregador_editado`), imediatamente após a escrita ter sucesso, sem alterar a lógica de negócio da rota
-- [ ] 2.2.2 Para lacunas em `lib/hub-import-processor.js`, adicionar `registrarAuditoria` nos pontos de transição de estado relevantes (mesmo padrão dos 6 já existentes)
-- [ ] 2.2.3 Para o módulo envio em massa legado (`server.js`), adicionar `registrarAuditoria` nas escritas de escrita relevantes com diff MÍNIMO (1–2 linhas por handler, mesmo padrão de import mínimo já usado nas demais rotas hub) — SEM tocar em `ENVIO_DRY_RUN`/allowlist nem em qualquer comportamento coberto pela issue #62 (fora de escopo desta feature)
-- [ ] 2.2.4 Confirmar que NENHUMA chamada nova usa `id_empresa`/`recurso_id` incorretos (mapeamento correto do recurso afetado, não um id genérico)
-- [ ] 2.2.5 Teste: para cada lacuna fechada, teste de integração/unit dedicado confirmando que a ação gera exatamente 1 evento de auditoria com `acao`/`recurso`/`recursoId` corretos (extensão dos testes já existentes de cada módulo, não uma suíte nova)
+- [x] 2.2.1 Para cada lacuna identificada em `routes/hub-*.js`, adicionar a chamada `registrarAuditoria` faltante (ação nomeada no padrão já usado: `<recurso>_<verbo>`, ex. `entregador_editado`), imediatamente após a escrita ter sucesso, sem alterar a lógica de negócio da rota
+- [x] 2.2.2 Para lacunas em `lib/hub-import-processor.js`, adicionar `registrarAuditoria` nos pontos de transição de estado relevantes (mesmo padrão dos 6 já existentes)
+- [x] 2.2.3 Para o módulo envio em massa legado (`server.js`), adicionar `registrarAuditoria` nas escritas de escrita relevantes com diff MÍNIMO (1–2 linhas por handler, mesmo padrão de import mínimo já usado nas demais rotas hub) — SEM tocar em `ENVIO_DRY_RUN`/allowlist nem em qualquer comportamento coberto pela issue #62 (fora de escopo desta feature)
+- [x] 2.2.4 Confirmar que NENHUMA chamada nova usa `id_empresa`/`recurso_id` incorretos (mapeamento correto do recurso afetado, não um id genérico)
+- [x] 2.2.5 Teste: para cada lacuna fechada, teste de integração/unit dedicado confirmando que a ação gera exatamente 1 evento de auditoria com `acao`/`recurso`/`recursoId` corretos (extensão dos testes já existentes de cada módulo, não uma suíte nova)
 
-  Evidência: _preencher na execução_
+  Evidência: routes/hub-*.js — nenhuma lacuna (2.1 confirmou 100% já cobertas).
+  `lib/hub-import-processor.js` — fechado o único gap (`recuperarImportacoesOrfas`,
+  boot cross-tenant): agora emite 1 evento `importacao_recuperada_boot` POR
+  linha recuperada (não 1 global), com `idEmpresa`/`recursoId` do TENANT
+  afetado (respeitando FR-002/escopo), `claims: { empresaAtiva, escopo:
+  [idEmpresa] }`, best-effort por item (falha de auditoria numa linha NUNCA
+  impede o PATCH real nem as demais linhas). `server.js` (módulo
+  `envio_massa`, diff mínimo): 1 `require` novo
+  (`registrarAuditoria: registrarAuditoriaEnvioMassa`) + 1 helper
+  `auditarEnvioMassaSeViaHub(req, evento)` (guard `req.hubContext.viaHub===
+  true` — mesmo guard de `logImportacaoEnvioMassa`, sessão legada não tem
+  `usuario_id` hub) + 1 linha de chamada por handler nas 7 rotas: PATCH
+  /update-envio-massa/:id → `movimento_editado`; DELETE /envio-massa/:id →
+  `movimento_excluido`; POST /start-process → `envio_massa_iniciado`; POST
+  /stop-process → `envio_massa_parado`; POST /upload →
+  `envio_massa_importado` (`detalhes: { totalLinhas }`, sem PII); POST
+  /validate-xml-batch → `envio_massa_xml_validado` (`detalhes: stats`
+  agregados, mesmo array já usado no log "sem PII" da própria rota); POST
+  /close-movimento → `movimento_fechado` (`detalhes: { fechados }`). 2.2.4:
+  `recursoId` sempre o id do recurso real afetado (`id` do movimento/
+  `userId` do ProcessControl/`null` só nas operações em lote sem 1 id único
+  — upload/validate-xml-batch/close-movimento, mesmo padrão de
+  `marcarFailed`/`marcarCancelled` que também usam `job.importacaoId`
+  específico, nunca um id genérico). 2.2.5 — testes:
+  `tests/hub-envio-massa-permission-unit.test.js` ganhou describe
+  "cobertura de auditoria nas 7 escritas..." (8 testes: 1 por rota + 1
+  confirmando o guard `viaHub`, verificação estática do texto de
+  `server.js`, mesmo padrão já usado pelo describe "cobertura de
+  middleware" 2.2.7); `tests/hub-import-processor.test.js` ganhou 3 testes
+  novos em `recuperarImportacoesOrfas` (1 evento por linha com
+  idEmpresa/recursoId/claims corretos; best-effort por item; nenhuma
+  auditoria quando 0 órfãs). `npm run test:hub:unit` (conjunto oficial):
+  `# tests 427 / # pass 427 / # fail 0` (2026-07-09, subiu de 417→427,
+  +10 testes novos). `node -c server.js` / `node -c
+  lib/hub-import-processor.js` — sintaxe OK.
 
 ### 2.3 Mecanismo automatizado de checagem de padrões sensíveis (CHK006, SC-006) `[C]`
 
@@ -173,13 +247,36 @@ padrões"); lib/hub-auditoria.js (`scrubDetalhes` atual filtra por NOME de
 chave, não por padrão no VALOR — gap real confirmado: um campo qualquer
 com CPF/CNPJ/e-mail em texto livre no valor passaria sem filtro)
 
-- [ ] 2.3.1 Implementar em `lib/hub-auditoria.js` (ou módulo auxiliar dedicado, ex. `lib/hub-auditoria-scan.js`) uma função de checagem por REGEX sobre os VALORES (não apenas chaves) de `detalhes` antes da escrita: padrões de CPF (`\d{3}\.?\d{3}\.?\d{3}-?\d{2}`), CNPJ (`\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}`) e e-mail (`[^\s@]+@[^\s@]+\.[^\s@]+`)
-- [ ] 2.3.2 Decidir e documentar o comportamento quando um padrão sensível é encontrado no valor: MUST redigir/omitir o campo (nunca apenas logar um aviso e deixar passar) — coerente com FR-004/SC-006 ("0% expõem"); registrar a decisão como Decisão auditável (score ≥2) se a leitura divergir da redação padrão já usada para chaves proibidas
-- [ ] 2.3.3 Adicionar esta checagem de VALOR como camada adicional dentro de `scrubDetalhes` (ou função chamada por ele), preservando o comportamento existente de filtro por NOME de chave (`CHAVES_PROIBIDAS`) — aditivo, não substitutivo
-- [ ] 2.3.4 Criar um script de checagem OFFLINE/em lote (`infra/hub/scripts/scan-auditoria-sensivel.sh` ou equivalente) que varre uma amostra de `detalhes` já persistidos no `hub_homolog_db` em busca dos mesmos padrões, para uso como checagem periódica/E2E (mecanismo do SC-006 pedido pelo CHK006) — pode reusar a mesma lib de regex do passo 2.3.1
-- [ ] 2.3.5 Teste unit: casos com CPF/CNPJ/e-mail em valor de `detalhes` (formatado e sem formatação) → campo redigido/omitido; casos sem nenhum padrão sensível → `detalhes` preservado integralmente; teste do script de varredura contra uma amostra sintética inserida e removida no `hub_homolog_db` (nunca produção)
+- [x] 2.3.1 Implementar em `lib/hub-auditoria.js` (ou módulo auxiliar dedicado, ex. `lib/hub-auditoria-scan.js`) uma função de checagem por REGEX sobre os VALORES (não apenas chaves) de `detalhes` antes da escrita: padrões de CPF (`\d{3}\.?\d{3}\.?\d{3}-?\d{2}`), CNPJ (`\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}`) e e-mail (`[^\s@]+@[^\s@]+\.[^\s@]+`)
+- [x] 2.3.2 Decidir e documentar o comportamento quando um padrão sensível é encontrado no valor: MUST redigir/omitir o campo (nunca apenas logar um aviso e deixar passar) — coerente com FR-004/SC-006 ("0% expõem"); registrar a decisão como Decisão auditável (score ≥2) se a leitura divergir da redação padrão já usada para chaves proibidas
+- [x] 2.3.3 Adicionar esta checagem de VALOR como camada adicional dentro de `scrubDetalhes` (ou função chamada por ele), preservando o comportamento existente de filtro por NOME de chave (`CHAVES_PROIBIDAS`) — aditivo, não substitutivo
+- [x] 2.3.4 Criar um script de checagem OFFLINE/em lote (`infra/hub/scripts/scan-auditoria-sensivel.sh` ou equivalente) que varre uma amostra de `detalhes` já persistidos no `hub_homolog_db` em busca dos mesmos padrões, para uso como checagem periódica/E2E (mecanismo do SC-006 pedido pelo CHK006) — pode reusar a mesma lib de regex do passo 2.3.1
+- [x] 2.3.5 Teste unit: casos com CPF/CNPJ/e-mail em valor de `detalhes` (formatado e sem formatação) → campo redigido/omitido; casos sem nenhum padrão sensível → `detalhes` preservado integralmente; teste do script de varredura contra uma amostra sintética inserida e removida no `hub_homolog_db` (nunca produção)
 
-  Evidência: _preencher na execução_
+  Evidência: implementado `valorContemPadraoSensivel`/atualizado `scrubDetalhes`
+  em `lib/hub-auditoria.js` (2 camadas aditivas: NOME de chave, já existente,
+  + VALOR/regex CPF-CNPJ-email, nova). Decisão de escopo registrada
+  (`dec-029`, score 2): o filtro por VALOR se aplica a QUALQUER chave,
+  inclusive `email` — diverge da leitura anterior (teste histórico
+  preservava `email` como contexto legítimo); rastreabilidade do recurso
+  segue garantida por `recurso`/`recursoId` (fora do scrub). Testes unit em
+  `tests/hub-auditoria-unit.test.js` (cópia local espelhando a lib real,
+  mesmo padrão dos demais testes do módulo): 8 casos novos (CPF formatado/
+  sem formatação, CNPJ formatado/sem formatação, e-mail em chave dedicada e
+  em chave inócua, valor limpo preservado, valor não-string nunca testado)
+  + 1 caso ajustado (chave "email" agora omitida). `npm run test:hub:unit`:
+  `# tests 417 / # pass 417 / # fail 0` (2026-07-09, roda o conjunto oficial
+  do CI, sem depender de Docker). Script `infra/hub/scripts/scan-auditoria-
+  sensivel.sh` criado (mesmos 3 padrões em POSIX ERE, `-f/-p/-e` como
+  migrate.sh/backup.sh, blocklist de produção reforçada via `lib.sh`,
+  2 modos: varredura real + `--self-test`). Rodado contra o `hub-homolog`
+  REAL (2026-07-09, exceção G1 hub-*, nunca produção): `--self-test` →
+  `PASS` nos 4 asserts (CPF/CNPJ/e-mail sintéticos detectados, linha limpa
+  não sinalizada) + `ROLLBACK confirmado`; confirmado por query direta
+  pós-rollback `SELECT count(*) FROM "Auditoria" WHERE recurso='ScanSelfTest'`
+  → `0` (nenhum resíduo); varredura real (sem `--self-test`, `-n 500`) →
+  `SCAN-AUDITORIA-SENSIVEL: OK — 0 achados em até 500 eventos (SC-006)`
+  (estado atual do `hub-homolog` limpo).
 
 ---
 

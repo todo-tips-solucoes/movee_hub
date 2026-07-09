@@ -288,3 +288,74 @@ describe('cobertura de middleware nas 11 rotas legadas (2.2.7, achado F3)', () =
     assert.deepEqual(faltando, [], `rota(s) da lista fixa SEM os middlewares novos: ${faltando.join(', ')}`);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// hub-auditoria-admin FASE 2.1/2.2 (tasks.md 2.1.3/2.2.3/2.2.5) — cobertura
+// de auditoria nas 7 escritas do módulo envio_massa que o inventário 2.1
+// identificou como GAP (server.js não tinha nenhuma chamada a
+// `registrarAuditoria`, só o log dedicado de `HUB_IMPORT_LOG_ENVIO`).
+// Mesmo padrão de verificação ESTÁTICA do bloco acima (2.2.7): server.js não
+// é `require`-ável em teste (side effect de `app.listen`), então a
+// verificação é por texto — confirma que cada handler de escrita chama
+// `auditarEnvioMassaSeViaHub(req, { acao: '<ação certa>', ... })` dentro do
+// próprio corpo da rota (entre a linha da rota e a da PRÓXIMA rota).
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('cobertura de auditoria nas 7 escritas do módulo envio_massa (2.1.3/2.2.3/2.2.5)', () => {
+  const SERVER_PATH = path.resolve(__dirname, '..', 'server.js');
+  const SERVER_SRC = fs.readFileSync(SERVER_PATH, 'utf8');
+  const LINHAS = SERVER_SRC.split('\n');
+
+  // Fonte única: checklist endpoint-a-endpoint da task 2.1 (tasks.md FASE 2.1,
+  // seção "Evidência"), 1:1 com as 7 lacunas GAP identificadas.
+  const ESCRITAS_ESPERADAS = [
+    { method: 'patch', pathLiteral: '/update-envio-massa/:id', acao: 'movimento_editado' },
+    { method: 'delete', pathLiteral: '/envio-massa/:id', acao: 'movimento_excluido' },
+    { method: 'post', pathLiteral: '/start-process', acao: 'envio_massa_iniciado' },
+    { method: 'post', pathLiteral: '/stop-process', acao: 'envio_massa_parado' },
+    { method: 'post', pathLiteral: '/upload', acao: 'envio_massa_importado' },
+    { method: 'post', pathLiteral: '/validate-xml-batch', acao: 'envio_massa_xml_validado' },
+    { method: 'post', pathLiteral: '/close-movimento', acao: 'movimento_fechado' },
+  ];
+
+  // Bloco de texto do handler: da linha da rota até a linha da PRÓXIMA
+  // definição de rota top-level `app.<verbo>(` (ou fim do arquivo).
+  function blocoDoHandler(method, pathLiteral) {
+    const reRota = new RegExp(`^app\\.${method}\\(\\s*'${pathLiteral.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`);
+    const idxInicio = LINHAS.findIndex((l) => reRota.test(l));
+    if (idxInicio === -1) return null;
+    const reQualquerRota = /^app\.(get|post|patch|delete|put)\(/;
+    let idxFim = LINHAS.length;
+    for (let i = idxInicio + 1; i < LINHAS.length; i += 1) {
+      if (reQualquerRota.test(LINHAS[i])) { idxFim = i; break; }
+    }
+    return LINHAS.slice(idxInicio, idxFim).join('\n');
+  }
+
+  for (const escrita of ESCRITAS_ESPERADAS) {
+    test(`${escrita.method.toUpperCase()} ${escrita.pathLiteral} chama auditarEnvioMassaSeViaHub com acao '${escrita.acao}'`, () => {
+      const bloco = blocoDoHandler(escrita.method, escrita.pathLiteral);
+      assert.ok(bloco, `handler ${escrita.method.toUpperCase()} ${escrita.pathLiteral} não encontrado em server.js`);
+      assert.match(
+        bloco,
+        /auditarEnvioMassaSeViaHub\(req,/,
+        `${escrita.method.toUpperCase()} ${escrita.pathLiteral} não chama auditarEnvioMassaSeViaHub`
+      );
+      assert.ok(
+        bloco.includes(`acao: '${escrita.acao}'`),
+        `${escrita.method.toUpperCase()} ${escrita.pathLiteral} não usa a ação '${escrita.acao}' esperada`
+      );
+    });
+  }
+
+  test('auditarEnvioMassaSeViaHub só grava quando req.hubContext.viaHub === true (sessão legada nunca gera evento)', () => {
+    const idxHelper = SERVER_SRC.indexOf('async function auditarEnvioMassaSeViaHub');
+    assert.notEqual(idxHelper, -1, 'helper auditarEnvioMassaSeViaHub não encontrado em server.js');
+    const corpoHelper = SERVER_SRC.slice(idxHelper, idxHelper + 400);
+    assert.match(
+      corpoHelper,
+      /req\.hubContext\s*&&\s*req\.hubContext\.viaHub\s*===\s*true/,
+      'guard viaHub ausente — sessão legada poderia gerar evento sem usuario_id hub válido'
+    );
+  });
+});

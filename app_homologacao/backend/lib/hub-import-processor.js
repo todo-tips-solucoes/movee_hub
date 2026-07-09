@@ -910,6 +910,31 @@ async function recuperarImportacoesOrfas(deps = DEFAULT_DEPS) {
     const total = Array.isArray(recuperadas) ? recuperadas.length : 0;
     if (total > 0) {
       console.log(JSON.stringify({ evento: 'hub_import_recuperacao_orfa_boot', totalRecuperadas: total }));
+      // hub-auditoria-admin 2.2.2 — gap fechado: recuperação órfã no boot
+      // afeta linhas de TENANTS distintos (todos os `id_empresa` com
+      // ImportacaoArquivo preso em validating/processing); 1 evento POR
+      // tenant afetado (não 1 evento global), preservando o escopo correto
+      // de quem consulta a trilha (FR-002) — best-effort por item, uma
+      // falha isolada não impede os demais nem o boot (mesmo espírito do
+      // `try` externo desta função).
+      for (const linha of recuperadas) {
+        const idEmpresaLinha = linha && linha.id_empresa != null ? linha.id_empresa : null;
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await deps.registrarAuditoria({
+            idEmpresa: idEmpresaLinha,
+            acao: 'importacao_recuperada_boot',
+            recurso: 'ImportacaoArquivo',
+            recursoId: linha && linha.id,
+            detalhes: { motivo: 'recuperada apos reinicio' },
+            claims: idEmpresaLinha != null
+              ? { empresaAtiva: idEmpresaLinha, escopo: [idEmpresaLinha] }
+              : {},
+          });
+        } catch (errAuditoria) {
+          console.error('[hub-import-processor] falha ao registrar auditoria de recuperacao orfa (best-effort):', errAuditoria && errAuditoria.message);
+        }
+      }
     }
     return { totalRecuperadas: total };
   } catch (err) {
