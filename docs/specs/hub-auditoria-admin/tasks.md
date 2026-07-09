@@ -31,14 +31,26 @@ Ref: plan.md "Plano por fases" passo 1; data-model.md "Objetos NOVOS de
 banco" e "Entity: Auditoria — mudança desta feature"; spec.md FR-002/FR-003;
 contracts/auditoria-api.md (escopo)
 
-- [ ] 1.1.1 Criar `infra/hub/migrations/0035_auditoria_visao_global.sql`
-- [ ] 1.1.2 Implementar `hub_jwt_admin_plataforma()` (`CREATE OR REPLACE FUNCTION`, lê claim `admin_plataforma` do JWT PostgREST via `current_setting('request.jwt.claims', true)`, default `false` quando claim ausente — nunca erro)
-- [ ] 1.1.3 Substituir a política SELECT `auditoria_select_por_escopo` (`DROP POLICY IF EXISTS` + `CREATE POLICY`): `hub_jwt_admin_plataforma() OR (id_empresa IS NOT NULL AND id_empresa = ANY(hub_jwt_escopo_ids()))` — eventos globais (`id_empresa IS NULL`) deixam de ser visíveis a qualquer autenticado, exclusivos da visão admin_plataforma (edge case da spec)
-- [ ] 1.1.4 Confirmar que a política INSERT `auditoria_insert_por_escopo` (0009) permanece INALTERADA (nenhuma escrita nova nesta migration)
-- [ ] 1.1.5 Aplicar via `infra/hub/scripts/migrate.sh` no `hub-homolog`; confirmar reload do PostgREST (SIGUSR1)
-- [ ] 1.1.6 Teste: via `psql`/`SET ROLE authenticated` simulando claim `admin_plataforma=true`, confirmar visibilidade de eventos com `id_empresa IS NULL` e de múltiplas entidades; simulando um JWT comum (sem claim), confirmar que eventos globais somem e o escopo continue restrito à própria entidade; re-rodar `migrate.sh` e confirmar idempotência (no-op)
+- [x] 1.1.1 Criar `infra/hub/migrations/0035_auditoria_visao_global.sql`
+- [x] 1.1.2 Implementar `hub_jwt_admin_plataforma()` (`CREATE OR REPLACE FUNCTION`, lê claim `admin_plataforma` do JWT PostgREST via `current_setting('request.jwt.claims', true)`, default `false` quando claim ausente — nunca erro)
+- [x] 1.1.3 Substituir a política SELECT `auditoria_select_por_escopo` (`DROP POLICY IF EXISTS` + `CREATE POLICY`): `hub_jwt_admin_plataforma() OR (id_empresa IS NOT NULL AND id_empresa = ANY(hub_jwt_escopo_ids()))` — eventos globais (`id_empresa IS NULL`) deixam de ser visíveis a qualquer autenticado, exclusivos da visão admin_plataforma (edge case da spec)
+- [x] 1.1.4 Confirmar que a política INSERT `auditoria_insert_por_escopo` (0009) permanece INALTERADA (nenhuma escrita nova nesta migration)
+- [x] 1.1.5 Aplicar via `infra/hub/scripts/migrate.sh` no `hub-homolog`; confirmar reload do PostgREST (SIGUSR1)
+- [x] 1.1.6 Teste: via `psql`/`SET ROLE authenticated` simulando claim `admin_plataforma=true`, confirmar visibilidade de eventos com `id_empresa IS NULL` e de múltiplas entidades; simulando um JWT comum (sem claim), confirmar que eventos globais somem e o escopo continue restrito à própria entidade; re-rodar `migrate.sh` e confirmar idempotência (no-op)
 
-  Evidência: _preencher na execução_
+  Evidência: aplicada em hub-homolog 2026-07-09T21:24:33Z (`migrate.sh` saída
+  "aplicando: 0035_auditoria_visao_global.sql" / `CREATE FUNCTION` / `DROP
+  POLICY` / `CREATE POLICY`, sem erro; SIGUSR1 enviado ao postgrest). Reaplicar
+  `migrate.sh` em seguida deu `pulada (já aplicada): 0035...` e
+  `migrate: concluído (0 aplicadas agora)` (idempotência via SchemaMigration);
+  reaplicação do SQL bruto direto (bypass do skip) também sem erro
+  (`CREATE FUNCTION`/`DROP POLICY`/`CREATE POLICY` de novo). Teste RLS via
+  `SET LOCAL ROLE authenticated` + `SET LOCAL request.jwt.claims`: sem claim
+  `admin_plataforma` (`{"sub":"1","escopo":[9001]}`) →
+  `sem_admin_plataforma_global_visivel=0` (evento id_empresa IS NULL invisível)
+  e `sem_admin_plataforma_escopo_9001=80` (própria entidade OK); com
+  `{"admin_plataforma":true}` → `com_admin_plataforma_global_visivel=63` e
+  `com_admin_plataforma_qualquer_entidade=80` (visão global confirmada).
 
 ### 1.2 Migration 0036 — políticas de escrita em `ModuloEntidade` `[C]`
 
@@ -46,15 +58,28 @@ Ref: plan.md "Plano por fases" passo 1; data-model.md "Entity: ModuloEntidade
 — ganha políticas de ESCRITA"; contracts/admin-modulos-api.md; spec.md
 FR-007/FR-017
 
-- [ ] 1.2.1 Criar `infra/hub/migrations/0036_moduloentidade_escrita_admin.sql`
-- [ ] 1.2.2 Acrescentar branch `hub_jwt_admin_plataforma()` à política SELECT `moduloentidade_select_por_escopo` (0006), preservando o filtro por escopo já existente (`empresa_id = ANY(hub_jwt_escopo_ids())`) para quem não tem o claim
-- [ ] 1.2.3 Criar política INSERT nova: `WITH CHECK (hub_jwt_admin_plataforma())`
-- [ ] 1.2.4 Criar política UPDATE nova: `USING/WITH CHECK (hub_jwt_admin_plataforma())`
-- [ ] 1.2.5 Confirmar que os GRANTs INSERT/UPDATE em `ModuloEntidade` já existentes desde 0003 cobrem o `authenticated` (sem novo GRANT necessário); confirmar ausência de GRANT DELETE (toggle é sempre `ativo=true|false`, nunca remoção de linha — Decision 4)
-- [ ] 1.2.6 Aplicar via `migrate.sh` no `hub-homolog`
-- [ ] 1.2.7 Teste: como usuário sem claim `admin_plataforma`, tentar INSERT/UPDATE direto em `ModuloEntidade` via PostgREST → negado pela RLS; como usuário com o claim, INSERT/UPDATE de uma linha de QUALQUER entidade → permitido; SELECT sem o claim continua restrito à própria entidade
+- [x] 1.2.1 Criar `infra/hub/migrations/0036_moduloentidade_escrita_admin.sql`
+- [x] 1.2.2 Acrescentar branch `hub_jwt_admin_plataforma()` à política SELECT `moduloentidade_select_por_escopo` (0006), preservando o filtro por escopo já existente (`empresa_id = ANY(hub_jwt_escopo_ids())`) para quem não tem o claim
+- [x] 1.2.3 Criar política INSERT nova: `WITH CHECK (hub_jwt_admin_plataforma())`
+- [x] 1.2.4 Criar política UPDATE nova: `USING/WITH CHECK (hub_jwt_admin_plataforma())`
+- [x] 1.2.5 Confirmar que os GRANTs INSERT/UPDATE em `ModuloEntidade` já existentes desde 0003 cobrem o `authenticated` (sem novo GRANT necessário); confirmar ausência de GRANT DELETE (toggle é sempre `ativo=true|false`, nunca remoção de linha — Decision 4)
+- [x] 1.2.6 Aplicar via `migrate.sh` no `hub-homolog`
+- [x] 1.2.7 Teste: como usuário sem claim `admin_plataforma`, tentar INSERT/UPDATE direto em `ModuloEntidade` via PostgREST → negado pela RLS; como usuário com o claim, INSERT/UPDATE de uma linha de QUALQUER entidade → permitido; SELECT sem o claim continua restrito à própria entidade
 
-  Evidência: _preencher na execução_
+  Evidência: aplicada em hub-homolog no mesmo `migrate.sh` de 0035 (idempotência
+  confirmada igual: reaplicação = `pulada (já aplicada)` + reaplicação do SQL
+  bruto sem erro, `INSERT 0 0`/policies recriadas). Teste RLS via `SET LOCAL
+  ROLE authenticated`: sem claim `admin_plataforma` (`escopo:[9001]`), `INSERT
+  INTO "ModuloEntidade" (modulo_id=1, empresa_id=9999)` →
+  `ERROR: new row violates row-level security policy for table
+  "ModuloEntidade"` (negado, transação abortada/ROLLBACK); com
+  `admin_plataforma:true`, o mesmo INSERT (upsert em qualquer entidade) →
+  sucesso (`INSERT 0 1`, linha retornada `modulo_id=1 empresa_id=9999
+  ativo=t`; ROLLBACK ao final para não poluir dado real). SELECT sem claim,
+  `escopo:[9001]`: `visivel_9001=8` linhas, `visivel_9002=0` (escopo
+  respeitado). GRANT INSERT/UPDATE em `ModuloEntidade` confirmado herdado de
+  0003 (`GRANT SELECT, INSERT, UPDATE ... TO authenticated`); nenhum GRANT
+  DELETE encontrado em 0003/0006/0009 por inspeção.
 
 ### 1.3 Migration 0037 — RPC `hub_papel_permissao_set` (matriz papel×permissão) `[C]`
 
@@ -63,14 +88,28 @@ Permissao / PapelPermissao" e "Objetos NOVOS de banco"; research.md
 Decision 5; contracts/papeis-api.md "PUT /papeis/:papelId/permissoes/:permissaoId"
 (guard anti-lockout, finding M2 do gate owasp)
 
-- [ ] 1.3.1 Criar `infra/hub/migrations/0037_rpc_papel_permissao_set.sql`
-- [ ] 1.3.2 Implementar `hub_papel_permissao_set(p_papel_id int, p_permissao_id int, p_ativo boolean)` `SECURITY DEFINER`, `SET search_path = public, pg_temp`: guard inicial `IF NOT hub_jwt_admin_plataforma() THEN RAISE EXCEPTION ... USING ERRCODE = '42501'`; `p_ativo = true` → `INSERT ... ON CONFLICT DO NOTHING`; `p_ativo = false` → `DELETE` interno da célula (nunca GRANT DELETE direto na tabela para o role `authenticated`)
-- [ ] 1.3.3 Implementar o guard anti-lockout (finding M2): dentro da mesma função, RECUSAR (`RAISE EXCEPTION ERRCODE '42501'`) a operação que desmarcaria a célula `(papel=admin_plataforma, permissao=admin.gerenciar)` — remover a permissão de administração do próprio papel de plataforma deixaria o sistema sem administração recuperável exceto via psql
-- [ ] 1.3.4 `REVOKE ALL ON FUNCTION hub_papel_permissao_set FROM PUBLIC` + `GRANT EXECUTE TO authenticated` (a checagem de autorização vive DENTRO da função, não no GRANT)
-- [ ] 1.3.5 Aplicar via `migrate.sh` no `hub-homolog`; confirmar idempotência (`CREATE OR REPLACE FUNCTION` + REVOKE/GRANT re-executável sem erro)
-- [ ] 1.3.6 Teste: chamar a RPC via `SELECT hub_papel_permissao_set(...)` simulando claim `admin_plataforma=true` — marcar e desmarcar uma célula não-crítica com sucesso; simulando claim ausente/false — negado (`42501`); tentar desmarcar a célula `(admin_plataforma, admin.gerenciar)` mesmo com o claim correto — negado pelo guard anti-lockout
+- [x] 1.3.1 Criar `infra/hub/migrations/0037_rpc_papel_permissao_set.sql`
+- [x] 1.3.2 Implementar `hub_papel_permissao_set(p_papel_id int, p_permissao_id int, p_ativo boolean)` `SECURITY DEFINER`, `SET search_path = public, pg_temp`: guard inicial `IF NOT hub_jwt_admin_plataforma() THEN RAISE EXCEPTION ... USING ERRCODE = '42501'`; `p_ativo = true` → `INSERT ... ON CONFLICT DO NOTHING`; `p_ativo = false` → `DELETE` interno da célula (nunca GRANT DELETE direto na tabela para o role `authenticated`)
+- [x] 1.3.3 Implementar o guard anti-lockout (finding M2): dentro da mesma função, RECUSAR (`RAISE EXCEPTION ERRCODE '42501'`) a operação que desmarcaria a célula `(papel=admin_plataforma, permissao=admin.gerenciar)` — remover a permissão de administração do próprio papel de plataforma deixaria o sistema sem administração recuperável exceto via psql
+- [x] 1.3.4 `REVOKE ALL ON FUNCTION hub_papel_permissao_set FROM PUBLIC` + `GRANT EXECUTE TO authenticated` (a checagem de autorização vive DENTRO da função, não no GRANT)
+- [x] 1.3.5 Aplicar via `migrate.sh` no `hub-homolog`; confirmar idempotência (`CREATE OR REPLACE FUNCTION` + REVOKE/GRANT re-executável sem erro)
+- [x] 1.3.6 Teste: chamar a RPC via `SELECT hub_papel_permissao_set(...)` simulando claim `admin_plataforma=true` — marcar e desmarcar uma célula não-crítica com sucesso; simulando claim ausente/false — negado (`42501`); tentar desmarcar a célula `(admin_plataforma, admin.gerenciar)` mesmo com o claim correto — negado pelo guard anti-lockout
 
-  Evidência: _preencher na execução_
+  Evidência: aplicada em hub-homolog no mesmo `migrate.sh`; idempotência
+  confirmada (skip + reaplicação bruta `CREATE FUNCTION`/`REVOKE`/`GRANT` sem
+  erro). Testes reais via `psql` (papel `operador` id=3, permissão
+  `motoristas.exportar` id=2, papel `admin_plataforma` id=1, permissão
+  `admin.gerenciar` id=27): (1) sem claim `admin_plataforma`
+  (`escopo:[9001]`) → `SELECT hub_papel_permissao_set(3,2,false)` deu
+  `ERROR: hub_papel_permissao_set: exclusivo de admin_plataforma`
+  (`ERRCODE 42501`); (2) com `admin_plataforma:true`, desmarcar
+  `(operador, motoristas.exportar)` → `count=0`, remarcar → `count=1`
+  (transação com ROLLBACK ao final, estado real preservado); (3) mesmo com
+  claim correto, `hub_papel_permissao_set(1,27,false)` (desmarcar
+  admin_plataforma/admin.gerenciar) → `ERROR: hub_papel_permissao_set:
+  operacao bloqueada (anti-lockout admin_plataforma/admin.gerenciar)`
+  (`ERRCODE 42501`) — guard anti-lockout confirmado inquebrável mesmo com
+  autorização válida.
 
 ### 1.4 Migration 0038 — seeds de habilitação de módulos para QA `[A]`
 
@@ -78,13 +117,20 @@ Ref: plan.md "Plano por fases" passo 1; data-model.md "Objetos NOVOS de
 banco" (Decision 12); contexto operacional vinculante item 6 (QA
 `qa.importacoes@moveelog.local`, entidade 9001)
 
-- [ ] 1.4.1 Criar `infra/hub/migrations/0038_seed_modulos_admin_qa.sql`
-- [ ] 1.4.2 `INSERT INTO "ModuloEntidade"` (`ON CONFLICT DO NOTHING`) habilitando os módulos `usuarios` e `auditoria` para toda entidade com vínculo `UsuarioEntidade` ativo (necessário para as novas telas aparecerem no nav das entidades já existentes)
-- [ ] 1.4.3 `INSERT INTO "ModuloEntidade"` habilitando o módulo `admin` para a entidade QA 9001 (ou para a entidade com o vínculo `admin_plataforma` de teste, conforme o seed de RBAC já usado nas fases anteriores)
-- [ ] 1.4.4 Aplicar via `migrate.sh` no `hub-homolog`; confirmar reload PostgREST
-- [ ] 1.4.5 Teste: consultar `ModuloEntidade` após a migration e confirmar que as entidades de teste (incl. 9001) têm `usuarios`/`auditoria` habilitados e que a entidade/usuário QA de plataforma tem `admin` habilitado; re-rodar `migrate.sh` e confirmar no-op (idempotência)
+- [x] 1.4.1 Criar `infra/hub/migrations/0038_seed_modulos_admin_qa.sql`
+- [x] 1.4.2 `INSERT INTO "ModuloEntidade"` (`ON CONFLICT DO NOTHING`) habilitando os módulos `usuarios` e `auditoria` para toda entidade com vínculo `UsuarioEntidade` ativo (necessário para as novas telas aparecerem no nav das entidades já existentes)
+- [x] 1.4.3 `INSERT INTO "ModuloEntidade"` habilitando o módulo `admin` para a entidade QA 9001 (ou para a entidade com o vínculo `admin_plataforma` de teste, conforme o seed de RBAC já usado nas fases anteriores) — nenhum vínculo `admin_plataforma` de teste existe ainda no seed (`UsuarioEntidade` só tem `admin_entidade`/`leitura` em 9001/9002); usada a entidade QA 9001 conforme o fallback já documentado na própria tarefa
+- [x] 1.4.4 Aplicar via `migrate.sh` no `hub-homolog`; confirmar reload PostgREST
+- [x] 1.4.5 Teste: consultar `ModuloEntidade` após a migration e confirmar que as entidades de teste (incl. 9001) têm `usuarios`/`auditoria` habilitados e que a entidade/usuário QA de plataforma tem `admin` habilitado; re-rodar `migrate.sh` e confirmar no-op (idempotência)
 
-  Evidência: _preencher na execução_
+  Evidência: aplicada em hub-homolog no mesmo `migrate.sh` (`INSERT 0 4` +
+  `INSERT 0 1`, SIGUSR1 enviado). Idempotência: reaplicação de `migrate.sh` →
+  `pulada (já aplicada)`; reaplicação do SQL bruto direto → `INSERT 0 0` nas
+  duas instruções (ON CONFLICT DO NOTHING confirmado, nenhuma linha
+  duplicada). Consulta pós-migration:
+  `(9001,admin,t) (9001,auditoria,t) (9001,usuarios,t) (9002,auditoria,t)
+  (9002,usuarios,t)` — as 2 entidades com `UsuarioEntidade` ativo
+  (9001/9002) têm `usuarios`/`auditoria`; só 9001 (entidade QA) tem `admin`.
 
 ---
 
