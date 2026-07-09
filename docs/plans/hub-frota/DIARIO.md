@@ -1232,7 +1232,7 @@ permanecem CHK022/CHK024 `{humano}` e o trailer de commit).
 
 **Fechou:** `hub-envio-massa` (S8, re-hospedagem do fluxo legado de envio em
 massa dentro do shell do hub, sem reescrever lógica de negócio) — 12 tarefas /
-73 subtarefas do `docs/specs/hub-envio-massa/tasks.md`, 76/78 checkboxes
+73 subtarefas do `docs/specs/hub-envio-massa/tasks.md`, 75/78 checkboxes
 `[x]`, os 2 remanescentes (6.2.1-6.2.3, agrupados sob o mesmo achado —
 contam como 1 gap `{humano}`, CHK018/CHK037) formalmente deferidos com
 Decisão auditável (dec-050/052/053 — ver "Achados" abaixo). 6 fases: (1)
