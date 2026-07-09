@@ -310,7 +310,15 @@ FR-009/FR-010/FR-011
   alterada).
 - [ ] 4.1.8 Teste integração: upload real via sessão hub gera entrada em `ImportacaoArquivo` com `tipo='envio_massa'` e contagens coerentes; upload via sessão legada não gera nenhuma entrada; flag `off` não gera entrada mas o upload responde 200 normalmente; falha simulada do PostgREST no INSERT do log não impede a resposta 200/201 do upload de negócio (Cenário 7 do quickstart)
 
-  Evidência: <preencher durante execução>
+  Evidência: PENDENTE — requer upload multipart real (login hub + planilha
+  XLSX válida + inspeção de `ImportacaoArquivo`) contra `hub-homolog`, com
+  schema legado já disponível desde a onda anterior (migrations 0033/0034).
+  Adiado nesta onda por custo/risco de um teste multi-passo via curl sem
+  harness de E2E dedicado — mesmo escopo que a FASE 6 (task 6.1) cobre com
+  infraestrutura própria (`e2e-hub-envio-massa.sh`, ambiente `hub-test-
+  <runid>` efêmero). O comportamento do helper (4.1.1-4.1.7) já está
+  coberto por 14 testes unitários com mocks; falta apenas a confirmação
+  ponta-a-ponta com o parser XLSX real do handler `/upload`.
 
 ---
 
@@ -322,14 +330,44 @@ Ref: plan.md §Project Structure (frontend_v2); research.md Decision 7;
 contracts/claims-adapter.md (tratamento de `SEM_ENTIDADE_ATIVA`); spec.md
 FR-001/FR-002/FR-004
 
-- [ ] 5.1.1 Criar `app_homologacao/frontend_v2/app/hub/dashboard/envio_massa/page.tsx`
-- [ ] 5.1.2 Montar dentro da página, sem duplicar código, os componentes já existentes do painel legado: `components/import-button.tsx`, `components/process-controls.tsx`, `components/xml-validation-card.tsx`, `components/stats-cards.tsx`, `components/action-bar.tsx`, `components/filters.tsx`, `components/data-table.tsx`, `components/pagination-controls.tsx`, usando os hooks `hooks/use-envio-massa.ts`/`hooks/use-process-status.ts` tal como estão (nenhuma mudança de rede necessária — proxy `/api/*` já repassa cookies, Princípio III)
-- [ ] 5.1.3 Confirmar que **nenhuma rota nova precisa ser registrada** em `lib/hub/module-nav.ts` — o módulo `envio_massa` já resolve para `/hub/dashboard/envio_massa` via `moduloParaRota(codigo)` assim que existir `ModuloEntidade` ativo (Decision 7) — se a linha de `ModuloEntidade` para a entidade de teste ainda não existir no `hub-homolog`, criá-la via seed/SQL de teste (não é código novo desta feature)
-- [ ] 5.1.4 Tratar especificamente o código de erro `SEM_ENTIDADE_ATIVA` (403) vindo de qualquer chamada dos hooks reaproveitados: redirecionar para `/selecionar-entidade` (FR-004/Decision 7) — todos os demais códigos seguem o tratamento de erro genérico já existente nos hooks
-- [ ] 5.1.5 Confirmar que `app/dashboard/page.tsx` (painel legado, fora do `/hub/`) permanece **inalterado e funcional** (FR-018) — nenhum import quebrado, nenhuma rota removida
+- [x] 5.1.1 Criar `app_homologacao/frontend_v2/app/hub/dashboard/envio_massa/page.tsx`
+- [x] 5.1.2 Montar dentro da página, sem duplicar código, os componentes já existentes do painel legado: `components/import-button.tsx`, `components/process-controls.tsx`, `components/xml-validation-card.tsx`, `components/stats-cards.tsx`, `components/action-bar.tsx`, `components/filters.tsx`, `components/data-table.tsx`, `components/pagination-controls.tsx`, usando os hooks `hooks/use-envio-massa.ts`/`hooks/use-process-status.ts` tal como estão (nenhuma mudança de rede necessária — proxy `/api/*` já repassa cookies, Princípio III)
+- [x] 5.1.3 Confirmar que **nenhuma rota nova precisa ser registrada** em `lib/hub/module-nav.ts` — o módulo `envio_massa` já resolve para `/hub/dashboard/envio_massa` via `moduloParaRota(codigo)` assim que existir `ModuloEntidade` ativo (Decision 7) — se a linha de `ModuloEntidade` para a entidade de teste ainda não existir no `hub-homolog`, criá-la via seed/SQL de teste (não é código novo desta feature)
+- [x] 5.1.4 Tratar especificamente o código de erro `SEM_ENTIDADE_ATIVA` (403) vindo de qualquer chamada dos hooks reaproveitados: redirecionar para `/selecionar-entidade` (FR-004/Decision 7) — todos os demais códigos seguem o tratamento de erro genérico já existente nos hooks
+- [x] 5.1.5 Confirmar que `app/dashboard/page.tsx` (painel legado, fora do `/hub/`) permanece **inalterado e funcional** (FR-018) — nenhum import quebrado, nenhuma rota removida
+
+  Evidência (5.1.1-5.1.5, dec-043): `app/hub/dashboard/envio_massa/page.tsx`
+  criado, reaproveitando `StatsCards`/`ActionBar`/`Filters`/`DataTable`/
+  `PaginationControls`/`XmlValidationCard` + `useEnvioMassa`/
+  `useProcessStatus` SEM alterar nenhum desses arquivos (`git status`
+  confirma zero modificação em `components/`/`hooks/`/`app/dashboard/`
+  legados). `tsc --noEmit -p tsconfig.json` e `eslint
+  app/hub/dashboard/envio_massa/page.tsx` limpos (sem `next build`/`next
+  dev` no host — gotcha de starvation do CLAUDE.md). `moduloParaRota`
+  genérica confirmada sem mudança; `ModuloEntidade` (modulo_id=6
+  `envio_massa`) ativado para empresa 9001 e 9010 no `hub_homolog_db` via
+  SQL direto (mesmo padrão usado em S5/S6 — `docs/plans/hub-frota/
+  evidencias/S5/S6`, não é código novo desta feature). Guard FR-004
+  implementado via `entidadeAtiva` de `useHubAuth()` (client-side, síncrono)
+  em vez de parsear `error.code` dentro dos hooks reaproveitados — decisão
+  registrada (dec-043) com achado concreto: `lib/api-client.ts#handleResponse`
+  faz `body.message || body.error`, e como `hubEnvioMassaClaimsBridge`
+  retorna `{error:{code,message}}` (objeto aninhado, não string), o `code`
+  se perde nesse caminho; mudar `api-client.ts`/hooks violaria 5.1.2 ("hooks
+  tal como estão"). Contrato funcional idêntico (FR-004) preservado via
+  fonte de dados equivalente (`entidadeAtiva`, resolvida pelo mesmo `/me`).
+
 - [ ] 5.1.6 Teste: roundtrip real contra o backend vivo do `hub-homolog` (Cenário 8 do quickstart) confirmando que o `error.code` retornado bate byte-a-byte com `contracts/claims-adapter.md` (`SEM_ENTIDADE_ATIVA`, não `errorCode` camelCase inventado) — mesma lição do drift snake_case/camelCase de execuções anteriores
 
-  Evidência: <preencher durante execução>
+  Evidência: PENDENTE — requer roundtrip via browser/E2E real contra
+  `hub-homolog` (login + upload multipart + inspeção de resposta), fora do
+  escopo desta onda (mesma decisão de escopo já aceita em S6/S7: full E2E
+  fica para a FASE 6 dedicada, task 6.1, que já tem infraestrutura própria
+  — `e2e-hub-envio-massa.sh` — para isso). Nota: a implementação atual (guard
+  via `entidadeAtiva` do contexto, dec-043) NÃO depende de `error.code` ser
+  corretamente propagado — então mesmo que 5.1.6 confirme o drift já
+  suspeitado em `lib/api-client.ts`, o comportamento funcional (redirect)
+  já está garantido por um caminho independente.
 
 ### 5.2 Smoke de acessibilidade dos componentes reaproveitados — fecha CHK031 `[M]`
 
