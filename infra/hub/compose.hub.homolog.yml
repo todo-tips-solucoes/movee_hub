@@ -168,9 +168,13 @@ services:
       # para escutar em TODAS as interfaces (edge + internal).
       HOSTNAME: "0.0.0.0"
       # Proxy do Next: app/api/[...path]/route.ts lê process.env.BACKEND_URL em
-      # runtime; remove o prefixo literal /api e o backend do hub monta as rotas
-      # em /api/v1/* (dec-031).
-      BACKEND_URL: "http://backend:3000/api"
+      # runtime e remove o prefixo literal /api. hub-envio-massa (S8): as rotas
+      # LEGADAS (envio-massa) vivem na RAIZ do backend e as do HUB em /api/v1/*
+      # — BACKEND_URL volta à raiz (paths legados) e HUB_BACKEND_URL (novo,
+      # aditivo em route.ts) atende só /v1/* (dec-031 + correção S8; produção
+      # não define HUB_BACKEND_URL e permanece byte-a-byte idêntica).
+      BACKEND_URL: "http://backend:3000"
+      HUB_BACKEND_URL: "http://backend:3000/api"
       PORT: "3000"
     networks: [hub_edge, hub_internal]
     depends_on:

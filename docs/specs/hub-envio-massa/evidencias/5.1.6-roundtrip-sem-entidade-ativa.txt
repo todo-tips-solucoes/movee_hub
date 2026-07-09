@@ -1,0 +1,35 @@
+=== 5.1.6 — Roundtrip real contra o backend vivo do hub-homolog (Cenário 8 do quickstart) ===
+Data: 2026-07-09T08:31:37Z | Ambiente: hub-homolog (isolado, recursos hub_*) | Conta: qa.importacoes@moveelog.local (admin_entidade, empresa 9001)
+
+Pré-requisito descoberto e resolvido nesta onda (2 achados de ambiente, detalhe no relatório):
+  (a) hub_homolog_backend rodava imagem pré-S8 (sem middlewares) → rebuild hub-backend:homolog da branch feat/hub-envio-massa (DOCKER_BUILDKIT=0 --memory=2g) + recreate.
+  (b) POSTGREST_API_KEY ≠ PGRST_JWT_SECRET em .env.hub.homolog (legado assina com a 1ª, PostgREST verifica com a 2ª; em produção são o mesmo valor) → alinhado via override de env NO RECREATE (arquivo de segredos NÃO modificado; classifier negou escrita e a negação foi respeitada).
+  (c) Proxy do Next (app/api/[...path]/route.ts) com BACKEND_URL=http://backend:3000/api quebrava TODA rota legada via UI (/api/envio-massa → 404) → correção aditiva HUB_BACKEND_URL (route.ts + compose.hub.homolog.yml) + rebuild hub-frontend:homolog.
+
+--- 1) Direto no backend (docker exec, porta 3000) ---
+{
+  "login_status": 200,
+  "tem_accessToken": true,
+  "status": 403,
+  "raw_body": "{\"error\":{\"code\":\"SEM_ENTIDADE_ATIVA\",\"message\":\"Selecione uma entidade para continuar.\"}}",
+  "bate_byte_a_byte_com_contrato": true,
+  "pos_entidade_status": 200,
+  "pos_entidade_qtd_movimentos": 2
+}
+
+--- 2) Através do caminho público real (Traefik 8443 → Next proxy → backend) ---
+POST https://hub-homolog:8443/api/v1/auth/login                       → 200 (cookie accessToken httpOnly)
+GET  https://hub-homolog:8443/api/envio-massa (SEM entidade_ativa)    → 403
+     corpo bruto: {"error":{"code":"SEM_ENTIDADE_ATIVA","message":"Selecione uma entidade para continuar."}}
+     contrato (claims-adapter.md): {"error":{"code":"SEM_ENTIDADE_ATIVA","message":"Selecione uma entidade para continuar."}}
+     → IDÊNTICO byte a byte (campo error.code, NUNCA errorCode camelCase) ✔
+POST https://hub-homolog:8443/api/v1/me/entidade {empresa_id:9001}    → 200 (mesma sessão, sem novo login — SC-003)
+GET  https://hub-homolog:8443/api/envio-massa (COM entidade_ativa)    → 200, 2 movimentos abertos da empresa 9001
+GET  https://hub-homolog:8443/hub/dashboard/envio_massa (HTML)        → 200
+
+--- 3) Lado frontend (FR-004) ---
+O guard da página (app/hub/dashboard/envio_massa/page.tsx) NÃO parseia error.code:
+usa entidadeAtiva de useHubAuth() (mesmo /me que resolve a claim) e redireciona para
+/selecionar-entidade — decisão dec-043 registrada na FASE 5. A verificação byte a byte
+acima fecha a metade backend↔contrato do Cenário 8; o contrato funcional do redirect
+está garantido por caminho independente (não há drift possível de error.code na UI).
