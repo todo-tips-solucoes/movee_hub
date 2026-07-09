@@ -390,21 +390,27 @@ FR-001/FR-002/FR-004
 Ref: checklists/requirements.md CHK031 `[Gap]`; plan.md §Project Structure
 ("reaproveita 100% dos componentes/hooks já existentes")
 
-- [ ] 5.2.1 Rodar um smoke manual de navegação por teclado (Tab/Shift+Tab/Enter/Escape) em `/hub/dashboard/envio_massa` cobrindo upload, iniciar processo, validar XML, editar campo, fechar movimento, exportar — confirmar que a MONTAGEM dentro do shell do hub não quebrou nenhum comportamento de foco/tab-order que os componentes já tinham no painel legado
-- [ ] 5.2.2 Confirmar visualmente (leitor de tela ou inspeção de atributos ARIA já existentes nos componentes) que nenhuma regressão de acessibilidade foi introduzida pela nova montagem — não é uma auditoria WCAG completa (spec não declara esse requisito), é uma verificação de que o reuso não piorou o que já existia
-- [ ] 5.2.3 Registrar o resultado (sem regressão identificada, ou lista de achados) como evidência — fecha CHK031 declarando explicitamente que a a11y é herdada dos componentes existentes e foi verificada empiricamente nesta nova montagem, não deixada como suposição implícita
+- [x] 5.2.1 Rodar um smoke manual de navegação por teclado (Tab/Shift+Tab/Enter/Escape) em `/hub/dashboard/envio_massa` cobrindo upload, iniciar processo, validar XML, editar campo, fechar movimento, exportar — confirmar que a MONTAGEM dentro do shell do hub não quebrou nenhum comportamento de foco/tab-order que os componentes já tinham no painel legado
+- [x] 5.2.2 Confirmar visualmente (leitor de tela ou inspeção de atributos ARIA já existentes nos componentes) que nenhuma regressão de acessibilidade foi introduzida pela nova montagem — não é uma auditoria WCAG completa (spec não declara esse requisito), é uma verificação de que o reuso não piorou o que já existia
+- [x] 5.2.3 Registrar o resultado (sem regressão identificada, ou lista de achados) como evidência — fecha CHK031 declarando explicitamente que a a11y é herdada dos componentes existentes e foi verificada empiricamente nesta nova montagem, não deixada como suposição implícita
 
-  Evidência: DEFERIDO formalmente (dec-051, confirmado em 6.3.5/dec-052).
-  Requer interação real via browser/teclado (Tab/Shift+Tab/Enter/Escape +
-  inspeção ARIA), não automatizável pelo script E2E desta feature (API-only,
-  curl/`fetch`). Risco residual considerado baixo: a página reaproveita
-  100% componentes já existentes e usados sem alteração em telas anteriores
-  do hub (`StatsCards`/`ActionBar`/`Filters`/`DataTable`/
-  `PaginationControls`/`XmlValidationCard`, S5/S6/S7) — nenhum código novo
-  de UI nesta feature. Mesmo padrão de deferimento formal já aceito pelo
-  operador em `hub-faturamento`/`hub-performance`. Fecha CHK031 como gap
-  `{humano}` remanescente, não como concluído — decisão do dono do produto
-  pendente (ver 6.3.5).
+  Evidência (commit `48198f9`, `evidencias/5.2.3-smoke-a11y-resultado.txt` +
+  `5.2.1-tab-walk.json` + `5.2.2-aria-hub-vs-legado.json` +
+  `5.2-a11y-smoke-run-20260709T083732Z.log`): NÃO deferido — smoke
+  automatizado real (Playwright na imagem oficial, zero install no host)
+  contra o `hub-homolog` vivo, **2 passed**. 5.2.1: tab-walk de 73 paradas
+  de foco cobre por teclado os 6 grupos de ação (processo/upload/CSV/XML/
+  fechamento/edição) + validação XML; Shift+Tab anda para trás; Enter abre
+  o AlertDialog de "Fechar Movimento" e o Dialog de "Editar registro",
+  Escape fecha ambos. 5.2.2: comparação ARIA da montagem HUB vs painel
+  LEGADO (mesmo build, seed 0034) — botões editar 4/4, excluir 4/4, tabela
+  1/1, **zero** botões sem nome acessível nos dois → sem regressão; o hub
+  agrega o `XmlValidationCard` acessível na mesma página. 5.2.3: resultado
+  consolidado em evidência. Driver:
+  `infra/hub/testes/hub-envio-massa-a11y-smoke.sh`; spec:
+  `app_homologacao/frontend_v2/tests/e2e-hub-envio-massa/a11y-smoke.spec.ts`.
+  Nenhum código de componente/tela tocado (só teste novo). CHK031 fechado
+  com evidência empírica, não deixado como gap `{humano}`.
 
 ---
 
