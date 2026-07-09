@@ -128,6 +128,27 @@ describe('lib/hub-postgrest-jwt — claims por request (FASE 3 -> FASE 5)', () =
       assert.equal('origem_importacao' in origemFalsa, false, 'origemImportacao:false não deve virar claim (só true habilita)');
     });
   });
+
+  // hub-auditoria-admin S9 (tasks.md FASE 3.2/4.5, research.md Decision 2) —
+  // claim admin_plataforma, lida por hub_jwt_admin_plataforma() (migration
+  // 0035) nas policies RLS de Auditoria/ModuloEntidade/UsuarioEntidade e na
+  // RPC hub_papel_permissao_set. Emitida só pelo backend após
+  // lib/hub-rbac-cache.js#usuarioEhAdminPlataforma confirmar o vínculo real
+  // — NUNCA aceita de input do cliente (menor privilégio, gate owasp).
+  test('adminPlataforma=true -> payload.admin_plataforma=true; ausente/false -> claim NUNCA aparece', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      const comClaim = jwt.decode(generateHubPostgrestJWT({ usuarioId: 9, empresaAtiva: 9001, escopo: [9001], adminPlataforma: true }));
+      assert.equal(comClaim.admin_plataforma, true);
+      assert.equal(comClaim.sub, '9', 'claim admin_plataforma coexiste com claims normais de usuário (aditiva)');
+      assert.deepEqual(comClaim.escopo, [9001]);
+
+      const semClaim = jwt.decode(generateHubPostgrestJWT({ usuarioId: 1 }));
+      assert.equal('admin_plataforma' in semClaim, false, 'requests normais (admin_entidade/operador/leitura) NUNCA devem carregar esta claim');
+
+      const claimFalsa = jwt.decode(generateHubPostgrestJWT({ adminPlataforma: false }));
+      assert.equal('admin_plataforma' in claimFalsa, false, 'adminPlataforma:false não deve virar claim (só true habilita)');
+    });
+  });
 });
 
 describe('lib/hub-postgrest-jwt — alg-pinning (research.md Decision 12, owasp-security)', () => {

@@ -83,6 +83,13 @@ const hubUsuariosRoutes = require('./routes/hub-usuarios');
 // dentro do próprio router. Arquivo 100% novo (routes/hub-papeis.js).
 const hubPapeisRoutes = require('./routes/hub-papeis');
 
+// hub-auditoria-admin (S9, FASE 4.4) — GET /api/v1/admin/modulos, GET/PUT
+// /api/v1/admin/entidades/:id/modulos(/:codigo) (habilitação de módulo por
+// entidade, EXCLUSIVO admin_plataforma — FR-017/dec-009).
+// requireModuloAtivo('admin') + requirePermission('admin.gerenciar')
+// aplicados dentro do próprio router. Arquivo 100% novo (routes/hub-admin.js).
+const hubAdminRoutes = require('./routes/hub-admin');
+
 // hub-envio-massa (S8 do hub de frota, FASE 3) — os 11 endpoints legados de
 // envio em massa abaixo ganham 2 middlewares novos na cadeia (claims-bridge +
 // gate de permissão RBAC), atuando somente quando a sessão é do hub
@@ -2762,6 +2769,12 @@ app.use('/api/v1/usuarios', hubUsuariosRoutes.router);
 // papel×permissão). requireModuloAtivo/requirePermission aplicados dentro
 // do próprio router (mesmo padrão do bloco /api/v1/usuarios acima).
 app.use('/api/v1/papeis', hubPapeisRoutes.router);
+
+// hub-auditoria-admin (S9, FASE 4.4) — /api/v1/admin (módulos por
+// entidade, exclusivo admin_plataforma). requireModuloAtivo/
+// requirePermission aplicados dentro do próprio router (mesmo padrão do
+// bloco /api/v1/papeis acima).
+app.use('/api/v1/admin', hubAdminRoutes.router);
 
 // hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
 // boot: um restart no meio de uma importação (deploy) deixa o registro

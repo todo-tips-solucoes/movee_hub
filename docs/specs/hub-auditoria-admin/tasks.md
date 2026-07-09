@@ -530,16 +530,50 @@ Ref: contracts/admin-modulos-api.md (GET/GET/PUT `/admin/...`); spec.md
 FR-007/FR-008/FR-013/FR-017; dec-009 (exclusivo admin_plataforma, leitura E
 escrita)
 
-- [ ] 4.4.1 Criar `app_homologacao/backend/routes/hub-admin.js`, TODAS as rotas sob `requireModuloAtivo('admin')` + `requirePermission('admin.gerenciar')` — admin_entidade não tem acesso a NENHUMA rota (403), inclusive leitura (FR-017/dec-009)
-- [ ] 4.4.2 Implementar `GET /admin/modulos` (catálogo completo de módulos da plataforma, para montar a tela)
-- [ ] 4.4.3 Implementar `GET /admin/entidades/:id/modulos` (estado de habilitação de cada módulo para a entidade `:id`, qualquer entidade — visão global via claim `admin_plataforma` no branch SELECT de `ModuloEntidade`, FASE 1.2); módulo sem linha em `ModuloEntidade` = `habilitado:false` (deny by default)
-- [ ] 4.4.4 Implementar `PUT /admin/entidades/:id/modulos/:codigo` (`{ "habilitado": boolean }`): UPSERT em `ModuloEntidade` (`ativo = habilitado`, nunca DELETE)
-- [ ] 4.4.5 Implementar o guard anti-lockout (finding M3 do gate owasp): `PUT` com `habilitado:false` para o módulo `admin` na entidade ATIVA do próprio chamador → `409 OPERACAO_BLOQUEADA` (desabilitar OUTRAS entidades permanece permitido)
-- [ ] 4.4.6 Implementar os 3 efeitos colaterais obrigatórios do PUT: (1) `invalidarEntidadeModulos(entidadeId)` síncrono (FASE 4.1); (2) confirmar que `GET /me` já reflete a mudança imediatamente (consulta `ModuloEntidade` direto, sem cache próprio adicional); (3) auditoria `modulo_entidade_alterado` com `detalhes: { codigo, habilitado }` e `id_empresa = :id` (o evento pertence à entidade AFETADA, visível na trilha dela)
-- [ ] 4.4.7 Montar `hubAdminRoutes.router` em `server.js` sob `/api/v1/admin` (diff mínimo)
-- [ ] 4.4.8 Teste integração: desabilitar módulo com sessão ativa → nav some + `403 MODULO_DESABILITADO` na próxima chamada, sem esperar 60s (Cenário 7 passos 1–3 — SC-005); admin_entidade recebe `403 PERMISSAO_NEGADA` em `GET /admin/modulos` — nem leitura (Cenário 7 passo 4 — FR-017); reabilitação restaura nav e acesso (Cenário 7 passo 5); `409 OPERACAO_BLOQUEADA` ao tentar desabilitar `admin` para a própria entidade ativa
+- [x] 4.4.1 Criar `app_homologacao/backend/routes/hub-admin.js`, TODAS as rotas sob `requireModuloAtivo('admin')` + `requirePermission('admin.gerenciar')` — admin_entidade não tem acesso a NENHUMA rota (403), inclusive leitura (FR-017/dec-009)
+- [x] 4.4.2 Implementar `GET /admin/modulos` (catálogo completo de módulos da plataforma, para montar a tela)
+- [x] 4.4.3 Implementar `GET /admin/entidades/:id/modulos` (estado de habilitação de cada módulo para a entidade `:id`, qualquer entidade — visão global via claim `admin_plataforma` no branch SELECT de `ModuloEntidade`, FASE 1.2); módulo sem linha em `ModuloEntidade` = `habilitado:false` (deny by default)
+- [x] 4.4.4 Implementar `PUT /admin/entidades/:id/modulos/:codigo` (`{ "habilitado": boolean }`): UPSERT em `ModuloEntidade` (`ativo = habilitado`, nunca DELETE)
+- [x] 4.4.5 Implementar o guard anti-lockout (finding M3 do gate owasp): `PUT` com `habilitado:false` para o módulo `admin` na entidade ATIVA do próprio chamador → `409 OPERACAO_BLOQUEADA` (desabilitar OUTRAS entidades permanece permitido)
+- [x] 4.4.6 Implementar os 3 efeitos colaterais obrigatórios do PUT: (1) `invalidarEntidadeModulos(entidadeId)` síncrono (FASE 4.1); (2) confirmar que `GET /me` já reflete a mudança imediatamente (consulta `ModuloEntidade` direto, sem cache próprio adicional); (3) auditoria `modulo_entidade_alterado` com `detalhes: { codigo, habilitado }` e `id_empresa = :id` (o evento pertence à entidade AFETADA, visível na trilha dela)
+- [x] 4.4.7 Montar `hubAdminRoutes.router` em `server.js` sob `/api/v1/admin` (diff mínimo)
+- [x] 4.4.8 Teste integração: desabilitar módulo com sessão ativa → nav some + `403 MODULO_DESABILITADO` na próxima chamada, sem esperar 60s (Cenário 7 passos 1–3 — SC-005); admin_entidade recebe `403 PERMISSAO_NEGADA` em `GET /admin/modulos` — nem leitura (Cenário 7 passo 4 — FR-017); reabilitação restaura nav e acesso (Cenário 7 passo 5); `409 OPERACAO_BLOQUEADA` ao tentar desabilitar `admin` para a própria entidade ativa
 
-  Evidência: _preencher na execução_
+  Evidência: `app_homologacao/backend/routes/hub-admin.js` (novo, 3 rotas:
+  GET `/modulos`, GET `/entidades/:id/modulos`, PUT
+  `/entidades/:id/modulos/:codigo`), montado em `server.js` sob
+  `/api/v1/admin`. `resolverContextoAdmin` exige `admin.gerenciar` NA
+  ENTIDADE ATIVA **E** `usuarioEhAdminPlataforma` — dupla checagem
+  (FR-017), retorna 403 mesmo que um seed futuro desse `admin.gerenciar`
+  a outro papel por engano. `ENTIDADE_NAO_ENCONTRADA` validado contra a
+  tabela `Empresa` real (legado S8, migration 0033). UPSERT em
+  `ModuloEntidade` via `on_conflict=modulo_id,empresa_id` +
+  `resolution:'merge-duplicates'` (mesmo padrão de
+  `lib/hub-import-processor.js`).
+
+  Teste de integração AO VIVO (Docker real, `hub-test-<runid>` efêmero
+  descartado ao final): `infra/hub/testes/hub-admin-integration.sh` (novo)
+  + wrapper `tests/hub-admin.test.js`. Gotcha do próprio script: 1ª
+  tentativa falhou no seed com `ERROR: column "nome" of relation "Empresa"
+  does not exist` — a tabela legada (migration 0033) usa `nome_empresa`,
+  sem coluna `ativo`; corrigido no mesmo commit. Saída final:
+  `HUB-ADMIN-INTEGRATION: OK — todos os asserts passaram (FASE 4.4)`,
+  24/24 `PASS:` (0 FAIL) cobrindo: 401 sem cookie; admin_entidade `GET
+  /admin/modulos` -> 403 PERMISSAO_NEGADA (nem leitura, FR-017);
+  admin_plataforma `GET /admin/modulos` -> 200 com os 9 módulos do
+  catálogo; `GET /admin/entidades/:id/modulos` reflete `habilitado:true`
+  (com linha) e `false` (sem linha, deny-by-default); `PUT` desabilitando
+  `usuarios` para a entidade B -> **efeito IMEDIATO** confirmado ao vivo:
+  um operador de B que via `403 PERMISSAO_NEGADA` em `GET /usuarios`
+  passa a ver `403 MODULO_DESABILITADO` na PRÓXIMA chamada, SEM esperar o
+  TTL de 60s (SC-005); reabilitação restaura o `403 PERMISSAO_NEGADA`
+  original (nav/acesso voltam); guard anti-lockout ao tentar desabilitar
+  `admin` na PRÓPRIA entidade ativa -> `409 OPERACAO_BLOQUEADA`
+  (confirmado também via `psql` que a célula permaneceu `ativo=true` no
+  banco); desabilitar `admin` para OUTRA entidade permanece permitido ->
+  200; `404 ENTIDADE_NAO_ENCONTRADA`/`MODULO_NAO_ENCONTRADO`; 2 eventos de
+  auditoria `modulo_entidade_alterado` confirmados via `psql`, gravados
+  com `id_empresa` da entidade AFETADA (B), não do chamador.
 
 ### 4.5 Claim `admin_plataforma` na emissão do JWT interno `[C]`
 
@@ -547,12 +581,30 @@ Ref: plan.md "Project Structure" (`lib/hub-postgrest-jwt.js` EDIT aditivo);
 plan.md "Convenções de Borda" (claim nunca derivado de input do cliente);
 gate owasp (menor privilégio — claim emitido só onde necessário)
 
-- [ ] 4.5.1 Adicionar em `lib/hub-postgrest-jwt.js` (EDIT aditivo) suporte a um novo campo opcional de claims (`adminPlataforma: boolean`) → vira `admin_plataforma` no payload assinado
-- [ ] 4.5.2 Nos handlers que exigem visão/escrita global (auditoria evoluída FASE 3, `hub-admin.js`, `hub-papeis.js` PUT), resolver o claim consultando `UsuarioEntidade` + `Papel` do usuário autenticado no request corrente (vínculo ativo com papel `admin_plataforma`) — NUNCA aceitar o valor de qualquer input do cliente
-- [ ] 4.5.3 Confirmar que o claim NÃO é emitido por padrão em nenhum outro handler/rota do hub (menor privilégio — só nos pontos que efetivamente precisam da visão/escrita global)
-- [ ] 4.5.4 Teste unit: geração do JWT com/sem o claim; teste integração indireto (já coberto pelas FASES 3/4 — usuário com vínculo `admin_plataforma` real obtém visão global, usuário sem vínculo nunca obtém mesmo tentando manipular o request)
+- [x] 4.5.1 Adicionar em `lib/hub-postgrest-jwt.js` (EDIT aditivo) suporte a um novo campo opcional de claims (`adminPlataforma: boolean`) → vira `admin_plataforma` no payload assinado
+- [x] 4.5.2 Nos handlers que exigem visão/escrita global (auditoria evoluída FASE 3, `hub-admin.js`, `hub-papeis.js` PUT), resolver o claim consultando `UsuarioEntidade` + `Papel` do usuário autenticado no request corrente (vínculo ativo com papel `admin_plataforma`) — NUNCA aceitar o valor de qualquer input do cliente
+- [x] 4.5.3 Confirmar que o claim NÃO é emitido por padrão em nenhum outro handler/rota do hub (menor privilégio — só nos pontos que efetivamente precisam da visão/escrita global)
+- [x] 4.5.4 Teste unit: geração do JWT com/sem o claim; teste integração indireto (já coberto pelas FASES 3/4 — usuário com vínculo `admin_plataforma` real obtém visão global, usuário sem vínculo nunca obtém mesmo tentando manipular o request)
 
-  Evidência: _preencher na execução_
+  Evidência: front-loaded durante a FASE 3.2 (necessário para a distinção de
+  escopo em `GET /auditoria`), reusado sem alteração em `hub-papeis.js` (PUT)
+  e `hub-admin.js` (GET/PUT) — todos os 3 pontos resolvem o claim via
+  `lib/hub-rbac-cache.js#usuarioEhAdminPlataforma(payload.sub)` (consulta
+  real a `UsuarioEntidade`+`Papel` no request corrente, nunca de input do
+  cliente). 4.5.3 confirmado por `grep -rn "adminPlataforma:" routes/
+  lib/` — só aparece nos 3 handlers citados (auditoria/papeis/admin),
+  nenhum outro router do hub emite a claim. Teste unit dedicado:
+  `tests/hub-postgrest-jwt-unit.test.js` ganhou o caso
+  "`adminPlataforma=true` -> `payload.admin_plataforma=true`;
+  ausente/false -> claim NUNCA aparece" (mesmo padrão de
+  `hubBootRecovery`/`origemImportacao`). `node --test
+  tests/hub-postgrest-jwt-unit.test.js`: `# tests 11 / # pass 11 / # fail
+  0` (era 10/10). Teste de integração indireto: já coberto ao vivo pelas
+  FASES 3.2/4.3/4.4 (usuário com vínculo `admin_plataforma` real obtendo
+  visão/escrita global nos 3 scripts de integração; admin_entidade SEMPRE
+  negado nos mesmos scripts, mesmo tentando manipular `entidadeId`/
+  `papelId` do request). `npm run test:hub:unit`: `# tests 481 / # pass
+  481 / # fail 0` (era 480/480 — +1 novo, zero regressão).
 
 ---
 
