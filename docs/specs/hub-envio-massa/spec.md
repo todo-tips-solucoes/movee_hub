@@ -31,6 +31,15 @@
   revisão de segurança manual para mudanças de autenticação, e o plano técnico (S16.1)
   lista o diff dos endpoints legados como entregável; precedente real na S4 (DIÁRIO:
   `git diff --name-only` + code review do diff).
+- Q3 (FR-014 × FR-006 / CHK037, e SC-006 / CHK018): **RESPONDIDAS PELO OPERADOR em
+  2026-07-09** (pós-review, junto com a autorização de push/PR#61): (a) FR-014 vale
+  independente do estado da flag `HUB_RBAC_ENVIO` (texto do FR-014 atualizado); (b) para
+  a S8, SC-006 ("nenhum envio real fora do ambiente isolado") é aceito com a garantia
+  atual — infra S1 (mocks/tokens ausentes) + desenho do E2E — SEM asserção de runtime,
+  porque o gate `ENVIO_DRY_RUN`/allowlist não existe no código legado (achado
+  pré-existente, fora do escopo desta feature por FR-015); a asserção automatizada fica
+  condicionada ao follow-up **issue #62** (tornar o gate real em
+  `sendMessage`/`validate-xml-batch`), recomendado antes do cutover S10.
 - Q1 (FR-004): Comportamento quando não há entidade ativa selecionada na sessão →
   **RESPONDIDA PELO OPERADOR** (block-001, dec-012): **Opção B — redirecionar
   automaticamente para a rota existente de seleção de entidade do shell
@@ -255,7 +264,12 @@ foi enviado — sem depender de completar o restante do fluxo (processo/validaç
 - **FR-014**: O sistema MUST manter, para toda a extensão desta feature, as proteções de
   envio já existentes no fluxo legado (modo de simulação sem efeito externo por padrão no
   ambiente isolado, lista de destinos permitidos, limite de itens por lote, e registro
-  auditável de qualquer envio bloqueado por essas proteções).
+  auditável de qualquer envio bloqueado por essas proteções). **FR-014 é independente de
+  FR-006**: desligar o controle de acesso do módulo (`HUB_RBAC_ENVIO=off`) NÃO desliga
+  nem enfraquece as proteções de envio — autorização de ação e efeito externo de envio
+  são camadas ortogonais (ratificado pelo operador em 2026-07-09, CHK037; confirmado
+  empiricamente no E2E: com RBAC off nenhuma chamada externa é disparada — evidências
+  `e2e-run-20260709T082218Z.log` e `6.2.3-decisao-fr014-fr006-insumo.txt`).
 - **FR-015**: O sistema MUST permitir verificar, como critério de aceite desta feature,
   que as mudanças aplicadas aos pontos de entrada do fluxo legado (backend) se limitam a
   autenticação/permissão e às configurações citadas nesta spec — sem alteração de lógica

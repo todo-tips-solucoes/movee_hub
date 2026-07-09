@@ -32,11 +32,11 @@ mensurabilidade, cobertura) dos requisitos em `spec.md` antes de `create-tasks`
   origem identificado, ou a spec deixa como "já existente" sem apontar onde?
   [Completude, Spec §FR-014; research.md linha 429: `ENVIO_DRY_RUN`/allowlist/
   mocks já garantidos pela infra S1 — reaproveitados, não recriados] {auto}
-- [ ] CHK006 - O critério de "conjunto de ações permitidas e recusadas
+- [x] CHK006 - O critério de "conjunto de ações permitidas e recusadas
   exatamente como descrito" (FR-008) referencia uma matriz explícita
   ação×papel, ou depende de reconstruir a matriz a partir da prosa dos
   Acceptance Scenarios da User Story 3? [Completude, Spec §US3, Ambiguity]
-  {humano}
+  {humano} → FECHADO (evidência): matriz explícita papel×ação consolidada em contracts/matriz-papel-acao.md (FASE 1.2, onda-006), conferida célula a célula contra US3.
 
 ## Clareza de Requisitos
 
@@ -53,11 +53,11 @@ mensurabilidade, cobertura) dos requisitos em `spec.md` antes de `create-tasks`
   apenas uma intenção qualitativa sem mecanismo)? [Clareza, research.md
   Decision 9: grava em status terminal numa única transação, `try/catch`
   best-effort que só loga, nunca propaga exceção] {auto}
-- [ ] CHK010 - "Menos de um novo ciclo de implantação" (SC-005) está quantificado
+- [x] CHK010 - "Menos de um novo ciclo de implantação" (SC-005) está quantificado
   em unidade quantificável (minutos/horas) ou depende de interpretação de
   quanto dura um "ciclo de implantação" neste projeto? [Clareza, Spec §SC-005,
   Ambiguity — reversível por config sem redeploy de código, mas o texto não
-  define um teto de tempo] {humano}
+  define um teto de tempo] {humano} → FECHADO (evidência): medição empírica na task 2.2.9 (onda-010, dec-040): toggle HUB_RBAC_ENVIO refletido em ~2,3s via recreate do backend — sem novo ciclo de implantação (sem build/push de imagem).
 - [x] CHK011 - "Comportamento observável idêntico ao painel legado" (FR-001,
   FR-012) é ancorado em um mecanismo de verificação objetivo, e não deixado
   como julgamento subjetivo de "parece igual"? [Clareza, Spec §FR-016/FR-017 —
@@ -96,13 +96,17 @@ mensurabilidade, cobertura) dos requisitos em `spec.md` antes de `create-tasks`
   fica em aberto quantos/quais casos compõem "100% dos casos testados"?
   [Mensurabilidade, Spec §SC-004 — ancorado na matriz papel×ação de US3;
   ver CHK006 sobre a matriz explícita ainda não estar consolidada] {auto}
-- [ ] CHK018 - SC-006 (nenhum envio real fora do ambiente isolado) tem um
+- [x] CHK018 - SC-006 (nenhum envio real fora do ambiente isolado) tem um
   mecanismo de verificação automatizável (e.g. asserção sobre destino
   bloqueado/mock chamado), ou depende só de inspeção manual dos logs durante o
   desenvolvimento? [Mensurabilidade, Spec §SC-006, Gap — research.md linha 429
   aponta que a garantia é da infra S1 (`ENVIO_DRY_RUN`/mocks), mas a spec desta
   feature não define um teste que a re-verifique no escopo de hub-envio-massa]
-  {humano}
+  {humano} → **RESOLVIDO PELO OPERADOR 2026-07-09**: garantia atual (infra S1 +
+  desenho do E2E, "zero chamadas" assertado nos mocks) ACEITA para a S8; a
+  asserção de runtime real fica condicionada à issue #62 (gate ENVIO_DRY_RUN/
+  allowlist no código legado — achado pré-existente, fora do escopo por FR-015).
+  Registrado em Spec §Clarifications Q3 e evidencias/6.2.3-decisao-fr014-fr006-insumo.txt.
 - [x] CHK019 - SC-002 (suíte legada 100% verde, zero alteração de arquivos de
   teste) é verificável de forma binária e automatizável (CI/test runner)?
   [Mensurabilidade, Spec §SC-002; Spec §FR-017] {auto}
@@ -156,13 +160,13 @@ mensurabilidade, cobertura) dos requisitos em `spec.md` antes de `create-tasks`
   revisão dedicada (não é apenas uma menção de intenção)? [Não-Funcional,
   plan.md §Constitution Check Princípio IV — gate `owasp-security` já
   executado na onda-003 (dec-016), 0 CRITICAL/HIGH] {auto}
-- [ ] CHK031 - Requisitos de acessibilidade (navegação por teclado, leitor de
+- [x] CHK031 - Requisitos de acessibilidade (navegação por teclado, leitor de
   tela) para a página nova do frontend (`app/hub/dashboard/envio_massa/`)
   estão definidos nesta spec, ou são herdados implicitamente dos componentes
   já existentes sem uma declaração própria? [Não-Funcional, Gap — spec.md não
   menciona a11y; plan.md indica reuso 100% dos componentes já existentes, mas
   não afirma que esses componentes já atendem a um padrão de acessibilidade]
-  {humano}
+  {humano} → FECHADO (evidência): smoke a11y/teclado via Playwright 2/2 passed (FASE 5.2, evidencias/5.2-a11y-smoke-run-20260709T083732Z.log + 5.2.1-tab-walk.json + 5.2.2-aria-hub-vs-legado.json).
 - [x] CHK032 - Performance não é um objetivo novo desta feature (paridade
   comportamental, não otimização), e essa premissa está declarada
   explicitamente para não virar expectativa implícita de melhoria?
@@ -199,13 +203,17 @@ mensurabilidade, cobertura) dos requisitos em `spec.md` antes de `create-tasks`
   NOVO = `middleware/hub-envio-massa-*.js`, `lib/hub-envio-massa-import-log.js`;
   nenhum outro arquivo do fluxo legado (parser XLSX, rotas FastAPI) é tocado]
   {auto}
-- [ ] CHK037 - Existe algum conflito latente entre FR-006 (RBAC pode ser
+- [x] CHK037 - Existe algum conflito latente entre FR-006 (RBAC pode ser
   desligado, retorno instantâneo ao comportamento legado) e FR-014 (proteções
   de envio devem ser mantidas "para toda a extensão desta feature", sem
   menção de exceção quando RBAC está off)? A spec deixa implícito que FR-014
   continua valendo independente do estado da flag de FR-006, mas não afirma
   isso explicitamente. [Ambiguidades, Spec §FR-006 vs §FR-014, Ambiguity]
-  {humano}
+  {humano} → **RESOLVIDO PELO OPERADOR 2026-07-09**: ratificado que FR-014 é
+  INDEPENDENTE de FR-006 (RBAC off não desliga proteções de envio); texto do
+  FR-014 atualizado na spec para afirmar isso explicitamente. Confirmação
+  empírica no E2E (com HUB_RBAC_ENVIO=off, zero chamadas externas —
+  evidencias/e2e-run-20260709T082218Z.log). Sem conflito latente.
 
 ## Notes
 
