@@ -1,0 +1,49 @@
+=== 6.2.1/6.2.2/6.2.3 — Proteções de envio & independência FR-014 x FR-006 (CHK018/CHK037) ===
+Data: 2026-07-09T08:41:18Z | Fonte: e2e-hub-envio-massa.sh + evidencias/e2e-run-20260709T082218Z.log
+NOTA: este arquivo é INSUMO para a Decisão formal do orquestrador-pai (o agente-filho
+não tem state-decisions.sh com efeito auditável). NÃO marcar 6.2.1/6.2.2/6.2.3 como
+fechados sem a leitura crítica abaixo.
+
+--- O que o E2E observou (fato) ---
+Durante toda a execução (com HUB_RBAC_ENVIO ligado E desligado):
+  PASS: n8n-mock: zero chamadas recebidas
+  PASS: fastapi-mock: zero chamadas recebidas
+ENVIO_DRY_RUN=true está setado no .env.hub.test (confirmado no preflight/compose).
+
+--- Leitura crítica (ACHADO DE SEGURANÇA, pré-existente, FORA do diff desta feature) ---
+O 'zero chamadas' NÃO comprova que ENVIO_DRY_RUN/allowlist gateiam o código:
+  * grep -rn ENVIO_DRY_RUN app_homologacao/backend → ZERO ocorrências em código
+    (a var só aparece em RUNBOOK.md/.env.hub.*.example/preflight.sh, nunca em
+    nenhum process.env de server.js).
+  * sendMessage() (chamada por processBatchMessages ← POST /start-process) tem URL
+    HARDCODED https://api.chatmasterveloz.com/... — não lê N8N_URL.
+  * POST /validate-xml-batch tem URL HARDCODED
+    https://fastapihomologacao(nexus).todo-tips.com/validade_nfse — não lê FASTAPI_URL.
+O E2E vê 'zero' porque o CENÁRIO foi desenhado para nunca alcançar esses caminhos:
+toda linha EnvioMassa é gravada enviado='on' (a seed 0034 'off' é neutralizada logo
+após o migrate), então processBatchMessages não encontra item elegível e sendMessage
+nunca roda; e validate-xml-batch sempre recebe XML sem_movimento, retornando ANTES
+da chamada à FastAPI. É proteção por CONSTRUÇÃO DO TESTE, não por env var no código.
+
+--- Independência FR-014 x FR-006 (CHK037) ---
+Do ponto de vista de código, FR-014 (proteções de envio) e FR-006 (flag HUB_RBAC_ENVIO)
+são ORTOGONAIS: os middlewares novos desta feature (hub-envio-massa-claims/permission)
+só decidem AUTORIZAÇÃO de ação (403/next), nunca tocam o efeito externo do envio.
+Confirmado no E2E: com HUB_RBAC_ENVIO=off, o papel 'leitura' passou a conseguir
+POST /upload (200) — mas nenhuma chamada externa foi disparada em nenhum dos dois
+estados da flag (mesmo 'zero' nos mocks). Ou seja, alternar a flag de RBAC não altera
+a camada de efeito externo. PORÉM: como a camada de efeito externo NÃO É gateada por
+env var no código legado (achado acima), a afirmação 'as proteções continuam ativas'
+só é verdadeira no sentido de que o cenário de teste nunca as exercita — não há uma
+proteção runtime a 'continuar ativa'.
+
+--- Recomendação ao dono do produto (decisão fica com o orquestrador-pai / operador) ---
+CHK018/CHK037 já eram gaps {humano} desde a fase checklist. Recomenda-se:
+  (1) manter CHK018/CHK037 deferidos (não são regressão desta feature — diff 3.2 = zero
+      linha tocada em sendMessage/validate-xml-batch; FR-015 proíbe alterar lógica);
+  (2) abrir item de follow-up FORA do escopo S8 para tornar ENVIO_DRY_RUN/allowlist
+      efetivos no código (gate real antes do axios.post de sendMessage e do
+      validate-xml-batch), pois hoje a proteção de 'não enviar de verdade' no ambiente
+      isolado depende só de (a) tokens ausentes e (b) desenho do teste — não de um
+      guard de runtime. Isso é uma dívida de segurança pré-existente, herdada do
+      legado, não introduzida pela S8.

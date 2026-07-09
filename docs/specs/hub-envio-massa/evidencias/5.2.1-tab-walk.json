@@ -1,0 +1,379 @@
+{
+  "total_paradas_de_foco": 73,
+  "cobertura": {
+    "processo_iniciar_ou_parar": true,
+    "upload_importar": true,
+    "exportacao_csv": true,
+    "exportacao_xml": true,
+    "fechamento": true,
+    "edicao": true,
+    "validacao_xml": true
+  },
+  "sequencia": [
+    {
+      "role": "a",
+      "name": "Painel Geral",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Motoristas",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Faturamento",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Importações",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Envio em Massa",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Meu perfil",
+      "tag": "a"
+    },
+    {
+      "role": "button",
+      "name": "Iniciar",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Importar XLSX",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Exportar CSV",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Download XML",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Fechar Movimento",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Filtros",
+      "tag": "button"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "select",
+      "name": "TodosEnviadosNao Enviados",
+      "tag": "select"
+    },
+    {
+      "role": "select",
+      "name": "TodosCom ErroSem Erro",
+      "tag": "select"
+    },
+    {
+      "role": "select",
+      "name": "TodosCom ErroSem Erro",
+      "tag": "select"
+    },
+    {
+      "role": "select",
+      "name": "TodosSimNao",
+      "tag": "select"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "checkbox",
+      "name": null,
+      "tag": "span"
+    },
+    {
+      "role": "checkbox",
+      "name": null,
+      "tag": "span"
+    },
+    {
+      "role": "button",
+      "name": "Editar registro Motorista QA Aberto",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Excluir registro Motorista QA Aberto",
+      "tag": "button"
+    },
+    {
+      "role": "checkbox",
+      "name": null,
+      "tag": "span"
+    },
+    {
+      "role": "button",
+      "name": "Editar registro Motorista QA Validado",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Excluir registro Motorista QA Validado",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "100 por pagina",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Página 1",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Area de upload de arquivos XML. Clique ou arraste arquivos.",
+      "tag": "div"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "body",
+      "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+      "tag": "body"
+    },
+    {
+      "role": "a",
+      "name": "Painel Geral",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Motoristas",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Faturamento",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Importações",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Envio em Massa",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Meu perfil",
+      "tag": "a"
+    },
+    {
+      "role": "button",
+      "name": "Iniciar",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Importar XLSX",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Exportar CSV",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Download XML",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Fechar Movimento",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Filtros",
+      "tag": "button"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "select",
+      "name": "TodosEnviadosNao Enviados",
+      "tag": "select"
+    },
+    {
+      "role": "select",
+      "name": "TodosCom ErroSem Erro",
+      "tag": "select"
+    },
+    {
+      "role": "select",
+      "name": "TodosCom ErroSem Erro",
+      "tag": "select"
+    },
+    {
+      "role": "select",
+      "name": "TodosSimNao",
+      "tag": "select"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "checkbox",
+      "name": null,
+      "tag": "span"
+    },
+    {
+      "role": "checkbox",
+      "name": null,
+      "tag": "span"
+    },
+    {
+      "role": "button",
+      "name": "Editar registro Motorista QA Aberto",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Excluir registro Motorista QA Aberto",
+      "tag": "button"
+    },
+    {
+      "role": "checkbox",
+      "name": null,
+      "tag": "span"
+    },
+    {
+      "role": "button",
+      "name": "Editar registro Motorista QA Validado",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Excluir registro Motorista QA Validado",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "100 por pagina",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Página 1",
+      "tag": "button"
+    },
+    {
+      "role": "button",
+      "name": "Area de upload de arquivos XML. Clique ou arraste arquivos.",
+      "tag": "div"
+    },
+    {
+      "role": "input",
+      "name": null,
+      "tag": "input"
+    },
+    {
+      "role": "body",
+      "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+      "tag": "body"
+    },
+    {
+      "role": "a",
+      "name": "Painel Geral",
+      "tag": "a"
+    }
+  ]
+}

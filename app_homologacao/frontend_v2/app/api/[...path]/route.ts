@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
+// hub-envio-massa (S8, bug real achado no smoke da FASE 5/6): no backend, as
+// rotas do HUB montam em `/api/v1/*` e as LEGADAS (envio-massa) na RAIZ. Um
+// único prefixo BACKEND_URL não serve os dois: no hub-homolog (dec-031,
+// BACKEND_URL=http://backend:3000/api) toda chamada legada da tela
+// /hub/dashboard/envio_massa caía em /api/envio-massa → 404. Correção
+// ADITIVA: `HUB_BACKEND_URL` (opcional) atende só os paths `/v1/*`; quando
+// ausente (produção, dev legado), cai em BACKEND_URL — comportamento
+// byte-a-byte idêntico ao anterior para TODOS os paths.
+const HUB_BACKEND_URL = process.env.HUB_BACKEND_URL || BACKEND_URL;
 
 async function proxyRequest(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const path = url.pathname.replace(/^\/api/, '');
-    const target = `${BACKEND_URL}${path}${url.search}`;
+    const base = path === '/v1' || path.startsWith('/v1/') ? HUB_BACKEND_URL : BACKEND_URL;
+    const target = `${base}${path}${url.search}`;
 
     const skipHeaders = new Set([
       'host', 'connection', 'content-length',

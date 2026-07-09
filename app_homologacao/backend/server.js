@@ -69,6 +69,16 @@ const hubFaturamentoRoutes = require('./routes/hub-faturamento');
 // (routes/hub-performance.js). Somente leitura (FR-010).
 const hubPerformanceRoutes = require('./routes/hub-performance');
 
+// hub-envio-massa (S8 do hub de frota, FASE 3) — os 11 endpoints legados de
+// envio em massa abaixo ganham 2 middlewares novos na cadeia (claims-bridge +
+// gate de permissão RBAC), atuando somente quando a sessão é do hub
+// (req.hubContext.viaHub === true); sessão legada passa sempre (Decision 5).
+const { hubEnvioMassaClaimsBridge } = require('./middleware/hub-envio-massa-claims');
+const { hubEnvioMassaRequirePermission } = require('./middleware/hub-envio-massa-permission');
+// hub-envio-massa FASE 4 (tasks.md 4.1.6) — histórico leve de importação,
+// fire-and-forget, chamado só dentro de POST /upload (ver guard viaHub lá).
+const { registrarImportacaoEnvioMassa } = require('./lib/hub-envio-massa-import-log');
+
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
 // validacao-xml-lote (FASE 0, CHK113/CHK022): instância dedicada do multer para
@@ -412,7 +422,7 @@ app.post('/token/refresh', async (req, res) => {
 
 
 // Rota de CRUD para EnvioMassa
-app.get('/envio-massa', authenticateToken, async (req, res) => {
+app.get('/envio-massa', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
   let idEmp;
   try {
     // movimento-por-filial: threading empresa_id (FR-009)
@@ -916,7 +926,7 @@ async function updateEnvioMassa(id, enviado, mensagem, tipo, idEmp) {
 // migrar-cnpj-motorista: estendido com suporte a cnpj_prestador — ordem [A]..[H] do contrato.
 // Filtro composto id+id_empresa na query PostgREST fecha o IDOR (OWASP API4:2023 / CWE-862):
 // se o registro não pertencer à empresa-alvo, PostgREST retorna [] — respondemos 404.
-app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
+app.patch('/update-envio-massa/:id', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.criar'), async (req, res) => {
     const { id } = req.params;
     const { enviado, mensagem, tipo } = req.body;
 
@@ -1020,7 +1030,7 @@ app.patch('/update-envio-massa/:id', authenticateToken, async (req, res) => {
 });
 
 // Endpoint para deletar registro da tabela EnvioMassa
-app.delete('/envio-massa/:id', authenticateToken, async (req, res) => {
+app.delete('/envio-massa/:id', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.aprovar'), async (req, res) => {
     const { id } = req.params;
 
     // movimento-por-filial: empresa_id pode vir via query string
@@ -1278,7 +1288,7 @@ async function updateProcessControl(userId, status, executionId = null) {
 }
 
 // Endpoint para iniciar o processo
-app.post('/start-process', authenticateToken, async (req, res) => {
+app.post('/start-process', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), async (req, res) => {
     try {
         const userId = req.user.empresaId;
 
@@ -1300,7 +1310,7 @@ app.post('/start-process', authenticateToken, async (req, res) => {
 });
 
 // Endpoint para verificar o status do processo
-app.get('/process-status', authenticateToken, async (req, res) => {
+app.get('/process-status', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
     try {
         const userId = req.user.empresaId;
 
@@ -1318,7 +1328,7 @@ app.get('/process-status', authenticateToken, async (req, res) => {
 });
 
 
-app.post('/stop-process', authenticateToken, async (req, res) => {
+app.post('/stop-process', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), async (req, res) => {
     try {
         const userId = req.user.empresaId;
 
@@ -1598,7 +1608,7 @@ function toTimestamptzMidnightSP(input) {
 }
 
 // Rota de Upload de arquivo
-app.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
+app.post('/upload', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.criar'), upload.single('file'), async (req, res) => {
   try {
     console.error('[UPLOAD] >>> Início da rota /upload');
 
@@ -1656,11 +1666,37 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
     const filePath = path.join(__dirname, req.file.path);
     console.error('[UPLOAD] Lendo arquivo XLSX em:', filePath);
 
+    // hub-envio-massa FASE 4 (tasks.md 4.1.6) — histórico leve de
+    // importação, fire-and-forget (research.md Decision 9). Só grava
+    // quando a sessão é do hub (guard viaHub, FR-018 — sessão legada nunca
+    // gera log); guard de flag HUB_IMPORT_LOG_ENVIO já é interno ao helper
+    // (FR-010). NUNCA bloqueia nem altera a resposta HTTP de /upload.
+    const logImportacaoEnvioMassa = (totalLinhas, linhasValidas, linhasInvalidas) => {
+      if (req.hubContext && req.hubContext.viaHub === true) {
+        let bufferArquivo = null;
+        try {
+          bufferArquivo = fs.readFileSync(filePath);
+        } catch (eBuf) {
+          console.error('[UPLOAD] log de importação: falha ao ler buffer p/ hash (best-effort):', eBuf.message);
+        }
+        registrarImportacaoEnvioMassa({
+          empresaId: req.user.empresaId,
+          usuarioId: req.hubContext.usuarioId,
+          nomeArquivo: req.file.originalname,
+          arquivo: bufferArquivo,
+          totalLinhas,
+          linhasValidas,
+          linhasInvalidas,
+        });
+      }
+    };
+
     let workbook;
     try {
       workbook = xlsx.readFile(filePath);
     } catch (e) {
       console.error('[UPLOAD] Erro ao ler XLSX:', e);
+      logImportacaoEnvioMassa(0, 0, 0);
       return res.status(400).json({
         success: false,
         message: 'Arquivo inválido. Não foi possível ler a planilha.',
@@ -1671,6 +1707,7 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
     const sheetName = workbook.SheetNames?.[0];
     if (!sheetName) {
       console.error('[UPLOAD] Planilha sem abas');
+      logImportacaoEnvioMassa(0, 0, 0);
       return res.status(400).json({
         success: false,
         message: 'A planilha não possui abas.'
@@ -1683,6 +1720,7 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
 
     if (!Array.isArray(rows) || rows.length === 0) {
       console.error('[UPLOAD] Planilha vazia');
+      logImportacaoEnvioMassa(0, 0, 0);
       return res.status(400).json({
         success: false,
         message: 'A planilha está vazia.'
@@ -1776,6 +1814,11 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
         id_empresa: idEmp
       });
     });
+
+    // hub-envio-massa FASE 4 (tasks.md 4.1.6) — parse+validação terminaram
+    // (sucesso ou falha); grava o log ANTES de qualquer return abaixo,
+    // cobrindo tanto o caminho de erro de validação quanto o de sucesso.
+    logImportacaoEnvioMassa(rows.length, dataToInsert.length, errors.length);
 
     // ---- Se houver qualquer erro de validação, loga no container e retorna 400 ----
     if (errors.length > 0) {
@@ -1881,7 +1924,7 @@ app.post('/upload', authenticateToken, upload.single('file'), async (req, res) =
 
 
 // Rota para exportar dados da tabela EnvioMassa em CSV
-app.get('/export-envio-massa', authenticateToken, async (req, res) => {
+app.get('/export-envio-massa', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
   let idEmp;
   try {
     // movimento-por-filial: threading empresa_id (FR-010)
@@ -1976,7 +2019,7 @@ function getNFeKeyFromNotaOk(notaOkRaw) {
 }
 
 // Rota para baixar XMLs do movimento em aberto em um arquivo ZIP
-app.get('/download-xml-movimento', authenticateToken, async (req, res) => {
+app.get('/download-xml-movimento', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
   let idEmp;
   try {
     // movimento-por-filial: threading empresa_id (FR-011)
@@ -2244,7 +2287,7 @@ function xmlBatchUpload(req, res, next) {
 // Casa cada XML com um movimento ABERTO da empresa-alvo e persiste o resultado
 // no registro EXISTENTE via PATCH por id — NUNCA sobrescreve nota APROVADA (gate
 // central). Usa uploadXmlBatch (limite 2 MB/arquivo, 100 arquivos — FASE 0).
-app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, res) => {
+app.post('/validate-xml-batch', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), xmlBatchUpload, async (req, res) => {
   var files = req.files || [];
 
   if (files.length === 0) {
@@ -2527,7 +2570,7 @@ app.post('/validate-xml-batch', authenticateToken, xmlBatchUpload, async (req, r
 });
 
 // Rota para fechar o movimento
-app.post('/close-movimento', authenticateToken, async (req, res) => {
+app.post('/close-movimento', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.aprovar'), async (req, res) => {
   // movimento-por-filial: empresa_id pode vir via body JSON
   let idEmp;
   try {

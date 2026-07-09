@@ -1,0 +1,40 @@
+{
+  "hub": {
+    "botoes_editar": 4,
+    "botoes_excluir": 4,
+    "aria_labels_normalizados": [
+      "Abrir menu de módulos",
+      "Editar registro <nome>",
+      "Excluir registro <nome>",
+      "Próxima página",
+      "Página 1",
+      "Página anterior",
+      "Area de upload de arquivos XML. Clique ou arraste arquivos."
+    ],
+    "tabelas": 1,
+    "checkboxes": 11,
+    "upload_xml_area": 1,
+    "inputs_arquivo_acessiveis": 1,
+    "botoes_sem_nome_acessivel": 0
+  },
+  "legado": {
+    "botoes_editar": 4,
+    "botoes_excluir": 4,
+    "aria_labels_normalizados": [
+      "Abrir menu",
+      "Alternar tema",
+      "Editar registro <nome>",
+      "Excluir registro <nome>",
+      "Próxima página",
+      "Página 1",
+      "Página anterior",
+      "Sair",
+      "Selecionar filial"
+    ],
+    "tabelas": 1,
+    "checkboxes": 10,
+    "upload_xml_area": 0,
+    "inputs_arquivo_acessiveis": 0,
+    "botoes_sem_nome_acessivel": 0
+  }
+}

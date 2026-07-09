@@ -1225,3 +1225,148 @@ rebuildado (cap `--memory=2g`, sem swap). Seed de volume DELETADO ao final
 
 **Pendências**: revisão/merge do PR #60 (ressalva SC-004 RESOLVIDA;
 permanecem CHK022/CHK024 `{humano}` e o trailer de commit).
+
+---
+
+## 2026-07-09 — S8 (Módulo Envio em Massa) CONCLUÍDA — 6 fases via /feature-00c, review-task pendente
+
+**Fechou:** `hub-envio-massa` (S8, re-hospedagem do fluxo legado de envio em
+massa dentro do shell do hub, sem reescrever lógica de negócio) — 12 tarefas /
+73 subtarefas do `docs/specs/hub-envio-massa/tasks.md`, 75/78 checkboxes
+`[x]`, os 2 remanescentes (6.2.1-6.2.3, agrupados sob o mesmo achado —
+contam como 1 gap `{humano}`, CHK018/CHK037) formalmente deferidos com
+Decisão auditável (dec-050/052/053 — ver "Achados" abaixo). 6 fases: (1)
+migration `0032` (permissão `envio_massa.administrar`) + matriz explícita
+ação×papel (fecha CHK006); (2) middlewares novos
+`hubEnvioMassaClaimsBridge` + `hubEnvioMassaRequirePermission` com flag
+`HUB_RBAC_ENVIO`; (3) integração nos 11 endpoints legados de `server.js` —
+diff mínimo confirmado objetivamente (exatamente 11 linhas `-` de
+substituição de rota, zero lógica de negócio tocada,
+`evidencias/diff-endpoints-legados.txt`); (4) histórico leve de importação
+(`ImportacaoArquivo` tipo=`envio_massa`, flag `HUB_IMPORT_LOG_ENVIO`,
+fire-and-forget best-effort); (5) tela `/hub/dashboard/envio_massa`
+reaproveitando 100% dos componentes/hooks do painel legado (zero código de
+UI novo) + smoke de a11y real via Playwright (fecha CHK031); (6) E2E
+completo 3 papéis + suíte legada + evidências finais. Branch
+`feat/hub-envio-massa`, 13 commits, HEAD `088a100`. PR ainda não aberto
+(abertura é responsabilidade da fase `review-task`, mínimo `sonnet` — lição
+repetida de S6/S7, `haiku` já confabulou fechamento nesta e em execuções
+anteriores).
+
+**Nota de processo:** durante o fechamento (onda-012/013 do
+`feature-00c`), uma sessão Claude Code independente e concorrente (mesmo
+repositório, fora do lock do `feature-00c`) commitou diretamente na mesma
+branch, completando de verdade o smoke de a11y (5.2, antes planejado para
+deferimento) e um insumo complementar para 6.2. Sem conflito/perda de
+trabalho (confirmado por `git diff`/`git log`), mas registrado como risco
+de coordenação para sessões futuras — ver dec-053.
+
+**Evidências:** `docs/specs/hub-envio-massa/tasks.md`;
+`evidencias/diff-endpoints-legados.txt` (relatório FASE 3.2, 217 linhas);
+`evidencias/e2e-run-20260709T082218Z.log` (E2E completo — Cenários 1-6 +
+SC-003 + 4.1.8, ambiente efêmero `hub-test-1783585338`, 100% `PASS`);
+`evidencias/npm-test-20260709T082325Z.log` (suíte legada 466 testes, 458
+pass / 8 fail pré-existentes de `motorista-integration.test.js`, zero
+regressão, `git diff` confirma zero alteração em arquivo de teste
+pré-existente); `evidencias/5.1.6-roundtrip-sem-entidade-ativa.txt`
+(roundtrip real contra `hub-homolog` vivo, `error.code=SEM_ENTIDADE_ATIVA`
+byte a byte via Traefik→Next→backend); `evidencias/5.2.1-tab-walk.json` +
+`5.2.2-aria-hub-vs-legado.json` + `5.2.3-smoke-a11y-resultado.txt` (a11y
+smoke real via Playwright contra `hub-homolog`, 2/2 passed, paridade ARIA
+100% com o painel legado); `evidencias/6.2.3-decisao-fr014-fr006-
+insumo.txt` (análise complementar do achado de segurança, corrobora
+independentemente a leitura abaixo).
+
+**Achados / bug real corrigido:** o proxy do Next
+(`app/api/[...path]/route.ts`) usava um único `BACKEND_URL` com sufixo
+`/api` (dec-031, S7) — servia as rotas do hub mas quebrava (404) toda rota
+LEGADA consumida pela tela nova de envio em massa. Corrigido de forma
+aditiva com `HUB_BACKEND_URL` (só paths `/v1/*`; ausente → fallback
+`BACKEND_URL`, produção não define a var nova e permanece byte a byte
+idêntica) — commit `2a1c23a`.
+
+**Achado de segurança pré-existente (não introduzido por esta feature):** o
+próprio script E2E confirmou que `ENVIO_DRY_RUN` (documentado em
+`RUNBOOK.md`/`.env.hub.*.example` desde a S1) NÃO é lido por nenhum
+`process.env` em `server.js` — `sendMessage()` e `POST /validate-xml-batch`
+usam URLs HARDCODED de produção real (`api.chatmasterveloz.com`,
+`fastapihomologacao*.todo-tips.com`). O E2E nunca exercitou esses caminhos
+por desenho de cenário (nunca por uma proteção de env var os desviar).
+Confirmado que é gap pré-existente do fluxo legado — o diff da FASE 3.2 não
+toca nenhuma linha de `sendMessage`/`validate-xml-batch`, e corrigi-lo
+estaria fora do escopo desta feature (FR-015 proíbe alteração de lógica de
+negócio). CHK018/CHK037 já eram gaps `{humano}` desde a fase `checklist`
+(dec-018) — **permanecem em aberto, decisão formal deferida ao dono do
+produto** (dec-050/052). Recomendação registrada para quando alguém decidir
+endereçar: introduzir a leitura real de `ENVIO_DRY_RUN`/allowlist em
+`sendMessage`/`validate-xml-batch` é mudança de lógica de negócio do fluxo
+legado, deveria ser uma feature própria (fora do escopo "diff mínimo,
+zero lógica de negócio" que rege toda a S8).
+
+**Pendências (gaps `{humano}` remanescentes, nenhum bloqueante de
+segurança introduzido por esta feature — decisão do dono do produto):**
+CHK018 (SC-006 sem mecanismo automatizável que re-verifique
+`ENVIO_DRY_RUN` no escopo desta feature — ver achado acima) e CHK037
+(independência textual FR-014/FR-006, mesma causa-raiz de CHK018). CHK031
+(a11y) foi fechado nesta execução com evidência real (Playwright, ver
+"Nota de processo" acima). Mesmo padrão de ressalva formal já aceito pelo
+operador em `hub-faturamento` (PR #59) e `hub-performance` (PR #60).
+Próximo passo: fase `review-task` (mínimo `sonnet`) → PR draft.
+
+**Ponteiros:** branch `feat/hub-envio-massa` (HEAD `2a1c23a`, sem push);
+`AGENTE_00C_STATE_DIR=.claude/feature-00c-state/hub-envio-massa`,
+`current_stage` avança para `review-task` ao fechar esta onda (onda-012).
+
+## 2026-07-09 — S8 (Módulo Envio em Massa) REVIEW-TASK CONCLUÍDA — APROVAR COM RESSALVA
+
+**Onda-014** (`/feature-00c-resume`, sonnet por override dec-055 — precedente
+dec-038/dec-031: review-task nunca em haiku). Auditoria em disco (não em
+resumo de sessão): HEAD `98ff9e3` (2 commits de correção de contagem do
+DIARIO após `088a100`), branch limpa, 18 commits ahead de `main`, sem push.
+Confirmado literalmente: 75/78 `[x]` em `tasks.md`; 62/62 `PASS` (0 `FAIL`)
+em `evidencias/e2e-run-20260709T082218Z.log`; suíte legada 458 pass/8 fail
+pré-existentes, zero regressão; diff de `server.js` = wiring aditivo de
+middlewares + histórico fire-and-forget, zero linha de lógica de negócio
+pré-existente tocada; gate `owasp-security` (dec-016) 0 CRITICAL/HIGH.
+
+**Achados corrigidos nesta onda:**
+1. `.tasks[]` (camada B, knowledge-db) estava incompleto — tasks 5.2/6.1/6.3
+   concluídas no `tasks.md` sem outcome gravado (o `execute-task` pulou o
+   `record-task` ao vivo, provavelmente durante a reconciliação da sessão
+   concorrente). Sanado via `state-ondas.sh reconcile-tasks` (back-fill
+   idempotente, `--if-absent`) — `.tasks[]` 10→13, 0 half-records
+   confirmado por `state-decisions-reconcile.sh check`.
+2. `checklists/requirements.md` nunca foi re-sincronizado após a fase
+   `checklist` (único commit, `2d7c76e`) — `CHK006`/`CHK010`/`CHK031`
+   seguem `[ ]` apesar de evidência real de fechamento (dec-040/052/053).
+   Não bloqueante; registrado como follow-up leve de doc-hygiene.
+
+**Veredito:** `aprovar-com-ressalva` (dec-059) — mesmo padrão já aceito pelo
+operador em `hub-faturamento` (PR #59) e `hub-performance` (PR #60). Nenhuma
+regressão de segurança introduzida por esta feature; o gap remanescente
+(`ENVIO_DRY_RUN`/allowlist não lidos via `process.env` em `sendMessage`/
+`validate-xml-batch`) é pré-existente do fluxo legado, confirmado fora do
+diff desta feature, e formalmente deferido (tasks 6.2.1–6.2.3,
+CHK018/CHK037 permanecem `{humano}` por decisão, não por omissão).
+Relatório completo: `docs/specs/hub-envio-massa/review-onda-014.md`.
+
+**`.execution.status` promovido para `concluida`** (state.json, com
+`termination_reason=aprovar-com-ressalva`). **Push/PR NÃO executados nesta
+onda** — aguardando autorização explícita do operador (Governança/Rito de
+Produção, CLAUDE.md).
+
+**Pendências do operador (nenhuma bloqueia o merge por si só):**
+1. Autorizar push de `feat/hub-envio-massa` (HEAD `98ff9e3`) + abertura do PR.
+2. Decidir follow-up do achado `ENVIO_DRY_RUN` (feature própria, fora do
+   escopo "diff mínimo" da S8).
+3. Alinhar geração/rotação de `POSTGREST_API_KEY` real em
+   `.env.hub.homolog` (placeholder `__GERAR__`, pendência operacional desde
+   S1, não uma regressão desta feature).
+4. Gaps `{humano}` remanescentes do checklist: CHK018/CHK037 (decisão
+   formal do dono do produto); CHK006/CHK010/CHK031 têm evidência real mas
+   o arquivo `checklists/requirements.md` não foi re-sincronizado.
+
+**Ponteiros:** branch `feat/hub-envio-massa` (HEAD `98ff9e3`, sem push);
+`AGENTE_00C_STATE_DIR=.claude/feature-00c-state/hub-envio-massa`,
+`.execution.status=concluida`; **S8 fechada do lado da pipeline SDD** —
+falta só o rito de PR/push (operador) para fechar do lado do repositório.

@@ -118,6 +118,12 @@ services:
       FASTAPI_URL: "${FASTAPI_URL}"
       N8N_URL: "${N8N_URL}"
       MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+      # hub-envio-massa (S8): flags reversíveis instantâneas (research.md
+      # Decision 6/FR-006, FR-010) — lidas por request pelo middleware, sem
+      # cache; alterar aqui exige recreate do container p/ efeito. Default
+      # (não setada) = comportamento ligado.
+      HUB_RBAC_ENVIO: "${HUB_RBAC_ENVIO:-}"
+      HUB_IMPORT_LOG_ENVIO: "${HUB_IMPORT_LOG_ENVIO:-}"
       # hub-importacoes FASE 4 (tasks.md 4.6.3) — janela OPCIONAL de teste
       # entre lotes do processador (lib/hub-import-processor.js), usada
       # SOMENTE por infra/hub/testes/hub-import-processor-integration.sh
