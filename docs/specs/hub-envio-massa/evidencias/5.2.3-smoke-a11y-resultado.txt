@@ -1,0 +1,34 @@
+=== 5.2.3 — Smoke de acessibilidade da montagem /hub/dashboard/envio_massa (fecha CHK031) ===
+Data: 2026-07-09T08:38:10Z | Ambiente: hub-homolog isolado | Ferramenta: Playwright (imagem oficial, zero install no host)
+Driver: infra/hub/testes/hub-envio-massa-a11y-smoke.sh | Spec: app_homologacao/frontend_v2/tests/e2e-hub-envio-massa/a11y-smoke.spec.ts
+Resultado Playwright: 2 passed (5.2.1 teclado + 5.2.2 ARIA). Log bruto: 5.2-a11y-smoke-run-20260709T083732Z.log
+
+--- 5.2.1 — Navegação por teclado (Tab/Shift+Tab/Enter/Escape) ---
+Tab-walk registrou 73 paradas de foco percorrendo a página. Cobertura dos 6 grupos de ação exigidos:
+  processo (Iniciar/Parar) ....... alcançado por Tab  ✔
+  upload (Importar XLSX) ......... alcançado por Tab  ✔
+  exportação CSV ................. alcançado por Tab  ✔
+  exportação/Download XML ........ alcançado por Tab  ✔
+  fechamento (Fechar Movimento) .. alcançado por Tab  ✔
+  edição (Editar registro) ....... alcançado por Tab  ✔
+  validação XML (área de upload) . alcançado por Tab  ✔
+Shift+Tab move o foco para trás sem prender. Enter no botão 'Fechar Movimento' abre o
+AlertDialog e Escape o fecha; Enter no botão 'Editar registro' abre o Dialog de edição e
+Escape o fecha — foco/tab-order/ativação por teclado dos componentes reaproveitados
+preservados dentro do shell do hub. Detalhe por parada: 5.2.1-tab-walk.json.
+
+--- 5.2.2 — ARIA: montagem HUB vs painel LEGADO (mesmos componentes, mesmo build) ---
+Comparação estrutural (5.2.2-aria-hub-vs-legado.json), inspecionando as MESMAS queries
+nas duas montagens com dado real da seed 0034 (empresa 9001):
+  botões 'Editar registro' acessíveis:  hub=4  legado=4  → paridade
+  botões 'Excluir registro' acessíveis: hub=4  legado=4  → paridade
+  tabela de dados (role table):         hub=1  legado=1  → paridade
+  botões SEM nome acessível:            hub=0  legado=0  → sem regressão (nenhum dos dois)
+  área de upload XML acessível:         hub=1  legado=0  → o hub agrega o XmlValidationCard
+    na MESMA página (no legado é a rota separada /dashboard/validacao-xml), com
+    aria-label 'Area de upload de arquivos XML...' + input[type=file] rotulado.
+
+CONCLUSÃO (CHK031): a a11y é HERDADA dos componentes já existentes e foi verificada
+empiricamente NESTA nova montagem — nenhuma regressão de foco/tab-order/ARIA introduzida
+pelo reuso dentro do /hub/. Não é auditoria WCAG completa (a spec não pede); é o smoke
+que a tarefa 5.2 exige, com evidência automatizada e reexecutável.
