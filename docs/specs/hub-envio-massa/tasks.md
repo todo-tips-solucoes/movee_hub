@@ -108,17 +108,29 @@ Ref: contracts/claims-adapter.md "Middleware: hubEnvioMassaRequirePermission";
 research.md Decision 3/5/6/11 (achado F3); checklists/requirements.md CHK010
 `[Gap]`; spec.md FR-005/FR-006/FR-007/FR-008/SC-005
 
-- [ ] 2.2.1 Criar `app_homologacao/backend/middleware/hub-envio-massa-permission.js`
-- [ ] 2.2.2 `req.hubContext` indefinido (sessão legada) → `next()` incondicional, independente da flag (Decision 5 — modo compatibilidade estrutural, nunca `403` para sessão legada)
-- [ ] 2.2.3 `req.hubContext.viaHub === true` e `process.env.HUB_RBAC_ENVIO === 'off'` → `next()` incondicional (FR-006); leitura da env var **por request**, sem cache de processo (Decision 6 — reversível sem mudança de código, restart aceitável)
-- [ ] 2.2.4 `viaHub === true`, flag ligada (default, fail-safe): consultar `obterPermissoesEfetivasPorEntidade(usuarioId, empresaId)`, `codigo` presente → `next()`; ausente → `403 PERMISSAO_INSUFICIENTE` (FR-007)
-- [ ] 2.2.5 Qualquer exceção na resolução de permissões → `403 PERMISSAO_INSUFICIENTE`, fail-closed, nunca `next()` num catch (mesmo padrão de `middleware/hub-require-permission.js`)
-- [ ] 2.2.6 Teste unit: `tests/hub-envio-massa-permission-unit.test.js` cobrindo sessão legada sempre passa, sessão hub respeita `obterPermissoesEfetivasPorEntidade`, flag `off` sempre passa, exceção → fail-closed, usando a matriz da tarefa 1.2 como fonte dos casos de RBAC positivo/negativo
-- [ ] 2.2.7 **Teste dedicado de cobertura de middleware** (achado F3, MUST): lista fixa das 11 rotas (mesma lista de `contracts/legacy-endpoints.md`) verificada programaticamente contra `app._router.stack` (ou equivalente), confirmando que cada uma tem `hubEnvioMassaClaimsBridge` + `hubEnvioMassaRequirePermission` na cadeia, na ordem certa — falha o teste se uma rota da lista estiver sem os middlewares OU se uma rota fora da lista os tiver por engano
-- [ ] 2.2.8 Registrar as duas suítes novas nos scripts `test`/`test:hub:unit` do `package.json`, sem remover/alterar nenhuma suíte existente (FR-017)
+- [x] 2.2.1 Criar `app_homologacao/backend/middleware/hub-envio-massa-permission.js`
+- [x] 2.2.2 `req.hubContext` indefinido (sessão legada) → `next()` incondicional, independente da flag (Decision 5 — modo compatibilidade estrutural, nunca `403` para sessão legada)
+- [x] 2.2.3 `req.hubContext.viaHub === true` e `process.env.HUB_RBAC_ENVIO === 'off'` → `next()` incondicional (FR-006); leitura da env var **por request**, sem cache de processo (Decision 6 — reversível sem mudança de código, restart aceitável)
+- [x] 2.2.4 `viaHub === true`, flag ligada (default, fail-safe): consultar `obterPermissoesEfetivasPorEntidade(usuarioId, empresaId)`, `codigo` presente → `next()`; ausente → `403 PERMISSAO_INSUFICIENTE` (FR-007)
+- [x] 2.2.5 Qualquer exceção na resolução de permissões → `403 PERMISSAO_INSUFICIENTE`, fail-closed, nunca `next()` num catch (mesmo padrão de `middleware/hub-require-permission.js`)
+- [x] 2.2.6 Teste unit: `tests/hub-envio-massa-permission-unit.test.js` cobrindo sessão legada sempre passa, sessão hub respeita `obterPermissoesEfetivasPorEntidade`, flag `off` sempre passa, exceção → fail-closed, usando a matriz da tarefa 1.2 como fonte dos casos de RBAC positivo/negativo
+- [x] 2.2.7 **Teste dedicado de cobertura de middleware** (achado F3, MUST): lista fixa das 11 rotas (mesma lista de `contracts/legacy-endpoints.md`) verificada programaticamente contra `app._router.stack` (ou equivalente), confirmando que cada uma tem `hubEnvioMassaClaimsBridge` + `hubEnvioMassaRequirePermission` na cadeia, na ordem certa — falha o teste se uma rota da lista estiver sem os middlewares OU se uma rota fora da lista os tiver por engano
+- [x] 2.2.8 Registrar as duas suítes novas nos scripts `test`/`test:hub:unit` do `package.json`, sem remover/alterar nenhuma suíte existente (FR-017)
 - [ ] 2.2.9 Medir empiricamente, no `hub-homolog`, o tempo real entre alternar `HUB_RBAC_ENVIO` no `.env` e o comportamento refletido (restart do serviço) — registrar o número medido como evidência/Decisão auditável, fechando CHK010 pragmaticamente (spec não define um teto numérico; o número medido serve de referência objetiva para SC-005, sem introduzir um SLA não pedido)
 
-  Evidência: <preencher durante execução>
+  Evidência: 2.2.1-2.2.8 concluídos (onda-007). `npm test` rodado na íntegra:
+  432 passam / 20 falham, sendo 8 falhas PRÉ-EXISTENTES
+  (`motorista-integration.test.js`, conhecidas/não-relacionadas, confirmadas
+  isoladas via `node --test tests/motorista-integration.test.js` = mesmas 8) +
+  12 falhas ESPERADAS no bloco "cobertura de middleware" de
+  `hub-envio-massa-permission-unit.test.js` (2.2.7) — vermelho proposital até a
+  FASE 3 (task 3.1) inserir de fato os 2 middlewares nas 11 rotas de
+  `server.js` (Matriz de Dependências F2-->F3); os 9 testes de comportamento
+  (2.2.6) estão 100% verdes. 2.2.9 ADIADO para a FASE 3 (após 3.1, antes de
+  3.1.13): medir o toggle real da flag exige o middleware já wireado numa rota
+  viva sob `hub-homolog`, e o achado de ambiente (dec-027) ainda precisa ser
+  resolvido para o backend legado rodar contra o banco isolado do hub — sem
+  isso a medição seria sintética/sem valor. Ver dec-029 no state da execução.
 
 ---
 
