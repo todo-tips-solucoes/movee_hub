@@ -235,7 +235,13 @@ function invalidarUsuario(usuarioId) {
   }
 }
 
-/** Limpa o cache inteiro — uso exclusivo de testes. */
+/**
+ * Limpa o cache inteiro. Uso em testes E em produção: chamado por
+ * `routes/hub-papeis.js` (S9, tasks.md 4.3.5) após todo toggle bem-sucedido
+ * da matriz papel×permissão — uma mudança na matriz afeta um conjunto
+ * NÃO-ENUMERADO de usuários (todos com aquele papel, em qualquer entidade),
+ * diferente de `invalidarUsuario` (1 usuário só) — research.md Decision 6.
+ */
 function limparCache() {
   cache.clear();
 }

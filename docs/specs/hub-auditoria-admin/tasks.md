@@ -477,13 +477,50 @@ Ref: contracts/papeis-api.md (GET/PUT `/papeis`); data-model.md dec-008/
 dec-009; spec.md FR-010/FR-016; checklists/requirements.md follow-up CHK033
 n/a (papéis não editáveis, só a matriz de permissões)
 
-- [ ] 4.3.1 Criar `app_homologacao/backend/routes/hub-papeis.js`, montado sob `requireModuloAtivo('usuarios')` (a matriz vive sob o módulo `usuarios` — research Decision 10)
-- [ ] 4.3.2 Implementar `GET /papeis` com `requirePermission('usuarios.gerenciar')`: retorna `papeis` (catálogo fixo — dec-008), `permissoes`, `matriz` (pares papelId/permissaoId ativos) e `podeEditar` (`true` só quando o chamador tem `admin.gerenciar` E vínculo ativo `admin_plataforma`)
-- [ ] 4.3.3 Implementar `PUT /papeis/:papelId/permissoes/:permissaoId` com `requirePermission('admin.gerenciar')`, chamando a RPC `hub_papel_permissao_set` (dupla barreira: middleware + guard SQL); `409 OPERACAO_BLOQUEADA` quando a RPC recusar por anti-lockout (`ERRCODE 42501` mapeado)
-- [ ] 4.3.4 Confirmar explicitamente que NÃO existe rota de criar/editar/excluir papel — catálogo fixo (dec-008/FR-016); nenhuma tentativa de insert direto na tabela `Papel` é possível (RLS sem política de escrita, já garantida na FASE 1 por AUSÊNCIA de mudança)
-- [ ] 4.3.5 Chamar `limparCache()` global do RBAC após todo toggle bem-sucedido da matriz (research Decision 6 — mudança afeta conjunto não-enumerado de usuários) e registrar auditoria `papel_permissao_alterada` com `detalhes: { papel, permissao, ativo }`
-- [ ] 4.3.6 Montar `hubPapeisRoutes.router` em `server.js` sob `/api/v1/papeis` (diff mínimo)
-- [ ] 4.3.7 Teste integração: admin_entidade vê a matriz com `podeEditar:false` e `403` em qualquer `PUT` (Cenário 6 passos 1/2); admin_plataforma edita com sucesso e a mudança reflete no `GET` seguinte e nas permissões efetivas de usuários com aquele papel (Cenário 6 passo 3); `409 OPERACAO_BLOQUEADA` ao tentar desmarcar `(admin_plataforma, admin.gerenciar)` (guard anti-lockout); tentativa de criar/excluir papel por qualquer via é negada (Cenário 6 passo 4)
+- [x] 4.3.1 Criar `app_homologacao/backend/routes/hub-papeis.js`, montado sob `requireModuloAtivo('usuarios')` (a matriz vive sob o módulo `usuarios` — research Decision 10)
+- [x] 4.3.2 Implementar `GET /papeis` com `requirePermission('usuarios.gerenciar')`: retorna `papeis` (catálogo fixo — dec-008), `permissoes`, `matriz` (pares papelId/permissaoId ativos) e `podeEditar` (`true` só quando o chamador tem `admin.gerenciar` E vínculo ativo `admin_plataforma`)
+- [x] 4.3.3 Implementar `PUT /papeis/:papelId/permissoes/:permissaoId` com `requirePermission('admin.gerenciar')`, chamando a RPC `hub_papel_permissao_set` (dupla barreira: middleware + guard SQL); `409 OPERACAO_BLOQUEADA` quando a RPC recusar por anti-lockout (`ERRCODE 42501` mapeado)
+- [x] 4.3.4 Confirmar explicitamente que NÃO existe rota de criar/editar/excluir papel — catálogo fixo (dec-008/FR-016); nenhuma tentativa de insert direto na tabela `Papel` é possível (RLS sem política de escrita, já garantida na FASE 1 por AUSÊNCIA de mudança)
+- [x] 4.3.5 Chamar `limparCache()` global do RBAC após todo toggle bem-sucedido da matriz (research Decision 6 — mudança afeta conjunto não-enumerado de usuários) e registrar auditoria `papel_permissao_alterada` com `detalhes: { papel, permissao, ativo }`
+- [x] 4.3.6 Montar `hubPapeisRoutes.router` em `server.js` sob `/api/v1/papeis` (diff mínimo)
+- [x] 4.3.7 Teste integração: admin_entidade vê a matriz com `podeEditar:false` e `403` em qualquer `PUT` (Cenário 6 passos 1/2); admin_plataforma edita com sucesso e a mudança reflete no `GET` seguinte e nas permissões efetivas de usuários com aquele papel (Cenário 6 passo 3); `409 OPERACAO_BLOQUEADA` ao tentar desmarcar `(admin_plataforma, admin.gerenciar)` (guard anti-lockout); tentativa de criar/excluir papel por qualquer via é negada (Cenário 6 passo 4)
+
+  Evidência: `app_homologacao/backend/routes/hub-papeis.js` (novo, GET `/` +
+  PUT `/:papelId/permissoes/:permissaoId`), montado em `server.js` sob
+  `/api/v1/papeis` (diff mínimo). RPC `hub_papel_permissao_set` (migration
+  0037) levanta `ERRCODE 42501` em 2 cenários com a MESMA classe de erro
+  (PostgREST mapeia ambos p/ 403) — distinguidos pelo TEXTO da mensagem:
+  substring `anti-lockout` -> `409 OPERACAO_BLOQUEADA`; caso contrário ->
+  `403 PERMISSAO_NEGADA`. `limparCache()` (comentário do arquivo atualizado
+  — deixou de ser "uso exclusivo de testes") chamado após todo toggle
+  bem-sucedido; auditoria `papel_permissao_alterada` com
+  `detalhes:{papel,permissao,ativo}`. 4.3.4 confirmado por AUSÊNCIA: nenhum
+  handler POST/DELETE em `Papel` existe em nenhum arquivo do repo (RLS sem
+  política de escrita desde a fundação, inalterada por esta feature).
+
+  Teste de integração AO VIVO (Docker real, `hub-test-<runid>` efêmero
+  descartado ao final, seed com usuário admin_plataforma REAL —
+  `infra/hub/migrations` até 0039 inclusive aplicadas):
+  `infra/hub/testes/hub-papeis-integration.sh` (novo) + wrapper
+  `tests/hub-papeis.test.js`. Saída final:
+  `HUB-PAPEIS-INTEGRATION: OK — todos os asserts passaram (FASE 4.3)`,
+  21/21 `PASS:` (0 FAIL) cobrindo: 401 sem cookie; admin_entidade
+  `GET /papeis` 200 com `podeEditar:false` e catálogo de 4 papéis
+  (dec-008); admin_entidade `PUT` -> 403 PERMISSAO_NEGADA (Cenário 6
+  passos 1/2); admin_plataforma `GET /papeis` 200 com `podeEditar:true`;
+  toggle não-crítico (`admin_plataforma`/`motoristas.criar`) desmarca (200,
+  `ativo:false`) e o `GET` seguinte já não mostra a célula (refletido sem
+  esperar TTL — `limparCache()` global), depois remarca (200, `ativo:true`)
+  (Cenário 6 passo 3); guard anti-lockout ao tentar desmarcar
+  `(admin_plataforma, admin.gerenciar)` -> `409 OPERACAO_BLOQUEADA`,
+  confirmado também via `psql` direto que a célula NÃO foi removida do
+  banco; `papelId`/`permissaoId` inexistentes -> `404
+  PAPEL_NAO_ENCONTRADO`/`PERMISSAO_NAO_ENCONTRADA`; 2 eventos de auditoria
+  `papel_permissao_alterada` confirmados via `psql` (desmarcar+remarcar).
+  Nenhuma rota de criar/excluir papel existe — não há o que testar em
+  "tentativa negada" além da ausência estrutural já confirmada em 4.3.4
+  (Cenário 6 passo 4 satisfeito por construção, não por um endpoint que
+  rejeita).
 
   Evidência: _preencher na execução_
 

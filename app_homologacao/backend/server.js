@@ -76,6 +76,13 @@ const hubPerformanceRoutes = require('./routes/hub-performance');
 // router. Arquivo 100% novo (routes/hub-usuarios.js).
 const hubUsuariosRoutes = require('./routes/hub-usuarios');
 
+// hub-auditoria-admin (S9, FASE 4.3) — GET /api/v1/papeis (matriz
+// papel×permissão, leitura) + PUT /api/v1/papeis/:papelId/permissoes/
+// :permissaoId (toggle, exclusivo admin_plataforma via RPC SECURITY
+// DEFINER). requireModuloAtivo('usuarios') + requirePermission aplicados
+// dentro do próprio router. Arquivo 100% novo (routes/hub-papeis.js).
+const hubPapeisRoutes = require('./routes/hub-papeis');
+
 // hub-envio-massa (S8 do hub de frota, FASE 3) — os 11 endpoints legados de
 // envio em massa abaixo ganham 2 middlewares novos na cadeia (claims-bridge +
 // gate de permissão RBAC), atuando somente quando a sessão é do hub
@@ -2750,6 +2757,11 @@ app.use('/api/v1/performance', hubPerformanceRoutes.router);
 // gerenciar') são aplicados dentro do próprio router (mesmo padrão do bloco
 // /api/v1/performance acima).
 app.use('/api/v1/usuarios', hubUsuariosRoutes.router);
+
+// hub-auditoria-admin (S9, FASE 4.3) — /api/v1/papeis (matriz
+// papel×permissão). requireModuloAtivo/requirePermission aplicados dentro
+// do próprio router (mesmo padrão do bloco /api/v1/usuarios acima).
+app.use('/api/v1/papeis', hubPapeisRoutes.router);
 
 // hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
 // boot: um restart no meio de uma importação (deploy) deixa o registro
