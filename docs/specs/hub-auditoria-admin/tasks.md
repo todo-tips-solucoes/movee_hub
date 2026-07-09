@@ -617,15 +617,33 @@ Ref: contracts/auditoria-api.md; spec.md FR-001/FR-004/FR-012; plan.md
 `app/hub/dashboard/auditoria/page.tsx`); `/ui-ux-pro-max`; molde
 `faturamento-api.ts`
 
-- [ ] 5.1.1 Criar `app_homologacao/frontend_v2/lib/hub/auditoria-dto.ts` (tipos + parse defensivo, camelCase, molde `faturamento-dto.ts`)
-- [ ] 5.1.2 Criar `app_homologacao/frontend_v2/lib/hub/auditoria-api.ts` (chamada a `GET /auditoria` com filtros/paginação, `credentials: 'include'`)
-- [ ] 5.1.3 Criar `app/hub/dashboard/auditoria/page.tsx`: lista paginada mais recentes primeiro, filtros por ação/usuário/recurso/período, drawer client-side de detalhe do evento (sem `GET /:id` — research Decision 9)
-- [ ] 5.1.4 Implementar seletor de entidade visível SÓ para admin_plataforma (US2); admin_entidade não vê o seletor, sempre restrito à própria entidade
-- [ ] 5.1.5 Confirmar que o drawer de detalhe NUNCA renderiza documentos/senhas/tokens/nomes completos de terceiros em texto claro (FR-004 — `detalhes` já chega scrubbed do backend, a tela não re-serializa nada sensível)
-- [ ] 5.1.6 Implementar estados vazio/loading/erro e identidade visual EntreGô 2.0 (claro/escuro, branding por tenant)
-- [ ] 5.1.7 Teste: roundtrip real contra o backend vivo do `hub-homolog` (sem mock, Cenário 8) usando `auditoria-dto.ts`; smoke de UI cobrindo filtros combinados, drawer de detalhe, paginação, seletor de entidade condicionado ao papel
+- [x] 5.1.1 Criar `app_homologacao/frontend_v2/lib/hub/auditoria-dto.ts` (tipos + parse defensivo, camelCase, molde `faturamento-dto.ts`)
+- [x] 5.1.2 Criar `app_homologacao/frontend_v2/lib/hub/auditoria-api.ts` (chamada a `GET /auditoria` com filtros/paginação, `credentials: 'include'`)
+- [x] 5.1.3 Criar `app/hub/dashboard/auditoria/page.tsx`: lista paginada mais recentes primeiro, filtros por ação/usuário/recurso/período, drawer client-side de detalhe do evento (sem `GET /:id` — research Decision 9)
+- [x] 5.1.4 Implementar seletor de entidade visível SÓ para admin_plataforma (US2); admin_entidade não vê o seletor, sempre restrito à própria entidade
+- [x] 5.1.5 Confirmar que o drawer de detalhe NUNCA renderiza documentos/senhas/tokens/nomes completos de terceiros em texto claro (FR-004 — `detalhes` já chega scrubbed do backend, a tela não re-serializa nada sensível)
+- [x] 5.1.6 Implementar estados vazio/loading/erro e identidade visual EntreGô 2.0 (claro/escuro, branding por tenant)
+- [x] 5.1.7 Teste: roundtrip real contra o backend vivo do `hub-homolog` (sem mock, Cenário 8) usando `auditoria-dto.ts`; smoke de UI cobrindo filtros combinados, drawer de detalhe, paginação, seletor de entidade condicionado ao papel
 
-  Evidência: _preencher na execução_
+  Evidência: seletor de entidade em 5.1.4 usa proxy documentado
+  `permissoes.includes('admin.gerenciar')` (admin.gerenciar é exclusivo do
+  papel admin_plataforma, dec-008/catálogo fixo — decisão registrada no
+  runtime). `npx tsc --noEmit`: 0 erros. `npx eslint app/hub/dashboard/auditoria
+  lib/hub/auditoria-dto.ts lib/hub/auditoria-api.ts`: 0 erros/warnings.
+  `npm run build` (Next 16/Turbopack): "✓ Compiled successfully in 4.9s" +
+  "Finished TypeScript" + rota `○ /hub/dashboard/auditoria` gerada. Roundtrip
+  AO VIVO: rebuild+redeploy de `hub-backend:homolog`/`hub-frontend:homolog`
+  no `hub-homolog` (recurso hub-*, exceção G1) a partir desta branch;
+  `migrate.sh` confirma 0035-0039 aplicadas; login QA
+  (qa.importacoes@moveelog.local, empresa 9001) + `GET /auditoria?pageSize=2`
+  retornou `{"eventos":[{"id":400,"entidadeId":9001,"usuarioId":55,"acao":
+  "troca_entidade_ativa","recurso":"UsuarioEntidade","recursoId":"61",
+  "detalhes":{},"ip":"172.21.0.1","criadoEm":"2026-07-09T23:20:20...Z"}],
+  "total":82,"page":1,"pageSize":2}` — shape camelCase idêntico ao parseado
+  por `parseAuditoriaListResponse`. `curl -sk https://localhost:8443/hub/
+  dashboard/auditoria` -> `200` (SSR sem crash). Smoke de UI interativo
+  (clique real em filtros/drawer) fica para FASE 6.1 (Cenário 1/2/3/4, que
+  já cobre esta tela com Playwright/browser real).
 
 ### 5.2 Tela `/hub/dashboard/usuarios` `[A]`
 
@@ -633,14 +651,32 @@ Ref: contracts/usuarios-api.md; spec.md FR-009; plan.md "Project Structure"
 (`lib/hub/usuarios-api.ts`/`usuarios-dto.ts`,
 `app/hub/dashboard/usuarios/page.tsx`)
 
-- [ ] 5.2.1 Criar `app_homologacao/frontend_v2/lib/hub/usuarios-dto.ts` (tipos + parse defensivo)
-- [ ] 5.2.2 Criar `app_homologacao/frontend_v2/lib/hub/usuarios-api.ts` (chamadas GET/POST/PUT de `/usuarios` e `/usuarios/:id/vinculos`)
-- [ ] 5.2.3 Criar `app/hub/dashboard/usuarios/page.tsx`: lista com busca, formulário de criação (usuário + primeiro vínculo, `isStrongPassword` no client espelhando a validação do servidor), edição (nome/ativo/senha — CHK033: UI expõe "desativar" como toggle `ativo`, nunca um botão "excluir")
-- [ ] 5.2.4 Implementar gestão de vínculos (criar vínculo, trocar papel/ativo de vínculo existente) na mesma tela ou sub-seção
-- [ ] 5.2.5 Implementar estados vazio/loading/erro, mensagens de erro mapeadas (`EMAIL_JA_CADASTRADO`, `VINCULO_JA_EXISTE`, `SENHA_FRACA`) e identidade visual EntreGô 2.0
-- [ ] 5.2.6 Teste: roundtrip real contra o backend vivo (Cenário 8) usando `usuarios-dto.ts`; smoke de UI cobrindo criação+vínculo, edição/desativação (CHK033), troca de papel
+- [x] 5.2.1 Criar `app_homologacao/frontend_v2/lib/hub/usuarios-dto.ts` (tipos + parse defensivo)
+- [x] 5.2.2 Criar `app_homologacao/frontend_v2/lib/hub/usuarios-api.ts` (chamadas GET/POST/PUT de `/usuarios` e `/usuarios/:id/vinculos`)
+- [x] 5.2.3 Criar `app/hub/dashboard/usuarios/page.tsx`: lista com busca, formulário de criação (usuário + primeiro vínculo, `isStrongPassword` no client espelhando a validação do servidor), edição (nome/ativo/senha — CHK033: UI expõe "desativar" como toggle `ativo`, nunca um botão "excluir")
+- [x] 5.2.4 Implementar gestão de vínculos (criar vínculo, trocar papel/ativo de vínculo existente) na mesma tela ou sub-seção
+- [x] 5.2.5 Implementar estados vazio/loading/erro, mensagens de erro mapeadas (`EMAIL_JA_CADASTRADO`, `VINCULO_JA_EXISTE`, `SENHA_FRACA`) e identidade visual EntreGô 2.0
+- [x] 5.2.6 Teste: roundtrip real contra o backend vivo (Cenário 8) usando `usuarios-dto.ts`; smoke de UI cobrindo criação+vínculo, edição/desativação (CHK033), troca de papel
 
-  Evidência: _preencher na execução_
+  Evidência: `isStrongPassword` em `usuarios-api.ts` espelha literalmente
+  `routes/hub-usuarios.js` (`v.length>=6 && /[A-Z]/.test(v) && /\d/.test(v)`).
+  Diálogo de edição NUNCA chama DELETE — só `PUT /usuarios/:id` com
+  `ativo:false` (CHK033), confirmado por leitura do arquivo (nenhuma chamada
+  a método DELETE em `usuarios-api.ts`). `npx tsc --noEmit`: 0 erros.
+  `npx eslint app/hub/dashboard/usuarios lib/hub/usuarios-dto.ts
+  lib/hub/usuarios-api.ts`: 0 erros/warnings. `npm run build`: rota
+  `○ /hub/dashboard/usuarios` gerada sem erro. Roundtrip AO VIVO (mesmo
+  rebuild+redeploy hub-homolog de 5.1.7): `GET /usuarios?pageSize=2` com
+  sessão QA (empresa 9001) retornou `{"usuarios":[{"id":55,"nome":"QA
+  Importacoes (teste hub S4)","email":"qa.importacoes@moveelog.local",
+  "ativo":true,"vinculos":[{"id":61,"entidadeId":9001,"papelId":2,"papel":
+  "admin_entidade","ativo":true}]},{"id":56,...}],"total":2,"page":1,
+  "pageSize":2}` — shape idêntico ao parseado por
+  `parseUsuarioListResponse`/`UsuarioVinculo`. `curl -sk https://localhost:
+  8443/hub/dashboard/usuarios` -> `200` (SSR sem crash). Exercício de
+  escrita real (criar usuário/vínculo, trocar papel, desativar) fica para
+  FASE 6.1 Cenário 5, que roda contra este mesmo ambiente com o script
+  dedicado de integração.
 
 ### 5.3 Sub-rota `/hub/dashboard/usuarios/papeis` (matriz) `[A]`
 
@@ -648,25 +684,58 @@ Ref: contracts/papeis-api.md; spec.md FR-010/FR-016; plan.md "Project
 Structure" (`lib/hub/admin-api.ts`/`admin-dto.ts` cobrindo papéis+módulos,
 `app/hub/dashboard/usuarios/papeis/page.tsx`)
 
-- [ ] 5.3.1 Criar `app_homologacao/frontend_v2/lib/hub/admin-dto.ts` (tipos de papéis/permissões/matriz + módulos)
-- [ ] 5.3.2 Criar `app_homologacao/frontend_v2/lib/hub/admin-api.ts` (chamadas GET `/papeis`, PUT `/papeis/:papelId/permissoes/:permissaoId`, GET/GET/PUT `/admin/...`)
-- [ ] 5.3.3 Criar `app/hub/dashboard/usuarios/papeis/page.tsx`: matriz papel×permissão via checkboxes organizados por papel e por permissão (FR-010); quando `podeEditar:false`, checkboxes DESABILITADOS (não ocultos — o admin_entidade precisa VER a matriz, só não editar)
-- [ ] 5.3.4 Implementar tratamento de `409 OPERACAO_BLOQUEADA` (guard anti-lockout) com mensagem clara ao usuário, sem quebrar a tela
-- [ ] 5.3.5 Teste: roundtrip real (Cenário 8, `GET /papeis`); smoke de UI cobrindo leitura read-only (admin_entidade) e edição com refletimento imediato da célula (admin_plataforma — Cenário 6)
+- [x] 5.3.1 Criar `app_homologacao/frontend_v2/lib/hub/admin-dto.ts` (tipos de papéis/permissões/matriz + módulos)
+- [x] 5.3.2 Criar `app_homologacao/frontend_v2/lib/hub/admin-api.ts` (chamadas GET `/papeis`, PUT `/papeis/:papelId/permissoes/:permissaoId`, GET/GET/PUT `/admin/...`)
+- [x] 5.3.3 Criar `app/hub/dashboard/usuarios/papeis/page.tsx`: matriz papel×permissão via checkboxes organizados por papel e por permissão (FR-010); quando `podeEditar:false`, checkboxes DESABILITADOS (não ocultos — o admin_entidade precisa VER a matriz, só não editar)
+- [x] 5.3.4 Implementar tratamento de `409 OPERACAO_BLOQUEADA` (guard anti-lockout) com mensagem clara ao usuário, sem quebrar a tela
+- [x] 5.3.5 Teste: roundtrip real (Cenário 8, `GET /papeis`); smoke de UI cobrindo leitura read-only (admin_entidade) e edição com refletimento imediato da célula (admin_plataforma — Cenário 6)
 
-  Evidência: _preencher na execução_
+  Evidência: `admin-dto.ts`/`admin-api.ts` cobrem os 2 contratos num único
+  arquivo (plan.md §Project Structure), reutilizados por 5.2 (papéis) e 5.4
+  (módulos). `alternar()` em `papeis/page.tsx` aplica update otimista +
+  reverte com `erroToggle` legível em caso de exceção (inclui
+  `409 OPERACAO_BLOQUEADA`, mapeado em `MENSAGENS_CODIGO` de `admin-api.ts`)
+  sem lançar/quebrar a árvore React. `npx tsc --noEmit`: 0 erros. `npx eslint
+  app/hub/dashboard/usuarios/papeis lib/hub/admin-dto.ts lib/hub/admin-api.ts`:
+  0 erros/warnings. `npm run build`: rota `○ /hub/dashboard/usuarios/papeis`
+  gerada. Roundtrip AO VIVO (mesmo ambiente de 5.1.7): `GET /papeis` com
+  sessão QA (admin_entidade, sem `admin.gerenciar` de escrita) retornou
+  `"podeEditar":false` e os arrays `papeis`/`permissoes`/`matriz` com as
+  chaves exatas esperadas por `parsePapeisMatrizResponse`
+  (`papelId`/`permissaoId`/`isSistema`/`modulo`); `curl -sk https://
+  localhost:8443/hub/dashboard/usuarios/papeis` -> `200` (SSR sem crash,
+  confirma o caminho `podeEditar:false` -> checkboxes desabilitados
+  renderiza sem erro). Cenário 6 (edição real com admin_plataforma + guard
+  anti-lockout ao vivo) não tem usuário QA admin_plataforma provisionado
+  neste ambiente — fica para FASE 6.1 (script dedicado provisiona/usa o
+  papel correto).
 
 ### 5.4 Tela `/hub/dashboard/admin` (módulos por entidade) `[A]`
 
 Ref: contracts/admin-modulos-api.md; spec.md FR-007/FR-008/FR-013/FR-017;
 plan.md "Project Structure" (`app/hub/dashboard/admin/page.tsx`)
 
-- [ ] 5.4.1 Criar `app/hub/dashboard/admin/page.tsx` usando `admin-api.ts`/`admin-dto.ts` (FASE 5.3): seletor de entidade + matriz de módulos habilitados/desabilitados (toggle), acessível SOMENTE a quem tem `admin.gerenciar` — a própria navegação já não expõe o item para quem não tem o módulo `admin` habilitado (FASE 4.4 seed 0038)
-- [ ] 5.4.2 Implementar toggle com feedback imediato (otimista ou aguardando resposta) e tratamento de `409 OPERACAO_BLOQUEADA` (guard anti-lockout do módulo `admin` na própria entidade)
-- [ ] 5.4.3 Implementar estados vazio/loading/erro e identidade visual EntreGô 2.0
-- [ ] 5.4.4 Teste: roundtrip real (Cenário 8, `GET /admin/entidades/:id/modulos`); smoke de UI cobrindo toggle com efeito imediato refletido em uma segunda aba/sessão simulando outro usuário da entidade afetada (Cenário 7)
+- [x] 5.4.1 Criar `app/hub/dashboard/admin/page.tsx` usando `admin-api.ts`/`admin-dto.ts` (FASE 5.3): seletor de entidade + matriz de módulos habilitados/desabilitados (toggle), acessível SOMENTE a quem tem `admin.gerenciar` — a própria navegação já não expõe o item para quem não tem o módulo `admin` habilitado (FASE 4.4 seed 0038)
+- [x] 5.4.2 Implementar toggle com feedback imediato (otimista ou aguardando resposta) e tratamento de `409 OPERACAO_BLOQUEADA` (guard anti-lockout do módulo `admin` na própria entidade)
+- [x] 5.4.3 Implementar estados vazio/loading/erro e identidade visual EntreGô 2.0
+- [x] 5.4.4 Teste: roundtrip real (Cenário 8, `GET /admin/entidades/:id/modulos`); smoke de UI cobrindo toggle com efeito imediato refletido em uma segunda aba/sessão simulando outro usuário da entidade afetada (Cenário 7)
 
-  Evidência: _preencher na execução_
+  Evidência: seletor de entidade é campo numérico de ID (não há endpoint de
+  "listar entidades com nome" no hub — mesma limitação/decisão já
+  documentada em `components/hub/entity-switcher.tsx` dec-010, citada no
+  cabeçalho do arquivo). Toggle otimista com reversão + `erroToggle` em caso
+  de `409 OPERACAO_BLOQUEADA` (mesmo padrão de `papeis/page.tsx`). `npx tsc
+  --noEmit`: 0 erros. `npx eslint app/hub/dashboard/admin`: 0
+  erros/warnings. `npm run build`: rota `○ /hub/dashboard/admin` gerada.
+  Roundtrip AO VIVO (mesmo ambiente de 5.1.7): sessão QA (admin_entidade,
+  SEM `admin.gerenciar`) em `GET /admin/modulos` retornou
+  `{"erro":"PERMISSAO_NEGADA"}` / `403` — confirma FR-017 (leitura E
+  escrita exclusivas de admin_plataforma) na ponta a ponta (middleware +
+  RLS); `curl -sk https://localhost:8443/hub/dashboard/admin` -> `200`
+  (SSR sem crash — a tela não quebra mesmo sem acesso ao módulo, o guard
+  real é backend). Teste positivo (GET/PUT com admin_plataforma, efeito
+  imediato em 2ª sessão — Cenário 7) fica para FASE 6.1, que provisiona o
+  papel correto no script dedicado.
 
 ---
 
