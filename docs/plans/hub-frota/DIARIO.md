@@ -1232,23 +1232,34 @@ permanecem CHK022/CHK024 `{humano}` e o trailer de commit).
 
 **Fechou:** `hub-envio-massa` (S8, re-hospedagem do fluxo legado de envio em
 massa dentro do shell do hub, sem reescrever lógica de negócio) — 12 tarefas /
-73 subtarefas do `docs/specs/hub-envio-massa/tasks.md`, 72/78 checkboxes
-`[x]`, os 6 remanescentes formalmente deferidos com Decisão auditável
-(dec-050/051/052 — ver "Achados" abaixo). 6 fases: (1) migration `0032`
-(permissão `envio_massa.administrar`) + matriz explícita ação×papel (fecha
-CHK006); (2) middlewares novos `hubEnvioMassaClaimsBridge` +
-`hubEnvioMassaRequirePermission` com flag `HUB_RBAC_ENVIO`; (3) integração
-nos 11 endpoints legados de `server.js` — diff mínimo confirmado
-objetivamente (exatamente 11 linhas `-` de substituição de rota, zero lógica
-de negócio tocada, `evidencias/diff-endpoints-legados.txt`); (4) histórico
-leve de importação (`ImportacaoArquivo` tipo=`envio_massa`, flag
-`HUB_IMPORT_LOG_ENVIO`, fire-and-forget best-effort); (5) tela
-`/hub/dashboard/envio_massa` reaproveitando 100% dos componentes/hooks do
-painel legado (zero código de UI novo); (6) E2E completo 3 papéis + suíte
-legada + evidências finais. Branch `feat/hub-envio-massa`, 11 commits, HEAD
-`2a1c23a`. PR ainda não aberto (abertura é responsabilidade da fase
-`review-task`, mínimo `sonnet` — lição repetida de S6/S7, `haiku` já
-confabulou fechamento nesta e em execuções anteriores).
+73 subtarefas do `docs/specs/hub-envio-massa/tasks.md`, 76/78 checkboxes
+`[x]`, os 2 remanescentes (6.2.1-6.2.3, agrupados sob o mesmo achado —
+contam como 1 gap `{humano}`, CHK018/CHK037) formalmente deferidos com
+Decisão auditável (dec-050/052/053 — ver "Achados" abaixo). 6 fases: (1)
+migration `0032` (permissão `envio_massa.administrar`) + matriz explícita
+ação×papel (fecha CHK006); (2) middlewares novos
+`hubEnvioMassaClaimsBridge` + `hubEnvioMassaRequirePermission` com flag
+`HUB_RBAC_ENVIO`; (3) integração nos 11 endpoints legados de `server.js` —
+diff mínimo confirmado objetivamente (exatamente 11 linhas `-` de
+substituição de rota, zero lógica de negócio tocada,
+`evidencias/diff-endpoints-legados.txt`); (4) histórico leve de importação
+(`ImportacaoArquivo` tipo=`envio_massa`, flag `HUB_IMPORT_LOG_ENVIO`,
+fire-and-forget best-effort); (5) tela `/hub/dashboard/envio_massa`
+reaproveitando 100% dos componentes/hooks do painel legado (zero código de
+UI novo) + smoke de a11y real via Playwright (fecha CHK031); (6) E2E
+completo 3 papéis + suíte legada + evidências finais. Branch
+`feat/hub-envio-massa`, 13 commits, HEAD `088a100`. PR ainda não aberto
+(abertura é responsabilidade da fase `review-task`, mínimo `sonnet` — lição
+repetida de S6/S7, `haiku` já confabulou fechamento nesta e em execuções
+anteriores).
+
+**Nota de processo:** durante o fechamento (onda-012/013 do
+`feature-00c`), uma sessão Claude Code independente e concorrente (mesmo
+repositório, fora do lock do `feature-00c`) commitou diretamente na mesma
+branch, completando de verdade o smoke de a11y (5.2, antes planejado para
+deferimento) e um insumo complementar para 6.2. Sem conflito/perda de
+trabalho (confirmado por `git diff`/`git log`), mas registrado como risco
+de coordenação para sessões futuras — ver dec-053.
 
 **Evidências:** `docs/specs/hub-envio-massa/tasks.md`;
 `evidencias/diff-endpoints-legados.txt` (relatório FASE 3.2, 217 linhas);
@@ -1259,7 +1270,12 @@ pass / 8 fail pré-existentes de `motorista-integration.test.js`, zero
 regressão, `git diff` confirma zero alteração em arquivo de teste
 pré-existente); `evidencias/5.1.6-roundtrip-sem-entidade-ativa.txt`
 (roundtrip real contra `hub-homolog` vivo, `error.code=SEM_ENTIDADE_ATIVA`
-byte a byte via Traefik→Next→backend).
+byte a byte via Traefik→Next→backend); `evidencias/5.2.1-tab-walk.json` +
+`5.2.2-aria-hub-vs-legado.json` + `5.2.3-smoke-a11y-resultado.txt` (a11y
+smoke real via Playwright contra `hub-homolog`, 2/2 passed, paridade ARIA
+100% com o painel legado); `evidencias/6.2.3-decisao-fr014-fr006-
+insumo.txt` (análise complementar do achado de segurança, corrobora
+independentemente a leitura abaixo).
 
 **Achados / bug real corrigido:** o proxy do Next
 (`app/api/[...path]/route.ts`) usava um único `BACKEND_URL` com sufixo
@@ -1290,10 +1306,10 @@ zero lógica de negócio" que rege toda a S8).
 **Pendências (gaps `{humano}` remanescentes, nenhum bloqueante de
 segurança introduzido por esta feature — decisão do dono do produto):**
 CHK018 (SC-006 sem mecanismo automatizável que re-verifique
-`ENVIO_DRY_RUN` no escopo desta feature — ver achado acima), CHK031 (a11y
-smoke manual dos componentes reaproveitados, requer browser real — mesmo
-padrão de S6/S7), CHK037 (independência textual FR-014/FR-006, mesma
-causa-raiz de CHK018). Mesmo padrão de ressalva formal já aceito pelo
+`ENVIO_DRY_RUN` no escopo desta feature — ver achado acima) e CHK037
+(independência textual FR-014/FR-006, mesma causa-raiz de CHK018). CHK031
+(a11y) foi fechado nesta execução com evidência real (Playwright, ver
+"Nota de processo" acima). Mesmo padrão de ressalva formal já aceito pelo
 operador em `hub-faturamento` (PR #59) e `hub-performance` (PR #60).
 Próximo passo: fase `review-task` (mínimo `sonnet`) → PR draft.
 
