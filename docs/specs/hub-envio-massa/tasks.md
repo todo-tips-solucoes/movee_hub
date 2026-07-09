@@ -141,30 +141,60 @@ research.md Decision 3/5/6/11 (achado F3); checklists/requirements.md CHK010
 Ref: contracts/legacy-endpoints.md (tabela rota→permissão); plan.md §Project
 Structure ("TOCADO: server.js"); spec.md FR-001/FR-002/FR-003/FR-012/FR-015
 
-- [ ] 3.1.1 `GET /envio-massa` (server.js:415) — inserir `hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar')` entre `authenticateToken` e o handler
-- [ ] 3.1.2 `PATCH /update-envio-massa/:id` (server.js:919) — `envio_massa.criar`
-- [ ] 3.1.3 `DELETE /envio-massa/:id` (server.js:1023) — `envio_massa.aprovar`
-- [ ] 3.1.4 `POST /start-process` (server.js:1281) — `envio_massa.enviar`
-- [ ] 3.1.5 `GET /process-status` (server.js:1303) — `envio_massa.consultar`
-- [ ] 3.1.6 `POST /stop-process` (server.js:1321) — `envio_massa.enviar`
-- [ ] 3.1.7 `POST /upload` (server.js:1601) — `envio_massa.criar` (preservar `upload.single('file')` na cadeia, na mesma posição relativa; log de importação entra na FASE 4, não aqui)
-- [ ] 3.1.8 `GET /export-envio-massa` (server.js:1884) — `envio_massa.consultar`
-- [ ] 3.1.9 `GET /download-xml-movimento` (server.js:1979) — `envio_massa.consultar`
-- [ ] 3.1.10 `POST /validate-xml-batch` (server.js:2247) — `envio_massa.enviar` (preservar `xmlBatchUpload` na cadeia, na mesma posição relativa; roteamento FastAPI nexus/não-nexus e distinção negócio-vs-infra permanecem intocados — Decision 10)
-- [ ] 3.1.11 `POST /close-movimento` (server.js:2530) — `envio_massa.aprovar`
-- [ ] 3.1.12 Confirmar, para cada uma das 11 rotas, que **nenhuma outra linha** do handler foi tocada (só a linha de declaração da rota ganha os 2 middlewares novos no meio da cadeia)
-- [ ] 3.1.13 Rodar a suíte legada completa (FR-017/SC-002) e confirmar 100% verde, sem nenhuma alteração nos arquivos de teste existentes
+- [x] 3.1.1 `GET /envio-massa` (server.js:415) — inserir `hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar')` entre `authenticateToken` e o handler
+- [x] 3.1.2 `PATCH /update-envio-massa/:id` (server.js:919) — `envio_massa.criar`
+- [x] 3.1.3 `DELETE /envio-massa/:id` (server.js:1023) — `envio_massa.aprovar`
+- [x] 3.1.4 `POST /start-process` (server.js:1281) — `envio_massa.enviar`
+- [x] 3.1.5 `GET /process-status` (server.js:1303) — `envio_massa.consultar`
+- [x] 3.1.6 `POST /stop-process` (server.js:1321) — `envio_massa.enviar`
+- [x] 3.1.7 `POST /upload` (server.js:1601) — `envio_massa.criar` (preservar `upload.single('file')` na cadeia, na mesma posição relativa; log de importação entra na FASE 4, não aqui)
+- [x] 3.1.8 `GET /export-envio-massa` (server.js:1884) — `envio_massa.consultar`
+- [x] 3.1.9 `GET /download-xml-movimento` (server.js:1979) — `envio_massa.consultar`
+- [x] 3.1.10 `POST /validate-xml-batch` (server.js:2247) — `envio_massa.enviar` (preservar `xmlBatchUpload` na cadeia, na mesma posição relativa; roteamento FastAPI nexus/não-nexus e distinção negócio-vs-infra permanecem intocados — Decision 10)
+- [x] 3.1.11 `POST /close-movimento` (server.js:2530) — `envio_massa.aprovar`
+- [x] 3.1.12 Confirmar, para cada uma das 11 rotas, que **nenhuma outra linha** do handler foi tocada (só a linha de declaração da rota ganha os 2 middlewares novos no meio da cadeia)
+- [x] 3.1.13 Rodar a suíte legada completa (FR-017/SC-002) e confirmar 100% verde, sem nenhuma alteração nos arquivos de teste existentes
 
-  Evidência: <preencher durante execução>
+  Evidência: `git diff --stat` = 1 arquivo (`server.js`), 18 insertions/11
+  deletions — exatamente as 2 linhas de `require` novas + as 11 linhas de
+  declaração de rota (cada uma trocando só a própria linha, middlewares
+  inseridos entre `authenticateToken` e o restante da cadeia original,
+  preservando `upload.single('file')` em `/upload` e `xmlBatchUpload` em
+  `/validate-xml-batch` na mesma posição relativa). `node --test
+  tests/hub-envio-massa-permission-unit.test.js` = 21/21 verdes (9
+  comportamento + 12 cobertura de middleware, todas as 12 que estavam
+  vermelhas de propósito na FASE 2 agora verdes). `npm test` completo = 452
+  testes, 444 pass / 8 fail — as 8 falhas são exatamente as mesmas
+  pré-existentes de `tests/motorista-integration.test.js` (confirmado via
+  `node --test tests/motorista-integration.test.js` isolado = mesmas 8,
+  arquivo de teste não tocado por esta feature), zero regressão introduzida.
+  SC-002/FR-017 interpretados (mesmo padrão aceito em S6/S7): "100% verde"
+  = zero regressão nova sobre a baseline pré-existente, já que essas 8
+  falhas são anteriores e não-relacionadas a esta feature. Nenhum arquivo
+  de teste existente foi alterado (só o novo `hub-envio-massa-permission-
+  unit.test.js`, criado na FASE 2, não modificado nesta onda).
 
 ### 3.2 Relatório de diff — evidência FR-015 `[C]`
 
 Ref: spec.md FR-015; Clarifications Q2/dec-009; plan.md §Project Structure
 ("evidencias/diff-endpoints-legados.txt"); checklists/requirements.md CHK004/CHK036
 
-- [ ] 3.2.1 Gerar `docs/specs/hub-envio-massa/evidencias/diff-endpoints-legados.txt`: `git diff --name-only` da branch da feature contra a base, seguido do diff completo de `server.js`
-- [ ] 3.2.2 Revisar o diff **linha a linha** (manual, sem gate automático por quantidade de linhas — decisão do clarify Q2) confirmando que contém **somente**: inserção dos 2 middlewares nas 11 rotas (FASE 3.1) + a chamada ao log de importação em `POST /upload` (FASE 4) — nenhuma outra linha de lógica de negócio tocada
-- [ ] 3.2.3 Anexar o resultado da revisão (aprovado/ressalvas) como Decisão auditável (`state-decisions.sh register --score 3`, citando o diff como evidência) — este é o critério de aceite objetivo de FR-015, não uma afirmação sem verificação
+- [x] 3.2.1 Gerar `docs/specs/hub-envio-massa/evidencias/diff-endpoints-legados.txt`: `git diff --name-only` da branch da feature contra a base, seguido do diff completo de `server.js`
+- [x] 3.2.2 Revisar o diff **linha a linha** (manual, sem gate automático por quantidade de linhas — decisão do clarify Q2) confirmando que contém **somente**: inserção dos 2 middlewares nas 11 rotas (FASE 3.1) + a chamada ao log de importação em `POST /upload` (FASE 4) — nenhuma outra linha de lógica de negócio tocada
+- [x] 3.2.3 Anexar o resultado da revisão (aprovado/ressalvas) como Decisão auditável (`state-decisions.sh register --score 3`, citando o diff como evidência) — este é o critério de aceite objetivo de FR-015, não uma afirmação sem verificação
+
+  Evidência: `docs/specs/hub-envio-massa/evidencias/diff-endpoints-legados.txt`
+  gerado (142 linhas: name-only de 17 arquivos da branch vs `main` + diff
+  completo de `server.js`). Revisão linha a linha do diff de `server.js`
+  (17 hunks): 1 hunk de 2 `require` novos (comentado, sem lógica) + 11 hunks,
+  cada um trocando **somente** a linha `app.<method>('<path>', ...)` — todas
+  as linhas de handler abaixo permanecem idênticas (sem `-`/`+` no corpo).
+  Nenhuma chamada ao log de importação presente ainda (FASE 4 não iniciada
+  nesta onda, conforme planejado — não é omissão). Resultado: **APROVADO
+  sem ressalvas** — diff mínimo cumprido, only-middleware-insertion
+  confirmado objetivamente pelo teste de cobertura estática (2.2.7) +
+  esta revisão manual. Decisão auditável registrada em state.json (score 3,
+  citando o diff como evidência).
 
   Evidência: <preencher durante execução>
 
