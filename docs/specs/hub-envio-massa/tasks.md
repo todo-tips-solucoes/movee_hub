@@ -272,13 +272,29 @@ Ref: contracts/claims-adapter.md "Contrato de log de importação"; data-model.m
 "Entity: ImportacaoArquivo"; research.md Decision 9; spec.md
 FR-009/FR-010/FR-011
 
-- [ ] 4.1.1 Criar `app_homologacao/backend/lib/hub-envio-massa-import-log.js` exportando `registrarImportacaoEnvioMassa({empresaId, usuarioId, nomeArquivo, arquivo, totalLinhas, linhasValidas, linhasInvalidas, status})`
-- [ ] 4.1.2 Implementar INSERT direto em estado terminal (`completed`/`completed_with_errors`/`failed`, derivado de `linhasInvalidas` — **nunca** `pending`/`validating`/`processing`, para não colidir com o índice único parcial `importacaoarquivo_uma_ativa_por_tipo` — research.md Decision 9, gotcha do schema), `tipo='envio_massa'`, `hash_sha256` do arquivo recebido, `criado_por=usuarioId`
-- [ ] 4.1.3 Guard no call site (não dentro do helper): só chamar quando `req.hubContext && req.hubContext.viaHub === true` — sessão legada nunca gera log (não tem `criado_por` válido)
-- [ ] 4.1.4 Guard de flag: `process.env.HUB_IMPORT_LOG_ENVIO === 'off'` → função retorna sem gravar (FR-010)
-- [ ] 4.1.5 Envolver toda a função em `try/catch` best-effort: qualquer falha de INSERT só loga (`console.error`), **nunca lança**, nunca afeta a resposta HTTP de `/upload` (FR-011)
-- [ ] 4.1.6 Inserir a chamada dentro do handler `POST /upload` (server.js:1601), **depois** que o parse da planilha termina (sucesso ou falha) — nunca antes, nunca bloqueando a resposta
-- [ ] 4.1.7 Teste unit: cenários status derivado corretamente (100% válidas → `completed`; parcial → `completed_with_errors`; parse falhou antes de qualquer linha → `failed`), guard de sessão legada (helper não é sequer chamado), guard de flag `off`, e falha simulada de INSERT não propaga exceção
+- [x] 4.1.1 Criar `app_homologacao/backend/lib/hub-envio-massa-import-log.js` exportando `registrarImportacaoEnvioMassa({empresaId, usuarioId, nomeArquivo, arquivo, totalLinhas, linhasValidas, linhasInvalidas, status})`
+- [x] 4.1.2 Implementar INSERT direto em estado terminal (`completed`/`completed_with_errors`/`failed`, derivado de `linhasInvalidas` — **nunca** `pending`/`validating`/`processing`, para não colidir com o índice único parcial `importacaoarquivo_uma_ativa_por_tipo` — research.md Decision 9, gotcha do schema), `tipo='envio_massa'`, `hash_sha256` do arquivo recebido, `criado_por=usuarioId`
+- [x] 4.1.3 Guard no call site (não dentro do helper): só chamar quando `req.hubContext && req.hubContext.viaHub === true` — sessão legada nunca gera log (não tem `criado_por` válido)
+- [x] 4.1.4 Guard de flag: `process.env.HUB_IMPORT_LOG_ENVIO === 'off'` → função retorna sem gravar (FR-010)
+- [x] 4.1.5 Envolver toda a função em `try/catch` best-effort: qualquer falha de INSERT só loga (`console.error`), **nunca lança**, nunca afeta a resposta HTTP de `/upload` (FR-011)
+- [x] 4.1.6 Inserir a chamada dentro do handler `POST /upload` (server.js:1601), **depois** que o parse da planilha termina (sucesso ou falha) — nunca antes, nunca bloqueando a resposta
+- [x] 4.1.7 Teste unit: cenários status derivado corretamente (100% válidas → `completed`; parcial → `completed_with_errors`; parse falhou antes de qualquer linha → `failed`), guard de sessão legada (helper não é sequer chamado), guard de flag `off`, e falha simulada de INSERT não propaga exceção
+
+  Evidência (4.1.1-4.1.5, 4.1.7): `lib/hub-envio-massa-import-log.js` criado
+  (`registrarImportacaoEnvioMassa` + `derivarStatusImportacao` exportados).
+  Deriva `completed`/`completed_with_errors`/`failed` a partir de
+  `totalLinhas`/`linhasInvalidas` (100% inválida com parse concluído conta
+  como `completed_with_errors`, não `failed` — `failed` é reservado para
+  quando o parse não chega a contar nenhuma linha). Guard de flag
+  `HUB_IMPORT_LOG_ENVIO=off` verificado ANTES de qualquer hash/fetch.
+  Todo o corpo em `try/catch`, `console.error` apenas, nunca lança (cobre
+  INSERT 500, 409 de UNIQUE em reenvio idêntico, e erro de rede).
+  `tests/hub-envio-massa-import-log-unit.test.js`: 14/14 verdes (mock de
+  `global.fetch`, sem rede real), incluindo verificação estática de que a
+  chamada em `POST /upload` está protegida pelo guard
+  `req.hubContext && req.hubContext.viaHub === true`. Suíte registrada em
+  `test`/`test:hub:unit` do `package.json` (FR-017, nenhuma suíte existente
+  alterada).
 - [ ] 4.1.8 Teste integração: upload real via sessão hub gera entrada em `ImportacaoArquivo` com `tipo='envio_massa'` e contagens coerentes; upload via sessão legada não gera nenhuma entrada; flag `off` não gera entrada mas o upload responde 200 normalmente; falha simulada do PostgREST no INSERT do log não impede a resposta 200/201 do upload de negócio (Cenário 7 do quickstart)
 
   Evidência: <preencher durante execução>

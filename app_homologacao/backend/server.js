@@ -75,6 +75,9 @@ const hubPerformanceRoutes = require('./routes/hub-performance');
 // (req.hubContext.viaHub === true); sessão legada passa sempre (Decision 5).
 const { hubEnvioMassaClaimsBridge } = require('./middleware/hub-envio-massa-claims');
 const { hubEnvioMassaRequirePermission } = require('./middleware/hub-envio-massa-permission');
+// hub-envio-massa FASE 4 (tasks.md 4.1.6) — histórico leve de importação,
+// fire-and-forget, chamado só dentro de POST /upload (ver guard viaHub lá).
+const { registrarImportacaoEnvioMassa } = require('./lib/hub-envio-massa-import-log');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
@@ -1663,11 +1666,37 @@ app.post('/upload', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaR
     const filePath = path.join(__dirname, req.file.path);
     console.error('[UPLOAD] Lendo arquivo XLSX em:', filePath);
 
+    // hub-envio-massa FASE 4 (tasks.md 4.1.6) — histórico leve de
+    // importação, fire-and-forget (research.md Decision 9). Só grava
+    // quando a sessão é do hub (guard viaHub, FR-018 — sessão legada nunca
+    // gera log); guard de flag HUB_IMPORT_LOG_ENVIO já é interno ao helper
+    // (FR-010). NUNCA bloqueia nem altera a resposta HTTP de /upload.
+    const logImportacaoEnvioMassa = (totalLinhas, linhasValidas, linhasInvalidas) => {
+      if (req.hubContext && req.hubContext.viaHub === true) {
+        let bufferArquivo = null;
+        try {
+          bufferArquivo = fs.readFileSync(filePath);
+        } catch (eBuf) {
+          console.error('[UPLOAD] log de importação: falha ao ler buffer p/ hash (best-effort):', eBuf.message);
+        }
+        registrarImportacaoEnvioMassa({
+          empresaId: req.user.empresaId,
+          usuarioId: req.hubContext.usuarioId,
+          nomeArquivo: req.file.originalname,
+          arquivo: bufferArquivo,
+          totalLinhas,
+          linhasValidas,
+          linhasInvalidas,
+        });
+      }
+    };
+
     let workbook;
     try {
       workbook = xlsx.readFile(filePath);
     } catch (e) {
       console.error('[UPLOAD] Erro ao ler XLSX:', e);
+      logImportacaoEnvioMassa(0, 0, 0);
       return res.status(400).json({
         success: false,
         message: 'Arquivo inválido. Não foi possível ler a planilha.',
@@ -1678,6 +1707,7 @@ app.post('/upload', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaR
     const sheetName = workbook.SheetNames?.[0];
     if (!sheetName) {
       console.error('[UPLOAD] Planilha sem abas');
+      logImportacaoEnvioMassa(0, 0, 0);
       return res.status(400).json({
         success: false,
         message: 'A planilha não possui abas.'
@@ -1690,6 +1720,7 @@ app.post('/upload', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaR
 
     if (!Array.isArray(rows) || rows.length === 0) {
       console.error('[UPLOAD] Planilha vazia');
+      logImportacaoEnvioMassa(0, 0, 0);
       return res.status(400).json({
         success: false,
         message: 'A planilha está vazia.'
@@ -1783,6 +1814,11 @@ app.post('/upload', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaR
         id_empresa: idEmp
       });
     });
+
+    // hub-envio-massa FASE 4 (tasks.md 4.1.6) — parse+validação terminaram
+    // (sucesso ou falha); grava o log ANTES de qualquer return abaixo,
+    // cobrindo tanto o caminho de erro de validação quanto o de sucesso.
+    logImportacaoEnvioMassa(rows.length, dataToInsert.length, errors.length);
 
     // ---- Se houver qualquer erro de validação, loga no container e retorna 400 ----
     if (errors.length > 0) {
