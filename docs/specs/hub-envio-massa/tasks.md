@@ -260,7 +260,20 @@ Ref: spec.md FR-015; Clarifications Q2/dec-009; plan.md §Project Structure
   esta revisão manual. Decisão auditável registrada em state.json (score 3,
   citando o diff como evidência).
 
-  Evidência: <preencher durante execução>
+  Evidência (atualização pós-FASE 4, dec-042): relatório regenerado no
+  commit `406e482` (`docs/specs/hub-envio-massa/evidencias/diff-endpoints-
+  legados.txt`, 217 linhas). Confirmado por contagem objetiva: exatamente
+  11 linhas `-` de remoção (as 11 declarações de rota substituídas, uma por
+  endpoint) em TODO o diff de `server.js` contra `main` — nenhuma linha de
+  lógica de negócio pré-existente removida ou alterada. As adições da FASE 4
+  em `POST /upload` são 100% inserções: 1 `require` (linha 3), 1 closure
+  `logImportacaoEnvioMassa` (definida após `filePath`), e 4 pontos de
+  chamada de 1 linha cada (XLSX ilegível / sem abas / planilha vazia →
+  `(0,0,0)`; após o loop de validação → `(rows.length,
+  dataToInsert.length, errors.length)`, cobrindo sucesso e erro de
+  validação numa única chamada). Resultado: **APROVADO sem ressalvas**,
+  confirmado tanto pela contagem de diff quanto pela suíte completa
+  (466 testes, 458 pass/8 fail pré-existentes, zero regressão).
 
 ---
 
