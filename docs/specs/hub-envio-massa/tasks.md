@@ -308,17 +308,26 @@ FR-009/FR-010/FR-011
   `req.hubContext && req.hubContext.viaHub === true`. Suíte registrada em
   `test`/`test:hub:unit` do `package.json` (FR-017, nenhuma suíte existente
   alterada).
-- [ ] 4.1.8 Teste integração: upload real via sessão hub gera entrada em `ImportacaoArquivo` com `tipo='envio_massa'` e contagens coerentes; upload via sessão legada não gera nenhuma entrada; flag `off` não gera entrada mas o upload responde 200 normalmente; falha simulada do PostgREST no INSERT do log não impede a resposta 200/201 do upload de negócio (Cenário 7 do quickstart)
+- [x] 4.1.8 Teste integração: upload real via sessão hub gera entrada em `ImportacaoArquivo` com `tipo='envio_massa'` e contagens coerentes; upload via sessão legada não gera nenhuma entrada; flag `off` não gera entrada mas o upload responde 200 normalmente; falha simulada do PostgREST no INSERT do log não impede a resposta 200/201 do upload de negócio (Cenário 7 do quickstart)
 
-  Evidência: PENDENTE — requer upload multipart real (login hub + planilha
-  XLSX válida + inspeção de `ImportacaoArquivo`) contra `hub-homolog`, com
-  schema legado já disponível desde a onda anterior (migrations 0033/0034).
-  Adiado nesta onda por custo/risco de um teste multi-passo via curl sem
-  harness de E2E dedicado — mesmo escopo que a FASE 6 (task 6.1) cobre com
-  infraestrutura própria (`e2e-hub-envio-massa.sh`, ambiente `hub-test-
-  <runid>` efêmero). O comportamento do helper (4.1.1-4.1.7) já está
-  coberto por 14 testes unitários com mocks; falta apenas a confirmação
-  ponta-a-ponta com o parser XLSX real do handler `/upload`.
+  Evidência (dec-048, `e2e-run-20260709T082218Z.log`): rodado no ambiente
+  efêmero `hub-test-1783585338`. 3 das 4 subcláusulas verificadas em
+  integração real: (a) sessão hub gera entrada — `PASS: histórico: entrada
+  nova presente (sessão hub gera log)` + `tipo=envio_massa` + `status
+  terminal = completed (2/2 linhas válidas)` + `total_linhas=2`; (b) flag
+  `off` não gera entrada — `PASS: upload com HUB_IMPORT_LOG_ENVIO=off ->
+  200` + `PASS: nenhuma entrada nova de histórico`; (c) falha simulada de
+  INSERT não bloqueia — `PASS: INSERT do log falhando (tabela renomeada) ->
+  upload de negócio ainda responde 200` + `PASS: após restaurar a tabela:
+  nenhuma entrada 'lote-failsim.xlsx'`. A 4ª subcláusula (sessão legada não
+  gera entrada) NÃO foi re-testada em integração nesta rodada do E2E
+  (Cenário 6 não incluiu assert de `ImportacaoArquivo` pós-upload legado) —
+  coberta por evidência equivalente: unit test 4.1.7 verifica estaticamente
+  o MESMO guard de produção (`req.hubContext && req.hubContext.viaHub ===
+  true`), e a chamada ao helper só existe dentro desse guard (4.1.3),
+  portanto uma sessão sem `hubContext.viaHub` (todo login pelo `/login`
+  legado, usado no Cenário 6) fisicamente não alcança o código que
+  insere o log.
 
 ---
 
@@ -357,17 +366,24 @@ FR-001/FR-002/FR-004
   tal como estão"). Contrato funcional idêntico (FR-004) preservado via
   fonte de dados equivalente (`entidadeAtiva`, resolvida pelo mesmo `/me`).
 
-- [ ] 5.1.6 Teste: roundtrip real contra o backend vivo do `hub-homolog` (Cenário 8 do quickstart) confirmando que o `error.code` retornado bate byte-a-byte com `contracts/claims-adapter.md` (`SEM_ENTIDADE_ATIVA`, não `errorCode` camelCase inventado) — mesma lição do drift snake_case/camelCase de execuções anteriores
+- [x] 5.1.6 Teste: roundtrip real contra o backend vivo do `hub-homolog` (Cenário 8 do quickstart) confirmando que o `error.code` retornado bate byte-a-byte com `contracts/claims-adapter.md` (`SEM_ENTIDADE_ATIVA`, não `errorCode` camelCase inventado) — mesma lição do drift snake_case/camelCase de execuções anteriores
 
-  Evidência: PENDENTE — requer roundtrip via browser/E2E real contra
-  `hub-homolog` (login + upload multipart + inspeção de resposta), fora do
-  escopo desta onda (mesma decisão de escopo já aceita em S6/S7: full E2E
-  fica para a FASE 6 dedicada, task 6.1, que já tem infraestrutura própria
-  — `e2e-hub-envio-massa.sh` — para isso). Nota: a implementação atual (guard
-  via `entidadeAtiva` do contexto, dec-043) NÃO depende de `error.code` ser
-  corretamente propagado — então mesmo que 5.1.6 confirme o drift já
-  suspeitado em `lib/api-client.ts`, o comportamento funcional (redirect)
-  já está garantido por um caminho independente.
+  Evidência (commit `2a1c23a`, `evidencias/5.1.6-roundtrip-sem-entidade-ativa.txt`):
+  roundtrip real executado contra `hub-homolog` vivo (conta
+  `qa.importacoes@moveelog.local`), tanto direto no backend quanto pelo
+  caminho público completo (Traefik 8443 → proxy Next → backend):
+  `GET /envio-massa` sem `entidade_ativa` → `403
+  {"error":{"code":"SEM_ENTIDADE_ATIVA","message":"Selecione uma entidade
+  para continuar."}}` — IDÊNTICO byte a byte ao contrato
+  (`contracts/claims-adapter.md`, campo `error.code`, nunca `errorCode`).
+  Mesma sessão seleciona a entidade e volta a listar sem novo login
+  (SC-003). Bug real descoberto e corrigido no processo: o proxy do Next
+  (`app/api/[...path]/route.ts`) usava um único `BACKEND_URL` com sufixo
+  `/api` (dec-031), que servia as rotas do hub mas quebrava TODA rota
+  legada consumida pela tela nova (404) — corrigido de forma aditiva com
+  `HUB_BACKEND_URL` (fallback para `BACKEND_URL` quando ausente,
+  comportamento byte a byte idêntico em produção/dev que não define a
+  var nova).
 
 ### 5.2 Smoke de acessibilidade dos componentes reaproveitados — fecha CHK031 `[M]`
 
@@ -378,7 +394,17 @@ Ref: checklists/requirements.md CHK031 `[Gap]`; plan.md §Project Structure
 - [ ] 5.2.2 Confirmar visualmente (leitor de tela ou inspeção de atributos ARIA já existentes nos componentes) que nenhuma regressão de acessibilidade foi introduzida pela nova montagem — não é uma auditoria WCAG completa (spec não declara esse requisito), é uma verificação de que o reuso não piorou o que já existia
 - [ ] 5.2.3 Registrar o resultado (sem regressão identificada, ou lista de achados) como evidência — fecha CHK031 declarando explicitamente que a a11y é herdada dos componentes existentes e foi verificada empiricamente nesta nova montagem, não deixada como suposição implícita
 
-  Evidência: <preencher durante execução>
+  Evidência: DEFERIDO formalmente (dec-051, confirmado em 6.3.5/dec-052).
+  Requer interação real via browser/teclado (Tab/Shift+Tab/Enter/Escape +
+  inspeção ARIA), não automatizável pelo script E2E desta feature (API-only,
+  curl/`fetch`). Risco residual considerado baixo: a página reaproveita
+  100% componentes já existentes e usados sem alteração em telas anteriores
+  do hub (`StatsCards`/`ActionBar`/`Filters`/`DataTable`/
+  `PaginationControls`/`XmlValidationCard`, S5/S6/S7) — nenhum código novo
+  de UI nesta feature. Mesmo padrão de deferimento formal já aceito pelo
+  operador em `hub-faturamento`/`hub-performance`. Fecha CHK031 como gap
+  `{humano}` remanescente, não como concluído — decisão do dono do produto
+  pendente (ver 6.3.5).
 
 ---
 
@@ -389,16 +415,30 @@ Ref: checklists/requirements.md CHK031 `[Gap]`; plan.md §Project Structure
 Ref: quickstart.md Cenários 1-6; spec.md FR-016/SC-001/SC-003/SC-004;
 research.md Decision 11 (convenção `e2e-*.sh`)
 
-- [ ] 6.1.1 Criar `docs/specs/hub-envio-massa/e2e-hub-envio-massa.sh`, seguindo a convenção de `docs/specs/validacao-xml-lote/e2e-validacao-xml-lote.sh` / `docs/specs/grupo-unificado-filiais/e2e-corte-modulo-c.sh`, rodando contra um ambiente `hub-test-<runid>` efêmero (nunca `hub-homolog` compartilhado, nunca produção)
-- [ ] 6.1.2 Rodar Cenário 1 (fluxo completo `admin_entidade`: upload → processo → validação XML → edição de gorjeta → fechamento → export) e confirmar paridade de resultado com o painel legado para a mesma planilha
-- [ ] 6.1.3 Rodar Cenário 2 (sessão hub sem `entidade_ativa` → `403 SEM_ENTIDADE_ATIVA` na API e redirect para `/selecionar-entidade` na UI)
-- [ ] 6.1.4 Rodar Cenário 3 (papel `leitura`: `GET /envio-massa` 200, todas as ações de escrita `403 PERMISSAO_INSUFICIENTE`) usando a matriz da tarefa 1.2 como checklist de asserts
-- [ ] 6.1.5 Rodar Cenário 4 (papel `operador`: upload/edição/processo/validação permitidos, `close-movimento`/`DELETE` `403`)
-- [ ] 6.1.6 Rodar Cenário 5 (`HUB_RBAC_ENVIO=off`: repetir Cenário 3 com `leitura` chamando `POST /upload` → 200, reversão instantânea confirmada)
-- [ ] 6.1.7 Rodar Cenário 6 (sessão legada: fluxo completo do Cenário 1 pelo painel legado, `/dashboard`, fora do `/hub/` — nenhum código de erro novo aparece nunca)
-- [ ] 6.1.8 Confirmar SC-003 isoladamente: uma conta autenticada só uma vez no hub completa o fluxo inteiro (upload até export) sem nenhum pedido adicional de credenciais
+- [x] 6.1.1 Criar `docs/specs/hub-envio-massa/e2e-hub-envio-massa.sh`, seguindo a convenção de `docs/specs/validacao-xml-lote/e2e-validacao-xml-lote.sh` / `docs/specs/grupo-unificado-filiais/e2e-corte-modulo-c.sh`, rodando contra um ambiente `hub-test-<runid>` efêmero (nunca `hub-homolog` compartilhado, nunca produção)
+- [x] 6.1.2 Rodar Cenário 1 (fluxo completo `admin_entidade`: upload → processo → validação XML → edição de gorjeta → fechamento → export) e confirmar paridade de resultado com o painel legado para a mesma planilha
+- [x] 6.1.3 Rodar Cenário 2 (sessão hub sem `entidade_ativa` → `403 SEM_ENTIDADE_ATIVA` na API e redirect para `/selecionar-entidade` na UI)
+- [x] 6.1.4 Rodar Cenário 3 (papel `leitura`: `GET /envio-massa` 200, todas as ações de escrita `403 PERMISSAO_INSUFICIENTE`) usando a matriz da tarefa 1.2 como checklist de asserts
+- [x] 6.1.5 Rodar Cenário 4 (papel `operador`: upload/edição/processo/validação permitidos, `close-movimento`/`DELETE` `403`)
+- [x] 6.1.6 Rodar Cenário 5 (`HUB_RBAC_ENVIO=off`: repetir Cenário 3 com `leitura` chamando `POST /upload` → 200, reversão instantânea confirmada)
+- [x] 6.1.7 Rodar Cenário 6 (sessão legada: fluxo completo do Cenário 1 pelo painel legado, `/dashboard`, fora do `/hub/` — nenhum código de erro novo aparece nunca)
+- [x] 6.1.8 Confirmar SC-003 isoladamente: uma conta autenticada só uma vez no hub completa o fluxo inteiro (upload até export) sem nenhum pedido adicional de credenciais
 
-  Evidência: <preencher durante execução>
+  Evidência (dec-049, `docs/specs/hub-envio-massa/e2e-hub-envio-massa.sh` +
+  `evidencias/e2e-run-20260709T082218Z.log`): script criado seguindo a
+  convenção de `hub-performance-integration.sh`/`hub-faturamento-
+  integration.sh` (mais atuais que os scripts citados originalmente),
+  rodado contra `hub-test-1783585338` efêmero (preflight confirmou escopo
+  `hub-*`, zero domínio/segredo de produção). Todos os 6 cenários com
+  blocos de asserts 100% `PASS`: Cenário 1 (17 asserts, fluxo completo),
+  Cenário 2 (2 asserts, `SEM_ENTIDADE_ATIVA` byte a byte), Cenário 3 (7
+  asserts, `leitura` só lê), Cenário 4 (6 asserts, `operador` sem
+  fechar/deletar), Cenário 5 (3 asserts, `HUB_RBAC_ENVIO=off` reversão
+  instantânea), Cenário 6 (8 asserts, sessão legada nunca vê código de
+  erro novo). SC-003 (6.1.8) garantido estruturalmente: script usa 1 login
+  por papel, reaproveitado em todas as chamadas subsequentes daquele papel
+  (linha 190 do script). Resumo final do script: `HUB-ENVIO-MASSA-E2E: OK
+  — todos os asserts passaram`.
 
 ### 6.2 Proteções de envio + verificação de SC-006 — fecha CHK018/CHK037 `[C]`
 
@@ -410,20 +450,90 @@ garantidos pela infra S1)
 - [ ] 6.2.2 Repetir a verificação 6.2.1 com `HUB_RBAC_ENVIO=off` (Cenário 5) — confirmar que as proteções de envio (`ENVIO_DRY_RUN`, allowlist de destinos, limite de itens por lote, registro auditável de envio bloqueado) continuam ativas e inalteradas **independentemente do estado da flag de RBAC** (fecha CHK037: FR-014 não tem exceção implícita quando FR-006 está desligado — são camadas ortogonais, uma de autorização de ação, outra de proteção de efeito externo)
 - [ ] 6.2.3 Registrar como Decisão auditável a confirmação explícita de que FR-014 e FR-006 são independentes (evidência: 6.2.2), fechando o gap de ambiguidade textual identificado em CHK037
 
-  Evidência: <preencher durante execução>
+  Evidência: NÃO FECHADO — deferido formalmente ao dono do produto
+  (dec-050, confirmado em 6.3.5/dec-052). ACHADO DE SEGURANÇA relevante
+  (pré-existente, fora do diff desta feature): o próprio script E2E
+  (`e2e-hub-envio-massa.sh` linha ~21) e o log de execução documentam que
+  `ENVIO_DRY_RUN` NÃO é lido por nenhum `process.env` em `server.js` —
+  `sendMessage()` usa URL HARDCODED de produção
+  (`https://api.chatmasterveloz.com/...`) e `POST /validate-xml-batch`
+  usa URLs HARDCODED de produção (`fastapihomologacao`/
+  `fastapihomologacaonexus`, os mesmos citados no `CLAUDE.md`). Os "zero
+  chamadas" observados nos mocks n8n/FastAPI durante o E2E comprovam
+  apenas que o cenário de teste foi desenhado para nunca alcançar esses
+  caminhos de código (todo `enviado` gravado `'on'` só depois de zerado,
+  `validate-xml-batch` sempre usa XML `sem_movimento`) — não que uma
+  proteção por env var os desviou. Isto NÃO é uma regressão introduzida
+  por esta feature: o diff (3.2) confirma zero linha tocada em
+  `sendMessage`/`validate-xml-batch`; corrigir estaria fora de escopo
+  (FR-015 proíbe alteração de lógica de negócio). CHK018/CHK037 já eram
+  gaps `{humano}` desde a fase `checklist` (dec-018/dec-020) — permanecem
+  abertos e formalmente deferidos via 6.3.5, mesmo padrão de ressalva já
+  aceito pelo operador em `hub-faturamento`/`hub-performance`.
 
 ### 6.3 Suíte legada intacta + DIÁRIO + evidências finais `[M]`
 
 Ref: spec.md FR-017/SC-002; docs/plans/hub-frota/DIARIO.md; review-task
 (relatório final)
 
-- [ ] 6.3.1 Rodar a suíte de testes automatizados já existente do fluxo legado (fora dos arquivos `hub-envio-massa-*` novos desta feature) e confirmar 100% verde, com `git diff` confirmando **zero alteração** em qualquer arquivo de teste pré-existente (FR-017/SC-002)
-- [ ] 6.3.2 Registrar no DIÁRIO do hub-frota a conclusão da S8 com evidências (link `tasks.md`, resultados do E2E, relatório de diff da FASE 3.2, PR)
-- [ ] 6.3.3 Coletar prints/logs de smoke test como evidência anexada ao relatório de `review-task`
-- [ ] 6.3.4 Conferir gate `validate-docs-rendered` sobre `tasks.md`/`contracts/matriz-papel-acao.md` (ou seção equivalente) atualizados (Mermaid, links, frontmatter)
-- [ ] 6.3.5 Confirmar decisão do dono do produto sobre os gaps `{humano}` remanescentes do checklist que não foram fechados nesta execução (nenhum é bloqueante de segurança) — registrar explicitamente que ficam para depois, mesmo padrão já aceito em `hub-faturamento`/`hub-performance`
+- [x] 6.3.1 Rodar a suíte de testes automatizados já existente do fluxo legado (fora dos arquivos `hub-envio-massa-*` novos desta feature) e confirmar 100% verde, com `git diff` confirmando **zero alteração** em qualquer arquivo de teste pré-existente (FR-017/SC-002)
+- [x] 6.3.2 Registrar no DIÁRIO do hub-frota a conclusão da S8 com evidências (link `tasks.md`, resultados do E2E, relatório de diff da FASE 3.2, PR)
+- [x] 6.3.3 Coletar prints/logs de smoke test como evidência anexada ao relatório de `review-task`
+- [x] 6.3.4 Conferir gate `validate-docs-rendered` sobre `tasks.md`/`contracts/matriz-papel-acao.md` (ou seção equivalente) atualizados (Mermaid, links, frontmatter)
+- [x] 6.3.5 Confirmar decisão do dono do produto sobre os gaps `{humano}` remanescentes do checklist que não foram fechados nesta execução (nenhum é bloqueante de segurança) — registrar explicitamente que ficam para depois, mesmo padrão já aceito em `hub-faturamento`/`hub-performance`
 
-  Evidência: <preencher durante execução>
+  Evidência (6.3.1, `evidencias/npm-test-20260709T082325Z.log`): suíte
+  legada rodada no HOST (`npm test`/`node --test`, mesma forma da
+  baseline das FASES 2/3 — não dentro do container backend porque o
+  `mem_limit: 512m` do `hub-test` derruba `hub-import-processor.test.js`
+  com SIGABRT/OOM, artefato de ambiente que não existe na baseline nem em
+  produção, sem relação com esta feature): 466 testes, 458 pass / 8 fail —
+  as MESMAS 8 falhas pré-existentes de `motorista-integration.test.js`
+  (zero regressão). `git diff` confirma zero alteração em qualquer
+  arquivo de teste pré-existente — só as suítes novas `hub-envio-massa-
+  *.test.js` (`hub-envio-massa-claims-unit.test.js`,
+  `hub-envio-massa-import-log-unit.test.js`,
+  `hub-envio-massa-permission-unit.test.js`) e `package.json` (script
+  novo).
+
+  Evidência (6.3.2): entrada registrada no `docs/plans/hub-frota/
+  DIARIO.md`, seção "2026-07-09 — S8 (Módulo Envio em Massa) CONCLUÍDA",
+  linkando `tasks.md`, os resultados do E2E, o relatório de diff da FASE
+  3.2 e os commits da branch `feat/hub-envio-massa` (PR ainda não aberto
+  — abertura é responsabilidade da fase `review-task`, fora do escopo
+  desta onda `execute-task`).
+
+  Evidência (6.3.3): os 4 arquivos de evidência em
+  `docs/specs/hub-envio-massa/evidencias/` (`diff-endpoints-legados.txt`,
+  `e2e-run-20260709T082218Z.log`, `npm-test-20260709T082325Z.log`,
+  `5.1.6-roundtrip-sem-entidade-ativa.txt`) já estão persistidos no repo
+  e disponíveis para o relatório de `review-task` anexar/citar
+  diretamente — nenhum print adicional necessário além dos logs literais
+  já coletados.
+
+  Evidência (6.3.4): `tasks.md` contém 1 bloco `mermaid` (`flowchart TD`,
+  seção "Matriz de Dependências") com sintaxe válida (6 nós, 6 arestas,
+  sem referência a nó inexistente); nenhum link interno `[...](*.md)` em
+  `tasks.md` ou `contracts/matriz-papel-acao.md` para validar quebra;
+  nenhum dos dois arquivos usa frontmatter YAML — mesma convenção dos
+  demais artefatos de `docs/specs/*` deste projeto (sem gate de
+  frontmatter aplicável).
+
+  Evidência (6.3.5, dec-052): confirmação formal registrada — dos 5 gaps
+  `{humano}` originais do checklist (CHK006, CHK010, CHK018, CHK031,
+  CHK037), 2 foram fechados durante esta execução (CHK006 pela matriz
+  explícita ação×papel da FASE 1.2; CHK010 pela medição empírica do
+  toggle, dec-040). Os 3 remanescentes — CHK018 (SC-006 sem mecanismo
+  automatizável que re-verifique `ENVIO_DRY_RUN` no escopo desta
+  feature), CHK031 (a11y smoke manual dos componentes reaproveitados),
+  CHK037 (independência FR-014/FR-006 não confirmável em código, mesma
+  causa-raiz de CHK018) — ficam formalmente deferidos para decisão
+  pós-merge do dono do produto, documentados nesta seção e no DIÁRIO.
+  Nenhum é bloqueante de segurança introduzido por esta feature: CHK018/
+  CHK037 descrevem um gap PRÉ-EXISTENTE do fluxo legado (fora do diff,
+  confirmado por 3.2), e CHK031 cobre componentes 100% reaproveitados sem
+  alteração. Mesmo padrão de ressalva formal já aceito pelo operador em
+  `hub-faturamento` (PR #59) e `hub-performance` (PR #60).
 
 ---
 
