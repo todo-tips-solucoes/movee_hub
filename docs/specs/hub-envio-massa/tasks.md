@@ -169,7 +169,18 @@ research.md Decision 3/5/6/11 (achado F3); checklists/requirements.md CHK010
 - [x] 2.2.6 Teste unit: `tests/hub-envio-massa-permission-unit.test.js` cobrindo sessão legada sempre passa, sessão hub respeita `obterPermissoesEfetivasPorEntidade`, flag `off` sempre passa, exceção → fail-closed, usando a matriz da tarefa 1.2 como fonte dos casos de RBAC positivo/negativo
 - [x] 2.2.7 **Teste dedicado de cobertura de middleware** (achado F3, MUST): lista fixa das 11 rotas (mesma lista de `contracts/legacy-endpoints.md`) verificada programaticamente contra `app._router.stack` (ou equivalente), confirmando que cada uma tem `hubEnvioMassaClaimsBridge` + `hubEnvioMassaRequirePermission` na cadeia, na ordem certa — falha o teste se uma rota da lista estiver sem os middlewares OU se uma rota fora da lista os tiver por engano
 - [x] 2.2.8 Registrar as duas suítes novas nos scripts `test`/`test:hub:unit` do `package.json`, sem remover/alterar nenhuma suíte existente (FR-017)
-- [ ] 2.2.9 Medir empiricamente, no `hub-homolog`, o tempo real entre alternar `HUB_RBAC_ENVIO` no `.env` e o comportamento refletido (restart do serviço) — registrar o número medido como evidência/Decisão auditável, fechando CHK010 pragmaticamente (spec não define um teto numérico; o número medido serve de referência objetiva para SC-005, sem introduzir um SLA não pedido)
+- [x] 2.2.9 Medir empiricamente, no `hub-homolog`, o tempo real entre alternar `HUB_RBAC_ENVIO` no `.env` e o comportamento refletido (restart do serviço) — registrar o número medido como evidência/Decisão auditável, fechando CHK010 pragmaticamente (spec não define um teto numérico; o número medido serve de referência objetiva para SC-005, sem introduzir um SLA não pedido)
+
+  Evidência (dec-040, score 3): compose.hub.{homolog,test,dev}.yml ganharam
+  passthrough `HUB_RBAC_ENVIO`/`HUB_IMPORT_LOG_ENVIO` (gap de wiring — as
+  flags não chegavam ao container antes desta task). Medição real via
+  `docker compose -p hub-homolog up -d backend` (recreate) no hub-homolog:
+  toggle ON→OFF refletido no env do container em **2.27s**; reversão
+  OFF→ON em **2.22s**; servidor HTTP responsivo poucos segundos após o
+  recreate. `.env.hub.homolog` restaurado ao baseline ao final (sem
+  `HUB_RBAC_ENVIO` setada = comportamento ligado, default). Número de
+  referência objetivo para SC-005/CHK010: ~2-3s por toggle via restart de
+  container único, sem SLA formal introduzido.
 
   Evidência: 2.2.1-2.2.8 concluídos (onda-007). `npm test` rodado na íntegra:
   432 passam / 20 falham, sendo 8 falhas PRÉ-EXISTENTES

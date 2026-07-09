@@ -121,6 +121,12 @@ services:
       FASTAPI_URL: "${FASTAPI_URL}"
       N8N_URL: "${N8N_URL}"
       MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+      # hub-envio-massa (S8): flags reversíveis instantâneas (research.md
+      # Decision 6/FR-006, FR-010) — lidas por request pelo middleware, sem
+      # cache; alterar aqui exige recreate do container p/ efeito. Default
+      # (não setada) = comportamento ligado.
+      HUB_RBAC_ENVIO: "${HUB_RBAC_ENVIO:-}"
+      HUB_IMPORT_LOG_ENVIO: "${HUB_IMPORT_LOG_ENVIO:-}"
     # hub-importacoes (S4, FASE 3): mesmo volume privado do homolog — ver
     # comentário em compose.hub.homolog.yml.
     volumes:
