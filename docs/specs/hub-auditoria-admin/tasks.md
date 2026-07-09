@@ -747,14 +747,115 @@ Ref: quickstart.md Cenários 1-7; plan.md "Plano por fases" passo 6;
 plan.md "Project Structure" (`infra/hub/testes/hub-auditoria-admin-integration.sh`
 NOVO)
 
-- [ ] 6.1.1 Criar `infra/hub/testes/hub-auditoria-admin-integration.sh` (projeto efêmero `hub-test-<runid>`, contadores `PASS:`/`FAIL:`, mesmo padrão das demais fases hub)
-- [ ] 6.1.2 Rodar Cenário 1 (trilha da própria entidade com filtros, detalhe sem dados sensíveis)
-- [ ] 6.1.3 Rodar Cenário 2 (nega-por-padrão sem entidade ativa + `403` ao forçar `entidadeId` de outra entidade)
-- [ ] 6.1.4 Rodar Cenário 3 (visão global do admin_plataforma, incl. eventos globais `entidadeId:null`)
-- [ ] 6.1.5 Rodar Cenário 4 (imutabilidade da trilha — regressão de `hub-auditoria-integration.sh`)
-- [ ] 6.1.6 Rodar Cenário 5 (gestão de usuários ponta-a-ponta, troca de papel refletindo <2s — SC-004)
-- [ ] 6.1.7 Rodar Cenário 6 (matriz de papéis: leitura vs edição, guard anti-lockout)
-- [ ] 6.1.8 Rodar Cenário 7 (módulos por entidade: efeito imediato, `403 MODULO_DESABILITADO`, FR-017)
+- [x] 6.1.1 Criar `infra/hub/testes/hub-auditoria-admin-integration.sh` (projeto efêmero `hub-test-<runid>`, contadores `PASS:`/`FAIL:`, mesmo padrão das demais fases hub)
+- [x] 6.1.2 Rodar Cenário 1 (trilha da própria entidade com filtros, detalhe sem dados sensíveis)
+- [x] 6.1.3 Rodar Cenário 2 (nega-por-padrão sem entidade ativa + `403` ao forçar `entidadeId` de outra entidade)
+- [x] 6.1.4 Rodar Cenário 3 (visão global do admin_plataforma, incl. eventos globais `entidadeId:null`)
+- [x] 6.1.5 Rodar Cenário 4 (imutabilidade da trilha — regressão de `hub-auditoria-integration.sh`)
+- [x] 6.1.6 Rodar Cenário 5 (gestão de usuários ponta-a-ponta, troca de papel refletindo <2s — SC-004)
+- [x] 6.1.7 Rodar Cenário 6 (matriz de papéis: leitura vs edição, guard anti-lockout)
+- [x] 6.1.8 Rodar Cenário 7 (módulos por entidade: efeito imediato, `403 MODULO_DESABILITADO`, FR-017)
+
+  **6.1.0 (EMERGENTE — dec-037, achado real desta onda de E2E)**: ao montar
+  o seed de `admin_plataforma` real para o Cenário 3 (nota da própria FASE
+  3.2.6 — "nenhum seed de teste com vínculo `admin_plataforma` existe
+  ainda"), o Cenário 3 passo 2 (eventos GLOBAIS, `entidadeId:null`, ex.
+  `login_sucesso`) falhou: 0 linhas em `Auditoria` com `id_empresa IS NULL`
+  em TODO o banco, apesar de múltiplos logins/login_falha reais terem sido
+  exercitados. Causa raiz (confirmada via log do backend em ambiente
+  `hub-test` isolado): `registrarAuditoria` (`lib/hub-auditoria.js`) usa
+  `Prefer: return=representation` (default de `hubPostgrestRequest`); desde
+  a migration 0035 (FASE 1 desta MESMA feature), a policy `FOR SELECT` de
+  `Auditoria` passou a exigir `id_empresa IS NOT NULL AND id_empresa =
+  ANY(escopo)` para quem não carrega a claim `admin_plataforma` — e a
+  claim `admin_plataforma` NUNCA é emitida no fluxo de login (o usuário
+  ainda não tem entidade ativa/vínculo verificado no momento do
+  login_sucesso/login_falha). Resultado: o Postgres aceita o INSERT (WITH
+  CHECK do INSERT, inalterado desde 0009, permite `id_empresa IS NULL` para
+  os 5 `acao` da allowlist), mas a cláusula `RETURNING` do
+  `return=representation` reavalia a policy `FOR SELECT` sobre a linha
+  recém-inserida — que nega, pois `id_empresa IS NULL` e sem a claim — e o
+  PostgREST responde `403 { code: "42501", message: "new row violates
+  row-level security policy for table \"Auditoria\"" }`. O catch
+  best-effort de `registrarAuditoria` engole o erro silenciosamente (por
+  desenho — nunca deve derrubar o fluxo de login), então TODO evento
+  global (`login_sucesso`, `login_falha`, `logout`,
+  `recuperacao_senha_solicitada`, `senha_redefinida`) deixou de ser
+  gravado desde a migration 0035, sem NENHUM teste anterior (unit ou
+  integração) ter exercitado esse caminho com `admin_plataforma` real —
+  gap que só a FASE 6 (E2E dedicado) expôs. Isso violava FR-006/SC-002
+  (100% das escritas relevantes na trilha) para a categoria inteira de
+  eventos globais.
+
+  Fix (mínimo, sem tocar RLS/policies): `lib/hub-auditoria.js` passa a
+  invocar `hubPostgrestRequest(..., claims, { returnMinimal: true })` —
+  `Prefer: return=minimal` evita o `RETURNING` por completo (nenhum caller
+  de `registrarAuditoria` no repo consome o valor de retorno — é
+  fire-and-forget por desenho, ver cabeçalho do próprio arquivo), então a
+  policy `FOR SELECT` deixa de ser reavaliada na escrita. Nenhuma mudança
+  de postura de segurança: a policy `FOR SELECT` continua negando
+  evento global para quem não é `admin_plataforma` (Cenário 3 passo 4
+  preservado — `admin_entidade` nunca vê `entidadeId:null`); só a
+  visibilidade do PRÓPRIO INSERT (que nenhum caller usa) deixou de ser
+  exigida.
+
+  Evidência: reproduzido em ambiente `hub-test-debug1` efêmero isolado —
+  `login_falha` (email inexistente) gerava
+  `[hub-auditoria] falha ao registrar evento (nao bloqueia o fluxo):
+  login_falha hub-postgrest: 403 Forbidden — {"code":"42501",...}` no log
+  do backend e 0 linhas em `Auditoria`; após o fix + rebuild da imagem
+  (`DOCKER_BUILDKIT=0 docker compose ... build backend`), o MESMO cenário
+  gravou `id=2 | id_empresa=<NULL> | acao=login_falha | recurso=Usuario`
+  (`psql` direto) e o log de erro desapareceu. `npm run test:hub:unit`:
+  `# tests 481 / # suites 109 / # pass 481 / # fail 0` (zero regressão).
+  Ambiente de debug descartado (`docker compose ... down -v
+  --remove-orphans`, `docker ps -a --filter name=hub-test-` vazio depois).
+
+  Evidência (script definitivo, `hub-auditoria-admin-integration.sh`,
+  Docker real, projeto `hub-test-1783640711` efêmero descartado ao final):
+  `HUB-AUDITORIA-ADMIN-INTEGRATION: OK — todos os asserts passaram (FASE
+  6.1, Cenarios 1/2/3)`, 24/24 `PASS:` (0 FAIL), cobrindo: `401` sem
+  cookie; usuário multi-entidade (vínculos `admin_entidade` em A e B) SEM
+  `trocaEntidade` → `200 {eventos:[],total:0}` (Cenário 2 passos 1/2);
+  `admin_entidade` cria usuário (evento `usuario_criado` real) e
+  `GET /auditoria` só retorna eventos da própria entidade, NUNCA globais
+  (Cenário 1 passo 3); filtro `acao=usuario_criado` isola o evento e
+  `detalhes` confirmado sem `senha` (chave/valor), sem a senha literal e
+  sem o e-mail do usuário criado (Cenário 1 passo 4); `entidadeId` de
+  outra entidade → `403 PERMISSAO_NEGADA` (Cenário 2 passo 3);
+  `admin_plataforma` sem `entidadeId` vê eventos de MÚLTIPLAS entidades
+  (A e B) + evento global `login_sucesso` (`entidadeId:null`) (Cenário 3
+  passo 2); `admin_plataforma?entidadeId=E_A` só retorna eventos da E_A e
+  inclui (paridade) tudo que o `admin_entidade` da E_A já havia visto
+  (Cenário 3 passo 3). Confirmado via `psql` direto: evento
+  `usuario_criado` gravado em E_A sem `senha` em `detalhes`; eventos
+  `login_sucesso` gravados com `id_empresa` `NULL` (globais) — prova de
+  que o fix do dec-037 se sustenta no script real, não só no debug manual.
+
+  Evidência (regressão dos Cenários 4/5/6/7 — scripts dedicados das fases
+  anteriores, re-executados AO VIVO nesta mesma onda para confirmar que o
+  fix do dec-037 não quebrou nenhum fluxo já coberto, cada um em projeto
+  `hub-test-<runid>` efêmero descartado ao final):
+  `bash infra/hub/testes/hub-auditoria-integration.sh` →
+  `HUB-AUDITORIA-INTEGRATION: OK` 16/16 PASS (Cenário 4 — imutabilidade,
+  trigger + REVOKE UPDATE/DELETE, scrub ponta-a-ponta);
+  `bash infra/hub/testes/hub-usuarios-integration.sh` →
+  `HUB-USUARIOS-INTEGRATION: OK` 27/27 PASS (Cenário 5 — criação+vínculo,
+  troca de papel refletindo sem novo login/SC-004, edição/desativação
+  CHK033, isolamento por entidade);
+  `bash infra/hub/testes/hub-papeis-integration.sh` →
+  `HUB-PAPEIS-INTEGRATION: OK` 21/21 PASS (Cenário 6 — matriz read-only
+  para admin_entidade, edição+reflexo imediato para admin_plataforma,
+  guard anti-lockout);
+  `bash infra/hub/testes/hub-admin-integration.sh` →
+  `HUB-ADMIN-INTEGRATION: OK` 22/22 PASS (Cenário 7 — efeito imediato de
+  módulo desabilitado/reabilitado, `403 MODULO_DESABILITADO`, `403
+  PERMISSAO_NEGADA` para admin_entidade mesmo em leitura, guard
+  anti-lockout do módulo `admin`); `bash
+  infra/hub/testes/hub-rbac-integration.sh` → `HUB-RBAC-INTEGRATION: OK`
+  (regressão adicional do nega-por-padrão/gate por-entidade da FASE 3.3).
+  `docker ps -a --filter name=hub-test-` vazio após cada run — nenhum
+  projeto efêmero remanescente.
 
   Evidência: _preencher na execução_
 
@@ -823,8 +924,8 @@ flowchart TD
 | 3 - Endpoint Auditoria evoluído | 3 | 14 | C/A |
 | 4 - Administração Backend (+1 subtarefa emergente 4.2.0 — dec-032) | 5 | 37 | C/A |
 | 5 - Telas | 4 | 22 | A |
-| 6 - E2E e Evidências | 4 | 15 | C/A/M |
-| **Total** | **23** | **125** | - |
+| 6 - E2E e Evidências (+1 subtarefa emergente 6.1.0 — dec-037) | 4 | 16 | C/A/M |
+| **Total** | **23** | **126** | - |
 
 ## Escopo Coberto
 

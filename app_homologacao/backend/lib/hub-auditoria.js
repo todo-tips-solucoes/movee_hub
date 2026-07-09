@@ -128,6 +128,22 @@ async function registrarAuditoria(evento) {
   }
 
   try {
+    // FASE 6 (achado E2E, dec-070): `return=representation` (default de
+    // hubPostgrestRequest) faz o PostgREST reavaliar a policy FOR SELECT
+    // sobre a linha recém-inserida para poder devolvê-la no RETURNING — não
+    // basta satisfazer o WITH CHECK do INSERT. Desde a migration 0035
+    // (auditoria_select_por_escopo passou a exigir `id_empresa IS NOT NULL
+    // AND id_empresa=ANY(escopo)` para quem não tem a claim
+    // admin_plataforma), TODO evento global (`id_empresa IS NULL` — login_
+    // sucesso/login_falha/logout/recuperacao_senha_solicitada/
+    // senha_redefinida, tasks.md 6.1) passou a falhar com "42501 new row
+    // violates row-level security policy" na hora do RETURNING, mesmo o
+    // INSERT em si sendo permitido pelo WITH CHECK (0009) — silenciado pelo
+    // catch best-effort abaixo, sem nenhum caller notar. Nenhum código
+    // consome o retorno de `registrarAuditoria` (best-effort, ver cabeçalho
+    // do arquivo) — `returnMinimal` evita o RETURNING por completo, sem
+    // qualquer mudança de postura de RLS/visibilidade (SELECT continua
+    // negando evento global para quem não é admin_plataforma).
     await hubPostgrestRequest('Auditoria', 'POST', {
       id_empresa: idEmpresa,
       usuario_id: usuarioId,
@@ -136,7 +152,7 @@ async function registrarAuditoria(evento) {
       recurso_id: recursoId !== null && recursoId !== undefined ? String(recursoId) : null,
       detalhes: scrubDetalhes(detalhes),
       ip,
-    }, claims);
+    }, claims, { returnMinimal: true });
   } catch (e) {
     // best-effort — nunca interrompe o fluxo chamador (ver cabeçalho)
     console.error('[hub-auditoria] falha ao registrar evento (nao bloqueia o fluxo):', acao, e.message);
