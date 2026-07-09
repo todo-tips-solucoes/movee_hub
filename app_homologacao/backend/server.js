@@ -69,6 +69,13 @@ const hubFaturamentoRoutes = require('./routes/hub-faturamento');
 // (routes/hub-performance.js). Somente leitura (FR-010).
 const hubPerformanceRoutes = require('./routes/hub-performance');
 
+// hub-auditoria-admin (S9 do hub de frota, FASE 4.2) — GET/POST/PUT
+// /api/v1/usuarios + POST/PUT /api/v1/usuarios/:id/vinculos (gestão de
+// usuários e vínculos). requireModuloAtivo('usuarios') +
+// requirePermission('usuarios.gerenciar') aplicados dentro do próprio
+// router. Arquivo 100% novo (routes/hub-usuarios.js).
+const hubUsuariosRoutes = require('./routes/hub-usuarios');
+
 // hub-envio-massa (S8 do hub de frota, FASE 3) — os 11 endpoints legados de
 // envio em massa abaixo ganham 2 middlewares novos na cadeia (claims-bridge +
 // gate de permissão RBAC), atuando somente quando a sessão é do hub
@@ -2737,6 +2744,12 @@ app.use('/api/v1/faturamento', hubFaturamentoRoutes.router);
 // é aplicado dentro do próprio router (mesmo padrão do bloco
 // /api/v1/faturamento acima).
 app.use('/api/v1/performance', hubPerformanceRoutes.router);
+
+// hub-auditoria-admin (S9, FASE 4.2) — /api/v1/usuarios (gestão de usuários
+// e vínculos). requireModuloAtivo('usuarios')/requirePermission('usuarios.
+// gerenciar') são aplicados dentro do próprio router (mesmo padrão do bloco
+// /api/v1/performance acima).
+app.use('/api/v1/usuarios', hubUsuariosRoutes.router);
 
 // hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
 // boot: um restart no meio de uma importação (deploy) deixa o registro

@@ -418,17 +418,58 @@ checklists/requirements.md CHK033 `[Ambiguity]` ("editar" inclui desativar?)
   `HUB-RBAC-INTEGRATION: OK`, 36/36 PASS (0 FAIL) — SELECT ampliado não
   quebrou nenhum cenário de GET /me/GET /auditoria já cobertos.
 
-- [ ] 4.2.1 Criar `app_homologacao/backend/routes/hub-usuarios.js`, todas as rotas sob `requireModuloAtivo('usuarios')` + `requirePermission('usuarios.gerenciar')` + checagem por-entidade
-- [ ] 4.2.2 Implementar `GET /usuarios` (busca `ilike` nome/email, `entidadeId` — só admin_plataforma pode divergir da ativa, paginação)
-- [ ] 4.2.3 Implementar `POST /usuarios` (criação + primeiro vínculo em um passo, senha validada por `isStrongPassword`, `vinculo.papelId` deve existir no catálogo fixo — dec-008, e-mail duplicado → `409 EMAIL_JA_CADASTRADO`), auditoria `usuario_criado` sem senha em `detalhes`
-- [ ] 4.2.4 Implementar `PUT /usuarios/:id` (edita `nome`/`ativo`/`senha` opcional — Ref CHK033: "editar" nesta feature inclui desativar via `ativo=false`, JAMAIS DELETE de linha; leitura de baixo risco adotada do checklist), `404 USUARIO_NAO_ENCONTRADO` se fora do escopo do chamador (não vaza existência cross-tenant), auditoria `usuario_editado`
-- [ ] 4.2.5 Implementar `POST /usuarios/:id/vinculos` (novo vínculo, `409 VINCULO_JA_EXISTE` no conflito), auditoria `usuario_vinculo_criado`
-- [ ] 4.2.6 Implementar `PUT /usuarios/:id/vinculos/:vinculoId` (troca `papelId`/`ativo` — Ref CHK033: desativação de vínculo também é via `ativo=false`, sem DELETE), auditoria `usuario_papel_alterado` (mudança de papel) e/ou `usuario_vinculo_desativado` (mudança de `ativo`)
-- [ ] 4.2.7 Chamar `invalidarUsuario(usuarioId)` SÍNCRONO em toda mutação de vínculo/papel (FR-011/SC-004) — fecha o gap: `invalidarUsuario` existe em `lib/hub-rbac-cache.js` desde a S2 mas está órfão, sem nenhum caller até esta feature
-- [ ] 4.2.8 Montar `hubUsuariosRoutes.router` em `server.js` sob `/api/v1/usuarios` (diff mínimo, mesma altura das demais montagens `hub*`)
-- [ ] 4.2.9 Teste integração: `tests/hub-usuarios.test.js`/`infra/hub/testes/hub-usuarios-integration.sh` cobrindo criação+vínculo (Cenário 5), troca de papel refletindo <2s sem esperar TTL (Cenário 5 passo 3 — SC-004), edição/desativação de usuário (CHK033), isolamento por entidade (admin_entidade não vê/edita vínculos de outra entidade), `409 EMAIL_JA_CADASTRADO`/`VINCULO_JA_EXISTE`, `403 MODULO_DESABILITADO`/`PERMISSAO_NEGADA`
+- [x] 4.2.1 Criar `app_homologacao/backend/routes/hub-usuarios.js`, todas as rotas sob `requireModuloAtivo('usuarios')` + `requirePermission('usuarios.gerenciar')` + checagem por-entidade
+- [x] 4.2.2 Implementar `GET /usuarios` (busca `ilike` nome/email, `entidadeId` — só admin_plataforma pode divergir da ativa, paginação)
+- [x] 4.2.3 Implementar `POST /usuarios` (criação + primeiro vínculo em um passo, senha validada por `isStrongPassword`, `vinculo.papelId` deve existir no catálogo fixo — dec-008, e-mail duplicado → `409 EMAIL_JA_CADASTRADO`), auditoria `usuario_criado` sem senha em `detalhes`
+- [x] 4.2.4 Implementar `PUT /usuarios/:id` (edita `nome`/`ativo`/`senha` opcional — Ref CHK033: "editar" nesta feature inclui desativar via `ativo=false`, JAMAIS DELETE de linha; leitura de baixo risco adotada do checklist), `404 USUARIO_NAO_ENCONTRADO` se fora do escopo do chamador (não vaza existência cross-tenant), auditoria `usuario_editado`
+- [x] 4.2.5 Implementar `POST /usuarios/:id/vinculos` (novo vínculo, `409 VINCULO_JA_EXISTE` no conflito), auditoria `usuario_vinculo_criado`
+- [x] 4.2.6 Implementar `PUT /usuarios/:id/vinculos/:vinculoId` (troca `papelId`/`ativo` — Ref CHK033: desativação de vínculo também é via `ativo=false`, sem DELETE), auditoria `usuario_papel_alterado` (mudança de papel) e/ou `usuario_vinculo_desativado` (mudança de `ativo`)
+- [x] 4.2.7 Chamar `invalidarUsuario(usuarioId)` SÍNCRONO em toda mutação de vínculo/papel (FR-011/SC-004) — fecha o gap: `invalidarUsuario` existe em `lib/hub-rbac-cache.js` desde a S2 mas está órfão, sem nenhum caller até esta feature
+- [x] 4.2.8 Montar `hubUsuariosRoutes.router` em `server.js` sob `/api/v1/usuarios` (diff mínimo, mesma altura das demais montagens `hub*`)
+- [x] 4.2.9 Teste integração: `tests/hub-usuarios.test.js`/`infra/hub/testes/hub-usuarios-integration.sh` cobrindo criação+vínculo (Cenário 5), troca de papel refletindo <2s sem esperar TTL (Cenário 5 passo 3 — SC-004), edição/desativação de usuário (CHK033), isolamento por entidade (admin_entidade não vê/edita vínculos de outra entidade), `409 EMAIL_JA_CADASTRADO`/`VINCULO_JA_EXISTE`, `403 MODULO_DESABILITADO`/`PERMISSAO_NEGADA`
 
-  Evidência: _preencher na execução_
+  Evidência: `app_homologacao/backend/routes/hub-usuarios.js` (novo, 5 rotas:
+  GET/POST `/`, PUT `/:id`, POST `/:id/vinculos`, PUT `/:id/vinculos/:vinculoId`),
+  montado em `server.js` sob `/api/v1/usuarios` (diff mínimo, mesma altura de
+  `/api/v1/performance`). Funções puras exportadas (`isStrongPassword`,
+  `parsePaginacaoUsuarios`, `resolverEntidadeAlvo`) + `invalidarUsuario`
+  agora com 4 callers reais (POST /usuarios, PUT /:id, POST /:id/vinculos,
+  PUT /:id/vinculos/:vinculoId) — órfão desde a S2, fechado nesta feature.
+  Testes unitários: `tests/hub-usuarios-unit.test.js` (12 casos, funções
+  puras). `npm run test:hub:unit`: `# tests 480 / # pass 480 / # fail 0`
+  (era 468/468 — +12 novos, zero regressão).
+
+  Teste de integração AO VIVO (Docker real, `hub-test-<runid>` efêmero
+  descartado ao final): `infra/hub/testes/hub-usuarios-integration.sh`
+  (novo) + wrapper `tests/hub-usuarios.test.js` (`npm run
+  test:hub:integration`). Saída final:
+  `HUB-USUARIOS-INTEGRATION: OK — todos os asserts passaram (FASE 4.2)`,
+  27/27 `PASS:` (0 FAIL) cobrindo: 401 sem cookie; 403 sem
+  `usuarios.gerenciar`; `GET /usuarios` escopado à própria entidade (admin
+  A não vê usuário só vinculado a B); `POST /usuarios` cria usuário+1º
+  vínculo (201, exatamente 1 vínculo na resposta — SC-008); `409
+  EMAIL_JA_CADASTRADO`; `400 SENHA_FRACA`; `PUT /usuarios/:id` edita
+  nome+desativa (`ativo:false`, CHK033); `404 USUARIO_NAO_ENCONTRADO`
+  cross-tenant; `403 PERMISSAO_NEGADA` ao tentar vincular usuário de A a B
+  (admin_entidade); `409 VINCULO_JA_EXISTE`; troca de papel via `PUT
+  vinculos/:vinculoId` refletindo IMEDIATAMENTE nas permissões efetivas do
+  usuário-alvo (login ANTES com `motoristas.criar` presente — papel
+  operador — e DEPOIS da troca para `leitura` o MESMO accessToken já não
+  tem `motoristas.criar`, SEM novo login — SC-004/invalidarUsuario síncrono
+  confirmado empiricamente, sem esperar o TTL de 60s); 3 eventos de
+  auditoria confirmados via `psql` direto (`usuario_criado`,
+  `usuario_editado`, `usuario_papel_alterado`).
+
+  Gotcha do próprio teste (documentado no script): a 1ª versão testava a
+  reflexão SC-004 usando a permissão `motoristas.consultar` como
+  discriminador — só depois de rodar ao vivo (FAIL genuíno) se descobriu
+  que `motoristas.consultar` é concedida tanto por `operador` quanto por
+  `leitura` (seed 0007), um mau discriminador; trocado para
+  `motoristas.criar` (só `operador` tem). Também corrigida a ORDEM dos
+  cenários no script: a etapa de desativação (`ativo:false`, CHK033) foi
+  movida para o FIM do fluxo do usuário de teste — rodar antes do
+  login-check de SC-004 causava 401 por `conta_inativa` (comportamento
+  CORRETO do backend, causa raiz era sequenciamento do teste).
 
 ### 4.3 Router `hub-papeis.js` (matriz papel×permissão) `[C]`
 
