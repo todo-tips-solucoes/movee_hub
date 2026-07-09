@@ -65,6 +65,59 @@ Scenarios; contracts/legacy-endpoints.md; research.md Decision 3
   contra as linhas da matriz — todos ✅. Arquivo linka explicitamente a tarefa 2.2
   como consumidora (fonte única da verdade dos asserts RBAC).
 
+### 1.3 Provisionamento do schema legado no `hub-homolog` — trabalho emergente (block-002 → dec-034) `[C]`
+
+Ref: dec-033 (achado de ambiente: `hub_homolog` não tinha `Empresa`/`Grupo`/
+`EnvioMassa`/`ProcessControl`/`Motorista`) → block-002 → dec-034 (operador
+autorizou Opção A) → dec-036/dec-037. Desbloqueia 2.2.9, FASE 4.1.8 e FASE 6.
+
+- [x] 1.3.1 `infra/hub/migrations/0033_schema_legado_envio_massa.sql` — `CREATE
+      TABLE IF NOT EXISTS` para as 5 tabelas legadas, schema extraído de
+      evidência real (não inventado): `app_homologacao/backend/db/001_create_motorista.sql`
+      + `008_cadastro_motorista_base.sql` (Motorista — espelho exato),
+      `003_empresa_nota_fields.sql` + `009_envio_massa_gorjeta.sql` (Empresa/
+      EnvioMassa colunas fiscais/gorjeta), `docs/sql/001/004/007-*.sql` (Grupo,
+      Empresa.id_grupo/cnpj/login_unico_ativo), e grep exaustivo de `select=`/
+      corpos de INSERT em `server.js:1903` (SELECT completo de EnvioMassa),
+      `server.js:1762-1783` (INSERT do `/upload`), `server.js:1247-1281`
+      (ProcessControl), `routes/grupo.js:465` (SELECT completo de Empresa)
+- [x] 1.3.2 `infra/hub/migrations/0034_seed_legado_envio_massa_teste.sql` —
+      seeds sintéticos: `Empresa` id=9001 (matriz, mesmo id do `entidade_ativa`
+      do tenant hub de QA já seedado) + id=9010 (filial, mesmo `Grupo`), 1
+      `Grupo`, 3 `EnvioMassa` (aberto não-validado / aberto validado / fechado),
+      1 `ProcessControl`, 2 `Motorista` (1 ativo, 1 pré-cadastro sem senha)
+- [x] 1.3.3 Aplicado via `infra/hub/scripts/migrate.sh -f
+      infra/hub/compose.hub.homolog.yml -p hub-homolog -e
+      /var/lib/hub_secrets/.env.hub.homolog` — SOMENTE no banco isolado
+      `hub_homolog` (recurso `hub-*`, exceção G1); produção/`chatmasterveloz`
+      não tocada
+- [x] 1.3.4 Idempotência confirmada (2ª execução do `migrate.sh` = "0 aplicadas
+      agora", ambas migrations "puladas (já aplicada)")
+- [x] 1.3.5 Dados verificados via `psql` direto no `hub_homolog_db` (Empresa
+      9001/9010 com `id_grupo=9001`, Grupo 9001, 3 EnvioMassa, 1
+      ProcessControl, 2 Motorista) + PostgREST reconhece as tabelas novas
+      (`wget` sem JWT em `/Empresa?id=eq.9001` = `401 Unauthorized`, não
+      `404`/`PGRST205 relation not found`)
+
+  Evidência: `migrate.sh` 1ª run = "migrate: concluído (2 aplicadas agora)";
+  2ª run = "migrate: concluído (0 aplicadas agora)", ambas migrations listadas
+  como "pulada (já aplicada)". `psql -c 'SELECT id, nome_empresa, cnpj,
+  id_grupo FROM "Empresa" WHERE id IN (9001,9010)'` retornou exatamente as 2
+  linhas esperadas (9001/9010, `id_grupo=9001` em ambas). `SELECT id, nome,
+  id_empresa_pai FROM "Grupo"` = 1 linha (9001, pai=9001). `SELECT id,
+  cnpj_prestador, mov_fechado, numnota, nota_ok, gorjeta FROM "EnvioMassa"` =
+  3 linhas nos 3 estados planejados. `SELECT * FROM "ProcessControl"` = 1
+  linha (user_id=9001, status=inactive). `SELECT cnpj_prestador, senha IS
+  NULL, ativo FROM "Motorista"` = 2 linhas (1 com senha, 1 pré-cadastro).
+  `docker exec hub_homolog_backend sh -c 'wget -qO- http://postgrest:3000/Empresa?id=eq.9001'`
+  = `HTTP/1.1 401 Unauthorized` (rota reconhecida pelo PostgREST, rejeitada
+  só por falta de JWT — confirma schema exposto, não erro de tabela ausente).
+  Decisão auditável registrada (dec-037, score 3, evidência citada). Arquivos
+  0033/0034 revisados e corrigidos para remover `BEGIN;`/`COMMIT;` explícito
+  (redundante/conflitante com o wrapper `psql -1` do `migrate.sh`, gerava
+  WARNING "there is no transaction in progress" — inofensivo mas fora do
+  padrão das migrations 0000-0032; corrigido antes de fechar a tarefa).
+
 ---
 
 ## FASE 2 - Middlewares Novos (Adaptador de Claims + Gate de Permissão)
