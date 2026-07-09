@@ -1316,3 +1316,57 @@ Próximo passo: fase `review-task` (mínimo `sonnet`) → PR draft.
 **Ponteiros:** branch `feat/hub-envio-massa` (HEAD `2a1c23a`, sem push);
 `AGENTE_00C_STATE_DIR=.claude/feature-00c-state/hub-envio-massa`,
 `current_stage` avança para `review-task` ao fechar esta onda (onda-012).
+
+## 2026-07-09 — S8 (Módulo Envio em Massa) REVIEW-TASK CONCLUÍDA — APROVAR COM RESSALVA
+
+**Onda-014** (`/feature-00c-resume`, sonnet por override dec-055 — precedente
+dec-038/dec-031: review-task nunca em haiku). Auditoria em disco (não em
+resumo de sessão): HEAD `98ff9e3` (2 commits de correção de contagem do
+DIARIO após `088a100`), branch limpa, 18 commits ahead de `main`, sem push.
+Confirmado literalmente: 75/78 `[x]` em `tasks.md`; 62/62 `PASS` (0 `FAIL`)
+em `evidencias/e2e-run-20260709T082218Z.log`; suíte legada 458 pass/8 fail
+pré-existentes, zero regressão; diff de `server.js` = wiring aditivo de
+middlewares + histórico fire-and-forget, zero linha de lógica de negócio
+pré-existente tocada; gate `owasp-security` (dec-016) 0 CRITICAL/HIGH.
+
+**Achados corrigidos nesta onda:**
+1. `.tasks[]` (camada B, knowledge-db) estava incompleto — tasks 5.2/6.1/6.3
+   concluídas no `tasks.md` sem outcome gravado (o `execute-task` pulou o
+   `record-task` ao vivo, provavelmente durante a reconciliação da sessão
+   concorrente). Sanado via `state-ondas.sh reconcile-tasks` (back-fill
+   idempotente, `--if-absent`) — `.tasks[]` 10→13, 0 half-records
+   confirmado por `state-decisions-reconcile.sh check`.
+2. `checklists/requirements.md` nunca foi re-sincronizado após a fase
+   `checklist` (único commit, `2d7c76e`) — `CHK006`/`CHK010`/`CHK031`
+   seguem `[ ]` apesar de evidência real de fechamento (dec-040/052/053).
+   Não bloqueante; registrado como follow-up leve de doc-hygiene.
+
+**Veredito:** `aprovar-com-ressalva` (dec-059) — mesmo padrão já aceito pelo
+operador em `hub-faturamento` (PR #59) e `hub-performance` (PR #60). Nenhuma
+regressão de segurança introduzida por esta feature; o gap remanescente
+(`ENVIO_DRY_RUN`/allowlist não lidos via `process.env` em `sendMessage`/
+`validate-xml-batch`) é pré-existente do fluxo legado, confirmado fora do
+diff desta feature, e formalmente deferido (tasks 6.2.1–6.2.3,
+CHK018/CHK037 permanecem `{humano}` por decisão, não por omissão).
+Relatório completo: `docs/specs/hub-envio-massa/review-onda-014.md`.
+
+**`.execution.status` promovido para `concluida`** (state.json, com
+`termination_reason=aprovar-com-ressalva`). **Push/PR NÃO executados nesta
+onda** — aguardando autorização explícita do operador (Governança/Rito de
+Produção, CLAUDE.md).
+
+**Pendências do operador (nenhuma bloqueia o merge por si só):**
+1. Autorizar push de `feat/hub-envio-massa` (HEAD `98ff9e3`) + abertura do PR.
+2. Decidir follow-up do achado `ENVIO_DRY_RUN` (feature própria, fora do
+   escopo "diff mínimo" da S8).
+3. Alinhar geração/rotação de `POSTGREST_API_KEY` real em
+   `.env.hub.homolog` (placeholder `__GERAR__`, pendência operacional desde
+   S1, não uma regressão desta feature).
+4. Gaps `{humano}` remanescentes do checklist: CHK018/CHK037 (decisão
+   formal do dono do produto); CHK006/CHK010/CHK031 têm evidência real mas
+   o arquivo `checklists/requirements.md` não foi re-sincronizado.
+
+**Ponteiros:** branch `feat/hub-envio-massa` (HEAD `98ff9e3`, sem push);
+`AGENTE_00C_STATE_DIR=.claude/feature-00c-state/hub-envio-massa`,
+`.execution.status=concluida`; **S8 fechada do lado da pipeline SDD** —
+falta só o rito de PR/push (operador) para fechar do lado do repositório.
