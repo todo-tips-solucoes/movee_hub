@@ -17,6 +17,7 @@ const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivas,
   obterPermissoesEfetivasPorEntidade,
+  usuarioEhAdminPlataforma,
 } = require('../lib/hub-rbac-cache');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { requirePermission } = require('../middleware/hub-require-permission');
@@ -319,24 +320,50 @@ function parsePaginacaoAuditoria(query) {
 }
 
 /**
- * Monta a cláusula de filtros PostgREST de `GET /auditoria` a partir do
- * resultado já validado de `parseFiltrosAuditoria`. TODO valor passa por
+ * Filtros PostgREST COMUNS a `GET /auditoria`, independentes do escopo
+ * (admin_entidade vs admin_plataforma — FASE 3.2). TODO valor passa por
  * `encodeURIComponent` (hardening owasp finding M1/A05) — nunca interpola
- * input bruto na query string do PostgREST. `entidadeId` do filtro NÃO é
- * aplicado aqui ainda (escopo admin_plataforma/admin_entidade é FASE 3.2) —
- * o caller decide, hoje, sempre forçar `id_empresa=eq.<entidadeAtiva>`.
- * @param {number} entidadeAtiva
+ * input bruto na query string do PostgREST.
  * @param {ReturnType<typeof parseFiltrosAuditoria>} f - já com `ok:true`
  * @returns {string[]}
  */
-function montarFiltrosQueryAuditoria(entidadeAtiva, f) {
-  const filtros = [`id_empresa=eq.${entidadeAtiva}`];
+function montarFiltrosComunsAuditoria(f) {
+  const filtros = [];
   if (f.acao) filtros.push(`acao=eq.${encodeURIComponent(f.acao)}`);
   if (f.recurso) filtros.push(`recurso=eq.${encodeURIComponent(f.recurso)}`);
   if (f.usuarioId !== null) filtros.push(`usuario_id=eq.${encodeURIComponent(f.usuarioId)}`);
   if (f.de) filtros.push(`criado_em=gte.${encodeURIComponent(`${f.de}T00:00:00.000Z`)}`);
   if (f.ate) filtros.push(`criado_em=lte.${encodeURIComponent(`${f.ate}T23:59:59.999Z`)}`);
   return filtros;
+}
+
+/**
+ * Monta a cláusula de filtros PostgREST de `GET /auditoria` para o escopo
+ * `admin_entidade` (sem claim `admin_plataforma`, FASE 3.2) — SEMPRE forçado
+ * a `id_empresa=eq.<entidadeAtiva>`, independente de qualquer `entidadeId`
+ * do query (o caller já rejeita com 403 antes de chegar aqui quando
+ * `entidadeId` diverge — task 3.2.4).
+ * @param {number} entidadeAtiva
+ * @param {ReturnType<typeof parseFiltrosAuditoria>} f - já com `ok:true`
+ * @returns {string[]}
+ */
+function montarFiltrosQueryAuditoria(entidadeAtiva, f) {
+  return [`id_empresa=eq.${entidadeAtiva}`, ...montarFiltrosComunsAuditoria(f)];
+}
+
+/**
+ * Monta a cláusula de filtros PostgREST de `GET /auditoria` para o escopo
+ * `admin_plataforma` (com claim, FASE 3.2/US2): sem `entidadeId` no query,
+ * NENHUM filtro de `id_empresa` é aplicado — vê todas as entidades +
+ * eventos globais (`id_empresa IS NULL`), backstop pela RLS
+ * (`hub_jwt_admin_plataforma()`, migration 0035); com `entidadeId`, filtra
+ * só aquela entidade (qualquer uma — sem checagem de vínculo, visão global).
+ * @param {ReturnType<typeof parseFiltrosAuditoria>} f - já com `ok:true`
+ * @returns {string[]}
+ */
+function montarFiltrosQueryAuditoriaGlobal(f) {
+  const filtros = f.entidadeId !== null ? [`id_empresa=eq.${f.entidadeId}`] : [];
+  return [...filtros, ...montarFiltrosComunsAuditoria(f)];
 }
 
 /**
@@ -389,7 +416,9 @@ auditoriaRouter.get('/', requirePermission('auditoria.consultar'), async (req, r
     // NENHUMA entidade). Mas a consulta é escopada pela entidade ATIVA — então
     // é ESSA entidade que precisa conceder `auditoria.consultar`. Sem esta
     // segunda verificação, alguém com o grant só na empresa B leria a trilha da
-    // empresa A ao ativá-la (onde tem apenas leitura). Verificação por-entidade:
+    // empresa A ao ativá-la (onde tem apenas leitura). Verificação por-entidade
+    // (mesma para admin_plataforma — sua PRÓPRIA linha de UsuarioEntidade na
+    // entidade ativa já concede `auditoria.consultar`, contracts/auditoria-api.md):
     const permsEntidade = await obterPermissoesEfetivasPorEntidade(payload.sub, entidadeAtiva);
     if (!permsEntidade.has('auditoria.consultar')) {
       return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
@@ -400,23 +429,43 @@ auditoriaRouter.get('/', requirePermission('auditoria.consultar'), async (req, r
       return res.status(400).json({ erro: f.erro });
     }
 
+    // FASE 3.2 — escopo por papel (contracts/auditoria-api.md "Escopo"):
+    // resolvido no request corrente, nunca de input do cliente (gate owasp,
+    // menor privilégio — lib/hub-postgrest-jwt.js#adminPlataforma).
+    const isAdminPlataforma = await usuarioEhAdminPlataforma(payload.sub);
+
+    if (!isAdminPlataforma && f.entidadeId !== null && f.entidadeId !== entidadeAtiva) {
+      // 3.2.4 — admin_entidade tentando ver outra entidade -> nunca cross-tenant.
+      return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+    }
+
     const { page, pageSize, from, to } = parsePaginacaoAuditoria(req.query);
 
-    const filtros = montarFiltrosQueryAuditoria(entidadeAtiva, f);
+    // 3.2.3 — sem o claim: SEMPRE forçado à entidade ativa (ignora/rejeita
+    // `entidadeId` divergente, já tratado acima). Com o claim: sem
+    // `entidadeId` vê todas as entidades + eventos globais; com `entidadeId`
+    // filtra só aquela entidade (US2).
+    const filtros = isAdminPlataforma
+      ? montarFiltrosQueryAuditoriaGlobal(f)
+      : montarFiltrosQueryAuditoria(entidadeAtiva, f);
     filtros.push('order=criado_em.desc,id.desc');
     filtros.push('select=id,id_empresa,usuario_id,acao,recurso,recurso_id,detalhes,ip,criado_em');
 
-    // FASE 5 (hub-fundacoes): Auditoria é escopada por `id_empresa ∈
-    // claim.escopo` (linhas com id_empresa NULL — eventos globais como login
-    // — ficam fora desta consulta, que já filtra id_empresa=eq.<entidadeAtiva>
-    // acima). Página além do total -> `eventos: []`, 200 (nunca erro,
-    // tasks.md 3.1.4) — comportamento natural do Range do PostgREST, sem
-    // caminho especial.
+    const claims = { usuarioId: payload.sub, empresaAtiva: entidadeAtiva, escopo: [entidadeAtiva] };
+    // 3.2.5 — claim `admin_plataforma` SÓ emitida depois de `usuarioEhAdminPlataforma`
+    // verificar o vínculo real no request corrente (defesa em profundidade:
+    // habilita o backstop da RLS, migration 0035, além do filtro de aplicação acima).
+    if (isAdminPlataforma) {
+      claims.adminPlataforma = true;
+    }
+
+    // Página além do total -> `eventos: []`, 200 (nunca erro, tasks.md
+    // 3.1.4) — comportamento natural do Range do PostgREST, sem caminho especial.
     const { data: linhas, total } = await hubPostgrestRequest(
       `Auditoria?${filtros.join('&')}`,
       'GET',
       null,
-      { usuarioId: payload.sub, empresaAtiva: entidadeAtiva, escopo: [entidadeAtiva] },
+      claims,
       { count: true, range: { from, to } }
     );
 
@@ -440,6 +489,8 @@ module.exports = {
   gerarAccessToken,
   parseFiltrosAuditoria,
   parsePaginacaoAuditoria,
+  montarFiltrosComunsAuditoria,
   montarFiltrosQueryAuditoria,
+  montarFiltrosQueryAuditoriaGlobal,
   mapEventoAuditoria,
 };

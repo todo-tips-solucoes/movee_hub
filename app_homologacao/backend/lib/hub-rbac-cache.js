@@ -144,6 +144,36 @@ async function obterPermissoesEfetivasPorEntidade(usuarioId, empresaId) {
 }
 
 /**
+ * Consulta se o usuário tem vínculo ATIVO (`UsuarioEntidade.ativo=true`) com
+ * o papel de escopo global `admin_plataforma` — hub-auditoria-admin (S9),
+ * tasks.md FASE 3.2/4.5, research.md Decision 2. Cache próprio (mesmo TTL
+ * 60s + fail-closed do núcleo `obterComCache`), chave `usuarioId:__admin_plataforma__`
+ * — o prefixo `usuarioId:` garante que `invalidarUsuario` também limpa esta
+ * entrada (mesmo mecanismo de invalidação síncrona, sem código extra).
+ *
+ * Resultado é a ÚNICA fonte usada para decidir se o backend emite a claim
+ * `admin_plataforma` no JWT do PostgREST (`lib/hub-postgrest-jwt.js`) —
+ * NUNCA aceitar esse valor de input do cliente (menor privilégio, gate
+ * owasp). NUNCA lança — fail-closed resolve para `false`.
+ * @param {number|string} usuarioId
+ * @returns {Promise<boolean>}
+ */
+async function usuarioEhAdminPlataforma(usuarioId) {
+  const chave = `${usuarioId}:__admin_plataforma__`;
+  const resultado = await obterComCache(chave, async () => {
+    const vinculos = await hubPostgrestRequest(
+      `UsuarioEntidade?usuario_id=eq.${usuarioId}&ativo=eq.true&select=papel:Papel(nome)`,
+      'GET',
+      null,
+      { usuarioId }
+    );
+    const tem = (vinculos || []).some((v) => v && v.papel && v.papel.nome === 'admin_plataforma');
+    return tem ? new Set(['admin_plataforma']) : new Set();
+  });
+  return resultado.has('admin_plataforma');
+}
+
+/**
  * Invalidação ativa (Decision 7) — a ser chamada por qualquer operação
  * administrativa que altere `UsuarioEntidade`/`PapelPermissao` do usuário
  * afetado, garantindo que SC-004 (≤60s) seja cumprido com folga mesmo no
@@ -169,6 +199,7 @@ function limparCache() {
 module.exports = {
   obterPermissoesEfetivas,
   obterPermissoesEfetivasPorEntidade,
+  usuarioEhAdminPlataforma,
   invalidarUsuario,
   limparCache,
   carregarPermissoesDoBanco,

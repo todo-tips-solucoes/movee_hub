@@ -31,6 +31,7 @@ const {
   parseFiltrosAuditoria,
   parsePaginacaoAuditoria,
   montarFiltrosQueryAuditoria,
+  montarFiltrosQueryAuditoriaGlobal,
   mapEventoAuditoria,
 } = require('../routes/hub-me');
 
@@ -145,6 +146,24 @@ describe('montarFiltrosQueryAuditoria', () => {
     const ate = decodeURIComponent(filtros.find((f) => f.startsWith('criado_em=lte.')).replace('criado_em=lte.', ''));
     assert.equal(de, '2026-03-10T00:00:00.000Z');
     assert.equal(ate, '2026-03-10T23:59:59.999Z');
+  });
+});
+
+describe('montarFiltrosQueryAuditoriaGlobal (FASE 3.2 — escopo admin_plataforma)', () => {
+  test('sem entidadeId -> NENHUM filtro de id_empresa (vê tudo + globais)', () => {
+    const filtros = montarFiltrosQueryAuditoriaGlobal({ ok: true, acao: null, usuarioId: null, recurso: null, de: null, ate: null, entidadeId: null });
+    assert.deepEqual(filtros, []);
+    assert.ok(!filtros.some((f) => f.startsWith('id_empresa=')));
+  });
+
+  test('com entidadeId -> filtra só aquela entidade (qualquer uma, visão global)', () => {
+    const filtros = montarFiltrosQueryAuditoriaGlobal({ ok: true, acao: null, usuarioId: null, recurso: null, de: null, ate: null, entidadeId: 9002 });
+    assert.deepEqual(filtros, ['id_empresa=eq.9002']);
+  });
+
+  test('combina entidadeId com os demais filtros', () => {
+    const filtros = montarFiltrosQueryAuditoriaGlobal({ ok: true, acao: 'login_sucesso', usuarioId: null, recurso: null, de: null, ate: null, entidadeId: 9001 });
+    assert.deepEqual(filtros, ['id_empresa=eq.9001', 'acao=eq.login_sucesso']);
   });
 });
 

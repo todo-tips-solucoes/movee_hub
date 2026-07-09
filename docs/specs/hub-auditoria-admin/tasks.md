@@ -317,24 +317,56 @@ Ref: contracts/auditoria-api.md "Escopo (FR-002/FR-003)"; data-model.md
 "Mapa permissão lógica → código real" (`auditoria.consultar`); spec.md
 FR-002; quickstart.md Cenários 2/3
 
-- [ ] 3.2.1 Implementar checagem de permissão `requirePermission('auditoria.consultar')` (flat) já existente, mantida
-- [ ] 3.2.2 Implementar checagem POR-ENTIDADE via `obterPermissoesEfetivasPorEntidade(sub, entidadeAtiva)` (padrão já usado nas demais rotas hub), garantindo que `auditoria.consultar` seja avaliado na entidade ativa correta
-- [ ] 3.2.3 Implementar a distinção de escopo na composição do filtro PostgREST: sem claim `admin_plataforma` no JWT interno → SEMPRE forçar `id_empresa=eq.<entidade_ativa>` (ignorando/rejeitando `entidadeId` divergente); com o claim → sem `entidadeId` retorna todas as entidades + eventos globais, com `entidadeId` filtra só aquela entidade
-- [ ] 3.2.4 Implementar `403 PERMISSAO_NEGADA` quando um admin_entidade informa `entidadeId` diferente da própria entidade ativa (nunca cross-tenant)
-- [ ] 3.2.5 Confirmar (via `lib/hub-postgrest-jwt.js`) que o claim `admin_plataforma` só é emitido no handler deste endpoint quando o vínculo real do usuário com papel `admin_plataforma` foi verificado no request corrente — nunca derivado de input do cliente (gate owasp, menor privilégio)
-- [ ] 3.2.6 Teste integração: admin_entidade vê só a própria entidade (Cenário 1); admin_entidade forçando `entidadeId` de outra entidade → `403` (Cenário 2 passo 3); admin_plataforma sem `entidadeId` vê múltiplas entidades + eventos globais (Cenário 3 passo 2); admin_plataforma com `entidadeId=9001` vê só a 9001 (Cenário 3 passo 3); admin_entidade nunca vê eventos globais mesmo tentando (Cenário 3 passo 4)
+- [x] 3.2.1 Implementar checagem de permissão `requirePermission('auditoria.consultar')` (flat) já existente, mantida
+- [x] 3.2.2 Implementar checagem POR-ENTIDADE via `obterPermissoesEfetivasPorEntidade(sub, entidadeAtiva)` (padrão já usado nas demais rotas hub), garantindo que `auditoria.consultar` seja avaliado na entidade ativa correta
+- [x] 3.2.3 Implementar a distinção de escopo na composição do filtro PostgREST: sem claim `admin_plataforma` no JWT interno → SEMPRE forçar `id_empresa=eq.<entidade_ativa>` (ignorando/rejeitando `entidadeId` divergente); com o claim → sem `entidadeId` retorna todas as entidades + eventos globais, com `entidadeId` filtra só aquela entidade
+- [x] 3.2.4 Implementar `403 PERMISSAO_NEGADA` quando um admin_entidade informa `entidadeId` diferente da própria entidade ativa (nunca cross-tenant)
+- [x] 3.2.5 Confirmar (via `lib/hub-postgrest-jwt.js`) que o claim `admin_plataforma` só é emitido no handler deste endpoint quando o vínculo real do usuário com papel `admin_plataforma` foi verificado no request corrente — nunca derivado de input do cliente (gate owasp, menor privilégio)
+- [x] 3.2.6 Teste integração: admin_entidade vê só a própria entidade (Cenário 1); admin_entidade forçando `entidadeId` de outra entidade → `403` (Cenário 2 passo 3); admin_plataforma sem `entidadeId` vê múltiplas entidades + eventos globais (Cenário 3 passo 2); admin_plataforma com `entidadeId=9001` vê só a 9001 (Cenário 3 passo 3); admin_entidade nunca vê eventos globais mesmo tentando (Cenário 3 passo 4)
 
-  Evidência: _preencher na execução_
+  Evidência: implementado — `lib/hub-postgrest-jwt.js` ganhou `claims.adminPlataforma`
+  -> payload `admin_plataforma` (front-loaded de FASE 4.5.1, já que 3.2
+  depende disso); `lib/hub-rbac-cache.js#usuarioEhAdminPlataforma` (novo,
+  cache TTL 60s + fail-closed, chave `usuarioId:__admin_plataforma__` —
+  coberta por `invalidarUsuario` via prefixo); `routes/hub-me.js` handler
+  evoluído: `montarFiltrosQueryAuditoria` (forçado, admin_entidade) vs
+  `montarFiltrosQueryAuditoriaGlobal` (sem filtro de id_empresa se
+  `entidadeId` ausente; com `entidadeId` filtra só aquela entidade,
+  admin_plataforma); `entidadeId` divergente da entidade ativa quando
+  `!isAdminPlataforma` -> 403 PERMISSAO_NEGADA (3.2.4); `obterPermissoesEfetivasPorEntidade`
+  mantido para AMBOS os papéis (o vínculo admin_plataforma na própria
+  entidade ativa já concede `auditoria.consultar`, dispensando bypass
+  especial — decisão registrada no state.json da execução).
+  Testes: `tests/hub-rbac-admin-plataforma-unit.test.js` (6 casos:
+  admin_plataforma detectado/negado/cache/invalidação/fail-closed) +
+  `tests/hub-me-auditoria-query-unit.test.js` ganhou describe
+  `montarFiltrosQueryAuditoriaGlobal` (3 casos). `npm run test:hub:unit`:
+  saída final `# tests 456 / # suites 104 / # pass 456 / # fail 0` (era
+  447/447 antes — +9 novos, zero regressão). Cenários 2/3 do quickstart
+  contra usuário admin_plataforma REAL (com seed próprio) ficam para o
+  script dedicado da FASE 6 (`hub-auditoria-admin-integration.sh`) — nenhum
+  seed de teste com vínculo `admin_plataforma` existe ainda (nota do
+  próprio 0038); os Cenários 1/2 (admin_entidade escopado + 403
+  cross-entidade) já ficam validados ao vivo pela regressão abaixo (3.3.2).
 
 ### 3.3 Nega-por-padrão sem entidade ativa `[C]`
 
 Ref: spec.md FR-003; contracts/auditoria-api.md "Escopo"; quickstart.md
 Cenário 2; hub-rbac-integration.sh (comportamento já asserted, preservar)
 
-- [ ] 3.3.1 Confirmar/preservar o comportamento já existente: sem entidade ativa determinável no contexto de quem consulta → `200 { "eventos": [], "total": 0 }` (nunca a trilha completa, nunca `500`)
-- [ ] 3.3.2 Teste de regressão: reexecutar o cenário já coberto por `hub-rbac-integration.sh` (login multi-entidade sem selecionar entidade ativa → `GET /auditoria` vazio) garantindo que a evolução do endpoint (FASE 3.1/3.2) não quebrou esse comportamento
+- [x] 3.3.1 Confirmar/preservar o comportamento já existente: sem entidade ativa determinável no contexto de quem consulta → `200 { "eventos": [], "total": 0 }` (nunca a trilha completa, nunca `500`)
+- [x] 3.3.2 Teste de regressão: reexecutar o cenário já coberto por `hub-rbac-integration.sh` (login multi-entidade sem selecionar entidade ativa → `GET /auditoria` vazio) garantindo que a evolução do endpoint (FASE 3.1/3.2) não quebrou esse comportamento
 
-  Evidência: _preencher na execução_
+  Evidência: rodado AO VIVO contra `hub-test-<runid>` efêmero (Docker real,
+  `bash infra/hub/testes/hub-rbac-integration.sh`, projeto
+  `hub-test-1783635266`, descartado ao final — `docker ps -a --filter
+  name=hub-test- ` vazio após o run). Saída final:
+  `HUB-RBAC-INTEGRATION: OK — todos os asserts passaram (FASE 4: 4.1/4.2/4.3)`,
+  36/36 `PASS:` (0 FAIL), incluindo
+  `PASS: GET /auditoria sem entidade ativa -> eventos=[] (nega-por-padrao)`
+  e os 2 pontos corrigidos em 3.1 (`e.entidadeId` em vez de `e.id_empresa`):
+  `PASS: GET /auditoria: todos os eventos escopados pela MESMA entidade ativa`
+  e `PASS: (#1) todos os eventos em B escopados por B`.
 
 ---
 
