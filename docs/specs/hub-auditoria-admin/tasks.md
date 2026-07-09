@@ -288,14 +288,28 @@ Ref: contracts/auditoria-api.md "GET /auditoria" (query params, hardening
 gate owasp finding M1); spec.md FR-001; routes/hub-me.js (`auditoriaRouter`
 existente — EVOLUÇÃO aditiva, chave `eventos` preservada)
 
-- [ ] 3.1.1 Evoluir o handler `GET /` de `auditoriaRouter` em `routes/hub-me.js` para aceitar os novos query params: `acao`, `usuarioId`, `recurso`, `de`, `ate`, `entidadeId`, `page`, `pageSize` (contract)
-- [ ] 3.1.2 Implementar validação de vocabulário fechado ANTES de compor a URL do PostgREST (finding M1/A05): `acao`/`recurso` casam `^[a-z0-9_]+$` (senão `400 PARAMETRO_INVALIDO`); `usuarioId`/`entidadeId` `Number.isInteger`; `de`/`ate` ISO `YYYY-MM-DD`; TODO valor passa por `encodeURIComponent` na composição — nunca interpolar input bruto na query string do PostgREST
-- [ ] 3.1.3 Implementar `de > ate` → `400 { "erro": "PERIODO_INVALIDO" }` (edge case da spec)
-- [ ] 3.1.4 Implementar paginação (`page` ≥1 default 1, `pageSize` 1..100 default 20) via `Prefer: count=exact` do PostgREST, retornando `total`/`page`/`pageSize`; página além do total → `200` com `eventos: []` (edge case da spec, nunca erro)
-- [ ] 3.1.5 Implementar mapper snake_case→camelCase na resposta (`entidadeId`, `usuarioId`, `recursoId`, `criadoEm` — Convenções de Borda do plan.md), preservando a chave `eventos` já existente
-- [ ] 3.1.6 Teste integração: filtros combinados (ação+usuário+período — Cenário 1), paginação além do total (edge case), `PERIODO_INVALIDO`, `PARAMETRO_INVALIDO` para `acao`/`recurso` fora do vocabulário fechado, roundtrip de camelCase na resposta
+- [x] 3.1.1 Evoluir o handler `GET /` de `auditoriaRouter` em `routes/hub-me.js` para aceitar os novos query params: `acao`, `usuarioId`, `recurso`, `de`, `ate`, `entidadeId`, `page`, `pageSize` (contract)
+- [x] 3.1.2 Implementar validação de vocabulário fechado ANTES de compor a URL do PostgREST (finding M1/A05): `acao`/`recurso` casam `^[a-z0-9_]+$` (senão `400 PARAMETRO_INVALIDO`); `usuarioId`/`entidadeId` `Number.isInteger`; `de`/`ate` ISO `YYYY-MM-DD`; TODO valor passa por `encodeURIComponent` na composição — nunca interpolar input bruto na query string do PostgREST
+- [x] 3.1.3 Implementar `de > ate` → `400 { "erro": "PERIODO_INVALIDO" }` (edge case da spec)
+- [x] 3.1.4 Implementar paginação (`page` ≥1 default 1, `pageSize` 1..100 default 20) via `Prefer: count=exact` do PostgREST, retornando `total`/`page`/`pageSize`; página além do total → `200` com `eventos: []` (edge case da spec, nunca erro)
+- [x] 3.1.5 Implementar mapper snake_case→camelCase na resposta (`entidadeId`, `usuarioId`, `recursoId`, `criadoEm` — Convenções de Borda do plan.md), preservando a chave `eventos` já existente
+- [x] 3.1.6 Teste integração: filtros combinados (ação+usuário+período — Cenário 1), paginação além do total (edge case), `PERIODO_INVALIDO`, `PARAMETRO_INVALIDO` para `acao`/`recurso` fora do vocabulário fechado, roundtrip de camelCase na resposta
 
-  Evidência: _preencher na execução_
+  Evidência: implementado em `app_homologacao/backend/routes/hub-me.js` (funções
+  puras `parseFiltrosAuditoria`/`parsePaginacaoAuditoria`/
+  `montarFiltrosQueryAuditoria`/`mapEventoAuditoria`, exportadas; handler
+  `GET /` evoluído usa `hubPostgrestRequest(..., { count: true, range })`).
+  Testes novos em `tests/hub-me-auditoria-query-unit.test.js` (20 casos,
+  cobrindo os 6 subitens acima). `node --test tests/hub-me-auditoria-query-unit.test.js`:
+  saída final `# tests 20 / # pass 20 / # fail 0`. Suíte completa
+  `npm run test:hub:unit`: saída final `# tests 447 / # suites 102 / # pass 447
+  / # fail 0` (era 427/427 antes desta task — +20 novos, zero regressão).
+  Regressão de campo: `id_empresa`→`entidadeId` na resposta quebraria
+  `infra/hub/testes/hub-rbac-integration.sh` (linhas que liam
+  `e.id_empresa` em `bAudit.eventos`/`bAudB.eventos`) — corrigido no mesmo
+  commit (2 ocorrências ajustadas para `e.entidadeId`), antecipando task
+  3.3.2. `node -c routes/hub-me.js` e `node -c tests/hub-me-auditoria-query-unit.test.js`:
+  sem erro de sintaxe (projeto não tem eslint configurado).
 
 ### 3.2 Escopo por papel (admin_entidade vs admin_plataforma) `[C]`
 

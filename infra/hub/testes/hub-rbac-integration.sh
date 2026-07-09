@@ -279,7 +279,9 @@ async function main() {
   const bAudit = await rAudit.json();
   out.audit_status = rAudit.status;
   out.audit_tem_troca_entidade = (bAudit.eventos || []).some((e) => e.acao === 'troca_entidade_ativa') ? 'true' : 'false';
-  out.audit_todos_da_entidade = (bAudit.eventos || []).every((e) => e.id_empresa === empresa) ? 'true' : 'false';
+  // hub-auditoria-admin (S9) FASE 3.1: envelope evoluiu p/ camelCase na
+  // borda (contracts/auditoria-api.md) — id_empresa -> entidadeId.
+  out.audit_todos_da_entidade = (bAudit.eventos || []).every((e) => e.entidadeId === empresa) ? 'true' : 'false';
 
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
@@ -409,7 +411,8 @@ async function main() {
   out.audit_B_status = rAudB.status;
   const bAudB = await rAudB.json().catch(() => ({}));
   out.audit_B_tem_evento_b = Array.isArray(bAudB.eventos) && bAudB.eventos.some((e) => e.acao === 'evento_cross_b') ? 'true' : 'false';
-  out.audit_B_todos_da_entidade = Array.isArray(bAudB.eventos) && bAudB.eventos.every((e) => e.id_empresa === empresaB) ? 'true' : 'false';
+  // hub-auditoria-admin (S9) FASE 3.1: id_empresa -> entidadeId (camelCase).
+  out.audit_B_todos_da_entidade = Array.isArray(bAudB.eventos) && bAudB.eventos.every((e) => e.entidadeId === empresaB) ? 'true' : 'false';
 
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
