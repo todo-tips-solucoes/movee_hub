@@ -1,0 +1,455 @@
+# Tarefas hub-auditoria-admin - S9 Auditoria e Administração da Plataforma
+
+Escopo: decompor `plan.md` (6 fases) em backlog executável para a S9 do Hub
+de Frota — trilha de auditoria consultável (`GET /api/v1/auditoria` evoluído,
+escopo por papel), varredura de cobertura `registrarAuditoria` nos módulos
+S2–S8 (incl. envio em massa), administração de usuários/papéis/módulos por
+telas dedicadas (`/hub/dashboard/{auditoria,usuarios,admin}` +
+`usuarios/papeis`). Nenhuma tabela nova (`data-model.md`); apenas migrations
+0035–0038, 3 routers novos e 1 middleware novo no backend, 3 páginas + 1
+sub-rota no frontend. 100% no ambiente isolado `hub-homolog` (recursos
+`hub-*`, exceção G1), nunca em produção/`chatmasterveloz`.
+
+**Legenda de status:**
+- `[ ]` Pendente
+- `[~]` Em andamento
+- `[x]` Concluído
+- `[!]` Bloqueado
+
+**Legenda de criticidade:**
+- `[C]` Crítico - Impacto financeiro direto ou bloqueante
+- `[A]` Alto - Funcionalidade essencial
+- `[M]` Médio - Necessário mas sem urgência imediata
+
+---
+
+## FASE 1 - Fundação de Dados (Migrations 0035–0038)
+
+### 1.1 Migration 0035 — claim `admin_plataforma` + visão global de Auditoria `[C]`
+
+Ref: plan.md "Plano por fases" passo 1; data-model.md "Objetos NOVOS de
+banco" e "Entity: Auditoria — mudança desta feature"; spec.md FR-002/FR-003;
+contracts/auditoria-api.md (escopo)
+
+- [ ] 1.1.1 Criar `infra/hub/migrations/0035_auditoria_visao_global.sql`
+- [ ] 1.1.2 Implementar `hub_jwt_admin_plataforma()` (`CREATE OR REPLACE FUNCTION`, lê claim `admin_plataforma` do JWT PostgREST via `current_setting('request.jwt.claims', true)`, default `false` quando claim ausente — nunca erro)
+- [ ] 1.1.3 Substituir a política SELECT `auditoria_select_por_escopo` (`DROP POLICY IF EXISTS` + `CREATE POLICY`): `hub_jwt_admin_plataforma() OR (id_empresa IS NOT NULL AND id_empresa = ANY(hub_jwt_escopo_ids()))` — eventos globais (`id_empresa IS NULL`) deixam de ser visíveis a qualquer autenticado, exclusivos da visão admin_plataforma (edge case da spec)
+- [ ] 1.1.4 Confirmar que a política INSERT `auditoria_insert_por_escopo` (0009) permanece INALTERADA (nenhuma escrita nova nesta migration)
+- [ ] 1.1.5 Aplicar via `infra/hub/scripts/migrate.sh` no `hub-homolog`; confirmar reload do PostgREST (SIGUSR1)
+- [ ] 1.1.6 Teste: via `psql`/`SET ROLE authenticated` simulando claim `admin_plataforma=true`, confirmar visibilidade de eventos com `id_empresa IS NULL` e de múltiplas entidades; simulando um JWT comum (sem claim), confirmar que eventos globais somem e o escopo continue restrito à própria entidade; re-rodar `migrate.sh` e confirmar idempotência (no-op)
+
+  Evidência: _preencher na execução_
+
+### 1.2 Migration 0036 — políticas de escrita em `ModuloEntidade` `[C]`
+
+Ref: plan.md "Plano por fases" passo 1; data-model.md "Entity: ModuloEntidade
+— ganha políticas de ESCRITA"; contracts/admin-modulos-api.md; spec.md
+FR-007/FR-017
+
+- [ ] 1.2.1 Criar `infra/hub/migrations/0036_moduloentidade_escrita_admin.sql`
+- [ ] 1.2.2 Acrescentar branch `hub_jwt_admin_plataforma()` à política SELECT `moduloentidade_select_por_escopo` (0006), preservando o filtro por escopo já existente (`empresa_id = ANY(hub_jwt_escopo_ids())`) para quem não tem o claim
+- [ ] 1.2.3 Criar política INSERT nova: `WITH CHECK (hub_jwt_admin_plataforma())`
+- [ ] 1.2.4 Criar política UPDATE nova: `USING/WITH CHECK (hub_jwt_admin_plataforma())`
+- [ ] 1.2.5 Confirmar que os GRANTs INSERT/UPDATE em `ModuloEntidade` já existentes desde 0003 cobrem o `authenticated` (sem novo GRANT necessário); confirmar ausência de GRANT DELETE (toggle é sempre `ativo=true|false`, nunca remoção de linha — Decision 4)
+- [ ] 1.2.6 Aplicar via `migrate.sh` no `hub-homolog`
+- [ ] 1.2.7 Teste: como usuário sem claim `admin_plataforma`, tentar INSERT/UPDATE direto em `ModuloEntidade` via PostgREST → negado pela RLS; como usuário com o claim, INSERT/UPDATE de uma linha de QUALQUER entidade → permitido; SELECT sem o claim continua restrito à própria entidade
+
+  Evidência: _preencher na execução_
+
+### 1.3 Migration 0037 — RPC `hub_papel_permissao_set` (matriz papel×permissão) `[C]`
+
+Ref: plan.md "Plano por fases" passo 1; data-model.md "Entity: Papel /
+Permissao / PapelPermissao" e "Objetos NOVOS de banco"; research.md
+Decision 5; contracts/papeis-api.md "PUT /papeis/:papelId/permissoes/:permissaoId"
+(guard anti-lockout, finding M2 do gate owasp)
+
+- [ ] 1.3.1 Criar `infra/hub/migrations/0037_rpc_papel_permissao_set.sql`
+- [ ] 1.3.2 Implementar `hub_papel_permissao_set(p_papel_id int, p_permissao_id int, p_ativo boolean)` `SECURITY DEFINER`, `SET search_path = public, pg_temp`: guard inicial `IF NOT hub_jwt_admin_plataforma() THEN RAISE EXCEPTION ... USING ERRCODE = '42501'`; `p_ativo = true` → `INSERT ... ON CONFLICT DO NOTHING`; `p_ativo = false` → `DELETE` interno da célula (nunca GRANT DELETE direto na tabela para o role `authenticated`)
+- [ ] 1.3.3 Implementar o guard anti-lockout (finding M2): dentro da mesma função, RECUSAR (`RAISE EXCEPTION ERRCODE '42501'`) a operação que desmarcaria a célula `(papel=admin_plataforma, permissao=admin.gerenciar)` — remover a permissão de administração do próprio papel de plataforma deixaria o sistema sem administração recuperável exceto via psql
+- [ ] 1.3.4 `REVOKE ALL ON FUNCTION hub_papel_permissao_set FROM PUBLIC` + `GRANT EXECUTE TO authenticated` (a checagem de autorização vive DENTRO da função, não no GRANT)
+- [ ] 1.3.5 Aplicar via `migrate.sh` no `hub-homolog`; confirmar idempotência (`CREATE OR REPLACE FUNCTION` + REVOKE/GRANT re-executável sem erro)
+- [ ] 1.3.6 Teste: chamar a RPC via `SELECT hub_papel_permissao_set(...)` simulando claim `admin_plataforma=true` — marcar e desmarcar uma célula não-crítica com sucesso; simulando claim ausente/false — negado (`42501`); tentar desmarcar a célula `(admin_plataforma, admin.gerenciar)` mesmo com o claim correto — negado pelo guard anti-lockout
+
+  Evidência: _preencher na execução_
+
+### 1.4 Migration 0038 — seeds de habilitação de módulos para QA `[A]`
+
+Ref: plan.md "Plano por fases" passo 1; data-model.md "Objetos NOVOS de
+banco" (Decision 12); contexto operacional vinculante item 6 (QA
+`qa.importacoes@moveelog.local`, entidade 9001)
+
+- [ ] 1.4.1 Criar `infra/hub/migrations/0038_seed_modulos_admin_qa.sql`
+- [ ] 1.4.2 `INSERT INTO "ModuloEntidade"` (`ON CONFLICT DO NOTHING`) habilitando os módulos `usuarios` e `auditoria` para toda entidade com vínculo `UsuarioEntidade` ativo (necessário para as novas telas aparecerem no nav das entidades já existentes)
+- [ ] 1.4.3 `INSERT INTO "ModuloEntidade"` habilitando o módulo `admin` para a entidade QA 9001 (ou para a entidade com o vínculo `admin_plataforma` de teste, conforme o seed de RBAC já usado nas fases anteriores)
+- [ ] 1.4.4 Aplicar via `migrate.sh` no `hub-homolog`; confirmar reload PostgREST
+- [ ] 1.4.5 Teste: consultar `ModuloEntidade` após a migration e confirmar que as entidades de teste (incl. 9001) têm `usuarios`/`auditoria` habilitados e que a entidade/usuário QA de plataforma tem `admin` habilitado; re-rodar `migrate.sh` e confirmar no-op (idempotência)
+
+  Evidência: _preencher na execução_
+
+---
+
+## FASE 2 - Cobertura de Auditoria (FR-006/SC-002) e mecanismo SC-006
+
+### 2.1 Inventário de escritas sem registro de auditoria `[A]`
+
+Ref: plan.md "Plano por fases" passo 2; spec.md FR-006/SC-002/Edge Cases
+("endpoints de fases anteriores que ainda não registravam auditoria");
+quickstart.md Cenário 9
+
+- [ ] 2.1.1 Rodar `grep -n "router\.\(post\|put\|patch\|delete\)"` em todos os `app_homologacao/backend/routes/hub-*.js` (fundações, importações, motoristas, faturamento, performance) e listar cada rota de escrita encontrada
+- [ ] 2.1.2 Rodar o mesmo inventário sobre `lib/hub-import-processor.js` (processamento assíncrono de importação, fora do ciclo request/response direto)
+- [ ] 2.1.3 Inventariar as rotas de escrita LEGADAS de envio em massa em `server.js` (módulo `envio_massa`, S8) — hoje cobertas apenas pelo log dedicado `lib/hub-envio-massa-import-log.js` (flag `HUB_IMPORT_LOG_ENVIO`), NÃO pela trilha `Auditoria` — confirmar se algum evento de escrita relevante do envio em massa está fora da trilha unificada
+- [ ] 2.1.4 Para cada rota de escrita inventariada, verificar (via leitura do handler) se já existe uma chamada a `registrarAuditoria` cobrindo aquela ação; montar checklist endpoint-a-endpoint (ação → tem/não tem auditoria) como insumo do PR (critério de aceite do briefing)
+- [ ] 2.1.5 Teste: nenhum (tarefa de levantamento); o checklist endpoint-a-endpoint resultante é o artefato de saída, anexado como evidência
+
+  Evidência: _preencher na execução_
+
+### 2.2 Fechar lacunas de `registrarAuditoria` identificadas `[A]`
+
+Ref: tarefa 2.1 (checklist endpoint-a-endpoint); spec.md FR-006; lib/hub-auditoria.js
+(`registrarAuditoria`/`scrubDetalhes` — reuso, sem alterar o helper);
+contexto operacional vinculante item 4 (diff mínimo em `server.js` legado)
+
+- [ ] 2.2.1 Para cada lacuna identificada em `routes/hub-*.js`, adicionar a chamada `registrarAuditoria` faltante (ação nomeada no padrão já usado: `<recurso>_<verbo>`, ex. `entregador_editado`), imediatamente após a escrita ter sucesso, sem alterar a lógica de negócio da rota
+- [ ] 2.2.2 Para lacunas em `lib/hub-import-processor.js`, adicionar `registrarAuditoria` nos pontos de transição de estado relevantes (mesmo padrão dos 6 já existentes)
+- [ ] 2.2.3 Para o módulo envio em massa legado (`server.js`), adicionar `registrarAuditoria` nas escritas de escrita relevantes com diff MÍNIMO (1–2 linhas por handler, mesmo padrão de import mínimo já usado nas demais rotas hub) — SEM tocar em `ENVIO_DRY_RUN`/allowlist nem em qualquer comportamento coberto pela issue #62 (fora de escopo desta feature)
+- [ ] 2.2.4 Confirmar que NENHUMA chamada nova usa `id_empresa`/`recurso_id` incorretos (mapeamento correto do recurso afetado, não um id genérico)
+- [ ] 2.2.5 Teste: para cada lacuna fechada, teste de integração/unit dedicado confirmando que a ação gera exatamente 1 evento de auditoria com `acao`/`recurso`/`recursoId` corretos (extensão dos testes já existentes de cada módulo, não uma suíte nova)
+
+  Evidência: _preencher na execução_
+
+### 2.3 Mecanismo automatizado de checagem de padrões sensíveis (CHK006, SC-006) `[C]`
+
+Ref: checklists/requirements.md CHK006 `[Gap]` — "mecanismo da checagem
+automatizada de padrões sensíveis do SC-006 não especificado"; spec.md
+SC-006 ("0% dos detalhes... verificado por checagem automatizada de
+padrões"); lib/hub-auditoria.js (`scrubDetalhes` atual filtra por NOME de
+chave, não por padrão no VALOR — gap real confirmado: um campo qualquer
+com CPF/CNPJ/e-mail em texto livre no valor passaria sem filtro)
+
+- [ ] 2.3.1 Implementar em `lib/hub-auditoria.js` (ou módulo auxiliar dedicado, ex. `lib/hub-auditoria-scan.js`) uma função de checagem por REGEX sobre os VALORES (não apenas chaves) de `detalhes` antes da escrita: padrões de CPF (`\d{3}\.?\d{3}\.?\d{3}-?\d{2}`), CNPJ (`\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}`) e e-mail (`[^\s@]+@[^\s@]+\.[^\s@]+`)
+- [ ] 2.3.2 Decidir e documentar o comportamento quando um padrão sensível é encontrado no valor: MUST redigir/omitir o campo (nunca apenas logar um aviso e deixar passar) — coerente com FR-004/SC-006 ("0% expõem"); registrar a decisão como Decisão auditável (score ≥2) se a leitura divergir da redação padrão já usada para chaves proibidas
+- [ ] 2.3.3 Adicionar esta checagem de VALOR como camada adicional dentro de `scrubDetalhes` (ou função chamada por ele), preservando o comportamento existente de filtro por NOME de chave (`CHAVES_PROIBIDAS`) — aditivo, não substitutivo
+- [ ] 2.3.4 Criar um script de checagem OFFLINE/em lote (`infra/hub/scripts/scan-auditoria-sensivel.sh` ou equivalente) que varre uma amostra de `detalhes` já persistidos no `hub_homolog_db` em busca dos mesmos padrões, para uso como checagem periódica/E2E (mecanismo do SC-006 pedido pelo CHK006) — pode reusar a mesma lib de regex do passo 2.3.1
+- [ ] 2.3.5 Teste unit: casos com CPF/CNPJ/e-mail em valor de `detalhes` (formatado e sem formatação) → campo redigido/omitido; casos sem nenhum padrão sensível → `detalhes` preservado integralmente; teste do script de varredura contra uma amostra sintética inserida e removida no `hub_homolog_db` (nunca produção)
+
+  Evidência: _preencher na execução_
+
+---
+
+## FASE 3 - Endpoint de Auditoria evoluído — `GET /auditoria`
+
+### 3.1 Filtros, paginação e validação de vocabulário fechado `[A]`
+
+Ref: contracts/auditoria-api.md "GET /auditoria" (query params, hardening
+gate owasp finding M1); spec.md FR-001; routes/hub-me.js (`auditoriaRouter`
+existente — EVOLUÇÃO aditiva, chave `eventos` preservada)
+
+- [ ] 3.1.1 Evoluir o handler `GET /` de `auditoriaRouter` em `routes/hub-me.js` para aceitar os novos query params: `acao`, `usuarioId`, `recurso`, `de`, `ate`, `entidadeId`, `page`, `pageSize` (contract)
+- [ ] 3.1.2 Implementar validação de vocabulário fechado ANTES de compor a URL do PostgREST (finding M1/A05): `acao`/`recurso` casam `^[a-z0-9_]+$` (senão `400 PARAMETRO_INVALIDO`); `usuarioId`/`entidadeId` `Number.isInteger`; `de`/`ate` ISO `YYYY-MM-DD`; TODO valor passa por `encodeURIComponent` na composição — nunca interpolar input bruto na query string do PostgREST
+- [ ] 3.1.3 Implementar `de > ate` → `400 { "erro": "PERIODO_INVALIDO" }` (edge case da spec)
+- [ ] 3.1.4 Implementar paginação (`page` ≥1 default 1, `pageSize` 1..100 default 20) via `Prefer: count=exact` do PostgREST, retornando `total`/`page`/`pageSize`; página além do total → `200` com `eventos: []` (edge case da spec, nunca erro)
+- [ ] 3.1.5 Implementar mapper snake_case→camelCase na resposta (`entidadeId`, `usuarioId`, `recursoId`, `criadoEm` — Convenções de Borda do plan.md), preservando a chave `eventos` já existente
+- [ ] 3.1.6 Teste integração: filtros combinados (ação+usuário+período — Cenário 1), paginação além do total (edge case), `PERIODO_INVALIDO`, `PARAMETRO_INVALIDO` para `acao`/`recurso` fora do vocabulário fechado, roundtrip de camelCase na resposta
+
+  Evidência: _preencher na execução_
+
+### 3.2 Escopo por papel (admin_entidade vs admin_plataforma) `[C]`
+
+Ref: contracts/auditoria-api.md "Escopo (FR-002/FR-003)"; data-model.md
+"Mapa permissão lógica → código real" (`auditoria.consultar`); spec.md
+FR-002; quickstart.md Cenários 2/3
+
+- [ ] 3.2.1 Implementar checagem de permissão `requirePermission('auditoria.consultar')` (flat) já existente, mantida
+- [ ] 3.2.2 Implementar checagem POR-ENTIDADE via `obterPermissoesEfetivasPorEntidade(sub, entidadeAtiva)` (padrão já usado nas demais rotas hub), garantindo que `auditoria.consultar` seja avaliado na entidade ativa correta
+- [ ] 3.2.3 Implementar a distinção de escopo na composição do filtro PostgREST: sem claim `admin_plataforma` no JWT interno → SEMPRE forçar `id_empresa=eq.<entidade_ativa>` (ignorando/rejeitando `entidadeId` divergente); com o claim → sem `entidadeId` retorna todas as entidades + eventos globais, com `entidadeId` filtra só aquela entidade
+- [ ] 3.2.4 Implementar `403 PERMISSAO_NEGADA` quando um admin_entidade informa `entidadeId` diferente da própria entidade ativa (nunca cross-tenant)
+- [ ] 3.2.5 Confirmar (via `lib/hub-postgrest-jwt.js`) que o claim `admin_plataforma` só é emitido no handler deste endpoint quando o vínculo real do usuário com papel `admin_plataforma` foi verificado no request corrente — nunca derivado de input do cliente (gate owasp, menor privilégio)
+- [ ] 3.2.6 Teste integração: admin_entidade vê só a própria entidade (Cenário 1); admin_entidade forçando `entidadeId` de outra entidade → `403` (Cenário 2 passo 3); admin_plataforma sem `entidadeId` vê múltiplas entidades + eventos globais (Cenário 3 passo 2); admin_plataforma com `entidadeId=9001` vê só a 9001 (Cenário 3 passo 3); admin_entidade nunca vê eventos globais mesmo tentando (Cenário 3 passo 4)
+
+  Evidência: _preencher na execução_
+
+### 3.3 Nega-por-padrão sem entidade ativa `[C]`
+
+Ref: spec.md FR-003; contracts/auditoria-api.md "Escopo"; quickstart.md
+Cenário 2; hub-rbac-integration.sh (comportamento já asserted, preservar)
+
+- [ ] 3.3.1 Confirmar/preservar o comportamento já existente: sem entidade ativa determinável no contexto de quem consulta → `200 { "eventos": [], "total": 0 }` (nunca a trilha completa, nunca `500`)
+- [ ] 3.3.2 Teste de regressão: reexecutar o cenário já coberto por `hub-rbac-integration.sh` (login multi-entidade sem selecionar entidade ativa → `GET /auditoria` vazio) garantindo que a evolução do endpoint (FASE 3.1/3.2) não quebrou esse comportamento
+
+  Evidência: _preencher na execução_
+
+---
+
+## FASE 4 - Administração Backend (usuários, papéis, módulos)
+
+### 4.1 Middleware `requireModuloAtivo` + cache de módulos por entidade `[A]`
+
+Ref: plan.md "Project Structure" (`middleware/hub-require-modulo.js` NOVO,
+`lib/hub-rbac-cache.js` EDIT aditivo); spec.md FR-008/SC-005;
+contracts/admin-modulos-api.md (efeitos colaterais do PUT)
+
+- [ ] 4.1.1 Adicionar em `lib/hub-rbac-cache.js` (EDIT aditivo, sem alterar o cache de permissões existente) a função `obterModulosAtivosPorEntidade(empresaId)` — consulta `ModuloEntidade` e retorna o Set de códigos de módulo ativos para a entidade, com o mesmo padrão de cache TTL 60s + fail-closed (erro de infra → Set vazio, nunca cacheado) já usado para permissões
+- [ ] 4.1.2 Adicionar `invalidarEntidadeModulos(entidadeId)` — invalidação síncrona e imediata do cache de módulos daquela entidade (chamada obrigatória em todo PUT de `hub-admin.js`)
+- [ ] 4.1.3 Criar `middleware/hub-require-modulo.js` exportando `requireModuloAtivo(codigo)`: extrai a entidade ativa do request, consulta `obterModulosAtivosPorEntidade`, responde `403 { "erro": "MODULO_DESABILITADO" }` se o módulo não estiver no Set — fail-closed em qualquer erro (mesmo padrão de `hub-require-permission.js`)
+- [ ] 4.1.4 Teste unit: `obterModulosAtivosPorEntidade`/`invalidarEntidadeModulos` (cache hit/miss/TTL/invalidação/fail-closed); `requireModuloAtivo` (módulo ativo → `next()`, inativo → `403 MODULO_DESABILITADO`, erro de infra → `403`, nunca `next()`)
+
+  Evidência: _preencher na execução_
+
+### 4.2 Router `hub-usuarios.js` `[A]`
+
+Ref: contracts/usuarios-api.md (GET/POST/PUT `/usuarios`,
+POST/PUT `/usuarios/:id/vinculos`); spec.md FR-009/FR-011;
+checklists/requirements.md CHK033 `[Ambiguity]` ("editar" inclui desativar?)
+
+- [ ] 4.2.1 Criar `app_homologacao/backend/routes/hub-usuarios.js`, todas as rotas sob `requireModuloAtivo('usuarios')` + `requirePermission('usuarios.gerenciar')` + checagem por-entidade
+- [ ] 4.2.2 Implementar `GET /usuarios` (busca `ilike` nome/email, `entidadeId` — só admin_plataforma pode divergir da ativa, paginação)
+- [ ] 4.2.3 Implementar `POST /usuarios` (criação + primeiro vínculo em um passo, senha validada por `isStrongPassword`, `vinculo.papelId` deve existir no catálogo fixo — dec-008, e-mail duplicado → `409 EMAIL_JA_CADASTRADO`), auditoria `usuario_criado` sem senha em `detalhes`
+- [ ] 4.2.4 Implementar `PUT /usuarios/:id` (edita `nome`/`ativo`/`senha` opcional — Ref CHK033: "editar" nesta feature inclui desativar via `ativo=false`, JAMAIS DELETE de linha; leitura de baixo risco adotada do checklist), `404 USUARIO_NAO_ENCONTRADO` se fora do escopo do chamador (não vaza existência cross-tenant), auditoria `usuario_editado`
+- [ ] 4.2.5 Implementar `POST /usuarios/:id/vinculos` (novo vínculo, `409 VINCULO_JA_EXISTE` no conflito), auditoria `usuario_vinculo_criado`
+- [ ] 4.2.6 Implementar `PUT /usuarios/:id/vinculos/:vinculoId` (troca `papelId`/`ativo` — Ref CHK033: desativação de vínculo também é via `ativo=false`, sem DELETE), auditoria `usuario_papel_alterado` (mudança de papel) e/ou `usuario_vinculo_desativado` (mudança de `ativo`)
+- [ ] 4.2.7 Chamar `invalidarUsuario(usuarioId)` SÍNCRONO em toda mutação de vínculo/papel (FR-011/SC-004) — fecha o gap: `invalidarUsuario` existe em `lib/hub-rbac-cache.js` desde a S2 mas está órfão, sem nenhum caller até esta feature
+- [ ] 4.2.8 Montar `hubUsuariosRoutes.router` em `server.js` sob `/api/v1/usuarios` (diff mínimo, mesma altura das demais montagens `hub*`)
+- [ ] 4.2.9 Teste integração: `tests/hub-usuarios.test.js`/`infra/hub/testes/hub-usuarios-integration.sh` cobrindo criação+vínculo (Cenário 5), troca de papel refletindo <2s sem esperar TTL (Cenário 5 passo 3 — SC-004), edição/desativação de usuário (CHK033), isolamento por entidade (admin_entidade não vê/edita vínculos de outra entidade), `409 EMAIL_JA_CADASTRADO`/`VINCULO_JA_EXISTE`, `403 MODULO_DESABILITADO`/`PERMISSAO_NEGADA`
+
+  Evidência: _preencher na execução_
+
+### 4.3 Router `hub-papeis.js` (matriz papel×permissão) `[C]`
+
+Ref: contracts/papeis-api.md (GET/PUT `/papeis`); data-model.md dec-008/
+dec-009; spec.md FR-010/FR-016; checklists/requirements.md follow-up CHK033
+n/a (papéis não editáveis, só a matriz de permissões)
+
+- [ ] 4.3.1 Criar `app_homologacao/backend/routes/hub-papeis.js`, montado sob `requireModuloAtivo('usuarios')` (a matriz vive sob o módulo `usuarios` — research Decision 10)
+- [ ] 4.3.2 Implementar `GET /papeis` com `requirePermission('usuarios.gerenciar')`: retorna `papeis` (catálogo fixo — dec-008), `permissoes`, `matriz` (pares papelId/permissaoId ativos) e `podeEditar` (`true` só quando o chamador tem `admin.gerenciar` E vínculo ativo `admin_plataforma`)
+- [ ] 4.3.3 Implementar `PUT /papeis/:papelId/permissoes/:permissaoId` com `requirePermission('admin.gerenciar')`, chamando a RPC `hub_papel_permissao_set` (dupla barreira: middleware + guard SQL); `409 OPERACAO_BLOQUEADA` quando a RPC recusar por anti-lockout (`ERRCODE 42501` mapeado)
+- [ ] 4.3.4 Confirmar explicitamente que NÃO existe rota de criar/editar/excluir papel — catálogo fixo (dec-008/FR-016); nenhuma tentativa de insert direto na tabela `Papel` é possível (RLS sem política de escrita, já garantida na FASE 1 por AUSÊNCIA de mudança)
+- [ ] 4.3.5 Chamar `limparCache()` global do RBAC após todo toggle bem-sucedido da matriz (research Decision 6 — mudança afeta conjunto não-enumerado de usuários) e registrar auditoria `papel_permissao_alterada` com `detalhes: { papel, permissao, ativo }`
+- [ ] 4.3.6 Montar `hubPapeisRoutes.router` em `server.js` sob `/api/v1/papeis` (diff mínimo)
+- [ ] 4.3.7 Teste integração: admin_entidade vê a matriz com `podeEditar:false` e `403` em qualquer `PUT` (Cenário 6 passos 1/2); admin_plataforma edita com sucesso e a mudança reflete no `GET` seguinte e nas permissões efetivas de usuários com aquele papel (Cenário 6 passo 3); `409 OPERACAO_BLOQUEADA` ao tentar desmarcar `(admin_plataforma, admin.gerenciar)` (guard anti-lockout); tentativa de criar/excluir papel por qualquer via é negada (Cenário 6 passo 4)
+
+  Evidência: _preencher na execução_
+
+### 4.4 Router `hub-admin.js` (módulos por entidade) `[C]`
+
+Ref: contracts/admin-modulos-api.md (GET/GET/PUT `/admin/...`); spec.md
+FR-007/FR-008/FR-013/FR-017; dec-009 (exclusivo admin_plataforma, leitura E
+escrita)
+
+- [ ] 4.4.1 Criar `app_homologacao/backend/routes/hub-admin.js`, TODAS as rotas sob `requireModuloAtivo('admin')` + `requirePermission('admin.gerenciar')` — admin_entidade não tem acesso a NENHUMA rota (403), inclusive leitura (FR-017/dec-009)
+- [ ] 4.4.2 Implementar `GET /admin/modulos` (catálogo completo de módulos da plataforma, para montar a tela)
+- [ ] 4.4.3 Implementar `GET /admin/entidades/:id/modulos` (estado de habilitação de cada módulo para a entidade `:id`, qualquer entidade — visão global via claim `admin_plataforma` no branch SELECT de `ModuloEntidade`, FASE 1.2); módulo sem linha em `ModuloEntidade` = `habilitado:false` (deny by default)
+- [ ] 4.4.4 Implementar `PUT /admin/entidades/:id/modulos/:codigo` (`{ "habilitado": boolean }`): UPSERT em `ModuloEntidade` (`ativo = habilitado`, nunca DELETE)
+- [ ] 4.4.5 Implementar o guard anti-lockout (finding M3 do gate owasp): `PUT` com `habilitado:false` para o módulo `admin` na entidade ATIVA do próprio chamador → `409 OPERACAO_BLOQUEADA` (desabilitar OUTRAS entidades permanece permitido)
+- [ ] 4.4.6 Implementar os 3 efeitos colaterais obrigatórios do PUT: (1) `invalidarEntidadeModulos(entidadeId)` síncrono (FASE 4.1); (2) confirmar que `GET /me` já reflete a mudança imediatamente (consulta `ModuloEntidade` direto, sem cache próprio adicional); (3) auditoria `modulo_entidade_alterado` com `detalhes: { codigo, habilitado }` e `id_empresa = :id` (o evento pertence à entidade AFETADA, visível na trilha dela)
+- [ ] 4.4.7 Montar `hubAdminRoutes.router` em `server.js` sob `/api/v1/admin` (diff mínimo)
+- [ ] 4.4.8 Teste integração: desabilitar módulo com sessão ativa → nav some + `403 MODULO_DESABILITADO` na próxima chamada, sem esperar 60s (Cenário 7 passos 1–3 — SC-005); admin_entidade recebe `403 PERMISSAO_NEGADA` em `GET /admin/modulos` — nem leitura (Cenário 7 passo 4 — FR-017); reabilitação restaura nav e acesso (Cenário 7 passo 5); `409 OPERACAO_BLOQUEADA` ao tentar desabilitar `admin` para a própria entidade ativa
+
+  Evidência: _preencher na execução_
+
+### 4.5 Claim `admin_plataforma` na emissão do JWT interno `[C]`
+
+Ref: plan.md "Project Structure" (`lib/hub-postgrest-jwt.js` EDIT aditivo);
+plan.md "Convenções de Borda" (claim nunca derivado de input do cliente);
+gate owasp (menor privilégio — claim emitido só onde necessário)
+
+- [ ] 4.5.1 Adicionar em `lib/hub-postgrest-jwt.js` (EDIT aditivo) suporte a um novo campo opcional de claims (`adminPlataforma: boolean`) → vira `admin_plataforma` no payload assinado
+- [ ] 4.5.2 Nos handlers que exigem visão/escrita global (auditoria evoluída FASE 3, `hub-admin.js`, `hub-papeis.js` PUT), resolver o claim consultando `UsuarioEntidade` + `Papel` do usuário autenticado no request corrente (vínculo ativo com papel `admin_plataforma`) — NUNCA aceitar o valor de qualquer input do cliente
+- [ ] 4.5.3 Confirmar que o claim NÃO é emitido por padrão em nenhum outro handler/rota do hub (menor privilégio — só nos pontos que efetivamente precisam da visão/escrita global)
+- [ ] 4.5.4 Teste unit: geração do JWT com/sem o claim; teste integração indireto (já coberto pelas FASES 3/4 — usuário com vínculo `admin_plataforma` real obtém visão global, usuário sem vínculo nunca obtém mesmo tentando manipular o request)
+
+  Evidência: _preencher na execução_
+
+---
+
+## FASE 5 - Telas (auditoria → usuários → papéis → módulos)
+
+### 5.1 Tela `/hub/dashboard/auditoria` `[A]`
+
+Ref: contracts/auditoria-api.md; spec.md FR-001/FR-004/FR-012; plan.md
+"Project Structure" (`lib/hub/auditoria-api.ts`/`auditoria-dto.ts`,
+`app/hub/dashboard/auditoria/page.tsx`); `/ui-ux-pro-max`; molde
+`faturamento-api.ts`
+
+- [ ] 5.1.1 Criar `app_homologacao/frontend_v2/lib/hub/auditoria-dto.ts` (tipos + parse defensivo, camelCase, molde `faturamento-dto.ts`)
+- [ ] 5.1.2 Criar `app_homologacao/frontend_v2/lib/hub/auditoria-api.ts` (chamada a `GET /auditoria` com filtros/paginação, `credentials: 'include'`)
+- [ ] 5.1.3 Criar `app/hub/dashboard/auditoria/page.tsx`: lista paginada mais recentes primeiro, filtros por ação/usuário/recurso/período, drawer client-side de detalhe do evento (sem `GET /:id` — research Decision 9)
+- [ ] 5.1.4 Implementar seletor de entidade visível SÓ para admin_plataforma (US2); admin_entidade não vê o seletor, sempre restrito à própria entidade
+- [ ] 5.1.5 Confirmar que o drawer de detalhe NUNCA renderiza documentos/senhas/tokens/nomes completos de terceiros em texto claro (FR-004 — `detalhes` já chega scrubbed do backend, a tela não re-serializa nada sensível)
+- [ ] 5.1.6 Implementar estados vazio/loading/erro e identidade visual EntreGô 2.0 (claro/escuro, branding por tenant)
+- [ ] 5.1.7 Teste: roundtrip real contra o backend vivo do `hub-homolog` (sem mock, Cenário 8) usando `auditoria-dto.ts`; smoke de UI cobrindo filtros combinados, drawer de detalhe, paginação, seletor de entidade condicionado ao papel
+
+  Evidência: _preencher na execução_
+
+### 5.2 Tela `/hub/dashboard/usuarios` `[A]`
+
+Ref: contracts/usuarios-api.md; spec.md FR-009; plan.md "Project Structure"
+(`lib/hub/usuarios-api.ts`/`usuarios-dto.ts`,
+`app/hub/dashboard/usuarios/page.tsx`)
+
+- [ ] 5.2.1 Criar `app_homologacao/frontend_v2/lib/hub/usuarios-dto.ts` (tipos + parse defensivo)
+- [ ] 5.2.2 Criar `app_homologacao/frontend_v2/lib/hub/usuarios-api.ts` (chamadas GET/POST/PUT de `/usuarios` e `/usuarios/:id/vinculos`)
+- [ ] 5.2.3 Criar `app/hub/dashboard/usuarios/page.tsx`: lista com busca, formulário de criação (usuário + primeiro vínculo, `isStrongPassword` no client espelhando a validação do servidor), edição (nome/ativo/senha — CHK033: UI expõe "desativar" como toggle `ativo`, nunca um botão "excluir")
+- [ ] 5.2.4 Implementar gestão de vínculos (criar vínculo, trocar papel/ativo de vínculo existente) na mesma tela ou sub-seção
+- [ ] 5.2.5 Implementar estados vazio/loading/erro, mensagens de erro mapeadas (`EMAIL_JA_CADASTRADO`, `VINCULO_JA_EXISTE`, `SENHA_FRACA`) e identidade visual EntreGô 2.0
+- [ ] 5.2.6 Teste: roundtrip real contra o backend vivo (Cenário 8) usando `usuarios-dto.ts`; smoke de UI cobrindo criação+vínculo, edição/desativação (CHK033), troca de papel
+
+  Evidência: _preencher na execução_
+
+### 5.3 Sub-rota `/hub/dashboard/usuarios/papeis` (matriz) `[A]`
+
+Ref: contracts/papeis-api.md; spec.md FR-010/FR-016; plan.md "Project
+Structure" (`lib/hub/admin-api.ts`/`admin-dto.ts` cobrindo papéis+módulos,
+`app/hub/dashboard/usuarios/papeis/page.tsx`)
+
+- [ ] 5.3.1 Criar `app_homologacao/frontend_v2/lib/hub/admin-dto.ts` (tipos de papéis/permissões/matriz + módulos)
+- [ ] 5.3.2 Criar `app_homologacao/frontend_v2/lib/hub/admin-api.ts` (chamadas GET `/papeis`, PUT `/papeis/:papelId/permissoes/:permissaoId`, GET/GET/PUT `/admin/...`)
+- [ ] 5.3.3 Criar `app/hub/dashboard/usuarios/papeis/page.tsx`: matriz papel×permissão via checkboxes organizados por papel e por permissão (FR-010); quando `podeEditar:false`, checkboxes DESABILITADOS (não ocultos — o admin_entidade precisa VER a matriz, só não editar)
+- [ ] 5.3.4 Implementar tratamento de `409 OPERACAO_BLOQUEADA` (guard anti-lockout) com mensagem clara ao usuário, sem quebrar a tela
+- [ ] 5.3.5 Teste: roundtrip real (Cenário 8, `GET /papeis`); smoke de UI cobrindo leitura read-only (admin_entidade) e edição com refletimento imediato da célula (admin_plataforma — Cenário 6)
+
+  Evidência: _preencher na execução_
+
+### 5.4 Tela `/hub/dashboard/admin` (módulos por entidade) `[A]`
+
+Ref: contracts/admin-modulos-api.md; spec.md FR-007/FR-008/FR-013/FR-017;
+plan.md "Project Structure" (`app/hub/dashboard/admin/page.tsx`)
+
+- [ ] 5.4.1 Criar `app/hub/dashboard/admin/page.tsx` usando `admin-api.ts`/`admin-dto.ts` (FASE 5.3): seletor de entidade + matriz de módulos habilitados/desabilitados (toggle), acessível SOMENTE a quem tem `admin.gerenciar` — a própria navegação já não expõe o item para quem não tem o módulo `admin` habilitado (FASE 4.4 seed 0038)
+- [ ] 5.4.2 Implementar toggle com feedback imediato (otimista ou aguardando resposta) e tratamento de `409 OPERACAO_BLOQUEADA` (guard anti-lockout do módulo `admin` na própria entidade)
+- [ ] 5.4.3 Implementar estados vazio/loading/erro e identidade visual EntreGô 2.0
+- [ ] 5.4.4 Teste: roundtrip real (Cenário 8, `GET /admin/entidades/:id/modulos`); smoke de UI cobrindo toggle com efeito imediato refletido em uma segunda aba/sessão simulando outro usuário da entidade afetada (Cenário 7)
+
+  Evidência: _preencher na execução_
+
+---
+
+## FASE 6 - E2E e Evidências
+
+### 6.1 Integração dedicada — Cenários 1 a 7 do quickstart `[A]`
+
+Ref: quickstart.md Cenários 1-7; plan.md "Plano por fases" passo 6;
+plan.md "Project Structure" (`infra/hub/testes/hub-auditoria-admin-integration.sh`
+NOVO)
+
+- [ ] 6.1.1 Criar `infra/hub/testes/hub-auditoria-admin-integration.sh` (projeto efêmero `hub-test-<runid>`, contadores `PASS:`/`FAIL:`, mesmo padrão das demais fases hub)
+- [ ] 6.1.2 Rodar Cenário 1 (trilha da própria entidade com filtros, detalhe sem dados sensíveis)
+- [ ] 6.1.3 Rodar Cenário 2 (nega-por-padrão sem entidade ativa + `403` ao forçar `entidadeId` de outra entidade)
+- [ ] 6.1.4 Rodar Cenário 3 (visão global do admin_plataforma, incl. eventos globais `entidadeId:null`)
+- [ ] 6.1.5 Rodar Cenário 4 (imutabilidade da trilha — regressão de `hub-auditoria-integration.sh`)
+- [ ] 6.1.6 Rodar Cenário 5 (gestão de usuários ponta-a-ponta, troca de papel refletindo <2s — SC-004)
+- [ ] 6.1.7 Rodar Cenário 6 (matriz de papéis: leitura vs edição, guard anti-lockout)
+- [ ] 6.1.8 Rodar Cenário 7 (módulos por entidade: efeito imediato, `403 MODULO_DESABILITADO`, FR-017)
+
+  Evidência: _preencher na execução_
+
+### 6.2 Roundtrip End-to-End e cobertura de auditoria — Cenários 8 e 9 `[C]`
+
+Ref: quickstart.md Cenários 8-9; spec.md FR-006/SC-002; plan.md "Convenções
+de Borda" (mapper layer, roundtrip trava a convenção)
+
+- [ ] 6.2.1 Rodar Cenário 8 para as 3 superfícies novas/evoluídas (`GET /auditoria`, `GET /papeis`, `GET /admin/entidades/:id/modulos`): capturar JSON real via `curl` contra o backend vivo, comparar shape byte-a-byte contra os contratos — qualquer chave snake_case na borda é FAIL
+- [ ] 6.2.2 Rodar Cenário 9 (cobertura de auditoria S2–S8): executar 1 escrita por módulo (importação, edição de motorista, toggle de módulo, troca de papel, envio em massa) e confirmar 1 evento por escrita com `recurso`/`recursoId` corretos, fechando o checklist endpoint-a-endpoint da FASE 2.1
+- [ ] 6.2.3 Confirmar SC-006 (mecanismo automatizado FASE 2.3) rodando contra os eventos gerados neste cenário — 0% de exposição de padrão sensível
+
+  Evidência: _preencher na execução_
+
+### 6.3 A11y smoke e identidade visual `[M]`
+
+Ref: plan.md "Plano por fases" passo 6 (a11y smoke); `/ui-ux-pro-max`
+(padrão já usado nas fases anteriores — S6/S7/S8)
+
+- [ ] 6.3.1 Rodar smoke de acessibilidade (mesmo padrão a11y 2/2 já usado na S8/hub-envio-massa) nas 4 telas novas/evoluídas: `/auditoria`, `/usuarios`, `/usuarios/papeis`, `/admin`
+- [ ] 6.3.2 Confirmar identidade visual EntreGô 2.0 (tokens de cor/tipografia) em tema claro/escuro e branding por tenant nas 4 telas
+
+  Evidência: _preencher na execução_
+
+### 6.4 Gates determinísticos e DIÁRIO `[M]`
+
+Ref: docs/plans/hub-frota/DIARIO.md; review-task (relatório final);
+skills/create-tasks/scripts/validate-tasks-template.sh;
+skills/validate-docs-rendered
+
+- [ ] 6.4.1 Rodar `validate-tasks-template.sh` sobre este `tasks.md` (gate determinístico de fidelidade ao template — critical: re-normalizar; warning: nota)
+- [ ] 6.4.2 Rodar o gate `validate-docs-rendered` sobre `docs/specs/hub-auditoria-admin/` (Mermaid, links internos, frontmatter, code blocks)
+- [ ] 6.4.3 Registrar no DIÁRIO do hub-frota a conclusão da S9 com evidências (link deste `tasks.md`, resultados do quickstart, PR)
+- [ ] 6.4.4 Registrar explicitamente a decisão do dono do produto (ou a ausência dela, como pendência) sobre os 3 gaps `{humano}` puros do checklist (CHK009 — critério de "relevância" da escrita auditada, default seguro = toda escrita é relevante; CHK016 — protocolo de medição de SC-001, default = medição manual no smoke de aceite; CHK032 — trade-off retenção×performance, nota de roadmap pós-S9) e do gap CHK028 (meta de performance sem SC formal — manter como meta técnica interna do plan.md, sem promover a SC nesta feature) — nenhum bloqueia o fechamento
+
+  Evidência: _preencher na execução_
+
+---
+
+## Matriz de Dependências
+
+```mermaid
+flowchart TD
+    F1[FASE 1 - Fundacao de Dados 0035-0038]
+    F2[FASE 2 - Cobertura de Auditoria + SC-006]
+    F3[FASE 3 - Endpoint Auditoria evoluido]
+    F4[FASE 4 - Administracao Backend]
+    F5[FASE 5 - Telas]
+    F6[FASE 6 - E2E e Evidencias]
+
+    F1 --> F2
+    F1 --> F3
+    F1 --> F4
+    F2 --> F6
+    F3 --> F5
+    F4 --> F5
+    F5 --> F6
+```
+
+## Resumo Quantitativo
+
+| Fase | Tarefas | Subtarefas | Criticidade |
+|------|---------|------------|-------------|
+| 1 - Fundação de Dados (0035-0038) | 4 | 22 | C |
+| 2 - Cobertura de Auditoria + SC-006 | 3 | 15 | C/A |
+| 3 - Endpoint Auditoria evoluído | 3 | 14 | C/A |
+| 4 - Administração Backend | 5 | 36 | C/A |
+| 5 - Telas | 4 | 22 | A |
+| 6 - E2E e Evidências | 4 | 15 | C/A/M |
+| **Total** | **23** | **124** | - |
+
+## Escopo Coberto
+
+| Item | Descrição | Fase |
+|------|-----------|------|
+| FR-001 | Filtros combináveis + paginação em `GET /auditoria` | 3 |
+| FR-002 | Escopo por papel (entidade vs plataforma) | 1, 3 |
+| FR-003 | Nega-por-padrão sem entidade ativa | 1, 3 |
+| FR-004 | Detalhes sem dados sensíveis em texto claro | 2, 5 |
+| FR-005 | Trilha imutável (regressão, sem mudança de mecanismo) | 6 |
+| FR-006 | 100% das escritas relevantes (S2–S8, incl. envio em massa) na trilha | 2, 6 |
+| FR-007 | Habilitar/desabilitar módulo por entidade | 1, 4 |
+| FR-008 | Efeito imediato de módulo (nav + acesso) | 4, 5 |
+| FR-009 | Tela de gestão de usuários (criar/editar/vincular/papel) | 4, 5 |
+| FR-010 | Tela de matriz papel×permissão (read-only p/ entidade) | 4, 5 |
+| FR-011 | Alteração de papel reflete imediatamente (sem TTL) | 4 |
+| FR-012 | Tela de auditoria sem capacidade de edição | 5 |
+| FR-013 | Tela de administração de módulos | 5 |
+| FR-016 | Catálogo de papéis fixo (dec-008) — sem CRUD de papel | 4 |
+| FR-017 | Administração de módulos exclusiva do admin_plataforma (dec-009) | 4 |
+| CHK006 [Gap] | Mecanismo automatizado de checagem de padrões sensíveis (SC-006) | 2 |
+| CHK033 [Ambiguity] | "Editar" usuário/vínculo inclui desativar (`ativo=false`), sem DELETE | 4, 5 |
+| SC-001 | Localização de evento <30s via filtros | 5, 6 |
+| SC-002 | 100% cobertura de auditoria S2–S8 | 2, 6 |
+| SC-003 | 0% de alteração/exclusão bem-sucedida da trilha | 1, 6 |
+| SC-004 | Alteração de papel reflete <2s | 4, 6 |
+| SC-005 | 100% de bloqueio quando módulo desabilitado | 4, 6 |
+| SC-006 | 0% de exposição de dados sensíveis (checagem automatizada) | 2, 6 |
+| SC-007 | Consulta cross-entidade sem trocar sessão (admin_plataforma) | 3 |
+| SC-008 | Fluxo único de criar+vincular+confirmar permissões (usuários) | 4, 5 |
+
+## Escopo Excluído
+
+| Item | Descrição | Motivo |
+|------|-----------|--------|
+| Retenção/expurgo de auditoria | Nenhuma política de retenção ou remoção automática implementada | spec.md FR-014 — trilha preparada para política futura, expurgo fica fora de escopo |
+| Exportação da trilha de auditoria | Nenhum endpoint/tela de export desta feature | spec.md FR-015 — capacidade futura |
+| CRUD de papel (criar/editar/excluir) | Catálogo de papéis permanece fixo, sem rota de escrita | spec.md FR-016; data-model.md dec-008 — RLS sem política de escrita por desenho |
+| Solicitação de habilitação de módulo pelo admin_entidade | Nenhum fluxo de solicitação/aprovação | spec.md FR-017; data-model.md dec-009 — admin_entidade só percebe o efeito indireto |
+| `GET /auditoria/:id` dedicado | Detalhe do evento é resolvido client-side (drawer sobre a linha já carregada) | research.md Decision 9 |
+| Gate de runtime `ENVIO_DRY_RUN`/allowlist do módulo envio em massa | Nenhuma alteração de comportamento desse gate nesta feature | issue #62 (follow-up da S8) — fora de escopo; contexto operacional vinculante item 4 |
+| View materializada / estrutura de pré-cálculo para auditoria | Nenhuma tabela/índice novo além dos objetos das migrations 0035–0038 | plan.md "Complexity Tracking" — índices existentes (0004/0009) já suficientes, sem MV nesta feature |
+| DELETE físico de vínculo/usuário | Toda desativação é `ativo=false`, nunca remoção de linha | data-model.md "Entity: Usuario/UsuarioEntidade"; CHK033 |
