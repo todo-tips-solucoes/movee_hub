@@ -535,6 +535,16 @@ function trataNumero(sender) {
   return `${countryCode}${areaCode}${phoneNumber}`;
 }
 
+// issue #62 — saídas EXTERNAS do fluxo legado agora vêm de env com fallback
+// para os valores históricos de produção (sem env setada, produção permanece
+// byte a byte idêntica). Nos ambientes isolados do hub, N8N_URL/FASTAPI_URL/
+// FASTAPI_NEXUS_URL apontam para os mocks; o gate (lib/envio-gate.js) decide
+// ANTES de qualquer axios se a chamada pode sair (ENVIO_DRY_RUN/allowlist).
+const { gateEnvioExterno } = require('./lib/envio-gate');
+const ENVIO_API_BASE = process.env.N8N_URL || 'https://api.chatmasterveloz.com';
+const FASTAPI_BASE_MOVEE = process.env.FASTAPI_URL || 'https://fastapihomologacao.todo-tips.com';
+const FASTAPI_BASE_NEXUS = process.env.FASTAPI_NEXUS_URL || 'https://fastapihomologacaonexus.todo-tips.com';
+
 // Função para envio de mensagens
 async function sendMessage(
   sender,
@@ -547,6 +557,17 @@ async function sendMessage(
   connection_id, // <- importantíssimo
   grupoCache     // grupo-unificado-filiais: cache de grupo passado pelo caller (OWASP MEDIUM-002)
 ) {
+  // issue #62: gate ANTES de qualquer validação ou chamada — bloquear não
+  // depende de credencial nem de payload válido. A linha é marcada 'erro' com
+  // o motivo (visível na tela/export) e NADA sai do processo. Em produção
+  // (sem ENVIO_DRY_RUN/ENVIO_ALLOWLIST no env) o gate nunca bloqueia.
+  const gateEnvio = gateEnvioExterno(ENVIO_API_BASE);
+  if (gateEnvio.bloqueado) {
+    console.log('[sendMessage][GATE] envio bloqueado (' + gateEnvio.motivo + ') id=' + id);
+    await updateEnvioMassa(id, 'erro', '[gate] envio bloqueado: ' + gateEnvio.motivo, tipo, id_empresa);
+    return { message: 'Envio bloqueado pelo gate (' + gateEnvio.motivo + ').' };
+  }
+
   if (!sender || !mensagem) {
     throw new Error('Os campos "sender" e "mensagem" são obrigatórios.');
   }
@@ -608,7 +629,7 @@ async function sendMessage(
     if (await mesmoGrupoQue(id_empresa, 6, grupoCache || {})) { // idReferencia=6 = Movee
       try {
         const sendWhatsMeowRes = await axios.post(
-          'https://api.chatmasterveloz.com/api/messages/whatsmeow/sendTextPRO',
+          ENVIO_API_BASE + '/api/messages/whatsmeow/sendTextPRO',
           {
             number: sender,
             body: mensagem,
@@ -659,7 +680,7 @@ async function sendMessage(
     let sendOfficialRes;
     try {
       sendOfficialRes = await axios.post(
-        'https://api.chatmasterveloz.com/api/messages/sendOfficial',
+        ENVIO_API_BASE + '/api/messages/sendOfficial',
         payload,
         {
           headers: {
@@ -705,7 +726,7 @@ async function sendMessage(
     try {
       ticketsRes = await axios({
         method: 'GET',
-        url: 'https://api.chatmasterveloz.com/api/contacts/alltickets',
+        url: ENVIO_API_BASE + '/api/contacts/alltickets',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': userToken
@@ -845,7 +866,7 @@ async function sendMessage(
     // Passo 3: mandar mensagem interna associada ao ticketId selecionado
     try {
       const internalSendRes = await axios.post(
-        'https://api.chatmasterveloz.com/api/messages/internal/send',
+        ENVIO_API_BASE + '/api/messages/internal/send',
         {
           ticketId: ticketId,
           body: mensagem
@@ -2508,19 +2529,30 @@ app.post('/validate-xml-batch', authenticateToken, hubEnvioMassaClaimsBridge, hu
       var xmlInput = JSON.stringify({ filename: file.originalname, data: xmlContent });
       var url, payload;
       if (await mesmoGrupoQue(idEmp, 6, _grupoCache)) { // idReferencia=6 = Movee
-        url = 'https://fastapihomologacao.todo-tips.com/validade_nfse';
+        url = FASTAPI_BASE_MOVEE + '/validade_nfse';
         payload = new URLSearchParams({
           xml_input: xmlInput,
           id_empresa: '6',
           validar_descricao_servico: String(validarDescricao)
         });
       } else {
-        url = 'https://fastapihomologacaonexus.todo-tips.com/validade_nfse';
+        url = FASTAPI_BASE_NEXUS + '/validade_nfse';
         payload = new URLSearchParams({
           xml_input: xmlInput,
           nexus: 'true',
           validar_descricao_servico: String(validarDescricao)
         });
+      }
+
+      // issue #62: gate ANTES da chamada externa — bloqueado segue o MESMO
+      // caminho do erro de infra (não grava resultado falso), mas com motivo
+      // próprio para não se confundir com indisponibilidade real.
+      var gateFastApi = gateEnvioExterno(url);
+      if (gateFastApi.bloqueado) {
+        console.log('[validate-xml-batch][GATE] validação bloqueada (' + gateFastApi.motivo + ') id=' + movimento.id);
+        row.status = 'erro';
+        row.erro_validacao = 'validação bloqueada pelo gate de envio (' + gateFastApi.motivo + ')';
+        throw { _handled: true };
       }
 
       // task 1.3.8: classificar negócio × infra na chamada à FastAPI.
