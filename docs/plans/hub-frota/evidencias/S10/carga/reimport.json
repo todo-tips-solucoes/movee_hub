@@ -1,0 +1,16 @@
+{
+ "reimport_identico": {
+  "upload_status": 409,
+  "body": {
+   "error": "CONFLITO",
+   "importacaoOriginalId": 6
+  },
+  "ms": 26
+ },
+ "reimport_mais1": {
+  "upload_status": 201,
+  "id": 8,
+  "status_final": "completed_with_errors",
+  "ms": 1115
+ }
+}

@@ -1,0 +1,99 @@
+PREFLIGHT: ok — projeto 'hub-test-1783648196' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783648196, APP_ENV=test)
+subindo db+postgrest+mailpit-mock+backend efêmeros (hub-test-1783648196, tmpfs)…
+ Network hub-test-1783648196_default Creating 
+ Network hub-test-1783648196_default Created 
+ Container hub-test-1783648196-db-1 Creating 
+ Container hub-test-1783648196-db-1 Created 
+ Container hub-test-1783648196-db-1 Starting 
+ Container hub-test-1783648196-db-1 Started 
+ Container hub-test-1783648196-db-1 Waiting 
+ Container hub-test-1783648196-db-1 Healthy 
+ Container hub-test-1783648196-db-1 Running 
+ Container hub-test-1783648196-postgrest-1 Creating 
+ Container hub-test-1783648196-postgrest-1 Created 
+ Container hub-test-1783648196-db-1 Waiting 
+ Container hub-test-1783648196-db-1 Healthy 
+ Container hub-test-1783648196-postgrest-1 Starting 
+ Container hub-test-1783648196-postgrest-1 Started 
+ Container hub-test-1783648196-postgrest-1 Waiting 
+ Container hub-test-1783648196-db-1 Waiting 
+ Container hub-test-1783648196-db-1 Healthy 
+ Container hub-test-1783648196-postgrest-1 Healthy 
+ Container hub-test-1783648196-mailpit-mock-1 Creating 
+ Container hub-test-1783648196-mailpit-mock-1 Created 
+ Container hub-test-1783648196-mailpit-mock-1 Starting 
+ Container hub-test-1783648196-mailpit-mock-1 Started 
+ Container hub-test-1783648196-mailpit-mock-1 Waiting 
+ Container hub-test-1783648196-mailpit-mock-1 Healthy 
+ Container hub-test-1783648196-db-1 Running 
+ Container hub-test-1783648196-postgrest-1 Running 
+ Container hub-test-1783648196-backend-1 Creating 
+ Container hub-test-1783648196-backend-1 Created 
+ Container hub-test-1783648196-db-1 Waiting 
+ Container hub-test-1783648196-db-1 Healthy 
+ Container hub-test-1783648196-db-1 Waiting 
+ Container hub-test-1783648196-db-1 Healthy 
+ Container hub-test-1783648196-backend-1 Starting 
+ Container hub-test-1783648196-backend-1 Started 
+ Container hub-test-1783648196-db-1 Waiting 
+ Container hub-test-1783648196-postgrest-1 Waiting 
+ Container hub-test-1783648196-backend-1 Waiting 
+ Container hub-test-1783648196-postgrest-1 Healthy 
+ Container hub-test-1783648196-db-1 Healthy 
+ Container hub-test-1783648196-backend-1 Healthy 
+rodando migrate.sh (0002..0018)…
+PASS: GET /importacoes?tipo=faturamento&pageSize=3 -> 200
+PASS: GET /importacoes -> pageSize respeitado (3 itens)
+PASS: GET /importacoes -> page=1 no corpo
+PASS: GET /importacoes -> pageSize=3 no corpo
+PASS: GET /importacoes -> total >= 4 (contagem real via Range/count=exact)
+PASS: GET /importacoes -> shape do item bate o contrato (camelCase + aguardandoLock)
+PASS: GET /importacoes?status=failed -> filtro de status funciona
+PASS: aguardandoLock=true p/ pending com sibling processing do mesmo tipo (dec-032/CHK013)
+PASS: papel leitura TAMBÉM pode listar (tem importacoes.consultar)
+PASS: GET /importacoes/:id (detalhe) -> 200
+PASS: GET /importacoes/:id -> contadores presentes
+PASS: GET /importacoes/:id -> status=completed (upload real pequeno já processou)
+PASS: GET /importacoes/:id cross-tenant (empresa B lendo id da empresa A) -> 404
+PASS: GET /importacoes/:id inexistente -> 404
+PASS: GET /importacoes/:id/erros (JSON) -> 200
+PASS: GET .../erros -> total=2
+PASS: GET .../erros JSON -> valorMascarado intacto (=1+1, sem re-escapar em JSON)
+PASS: GET .../erros JSON -> nunca expõe campo bruto
+PASS: GET .../erros?format=csv -> 200
+PASS: GET .../erros?format=csv -> Content-Type text/csv
+PASS: GET .../erros?format=csv -> célula '=1+1' recebe prefixo ' (CSV injection, 5.3.4)
+PASS: GET .../erros cross-tenant -> 404
+PASS: GET /importacoes/:id/original (admin_entidade, tem exportar) -> 200
+PASS: GET .../original -> conteúdo do arquivo real servido
+PASS: GET .../original (papel leitura, SEM exportar) -> 403
+PASS: GET .../original 403 -> erro=PERMISSAO_NEGADA
+PASS: GET .../original (arquivo ausente no disco) -> 410 (CHK021 resolvido)
+PASS: GET .../original 410 -> erro=ARQUIVO_INDISPONIVEL
+PASS: POST .../reprocessar (failed) -> 202
+PASS: POST .../reprocessar -> body.status=pending
+PASS: POST .../reprocessar (completed) -> 409 CONFLITO
+PASS: POST .../reprocessar 409 -> error=CONFLITO
+PASS: POST .../reprocessar (papel leitura, SEM criar) -> 403
+PASS: POST .../cancelar (processing) -> 202
+PASS: POST .../cancelar -> body.status=cancelled
+PASS: POST .../cancelar (completed) -> 409 CONFLITO
+PASS: POST .../cancelar 409 -> error=CONFLITO
+PASS: POST .../cancelar (papel leitura, SEM criar) -> 403
+PASS: DB: reprocessar LIMPOU ImportacaoLinhaErro da tentativa anterior (5.5.2)
+PASS: DB: p11 (processing) -> status=cancelled persistido
+PASS: DB: Auditoria 'importacao.reprocessada' registrada (5.7.1)
+PASS: DB: Auditoria 'importacao.cancelada' registrada (5.7.2)
+PASS: DB: Auditoria 'importacao.original_baixado' registrada (5.7.3)
+
+HUB-IMPORTACOES-FASE5-INTEGRATION: OK — todos os asserts passaram (FASE 5: 5.1-5.8)

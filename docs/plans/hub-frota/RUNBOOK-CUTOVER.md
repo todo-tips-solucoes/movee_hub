@@ -347,4 +347,11 @@ O que monitorar (tudo READ-ONLY; operador executa e cola quando quiser parecer):
 
 Passadas 24h sem gatilho: declarar cutover estável, registrar no DIARIO.md e
 agendar as pendências (issue #62 se ainda aberta, D5, §9, remoção da linha QA
-9001 do 0038).
+9001 do 0038, e o **achado de performance da S10**: com ~1 ano de dados
+importados (~2,5M linhas), `/motoristas` fica em ~2s (paginação/filtro em JS +
+`hub_areas_por_entregador` varrendo as 2 tabelas de fato) e os resumos na
+janela de 1 ano cheio em 1,1–1,5s — a janela padrão de 30d das telas fica
+folgada abaixo de 1s; números em `evidencias/S10/carga/relatorio.md`; a
+melhoria exige mudança funcional e é follow-up a agendar, não bloqueio de
+cutover, já que os módulos nascem vazios e o efeito só aparece com ~1 ano de
+histórico).

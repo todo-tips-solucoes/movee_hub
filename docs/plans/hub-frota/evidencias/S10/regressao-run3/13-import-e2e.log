@@ -1,0 +1,143 @@
+=== produção ANTES ===
+envio-massa-homologacao_backend_homologacao 1/1
+envio-massa-homologacao_frontend_homologacao 1/1
+envio-massa-homologacao_frontend_motorista_homologacao 1/1
+envio-massa-homologacao_frontend_v2_homologacao 1/1
+
+=== limpeza preventiva (resíduo de execução anterior, se houver) ===
+SET
+DELETE 0
+DELETE 0
+DELETE 0
+DELETE 0
+DELETE 0
+DELETE 0
+DELETE 0
+DELETE 0
+DELETE 0
+PREFLIGHT: ok — projeto 'hub-homolog' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=homologation
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (6 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.homolog.yml (projeto hub-homolog, APP_ENV=homologation)
+
+=== build do backend (rito anti-starvation: DOCKER_BUILDKIT=0 --memory=2g) ===
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       7.1Gi       1.1Gi       629Mi       8.0Gi       8.1Gi
+Swap:          8.0Gi       2.6Gi       5.4Gi
+build OK
+envio-massa-homologacao_backend_homologacao 1/1
+envio-massa-homologacao_frontend_homologacao 1/1
+envio-massa-homologacao_frontend_motorista_homologacao 1/1
+envio-massa-homologacao_frontend_v2_homologacao 1/1
+ Container hub_homolog_db Running 
+ Container hub_homolog_postgrest Running 
+ Container hub_homolog_backend Running 
+ Container hub_homolog_db Waiting 
+ Container hub_homolog_db Healthy 
+ Container hub_homolog_db Waiting 
+ Container hub_homolog_db Healthy 
+ Container hub_homolog_postgrest Waiting 
+ Container hub_homolog_db Waiting 
+ Container hub_homolog_backend Waiting 
+ Container hub_homolog_postgrest Healthy 
+ Container hub_homolog_backend Healthy 
+ Container hub_homolog_db Healthy 
+backend no ar
+envio-massa-homologacao_backend_homologacao 1/1
+envio-massa-homologacao_frontend_homologacao 1/1
+envio-massa-homologacao_frontend_motorista_homologacao 1/1
+envio-massa-homologacao_frontend_v2_homologacao 1/1
+
+=== migrate.sh (idempotente, até 0017) ===
+migrations OK
+
+### Cenário 1 — happy path faturamento ###
+PASS: upload -> 201
+PASS: status final -> completed
+
+### Cenário 2 — idempotência de arquivo + linha ###
+PASS: reenvio idêntico -> 409
+PASS: 409 -> importacaoOriginalId = id do Cenário 1
+PASS: dedupe de linha -> upload aceito (201)
+PASS: dedupe de linha -> status final completed
+
+### Cenário 3 — performance dialeto ponto + HH:MM:SS ###
+PASS: upload -> 201
+PASS: status final -> completed_with_errors (1/6 linhas sem UUID)
+PASS: erro de linha por UUID ausente presente
+
+### Cenário 4 — erros por linha + LGPD ###
+PASS: upload -> 201
+PASS: status final -> completed_with_errors
+PASS: GET erros (JSON) -> 200
+PASS: GET erros -> total=2
+PASS: GET erros -> shape correto (numeroLinha/campo/motivo/valorMascarado, sem valorBruto)
+PASS: GET erros?format=csv -> 200
+PASS: GET erros?format=csv -> Content-Type text/csv
+PASS: GET erros?format=csv -> valorMascarado '=**1' recebe prefixo ' (anti-injection, LGPD)
+PASS: GET erros?format=csv -> valor bruto '=1+1' NUNCA exposto intacto (mascararValor, LGPD)
+PASS: GET erros?format=csv -> nenhum UUID bruto exposto (LGPD)
+
+### Cenário 5 — falha estrutural >50% inválidas ###
+PASS: upload -> 201 (validação de header é do processor, não do upload)
+PASS: status final -> failed (60% inválidas > limiar 50%)
+
+### Cenário 6 — reprocessar / cancelar ###
+PASS: reprocessar (failed) -> 202
+PASS: reprocessar -> body.status=pending
+PASS: reprocessar (completed) -> 409 CONFLITO
+PASS: reprocessar (papel leitura, sem 'criar') -> 403
+PASS: cancelar (completed) -> 409 CONFLITO
+PASS: cancelar (processing, seed SQL) -> 202
+PASS: cancelar (processing) -> body.status=cancelled
+
+### Cenário 7 — gate de export ###
+PASS: papel leitura: GET detalhe -> 200
+PASS: papel leitura: GET original -> 403 PERMISSAO_NEGADA
+PASS: papel leitura: GET original erro=PERMISSAO_NEGADA
+PASS: papel admin_entidade: GET original -> 200
+PASS: papel admin_entidade: GET original -> conteúdo real servido
+
+### Cenário 8 — isolamento multi-tenant ###
+PASS: empresa B lendo importação da empresa A -> 404
+PASS: listagem da empresa B NÃO contém a importação da empresa A
+
+### Cenário 9 — concorrência com lock advisório ###
+PASS: 2 uploads quase simultâneos (mesma empresa+tipo) -> ambos 201 (nenhum rejeitado)
+PASS: 1ª importação concorrente -> termina em estado terminal (não fica presa)
+PASS: 2ª importação concorrente -> termina em estado terminal (não fica presa)
+
+### Cenário 10 — roundtrip real (contrato) ###
+PASS: GET /importacoes/:id -> shape camelCase bate o contrato, sem drift snake_case
+
+HUB-IMPORTACOES-E2E-HOMOLOG: OK — todos os asserts passaram (FASE 7: quickstart Cenários 1-10)
+evidência escrita: /var/lib/envioMassa_homologacao/docs/plans/hub-frota/evidencias/S4/cenarios-1-10-resultado.md
+evidência escrita: /var/lib/envioMassa_homologacao/docs/plans/hub-frota/evidencias/S4/roundtrip-payload-exemplo.json
+
+=== LGPD: verificando ausência de PII/CSV bruto nos logs dos serviços do hub ===
+evidência escrita: /var/lib/envioMassa_homologacao/docs/plans/hub-frota/evidencias/S4/lgpd-zero-vazamentos.md
+
+=== cleanup: removendo linhas e2e-importacoes-* / empresas 970001,970002 ===
+SET
+DELETE 3
+DELETE 33
+DELETE 11
+DELETE 8
+DELETE 44
+DELETE 28
+DELETE 5
+DELETE 4
+DELETE 4
+=== cleanup: concluído ===
+=== produção DEPOIS ===
+envio-massa-homologacao_backend_homologacao 1/1
+envio-massa-homologacao_frontend_homologacao 1/1
+envio-massa-homologacao_frontend_motorista_homologacao 1/1
+envio-massa-homologacao_frontend_v2_homologacao 1/1

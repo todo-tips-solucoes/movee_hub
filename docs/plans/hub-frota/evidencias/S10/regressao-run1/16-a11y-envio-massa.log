@@ -1,0 +1,18 @@
+=== rito anti-starvation: estado do host ANTES ===
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       7.5Gi       300Mi       631Mi       8.4Gi       7.7Gi
+Swap:          8.0Gi       2.6Gi       5.4Gi
+=== rito anti-starvation: OK, prosseguindo ===
+=== Playwright (mcr.microsoft.com/playwright:v1.61.1-jammy) contra https://hub-homolog.todo-tips.com:8443 (network host + add-host local) ===
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-envio-massa/a11y-smoke.spec.ts:89:7 › 5.2 — smoke a11y da montagem /hub/dashboard/envio_massa › 5.2.1 teclado: Tab/Shift+Tab/Enter/Escape alcançam upload/processo/validação/edição/fechamento/exportação (3.1s)
+  ✓  2 [chromium] › tests/e2e-hub-envio-massa/a11y-smoke.spec.ts:160:7 › 5.2 — smoke a11y da montagem /hub/dashboard/envio_massa › 5.2.2 ARIA: montagem hub sem regressão vs painel legado (mesmos componentes) (1.8s)
+
+  2 passed (5.7s)
+'/var/lib/envioMassa_homologacao/app_homologacao/frontend_v2/tests/e2e-hub-envio-massa/.evidencias/5.2.1-tab-walk.json' -> '/var/lib/envioMassa_homologacao/docs/specs/hub-envio-massa/evidencias/5.2.1-tab-walk.json'
+'/var/lib/envioMassa_homologacao/app_homologacao/frontend_v2/tests/e2e-hub-envio-massa/.evidencias/5.2.2-aria-hub-vs-legado.json' -> '/var/lib/envioMassa_homologacao/docs/specs/hub-envio-massa/evidencias/5.2.2-aria-hub-vs-legado.json'
+
+=== log completo: /var/lib/envioMassa_homologacao/docs/specs/hub-envio-massa/evidencias/5.2-a11y-smoke-run-20260710T015425Z.log ===
+HUB-ENVIO-MASSA-A11Y-SMOKE: OK — 5.2.1/5.2.2 verdes (evidências em /var/lib/envioMassa_homologacao/docs/specs/hub-envio-massa/evidencias)

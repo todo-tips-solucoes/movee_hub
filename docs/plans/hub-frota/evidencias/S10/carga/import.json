@@ -1,0 +1,14 @@
+{
+ "fat": {
+  "upload_status": 201,
+  "id": 6,
+  "status_final": "completed_with_errors",
+  "ms": 1691
+ },
+ "perf": {
+  "upload_status": 201,
+  "id": 7,
+  "status_final": "completed",
+  "ms": 1042
+ }
+}

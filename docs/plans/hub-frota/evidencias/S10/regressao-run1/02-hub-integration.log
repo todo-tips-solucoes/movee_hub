@@ -1,0 +1,789 @@
+
+> backend_homologacao@1.0.0 test:hub:integration
+> node --test tests/hub-rls-integration.test.js tests/hub-auditoria-integration.test.js tests/hub-importacoes-integration.test.js tests/hub-import-processor-integration.test.js tests/hub-motoristas.test.js tests/hub-faturamento.test.js tests/hub-usuarios.test.js tests/hub-papeis.test.js tests/hub-admin.test.js tests/hub-performance.test.js
+
+TAP version 13
+#  Network hub-test-1783647940_default Creating 
+#  Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+#  Container hub-test-1783647940-db-1 Creating 
+#  Container hub-test-1783647940-db-1 Created 
+#  Container hub-test-1783647940-db-1 Starting 
+#  Container hub-test-1783647940-db-1 Started 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Running 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-postgrest-1 Waiting 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-postgrest-1 Healthy 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-mailpit-mock-1 Running 
+#  Container hub-test-1783647940-mailpit-mock-1 Waiting 
+#  Container hub-test-1783647940-mailpit-mock-1 Healthy 
+#  Container hub-test-1783647940-backend-1 Recreate 
+#  Container hub-test-1783647940-backend-1 Recreated 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-postgrest-1 Starting 
+#  Container hub-test-1783647940-postgrest-1 Started 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-backend-1 Starting 
+#  Container hub-test-1783647940-backend-1 Started 
+#  Container hub-test-1783647940-backend-1 Waiting 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-postgrest-1 Waiting 
+#  Container hub-test-1783647940-backend-1 Healthy 
+#  Container hub-test-1783647940-postgrest-1 Healthy 
+#  Container hub-test-1783647940-db-1 Healthy 
+# Subtest: hub-admin-integration.sh — módulos por entidade (efeito imediato, guard anti-lockout, FR-017)
+ok 1 - hub-admin-integration.sh — módulos por entidade (efeito imediato, guard anti-lockout, FR-017)
+  ---
+  duration_ms: 64388.416738
+  type: 'test'
+  ...
+#  Network hub-test-1783647940_default Creating 
+#  Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+#  Container hub-test-1783647940-db-1 Creating 
+#  Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Creating 
+#  Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-mailpit-mock-1 Creating 
+#  Container hub-test-1783647940-mailpit-mock-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Running 
+#  Container hub-test-1783647940-backend-1 Creating 
+#  Container hub-test-1783647940-backend-1 Created 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Error dependency db failed to start
+# dependency failed to start: container hub-test-1783647940-db-1 exited (0)
+# Subtest: hub-auditoria-integration.sh — Auditoria imutável (INSERT ok, UPDATE/DELETE rejeitados)
+not ok 2 - hub-auditoria-integration.sh — Auditoria imutável (INSERT ok, UPDATE/DELETE rejeitados)
+  ---
+  duration_ms: 33176.08015
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-auditoria-integration.test.js:43:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-auditoria-integration.sh
+     Network hub-test-1783647940_default Creating 
+     Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+     Container hub-test-1783647940-db-1 Creating 
+     Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Creating 
+     Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-mailpit-mock-1 Creating 
+     Container hub-test-1783647940-mailpit-mock-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Running 
+     Container hub-test-1783647940-backend-1 Creating 
+     Container hub-test-1783647940-backend-1 Created 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Healthy 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Error dependency db failed to start
+    dependency failed to start: container hub-test-1783647940-db-1 exited (0)
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-auditoria-integration.test.js:53:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Network hub-test-1783647940_default Creating 
+#  Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+#  Container hub-test-1783647940-db-1 Creating 
+#  Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Creating 
+#  Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-mailpit-mock-1 Creating 
+#  Container hub-test-1783647940-mailpit-mock-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Running 
+#  Container hub-test-1783647940-backend-1 Creating 
+#  Container hub-test-1783647940-backend-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-backend-1" is already in use by container "a44a521314efad62ffbecbf2d99b9e9d94a87b928bcccd8f0d8c3a7099e159d7". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-backend-1" is already in use by container "a44a521314efad62ffbecbf2d99b9e9d94a87b928bcccd8f0d8c3a7099e159d7". You have to remove (or rename) that container to be able to reuse that name.
+# Subtest: hub-faturamento-integration.sh — GET /faturamento (filtros + paginação + isolamento + permissões)
+not ok 3 - hub-faturamento-integration.sh — GET /faturamento (filtros + paginação + isolamento + permissões)
+  ---
+  duration_ms: 33070.941525
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-faturamento.test.js:38:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-faturamento-integration.sh
+     Network hub-test-1783647940_default Creating 
+     Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+     Container hub-test-1783647940-db-1 Creating 
+     Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Creating 
+     Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-mailpit-mock-1 Creating 
+     Container hub-test-1783647940-mailpit-mock-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Running 
+     Container hub-test-1783647940-backend-1 Creating 
+     Container hub-test-1783647940-backend-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-backend-1" is already in use by container "a44a521314efad62ffbecbf2d99b9e9d94a87b928bcccd8f0d8c3a7099e159d7". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-backend-1" is already in use by container "a44a521314efad62ffbecbf2d99b9e9d94a87b928bcccd8f0d8c3a7099e159d7". You have to remove (or rename) that container to be able to reuse that name.
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-faturamento.test.js:48:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Network hub-test-1783647940_default Creating 
+#  Network hub-test-1783647940_default Created 
+#  Container hub-test-1783647940-db-1 Creating 
+#  Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Creating 
+#  Container hub-test-1783647940-postgrest-1 Created 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-postgrest-1 Starting 
+#  Container hub-test-1783647940-postgrest-1 Started 
+#  Container hub-test-1783647940-postgrest-1 Waiting 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-postgrest-1 Healthy 
+#  Container hub-test-1783647940-mailpit-mock-1 Running 
+#  Container hub-test-1783647940-mailpit-mock-1 Waiting 
+#  Container hub-test-1783647940-mailpit-mock-1 Healthy 
+#  Container hub-test-1783647940-db-1 Creating 
+#  Container hub-test-1783647940-db-1 Created 
+#  Container hub-test-1783647940-postgrest-1 Creating 
+#  Container hub-test-1783647940-postgrest-1 Created 
+#  Container hub-test-1783647940-backend-1 Creating 
+#  Container hub-test-1783647940-backend-1 Created 
+#  Container hub-test-1783647940-db-1 Starting 
+#  Container hub-test-1783647940-db-1 Started 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-postgrest-1 Starting 
+#  Container hub-test-1783647940-postgrest-1 Started 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-backend-1 Starting 
+# Error response from daemon: No such container: 9615bdab43427034350f52c2f605c3757fd36881bbe7f2f5a17a25adeeb408ed
+# SCRIPT_ERROR TypeError: fetch failed
+#     at node:internal/deps/undici/undici:14976:13
+#     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+#     at async login ([stdin]:11:13)
+#     at async main ([stdin]:21:13) {
+#   [cause]: AggregateError [ECONNREFUSED]: 
+#       at internalConnectMultiple (node:net:1122:18)
+#       at afterConnectMultiple (node:net:1689:7) {
+#     code: 'ECONNREFUSED',
+#     [errors]: [ [Error], [Error] ]
+#   }
+# }
+# ERROR:  syntax error at or near "runtime"
+# LINE 1: ...LECT status FROM "ImportacaoArquivo" WHERE id=OCI runtime ex...
+#                                                              ^
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# service "db" is not running
+# HUB-IMPORT-PROCESSOR-INTEGRATION: 4 assert(s) FALHARAM
+# Subtest: hub-import-processor-integration.sh — processamento em lote (máquina de estados + dedupe + rollback + cancelamento)
+not ok 4 - hub-import-processor-integration.sh — processamento em lote (máquina de estados + dedupe + rollback + cancelamento)
+  ---
+  duration_ms: 95487.795178
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-import-processor-integration.test.js:39:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-import-processor-integration.sh
+     Network hub-test-1783647940_default Creating 
+     Network hub-test-1783647940_default Created 
+     Container hub-test-1783647940-db-1 Creating 
+     Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Creating 
+     Container hub-test-1783647940-postgrest-1 Created 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Healthy 
+     Container hub-test-1783647940-postgrest-1 Starting 
+     Container hub-test-1783647940-postgrest-1 Started 
+     Container hub-test-1783647940-postgrest-1 Waiting 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Healthy 
+     Container hub-test-1783647940-postgrest-1 Healthy 
+     Container hub-test-1783647940-mailpit-mock-1 Running 
+     Container hub-test-1783647940-mailpit-mock-1 Waiting 
+     Container hub-test-1783647940-mailpit-mock-1 Healthy 
+     Container hub-test-1783647940-db-1 Creating 
+     Container hub-test-1783647940-db-1 Created 
+     Container hub-test-1783647940-postgrest-1 Creating 
+     Container hub-test-1783647940-postgrest-1 Created 
+     Container hub-test-1783647940-backend-1 Creating 
+     Container hub-test-1783647940-backend-1 Created 
+     Container hub-test-1783647940-db-1 Starting 
+     Container hub-test-1783647940-db-1 Started 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Healthy 
+     Container hub-test-1783647940-postgrest-1 Starting 
+     Container hub-test-1783647940-postgrest-1 Started 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Healthy 
+     Container hub-test-1783647940-backend-1 Starting 
+    Error response from daemon: No such container: 9615bdab43427034350f52c2f605c3757fd36881bbe7f2f5a17a25adeeb408ed
+    SCRIPT_ERROR TypeError: fetch failed
+        at node:internal/deps/undici/undici:14976:13
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at async login ([stdin]:11:13)
+        at async main ([stdin]:21:13) {
+      [cause]: AggregateError [ECONNREFUSED]: 
+          at internalConnectMultiple (node:net:1122:18)
+          at afterConnectMultiple (node:net:1689:7) {
+        code: 'ECONNREFUSED',
+        [errors]: [ [Error], [Error] ]
+      }
+    }
+    ERROR:  syntax error at or near "runtime"
+    LINE 1: ...LECT status FROM "ImportacaoArquivo" WHERE id=OCI runtime ex...
+                                                                 ^
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    service "db" is not running
+    HUB-IMPORT-PROCESSOR-INTEGRATION: 4 assert(s) FALHARAM
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    node:internal/deps/undici/undici:14976:13
+    process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    async login ([stdin]:11:13)
+    async main ([stdin]:21:13) {
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-import-processor-integration.test.js:49:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Container hub-test-1783647940-db-1 Creating 
+#  Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Creating 
+#  Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-mailpit-mock-1 Creating 
+#  Container hub-test-1783647940-mailpit-mock-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Running 
+#  Container hub-test-1783647940-backend-1 Creating 
+#  Container hub-test-1783647940-backend-1 Created 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Error dependency db failed to start
+# dependency failed to start: Error response from daemon: No such container: 645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320
+# Subtest: hub-importacoes-integration.sh — POST /importacoes (validações + dedupe + storage + auditoria)
+not ok 5 - hub-importacoes-integration.sh — POST /importacoes (validações + dedupe + storage + auditoria)
+  ---
+  duration_ms: 33045.520418
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-importacoes-integration.test.js:39:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-importacoes-integration.sh
+     Container hub-test-1783647940-db-1 Creating 
+     Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Creating 
+     Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-mailpit-mock-1 Creating 
+     Container hub-test-1783647940-mailpit-mock-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Running 
+     Container hub-test-1783647940-backend-1 Creating 
+     Container hub-test-1783647940-backend-1 Created 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Error dependency db failed to start
+    dependency failed to start: Error response from daemon: No such container: 645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-importacoes-integration.test.js:49:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Network hub-test-1783647940_default Creating 
+#  Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+#  Container hub-test-1783647940-db-1 Creating 
+#  Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Creating 
+#  Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-mailpit-mock-1 Creating 
+#  Container hub-test-1783647940-mailpit-mock-1 Created 
+#  Container hub-test-1783647940-mailpit-mock-1 Starting 
+#  Container hub-test-1783647940-mailpit-mock-1 Started 
+#  Container hub-test-1783647940-mailpit-mock-1 Waiting 
+#  Container hub-test-1783647940-mailpit-mock-1 Healthy 
+# Subtest: hub-motoristas-integration.sh — GET /motoristas + GET /motoristas/:id (filtros + isolamento + detalhe)
+not ok 6 - hub-motoristas-integration.sh — GET /motoristas + GET /motoristas/:id (filtros + isolamento + detalhe)
+  ---
+  duration_ms: 33059.654102
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-motoristas.test.js:39:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-motoristas-integration.sh
+     Network hub-test-1783647940_default Creating 
+     Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+     Container hub-test-1783647940-db-1 Creating 
+     Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Creating 
+     Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-mailpit-mock-1 Creating 
+     Container hub-test-1783647940-mailpit-mock-1 Created 
+     Container hub-test-1783647940-mailpit-mock-1 Starting 
+     Container hub-test-1783647940-mailpit-mock-1 Started 
+     Container hub-test-1783647940-mailpit-mock-1 Waiting 
+     Container hub-test-1783647940-mailpit-mock-1 Healthy 
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-motoristas.test.js:49:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Network hub-test-1783647940_default Creating 
+#  Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+#  Container hub-test-1783647940-db-1 Creating 
+#  Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Creating 
+#  Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-mailpit-mock-1 Creating 
+#  Container hub-test-1783647940-mailpit-mock-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647940-db-1 Running 
+#  Container hub-test-1783647940-postgrest-1 Running 
+#  Container hub-test-1783647940-backend-1 Recreate 
+#  Container hub-test-1783647940-backend-1 Recreated 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Healthy 
+#  Container hub-test-1783647940-db-1 Waiting 
+#  Container hub-test-1783647940-db-1 Error dependency db failed to start
+# dependency failed to start: Error response from daemon: No such container: 645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320
+# Subtest: hub-papeis-integration.sh — matriz papel×permissão (leitura vs edição, guard anti-lockout)
+not ok 7 - hub-papeis-integration.sh — matriz papel×permissão (leitura vs edição, guard anti-lockout)
+  ---
+  duration_ms: 33062.008014
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-papeis.test.js:37:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-papeis-integration.sh
+     Network hub-test-1783647940_default Creating 
+     Network hub-test-1783647940_default Error Error response from daemon: network with name hub-test-1783647940_default already exists
+     Container hub-test-1783647940-db-1 Creating 
+     Container hub-test-1783647940-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-db-1" is already in use by container "645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Creating 
+     Container hub-test-1783647940-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-postgrest-1" is already in use by container "7655de92c80269017e480a200cfaf21179d7fc8c66268ecf204ee94e08eb18b9". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-mailpit-mock-1 Creating 
+     Container hub-test-1783647940-mailpit-mock-1 Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647940-mailpit-mock-1" is already in use by container "f636a9ad4ed387f6e5041839c6d1b97d79df232092a52ee8c252169efc88227e". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647940-db-1 Running 
+     Container hub-test-1783647940-postgrest-1 Running 
+     Container hub-test-1783647940-backend-1 Recreate 
+     Container hub-test-1783647940-backend-1 Recreated 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Healthy 
+     Container hub-test-1783647940-db-1 Waiting 
+     Container hub-test-1783647940-db-1 Error dependency db failed to start
+    dependency failed to start: Error response from daemon: No such container: 645fe39a8e18d09eb23a016e819b8e415bdc4b03bd20024745aee2fb04816320
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-papeis.test.js:47:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Network hub-test-1783647973_default Creating 
+#  Network hub-test-1783647973_default Error Error response from daemon: network with name hub-test-1783647973_default already exists
+#  Container hub-test-1783647973-db-1 Creating 
+#  Container hub-test-1783647973-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647973-db-1" is already in use by container "b5e0a26ec95b7739e248e0c8b920863cff69aa53b5a7406d8a1de10a0ca93d73". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647973-db-1" is already in use by container "b5e0a26ec95b7739e248e0c8b920863cff69aa53b5a7406d8a1de10a0ca93d73". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647973-db-1 Running 
+#  Container hub-test-1783647973-postgrest-1 Creating 
+#  Container hub-test-1783647973-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647973-postgrest-1" is already in use by container "baded3b94eb9a497de40eb7d4bd6e9aef93dc2bef3639f3849c30f30d09a0907". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647973-postgrest-1" is already in use by container "baded3b94eb9a497de40eb7d4bd6e9aef93dc2bef3639f3849c30f30d09a0907". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647973-mailpit-mock-1 Creating 
+#  Container hub-test-1783647973-mailpit-mock-1 Created 
+#  Container hub-test-1783647973-mailpit-mock-1 Starting 
+#  Container hub-test-1783647973-mailpit-mock-1 Started 
+#  Container hub-test-1783647973-mailpit-mock-1 Waiting 
+#  Container hub-test-1783647973-mailpit-mock-1 Healthy 
+#  Container hub-test-1783647973-db-1 Running 
+#  Container hub-test-1783647973-backend-1 Creating 
+#  Container hub-test-1783647973-backend-1 Created 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-postgrest-1 Starting 
+#  Container hub-test-1783647973-postgrest-1 Started 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-backend-1 Starting 
+#  Container hub-test-1783647973-backend-1 Started 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-postgrest-1 Waiting 
+#  Container hub-test-1783647973-backend-1 Waiting 
+#  Container hub-test-1783647973-backend-1 Healthy 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-postgrest-1 Healthy 
+# Subtest: hub-performance-integration.sh — GET /performance (filtros + paginação + isolamento + permissões)
+not ok 8 - hub-performance-integration.sh — GET /performance (filtros + paginação + isolamento + permissões)
+  ---
+  duration_ms: 43402.605469
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-performance.test.js:38:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-performance-integration.sh
+     Network hub-test-1783647973_default Creating 
+     Network hub-test-1783647973_default Error Error response from daemon: network with name hub-test-1783647973_default already exists
+     Container hub-test-1783647973-db-1 Creating 
+     Container hub-test-1783647973-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647973-db-1" is already in use by container "b5e0a26ec95b7739e248e0c8b920863cff69aa53b5a7406d8a1de10a0ca93d73". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647973-db-1" is already in use by container "b5e0a26ec95b7739e248e0c8b920863cff69aa53b5a7406d8a1de10a0ca93d73". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647973-db-1 Running 
+     Container hub-test-1783647973-postgrest-1 Creating 
+     Container hub-test-1783647973-postgrest-1 Error response from daemon: Conflict. The container name "/hub-test-1783647973-postgrest-1" is already in use by container "baded3b94eb9a497de40eb7d4bd6e9aef93dc2bef3639f3849c30f30d09a0907". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647973-postgrest-1" is already in use by container "baded3b94eb9a497de40eb7d4bd6e9aef93dc2bef3639f3849c30f30d09a0907". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647973-mailpit-mock-1 Creating 
+     Container hub-test-1783647973-mailpit-mock-1 Created 
+     Container hub-test-1783647973-mailpit-mock-1 Starting 
+     Container hub-test-1783647973-mailpit-mock-1 Started 
+     Container hub-test-1783647973-mailpit-mock-1 Waiting 
+     Container hub-test-1783647973-mailpit-mock-1 Healthy 
+     Container hub-test-1783647973-db-1 Running 
+     Container hub-test-1783647973-backend-1 Creating 
+     Container hub-test-1783647973-backend-1 Created 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-postgrest-1 Starting 
+     Container hub-test-1783647973-postgrest-1 Started 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-backend-1 Starting 
+     Container hub-test-1783647973-backend-1 Started 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-postgrest-1 Waiting 
+     Container hub-test-1783647973-backend-1 Waiting 
+     Container hub-test-1783647973-backend-1 Healthy 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-postgrest-1 Healthy 
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-performance.test.js:48:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Container hub-test-1783647973-db-1 Creating 
+#  Container hub-test-1783647973-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647973-db-1" is already in use by container "b5e0a26ec95b7739e248e0c8b920863cff69aa53b5a7406d8a1de10a0ca93d73". You have to remove (or rename) that container to be able to reuse that name. 
+# Error response from daemon: Conflict. The container name "/hub-test-1783647973-db-1" is already in use by container "b5e0a26ec95b7739e248e0c8b920863cff69aa53b5a7406d8a1de10a0ca93d73". You have to remove (or rename) that container to be able to reuse that name.
+#  Container hub-test-1783647973-db-1 Running 
+#  Container hub-test-1783647973-postgrest-1 Creating 
+#  Container hub-test-1783647973-postgrest-1 Created 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-postgrest-1 Starting 
+#  Container hub-test-1783647973-postgrest-1 Started 
+#  Container hub-test-1783647973-postgrest-1 Waiting 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-postgrest-1 Healthy 
+#  Container hub-test-1783647973-mailpit-mock-1 Running 
+#  Container hub-test-1783647973-mailpit-mock-1 Waiting 
+#  Container hub-test-1783647973-mailpit-mock-1 Healthy 
+#  Container hub-test-1783647973-db-1 Running 
+#  Container hub-test-1783647973-postgrest-1 Running 
+#  Container hub-test-1783647973-backend-1 Running 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-postgrest-1 Waiting 
+#  Container hub-test-1783647973-backend-1 Waiting 
+#  Container hub-test-1783647973-backend-1 Healthy 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-postgrest-1 Healthy 
+# HUB-RLS-INTEGRATION: 1 assert(s) FALHARAM
+# Subtest: hub-rls-integration.sh — RLS de reforço nega-por-padrão (quickstart Scenario 9)
+not ok 9 - hub-rls-integration.sh — RLS de reforço nega-por-padrão (quickstart Scenario 9)
+  ---
+  duration_ms: 43338.968478
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-rls-integration.test.js:49:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-rls-integration.sh
+     Container hub-test-1783647973-db-1 Creating 
+     Container hub-test-1783647973-db-1 Error response from daemon: Conflict. The container name "/hub-test-1783647973-db-1" is already in use by container "b5e0a26ec95b7739e248e0c8b920863cff69aa53b5a7406d8a1de10a0ca93d73". You have to remove (or rename) that container to be able to reuse that name. 
+    Error response from daemon: Conflict. The container name "/hub-test-1783647973-db-1" is already in use by container "b5e0a26ec95b7739e248e0c8b920863cff69aa53b5a7406d8a1de10a0ca93d73". You have to remove (or rename) that container to be able to reuse that name.
+     Container hub-test-1783647973-db-1 Running 
+     Container hub-test-1783647973-postgrest-1 Creating 
+     Container hub-test-1783647973-postgrest-1 Created 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-postgrest-1 Starting 
+     Container hub-test-1783647973-postgrest-1 Started 
+     Container hub-test-1783647973-postgrest-1 Waiting 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-postgrest-1 Healthy 
+     Container hub-test-1783647973-mailpit-mock-1 Running 
+     Container hub-test-1783647973-mailpit-mock-1 Waiting 
+     Container hub-test-1783647973-mailpit-mock-1 Healthy 
+     Container hub-test-1783647973-db-1 Running 
+     Container hub-test-1783647973-postgrest-1 Running 
+     Container hub-test-1783647973-backend-1 Running 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-postgrest-1 Waiting 
+     Container hub-test-1783647973-backend-1 Waiting 
+     Container hub-test-1783647973-backend-1 Healthy 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-postgrest-1 Healthy 
+    HUB-RLS-INTEGRATION: 1 assert(s) FALHARAM
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-rls-integration.test.js:59:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Network hub-test-1783647973_default Creating 
+#  Network hub-test-1783647973_default Created 
+#  Container hub-test-1783647973-db-1 Creating 
+#  Container hub-test-1783647973-db-1 Created 
+#  Container hub-test-1783647973-db-1 Starting 
+#  Container hub-test-1783647973-db-1 Started 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-db-1 Running 
+#  Container hub-test-1783647973-postgrest-1 Running 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-postgrest-1 Waiting 
+#  Container hub-test-1783647973-postgrest-1 Healthy 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-mailpit-mock-1 Running 
+#  Container hub-test-1783647973-mailpit-mock-1 Waiting 
+#  Container hub-test-1783647973-mailpit-mock-1 Healthy 
+#  Container hub-test-1783647973-db-1 Running 
+#  Container hub-test-1783647973-postgrest-1 Running 
+#  Container hub-test-1783647973-backend-1 Running 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-backend-1 Waiting 
+#  Container hub-test-1783647973-db-1 Waiting 
+#  Container hub-test-1783647973-postgrest-1 Waiting 
+#  Container hub-test-1783647973-backend-1 Healthy 
+#  Container hub-test-1783647973-db-1 Healthy 
+#  Container hub-test-1783647973-postgrest-1 Healthy 
+# Subtest: hub-usuarios-integration.sh — CRUD de usuários/vínculos (SC-004/SC-008, isolamento por entidade)
+not ok 10 - hub-usuarios-integration.sh — CRUD de usuários/vínculos (SC-004/SC-008, isolamento por entidade)
+  ---
+  duration_ms: 43430.438568
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-usuarios.test.js:38:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-usuarios-integration.sh
+     Network hub-test-1783647973_default Creating 
+     Network hub-test-1783647973_default Created 
+     Container hub-test-1783647973-db-1 Creating 
+     Container hub-test-1783647973-db-1 Created 
+     Container hub-test-1783647973-db-1 Starting 
+     Container hub-test-1783647973-db-1 Started 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-db-1 Running 
+     Container hub-test-1783647973-postgrest-1 Running 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-postgrest-1 Waiting 
+     Container hub-test-1783647973-postgrest-1 Healthy 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-mailpit-mock-1 Running 
+     Container hub-test-1783647973-mailpit-mock-1 Waiting 
+     Container hub-test-1783647973-mailpit-mock-1 Healthy 
+     Container hub-test-1783647973-db-1 Running 
+     Container hub-test-1783647973-postgrest-1 Running 
+     Container hub-test-1783647973-backend-1 Running 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-backend-1 Waiting 
+     Container hub-test-1783647973-db-1 Waiting 
+     Container hub-test-1783647973-postgrest-1 Waiting 
+     Container hub-test-1783647973-backend-1 Healthy 
+     Container hub-test-1783647973-db-1 Healthy 
+     Container hub-test-1783647973-postgrest-1 Healthy 
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-usuarios.test.js:48:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 1
+# fail 9
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 95565.91407

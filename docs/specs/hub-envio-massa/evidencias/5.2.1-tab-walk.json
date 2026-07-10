@@ -1,5 +1,5 @@
 {
-  "total_paradas_de_foco": 73,
+  "total_paradas_de_foco": 77,
   "cobertura": {
     "processo_iniciar_ou_parar": true,
     "upload_importar": true,
@@ -33,6 +33,16 @@
     {
       "role": "a",
       "name": "Envio em Massa",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Gestão de Usuários",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Auditoria",
       "tag": "a"
     },
     {
@@ -213,6 +223,16 @@
     {
       "role": "a",
       "name": "Envio em Massa",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Gestão de Usuários",
+      "tag": "a"
+    },
+    {
+      "role": "a",
+      "name": "Auditoria",
       "tag": "a"
     },
     {

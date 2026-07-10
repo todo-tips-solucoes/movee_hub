@@ -1,0 +1,112 @@
+PREFLIGHT: ok — projeto 'hub-test-1783650769' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783650769, APP_ENV=test)
+subindo db+postgrest+backend efêmeros (hub-test-1783650769, tmpfs)…
+ Network hub-test-1783650769_default Creating 
+ Network hub-test-1783650769_default Created 
+ Container hub-test-1783650769-db-1 Creating 
+ Container hub-test-1783650769-db-1 Created 
+ Container hub-test-1783650769-db-1 Starting 
+ Container hub-test-1783650769-db-1 Started 
+ Container hub-test-1783650769-db-1 Waiting 
+ Container hub-test-1783650769-db-1 Healthy 
+ Container hub-test-1783650769-db-1 Running 
+ Container hub-test-1783650769-postgrest-1 Creating 
+ Container hub-test-1783650769-postgrest-1 Created 
+ Container hub-test-1783650769-db-1 Waiting 
+ Container hub-test-1783650769-db-1 Healthy 
+ Container hub-test-1783650769-postgrest-1 Starting 
+ Container hub-test-1783650769-postgrest-1 Started 
+ Container hub-test-1783650769-postgrest-1 Waiting 
+ Container hub-test-1783650769-db-1 Waiting 
+ Container hub-test-1783650769-postgrest-1 Healthy 
+ Container hub-test-1783650769-db-1 Healthy 
+ Image hub-test-1783650769-backend Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 594B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile.hub
+#2 transferring dockerfile: 1.51kB done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:20-alpine
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 94B done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 4.57kB done
+#5 DONE 0.0s
+
+#6 [1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#6 resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 0.0s done
+#6 DONE 0.0s
+
+#7 [4/6] COPY package*.json ./
+#7 CACHED
+
+#8 [2/6] WORKDIR /var/lib/envioMassa_homologacao/app_homologacao
+#8 CACHED
+
+#9 [3/6] RUN apk add --no-cache python3 make g++
+#9 CACHED
+
+#10 [5/6] RUN npm install
+#10 CACHED
+
+#11 [6/6] COPY . .
+#11 CACHED
+
+#12 exporting to image
+#12 exporting layers done
+#12 exporting manifest sha256:1e2ad42ef2090646fbd2023247bc14c74c006a1dbec0f7f9cba079add422a864 done
+#12 exporting config sha256:38e246627aa48860866a276945db70b5712bda5fe56dde3beb57bb333dafe0d9 done
+#12 exporting attestation manifest sha256:5deb4749bd288ba2f98be47fa06ab476774555f3ea6546b6244a9246190d8a94 0.0s done
+#12 exporting manifest list sha256:ca04d53f430a863a7f101355cbe0b5fda7118bf9a328b207a1b1997149c9ff97
+#12 exporting manifest list sha256:ca04d53f430a863a7f101355cbe0b5fda7118bf9a328b207a1b1997149c9ff97 done
+#12 naming to docker.io/library/hub-test-1783650769-backend:latest done
+#12 unpacking to docker.io/library/hub-test-1783650769-backend:latest 0.0s done
+#12 DONE 0.1s
+
+#13 resolving provenance for metadata file
+#13 DONE 0.0s
+ Image hub-test-1783650769-backend Built 
+ Container hub-test-1783650769-db-1 Running 
+ Container hub-test-1783650769-postgrest-1 Running 
+ Container hub-test-1783650769-backend-1 Creating 
+ Container hub-test-1783650769-backend-1 Created 
+ Container hub-test-1783650769-db-1 Waiting 
+ Container hub-test-1783650769-db-1 Healthy 
+ Container hub-test-1783650769-db-1 Waiting 
+ Container hub-test-1783650769-db-1 Healthy 
+ Container hub-test-1783650769-backend-1 Starting 
+ Container hub-test-1783650769-backend-1 Started 
+ Container hub-test-1783650769-backend-1 Waiting 
+ Container hub-test-1783650769-db-1 Waiting 
+ Container hub-test-1783650769-postgrest-1 Waiting 
+ Container hub-test-1783650769-backend-1 Healthy 
+ Container hub-test-1783650769-db-1 Healthy 
+ Container hub-test-1783650769-postgrest-1 Healthy 
+seed sintético: tabela "Empresa" local (2 contas — 1 com senha, 1 sem)…
+rodando migrate.sh (0002..0008)…
+PASS: Usuario criado para a conta com senha (1 linha)
+PASS: conta sem senha NÃO migrada (FR-005)
+PASS: hash bcrypt copiado sem recálculo
+PASS: UsuarioEntidade vinculado com papel admin_entidade
+PASS: bcrypt.compare(senha original, hash copiado) — login legado funciona sem trocar senha
+reexecutando 0008 diretamente (fora do controle de SchemaMigration do migrate.sh)…
+PASS: reexecução direta de 0008 não duplica Usuario (idempotente)
+PASS: reexecução direta de 0008 não duplica UsuarioEntidade
+
+MIGRACAO-LOGIN-INTEGRATION: OK — todos os asserts passaram (task 2.1.5)

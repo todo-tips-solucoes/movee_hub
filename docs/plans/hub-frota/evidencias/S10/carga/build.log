@@ -1,0 +1,33 @@
+ Image hub-s10b-1783651300-backend Building 
+ Image hub-s10b-1783651300-backend Building 
+Sending build context to Docker daemon  290.7kB
+Step 1/9 : FROM node:20-alpine
+ ---> fb4cd12c85ee
+Step 2/9 : WORKDIR /var/lib/envioMassa_homologacao/app_homologacao
+ ---> Using cache
+ ---> 0919fa3d52ae
+Step 3/9 : RUN apk add --no-cache python3 make g++
+ ---> Using cache
+ ---> 4f6852fc1fb2
+Step 4/9 : COPY package*.json ./
+ ---> Using cache
+ ---> 1ab9f4a6f2b3
+Step 5/9 : RUN npm install
+ ---> Using cache
+ ---> ad4967c77dc6
+Step 6/9 : COPY . .
+ ---> Using cache
+ ---> 5668cf850697
+Step 7/9 : EXPOSE 3000
+ ---> Using cache
+ ---> 99ea91d35797
+Step 8/9 : CMD ["npm", "start"]
+ ---> Using cache
+ ---> ac6e3ab2793b
+Step 9/9 : LABEL com.docker.compose.image.builder=classic
+ ---> Using cache
+ ---> 4a45e672a085
+Successfully built 4a45e672a085
+Successfully tagged hub-s10b-1783651300-backend:latest
+ Image hub-s10b-1783651300-backend Built 
+ Image hub-s10b-1783651300-backend Built 

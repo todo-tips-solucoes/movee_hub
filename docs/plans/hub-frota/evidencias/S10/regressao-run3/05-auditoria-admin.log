@@ -1,0 +1,79 @@
+PREFLIGHT: ok — projeto 'hub-test-1783650630' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783650630, APP_ENV=test)
+subindo db+postgrest+mailpit-mock+backend efêmeros (hub-test-1783650630, tmpfs)…
+ Network hub-test-1783650630_default Creating 
+ Network hub-test-1783650630_default Created 
+ Container hub-test-1783650630-db-1 Creating 
+ Container hub-test-1783650630-db-1 Created 
+ Container hub-test-1783650630-db-1 Starting 
+ Container hub-test-1783650630-db-1 Started 
+ Container hub-test-1783650630-db-1 Waiting 
+ Container hub-test-1783650630-db-1 Healthy 
+ Container hub-test-1783650630-db-1 Running 
+ Container hub-test-1783650630-postgrest-1 Creating 
+ Container hub-test-1783650630-postgrest-1 Created 
+ Container hub-test-1783650630-db-1 Waiting 
+ Container hub-test-1783650630-db-1 Healthy 
+ Container hub-test-1783650630-postgrest-1 Starting 
+ Container hub-test-1783650630-postgrest-1 Started 
+ Container hub-test-1783650630-postgrest-1 Waiting 
+ Container hub-test-1783650630-db-1 Waiting 
+ Container hub-test-1783650630-postgrest-1 Healthy 
+ Container hub-test-1783650630-db-1 Healthy 
+ Container hub-test-1783650630-mailpit-mock-1 Creating 
+ Container hub-test-1783650630-mailpit-mock-1 Created 
+ Container hub-test-1783650630-mailpit-mock-1 Starting 
+ Container hub-test-1783650630-mailpit-mock-1 Started 
+ Container hub-test-1783650630-mailpit-mock-1 Waiting 
+ Container hub-test-1783650630-mailpit-mock-1 Healthy 
+ Container hub-test-1783650630-db-1 Running 
+ Container hub-test-1783650630-postgrest-1 Running 
+ Container hub-test-1783650630-backend-1 Creating 
+ Container hub-test-1783650630-backend-1 Created 
+ Container hub-test-1783650630-db-1 Waiting 
+ Container hub-test-1783650630-db-1 Healthy 
+ Container hub-test-1783650630-db-1 Waiting 
+ Container hub-test-1783650630-db-1 Healthy 
+ Container hub-test-1783650630-backend-1 Starting 
+ Container hub-test-1783650630-backend-1 Started 
+ Container hub-test-1783650630-db-1 Waiting 
+ Container hub-test-1783650630-postgrest-1 Waiting 
+ Container hub-test-1783650630-backend-1 Waiting 
+ Container hub-test-1783650630-postgrest-1 Healthy 
+ Container hub-test-1783650630-backend-1 Healthy 
+ Container hub-test-1783650630-db-1 Healthy 
+rodando migrate.sh (todas as migrations, inclusive 0035-0039)…
+PASS: GET /auditoria sem cookie -> 401
+PASS: multi-entidade SEM entidade ativa: GET /auditoria -> 200
+PASS: multi-entidade SEM entidade ativa: eventos=[] (nega-por-padrao)
+PASS: multi-entidade SEM entidade ativa: total=0
+PASS: admin_entidade: criar usuario (gera evento usuario_criado) -> 201
+PASS: admin_entidade: GET /auditoria -> 200
+PASS: admin_entidade: TODOS os eventos sao da propria entidade (E_A)
+PASS: admin_entidade: NUNCA ve evento global (entidadeId:null)
+PASS: admin_entidade: lista tem eventos (troca_entidade_ativa + usuario_criado)
+PASS: admin_entidade: filtro acao=usuario_criado encontra o evento
+PASS: admin_entidade: detalhes do evento sem chave/valor 'senha'
+PASS: admin_entidade: detalhes do evento sem a senha literal
+PASS: admin_entidade: detalhes do evento sem o email do usuario criado
+PASS: admin_entidade forcando entidadeId de OUTRA entidade -> 403
+PASS: admin_entidade cross-tenant -> erro=PERMISSAO_NEGADA
+PASS: admin_plataforma: GET /auditoria (sem entidadeId) -> 200
+PASS: admin_plataforma: ve eventos de MULTIPLAS entidades (A e B)
+PASS: admin_plataforma: ve evento GLOBAL (entidadeId:null, login_sucesso)
+PASS: admin_plataforma: GET /auditoria?entidadeId=E_A -> 200
+PASS: admin_plataforma escopado: SO eventos da E_A
+PASS: admin_plataforma escopado(E_A) INCLUI tudo que admin_entidade da E_A viu (paridade)
+PASS: DB: evento usuario_criado gravado em E_A sem 'senha' em detalhes
+PASS: DB: eventos login_sucesso gravados com id_empresa NULL (globais)
+
+HUB-AUDITORIA-ADMIN-INTEGRATION: OK — todos os asserts passaram (FASE 6.1, Cenarios 1/2/3)

@@ -1,0 +1,56 @@
+═ 1. ANTES (baseline)
+backend image-id ANTES: sha256:4a45e672a085b5c3af84af3a8c2b6348e8cea6da60e5b3e2781d67f241e38b82
+smoke ANTES: HTTP 200
+contagens ANTES:
+Usuario=6
+Auditoria=208
+ImportacaoArquivo=10
+FaturamentoLancamento=221
+
+═ 2. Backup real (backup.sh)
+-rw-r--r-- 1 root root 164356 Jul 10 02:41 /backups/hub_homolog_manual_20260710_024137.dump
+backup manual concluído: /backups/${PGDATABASE}_manual_20260710_024137.dump (no volume de backups do projeto hub-homolog)
+
+═ 3. Restore TESTADO (restore.sh — banco hub_restore + comparação de contagens)
+restaurando: /backups/hub_homolog_manual_20260710_024137.dump
+  OK  Auditoria: origem=208 restore=208
+  OK  ContaMotorista: origem=20 restore=20
+  OK  Empresa: origem=2 restore=2
+  OK  EmpresaGrupoMovee: origem=1 restore=1
+  OK  Entregador: origem=214 restore=214
+  OK  EnvioMassa: origem=3 restore=3
+  OK  FaturamentoLancamento: origem=221 restore=221
+  OK  Grupo: origem=1 restore=1
+  OK  ImportacaoArquivo: origem=10 restore=10
+  OK  ImportacaoLinhaErro: origem=0 restore=0
+  OK  Modulo: origem=9 restore=9
+  OK  ModuloEntidade: origem=14 restore=14
+  OK  Motorista: origem=2 restore=2
+  OK  Papel: origem=4 restore=4
+  OK  PapelPermissao: origem=87 restore=87
+  OK  PerformanceTurno: origem=17 restore=17
+  OK  Permissao: origem=31 restore=31
+  OK  ProcessControl: origem=1 restore=1
+  OK  SchemaMigration: origem=41 restore=41
+  OK  SessaoRefresh: origem=86 restore=86
+  OK  Usuario: origem=6 restore=6
+  OK  UsuarioEntidade: origem=6 restore=6
+RESTORE OK: contagens iguais em todas as tabelas
+PASS: restore testado (contagens conferidas pelo restore.sh)
+
+═ 4. Deploy simulado de imagem NOVA (FROM atual + LABEL, tag hub-backend:ensaio-nova)
+backend image-id com a 'nova': sha256:728587ffe0bc1b1681d54f8a4e463cd5439e6f7d8c7ae4994a18e55606b50f51
+PASS: imagem efetivamente trocada
+smoke com a 'nova': HTTP 200
+
+═ 5. ROLLBACK (voltar a imagem anterior — equivalente compose do service update --image <anterior>)
+backend image-id DEPOIS do rollback: sha256:4a45e672a085b5c3af84af3a8c2b6348e8cea6da60e5b3e2781d67f241e38b82
+PASS: rollback devolve exatamente o image-id anterior
+PASS: smoke pós-rollback = 200
+contagens DEPOIS (devem ser idênticas ao ANTES — nenhum dado tocado):
+Usuario=6
+Auditoria=208
+ImportacaoArquivo=10
+FaturamentoLancamento=221
+
+ENSAIO-ROLLBACK-S10: OK — imagem revertida + restore testado, ambiente íntegro

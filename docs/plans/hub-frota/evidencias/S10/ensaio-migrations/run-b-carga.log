@@ -1,0 +1,22 @@
+início carga: 02:42:16Z
+staging_faturamento: 1501236 linhas (dia reservado ao pipeline: 2027-07-12.csv)
+staging_performance: 1017280 linhas (dia reservado ao pipeline: 2027-07-12.csv)
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+INSERT 0 789
+UPDATE 755
+INSERT 0 2
+fatos faturamento: 02:42:33Z
+INSERT 0 1501236
+fatos performance: 02:43:40Z
+INSERT 0 1017280
+fim carga: 02:44:33Z
+contagens pós-carga:
+FaturamentoLancamento: 1501236
+PerformanceTurno: 1017280
+Entregador: 789
+staging fat excluídas: 0
+staging perf excluídas: 0
+tamanho fat: 639 MB
+tamanho perf: 439 MB

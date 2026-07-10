@@ -1,6 +1,6 @@
 # Cenários 1-10 — hub-importacoes (FASE 7, hub-homolog persistente)
 
-Executado em: 2026-07-07T22:23:38.344Z
+Executado em: 2026-07-10T02:33:54.712Z
 Total de asserts falhos: 0
 
 ## Contadores por importação testada
@@ -13,7 +13,7 @@ Total de asserts falhos: 0
 | 4 — erros + LGPD | completed_with_errors | 10 | 8 | 2 |
 
 ## Idempotência (Cenário 2)
-- Reenvio do MESMO arquivo -> status 409, importacaoOriginalId=10 (esperado = id do Cenário 1: 10)
+- Reenvio do MESMO arquivo -> status 409, importacaoOriginalId=55 (esperado = id do Cenário 1: 55)
 - Dedupe de linha: arquivo com 5 linhas repetidas + 5 novas -> contadores {"total":10,"validas":10,"invalidas":0} (validas=10 esperado, dedupe silencioso; 0 fatos NOVOS confirmados via contagem direta na base durante a execução)
 
 ## Falha estrutural (Cenário 5)

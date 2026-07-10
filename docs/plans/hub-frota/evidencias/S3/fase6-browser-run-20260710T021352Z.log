@@ -1,0 +1,24 @@
+
+up to date in 1s
+
+Running 10 tests using 1 worker
+
+AXE_RESULT tela="/hub/login" score=100 violacoes=0 detalhe=[]
+  ✓   1 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:51:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/login (1.1s)
+AXE_RESULT tela="/hub/recuperar-senha" score=100 violacoes=0 detalhe=[]
+  ✓   2 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:57:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/recuperar-senha (765ms)
+AXE_RESULT tela="/hub/redefinir-senha" score=100 violacoes=0 detalhe=[]
+  ✓   3 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:63:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/redefinir-senha (826ms)
+AXE_RESULT tela="/selecionar-entidade" score=100 violacoes=0 detalhe=[]
+  ✓   4 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:73:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState admin) › /selecionar-entidade (ramo escolha, 2 vínculos) (817ms)
+AXE_RESULT tela="/hub/dashboard" score=100 violacoes=0 detalhe=[]
+  ✓   5 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:84:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard (1.1s)
+AXE_RESULT tela="/hub/dashboard/perfil" score=100 violacoes=0 detalhe=[]
+  ✓   6 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:90:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard/perfil (986ms)
+  ✓   7 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:43:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › admin_entidade › vê os itens exclusivos (usuários + auditoria) (451ms)
+  ✓   8 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:59:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › operador › NÃO vê nenhum dos itens exclusivos (sem auditoria.consultar/usuarios.gerenciar) (432ms)
+  ✓   9 [chromium] › tests/e2e-hub-browser/sessao-expira.spec.ts:29:7 › 6.2.5 — sessão expira em meio de ação (troca de entidade) -> redirect login › corromper accessToken mid-troca-de-entidade força logout e redirect para /hub/login (899ms)
+TROCA_ENTIDADE_TIMING_MS=375
+  ✓  10 [chromium] › tests/e2e-hub-browser/troca-entidade-timing.spec.ts:19:7 › 6.2.3 — troca de entidade reflete em <5s, sem novo login (SC-003) › EntitySwitcher atualiza o rótulo exibido em menos de 5s (764ms)
+
+  10 passed (10.7s)

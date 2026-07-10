@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-envio-massa/a11y-smoke.spec.ts:89:7 › 5.2 — smoke a11y da montagem /hub/dashboard/envio_massa › 5.2.1 teclado: Tab/Shift+Tab/Enter/Escape alcançam upload/processo/validação/edição/fechamento/exportação (2.9s)
+  ✓  2 [chromium] › tests/e2e-hub-envio-massa/a11y-smoke.spec.ts:160:7 › 5.2 — smoke a11y da montagem /hub/dashboard/envio_massa › 5.2.2 ARIA: montagem hub sem regressão vs painel legado (mesmos componentes) (1.9s)
+
+  2 passed (5.6s)

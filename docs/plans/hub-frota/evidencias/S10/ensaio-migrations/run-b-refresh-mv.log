@@ -1,0 +1,9 @@
+REFRESH CONCURRENTLY sob volume:
+Timing is on.
+REFRESH MATERIALIZED VIEW
+Time: 14483.371 ms (00:14.483)
+Timing is on.
+REFRESH MATERIALIZED VIEW
+Time: 22849.583 ms (00:22.850)
+mv_faturamento_dia: 766822
+mv_performance_dia: 998206

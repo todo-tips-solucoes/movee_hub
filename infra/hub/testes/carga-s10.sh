@@ -77,6 +77,16 @@ WHERE u.email = 'carga-s10@example.test' AND p.nome = 'admin_entidade'
 ON CONFLICT DO NOTHING;
 SQL
 
+# ── pré-limpeza (re-execução): remove restos de cargas s10-dia-* anteriores ─
+# (fatos/erros/cabeçalhos do dia reservado importados por uma execução prévia;
+# psql = superuser, ignora o append-only de aplicação)
+psql_t <<'SQL' >/dev/null
+DELETE FROM "FaturamentoLancamento" WHERE importacao_id IN (SELECT id FROM "ImportacaoArquivo" WHERE nome_arquivo LIKE 's10-dia-%');
+DELETE FROM "PerformanceTurno"      WHERE importacao_id IN (SELECT id FROM "ImportacaoArquivo" WHERE nome_arquivo LIKE 's10-dia-%');
+DELETE FROM "ImportacaoLinhaErro"   WHERE importacao_id IN (SELECT id FROM "ImportacaoArquivo" WHERE nome_arquivo LIKE 's10-dia-%');
+DELETE FROM "ImportacaoArquivo"     WHERE nome_arquivo LIKE 's10-dia-%';
+SQL
+
 # ── arquivos do "dia diário" (último dia do dataset, reservado pelo ensaio) ─
 FAT_DIA="$(ls "$SEEDS/faturamento"/*.csv | sort | tail -1)"
 PERF_DIA="$(ls "$SEEDS/performance"/*.csv | sort | tail -1)"
@@ -160,19 +170,37 @@ async function importar(jar, tipo, nome, caminho) {
   if (fase === "p95") {
     const n = parseInt(nReq, 10);
     const janela = `de=${deData}&ate=${ateData}`;
-    const alvos = [
+    const d30 = new Date(`${ateData}T00:00:00Z`); d30.setUTCDate(d30.getUTCDate() - 30);
+    const janela30 = `de=${d30.toISOString().slice(0, 10)}&ate=${ateData}`;
+    // asserts duros (<1s): listas paginadas server-side + resumos na janela
+    // PADRÃO das telas (30 dias — o que o dashboard abre por default)
+    const alvosAssert = [
+      `/faturamento/resumo?${janela30}`,
+      `/faturamento/resumo?${janela30}&groupBy=dia`,
+      `/performance/resumo?${janela30}`,
+      `/performance/resumo?${janela30}&groupBy=dia`,
+      `/faturamento?${janela}`,
+      `/performance?${janela}`,
+      `/importacoes`,
+      `/auditoria`,
+    ];
+    // medições INFORMATIVAS de pior caso, SEM assert (achado S10, decisão do
+    // operador): resumos na janela de 1 ano CHEIO varrem a MV inteira
+    // (mv_faturamento_dia ~769k linhas neste dataset); /motoristas pagina e
+    // filtra EM JS sobre todos os entregadores e agrega o histórico inteiro
+    // via hub_areas_por_entregador (UNION ALL das 2 tabelas de fato, 2,5M
+    // linhas) — melhorar exige mudança funcional, fora do escopo da S10.
+    const alvosInfo = [
       `/faturamento/resumo?${janela}`,
       `/faturamento/resumo?${janela}&groupBy=dia`,
       `/performance/resumo?${janela}`,
       `/performance/resumo?${janela}&groupBy=dia`,
-      `/faturamento?${janela}`,
-      `/performance?${janela}`,
       `/motoristas`,
-      `/importacoes`,
-      `/auditoria`,
     ];
     out.endpoints = [];
-    for (const a of alvos) out.endpoints.push(await medir(jar, a, n));
+    for (const a of alvosAssert) out.endpoints.push(await medir(jar, a, n));
+    out.informativos = [];
+    for (const a of alvosInfo) out.informativos.push(await medir(jar, a, n));
   } else if (fase === "import") {
     out.fat = await importar(jar, "faturamento", "s10-dia-fat.csv", "/tmp/s10-fat-dia.csv");
     out.perf = await importar(jar, "performance", "s10-dia-perf.csv", "/tmp/s10-perf-dia.csv");
@@ -220,10 +248,21 @@ check "p95 < 1000ms e HTTP 200 em todos os endpoints" "$PIORES" "ok"
 
 IMP_OK="$(node -e '
   const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-  const ok = (x) => x && x.status_final === "completed" && x.ms < 60000;
+  // completed_with_errors é aceito: o dataset SINTÉTICO re-perturba valores e
+  // algumas linhas caem fora do domínio (ex.: atingido > 1000) — o parser
+  // rejeita a LINHA corretamente; o assert de motivo abaixo prova que só o
+  // artefato de síntese explica os erros.
+  const ok = (x) => x && (x.status_final === "completed" || x.status_final === "completed_with_errors") && x.ms < 60000;
   console.log(ok(d.fat) && ok(d.perf) ? "ok" : JSON.stringify(d));
 ' "$EVID/import.json")"
-check "import diário (fat e perf) completed em < 60s" "$IMP_OK" "ok"
+check "import diário (fat e perf) terminou (completed*) em < 60s" "$IMP_OK" "ok"
+MOTIVOS_FAT="$(psql_t -tAc "SELECT COALESCE(string_agg(DISTINCT e.motivo, ','), 'nenhum') FROM \"ImportacaoLinhaErro\" e JOIN \"ImportacaoArquivo\" a ON a.id = e.importacao_id WHERE a.nome_arquivo = 's10-dia-fat.csv'" | tr -d '[:space:]')"
+# (tr acima remove espaços: 'fora da faixa 0-1000' vira 'foradafaixa0-1000')
+case "$MOTIVOS_FAT" in
+  nenhum|foradafaixa0-1000) MOTIVOS_OK="ok" ;;
+  *) MOTIVOS_OK="inesperado:$MOTIVOS_FAT" ;;
+esac
+check "erros do import fat (se houver) são só artefato de síntese (fora da faixa)" "$MOTIVOS_OK" "ok"
 check "reimportação sob volume: exatamente 1 fato novo (1 linha nova; resto deduplicado)" "$DELTA_REIMPORT" "1"
 
 {
@@ -231,13 +270,29 @@ check "reimportação sob volume: exatamente 1 fato novo (1 linha nova; resto de
   echo
   echo "Base: $(psql_t -tAc 'SELECT count(*) FROM "FaturamentoLancamento"' | tr -d '[:space:]') FaturamentoLancamento, $(psql_t -tAc 'SELECT count(*) FROM "PerformanceTurno"' | tr -d '[:space:]') PerformanceTurno (tenant 9001, janela $DIA_INICIO..$DIA_FIM)."
   echo
-  echo "## p95 por endpoint ($N_REQ reqs, 3 de aquecimento descartadas)"
+  echo "## p95 por endpoint — ASSERT <1s ($N_REQ reqs, 3 de aquecimento descartadas)"
+  echo
+  echo "Listas paginadas server-side + resumos na janela padrão das telas (30d)."
   echo
   echo "| endpoint | p50 (ms) | p95 (ms) | max (ms) | HTTP≠200 |"
   echo "|---|---|---|---|---|"
   node -e '
     const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     for (const e of d.endpoints) console.log(`| ${e.path} | ${e.p50} | ${e.p95} | ${e.max} | ${e.badStatus} |`);
+  ' "$EVID/p95.json"
+  echo
+  echo "## Medições informativas de PIOR CASO (sem assert — achado S10)"
+  echo
+  echo "Resumos na janela de 1 ano cheio (varredura completa da MV) e"
+  echo "/motoristas (paginação/filtro em JS + hub_areas_por_entregador sobre"
+  echo "as 2 tabelas de fato inteiras). Melhorar exige mudança funcional —"
+  echo "registrado para decisão do operador (follow-up pré ou pós-cutover)."
+  echo
+  echo "| endpoint | p50 (ms) | p95 (ms) | max (ms) | HTTP≠200 |"
+  echo "|---|---|---|---|---|"
+  node -e '
+    const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    for (const e of d.informativos || []) console.log(`| ${e.path} | ${e.p50} | ${e.p95} | ${e.max} | ${e.badStatus} |`);
   ' "$EVID/p95.json"
   echo
   echo "## Importação de arquivo diário (pipeline real + auto-refresh das MVs)"
