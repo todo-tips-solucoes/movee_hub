@@ -106,4 +106,7 @@ contagens() {
   fi
 } 2>&1 | tee "$EVID/rollback-ensaio.log"
 
-exit "$([ "$fails" = "0" ] && echo 0 || echo 1)"
+# o bloco acima roda em subshell (pipe p/ tee) — $fails não sobrevive; o
+# veredito vem do próprio log (FAIL: no início de linha)
+FAILS_LOG="$(grep -c '^FAIL' "$EVID/rollback-ensaio.log" | tr -d '[:space:]')"
+[ "${FAILS_LOG:-1}" = "0" ] && exit 0 || exit 1

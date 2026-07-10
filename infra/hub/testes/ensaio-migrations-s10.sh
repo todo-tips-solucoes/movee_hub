@@ -112,7 +112,7 @@ dca up -d --wait db postgrest
 migrate_timed "$EVID/run-a-migrations.log" -f "$COMPOSE" -p "$P_A" -e "$ENV_FILE" \
   || { echo "FAIL: migrate.sh RUN A"; tail -20 "$EVID/run-a-migrations.log"; exit 1; }
 N_A="$(psql_a -tAc 'SELECT count(*) FROM "SchemaMigration"' | tr -d '[:space:]')"
-check "RUN A: SchemaMigration registra a série completa (40)" "$N_A" "40"
+check "RUN A: SchemaMigration registra a série completa (41)" "$N_A" "41"
 # idempotência em banco recém-migrado
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$P_A" -e "$ENV_FILE" >"$EVID/run-a-rerun.log" 2>&1
 check "RUN A: re-run do migrate.sh é no-op" \
@@ -289,13 +289,13 @@ migrate_timed "$EVID/run-b-fase2.log" -f "$COMPOSE" -p "$P_B" -e "$ENV_FILE" \
 kill "$SAMPLER_PID" 2>/dev/null; wait "$SAMPLER_PID" 2>/dev/null; SAMPLER_PID=""
 BLOQUEIOS="$(grep -c 'pid=' "$EVID/run-b-locks-sampler.log" 2>/dev/null || true)"
 check "RUN B: 0 amostras de lock bloqueado durante as migrations" "${BLOQUEIOS:-0}" "0"
-dcb logs db 2>&1 | grep -i 'still waiting\|deadlock' >"$EVID/run-b-db-lock-waits.log" || true
+dcb logs db 2>&1 | grep -i 'still waiting\|deadlock detected' >"$EVID/run-b-db-lock-waits.log" || true
 check "RUN B: 0 'still waiting' no log do postgres (log_lock_waits)" \
   "$(wc -l <"$EVID/run-b-db-lock-waits.log" | tr -d '[:space:]')" "0"
 
 # integridade + idempotência + REFRESH das MVs sob volume
 N_B="$(psql_b -tAc 'SELECT count(*) FROM "SchemaMigration"' | tr -d '[:space:]')"
-check "RUN B: SchemaMigration registra a série completa (40)" "$N_B" "40"
+check "RUN B: SchemaMigration registra a série completa (41)" "$N_B" "41"
 ORFAS="$(psql_b -tAc 'SELECT count(*) FROM "PerformanceTurno" p LEFT JOIN "Entregador" e ON e.id = p.entregador_id WHERE e.id IS NULL' | tr -d '[:space:]')"
 check "RUN B: 0 FKs órfãs PerformanceTurno→Entregador" "$ORFAS" "0"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$P_B" -e "$ENV_FILE" >"$EVID/run-b-rerun.log" 2>&1

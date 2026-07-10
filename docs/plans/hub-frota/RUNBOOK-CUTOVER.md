@@ -110,7 +110,7 @@ migrations são exclusivas do ambiente isolado e NUNCA rodam em produção:**
 
 | Migration | Em produção | Motivo |
 |---|---|---|
-| 0000–0007, 0009–0021, 0023–0032, 0035–0037, 0039 | **aplicar** | schema/seed hub-nativo, não toca tabela legada |
+| 0000–0007, 0009–0021, 0023–0032, 0035–0037, 0039, 0040 | **aplicar** | schema/seed hub-nativo, não toca tabela legada (0040 é a corretiva do ensaio de rollback: `hub_normaliza_nome` com `public.unaccent` — sem ela o dump não restaura limpo) |
 | 0008_migracao_empresa_para_usuario | **aplicar + conferir** | lê a `"Empresa"` REAL e cria os logins do hub (`Usuario`/`UsuarioEntidade`, papel `admin_entidade`, hash bcrypt copiado). Conferir contagens (§7 P3). Contas sem `pass` não migram (por design) |
 | **0033_schema_legado_envio_massa** | **PULAR (pré-registro)** | recriaria espelho do schema legado: em produção as tabelas REAIS já existem; a migration ainda adicionaria constraints UNIQUE (`email`/`cnpj` em `"Empresa"`) e GRANTs — risco de falha por dados duplicados e mudança de permissão não planejada |
 | **0034_seed_legado_envio_massa_teste** | **PULAR (pré-registro)** | inseriria empresas/movimentos QA na `"EnvioMassa"` REAL e motoristas de teste na base `"Motorista"` (exclusiva do grupo Movee — violaria a regra de domínio do CLAUDE.md) |
@@ -206,7 +206,7 @@ arquivo → colar o erro para a sessão; avaliar rollback §8 (o backup P1 cobre
 
 **P3 — Checagens pós-migration (colar saídas).**
 ```sql
-SELECT count(*) FROM "SchemaMigration";                          -- = 40
+SELECT count(*) FROM "SchemaMigration";                          -- = 41
 SELECT count(*) FROM "Usuario";                                  -- ≈ nº de "Empresa" com pass definido (0008)
 SELECT count(*) FROM "UsuarioEntidade" WHERE ativo;              -- ≥ count acima
 SELECT rolname FROM pg_roles WHERE rolname IN ('hub_web_anon');  -- 1 linha
