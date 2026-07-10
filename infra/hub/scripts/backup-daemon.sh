@@ -10,8 +10,13 @@ set -euo pipefail
 
 HOUR="${BACKUP_HOUR_UTC:-03}"
 RETENTION="${BACKUP_RETENTION_DAYS:-14}"
+# D5 (migration 0041): expurgo MENSAL da Auditoria, retenção de 12 meses.
+# Roda no dia AUDITORIA_EXPURGO_DIA (UTC), SOMENTE depois de o backup do dia
+# ter sucesso (o dump retém os eventos que o expurgo remove).
+EXPURGO_DIA="${AUDITORIA_EXPURGO_DIA:-01}"
+EXPURGO_RETENCAO="${AUDITORIA_RETENCAO:-12 months}"
 
-echo "[backup-daemon] iniciado: diário às ${HOUR}:00 UTC, retenção ${RETENTION}d, db=${PGDATABASE}"
+echo "[backup-daemon] iniciado: diário às ${HOUR}:00 UTC, retenção ${RETENTION}d, db=${PGDATABASE}; expurgo de Auditoria dia ${EXPURGO_DIA} (retenção ${EXPURGO_RETENCAO})"
 
 while true; do
   now=$(date -u +%s)
@@ -27,6 +32,14 @@ while true; do
   out="/backups/${PGDATABASE}_${stamp}.dump"
   if pg_dump -Fc -f "$out"; then
     echo "[backup-daemon] OK: $out ($(stat -c%s "$out") bytes)"
+    # D5: expurgo mensal APÓS backup bem-sucedido (nunca sem o dump do dia)
+    if [ "$(date -u +%d)" = "$EXPURGO_DIA" ]; then
+      if removidos=$(psql -tAc "SELECT hub_auditoria_expurgo(interval '${EXPURGO_RETENCAO}')"); then
+        echo "[backup-daemon] expurgo de Auditoria OK: ${removidos} evento(s) removido(s) (retenção ${EXPURGO_RETENCAO})"
+      else
+        echo "[backup-daemon] ERRO no expurgo de Auditoria (mantendo loop)" >&2
+      fi
+    fi
   else
     echo "[backup-daemon] ERRO no pg_dump (mantendo loop)" >&2
     rm -f "$out"

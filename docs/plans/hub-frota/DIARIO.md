@@ -1489,3 +1489,31 @@ CLAUDE.md).
   `docs/plans/hub-frota/RUNBOOK-CUTOVER.md`; drivers novos em
   `infra/hub/testes/{regressao,ensaio-migrations,carga,ensaio-rollback}-s10.sh`
   + `infra/hub/compose.hub.s10.yml` + `migrate.sh -t` (uso só de ensaio).
+
+## 2026-07-10 — Pós-S10: pré-requisitos do G3 fechados (issue #62 + decisão D5)
+
+- **S10 mergeada** (PR #64, squash `dcb7dc1`) após revisão em 8 ângulos com 10
+  achados corrigidos e re-validados no próprio PR.
+- **Issue #62 RESOLVIDA** (PR #65, squash `59aa89e`, issue fechada):
+  `lib/envio-gate.js` gateia `sendMessage`/`validate-xml-batch` ANTES de
+  qualquer axios externo (`ENVIO_DRY_RUN` + `ENVIO_ALLOWLIST` fail-closed);
+  6 URLs hardcoded viraram env com fallback (produção sem env = idêntica);
+  composes do hub agora REPASSAM as vars (não repassavam — o gate teria
+  nascido inerte); unit 7/7 + E2E envio em massa **69/69** com cenário novo
+  que exercita linha ELEGÍVEL bloqueada em runtime (fecha CHK018/SC-006 da
+  S8). hub-homolog rebuildado com o gate ATIVO (verificado no container).
+- **Decisão D5 (operador): retenção de 12 meses + expurgo MENSAL** —
+  implementada na migration **0041** (`hub_auditoria_expurgo()`,
+  SECURITY DEFINER sem grant à aplicação; imutabilidade da 0004 preservada
+  com exceção auditável via GUC de transação; meta-evento global
+  `auditoria_expurgo` por execução; retenção mínima de 1 mês). Agendamento:
+  homolog = `backup-daemon.sh` (dia 01, SÓ após o backup do dia OK);
+  produção = cron mensal do operador PÓS-cutover (comando no
+  RUNBOOK-CUTOVER §11). Teste dedicado
+  `hub-auditoria-expurgo-integration.sh` 10/10 (imutabilidade preservada,
+  contagem exata, limiar mantido, meta-evento, idempotência, retenção
+  mínima, `authenticated` negado) — agregado à `regressao-s10.sh` (suíte
+  20). 0041 aplicada no hub_homolog_db (SchemaMigration=42), daemon
+  recriado e função validada ao vivo.
+- **Estado do G3:** dos pré-requisitos, restam apenas os passos de véspera do
+  operador (schema audit §3, tags fixas, builds §4) e o agendamento da janela.

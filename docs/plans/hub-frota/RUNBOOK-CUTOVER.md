@@ -34,7 +34,7 @@ Números de ensaio citados: `docs/plans/hub-frota/evidencias/S10/`
 | # | Pré-requisito | Dono | Status ao escrever |
 |---|---|---|---|
 | 1 | **Issue #62** (gate `ENVIO_DRY_RUN`/allowlist não lidos por `sendMessage`/`validate-xml-batch` no legado) resolvida e deployada, **ou** aceite de risco formal do operador | operador | **RESOLVIDA** (lib/envio-gate.js + URLs de env com fallback; E2E asserta o bloqueio com linha elegível). ⚠️ Em produção **NÃO** setar `ENVIO_DRY_RUN`/`ENVIO_ALLOWLIST` no serviço — sem env, o gate é inerte e o comportamento é o histórico |
-| 2 | **Decisão D5** — retenção/expurgo da trilha de `Auditoria` (a tabela cresce sem política; nada foi implementado por decisão) | operador | **PENDENTE** — decidir antes do G3; implementação pode ser pós-cutover |
+| 2 | **Decisão D5** — retenção/expurgo da trilha de `Auditoria` | operador | **DECIDIDA E IMPLEMENTADA** (2026-07-10): retenção de **12 meses** + expurgo **mensal** — migration 0041 (`hub_auditoria_expurgo()`, imutabilidade preservada, meta-evento global por expurgo); homolog agendado pelo backup-daemon; produção = cron mensal do operador PÓS-cutover (§11) |
 | 3 | PR da S10 revisado e mergeado; suíte de regressão 100% verde em execução única | operador | evidência em `evidencias/S10/` |
 | 4 | Ensaio de migrations (do zero + sob ~2,5M linhas, sem lock disruptivo) e ensaio de rollback anexados | sessão S10 | evidência em `evidencias/S10/` |
 | 5 | Auditoria do **schema real de produção** aprovada (§3) | operador + sessão | fazer na véspera |
@@ -113,7 +113,7 @@ migrations são exclusivas do ambiente isolado e NUNCA rodam em produção:**
 
 | Migration | Em produção | Motivo |
 |---|---|---|
-| 0000–0007, 0009–0032, 0035–0037, 0039, 0040 | **aplicar** | schema/seed hub-nativo, não toca tabela legada (0022 cria `EmpresaGrupoMovee` VAZIA — o seed do grupo real é o P4; 0040 é a corretiva do ensaio de rollback: `hub_normaliza_nome` com `public.unaccent` — sem ela o dump não restaura limpo) |
+| 0000–0007, 0009–0032, 0035–0037, 0039–0041 | **aplicar** | schema/seed hub-nativo, não toca tabela legada (0022 cria `EmpresaGrupoMovee` VAZIA — o seed do grupo real é o P4; 0040 é a corretiva do ensaio de rollback: `hub_normaliza_nome` com `public.unaccent`; 0041 é a D5: `hub_auditoria_expurgo()` — a função só roda quando o cron do §11 for agendado) |
 | 0008_migracao_empresa_para_usuario | **aplicar + conferir** | lê a `"Empresa"` REAL e cria os logins do hub (`Usuario`/`UsuarioEntidade`, papel `admin_entidade`, hash bcrypt copiado). Conferir contagens (§7 P3). Contas sem `pass` não migram (por design) |
 | **0033_schema_legado_envio_massa** | **PULAR (pré-registro)** | recriaria espelho do schema legado: em produção as tabelas REAIS já existem; a migration ainda adicionaria constraints UNIQUE (`email`/`cnpj` em `"Empresa"`) e GRANTs — risco de falha por dados duplicados e mudança de permissão não planejada |
 | **0034_seed_legado_envio_massa_teste** | **PULAR (pré-registro)** | inseriria empresas/movimentos QA na `"EnvioMassa"` REAL e motoristas de teste na base `"Motorista"` (exclusiva do grupo Movee — violaria a regra de domínio do CLAUDE.md) |
@@ -221,7 +221,7 @@ arquivo → colar o erro para a sessão; avaliar rollback §8 (o backup P1 cobre
 
 **P3 — Checagens pós-migration (colar saídas).**
 ```sql
-SELECT count(*) FROM "SchemaMigration";                          -- = 41
+SELECT count(*) FROM "SchemaMigration";                          -- = 42 (nº de arquivos em infra/hub/migrations/)
 SELECT count(*) FROM "Usuario";                                  -- ≈ nº de "Empresa" com pass definido (0008)
 SELECT count(*) FROM "UsuarioEntidade" WHERE ativo;              -- ≥ count acima
 SELECT rolname FROM pg_roles WHERE rolname IN ('hub_web_anon');  -- 1 linha
@@ -361,7 +361,16 @@ O que monitorar (tudo READ-ONLY; operador executa e cola quando quiser parecer):
    rollback nível 1 + investigação com backup P1 intocado.
 
 Passadas 24h sem gatilho: declarar cutover estável, registrar no DIARIO.md e
-agendar as pendências (issue #62 se ainda aberta, D5, §9, remoção da linha QA
+agendar as pendências:
+
+- **Cron mensal do expurgo da auditoria (D5)** — no host, dia 1, DEPOIS do
+  horário do backup de produção:
+  ```
+  10 4 1 * * docker exec $(docker ps -qf name=pgadmin_db) psql -U <user> -d chatmasterveloz -c "SELECT hub_auditoria_expurgo(interval '12 months')" >> /var/log/hub-auditoria-expurgo.log 2>&1
+  ```
+  (a função registra meta-evento `auditoria_expurgo` na própria trilha com a
+  contagem removida; nunca rodar sem backup válido do período).
+- §9 (aposentadoria das flags S8), remoção da linha QA
 9001 do 0038, e o **achado de performance da S10**: com ~1 ano de dados
 importados (~2,5M linhas), `/motoristas` fica em ~2s (paginação/filtro em JS +
 `hub_areas_por_entregador` varrendo as 2 tabelas de fato) e os resumos na

@@ -231,6 +231,9 @@ services:
       PGDATABASE: "${HUB_DB_NAME}"
       BACKUP_HOUR_UTC: "03"
       BACKUP_RETENTION_DAYS: "14"
+      # D5 (0041): expurgo mensal da Auditoria após o backup do dia
+      AUDITORIA_EXPURGO_DIA: "${AUDITORIA_EXPURGO_DIA:-01}"
+      AUDITORIA_RETENCAO: "${AUDITORIA_RETENCAO:-12 months}"
       APP_ENV: "${APP_ENV}"
     volumes:
       - ./scripts:/scripts:ro
