@@ -5,17 +5,24 @@
 # (§4.6/§4.10). Idempotente: migration já registrada é pulada.
 #
 # Uso:
-#   infra/hub/scripts/migrate.sh -f <compose.yml> -p <projeto> -e <env-file>
+#   infra/hub/scripts/migrate.sh -f <compose.yml> -p <projeto> -e <env-file> [-t NNNN]
+#
+# -t NNNN (opcional, uso EXCLUSIVO de teste/ensaio — S10): aplica somente as
+# migrations cujo prefixo numérico é <= NNNN (ex.: -t 0019). Permite ao
+# ensaio de migrations da S10 parar no meio da série, carregar volume
+# sintético nas tabelas de fato e medir as migrations restantes sobre um
+# banco volumoso. O cutover de produção NUNCA usa -t (série completa).
 # =============================================================================
 set -euo pipefail
 
-COMPOSE_FILE="" PROJECT="" ENV_FILE=""
-while getopts "f:p:e:" opt; do
+COMPOSE_FILE="" PROJECT="" ENV_FILE="" LIMITE=""
+while getopts "f:p:e:t:" opt; do
   case "$opt" in
     f) COMPOSE_FILE="$OPTARG" ;;
     p) PROJECT="$OPTARG" ;;
     e) ENV_FILE="$OPTARG" ;;
-    *) echo "uso: $0 -f compose.yml -p projeto -e env-file" >&2; exit 2 ;;
+    t) LIMITE="$OPTARG" ;;
+    *) echo "uso: $0 -f compose.yml -p projeto -e env-file [-t NNNN]" >&2; exit 2 ;;
   esac
 done
 [ -n "$COMPOSE_FILE" ] && [ -n "$PROJECT" ] && [ -n "$ENV_FILE" ] || { echo "argumentos -f/-p/-e obrigatórios" >&2; exit 2; }
@@ -42,6 +49,10 @@ count=0
 for f in "$MIG_DIR"/*.sql; do
   [ -e "$f" ] || { echo "nenhuma migration em $MIG_DIR"; exit 1; }
   nome="$(basename "$f")"
+  if [ -n "$LIMITE" ] && [ "${nome%%_*}" \> "$LIMITE" ]; then
+    echo "ignorada (além de -t $LIMITE): $nome"
+    continue
+  fi
   if applied "$nome"; then
     echo "pulada (já aplicada): $nome"
     continue

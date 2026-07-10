@@ -675,7 +675,12 @@ cp "$TMP/npm-test.log" "$EVID_DIR/npm-test-$(date -u +%Y%m%dT%H%M%SZ).log"
 PASS_COUNT="$(grep -oE '# pass [0-9]+' "$TMP/npm-test.log" | tail -1 | grep -oE '[0-9]+')"
 FAIL_COUNT="$(grep -oE '# fail [0-9]+' "$TMP/npm-test.log" | tail -1 | grep -oE '[0-9]+')"
 echo "npm test: pass=$PASS_COUNT fail=$FAIL_COUNT (exit=$NPM_TEST_EXIT)"
-check "suíte legada: pass count = 458 (baseline FASES 2/3, zero regressão)" "${PASS_COUNT:-?}" "458"
+# Baseline dinâmica (correção S10): fases posteriores à S8 acrescentam testes
+# novos ao `npm test` legado (na S8 eram 466/458; a S9 elevou para 539/531) —
+# o invariante de regressão é "as ÚNICAS falhas são as 8 pré-existentes de
+# motorista-integration.test.js", não um total fixo de pass.
+PASS_MIN_OK="$([ "${PASS_COUNT:-0}" -ge 458 ] && echo ok || echo "regrediu:${PASS_COUNT:-?}")"
+check "suíte legada: pass count >= 458 (baseline S8; suites novas só aumentam)" "$PASS_MIN_OK" "ok"
 check "suíte legada: fail count = 8 (mesmas falhas pré-existentes de motorista-integration.test.js)" "${FAIL_COUNT:-?}" "8"
 
 DIFF_ARQUIVOS_TESTE="$(cd "$REPO_DIR" && git diff --name-only main -- 'app_homologacao/backend/tests/*.test.js' | grep -v '^app_homologacao/backend/tests/hub-envio-massa-' || true)"

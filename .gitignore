@@ -14,6 +14,8 @@ docs/documentos_apoio/*.xlsx
 # templates de planilha sem dados pessoais continuam visíveis/versionáveis
 !docs/documentos_apoio/modelo_*.xlsx
 infra/hub/seeds/out/
+# S10: dataset sintético volumoso (modo --synthesize-days do gen-seeds)
+infra/hub/seeds/out-s10/
 # hub-importacoes (S4, FASE 3): arquivos originais de upload (CSV/ZIP com
 # dados de faturamento/performance reais) jamais no git — volume privado.
 app_homologacao/backend/uploads/
