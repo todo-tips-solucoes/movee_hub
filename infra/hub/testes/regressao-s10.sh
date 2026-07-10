@@ -97,6 +97,9 @@ run_suite 15-browser-e2e       "hub-shell-e2e-browser.sh (Playwright: axe/menus/
 run_suite 16-a11y-envio-massa  "hub-envio-massa-a11y-smoke.sh (Playwright a11y S8)" "$HUB_DIR/testes/hub-envio-massa-a11y-smoke.sh"
 run_suite 17-a11y-auditoria    "hub-auditoria-admin-a11y-smoke.sh (Playwright a11y S9)" "$HUB_DIR/testes/hub-auditoria-admin-a11y-smoke.sh"
 
+# 5.5. D5 (0041): retenção 12 meses + expurgo mensal da Auditoria
+run_suite 20-auditoria-expurgo "hub-auditoria-expurgo-integration.sh (D5/0041, stack efêmero)" "$HUB_DIR/testes/hub-auditoria-expurgo-integration.sh"
+
 # 6. varredura de dados sensíveis na auditoria (self-test + real)
 run_suite 18-scan-selftest     "scan-auditoria-sensivel.sh --self-test"       "$HUB_DIR/scripts/scan-auditoria-sensivel.sh" -f "$COMPOSE_HOMOLOG" -p hub-homolog -e "$HOMOLOG_ENV" --self-test
 run_suite 19-scan-real         "scan-auditoria-sensivel.sh (hub-homolog, 500 eventos)" "$HUB_DIR/scripts/scan-auditoria-sensivel.sh" -f "$COMPOSE_HOMOLOG" -p hub-homolog -e "$HOMOLOG_ENV"

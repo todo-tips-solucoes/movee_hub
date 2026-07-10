@@ -63,6 +63,10 @@ mkdir -p "$EVID"
 DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"; DB_NAME="$(get_var HUB_DB_NAME "$ENV_FILE")"
 [ -n "$DB_USER" ] && [ -n "$DB_NAME" ] || { echo "HUB_DB_USER/HUB_DB_NAME ausentes em $ENV_FILE" >&2; exit 2; }
 
+# tamanho esperado da série = nº de arquivos no diretório canônico (dinâmico:
+# uma migration nova não exige editar este script)
+N_SERIE="$(ls "$HUB_DIR"/migrations/*.sql | wc -l | tr -d '[:space:]')"
+
 P_A="hub-s10a-$RUNID"
 P_B="hub-s10b-$RUNID"
 SAMPLER_PID=""
@@ -112,7 +116,7 @@ dca up -d --wait db postgrest
 migrate_timed "$EVID/run-a-migrations.log" -f "$COMPOSE" -p "$P_A" -e "$ENV_FILE" \
   || { echo "FAIL: migrate.sh RUN A"; tail -20 "$EVID/run-a-migrations.log"; exit 1; }
 N_A="$(psql_a -tAc 'SELECT count(*) FROM "SchemaMigration"' | tr -d '[:space:]')"
-check "RUN A: SchemaMigration registra a série completa (41)" "$N_A" "41"
+check "RUN A: SchemaMigration registra a série completa ($N_SERIE)" "$N_A" "$N_SERIE"
 # idempotência em banco recém-migrado
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$P_A" -e "$ENV_FILE" >"$EVID/run-a-rerun.log" 2>&1
 check "RUN A: re-run do migrate.sh é no-op" \
@@ -309,7 +313,7 @@ check "RUN B: 0 'still waiting' no log do postgres (log_lock_waits)" \
 
 # integridade + idempotência + REFRESH das MVs sob volume
 N_B="$(psql_b -tAc 'SELECT count(*) FROM "SchemaMigration"' | tr -d '[:space:]')"
-check "RUN B: SchemaMigration registra a série completa (41)" "$N_B" "41"
+check "RUN B: SchemaMigration registra a série completa ($N_SERIE)" "$N_B" "$N_SERIE"
 ORFAS="$(psql_b -tAc 'SELECT count(*) FROM "PerformanceTurno" p LEFT JOIN "Entregador" e ON e.id = p.entregador_id WHERE e.id IS NULL' | tr -d '[:space:]')"
 check "RUN B: 0 FKs órfãs PerformanceTurno→Entregador" "$ORFAS" "0"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$P_B" -e "$ENV_FILE" >"$EVID/run-b-rerun.log" 2>&1
