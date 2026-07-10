@@ -1,0 +1,6 @@
+PROJETO=hub-s10b-1783651300
+COMPOSE=/var/lib/envioMassa_homologacao/infra/hub/compose.hub.s10.yml
+ENV_FILE=/var/lib/hub_secrets/.env.hub.test
+FAT_N=1501236
+PERF_N=1017280
+SEEDS=/var/lib/envioMassa_homologacao/infra/hub/seeds/out-s10

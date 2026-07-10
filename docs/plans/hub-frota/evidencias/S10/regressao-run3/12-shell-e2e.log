@@ -1,0 +1,25 @@
+### 6.2.2 — GET /api/v1/auditoria: operador 403 vs admin_entidade não-403 (SC-002) ###
+PASS: 6.2.2 login operador via shell -> 200
+PASS: 6.2.2 operador seleciona entidade A -> 200
+PASS: 6.2.2 operador GET /auditoria (sem auditoria.consultar) -> 403 (SC-002)
+PASS: 6.2.2 login admin_entidade via shell -> 200
+PASS: 6.2.2 admin seleciona entidade A -> 200
+PASS: 6.2.2 admin_entidade GET /auditoria (COM auditoria.consultar) -> 200 (contraprova SC-002)
+
+### 6.2.3 (API) — troca de entidade reflete em /me sem novo login (SC-003) ###
+PASS: 6.2.3 admin troca para entidade B -> 200
+PASS: 6.2.3 GET /me reflete entidade_ativa=B após troca, sem novo login (SC-003)
+
+### 6.2.6 (API) — login sem vínculo -> /me com entidades vazias (FR-016) ###
+PASS: 6.2.6 login sem-vínculo via shell -> 200
+PASS: 6.2.6 GET /me: 0 entidades vinculadas (tela 'sem acesso', FR-016)
+
+HUB-SHELL-E2E-HOMOLOG: OK — todos os asserts passaram (FASE 6.2 API: SC-002/SC-003/FR-016)
+
+=== cleanup: removendo linhas e2e-teste-shell-* (owner bypassa RLS) ===
+SET
+DELETE 6
+DELETE 3
+DELETE 3
+DELETE 3
+=== cleanup: concluído ===

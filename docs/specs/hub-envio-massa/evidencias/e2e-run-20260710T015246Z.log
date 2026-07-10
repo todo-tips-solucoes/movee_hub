@@ -1,0 +1,175 @@
+=== e2e-hub-envio-massa — projeto=hub-test-1783648366 runid=1783648366 2026-07-10T01:52:46Z ===
+PREFLIGHT: ok — projeto 'hub-test-1783648366' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783648366, APP_ENV=test)
+subindo db+postgrest+fastapi-mock+n8n-mock+mailpit-mock efêmeros (hub-test-1783648366, tmpfs)…
+ Network hub-test-1783648366_default Creating 
+ Network hub-test-1783648366_default Created 
+ Container hub-test-1783648366-db-1 Creating 
+ Container hub-test-1783648366-db-1 Created 
+ Container hub-test-1783648366-db-1 Starting 
+ Container hub-test-1783648366-db-1 Started 
+ Container hub-test-1783648366-db-1 Waiting 
+ Container hub-test-1783648366-db-1 Healthy 
+ Container hub-test-1783648366-db-1 Running 
+ Container hub-test-1783648366-postgrest-1 Creating 
+ Container hub-test-1783648366-postgrest-1 Created 
+ Container hub-test-1783648366-db-1 Waiting 
+ Container hub-test-1783648366-db-1 Healthy 
+ Container hub-test-1783648366-postgrest-1 Starting 
+ Container hub-test-1783648366-postgrest-1 Started 
+ Container hub-test-1783648366-db-1 Waiting 
+ Container hub-test-1783648366-postgrest-1 Waiting 
+ Container hub-test-1783648366-postgrest-1 Healthy 
+ Container hub-test-1783648366-db-1 Healthy 
+ Container hub-test-1783648366-fastapi-mock-1 Creating 
+ Container hub-test-1783648366-fastapi-mock-1 Created 
+ Container hub-test-1783648366-fastapi-mock-1 Starting 
+ Container hub-test-1783648366-fastapi-mock-1 Started 
+ Container hub-test-1783648366-fastapi-mock-1 Waiting 
+ Container hub-test-1783648366-fastapi-mock-1 Healthy 
+ Container hub-test-1783648366-n8n-mock-1 Creating 
+ Container hub-test-1783648366-n8n-mock-1 Created 
+ Container hub-test-1783648366-n8n-mock-1 Starting 
+ Container hub-test-1783648366-n8n-mock-1 Started 
+ Container hub-test-1783648366-n8n-mock-1 Waiting 
+ Container hub-test-1783648366-n8n-mock-1 Healthy 
+ Container hub-test-1783648366-mailpit-mock-1 Creating 
+ Container hub-test-1783648366-mailpit-mock-1 Created 
+ Container hub-test-1783648366-mailpit-mock-1 Starting 
+ Container hub-test-1783648366-mailpit-mock-1 Started 
+ Container hub-test-1783648366-mailpit-mock-1 Waiting 
+ Container hub-test-1783648366-mailpit-mock-1 Healthy 
+ Container hub-test-1783648366-db-1 Running 
+ Container hub-test-1783648366-postgrest-1 Running 
+ Container hub-test-1783648366-backend-1 Creating 
+ Container hub-test-1783648366-backend-1 Created 
+ Container hub-test-1783648366-db-1 Waiting 
+ Container hub-test-1783648366-db-1 Healthy 
+ Container hub-test-1783648366-db-1 Waiting 
+ Container hub-test-1783648366-db-1 Healthy 
+ Container hub-test-1783648366-backend-1 Starting 
+ Container hub-test-1783648366-backend-1 Started 
+ Container hub-test-1783648366-db-1 Waiting 
+ Container hub-test-1783648366-postgrest-1 Waiting 
+ Container hub-test-1783648366-backend-1 Waiting 
+ Container hub-test-1783648366-postgrest-1 Healthy 
+ Container hub-test-1783648366-db-1 Healthy 
+ Container hub-test-1783648366-backend-1 Healthy 
+rodando migrate.sh (0002..0034)…
+PASS: migrations 0033/0034 aplicadas
+PASS: SEGURANÇA: zero linhas EnvioMassa com enviado='off' após neutralização da seed 0034
+PASS: seeds de usuário/papel (leitura/operador/admin_entidade) criados para empresa 9001
+PASS: migration 0032: envio_massa.gerenciar concedida a admin_plataforma+admin_entidade (2)
+PASS: migration 0032: envio_massa.gerenciar NÃO concedida a operador/leitura (0)
+
+── Cenário 2 (SEM_ENTIDADE_ATIVA) — spec.md FR-004 ─────────────────────────
+PASS: GET /envio-massa sem entidade_ativa -> 403
+PASS: GET /envio-massa sem entidade_ativa -> error.code=SEM_ENTIDADE_ATIVA (byte-a-byte, não errorCode)
+
+── Cenário 1 (admin_entidade, fluxo completo) — US1+US2+US3 ────────────────
+PASS: lista inicial -> 200
+PASS: upload -> 200
+PASS: upload -> success=true
+PASS: lista pós-upload -> delta de 2 linhas
+PASS: lista pós-upload -> novo id presente
+PASS: PATCH /update-envio-massa/:id -> 200
+PASS: POST /start-process -> 200 (seguro, zero linhas enviado='off')
+PASS: GET /process-status -> 200
+PASS: GET /process-status -> active=false (processo síncrono já concluiu)
+PASS: POST /validate-xml-batch -> 200 (seguro, sem_movimento)
+PASS: validate-xml-batch -> stats.total=1
+PASS: validate-xml-batch -> stats.sem_movimento=1 (nunca chamou FastAPI real)
+PASS: GET /export-envio-massa (antes do close) -> 200
+PASS: GET /download-xml-movimento -> 200 (ZIP — seed 0034 tem movimento validado com numnota+nota_ok)
+PASS: POST /close-movimento -> 200
+PASS: POST /close-movimento -> fechados=4 (2 do upload + 2 abertos da seed 0034)
+PASS: DELETE /envio-massa/:id -> 200
+
+── 4.1.8 (histórico de importação, sessão hub) — FR-009/010/011 ───────────
+PASS: GET /importacoes?tipo=envio_massa -> 200
+PASS: histórico: entrada nova presente (sessão hub gera log)
+PASS: histórico: tipo=envio_massa
+PASS: histórico: status terminal = completed (2/2 linhas válidas)
+PASS: histórico: total_linhas=2
+PASS: histórico: linhas_validas=2
+
+── Cenário 6 (sessão legada, fora do /hub/) — FR-018/FR-002 ───────────────
+PASS: POST /login (legado) -> 200
+PASS: GET /envio-massa (legado) -> 200
+PASS: GET /envio-massa (legado) -> NUNCA SEM_ENTIDADE_ATIVA/PERMISSAO_INSUFICIENTE
+PASS: POST /upload (legado) -> 200
+PASS: GET /process-status (legado) -> 200
+PASS: POST /start-process (legado) -> 200 (seguro)
+PASS: POST /close-movimento (legado) -> 200
+PASS: GET /export-envio-massa (legado) -> 200
+
+── Cenário 3 (papel leitura) — US3, FR-007/FR-008 ──────────────────────────
+PASS: GET /envio-massa (leitura) -> 200
+PASS: POST /upload (leitura) -> 403
+PASS: POST /upload (leitura) -> error.code=PERMISSAO_INSUFICIENTE
+PASS: PATCH /update-envio-massa/:id (leitura) -> 403
+PASS: POST /start-process (leitura) -> 403
+PASS: POST /validate-xml-batch (leitura) -> 403
+PASS: POST /close-movimento (leitura) -> 403
+PASS: DELETE /envio-massa/:id (leitura) -> 403
+
+── Cenário 4 (papel operador) — US3 ─────────────────────────────────────────
+PASS: POST /upload (operador) -> 200
+PASS: PATCH /update-envio-massa/:id (operador) -> 200
+PASS: POST /start-process (operador) -> 200 (seguro)
+PASS: POST /validate-xml-batch (operador) -> 200 (seguro, sem_movimento)
+PASS: POST /close-movimento (operador) -> 403
+PASS: DELETE /envio-massa/:id (operador) -> 403
+
+── 4.1.8 — flag HUB_IMPORT_LOG_ENVIO=off (upload sem log) ─────────────────
+PASS: upload com HUB_IMPORT_LOG_ENVIO=off -> 200 (negócio segue normal)
+PASS: HUB_IMPORT_LOG_ENVIO=off -> nenhuma entrada nova de histórico
+
+── Cenário 5 — HUB_RBAC_ENVIO=off (reversão instantânea) — FR-006/SC-005 ──
+PASS: HUB_RBAC_ENVIO=off: papel leitura POST /upload -> 200 (bloqueio revertido instantaneamente)
+PASS: n8n-mock: zero chamadas recebidas (sendMessage não usa n8n — achado de segurança)
+PASS: fastapi-mock: zero chamadas recebidas (validate-xml-batch usou sem_movimento, nunca chamou FastAPI)
+NOTA 6.2.1/6.2.2/6.2.3: ver cabeçalho deste script e relatório final da execução —
+  os 'zero' acima NÃO comprovam que ENVIO_DRY_RUN gateia o código (ele não é lido
+  em nenhum process.env de server.js); comprovam que o cenário de teste desta
+  suíte foi desenhado para NUNCA alcançar sendMessage()/chamada real à FastAPI,
+  em qualquer estado de HUB_RBAC_ENVIO. Achado registrado para decisão do
+  orquestrador-pai — não marcar 6.2.1/6.2.2/6.2.3 como fechados sem essa leitura.
+
+── 4.1.8 — falha simulada de INSERT do log (upload de negócio segue 200) ──
+PASS: INSERT do log falhando (tabela renomeada) -> upload de negócio ainda responde 200
+PASS: após restaurar a tabela: nenhuma entrada 'lote-failsim.xlsx' (o INSERT realmente falhou, não foi só atrasado)
+
+── 6.3.1 — suíte de testes legada (no HOST, node --test — mesma forma da
+   baseline das FASES 2/3: 466 testes, 458 pass / 8 fail pré-existentes.
+   NÃO roda dentro do container backend: o mem_limit de 512m derruba
+   hub-import-processor.test.js com SIGABRT/OOM, um artefato de ambiente
+   que não existe na baseline nem em produção) ─────────────────────────
+  duration_ms: 0.547442
+  type: 'suite'
+  ...
+1..121
+# tests 539
+# suites 121
+# pass 531
+# fail 8
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4583.69098
+npm test: pass=531 fail=8 (exit=1)
+FAIL: suíte legada: pass count = 458 (baseline FASES 2/3, zero regressão) (obtido='531' esperado='458')
+PASS: suíte legada: fail count = 8 (mesmas falhas pré-existentes de motorista-integration.test.js)
+PASS: git diff confirma zero alteração em arquivo de teste pré-existente (só suítes NOVAS hub-envio-massa-*.test.js)
+
+HUB-ENVIO-MASSA-E2E: 1 assert(s) FALHARAM
+log completo salvo em: /var/lib/envioMassa_homologacao/docs/specs/hub-envio-massa/evidencias/e2e-run-20260710T015246Z.log

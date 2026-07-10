@@ -1,0 +1,110 @@
+{
+ "endpoints": [
+  {
+   "path": "/faturamento/resumo?de=2027-06-12&ate=2027-07-12",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 68,
+   "p95": 87,
+   "max": 107
+  },
+  {
+   "path": "/faturamento/resumo?de=2027-06-12&ate=2027-07-12&groupBy=dia",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 59,
+   "p95": 82,
+   "max": 97
+  },
+  {
+   "path": "/performance/resumo?de=2027-06-12&ate=2027-07-12",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 104,
+   "p95": 131,
+   "max": 167
+  },
+  {
+   "path": "/performance/resumo?de=2027-06-12&ate=2027-07-12&groupBy=dia",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 110,
+   "p95": 137,
+   "max": 157
+  },
+  {
+   "path": "/faturamento?de=2026-07-03&ate=2027-07-12",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 158,
+   "p95": 178,
+   "max": 183
+  },
+  {
+   "path": "/performance?de=2026-07-03&ate=2027-07-12",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 123,
+   "p95": 138,
+   "max": 166
+  },
+  {
+   "path": "/importacoes",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 5,
+   "p95": 7,
+   "max": 43
+  },
+  {
+   "path": "/auditoria",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 4,
+   "p95": 7,
+   "max": 8
+  }
+ ],
+ "informativos": [
+  {
+   "path": "/faturamento/resumo?de=2026-07-03&ate=2027-07-12",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 705,
+   "p95": 751,
+   "max": 772
+  },
+  {
+   "path": "/faturamento/resumo?de=2026-07-03&ate=2027-07-12&groupBy=dia",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 801,
+   "p95": 854,
+   "max": 888
+  },
+  {
+   "path": "/performance/resumo?de=2026-07-03&ate=2027-07-12",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 1117,
+   "p95": 1179,
+   "max": 1259
+  },
+  {
+   "path": "/performance/resumo?de=2026-07-03&ate=2027-07-12&groupBy=dia",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 1506,
+   "p95": 1567,
+   "max": 1601
+  },
+  {
+   "path": "/motoristas",
+   "n": 100,
+   "badStatus": 0,
+   "p50": 1973,
+   "p95": 2269,
+   "max": 2332
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 # Prova de 0 vazamentos de dado pessoal em log — FASE 7 (hub-importacoes)
 
-Executado em: 2026-07-07T19:23:38-03:00
+Executado em: 2026-07-09T23:33:54-03:00
 
 Grep por padrões de CPF/CNPJ brutos e marcador sintético de teste nos logs
 dos containers hub_homolog_backend e hub_homolog_db (janela desta execução).

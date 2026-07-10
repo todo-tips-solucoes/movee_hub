@@ -1,0 +1,95 @@
+PREFLIGHT: ok — projeto 'hub-test-1783650580' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783650580, APP_ENV=test)
+subindo db+postgrest+mailpit-mock+backend efêmeros (hub-test-1783650580, tmpfs)…
+ Network hub-test-1783650580_default Creating 
+ Network hub-test-1783650580_default Created 
+ Container hub-test-1783650580-db-1 Creating 
+ Container hub-test-1783650580-db-1 Created 
+ Container hub-test-1783650580-db-1 Starting 
+ Container hub-test-1783650580-db-1 Started 
+ Container hub-test-1783650580-db-1 Waiting 
+ Container hub-test-1783650580-db-1 Healthy 
+ Container hub-test-1783650580-db-1 Running 
+ Container hub-test-1783650580-postgrest-1 Creating 
+ Container hub-test-1783650580-postgrest-1 Created 
+ Container hub-test-1783650580-db-1 Waiting 
+ Container hub-test-1783650580-db-1 Healthy 
+ Container hub-test-1783650580-postgrest-1 Starting 
+ Container hub-test-1783650580-postgrest-1 Started 
+ Container hub-test-1783650580-postgrest-1 Waiting 
+ Container hub-test-1783650580-db-1 Waiting 
+ Container hub-test-1783650580-postgrest-1 Healthy 
+ Container hub-test-1783650580-db-1 Healthy 
+ Container hub-test-1783650580-mailpit-mock-1 Creating 
+ Container hub-test-1783650580-mailpit-mock-1 Created 
+ Container hub-test-1783650580-mailpit-mock-1 Starting 
+ Container hub-test-1783650580-mailpit-mock-1 Started 
+ Container hub-test-1783650580-mailpit-mock-1 Waiting 
+ Container hub-test-1783650580-mailpit-mock-1 Healthy 
+ Container hub-test-1783650580-db-1 Running 
+ Container hub-test-1783650580-postgrest-1 Running 
+ Container hub-test-1783650580-backend-1 Creating 
+ Container hub-test-1783650580-backend-1 Created 
+ Container hub-test-1783650580-db-1 Waiting 
+ Container hub-test-1783650580-db-1 Healthy 
+ Container hub-test-1783650580-db-1 Waiting 
+ Container hub-test-1783650580-db-1 Healthy 
+ Container hub-test-1783650580-backend-1 Starting 
+ Container hub-test-1783650580-backend-1 Started 
+ Container hub-test-1783650580-postgrest-1 Waiting 
+ Container hub-test-1783650580-backend-1 Waiting 
+ Container hub-test-1783650580-db-1 Waiting 
+ Container hub-test-1783650580-postgrest-1 Healthy 
+ Container hub-test-1783650580-backend-1 Healthy 
+ Container hub-test-1783650580-db-1 Healthy 
+rodando migrate.sh (0002..0008, INCLUSIVE 0006/RLS — FASE 5 já implementada; seed 0007 inclui papéis/permissões)…
+PASS: GET /me sem cookie -> 401
+PASS: GET /auditoria sem cookie -> 401
+PASS: login rbac-operador -> 200
+PASS: GET /me (operador) -> 200
+PASS: GET /me: entidade_ativa=null antes de qualquer troca (FR-010)
+PASS: GET /me: 1 entidade vinculada
+PASS: GET /me: papel correto (operador)
+PASS: GET /me: permissao 'motoristas.consultar' presente (operador)
+PASS: GET /me: permissao 'auditoria.consultar' AUSENTE (operador não tem)
+PASS: GET /me: modulos vazio antes de escolher entidade ativa
+PASS: GET /auditoria sem grant -> 403 PERMISSAO_NEGADA (mesmo sem entidade ativa)
+PASS: POST /me/entidade para empresa NAO vinculada -> 403 SEM_VINCULO (FR-011)
+PASS: POST /me/entidade (não vinculada): erro=SEM_VINCULO
+PASS: POST /me/entidade para empresa vinculada -> 200
+PASS: POST /me/entidade: entidade_ativa retornada = solicitada
+PASS: GET /me pós-troca: entidade_ativa refletida sem novo login (FR-010)
+PASS: GET /me pós-troca: modulos cruza ModuloEntidade ativo + permissao (dashboard)
+PASS: GET /auditoria com entidade ativa mas SEM grant -> ainda 403 (permissão >< entidade)
+PASS: admin_entidade: tem 'auditoria.consultar' (seed 0007)
+PASS: admin_entidade: NAO tem 'admin.gerenciar' (exclusivo admin_plataforma)
+PASS: GET /auditoria sem entidade ativa -> 200 (nunca 500)
+PASS: GET /auditoria sem entidade ativa -> eventos=[] (nega-por-padrao)
+PASS: POST /me/entidade (admin) -> 200
+PASS: GET /auditoria pós-troca (com grant) -> 200
+PASS: GET /auditoria contém evento troca_entidade_ativa
+PASS: GET /auditoria: todos os eventos escopados pela MESMA entidade ativa
+PASS: Auditoria (DB): evento troca_entidade_ativa gravado com id_empresa correto
+PASS: GET /me (multi): lista as 2 entidades vinculadas (FR-010)
+PASS: GET /me (multi): empresa_ids batem com o seed
+PASS: POST /me/entidade (multi) -> empresa A -> 200
+PASS: POST /me/entidade (multi) -> troca para empresa B -> 200 (sem novo login)
+PASS: POST /me/entidade (multi) -> entidade_ativa = B
+PASS: POST /me/entidade (multi) -> 3ª empresa não vinculada -> 403 SEM_VINCULO
+PASS: (#1) união flat contém auditoria.consultar (vinda de B) — gate flat sozinho vazaria
+PASS: (#1) GET /auditoria com entidade ATIVA=A (só leitura) -> 403 (gate por-entidade)
+PASS: (#1) trilha de A NÃO vazou ao ativar A sem auditoria.consultar
+PASS: (#1) GET /auditoria com entidade ATIVA=B (admin_entidade) -> 200
+PASS: (#1) trilha de B retornada ao ativar B (uso legítimo preservado)
+PASS: (#1) todos os eventos em B escopados por B
+
+HUB-RBAC-INTEGRATION: OK — todos os asserts passaram (FASE 4: 4.1/4.2/4.3)

@@ -1,0 +1,218 @@
+1783651329764 aplicando: 0000_schema_migration.sql
+1783651329975 CREATE TABLE
+1783651330137 aplicando: 0001_postgrest_roles.sql
+1783651330280 DO
+1783651330281 GRANT
+1783651330466 aplicando: 0002_usuario.sql
+1783651330621 DO
+1783651330623 GRANT
+1783651330635 CREATE EXTENSION
+1783651330644 CREATE TABLE
+1783651330646 GRANT
+1783651330648 GRANT
+1783651330845 aplicando: 0003_papel_permissao_modulo.sql
+1783651331008 CREATE TABLE
+1783651331012 CREATE TABLE
+1783651331017 CREATE TABLE
+1783651331019 CREATE TABLE
+1783651331021 CREATE TABLE
+1783651331025 CREATE TABLE
+1783651331026 CREATE INDEX
+1783651331027 GRANT
+1783651331029 GRANT
+1783651331030 GRANT
+1783651331031 GRANT
+1783651331032 GRANT
+1783651331210 aplicando: 0004_auditoria.sql
+1783651331379 CREATE TABLE
+1783651331380 CREATE INDEX
+1783651331381 CREATE INDEX
+1783651331382 GRANT
+1783651331383 GRANT
+1783651331384 REVOKE
+1783651331386 CREATE FUNCTION
+1783651331387 DROP TRIGGER
+1783651331388 psql:<stdin>:38: NOTICE:  trigger "trg_auditoria_bloqueia_alteracao" for relation "Auditoria" does not exist, skipping
+1783651331389 CREATE TRIGGER
+1783651331549 aplicando: 0005_sessao_refresh.sql
+1783651331708 CREATE TABLE
+1783651331709 CREATE INDEX
+1783651331711 GRANT
+1783651331712 GRANT
+1783651331863 aplicando: 0006_rls_policies.sql
+1783651332018 CREATE FUNCTION
+1783651332020 CREATE FUNCTION
+1783651332021 ALTER TABLE
+1783651332023 psql:<stdin>:73: NOTICE:  policy "usuarioentidade_select_proprio" for relation "UsuarioEntidade" does not exist, skipping
+1783651332024 DROP POLICY
+1783651332025 CREATE POLICY
+1783651332026 ALTER TABLE
+1783651332027 psql:<stdin>:86: NOTICE:  policy "moduloentidade_select_por_escopo" for relation "ModuloEntidade" does not exist, skipping
+1783651332028 DROP POLICY
+1783651332029 CREATE POLICY
+1783651332031 ALTER TABLE
+1783651332032 DROP POLICY
+1783651332033 psql:<stdin>:105: NOTICE:  policy "auditoria_select_por_escopo" for relation "Auditoria" does not exist, skipping
+1783651332034 CREATE POLICY
+1783651332035 psql:<stdin>:113: NOTICE:  policy "auditoria_insert_por_escopo" for relation "Auditoria" does not exist, skipping
+1783651332036 DROP POLICY
+1783651332037 CREATE POLICY
+1783651332185 aplicando: 0007_seed_papeis_permissoes_modulos.sql
+1783651332328 INSERT 0 9
+1783651332329 INSERT 0 27
+1783651332331 INSERT 0 4
+1783651332332 INSERT 0 27
+1783651332334 INSERT 0 26
+1783651332335 INSERT 0 15
+1783651332336 INSERT 0 7
+1783651332484 aplicando: 0008_migracao_empresa_para_usuario.sql
+1783651332637 DO
+1783651332638 psql:<stdin>:68: NOTICE:  0008: tabela "Empresa" ausente neste banco — no-op (nada a migrar)
+1783651332794 aplicando: 0009_rls_hardening_indices.sql
+1783651333000 DROP POLICY
+1783651333002 CREATE POLICY
+1783651333008 CREATE INDEX
+1783651333009 CREATE INDEX
+1783651333201 aplicando: 0010_entregador.sql
+1783651333339 CREATE TABLE
+1783651333340 CREATE INDEX
+1783651333341 GRANT
+1783651333342 GRANT
+1783651333496 aplicando: 0011_importacao_arquivo.sql
+1783651333641 CREATE TABLE
+1783651333642 CREATE INDEX
+1783651333643 CREATE INDEX
+1783651333645 GRANT
+1783651333646 GRANT
+1783651333804 aplicando: 0012_importacao_linha_erro.sql
+1783651333953 CREATE TABLE
+1783651333955 CREATE INDEX
+1783651333956 GRANT
+1783651333957 GRANT
+1783651334130 aplicando: 0013_faturamento_lancamento.sql
+1783651334287 CREATE TABLE
+1783651334288 CREATE INDEX
+1783651334289 CREATE INDEX
+1783651334291 CREATE INDEX
+1783651334293 GRANT
+1783651334295 GRANT
+1783651334483 aplicando: 0014_performance_turno.sql
+1783651334635 CREATE TABLE
+1783651334636 CREATE INDEX
+1783651334638 CREATE INDEX
+1783651334639 GRANT
+1783651334640 GRANT
+1783651334788 aplicando: 0015_rls_importacoes.sql
+1783651334968 ALTER TABLE
+1783651334969 psql:<stdin>:21: NOTICE:  policy "entregador_select_por_escopo" for relation "Entregador" does not exist, skipping
+1783651334970 DROP POLICY
+1783651334972 CREATE POLICY
+1783651334973 psql:<stdin>:26: NOTICE:  policy "entregador_insert_por_escopo" for relation "Entregador" does not exist, skipping
+1783651334974 DROP POLICY
+1783651334975 CREATE POLICY
+1783651334977 DROP POLICY
+1783651334978 psql:<stdin>:31: NOTICE:  policy "entregador_update_por_escopo" for relation "Entregador" does not exist, skipping
+1783651334979 CREATE POLICY
+1783651334979 ALTER TABLE
+1783651334980 DROP POLICY
+1783651334982 psql:<stdin>:44: NOTICE:  policy "importacaoarquivo_select_por_escopo" for relation "ImportacaoArquivo" does not exist, skipping
+1783651334982 CREATE POLICY
+1783651334984 DROP POLICY
+1783651334985 psql:<stdin>:49: NOTICE:  policy "importacaoarquivo_insert_por_escopo" for relation "ImportacaoArquivo" does not exist, skipping
+1783651334986 CREATE POLICY
+1783651334987 psql:<stdin>:54: NOTICE:  policy "importacaoarquivo_update_por_escopo" for relation "ImportacaoArquivo" does not exist, skipping
+1783651334988 DROP POLICY
+1783651334989 CREATE POLICY
+1783651334990 ALTER TABLE
+1783651334992 DROP POLICY
+1783651334993 psql:<stdin>:66: NOTICE:  policy "importacaolinhaerro_select_por_escopo" for relation "ImportacaoLinhaErro" does not exist, skipping
+1783651334994 CREATE POLICY
+1783651334995 DROP POLICY
+1783651334996 CREATE POLICY
+1783651334998 psql:<stdin>:71: NOTICE:  policy "importacaolinhaerro_insert_por_escopo" for relation "ImportacaoLinhaErro" does not exist, skipping
+1783651335000 ALTER TABLE
+1783651335001 psql:<stdin>:82: NOTICE:  policy "faturamentolancamento_select_por_escopo" for relation "FaturamentoLancamento" does not exist, skipping
+1783651335003 DROP POLICY
+1783651335004 CREATE POLICY
+1783651335006 DROP POLICY
+1783651335008 psql:<stdin>:87: NOTICE:  policy "faturamentolancamento_insert_por_escopo" for relation "FaturamentoLancamento" does not exist, skipping
+1783651335009 CREATE POLICY
+1783651335010 ALTER TABLE
+1783651335012 psql:<stdin>:98: NOTICE:  policy "performanceturno_select_por_escopo" for relation "PerformanceTurno" does not exist, skipping
+1783651335013 DROP POLICY
+1783651335015 CREATE POLICY
+1783651335017 psql:<stdin>:103: NOTICE:  policy "performanceturno_insert_por_escopo" for relation "PerformanceTurno" does not exist, skipping
+1783651335018 DROP POLICY
+1783651335019 CREATE POLICY
+1783651335133 aplicando: 0016_seed_importacoes_exportar.sql
+1783651335279 INSERT 0 1
+1783651335280 INSERT 0 2
+1783651335438 aplicando: 0017_grant_delete_importacao_linha_erro.sql
+1783651335594 GRANT
+1783651335595 DROP POLICY
+1783651335597 psql:<stdin>:25: NOTICE:  policy "importacaolinhaerro_delete_por_escopo" for relation "ImportacaoLinhaErro" does not exist, skipping
+1783651335598 CREATE POLICY
+1783651335752 aplicando: 0018_dedupe_erro_recuperacao_orfa.sql
+1783651335886 CREATE INDEX
+1783651335887 CREATE FUNCTION
+1783651335889 DROP POLICY
+1783651335890 psql:<stdin>:98: NOTICE:  policy "importacaoarquivo_select_recuperacao_orfa" for relation "ImportacaoArquivo" does not exist, skipping
+1783651335891 CREATE POLICY
+1783651335893 psql:<stdin>:103: NOTICE:  policy "importacaoarquivo_update_recuperacao_orfa" for relation "ImportacaoArquivo" does not exist, skipping
+1783651335894 DROP POLICY
+1783651335895 CREATE POLICY
+1783651336053 aplicando: 0019_entregador_edicao_manual.sql
+1783651336201 ALTER TABLE
+1783651336202 CREATE FUNCTION
+1783651336204 psql:<stdin>:28: NOTICE:  trigger "trg_entregador_protege_nome" for relation "Entregador" does not exist, skipping
+1783651336206 DROP TRIGGER
+1783651336207 CREATE TRIGGER
+1783651336364 ignorada (além de -t 0019): 0020_fatos_indices_subpraca.sql
+1783651336365 ignorada (além de -t 0019): 0021_conta_motorista.sql
+1783651336366 ignorada (além de -t 0019): 0022_empresa_grupo_movee.sql
+1783651336368 ignorada (além de -t 0019): 0023_motoristas_rpc_candidatos.sql
+1783651336369 ignorada (além de -t 0019): 0024_areas_por_entregador.sql
+1783651336370 ignorada (além de -t 0019): 0025_entregador_protege_nome_apenas_import.sql
+1783651336371 ignorada (além de -t 0019): 0026_seed_permissao_faturamento_listar.sql
+1783651336372 ignorada (além de -t 0019): 0027_hub_faturamento_rpc_resumo.sql
+1783651336373 ignorada (além de -t 0019): 0028_mv_faturamento_dia.sql
+1783651336374 ignorada (além de -t 0019): 0029_seed_permissao_performance_listar.sql
+1783651336375 ignorada (além de -t 0019): 0030_hub_performance_rpc_resumo.sql
+1783651336377 ignorada (além de -t 0019): 0031_mv_performance_dia.sql
+1783651336378 ignorada (além de -t 0019): 0032_seed_permissao_envio_massa_gerenciar.sql
+1783651336379 ignorada (além de -t 0019): 0033_schema_legado_envio_massa.sql
+1783651336380 ignorada (além de -t 0019): 0034_seed_legado_envio_massa_teste.sql
+1783651336381 ignorada (além de -t 0019): 0035_auditoria_visao_global.sql
+1783651336382 ignorada (além de -t 0019): 0036_moduloentidade_escrita_admin.sql
+1783651336383 ignorada (além de -t 0019): 0037_rpc_papel_permissao_set.sql
+1783651336384 ignorada (além de -t 0019): 0038_seed_modulos_admin_qa.sql
+1783651336385 ignorada (além de -t 0019): 0039_usuarioentidade_escrita_admin.sql
+1783651336386 ignorada (além de -t 0019): 0040_fix_normaliza_nome_search_path.sql
+1783651336538  Container hub-s10b-1783651300-postgrest-1 Killing 
+1783651336550  Container hub-s10b-1783651300-postgrest-1 Killed 
+1783651336555 PostgREST: SIGUSR1 enviado (reload de schema)
+1783651336556 migrate: concluído (20 aplicadas agora)
+1783651336688  id |                    nome                     |          aplicado_em          
+1783651336690 ----+---------------------------------------------+-------------------------------
+1783651336691   1 | 0000_schema_migration.sql                   | 2026-07-10 02:42:10.126137+00
+1783651336692   2 | 0001_postgrest_roles.sql                    | 2026-07-10 02:42:10.453232+00
+1783651336693   3 | 0002_usuario.sql                            | 2026-07-10 02:42:10.831102+00
+1783651336694   4 | 0003_papel_permissao_modulo.sql             | 2026-07-10 02:42:11.199271+00
+1783651336695   5 | 0004_auditoria.sql                          | 2026-07-10 02:42:11.534752+00
+1783651336696   6 | 0005_sessao_refresh.sql                     | 2026-07-10 02:42:11.85157+00
+1783651336697   7 | 0006_rls_policies.sql                       | 2026-07-10 02:42:12.172438+00
+1783651336698   8 | 0007_seed_papeis_permissoes_modulos.sql     | 2026-07-10 02:42:12.473167+00
+1783651336699   9 | 0008_migracao_empresa_para_usuario.sql      | 2026-07-10 02:42:12.78003+00
+1783651336699  10 | 0009_rls_hardening_indices.sql              | 2026-07-10 02:42:13.190857+00
+1783651336700  11 | 0010_entregador.sql                         | 2026-07-10 02:42:13.486695+00
+1783651336701  12 | 0011_importacao_arquivo.sql                 | 2026-07-10 02:42:13.791349+00
+1783651336702  13 | 0012_importacao_linha_erro.sql              | 2026-07-10 02:42:14.11864+00
+1783651336703  14 | 0013_faturamento_lancamento.sql             | 2026-07-10 02:42:14.471165+00
+1783651336704  15 | 0014_performance_turno.sql                  | 2026-07-10 02:42:14.777212+00
+1783651336705  16 | 0015_rls_importacoes.sql                    | 2026-07-10 02:42:15.122363+00
+1783651336706  17 | 0016_seed_importacoes_exportar.sql          | 2026-07-10 02:42:15.425534+00
+1783651336707  18 | 0017_grant_delete_importacao_linha_erro.sql | 2026-07-10 02:42:15.741611+00
+1783651336708  19 | 0018_dedupe_erro_recuperacao_orfa.sql       | 2026-07-10 02:42:16.041246+00
+1783651336709  20 | 0019_entregador_edicao_manual.sql           | 2026-07-10 02:42:16.354457+00
+1783651336710 (20 rows)
+1783651336711 

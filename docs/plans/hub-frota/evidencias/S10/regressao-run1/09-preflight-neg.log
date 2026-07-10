@@ -1,0 +1,14 @@
+PASS [1] POSTGREST_URL de produção com APP_ENV=homologation → abortou com exit 11 (esperado 11)
+      PREFLIGHT: ABORTADO [11] referência a banco/PostgREST de produção no env-file em APP_ENV=homologation
+PASS [2] domínio moveelog.com.br com APP_ENV=homologation → abortou com exit 12 (esperado 12)
+      PREFLIGHT: ABORTADO [12] domínio de produção (moveelog.com.br) no env-file em APP_ENV=homologation
+PASS [3] N8N_API_TOKEN com hash igual ao fingerprint de produção → abortou com exit 13 (esperado 13)
+      PREFLIGHT: ABORTADO [13] N8N_API_TOKEN tem o MESMO hash de um segredo de produção (fingerprint em /tmp/tmp.XgRQAc9hm8/fp.sha256)
+PASS [4] volume de produção (pgadmin_pg_data) no compose → abortou com exit 14 (esperado 14)
+      PREFLIGHT: ABORTADO [14] recurso nomeado fora da allowlist hub_*: 'pgadmin_pg_data'
+PASS [5] APP_ENV=production com ENVIO_DRY_RUN=true (proteção inversa) → abortou com exit 15 (esperado 15)
+      PREFLIGHT: ABORTADO [15] APP_ENV=production com ENVIO_DRY_RUN=true (config de homolog em produção)
+PASS [6] APP_ENV ausente → abortou com exit 10 (esperado 10)
+      PREFLIGHT: ABORTADO [10] APP_ENV ausente no env-file (obrigatório)
+
+TESTE NEGATIVO: 6/6 combinações perigosas ABORTADAS corretamente

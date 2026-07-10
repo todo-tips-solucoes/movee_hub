@@ -1,0 +1,23 @@
+=== rito anti-starvation: estado do host ANTES ===
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       7.4Gi       442Mi       631Mi       8.3Gi       7.8Gi
+Swap:          8.0Gi       2.6Gi       5.4Gi
+=== rito anti-starvation: OK, prosseguindo ===
+=== reativando usuário admin_plataforma temporário (id=58/65) para a suíte ===
+UPDATE 1
+=== Playwright (mcr.microsoft.com/playwright:v1.61.1-jammy) contra https://hub-homolog.todo-tips.com:8443 (network host + add-host local) ===
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-auditoria-admin/a11y-smoke.spec.ts:101:7 › 6.3 — smoke a11y das telas /auditoria, /usuarios, /usuarios/papeis, /admin › 6.3.1 teclado: Tab/Shift+Tab/Enter/Escape alcançam os controles principais das 4 telas (5.0s)
+  ✓  2 [chromium] › tests/e2e-hub-auditoria-admin/a11y-smoke.spec.ts:166:7 › 6.3 — smoke a11y das telas /auditoria, /usuarios, /usuarios/papeis, /admin › 6.3.2 tema/branding: EntreGô 2.0 em claro/escuro + nomes acessíveis nas 4 telas (1.9s)
+
+  2 passed (7.7s)
+'/var/lib/envioMassa_homologacao/app_homologacao/frontend_v2/tests/e2e-hub-auditoria-admin/.evidencias/6.3.1-tab-walk.json' -> '/var/lib/envioMassa_homologacao/docs/specs/hub-auditoria-admin/evidencias/6.3.1-tab-walk.json'
+'/var/lib/envioMassa_homologacao/app_homologacao/frontend_v2/tests/e2e-hub-auditoria-admin/.evidencias/6.3.2-tema-branding.json' -> '/var/lib/envioMassa_homologacao/docs/specs/hub-auditoria-admin/evidencias/6.3.2-tema-branding.json'
+
+=== log completo: /var/lib/envioMassa_homologacao/docs/specs/hub-auditoria-admin/evidencias/6.3-a11y-smoke-run-20260710T015432Z.log ===
+HUB-AUDITORIA-ADMIN-A11Y-SMOKE: OK
+=== desativando de novo o usuário admin_plataforma temporário (nunca DELETE) ===
+UPDATE 1
+=== reiniciando hub_homolog_backend para descartar cache RBAC de 60s ===

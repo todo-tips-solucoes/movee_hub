@@ -1451,3 +1451,41 @@ hub-auditoria-admin`; spec completa em
 exercitados entre FASE 6.1 e 6.2). PR ainda não aberto — aguarda
 `review-task` + autorização do operador (Governança/Rito de Produção,
 CLAUDE.md).
+
+## 2026-07-10 — S10 (Regressão geral + preparação de cutover) CONCLUÍDA
+
+- **Fechou (execução direta, sem /feature-00c — plano mestre §7):** os 8
+  entregáveis do briefing. (1) Regressão **19/19 verde em execução única**
+  (`regressao-s10.sh`; evidências `evidencias/S10/regressao-run3/`). (2)
+  Dataset sintético de 375 dias (1,50M fat + 1,02M perf, 0 vazamentos,
+  `gen-seeds --synthesize-days 374`). (3) Ensaio de migrations da série
+  0000–0040 do zero (~0,3s/migration) e sob 2,5M linhas (piores: MVs 4,4–5,7s,
+  índices 3,0s; **0 locks bloqueados**; idempotente; banco em DISCO via
+  `compose.hub.s10.yml`). (4) Carga: janela 30d p95 82–178ms; import diário
+  1,0–1,7s (<60s, com refresh de MV); reimport = 409 por arquivo e **+1 exato**
+  por linha nova. (5) `RUNBOOK-CUTOVER.md` completo (P0–P10 go/no-go, mapa por
+  migration com **0033/0034 NUNCA em produção**, 5 gates, observação 24h).
+  (6) Rollback ENSAIADO no hub-homolog (imagem revertida a image-id idêntico +
+  restore validado tabela a tabela). (7) Plano de observação 24h (runbook §11).
+  (8) Evidências em `evidencias/S10/` + este DIARIO.
+- **Achados/correções da regressão (zero bugs de produto):** 4 drifts de teste
+  corrigidos (wrappers paralelos colidindo RUNID → `--test-concurrency=1`;
+  baseline fixa 458 do E2E S8; asserts de Auditoria global da S2 revogados
+  pela 0035; `status=pending` pré-processador na S4); `hub-performance*.test.js`
+  registrados no package.json (S7 esqueceu).
+- **Migration corretiva 0040** (achado do ensaio de rollback): backup não
+  restaurava limpo — `hub_normaliza_nome` (0021) sem schema-qualificar
+  `unaccent()` quebrava o índice trgm no `pg_restore` (search_path vazio).
+  Aplicada no hub_homolog_db (SchemaMigration = 41) e re-validada.
+- **Achado de performance (follow-up, decisão do operador — runbook §11):**
+  com 1 ano de dados, `/motoristas` p95 2,3s (paginação/filtro em JS +
+  `hub_areas_por_entregador` full-scan) e resumos full-window 0,75–1,57s;
+  janela padrão 30d fica em 82–137ms. Melhoria = mudança funcional, fora da S10.
+- **Pendências pré-G3 (operador):** issue #62 (ENVIO_DRY_RUN) recomendada
+  antes do cutover; decisão D5 (retenção da auditoria); aposentadoria pós-
+  cutover das flags `HUB_RBAC_ENVIO`/`HUB_IMPORT_LOG_ENVIO`; linha QA 9001 do
+  0038. **O cutover (G3) é do operador, sob o rito dos 5 gates.**
+- **Ponteiros:** branch `feat/hub-regressao-cutover`; runbook em
+  `docs/plans/hub-frota/RUNBOOK-CUTOVER.md`; drivers novos em
+  `infra/hub/testes/{regressao,ensaio-migrations,carga,ensaio-rollback}-s10.sh`
+  + `infra/hub/compose.hub.s10.yml` + `migrate.sh -t` (uso só de ensaio).

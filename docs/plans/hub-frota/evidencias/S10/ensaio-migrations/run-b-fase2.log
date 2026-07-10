@@ -1,0 +1,226 @@
+1783651475512 pulada (já aplicada): 0000_schema_migration.sql
+1783651475514 pulada (já aplicada): 0001_postgrest_roles.sql
+1783651475516 pulada (já aplicada): 0002_usuario.sql
+1783651475519 pulada (já aplicada): 0003_papel_permissao_modulo.sql
+1783651475521 pulada (já aplicada): 0004_auditoria.sql
+1783651475523 pulada (já aplicada): 0005_sessao_refresh.sql
+1783651475526 pulada (já aplicada): 0006_rls_policies.sql
+1783651475528 pulada (já aplicada): 0007_seed_papeis_permissoes_modulos.sql
+1783651475530 pulada (já aplicada): 0008_migracao_empresa_para_usuario.sql
+1783651475532 pulada (já aplicada): 0009_rls_hardening_indices.sql
+1783651475534 pulada (já aplicada): 0010_entregador.sql
+1783651475537 pulada (já aplicada): 0011_importacao_arquivo.sql
+1783651475539 pulada (já aplicada): 0012_importacao_linha_erro.sql
+1783651475541 pulada (já aplicada): 0013_faturamento_lancamento.sql
+1783651475543 pulada (já aplicada): 0014_performance_turno.sql
+1783651475545 pulada (já aplicada): 0015_rls_importacoes.sql
+1783651475548 pulada (já aplicada): 0016_seed_importacoes_exportar.sql
+1783651475550 pulada (já aplicada): 0017_grant_delete_importacao_linha_erro.sql
+1783651475552 pulada (já aplicada): 0018_dedupe_erro_recuperacao_orfa.sql
+1783651475554 pulada (já aplicada): 0019_entregador_edicao_manual.sql
+1783651475556 aplicando: 0020_fatos_indices_subpraca.sql
+1783651477362 CREATE INDEX
+1783651478234 CREATE INDEX
+1783651478405 aplicando: 0021_conta_motorista.sql
+1783651478592 CREATE EXTENSION
+1783651478612 CREATE EXTENSION
+1783651478621 CREATE TABLE
+1783651478622 CREATE FUNCTION
+1783651478623 CREATE INDEX
+1783651478624 GRANT
+1783651478625 GRANT
+1783651478628 DO
+1783651478629 CREATE INDEX
+1783651478765 aplicando: 0022_empresa_grupo_movee.sql
+1783651478931 CREATE TABLE
+1783651478932 GRANT
+1783651479147 aplicando: 0023_motoristas_rpc_candidatos.sql
+1783651479290 CREATE FUNCTION
+1783651479292 CREATE FUNCTION
+1783651479293 GRANT
+1783651479294 GRANT
+1783651479439 aplicando: 0024_areas_por_entregador.sql
+1783651479581 CREATE VIEW
+1783651479583 GRANT
+1783651479792 aplicando: 0025_entregador_protege_nome_apenas_import.sql
+1783651479943 CREATE FUNCTION
+1783651479945 CREATE FUNCTION
+1783651480097 aplicando: 0026_seed_permissao_faturamento_listar.sql
+1783651480248 INSERT 0 1
+1783651480250 INSERT 0 4
+1783651480414 aplicando: 0027_hub_faturamento_rpc_resumo.sql
+1783651480598 CREATE FUNCTION
+1783651480599 CREATE FUNCTION
+1783651480600 GRANT
+1783651480601 GRANT
+1783651480749 aplicando: 0028_mv_faturamento_dia.sql
+1783651480892 CREATE EXTENSION
+1783651483518 SELECT 766822
+1783651483904 CREATE INDEX
+1783651484628 CREATE INDEX
+1783651485056 CREATE INDEX
+1783651485057 REVOKE
+1783651485058 REVOKE
+1783651485060 REVOKE
+1783651485061 CREATE FUNCTION
+1783651485062 CREATE FUNCTION
+1783651485063 CREATE FUNCTION
+1783651485064 REVOKE
+1783651485065 GRANT
+1783651485066 GRANT
+1783651485068 GRANT
+1783651485232 aplicando: 0029_seed_permissao_performance_listar.sql
+1783651485376 INSERT 0 1
+1783651485378 INSERT 0 4
+1783651485535 aplicando: 0030_hub_performance_rpc_resumo.sql
+1783651485716 CREATE FUNCTION
+1783651485718 CREATE FUNCTION
+1783651485720 GRANT
+1783651485721 GRANT
+1783651485906 aplicando: 0031_mv_performance_dia.sql
+1783651486057 psql:<stdin>:65: NOTICE:  extension "dblink" already exists, skipping
+1783651486058 CREATE EXTENSION
+1783651489817 SELECT 998206
+1783651490379 CREATE INDEX
+1783651491463 CREATE INDEX
+1783651492022 CREATE INDEX
+1783651492023 REVOKE
+1783651492024 REVOKE
+1783651492025 REVOKE
+1783651492027 CREATE FUNCTION
+1783651492028 CREATE FUNCTION
+1783651492029 CREATE FUNCTION
+1783651492030 REVOKE
+1783651492031 GRANT
+1783651492033 GRANT
+1783651492034 GRANT
+1783651492176 aplicando: 0032_seed_permissao_envio_massa_gerenciar.sql
+1783651492320 INSERT 0 1
+1783651492322 INSERT 0 2
+1783651492478 aplicando: 0033_schema_legado_envio_massa.sql
+1783651492614 CREATE TABLE
+1783651492618 CREATE TABLE
+1783651492622 DO
+1783651492624 DO
+1783651492626 CREATE INDEX
+1783651492629 CREATE TABLE
+1783651492631 CREATE INDEX
+1783651492633 CREATE INDEX
+1783651492634 CREATE INDEX
+1783651492639 CREATE TABLE
+1783651492640 CREATE INDEX
+1783651492648 CREATE TABLE
+1783651492649 GRANT
+1783651492651 GRANT
+1783651492652 GRANT
+1783651492654 GRANT
+1783651492655 GRANT
+1783651492657 GRANT
+1783651492658 GRANT
+1783651492660 GRANT
+1783651492661 GRANT
+1783651492663 GRANT
+1783651492664 NOTIFY
+1783651492846 aplicando: 0034_seed_legado_envio_massa_teste.sql
+1783651492982 CREATE EXTENSION
+1783651492992 INSERT 0 1
+1783651493001 INSERT 0 1
+1783651493003  setval 
+1783651493004 --------
+1783651493005    9010
+1783651493007 (1 row)
+1783651493009 
+1783651493010 INSERT 0 1
+1783651493011  setval 
+1783651493013 --------
+1783651493015    9001
+1783651493016 (1 row)
+1783651493018 
+1783651493019 UPDATE 2
+1783651493020 INSERT 0 1
+1783651493022 INSERT 0 1
+1783651493024 INSERT 0 1
+1783651493026 INSERT 0 1
+1783651493027 INSERT 0 1
+1783651493028 INSERT 0 1
+1783651493030 NOTIFY
+1783651493193 aplicando: 0035_auditoria_visao_global.sql
+1783651493362 CREATE FUNCTION
+1783651493363 DROP POLICY
+1783651493364 CREATE POLICY
+1783651493528 aplicando: 0036_moduloentidade_escrita_admin.sql
+1783651493682 DROP POLICY
+1783651493684 CREATE POLICY
+1783651493686 DROP POLICY
+1783651493688 psql:<stdin>:25: NOTICE:  policy "moduloentidade_insert_admin_plataforma" for relation "ModuloEntidade" does not exist, skipping
+1783651493690 CREATE POLICY
+1783651493692 psql:<stdin>:30: NOTICE:  policy "moduloentidade_update_admin_plataforma" for relation "ModuloEntidade" does not exist, skipping
+1783651493694 DROP POLICY
+1783651493696 CREATE POLICY
+1783651493865 aplicando: 0037_rpc_papel_permissao_set.sql
+1783651494026 CREATE FUNCTION
+1783651494028 REVOKE
+1783651494029 GRANT
+1783651494197 aplicando: 0038_seed_modulos_admin_qa.sql
+1783651494351 INSERT 0 0
+1783651494352 INSERT 0 1
+1783651494525 aplicando: 0039_usuarioentidade_escrita_admin.sql
+1783651494662 DROP POLICY
+1783651494664 CREATE POLICY
+1783651494665 psql:<stdin>:46: NOTICE:  policy "usuarioentidade_insert_admin" for relation "UsuarioEntidade" does not exist, skipping
+1783651494667 DROP POLICY
+1783651494668 CREATE POLICY
+1783651494669 DROP POLICY
+1783651494670 psql:<stdin>:58: NOTICE:  policy "usuarioentidade_update_admin" for relation "UsuarioEntidade" does not exist, skipping
+1783651494671 CREATE POLICY
+1783651494818 aplicando: 0040_fix_normaliza_nome_search_path.sql
+1783651494964 CREATE FUNCTION
+1783651495330  Container hub-s10b-1783651300-postgrest-1 Killing 
+1783651495342  Container hub-s10b-1783651300-postgrest-1 Killed 
+1783651495345 PostgREST: SIGUSR1 enviado (reload de schema)
+1783651495346 migrate: concluído (21 aplicadas agora)
+1783651495489  id |                      nome                      |          aplicado_em          
+1783651495491 ----+------------------------------------------------+-------------------------------
+1783651495492   1 | 0000_schema_migration.sql                      | 2026-07-10 02:42:10.126137+00
+1783651495493   2 | 0001_postgrest_roles.sql                       | 2026-07-10 02:42:10.453232+00
+1783651495493   3 | 0002_usuario.sql                               | 2026-07-10 02:42:10.831102+00
+1783651495495   4 | 0003_papel_permissao_modulo.sql                | 2026-07-10 02:42:11.199271+00
+1783651495496   5 | 0004_auditoria.sql                             | 2026-07-10 02:42:11.534752+00
+1783651495497   6 | 0005_sessao_refresh.sql                        | 2026-07-10 02:42:11.85157+00
+1783651495498   7 | 0006_rls_policies.sql                          | 2026-07-10 02:42:12.172438+00
+1783651495500   8 | 0007_seed_papeis_permissoes_modulos.sql        | 2026-07-10 02:42:12.473167+00
+1783651495501   9 | 0008_migracao_empresa_para_usuario.sql         | 2026-07-10 02:42:12.78003+00
+1783651495502  10 | 0009_rls_hardening_indices.sql                 | 2026-07-10 02:42:13.190857+00
+1783651495503  11 | 0010_entregador.sql                            | 2026-07-10 02:42:13.486695+00
+1783651495504  12 | 0011_importacao_arquivo.sql                    | 2026-07-10 02:42:13.791349+00
+1783651495505  13 | 0012_importacao_linha_erro.sql                 | 2026-07-10 02:42:14.11864+00
+1783651495506  14 | 0013_faturamento_lancamento.sql                | 2026-07-10 02:42:14.471165+00
+1783651495507  15 | 0014_performance_turno.sql                     | 2026-07-10 02:42:14.777212+00
+1783651495509  16 | 0015_rls_importacoes.sql                       | 2026-07-10 02:42:15.122363+00
+1783651495510  17 | 0016_seed_importacoes_exportar.sql             | 2026-07-10 02:42:15.425534+00
+1783651495511  18 | 0017_grant_delete_importacao_linha_erro.sql    | 2026-07-10 02:42:15.741611+00
+1783651495513  19 | 0018_dedupe_erro_recuperacao_orfa.sql          | 2026-07-10 02:42:16.041246+00
+1783651495514  20 | 0019_entregador_edicao_manual.sql              | 2026-07-10 02:42:16.354457+00
+1783651495515  21 | 0020_fatos_indices_subpraca.sql                | 2026-07-10 02:44:38.392987+00
+1783651495517  22 | 0021_conta_motorista.sql                       | 2026-07-10 02:44:38.754556+00
+1783651495518  23 | 0022_empresa_grupo_movee.sql                   | 2026-07-10 02:44:39.136541+00
+1783651495519  24 | 0023_motoristas_rpc_candidatos.sql             | 2026-07-10 02:44:39.428946+00
+1783651495520  25 | 0024_areas_por_entregador.sql                  | 2026-07-10 02:44:39.781123+00
+1783651495521  26 | 0025_entregador_protege_nome_apenas_import.sql | 2026-07-10 02:44:40.086551+00
+1783651495522  27 | 0026_seed_permissao_faturamento_listar.sql     | 2026-07-10 02:44:40.403677+00
+1783651495523  28 | 0027_hub_faturamento_rpc_resumo.sql            | 2026-07-10 02:44:40.73542+00
+1783651495524  29 | 0028_mv_faturamento_dia.sql                    | 2026-07-10 02:44:45.219625+00
+1783651495525  30 | 0029_seed_permissao_performance_listar.sql     | 2026-07-10 02:44:45.523637+00
+1783651495526  31 | 0030_hub_performance_rpc_resumo.sql            | 2026-07-10 02:44:45.892726+00
+1783651495527  32 | 0031_mv_performance_dia.sql                    | 2026-07-10 02:44:52.166183+00
+1783651495528  33 | 0032_seed_permissao_envio_massa_gerenciar.sql  | 2026-07-10 02:44:52.467401+00
+1783651495529  34 | 0033_schema_legado_envio_massa.sql             | 2026-07-10 02:44:52.834584+00
+1783651495530  35 | 0034_seed_legado_envio_massa_teste.sql         | 2026-07-10 02:44:53.180784+00
+1783651495531  36 | 0035_auditoria_visao_global.sql                | 2026-07-10 02:44:53.517844+00
+1783651495532  37 | 0036_moduloentidade_escrita_admin.sql          | 2026-07-10 02:44:53.853772+00
+1783651495533  38 | 0037_rpc_papel_permissao_set.sql               | 2026-07-10 02:44:54.186755+00
+1783651495534  39 | 0038_seed_modulos_admin_qa.sql                 | 2026-07-10 02:44:54.514897+00
+1783651495535  40 | 0039_usuarioentidade_escrita_admin.sql         | 2026-07-10 02:44:54.807709+00
+1783651495536  41 | 0040_fix_normaliza_nome_search_path.sql        | 2026-07-10 02:44:55.129008+00
+1783651495537 (41 rows)
+1783651495538 

@@ -1,0 +1,90 @@
+pulada (já aplicada): 0000_schema_migration.sql
+pulada (já aplicada): 0001_postgrest_roles.sql
+pulada (já aplicada): 0002_usuario.sql
+pulada (já aplicada): 0003_papel_permissao_modulo.sql
+pulada (já aplicada): 0004_auditoria.sql
+pulada (já aplicada): 0005_sessao_refresh.sql
+pulada (já aplicada): 0006_rls_policies.sql
+pulada (já aplicada): 0007_seed_papeis_permissoes_modulos.sql
+pulada (já aplicada): 0008_migracao_empresa_para_usuario.sql
+pulada (já aplicada): 0009_rls_hardening_indices.sql
+pulada (já aplicada): 0010_entregador.sql
+pulada (já aplicada): 0011_importacao_arquivo.sql
+pulada (já aplicada): 0012_importacao_linha_erro.sql
+pulada (já aplicada): 0013_faturamento_lancamento.sql
+pulada (já aplicada): 0014_performance_turno.sql
+pulada (já aplicada): 0015_rls_importacoes.sql
+pulada (já aplicada): 0016_seed_importacoes_exportar.sql
+pulada (já aplicada): 0017_grant_delete_importacao_linha_erro.sql
+pulada (já aplicada): 0018_dedupe_erro_recuperacao_orfa.sql
+pulada (já aplicada): 0019_entregador_edicao_manual.sql
+pulada (já aplicada): 0020_fatos_indices_subpraca.sql
+pulada (já aplicada): 0021_conta_motorista.sql
+pulada (já aplicada): 0022_empresa_grupo_movee.sql
+pulada (já aplicada): 0023_motoristas_rpc_candidatos.sql
+pulada (já aplicada): 0024_areas_por_entregador.sql
+pulada (já aplicada): 0025_entregador_protege_nome_apenas_import.sql
+pulada (já aplicada): 0026_seed_permissao_faturamento_listar.sql
+pulada (já aplicada): 0027_hub_faturamento_rpc_resumo.sql
+pulada (já aplicada): 0028_mv_faturamento_dia.sql
+pulada (já aplicada): 0029_seed_permissao_performance_listar.sql
+pulada (já aplicada): 0030_hub_performance_rpc_resumo.sql
+pulada (já aplicada): 0031_mv_performance_dia.sql
+pulada (já aplicada): 0032_seed_permissao_envio_massa_gerenciar.sql
+pulada (já aplicada): 0033_schema_legado_envio_massa.sql
+pulada (já aplicada): 0034_seed_legado_envio_massa_teste.sql
+pulada (já aplicada): 0035_auditoria_visao_global.sql
+pulada (já aplicada): 0036_moduloentidade_escrita_admin.sql
+pulada (já aplicada): 0037_rpc_papel_permissao_set.sql
+pulada (já aplicada): 0038_seed_modulos_admin_qa.sql
+pulada (já aplicada): 0039_usuarioentidade_escrita_admin.sql
+pulada (já aplicada): 0040_fix_normaliza_nome_search_path.sql
+ Container hub-s10b-1783651300-postgrest-1 Killing 
+ Container hub-s10b-1783651300-postgrest-1 Killed 
+PostgREST: SIGUSR1 enviado (reload de schema)
+migrate: concluído (0 aplicadas agora)
+ id |                      nome                      |          aplicado_em          
+----+------------------------------------------------+-------------------------------
+  1 | 0000_schema_migration.sql                      | 2026-07-10 02:42:10.126137+00
+  2 | 0001_postgrest_roles.sql                       | 2026-07-10 02:42:10.453232+00
+  3 | 0002_usuario.sql                               | 2026-07-10 02:42:10.831102+00
+  4 | 0003_papel_permissao_modulo.sql                | 2026-07-10 02:42:11.199271+00
+  5 | 0004_auditoria.sql                             | 2026-07-10 02:42:11.534752+00
+  6 | 0005_sessao_refresh.sql                        | 2026-07-10 02:42:11.85157+00
+  7 | 0006_rls_policies.sql                          | 2026-07-10 02:42:12.172438+00
+  8 | 0007_seed_papeis_permissoes_modulos.sql        | 2026-07-10 02:42:12.473167+00
+  9 | 0008_migracao_empresa_para_usuario.sql         | 2026-07-10 02:42:12.78003+00
+ 10 | 0009_rls_hardening_indices.sql                 | 2026-07-10 02:42:13.190857+00
+ 11 | 0010_entregador.sql                            | 2026-07-10 02:42:13.486695+00
+ 12 | 0011_importacao_arquivo.sql                    | 2026-07-10 02:42:13.791349+00
+ 13 | 0012_importacao_linha_erro.sql                 | 2026-07-10 02:42:14.11864+00
+ 14 | 0013_faturamento_lancamento.sql                | 2026-07-10 02:42:14.471165+00
+ 15 | 0014_performance_turno.sql                     | 2026-07-10 02:42:14.777212+00
+ 16 | 0015_rls_importacoes.sql                       | 2026-07-10 02:42:15.122363+00
+ 17 | 0016_seed_importacoes_exportar.sql             | 2026-07-10 02:42:15.425534+00
+ 18 | 0017_grant_delete_importacao_linha_erro.sql    | 2026-07-10 02:42:15.741611+00
+ 19 | 0018_dedupe_erro_recuperacao_orfa.sql          | 2026-07-10 02:42:16.041246+00
+ 20 | 0019_entregador_edicao_manual.sql              | 2026-07-10 02:42:16.354457+00
+ 21 | 0020_fatos_indices_subpraca.sql                | 2026-07-10 02:44:38.392987+00
+ 22 | 0021_conta_motorista.sql                       | 2026-07-10 02:44:38.754556+00
+ 23 | 0022_empresa_grupo_movee.sql                   | 2026-07-10 02:44:39.136541+00
+ 24 | 0023_motoristas_rpc_candidatos.sql             | 2026-07-10 02:44:39.428946+00
+ 25 | 0024_areas_por_entregador.sql                  | 2026-07-10 02:44:39.781123+00
+ 26 | 0025_entregador_protege_nome_apenas_import.sql | 2026-07-10 02:44:40.086551+00
+ 27 | 0026_seed_permissao_faturamento_listar.sql     | 2026-07-10 02:44:40.403677+00
+ 28 | 0027_hub_faturamento_rpc_resumo.sql            | 2026-07-10 02:44:40.73542+00
+ 29 | 0028_mv_faturamento_dia.sql                    | 2026-07-10 02:44:45.219625+00
+ 30 | 0029_seed_permissao_performance_listar.sql     | 2026-07-10 02:44:45.523637+00
+ 31 | 0030_hub_performance_rpc_resumo.sql            | 2026-07-10 02:44:45.892726+00
+ 32 | 0031_mv_performance_dia.sql                    | 2026-07-10 02:44:52.166183+00
+ 33 | 0032_seed_permissao_envio_massa_gerenciar.sql  | 2026-07-10 02:44:52.467401+00
+ 34 | 0033_schema_legado_envio_massa.sql             | 2026-07-10 02:44:52.834584+00
+ 35 | 0034_seed_legado_envio_massa_teste.sql         | 2026-07-10 02:44:53.180784+00
+ 36 | 0035_auditoria_visao_global.sql                | 2026-07-10 02:44:53.517844+00
+ 37 | 0036_moduloentidade_escrita_admin.sql          | 2026-07-10 02:44:53.853772+00
+ 38 | 0037_rpc_papel_permissao_set.sql               | 2026-07-10 02:44:54.186755+00
+ 39 | 0038_seed_modulos_admin_qa.sql                 | 2026-07-10 02:44:54.514897+00
+ 40 | 0039_usuarioentidade_escrita_admin.sql         | 2026-07-10 02:44:54.807709+00
+ 41 | 0040_fix_normaliza_nome_search_path.sql        | 2026-07-10 02:44:55.129008+00
+(41 rows)
+

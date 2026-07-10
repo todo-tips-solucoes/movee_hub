@@ -156,9 +156,13 @@ async function main() {
     ? Object.prototype.hasOwnProperty.call(rAudA.body[0], 'id_empresa') && Object.prototype.hasOwnProperty.call(rAudA.body[0], 'criado_em')
     : false;
 
-  // (c) linha global (id_empresa IS NULL) sempre visível
+  // (c) linha global (id_empresa IS NULL): desde a 0035 (S9 — visão global de
+  // Auditoria) ela é EXCLUSIVA da claim admin_plataforma; sem a claim -> 0
   const rAudGlobal = await pg(jwtEscopoA, `Auditoria?acao=eq.login_sucesso`);
   out.audit_global_len = Array.isArray(rAudGlobal.body) ? rAudGlobal.body.length : -1;
+  const jwtAdminPlataforma = generateHubPostgrestJWT({ usuarioId: uidA, empresaAtiva: empresaA, escopo: [empresaA], adminPlataforma: true });
+  const rAudGlobalAdmin = await pg(jwtAdminPlataforma, `Auditoria?acao=eq.login_sucesso`);
+  out.audit_global_admin_len = Array.isArray(rAudGlobalAdmin.body) ? rAudGlobalAdmin.body.length : -1;
 
   // (d) ModuloEntidade: escopo=[A] lendo B -> 0; lendo A -> retorna
   const rModB = await pg(jwtEscopoA, `ModuloEntidade?empresa_id=eq.${empresaB}`);
@@ -172,7 +176,8 @@ async function main() {
   const rUeA = await pg(jwtEscopoA, `UsuarioEntidade?usuario_id=eq.${uidA}`);
   out.usuarioentidade_proprio_len = Array.isArray(rUeA.body) ? rUeA.body.length : -1;
 
-  // (f) sem claim nenhuma (só role=authenticated) -> nega tudo (exceto Auditoria NULL)
+  // (f) sem claim nenhuma (só role=authenticated) -> nega tudo (INCLUSIVE a
+  // Auditoria global, desde a 0035 — antes era a única exceção)
   const rSemClaimsAudA = await pg(jwtSemClaims, `Auditoria?id_empresa=eq.${empresaA}`);
   out.sem_claims_audit_a_len = Array.isArray(rSemClaimsAudA.body) ? rSemClaimsAudA.body.length : -1;
   const rSemClaimsAudGlobal = await pg(jwtSemClaims, `Auditoria?acao=eq.login_sucesso`);
@@ -200,13 +205,17 @@ check "(b) Auditoria: acao correta" "$(jval audit_a_acao)" "evento_teste_a"
 check "(g) Auditoria: shape snake_case (id_empresa/criado_em presentes)" "$(jval audit_a_snake_case)" "true"
 check "(g) Auditoria: criado_em é string ISO 8601" "$(jval audit_a_criado_em_tipo)" "string"
 check "(g) Auditoria: detalhes é objeto JSON" "$(jval audit_a_detalhes_tipo)" "object"
-check "(c) Auditoria: linha global (id_empresa NULL) sempre visível" "$(jval audit_global_len)" "1"
+# (c) atualizado na S10: a 0035 (S9, hub-auditoria-admin FR-002/FR-003)
+# restringiu eventos globais à claim admin_plataforma — o "sempre visível"
+# da S2 deixou de ser o contrato vigente.
+check "(c) Auditoria: global SEM claim admin_plataforma -> 0 linhas (0035)" "$(jval audit_global_len)" "0"
+check "(c) Auditoria: global COM claim admin_plataforma -> 1 linha (0035)" "$(jval audit_global_admin_len)" "1"
 check "(d) ModuloEntidade: escopo=[A] lendo B -> 0 linhas" "$(jval modulo_b_len)" "0"
 check "(d) ModuloEntidade: escopo=[A] lendo A -> 1 linha" "$(jval modulo_a_len)" "1"
 check "(e) UsuarioEntidade: sub=A lendo vínculo de B -> 0 linhas" "$(jval usuarioentidade_outro_len)" "0"
 check "(e) UsuarioEntidade: sub=A lendo o próprio -> 1 linha" "$(jval usuarioentidade_proprio_len)" "1"
 check "(f) sem claims: Auditoria escopada (A) -> 0 linhas (nega-por-padrão puro)" "$(jval sem_claims_audit_a_len)" "0"
-check "(f) sem claims: Auditoria global (NULL) ainda visível" "$(jval sem_claims_audit_global_len)" "1"
+check "(f) sem claims: Auditoria global -> 0 linhas (0035 exige admin_plataforma)" "$(jval sem_claims_audit_global_len)" "0"
 check "(f) sem claims: ModuloEntidade -> 0 linhas" "$(jval sem_claims_modulo_len)" "0"
 check "(f) sem claims: UsuarioEntidade -> 0 linhas" "$(jval sem_claims_ue_len)" "0"
 
@@ -224,7 +233,11 @@ const { generateHubPostgrestJWT } = require('./lib/hub-postgrest-jwt');
 async function pgPost(jwt, path, body) {
   const r = await fetch(`http://postgrest:3000/${path}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+    // return=minimal (S10): é o que o código real usa (lib/hub-auditoria.js,
+    // returnMinimal) — desde a 0035 o RETURNING de linha global é barrado
+    // pela policy de SELECT mesmo com o INSERT aceito pelo WITH CHECK (0009),
+    // então return=representation viraria 403 sem nada ter sido negado.
+    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(body),
   });
   return r.status;
@@ -258,6 +271,11 @@ check "(#2) INSERT out-of-scope (id_empresa=B) REJEITADO (status != 201)" "$([ "
 # Confirma no banco que a linha forjada NÃO existe
 N_FORJADO="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='evento_forjado_global'" | tr -d '[:space:]')"
 check "(#2) linha global forjada NÃO foi persistida no banco" "$N_FORJADO" "0"
+
+# Com return=minimal o 201 não devolve corpo — confirma a persistência da
+# linha de auth legítima direto no banco (psql = superuser, sem RLS)
+N_AUTH_GLOBAL="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='login_falha' AND id_empresa IS NULL" | tr -d '[:space:]')"
+check "(#2) linha global de auth legítima FOI persistida (verificação no banco)" "$N_AUTH_GLOBAL" "1"
 
 echo
 if [ "$fails" = "0" ]; then

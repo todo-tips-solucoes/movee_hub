@@ -1,0 +1,484 @@
+
+> backend_homologacao@1.0.0 test:hub:integration
+> node --test --test-concurrency=1 tests/hub-rls-integration.test.js tests/hub-auditoria-integration.test.js tests/hub-importacoes-integration.test.js tests/hub-import-processor-integration.test.js tests/hub-motoristas.test.js tests/hub-faturamento.test.js tests/hub-usuarios.test.js tests/hub-papeis.test.js tests/hub-admin.test.js tests/hub-performance.test.js
+
+TAP version 13
+#  Network hub-test-1783650001_default Creating 
+#  Network hub-test-1783650001_default Created 
+#  Container hub-test-1783650001-db-1 Creating 
+#  Container hub-test-1783650001-db-1 Created 
+#  Container hub-test-1783650001-db-1 Starting 
+#  Container hub-test-1783650001-db-1 Started 
+#  Container hub-test-1783650001-db-1 Waiting 
+#  Container hub-test-1783650001-db-1 Healthy 
+#  Container hub-test-1783650001-db-1 Running 
+#  Container hub-test-1783650001-postgrest-1 Creating 
+#  Container hub-test-1783650001-postgrest-1 Created 
+#  Container hub-test-1783650001-db-1 Waiting 
+#  Container hub-test-1783650001-db-1 Healthy 
+#  Container hub-test-1783650001-postgrest-1 Starting 
+#  Container hub-test-1783650001-postgrest-1 Started 
+#  Container hub-test-1783650001-db-1 Waiting 
+#  Container hub-test-1783650001-postgrest-1 Waiting 
+#  Container hub-test-1783650001-postgrest-1 Healthy 
+#  Container hub-test-1783650001-db-1 Healthy 
+#  Container hub-test-1783650001-mailpit-mock-1 Creating 
+#  Container hub-test-1783650001-mailpit-mock-1 Created 
+#  Container hub-test-1783650001-mailpit-mock-1 Starting 
+#  Container hub-test-1783650001-mailpit-mock-1 Started 
+#  Container hub-test-1783650001-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650001-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650001-db-1 Running 
+#  Container hub-test-1783650001-postgrest-1 Running 
+#  Container hub-test-1783650001-backend-1 Creating 
+#  Container hub-test-1783650001-backend-1 Created 
+#  Container hub-test-1783650001-db-1 Waiting 
+#  Container hub-test-1783650001-db-1 Healthy 
+#  Container hub-test-1783650001-db-1 Waiting 
+#  Container hub-test-1783650001-db-1 Healthy 
+#  Container hub-test-1783650001-backend-1 Starting 
+#  Container hub-test-1783650001-backend-1 Started 
+#  Container hub-test-1783650001-backend-1 Waiting 
+#  Container hub-test-1783650001-db-1 Waiting 
+#  Container hub-test-1783650001-postgrest-1 Waiting 
+#  Container hub-test-1783650001-postgrest-1 Healthy 
+#  Container hub-test-1783650001-db-1 Healthy 
+#  Container hub-test-1783650001-backend-1 Healthy 
+# Subtest: hub-admin-integration.sh — módulos por entidade (efeito imediato, guard anti-lockout, FR-017)
+ok 1 - hub-admin-integration.sh — módulos por entidade (efeito imediato, guard anti-lockout, FR-017)
+  ---
+  duration_ms: 47159.190411
+  type: 'test'
+  ...
+#  Network hub-test-1783650048_default Creating 
+#  Network hub-test-1783650048_default Created 
+#  Container hub-test-1783650048-db-1 Creating 
+#  Container hub-test-1783650048-db-1 Created 
+#  Container hub-test-1783650048-db-1 Starting 
+#  Container hub-test-1783650048-db-1 Started 
+#  Container hub-test-1783650048-db-1 Waiting 
+#  Container hub-test-1783650048-db-1 Healthy 
+#  Container hub-test-1783650048-db-1 Running 
+#  Container hub-test-1783650048-postgrest-1 Creating 
+#  Container hub-test-1783650048-postgrest-1 Created 
+#  Container hub-test-1783650048-db-1 Waiting 
+#  Container hub-test-1783650048-db-1 Healthy 
+#  Container hub-test-1783650048-postgrest-1 Starting 
+#  Container hub-test-1783650048-postgrest-1 Started 
+#  Container hub-test-1783650048-postgrest-1 Waiting 
+#  Container hub-test-1783650048-db-1 Waiting 
+#  Container hub-test-1783650048-db-1 Healthy 
+#  Container hub-test-1783650048-postgrest-1 Healthy 
+#  Container hub-test-1783650048-mailpit-mock-1 Creating 
+#  Container hub-test-1783650048-mailpit-mock-1 Created 
+#  Container hub-test-1783650048-mailpit-mock-1 Starting 
+#  Container hub-test-1783650048-mailpit-mock-1 Started 
+#  Container hub-test-1783650048-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650048-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650048-db-1 Running 
+#  Container hub-test-1783650048-postgrest-1 Running 
+#  Container hub-test-1783650048-backend-1 Creating 
+#  Container hub-test-1783650048-backend-1 Created 
+#  Container hub-test-1783650048-db-1 Waiting 
+#  Container hub-test-1783650048-db-1 Healthy 
+#  Container hub-test-1783650048-db-1 Waiting 
+#  Container hub-test-1783650048-db-1 Healthy 
+#  Container hub-test-1783650048-backend-1 Starting 
+#  Container hub-test-1783650048-backend-1 Started 
+#  Container hub-test-1783650048-postgrest-1 Waiting 
+#  Container hub-test-1783650048-backend-1 Waiting 
+#  Container hub-test-1783650048-db-1 Waiting 
+#  Container hub-test-1783650048-postgrest-1 Healthy 
+#  Container hub-test-1783650048-backend-1 Healthy 
+#  Container hub-test-1783650048-db-1 Healthy 
+# Subtest: hub-auditoria-integration.sh — Auditoria imutável (INSERT ok, UPDATE/DELETE rejeitados)
+ok 2 - hub-auditoria-integration.sh — Auditoria imutável (INSERT ok, UPDATE/DELETE rejeitados)
+  ---
+  duration_ms: 39534.591556
+  type: 'test'
+  ...
+#  Network hub-test-1783650087_default Creating 
+#  Network hub-test-1783650087_default Created 
+#  Container hub-test-1783650087-db-1 Creating 
+#  Container hub-test-1783650087-db-1 Created 
+#  Container hub-test-1783650087-db-1 Starting 
+#  Container hub-test-1783650087-db-1 Started 
+#  Container hub-test-1783650087-db-1 Waiting 
+#  Container hub-test-1783650087-db-1 Healthy 
+#  Container hub-test-1783650087-db-1 Running 
+#  Container hub-test-1783650087-postgrest-1 Creating 
+#  Container hub-test-1783650087-postgrest-1 Created 
+#  Container hub-test-1783650087-db-1 Waiting 
+#  Container hub-test-1783650087-db-1 Healthy 
+#  Container hub-test-1783650087-postgrest-1 Starting 
+#  Container hub-test-1783650087-postgrest-1 Started 
+#  Container hub-test-1783650087-db-1 Waiting 
+#  Container hub-test-1783650087-postgrest-1 Waiting 
+#  Container hub-test-1783650087-postgrest-1 Healthy 
+#  Container hub-test-1783650087-db-1 Healthy 
+#  Container hub-test-1783650087-mailpit-mock-1 Creating 
+#  Container hub-test-1783650087-mailpit-mock-1 Created 
+#  Container hub-test-1783650087-mailpit-mock-1 Starting 
+#  Container hub-test-1783650087-mailpit-mock-1 Started 
+#  Container hub-test-1783650087-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650087-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650087-db-1 Running 
+#  Container hub-test-1783650087-postgrest-1 Running 
+#  Container hub-test-1783650087-backend-1 Creating 
+#  Container hub-test-1783650087-backend-1 Created 
+#  Container hub-test-1783650087-db-1 Waiting 
+#  Container hub-test-1783650087-db-1 Healthy 
+#  Container hub-test-1783650087-db-1 Waiting 
+#  Container hub-test-1783650087-db-1 Healthy 
+#  Container hub-test-1783650087-backend-1 Starting 
+#  Container hub-test-1783650087-backend-1 Started 
+#  Container hub-test-1783650087-backend-1 Waiting 
+#  Container hub-test-1783650087-db-1 Waiting 
+#  Container hub-test-1783650087-postgrest-1 Waiting 
+#  Container hub-test-1783650087-postgrest-1 Healthy 
+#  Container hub-test-1783650087-backend-1 Healthy 
+#  Container hub-test-1783650087-db-1 Healthy 
+# Subtest: hub-faturamento-integration.sh — GET /faturamento (filtros + paginação + isolamento + permissões)
+ok 3 - hub-faturamento-integration.sh — GET /faturamento (filtros + paginação + isolamento + permissões)
+  ---
+  duration_ms: 56639.674058
+  type: 'test'
+  ...
+#  Network hub-test-1783650144_default Creating 
+#  Network hub-test-1783650144_default Created 
+#  Container hub-test-1783650144-db-1 Creating 
+#  Container hub-test-1783650144-db-1 Created 
+#  Container hub-test-1783650144-db-1 Starting 
+#  Container hub-test-1783650144-db-1 Started 
+#  Container hub-test-1783650144-db-1 Waiting 
+#  Container hub-test-1783650144-db-1 Healthy 
+#  Container hub-test-1783650144-db-1 Running 
+#  Container hub-test-1783650144-postgrest-1 Creating 
+#  Container hub-test-1783650144-postgrest-1 Created 
+#  Container hub-test-1783650144-db-1 Waiting 
+#  Container hub-test-1783650144-db-1 Healthy 
+#  Container hub-test-1783650144-postgrest-1 Starting 
+#  Container hub-test-1783650144-postgrest-1 Started 
+#  Container hub-test-1783650144-db-1 Waiting 
+#  Container hub-test-1783650144-postgrest-1 Waiting 
+#  Container hub-test-1783650144-postgrest-1 Healthy 
+#  Container hub-test-1783650144-db-1 Healthy 
+#  Container hub-test-1783650144-mailpit-mock-1 Creating 
+#  Container hub-test-1783650144-mailpit-mock-1 Created 
+#  Container hub-test-1783650144-mailpit-mock-1 Starting 
+#  Container hub-test-1783650144-mailpit-mock-1 Started 
+#  Container hub-test-1783650144-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650144-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650144-db-1 Running 
+#  Container hub-test-1783650144-postgrest-1 Running 
+#  Container hub-test-1783650144-backend-1 Creating 
+#  Container hub-test-1783650144-backend-1 Created 
+#  Container hub-test-1783650144-db-1 Waiting 
+#  Container hub-test-1783650144-db-1 Healthy 
+#  Container hub-test-1783650144-db-1 Waiting 
+#  Container hub-test-1783650144-db-1 Healthy 
+#  Container hub-test-1783650144-backend-1 Starting 
+#  Container hub-test-1783650144-backend-1 Started 
+#  Container hub-test-1783650144-backend-1 Waiting 
+#  Container hub-test-1783650144-db-1 Waiting 
+#  Container hub-test-1783650144-postgrest-1 Waiting 
+#  Container hub-test-1783650144-db-1 Healthy 
+#  Container hub-test-1783650144-postgrest-1 Healthy 
+#  Container hub-test-1783650144-backend-1 Healthy 
+# Subtest: hub-import-processor-integration.sh — processamento em lote (máquina de estados + dedupe + rollback + cancelamento)
+ok 4 - hub-import-processor-integration.sh — processamento em lote (máquina de estados + dedupe + rollback + cancelamento)
+  ---
+  duration_ms: 59124.379308
+  type: 'test'
+  ...
+#  Network hub-test-1783650203_default Creating 
+#  Network hub-test-1783650203_default Created 
+#  Container hub-test-1783650203-db-1 Creating 
+#  Container hub-test-1783650203-db-1 Created 
+#  Container hub-test-1783650203-db-1 Starting 
+#  Container hub-test-1783650203-db-1 Started 
+#  Container hub-test-1783650203-db-1 Waiting 
+#  Container hub-test-1783650203-db-1 Healthy 
+#  Container hub-test-1783650203-db-1 Running 
+#  Container hub-test-1783650203-postgrest-1 Creating 
+#  Container hub-test-1783650203-postgrest-1 Created 
+#  Container hub-test-1783650203-db-1 Waiting 
+#  Container hub-test-1783650203-db-1 Healthy 
+#  Container hub-test-1783650203-postgrest-1 Starting 
+#  Container hub-test-1783650203-postgrest-1 Started 
+#  Container hub-test-1783650203-db-1 Waiting 
+#  Container hub-test-1783650203-postgrest-1 Waiting 
+#  Container hub-test-1783650203-db-1 Healthy 
+#  Container hub-test-1783650203-postgrest-1 Healthy 
+#  Container hub-test-1783650203-mailpit-mock-1 Creating 
+#  Container hub-test-1783650203-mailpit-mock-1 Created 
+#  Container hub-test-1783650203-mailpit-mock-1 Starting 
+#  Container hub-test-1783650203-mailpit-mock-1 Started 
+#  Container hub-test-1783650203-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650203-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650203-db-1 Running 
+#  Container hub-test-1783650203-postgrest-1 Running 
+#  Container hub-test-1783650203-backend-1 Creating 
+#  Container hub-test-1783650203-backend-1 Created 
+#  Container hub-test-1783650203-db-1 Waiting 
+#  Container hub-test-1783650203-db-1 Healthy 
+#  Container hub-test-1783650203-db-1 Waiting 
+#  Container hub-test-1783650203-db-1 Healthy 
+#  Container hub-test-1783650203-backend-1 Starting 
+#  Container hub-test-1783650203-backend-1 Started 
+#  Container hub-test-1783650203-postgrest-1 Waiting 
+#  Container hub-test-1783650203-backend-1 Waiting 
+#  Container hub-test-1783650203-db-1 Waiting 
+#  Container hub-test-1783650203-backend-1 Healthy 
+#  Container hub-test-1783650203-postgrest-1 Healthy 
+#  Container hub-test-1783650203-db-1 Healthy 
+# Subtest: hub-importacoes-integration.sh — POST /importacoes (validações + dedupe + storage + auditoria)
+ok 5 - hub-importacoes-integration.sh — POST /importacoes (validações + dedupe + storage + auditoria)
+  ---
+  duration_ms: 45556.611753
+  type: 'test'
+  ...
+#  Network hub-test-1783650249_default Creating 
+#  Network hub-test-1783650249_default Created 
+#  Container hub-test-1783650249-db-1 Creating 
+#  Container hub-test-1783650249-db-1 Created 
+#  Container hub-test-1783650249-db-1 Starting 
+#  Container hub-test-1783650249-db-1 Started 
+#  Container hub-test-1783650249-db-1 Waiting 
+#  Container hub-test-1783650249-db-1 Healthy 
+#  Container hub-test-1783650249-db-1 Running 
+#  Container hub-test-1783650249-postgrest-1 Creating 
+#  Container hub-test-1783650249-postgrest-1 Created 
+#  Container hub-test-1783650249-db-1 Waiting 
+#  Container hub-test-1783650249-db-1 Healthy 
+#  Container hub-test-1783650249-postgrest-1 Starting 
+#  Container hub-test-1783650249-postgrest-1 Started 
+#  Container hub-test-1783650249-db-1 Waiting 
+#  Container hub-test-1783650249-postgrest-1 Waiting 
+#  Container hub-test-1783650249-postgrest-1 Healthy 
+#  Container hub-test-1783650249-db-1 Healthy 
+#  Container hub-test-1783650249-mailpit-mock-1 Creating 
+#  Container hub-test-1783650249-mailpit-mock-1 Created 
+#  Container hub-test-1783650249-mailpit-mock-1 Starting 
+#  Container hub-test-1783650249-mailpit-mock-1 Started 
+#  Container hub-test-1783650249-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650249-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650249-db-1 Running 
+#  Container hub-test-1783650249-postgrest-1 Running 
+#  Container hub-test-1783650249-backend-1 Creating 
+#  Container hub-test-1783650249-backend-1 Created 
+#  Container hub-test-1783650249-db-1 Waiting 
+#  Container hub-test-1783650249-db-1 Healthy 
+#  Container hub-test-1783650249-db-1 Waiting 
+#  Container hub-test-1783650249-db-1 Healthy 
+#  Container hub-test-1783650249-backend-1 Starting 
+#  Container hub-test-1783650249-backend-1 Started 
+#  Container hub-test-1783650249-db-1 Waiting 
+#  Container hub-test-1783650249-postgrest-1 Waiting 
+#  Container hub-test-1783650249-backend-1 Waiting 
+#  Container hub-test-1783650249-db-1 Healthy 
+#  Container hub-test-1783650249-backend-1 Healthy 
+#  Container hub-test-1783650249-postgrest-1 Healthy 
+# Subtest: hub-motoristas-integration.sh — GET /motoristas + GET /motoristas/:id (filtros + isolamento + detalhe)
+ok 6 - hub-motoristas-integration.sh — GET /motoristas + GET /motoristas/:id (filtros + isolamento + detalhe)
+  ---
+  duration_ms: 68475.20261
+  type: 'test'
+  ...
+#  Network hub-test-1783650317_default Creating 
+#  Network hub-test-1783650317_default Created 
+#  Container hub-test-1783650317-db-1 Creating 
+#  Container hub-test-1783650317-db-1 Created 
+#  Container hub-test-1783650317-db-1 Starting 
+#  Container hub-test-1783650317-db-1 Started 
+#  Container hub-test-1783650317-db-1 Waiting 
+#  Container hub-test-1783650317-db-1 Healthy 
+#  Container hub-test-1783650317-db-1 Running 
+#  Container hub-test-1783650317-postgrest-1 Creating 
+#  Container hub-test-1783650317-postgrest-1 Created 
+#  Container hub-test-1783650317-db-1 Waiting 
+#  Container hub-test-1783650317-db-1 Healthy 
+#  Container hub-test-1783650317-postgrest-1 Starting 
+#  Container hub-test-1783650317-postgrest-1 Started 
+#  Container hub-test-1783650317-db-1 Waiting 
+#  Container hub-test-1783650317-postgrest-1 Waiting 
+#  Container hub-test-1783650317-postgrest-1 Healthy 
+#  Container hub-test-1783650317-db-1 Healthy 
+#  Container hub-test-1783650317-mailpit-mock-1 Creating 
+#  Container hub-test-1783650317-mailpit-mock-1 Created 
+#  Container hub-test-1783650317-mailpit-mock-1 Starting 
+#  Container hub-test-1783650317-mailpit-mock-1 Started 
+#  Container hub-test-1783650317-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650317-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650317-db-1 Running 
+#  Container hub-test-1783650317-postgrest-1 Running 
+#  Container hub-test-1783650317-backend-1 Creating 
+#  Container hub-test-1783650317-backend-1 Created 
+#  Container hub-test-1783650317-db-1 Waiting 
+#  Container hub-test-1783650317-db-1 Healthy 
+#  Container hub-test-1783650317-db-1 Waiting 
+#  Container hub-test-1783650317-db-1 Healthy 
+#  Container hub-test-1783650317-backend-1 Starting 
+#  Container hub-test-1783650317-backend-1 Started 
+#  Container hub-test-1783650317-postgrest-1 Waiting 
+#  Container hub-test-1783650317-backend-1 Waiting 
+#  Container hub-test-1783650317-db-1 Waiting 
+#  Container hub-test-1783650317-backend-1 Healthy 
+#  Container hub-test-1783650317-db-1 Healthy 
+#  Container hub-test-1783650317-postgrest-1 Healthy 
+# Subtest: hub-papeis-integration.sh — matriz papel×permissão (leitura vs edição, guard anti-lockout)
+ok 7 - hub-papeis-integration.sh — matriz papel×permissão (leitura vs edição, guard anti-lockout)
+  ---
+  duration_ms: 45834.767256
+  type: 'test'
+  ...
+#  Network hub-test-1783650363_default Creating 
+#  Network hub-test-1783650363_default Created 
+#  Container hub-test-1783650363-db-1 Creating 
+#  Container hub-test-1783650363-db-1 Created 
+#  Container hub-test-1783650363-db-1 Starting 
+#  Container hub-test-1783650363-db-1 Started 
+#  Container hub-test-1783650363-db-1 Waiting 
+#  Container hub-test-1783650363-db-1 Healthy 
+#  Container hub-test-1783650363-db-1 Running 
+#  Container hub-test-1783650363-postgrest-1 Creating 
+#  Container hub-test-1783650363-postgrest-1 Created 
+#  Container hub-test-1783650363-db-1 Waiting 
+#  Container hub-test-1783650363-db-1 Healthy 
+#  Container hub-test-1783650363-postgrest-1 Starting 
+#  Container hub-test-1783650363-postgrest-1 Started 
+#  Container hub-test-1783650363-postgrest-1 Waiting 
+#  Container hub-test-1783650363-db-1 Waiting 
+#  Container hub-test-1783650363-postgrest-1 Healthy 
+#  Container hub-test-1783650363-db-1 Healthy 
+#  Container hub-test-1783650363-mailpit-mock-1 Creating 
+#  Container hub-test-1783650363-mailpit-mock-1 Created 
+#  Container hub-test-1783650363-mailpit-mock-1 Starting 
+#  Container hub-test-1783650363-mailpit-mock-1 Started 
+#  Container hub-test-1783650363-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650363-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650363-db-1 Running 
+#  Container hub-test-1783650363-postgrest-1 Running 
+#  Container hub-test-1783650363-backend-1 Creating 
+#  Container hub-test-1783650363-backend-1 Created 
+#  Container hub-test-1783650363-db-1 Waiting 
+#  Container hub-test-1783650363-db-1 Healthy 
+#  Container hub-test-1783650363-db-1 Waiting 
+#  Container hub-test-1783650363-db-1 Healthy 
+#  Container hub-test-1783650363-backend-1 Starting 
+#  Container hub-test-1783650363-backend-1 Started 
+#  Container hub-test-1783650363-postgrest-1 Waiting 
+#  Container hub-test-1783650363-backend-1 Waiting 
+#  Container hub-test-1783650363-db-1 Waiting 
+#  Container hub-test-1783650363-backend-1 Healthy 
+#  Container hub-test-1783650363-db-1 Healthy 
+#  Container hub-test-1783650363-postgrest-1 Healthy 
+# Subtest: hub-performance-integration.sh — GET /performance (filtros + paginação + isolamento + permissões)
+ok 8 - hub-performance-integration.sh — GET /performance (filtros + paginação + isolamento + permissões)
+  ---
+  duration_ms: 60924.886914
+  type: 'test'
+  ...
+#  Network hub-test-1783650424_default Creating 
+#  Network hub-test-1783650424_default Created 
+#  Container hub-test-1783650424-db-1 Creating 
+#  Container hub-test-1783650424-db-1 Created 
+#  Container hub-test-1783650424-db-1 Starting 
+#  Container hub-test-1783650424-db-1 Started 
+#  Container hub-test-1783650424-db-1 Waiting 
+#  Container hub-test-1783650424-db-1 Healthy 
+#  Container hub-test-1783650424-db-1 Running 
+#  Container hub-test-1783650424-postgrest-1 Creating 
+#  Container hub-test-1783650424-postgrest-1 Created 
+#  Container hub-test-1783650424-db-1 Waiting 
+#  Container hub-test-1783650424-db-1 Healthy 
+#  Container hub-test-1783650424-postgrest-1 Starting 
+#  Container hub-test-1783650424-postgrest-1 Started 
+#  Container hub-test-1783650424-db-1 Waiting 
+#  Container hub-test-1783650424-postgrest-1 Waiting 
+#  Container hub-test-1783650424-postgrest-1 Healthy 
+#  Container hub-test-1783650424-db-1 Healthy 
+#  Container hub-test-1783650424-mailpit-mock-1 Creating 
+#  Container hub-test-1783650424-mailpit-mock-1 Created 
+#  Container hub-test-1783650424-mailpit-mock-1 Starting 
+#  Container hub-test-1783650424-mailpit-mock-1 Started 
+#  Container hub-test-1783650424-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650424-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650424-db-1 Running 
+#  Container hub-test-1783650424-postgrest-1 Running 
+#  Container hub-test-1783650424-backend-1 Creating 
+#  Container hub-test-1783650424-backend-1 Created 
+#  Container hub-test-1783650424-db-1 Waiting 
+#  Container hub-test-1783650424-db-1 Healthy 
+#  Container hub-test-1783650424-db-1 Waiting 
+#  Container hub-test-1783650424-db-1 Healthy 
+#  Container hub-test-1783650424-backend-1 Starting 
+#  Container hub-test-1783650424-backend-1 Started 
+#  Container hub-test-1783650424-db-1 Waiting 
+#  Container hub-test-1783650424-postgrest-1 Waiting 
+#  Container hub-test-1783650424-backend-1 Waiting 
+#  Container hub-test-1783650424-db-1 Healthy 
+#  Container hub-test-1783650424-postgrest-1 Healthy 
+#  Container hub-test-1783650424-backend-1 Healthy 
+# Subtest: hub-rls-integration.sh — RLS de reforço nega-por-padrão (quickstart Scenario 9)
+ok 9 - hub-rls-integration.sh — RLS de reforço nega-por-padrão (quickstart Scenario 9)
+  ---
+  duration_ms: 42458.572196
+  type: 'test'
+  ...
+#  Network hub-test-1783650467_default Creating 
+#  Network hub-test-1783650467_default Created 
+#  Container hub-test-1783650467-db-1 Creating 
+#  Container hub-test-1783650467-db-1 Created 
+#  Container hub-test-1783650467-db-1 Starting 
+#  Container hub-test-1783650467-db-1 Started 
+#  Container hub-test-1783650467-db-1 Waiting 
+#  Container hub-test-1783650467-db-1 Healthy 
+#  Container hub-test-1783650467-db-1 Running 
+#  Container hub-test-1783650467-postgrest-1 Creating 
+#  Container hub-test-1783650467-postgrest-1 Created 
+#  Container hub-test-1783650467-db-1 Waiting 
+#  Container hub-test-1783650467-db-1 Healthy 
+#  Container hub-test-1783650467-postgrest-1 Starting 
+#  Container hub-test-1783650467-postgrest-1 Started 
+#  Container hub-test-1783650467-db-1 Waiting 
+#  Container hub-test-1783650467-postgrest-1 Waiting 
+#  Container hub-test-1783650467-db-1 Healthy 
+#  Container hub-test-1783650467-postgrest-1 Healthy 
+#  Container hub-test-1783650467-mailpit-mock-1 Creating 
+#  Container hub-test-1783650467-mailpit-mock-1 Created 
+#  Container hub-test-1783650467-mailpit-mock-1 Starting 
+#  Container hub-test-1783650467-mailpit-mock-1 Started 
+#  Container hub-test-1783650467-mailpit-mock-1 Waiting 
+#  Container hub-test-1783650467-mailpit-mock-1 Healthy 
+#  Container hub-test-1783650467-db-1 Running 
+#  Container hub-test-1783650467-postgrest-1 Running 
+#  Container hub-test-1783650467-backend-1 Creating 
+#  Container hub-test-1783650467-backend-1 Created 
+#  Container hub-test-1783650467-db-1 Waiting 
+#  Container hub-test-1783650467-db-1 Healthy 
+#  Container hub-test-1783650467-db-1 Waiting 
+#  Container hub-test-1783650467-db-1 Healthy 
+#  Container hub-test-1783650467-backend-1 Starting 
+#  Container hub-test-1783650467-backend-1 Started 
+#  Container hub-test-1783650467-postgrest-1 Waiting 
+#  Container hub-test-1783650467-backend-1 Waiting 
+#  Container hub-test-1783650467-db-1 Waiting 
+#  Container hub-test-1783650467-db-1 Healthy 
+#  Container hub-test-1783650467-backend-1 Healthy 
+#  Container hub-test-1783650467-postgrest-1 Healthy 
+# Subtest: hub-usuarios-integration.sh — CRUD de usuários/vínculos (SC-004/SC-008, isolamento por entidade)
+ok 10 - hub-usuarios-integration.sh — CRUD de usuários/vínculos (SC-004/SC-008, isolamento por entidade)
+  ---
+  duration_ms: 46531.440144
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 512748.191458

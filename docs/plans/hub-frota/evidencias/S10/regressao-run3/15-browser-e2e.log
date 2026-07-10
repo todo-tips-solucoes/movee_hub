@@ -1,0 +1,78 @@
+=== rito anti-starvation: estado do host ANTES ===
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       7.1Gi       1.0Gi       629Mi       8.0Gi       8.1Gi
+Swap:          8.0Gi       2.6Gi       5.4Gi
+NAME      TYPE SIZE USED PRIO
+/swapfile file   8G 2.6G   -2
+hub_homolog_backend	Up 20 minutes
+hub_homolog_frontend	Up 3 hours
+hub_homolog_mailpit_mock	Up 3 days
+hub_homolog_traefik	Up 2 days
+hub_homolog_backup	Up 4 days
+hub_homolog_postgrest	Up 4 days
+hub_homolog_db	Up 4 days (healthy)
+hub_homolog_fastapi_mock	Up 4 days
+hub_homolog_n8n_mock	Up 4 days
+envio-massa-homologacao_frontend_v2_homologacao.1.frl0fyr9n3n2mfwgkogs4797t	Up 2 weeks
+envio-massa-homologacao_backend_homologacao.1.gvy5zg0zilyuk08v2uk9buj14	Up 2 weeks
+envio-massa-homologacao_frontend_motorista_homologacao.1.y4kmrbz47rdtwuzkz16cambxc	Up 3 weeks
+envio-massa-homologacao_frontend_homologacao.1.ql509s50dod6qfjmt50vjvme8	Up 3 weeks
+=== rito anti-starvation: OK, prosseguindo ===
+=== seeds OK: admin(2 vínculos)=e2e-teste-shell-browser-admin-023518@example.test operador(1 vínculo)=e2e-teste-shell-browser-operador-023518@example.test — módulos ativados p/ 950101/950102 ===
+=== Playwright (mcr.microsoft.com/playwright:v1.61.1-jammy) contra https://hub-homolog.todo-tips.com:8443 (network host + /etc/hosts local) ===
+
+up to date in 878ms
+
+Running 10 tests using 1 worker
+
+AXE_RESULT tela="/hub/login" score=100 violacoes=0 detalhe=[]
+  ✓   1 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:51:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/login (947ms)
+AXE_RESULT tela="/hub/recuperar-senha" score=100 violacoes=0 detalhe=[]
+  ✓   2 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:57:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/recuperar-senha (784ms)
+AXE_RESULT tela="/hub/redefinir-senha" score=100 violacoes=0 detalhe=[]
+  ✓   3 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:63:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/redefinir-senha (785ms)
+AXE_RESULT tela="/selecionar-entidade" score=100 violacoes=0 detalhe=[]
+  ✓   4 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:73:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState admin) › /selecionar-entidade (ramo escolha, 2 vínculos) (806ms)
+AXE_RESULT tela="/hub/dashboard" score=100 violacoes=0 detalhe=[]
+  ✓   5 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:84:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard (904ms)
+AXE_RESULT tela="/hub/dashboard/perfil" score=100 violacoes=0 detalhe=[]
+  ✓   6 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:90:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard/perfil (869ms)
+  ✓   7 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:43:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › admin_entidade › vê os itens exclusivos (usuários + auditoria) (391ms)
+  ✓   8 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:59:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › operador › NÃO vê nenhum dos itens exclusivos (sem auditoria.consultar/usuarios.gerenciar) (427ms)
+  ✓   9 [chromium] › tests/e2e-hub-browser/sessao-expira.spec.ts:29:7 › 6.2.5 — sessão expira em meio de ação (troca de entidade) -> redirect login › corromper accessToken mid-troca-de-entidade força logout e redirect para /hub/login (830ms)
+TROCA_ENTIDADE_TIMING_MS=265
+  ✓  10 [chromium] › tests/e2e-hub-browser/troca-entidade-timing.spec.ts:19:7 › 6.2.3 — troca de entidade reflete em <5s, sem novo login (SC-003) › EntitySwitcher atualiza o rótulo exibido em menos de 5s (634ms)
+
+  10 passed (9.8s)
+'/var/lib/envioMassa_homologacao/app_homologacao/frontend_v2/tests/e2e-hub-browser/.evidencias/6.5.1-modulenav-admin_entidade.png' -> '/var/lib/envioMassa_homologacao/docs/plans/hub-frota/evidencias/S3/6.5.1-modulenav-admin_entidade.png'
+'/var/lib/envioMassa_homologacao/app_homologacao/frontend_v2/tests/e2e-hub-browser/.evidencias/6.5.1-modulenav-operador.png' -> '/var/lib/envioMassa_homologacao/docs/plans/hub-frota/evidencias/S3/6.5.1-modulenav-operador.png'
+
+=== log completo: /var/lib/envioMassa_homologacao/docs/plans/hub-frota/evidencias/S3/fase6-browser-run-20260710T023517Z.log ===
+=== evidências (prints 6.5.1) em: /var/lib/envioMassa_homologacao/docs/plans/hub-frota/evidencias/S3 ===
+HUB-SHELL-E2E-BROWSER: OK — Playwright (6.2.1/6.2.3/6.2.5/6.3) verde
+
+=== cleanup: removendo linhas e2e-teste-shell-browser-* (owner bypassa RLS) ===
+SET
+DELETE 5
+DELETE 2
+DELETE 3
+DELETE 2
+DELETE 18
+=== cleanup: concluído ===
+=== estado do host DEPOIS ===
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       7.2Gi       972Mi       629Mi       8.0Gi       8.0Gi
+Swap:          8.0Gi       2.6Gi       5.4Gi
+hub_homolog_backend	Up 21 minutes
+hub_homolog_frontend	Up 3 hours
+hub_homolog_mailpit_mock	Up 3 days
+hub_homolog_traefik	Up 2 days
+hub_homolog_backup	Up 4 days
+hub_homolog_postgrest	Up 4 days
+hub_homolog_db	Up 4 days (healthy)
+hub_homolog_fastapi_mock	Up 4 days
+hub_homolog_n8n_mock	Up 4 days
+envio-massa-homologacao_frontend_v2_homologacao.1.frl0fyr9n3n2mfwgkogs4797t	Up 2 weeks
+envio-massa-homologacao_backend_homologacao.1.gvy5zg0zilyuk08v2uk9buj14	Up 2 weeks
+envio-massa-homologacao_frontend_motorista_homologacao.1.y4kmrbz47rdtwuzkz16cambxc	Up 3 weeks
+envio-massa-homologacao_frontend_homologacao.1.ql509s50dod6qfjmt50vjvme8	Up 3 weeks

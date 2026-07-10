@@ -1,0 +1,98 @@
+PREFLIGHT: ok — projeto 'hub-test-1783650513' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1783650513, APP_ENV=test)
+subindo db+postgrest+mailpit-mock+backend efêmeros (hub-test-1783650513, tmpfs)…
+ Network hub-test-1783650513_default Creating 
+ Network hub-test-1783650513_default Created 
+ Container hub-test-1783650513-db-1 Creating 
+ Container hub-test-1783650513-db-1 Created 
+ Container hub-test-1783650513-db-1 Starting 
+ Container hub-test-1783650513-db-1 Started 
+ Container hub-test-1783650513-db-1 Waiting 
+ Container hub-test-1783650513-db-1 Healthy 
+ Container hub-test-1783650513-db-1 Running 
+ Container hub-test-1783650513-postgrest-1 Creating 
+ Container hub-test-1783650513-postgrest-1 Created 
+ Container hub-test-1783650513-db-1 Waiting 
+ Container hub-test-1783650513-db-1 Healthy 
+ Container hub-test-1783650513-postgrest-1 Starting 
+ Container hub-test-1783650513-postgrest-1 Started 
+ Container hub-test-1783650513-postgrest-1 Waiting 
+ Container hub-test-1783650513-db-1 Waiting 
+ Container hub-test-1783650513-db-1 Healthy 
+ Container hub-test-1783650513-postgrest-1 Healthy 
+ Container hub-test-1783650513-mailpit-mock-1 Creating 
+ Container hub-test-1783650513-mailpit-mock-1 Created 
+ Container hub-test-1783650513-mailpit-mock-1 Starting 
+ Container hub-test-1783650513-mailpit-mock-1 Started 
+ Container hub-test-1783650513-mailpit-mock-1 Waiting 
+ Container hub-test-1783650513-mailpit-mock-1 Healthy 
+ Container hub-test-1783650513-db-1 Running 
+ Container hub-test-1783650513-postgrest-1 Running 
+ Container hub-test-1783650513-backend-1 Creating 
+ Container hub-test-1783650513-backend-1 Created 
+ Container hub-test-1783650513-db-1 Waiting 
+ Container hub-test-1783650513-db-1 Healthy 
+ Container hub-test-1783650513-db-1 Waiting 
+ Container hub-test-1783650513-db-1 Healthy 
+ Container hub-test-1783650513-backend-1 Starting 
+ Container hub-test-1783650513-backend-1 Started 
+ Container hub-test-1783650513-backend-1 Waiting 
+ Container hub-test-1783650513-db-1 Waiting 
+ Container hub-test-1783650513-postgrest-1 Waiting 
+ Container hub-test-1783650513-postgrest-1 Healthy 
+ Container hub-test-1783650513-db-1 Healthy 
+ Container hub-test-1783650513-backend-1 Healthy 
+rodando migrate.sh (0002..0008, INCLUSIVE 0006/RLS — FASE 5 já implementada)…
+PASS: login senha errada -> 401
+PASS: login e-mail inexistente -> 401
+PASS: FR-015: corpos idênticos (senha errada == email inexistente)
+PASS: login correto -> 200
+PASS: login correto -> usuario.email correto
+PASS: login correto -> cookie accessToken setado
+PASS: login correto -> cookie refreshToken setado
+PASS: refresh -> 200
+PASS: refresh -> rotaciona (novo token != antigo)
+PASS: replay de refresh já rotacionado -> 401 (Decision 9)
+PASS: logout -> 200
+PASS: refresh pós-logout -> 401 (sessão revogada não renova, FR-018)
+PASS: Auditoria: evento 'logout' gravado com usuario_id correto
+PASS: 5ª falha consecutiva (completa o limiar) -> 401
+PASS: bloqueado_ate setado no banco após 5ª falha
+PASS: 6ª tentativa (nova, pós-bloqueio) com senha CORRETA -> 423 CONTA_BLOQUEADA
+PASS: login correto após janela expirar -> 200 (reset)
+PASS: tentativas_login resetado a 0 após login correto
+PASS: FR-020: recuperar-senha resposta idêntica (existe vs não existe)
+PASS: token de recuperação extraído do mock mailpit
+PASS: token_recuperacao_expira setado no banco
+PASS: redefinir-senha com token válido -> 200
+PASS: token_recuperacao_hash invalidado (NULL) após uso (single-use)
+PASS: reuso do token de recuperação (single-use) -> 400
+PASS: FR-022/SC-007: nenhuma SessaoRefresh ativa após redefinir-senha
+PASS: login com a NOVA senha pós-redefinição -> 200
+PASS: (#3) conta bloqueada: login com senha correta -> 423 (antes de redefinir)
+PASS: (#3) token de recuperação extraído (reset-bloqueio)
+PASS: (#3) redefinir-senha (conta bloqueada) -> 200
+PASS: (#3) após redefinir: bloqueado_ate=NULL e tentativas_login=0 (desbloqueio)
+PASS: (#3) login com a nova senha após redefinir conta bloqueada -> 200 (não 423)
+PASS: (#4) conta inativa + senha correta -> 401 (uniforme, sem vazar motivo)
+PASS: (#4) conta inativa: bloqueado_ate=NULL e tentativas_login=0 após 5 tentativas
+PASS: (#5) 2 devices logados -> 2 sessões ativas
+PASS: (#5) refresh do device 1 (sessão expirada) -> 401
+PASS: (#5) sessão do device 2 continua ATIVA (expiração benigna não revoga a família)
+PASS: (#5) refresh do device 2 (sessão ativa) -> 200 (não foi deslogado pelo device 1)
+PASS: Auditoria contém >=1 evento 'login_sucesso' (usuario_id=1)
+PASS: Auditoria contém >=1 evento 'login_falha' (usuario_id=2)
+PASS: Auditoria contém >=1 evento 'recuperacao_senha_solicitada' (usuario_id=3)
+PASS: Auditoria contém >=1 evento 'senha_redefinida' (usuario_id=3)
+PASS: Auditoria continua imutável (trigger 0004 ainda ativo)
+
+HUB-AUTH-INTEGRATION: OK — todos os asserts passaram (FASE 3: 3.1/3.2/3.3)

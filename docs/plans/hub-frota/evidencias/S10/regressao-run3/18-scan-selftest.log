@@ -1,0 +1,13 @@
+self-test: inserindo 4 linhas sintéticas (3 sensíveis + 1 limpa) em transação com ROLLBACK…
+BEGIN
+INSERT 0 4
+639|scan_self_test_cpf|ScanSelfTest
+640|scan_self_test_cnpj|ScanSelfTest
+641|scan_self_test_email|ScanSelfTest
+ROLLBACK
+PASS: CPF sintético detectado
+PASS: CNPJ sintético detectado
+PASS: e-mail sintético detectado
+PASS: linha limpa NÃO sinalizada (sem falso-positivo)
+self-test: ROLLBACK confirmado — nenhuma linha sintética persistida
+SCAN-AUDITORIA-SENSIVEL SELF-TEST: OK

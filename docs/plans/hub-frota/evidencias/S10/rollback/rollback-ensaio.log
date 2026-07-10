@@ -1,0 +1,59 @@
+═ 1. ANTES (baseline)
+backend image-id ANTES: sha256:4a45e672a085b5c3af84af3a8c2b6348e8cea6da60e5b3e2781d67f241e38b82
+smoke ANTES: HTTP 200
+contagens ANTES:
+Usuario=6
+Auditoria=208
+ImportacaoArquivo=10
+FaturamentoLancamento=221
+
+═ 2. Backup real (backup.sh)
+-rw-r--r-- 1 root root 164356 Jul 10 03:59 /backups/hub_homolog_manual_20260710_035903.dump
+backup manual concluído: /backups/${PGDATABASE}_manual_20260710_035903.dump (no volume de backups do projeto hub-homolog)
+PASS: backup.sh concluiu sem erro
+
+═ 3. Restore TESTADO (restore.sh — banco hub_restore + comparação de contagens)
+restaurando: /backups/hub_homolog_manual_20260710_035903.dump
+NOTICE:  database "hub_restore" does not exist, skipping
+  OK  Auditoria: origem=208 restore=208
+  OK  ContaMotorista: origem=20 restore=20
+  OK  Empresa: origem=2 restore=2
+  OK  EmpresaGrupoMovee: origem=1 restore=1
+  OK  Entregador: origem=214 restore=214
+  OK  EnvioMassa: origem=3 restore=3
+  OK  FaturamentoLancamento: origem=221 restore=221
+  OK  Grupo: origem=1 restore=1
+  OK  ImportacaoArquivo: origem=10 restore=10
+  OK  ImportacaoLinhaErro: origem=0 restore=0
+  OK  Modulo: origem=9 restore=9
+  OK  ModuloEntidade: origem=14 restore=14
+  OK  Motorista: origem=2 restore=2
+  OK  Papel: origem=4 restore=4
+  OK  PapelPermissao: origem=87 restore=87
+  OK  PerformanceTurno: origem=17 restore=17
+  OK  Permissao: origem=31 restore=31
+  OK  ProcessControl: origem=1 restore=1
+  OK  SchemaMigration: origem=41 restore=41
+  OK  SessaoRefresh: origem=86 restore=86
+  OK  Usuario: origem=6 restore=6
+  OK  UsuarioEntidade: origem=6 restore=6
+RESTORE OK: contagens iguais em todas as tabelas
+PASS: restore testado (contagens conferidas pelo restore.sh)
+
+═ 4. Deploy simulado de imagem NOVA (FROM atual + LABEL, tag hub-backend:ensaio-nova)
+backend image-id com a 'nova': sha256:638f7b04b009ae28d2163c13cbb1f89cf87b958733a7397a43f60449a40f9b6a
+PASS: imagem efetivamente trocada
+smoke com a 'nova': HTTP 200
+
+═ 5. ROLLBACK (voltar a imagem anterior — equivalente compose do service update --image <anterior>)
+backend image-id DEPOIS do rollback: sha256:4a45e672a085b5c3af84af3a8c2b6348e8cea6da60e5b3e2781d67f241e38b82
+PASS: rollback devolve exatamente o image-id anterior
+PASS: smoke pós-rollback = 200
+contagens DEPOIS:
+Usuario=6
+Auditoria=208
+ImportacaoArquivo=10
+FaturamentoLancamento=221
+PASS: contagens do banco preservadas pós-rollback (nenhum dado tocado)
+
+ENSAIO-ROLLBACK-S10: OK — imagem revertida + restore testado, ambiente íntegro

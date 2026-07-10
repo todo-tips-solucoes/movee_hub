@@ -1,0 +1,4262 @@
+
+> backend_homologacao@1.0.0 test
+> node --test tests/motorista-unit.test.js tests/motorista-integration.test.js tests/hub-auth-unit.test.js tests/hub-rbac-unit.test.js tests/hub-auditoria-unit.test.js tests/hub-postgrest-jwt-unit.test.js tests/hub-postgrest-unit.test.js tests/hub-import-parser.test.js tests/hub-import-normalizer.test.js tests/hub-import-hash.test.js tests/hub-import-storage-unit.test.js tests/hub-importacoes-unit.test.js tests/hub-import-processor.test.js tests/hub-importacoes-dto.test.js tests/hub-motoristas-dto.test.js tests/hub-motoristas-similaridade.test.js tests/hub-csv.test.js tests/hub-faturamento-dto.test.js tests/hub-envio-massa-claims-unit.test.js tests/hub-envio-massa-permission-unit.test.js tests/hub-envio-massa-import-log-unit.test.js tests/hub-me-auditoria-query-unit.test.js tests/hub-rbac-admin-plataforma-unit.test.js tests/hub-require-modulo-unit.test.js tests/hub-usuarios-unit.test.js
+
+TAP version 13
+# Subtest: scrubDetalhes (FR-025)
+    # Subtest: remove chave "senha" por completo (nunca mascarada)
+    ok 1 - remove chave "senha" por completo (nunca mascarada)
+      ---
+      duration_ms: 1.143938
+      type: 'test'
+      ...
+    # Subtest: remove variações: password, pass, hash, token, secret, segredo (case-insensitive)
+    ok 2 - remove variações: password, pass, hash, token, secret, segredo (case-insensitive)
+      ---
+      duration_ms: 0.80567
+      type: 'test'
+      ...
+    # Subtest: objeto vazio/null/undefined -> {}
+    ok 3 - objeto vazio/null/undefined -> {}
+      ---
+      duration_ms: 0.161525
+      type: 'test'
+      ...
+    # Subtest: não-objeto (string/number) -> {} (defesa contra chamada incorreta)
+    ok 4 - não-objeto (string/number) -> {} (defesa contra chamada incorreta)
+      ---
+      duration_ms: 1.23889
+      type: 'test'
+      ...
+    # Subtest: preserva chaves legítimas cujo VALOR não casa nenhum padrão sensível
+    ok 5 - preserva chaves legítimas cujo VALOR não casa nenhum padrão sensível
+      ---
+      duration_ms: 0.35994
+      type: 'test'
+      ...
+    # Subtest: chave que CONTÉM substring proibida no meio é removida (ex.: "novaSenhaHash")
+    ok 6 - chave que CONTÉM substring proibida no meio é removida (ex.: "novaSenhaHash")
+      ---
+      duration_ms: 0.168057
+      type: 'test'
+      ...
+    1..6
+ok 1 - scrubDetalhes (FR-025)
+  ---
+  duration_ms: 5.00687
+  type: 'suite'
+  ...
+# Subtest: scrubDetalhes — checagem por padrão sensível no VALOR (CHK006/SC-006)
+    # Subtest: chave "email" com valor de e-mail é OMITIDA (diverge da leitura anterior — Decisão 2.3.2)
+    ok 1 - chave "email" com valor de e-mail é OMITIDA (diverge da leitura anterior — Decisão 2.3.2)
+      ---
+      duration_ms: 0.383013
+      type: 'test'
+      ...
+    # Subtest: chave de nome inócuo com e-mail embutido no valor é OMITIDA (o gap real do CHK006)
+    ok 2 - chave de nome inócuo com e-mail embutido no valor é OMITIDA (o gap real do CHK006)
+      ---
+      duration_ms: 0.295278
+      type: 'test'
+      ...
+    # Subtest: CPF formatado (123.456.789-01) no valor é OMITIDO
+    ok 3 - CPF formatado (123.456.789-01) no valor é OMITIDO
+      ---
+      duration_ms: 0.332277
+      type: 'test'
+      ...
+    # Subtest: CPF sem formatação (12345678901) no valor é OMITIDO
+    ok 4 - CPF sem formatação (12345678901) no valor é OMITIDO
+      ---
+      duration_ms: 0.293415
+      type: 'test'
+      ...
+    # Subtest: CNPJ formatado (12.345.678/0001-95) no valor é OMITIDO
+    ok 5 - CNPJ formatado (12.345.678/0001-95) no valor é OMITIDO
+      ---
+      duration_ms: 0.174739
+      type: 'test'
+      ...
+    # Subtest: CNPJ sem formatação (12345678000195) no valor é OMITIDO
+    ok 6 - CNPJ sem formatação (12345678000195) no valor é OMITIDO
+      ---
+      duration_ms: 0.199005
+      type: 'test'
+      ...
+    # Subtest: valor sem NENHUM padrão sensível é preservado integralmente
+    ok 7 - valor sem NENHUM padrão sensível é preservado integralmente
+      ---
+      duration_ms: 0.247117
+      type: 'test'
+      ...
+    # Subtest: valor não-string (number/boolean/array) nunca é testado contra os regex — preservado
+    ok 8 - valor não-string (number/boolean/array) nunca é testado contra os regex — preservado
+      ---
+      duration_ms: 0.168778
+      type: 'test'
+      ...
+    # Subtest: valorContemPadraoSensivel: true para CPF/CNPJ/e-mail, false para texto neutro
+    ok 9 - valorContemPadraoSensivel: true para CPF/CNPJ/e-mail, false para texto neutro
+      ---
+      duration_ms: 0.168698
+      type: 'test'
+      ...
+    1..9
+ok 2 - scrubDetalhes — checagem por padrão sensível no VALOR (CHK006/SC-006)
+  ---
+  duration_ms: 2.904072
+  type: 'suite'
+  ...
+# Subtest: normalizarEmail
+    # Subtest: trima e faz lowercase
+    ok 1 - trima e faz lowercase
+      ---
+      duration_ms: 0.783097
+      type: 'test'
+      ...
+    # Subtest: undefined/null vira string vazia
+    ok 2 - undefined/null vira string vazia
+      ---
+      duration_ms: 0.154542
+      type: 'test'
+      ...
+    1..2
+ok 3 - normalizarEmail
+  ---
+  duration_ms: 1.898383
+  type: 'suite'
+  ...
+# Subtest: formatoEmailValido
+    # Subtest: aceita formato válido
+    ok 1 - aceita formato válido
+      ---
+      duration_ms: 0.30234
+      type: 'test'
+      ...
+    # Subtest: rejeita sem @ ou sem domínio
+    ok 2 - rejeita sem @ ou sem domínio
+      ---
+      duration_ms: 0.221178
+      type: 'test'
+      ...
+    1..2
+ok 4 - formatoEmailValido
+  ---
+  duration_ms: 0.714799
+  type: 'suite'
+  ...
+# Subtest: hashToken
+    # Subtest: é determinístico (mesmo input -> mesmo hash)
+    ok 1 - é determinístico (mesmo input -> mesmo hash)
+      ---
+      duration_ms: 0.562011
+      type: 'test'
+      ...
+    # Subtest: produz sha256 hex (64 chars)
+    ok 2 - produz sha256 hex (64 chars)
+      ---
+      duration_ms: 0.384245
+      type: 'test'
+      ...
+    # Subtest: inputs diferentes produzem hashes diferentes
+    ok 3 - inputs diferentes produzem hashes diferentes
+      ---
+      duration_ms: 0.393614
+      type: 'test'
+      ...
+    1..3
+ok 5 - hashToken
+  ---
+  duration_ms: 1.676996
+  type: 'suite'
+  ...
+# Subtest: gerarTokenBruto
+    # Subtest: produz 256 bits de entropia (32 bytes -> 64 hex chars)
+    ok 1 - produz 256 bits de entropia (32 bytes -> 64 hex chars)
+      ---
+      duration_ms: 0.41791
+      type: 'test'
+      ...
+    # Subtest: é único a cada chamada (sem colisão em 1000 amostras)
+    ok 2 - é único a cada chamada (sem colisão em 1000 amostras)
+      ---
+      duration_ms: 5.893514
+      type: 'test'
+      ...
+    1..2
+ok 6 - gerarTokenBruto
+  ---
+  duration_ms: 7.823637
+  type: 'suite'
+  ...
+# Subtest: calcularBloqueioAposFalha
+    # Subtest: 1ª a 4ª falha: incrementa sem bloquear
+    ok 1 - 1ª a 4ª falha: incrementa sem bloquear
+      ---
+      duration_ms: 0.411396
+      type: 'test'
+      ...
+    # Subtest: 5ª falha consecutiva: bloqueia por 15 minutos
+    ok 2 - 5ª falha consecutiva: bloqueia por 15 minutos
+      ---
+      duration_ms: 0.389375
+      type: 'test'
+      ...
+    # Subtest: falhas além da 5ª continuam bloqueando (idempotente na direção certa)
+    ok 3 - falhas além da 5ª continuam bloqueando (idempotente na direção certa)
+      ---
+      duration_ms: 0.119445
+      type: 'test'
+      ...
+    1..3
+ok 7 - calcularBloqueioAposFalha
+  ---
+  duration_ms: 1.068077
+  type: 'suite'
+  ...
+# Subtest: contaEstaBloqueada
+    # Subtest: sem bloqueado_ate -> não bloqueada
+    ok 1 - sem bloqueado_ate -> não bloqueada
+      ---
+      duration_ms: 0.201662
+      type: 'test'
+      ...
+    # Subtest: bloqueado_ate no futuro -> bloqueada
+    ok 2 - bloqueado_ate no futuro -> bloqueada
+      ---
+      duration_ms: 0.114166
+      type: 'test'
+      ...
+    # Subtest: bloqueado_ate no passado -> não bloqueada (janela expirou)
+    ok 3 - bloqueado_ate no passado -> não bloqueada (janela expirou)
+      ---
+      duration_ms: 0.103896
+      type: 'test'
+      ...
+    1..3
+ok 8 - contaEstaBloqueada
+  ---
+  duration_ms: 0.529831
+  type: 'suite'
+  ...
+# Subtest: entradaLoginValida (\#6 — senha/email não-string vira 401, nunca 500)
+    # Subtest: senha numérica é rejeitada (não chega ao bcrypt.compare)
+    ok 1 - senha numérica é rejeitada (não chega ao bcrypt.compare)
+      ---
+      duration_ms: 0.161285
+      type: 'test'
+      ...
+    # Subtest: email não-string é rejeitado
+    ok 2 - email não-string é rejeitado
+      ---
+      duration_ms: 0.093457
+      type: 'test'
+      ...
+    # Subtest: senha string vazia é rejeitada
+    ok 3 - senha string vazia é rejeitada
+      ---
+      duration_ms: 0.082456
+      type: 'test'
+      ...
+    # Subtest: email formato inválido é rejeitado mesmo com senha string
+    ok 4 - email formato inválido é rejeitado mesmo com senha string
+      ---
+      duration_ms: 0.087094
+      type: 'test'
+      ...
+    # Subtest: email + senha string válidos -> true
+    ok 5 - email + senha string válidos -> true
+      ---
+      duration_ms: 0.117421
+      type: 'test'
+      ...
+    1..5
+ok 9 - entradaLoginValida (\#6 — senha/email não-string vira 401, nunca 500)
+  ---
+  duration_ms: 0.73123
+  type: 'suite'
+  ...
+# Subtest: classificarCredencial (\#4 — conta inativa não acumula bloqueio)
+    # Subtest: conta inativa (mesmo com senha correta) -> "inativa" (sem contabilizar falha)
+    ok 1 - conta inativa (mesmo com senha correta) -> "inativa" (sem contabilizar falha)
+      ---
+      duration_ms: 0.142878
+      type: 'test'
+      ...
+    # Subtest: conta inativa com senha errada -> "inativa" (também não incrementa)
+    ok 2 - conta inativa com senha errada -> "inativa" (também não incrementa)
+      ---
+      duration_ms: 0.094508
+      type: 'test'
+      ...
+    # Subtest: conta ativa + senha errada -> "senha_incorreta" (contabiliza falha, FR-017)
+    ok 3 - conta ativa + senha errada -> "senha_incorreta" (contabiliza falha, FR-017)
+      ---
+      duration_ms: 0.081293
+      type: 'test'
+      ...
+    # Subtest: conta ativa + senha correta -> "sucesso"
+    ok 4 - conta ativa + senha correta -> "sucesso"
+      ---
+      duration_ms: 0.086313
+      type: 'test'
+      ...
+    1..4
+ok 10 - classificarCredencial (\#4 — conta inativa não acumula bloqueio)
+  ---
+  duration_ms: 0.522856
+  type: 'suite'
+  ...
+# Subtest: classificarSessaoRefresh (\#5 — expiração natural não revoga a família)
+    # Subtest: sessão revogada reapresentada -> "reuso" (revoga família toda)
+    ok 1 - sessão revogada reapresentada -> "reuso" (revoga família toda)
+      ---
+      duration_ms: 0.146607
+      type: 'test'
+      ...
+    # Subtest: sessão ainda ativa mas expira_em no passado -> "expirada" (benigna, só este device)
+    ok 2 - sessão ainda ativa mas expira_em no passado -> "expirada" (benigna, só este device)
+      ---
+      duration_ms: 0.158389
+      type: 'test'
+      ...
+    # Subtest: reuso tem precedência sobre expiração (revogada E expirada -> "reuso")
+    ok 3 - reuso tem precedência sobre expiração (revogada E expirada -> "reuso")
+      ---
+      duration_ms: 0.091833
+      type: 'test'
+      ...
+    # Subtest: sessão ativa e dentro da validade -> "valida"
+    ok 4 - sessão ativa e dentro da validade -> "valida"
+      ---
+      duration_ms: 0.088397
+      type: 'test'
+      ...
+    1..4
+ok 11 - classificarSessaoRefresh (\#5 — expiração natural não revoga a família)
+  ---
+  duration_ms: 0.605314
+  type: 'suite'
+  ...
+# Subtest: patchRedefinicaoSenha (\#3 — redefinir senha desbloqueia a conta)
+    # Subtest: zera tentativas_login e bloqueado_ate (além de invalidar o token)
+    ok 1 - zera tentativas_login e bloqueado_ate (além de invalidar o token)
+      ---
+      duration_ms: 3.020973
+      type: 'test'
+      ...
+    1..1
+ok 12 - patchRedefinicaoSenha (\#3 — redefinir senha desbloqueia a conta)
+  ---
+  duration_ms: 3.119639
+  type: 'suite'
+  ...
+# Subtest: escaparCelulaCsvInjection (FR-016/CHK017, FR-007 hub-faturamento)
+    # Subtest: prefixa aspas simples em células iniciadas por = + - @
+    ok 1 - prefixa aspas simples em células iniciadas por = + - @
+      ---
+      duration_ms: 0.859993
+      type: 'test'
+      ...
+    # Subtest: células normais passam intactas
+    ok 2 - células normais passam intactas
+      ---
+      duration_ms: 0.163909
+      type: 'test'
+      ...
+    # Subtest: null/undefined/vazio -> string vazia, sem lançar
+    ok 3 - null/undefined/vazio -> string vazia, sem lançar
+      ---
+      duration_ms: 0.205598
+      type: 'test'
+      ...
+    # Subtest: CHK029: célula já iniciada por apóstrofo — um único apóstrofo, nunca dois (sem dupla neutralização)
+    ok 4 - CHK029: célula já iniciada por apóstrofo — um único apóstrofo, nunca dois (sem dupla neutralização)
+      ---
+      duration_ms: 0.211018
+      type: 'test'
+      ...
+    # Subtest: CHK029: célula iniciada por outro caractere neutro (fora de = + - @) — preservada tal como veio
+    ok 5 - CHK029: célula iniciada por outro caractere neutro (fora de = + - @) — preservada tal como veio
+      ---
+      duration_ms: 0.203285
+      type: 'test'
+      ...
+    1..5
+ok 13 - escaparCelulaCsvInjection (FR-016/CHK017, FR-007 hub-faturamento)
+  ---
+  duration_ms: 3.801565
+  type: 'suite'
+  ...
+# Subtest: quotarCelulaCsv (RFC 4180)
+    # Subtest: célula com vírgula é envolvida em aspas duplas
+    ok 1 - célula com vírgula é envolvida em aspas duplas
+      ---
+      duration_ms: 0.36497
+      type: 'test'
+      ...
+    # Subtest: célula com aspas duplas internas é quotada e escapada ("" )
+    ok 2 - célula com aspas duplas internas é quotada e escapada ("" )
+      ---
+      duration_ms: 0.61433
+      type: 'test'
+      ...
+    # Subtest: célula com quebra de linha (CR/LF) é quotada
+    ok 3 - célula com quebra de linha (CR/LF) é quotada
+      ---
+      duration_ms: 0.285989
+      type: 'test'
+      ...
+    # Subtest: célula sem caractere especial passa intacta (sem aspas)
+    ok 4 - célula sem caractere especial passa intacta (sem aspas)
+      ---
+      duration_ms: 0.282233
+      type: 'test'
+      ...
+    1..4
+ok 14 - quotarCelulaCsv (RFC 4180)
+  ---
+  duration_ms: 1.979006
+  type: 'suite'
+  ...
+# [hub-envio-massa-claims] falha ao resolver grupo da entidade ativa (502 ADAPTADOR_INDISPONIVEL): ECONNREFUSED
+# Subtest: hub-envio-massa-claims — hubEnvioMassaClaimsBridge
+    # Subtest: ramo 1: sub presente, entidade_ativa ausente -> 403 SEM_ENTIDADE_ATIVA, sem next()
+    ok 1 - ramo 1: sub presente, entidade_ativa ausente -> 403 SEM_ENTIDADE_ATIVA, sem next()
+      ---
+      duration_ms: 1.549595
+      type: 'test'
+      ...
+    # Subtest: ramo 1: sub + entidade_ativa OK, sem grupo -> reescreve req.user + req.hubContext, next()
+    ok 2 - ramo 1: sub + entidade_ativa OK, sem grupo -> reescreve req.user + req.hubContext, next()
+      ---
+      duration_ms: 3.177739
+      type: 'test'
+      ...
+    # Subtest: ramo 1: sub + entidade_ativa, id_grupo presente e é pai -> is_grupo_pai=true, id_grupo=Grupo.id
+    ok 3 - ramo 1: sub + entidade_ativa, id_grupo presente e é pai -> is_grupo_pai=true, id_grupo=Grupo.id
+      ---
+      duration_ms: 1.139481
+      type: 'test'
+      ...
+    # Subtest: ramo 1: sub + entidade_ativa, id_grupo presente mas NÃO é pai -> is_grupo_pai=false, id_grupo=Empresa.id_grupo
+    ok 4 - ramo 1: sub + entidade_ativa, id_grupo presente mas NÃO é pai -> is_grupo_pai=false, id_grupo=Empresa.id_grupo
+      ---
+      duration_ms: 1.185297
+      type: 'test'
+      ...
+    # Subtest: ramo 1: falha de infra (fetch lança) -> 502 ADAPTADOR_INDISPONIVEL, sem next()
+    ok 5 - ramo 1: falha de infra (fetch lança) -> 502 ADAPTADOR_INDISPONIVEL, sem next()
+      ---
+      duration_ms: 1.734505
+      type: 'test'
+      ...
+    # Subtest: ramo 2: sessão legada (sub ausente, empresaId presente) -> next() imediato, req.user intocado
+    ok 6 - ramo 2: sessão legada (sub ausente, empresaId presente) -> next() imediato, req.user intocado
+      ---
+      duration_ms: 0.481078
+      type: 'test'
+      ...
+    # Subtest: ramo 3: nem legado nem hub -> 401 TOKEN_INVALIDO
+    ok 7 - ramo 3: nem legado nem hub -> 401 TOKEN_INVALIDO
+      ---
+      duration_ms: 1.346122
+      type: 'test'
+      ...
+    # Subtest: achado F1 (drift): payload com sub E empresaId simultâneos cai no ramo 1 (hub), não no legado
+    ok 8 - achado F1 (drift): payload com sub E empresaId simultâneos cai no ramo 1 (hub), não no legado
+      ---
+      duration_ms: 0.63565
+      type: 'test'
+      ...
+    1..8
+ok 15 - hub-envio-massa-claims — hubEnvioMassaClaimsBridge
+  ---
+  duration_ms: 12.71545
+  type: 'suite'
+  ...
+# [hub-envio-massa-import-log] falha ao registrar histórico de importação (best-effort, não propagada): hub-postgrest: 500 Erro — {"message":"erro simulado"}
+# [hub-envio-massa-import-log] falha ao registrar histórico de importação (best-effort, não propagada): hub-postgrest: 409 Erro — {"message":"erro simulado"}
+# [hub-envio-massa-import-log] falha ao registrar histórico de importação (best-effort, não propagada): ECONNREFUSED
+# Subtest: derivarStatusImportacao (4.1.7)
+    # Subtest: 100% das linhas válidas -> completed
+    ok 1 - 100% das linhas válidas -> completed
+      ---
+      duration_ms: 0.828122
+      type: 'test'
+      ...
+    # Subtest: parcialmente inválida -> completed_with_errors
+    ok 2 - parcialmente inválida -> completed_with_errors
+      ---
+      duration_ms: 0.192182
+      type: 'test'
+      ...
+    # Subtest: 100% inválida (parse concluiu, todas as linhas com erro) -> completed_with_errors
+    ok 3 - 100% inválida (parse concluiu, todas as linhas com erro) -> completed_with_errors
+      ---
+      duration_ms: 0.133372
+      type: 'test'
+      ...
+    # Subtest: parse falhou antes de qualquer linha (totalLinhas=0) -> failed
+    ok 4 - parse falhou antes de qualquer linha (totalLinhas=0) -> failed
+      ---
+      duration_ms: 0.123103
+      type: 'test'
+      ...
+    # Subtest: parse falhou antes de qualquer linha (totalLinhas=null) -> failed
+    ok 5 - parse falhou antes de qualquer linha (totalLinhas=null) -> failed
+      ---
+      duration_ms: 0.22241
+      type: 'test'
+      ...
+    1..5
+ok 16 - derivarStatusImportacao (4.1.7)
+  ---
+  duration_ms: 2.535476
+  type: 'suite'
+  ...
+# Subtest: registrarImportacaoEnvioMassa (4.1.1-4.1.5, 4.1.7)
+    # Subtest: guard de flag HUB_IMPORT_LOG_ENVIO=off -> retorna sem gravar, fetch NUNCA chamado (FR-010)
+    ok 1 - guard de flag HUB_IMPORT_LOG_ENVIO=off -> retorna sem gravar, fetch NUNCA chamado (FR-010)
+      ---
+      duration_ms: 1.122979
+      type: 'test'
+      ...
+    # Subtest: grava com status derivado (completed) quando status não é passado explicitamente
+    ok 2 - grava com status derivado (completed) quando status não é passado explicitamente
+      ---
+      duration_ms: 2.674609
+      type: 'test'
+      ...
+    # Subtest: grava completed_with_errors quando há linhas inválidas parciais
+    ok 3 - grava completed_with_errors quando há linhas inválidas parciais
+      ---
+      duration_ms: 1.772917
+      type: 'test'
+      ...
+    # Subtest: grava failed quando o parse falhou antes de qualquer linha (arquivo ilegível)
+    ok 4 - grava failed quando o parse falhou antes de qualquer linha (arquivo ilegível)
+      ---
+      duration_ms: 0.602017
+      type: 'test'
+      ...
+    # Subtest: falha simulada de INSERT (PostgREST 500) NÃO propaga exceção (FR-011)
+    ok 5 - falha simulada de INSERT (PostgREST 500) NÃO propaga exceção (FR-011)
+      ---
+      duration_ms: 1.425632
+      type: 'test'
+      ...
+    # Subtest: falha simulada de INSERT (409 conflito de UNIQUE em reenvio) NÃO propaga exceção
+    ok 6 - falha simulada de INSERT (409 conflito de UNIQUE em reenvio) NÃO propaga exceção
+      ---
+      duration_ms: 0.610403
+      type: 'test'
+      ...
+    # Subtest: erro de rede (fetch rejeita) NÃO propaga exceção
+    ok 7 - erro de rede (fetch rejeita) NÃO propaga exceção
+      ---
+      duration_ms: 0.580457
+      type: 'test'
+      ...
+    # Subtest: status explícito passado pelo caller tem precedência sobre a derivação automática
+    ok 8 - status explícito passado pelo caller tem precedência sobre a derivação automática
+      ---
+      duration_ms: 0.446924
+      type: 'test'
+      ...
+    1..8
+ok 17 - registrarImportacaoEnvioMassa (4.1.1-4.1.5, 4.1.7)
+  ---
+  duration_ms: 9.738261
+  type: 'suite'
+  ...
+# Subtest: guard de sessão legada no call site (server.js) — verificação estática
+    # Subtest: registrarImportacaoEnvioMassa só é chamada dentro de um guard req.hubContext?.viaHub===true em POST /upload
+    ok 1 - registrarImportacaoEnvioMassa só é chamada dentro de um guard req.hubContext?.viaHub===true em POST /upload
+      ---
+      duration_ms: 0.274399
+      type: 'test'
+      ...
+    1..1
+ok 18 - guard de sessão legada no call site (server.js) — verificação estática
+  ---
+  duration_ms: 0.361522
+  type: 'suite'
+  ...
+# [hub-rbac-cache] erro ao carregar permissoes do banco (fail-closed -> vazio, nao cacheado): ECONNREFUSED
+# Subtest: hubEnvioMassaRequirePermission — comportamento (2.2.6)
+    # Subtest: sessão legada (req.hubContext ausente) -> next() SEMPRE, independente de permissão/flag
+    ok 1 - sessão legada (req.hubContext ausente) -> next() SEMPRE, independente de permissão/flag
+      ---
+      duration_ms: 3.49088
+      type: 'test'
+      ...
+    # Subtest: sessão legada com req.hubContext.viaHub=false (defensivo) -> next() SEMPRE
+    ok 2 - sessão legada com req.hubContext.viaHub=false (defensivo) -> next() SEMPRE
+      ---
+      duration_ms: 0.676557
+      type: 'test'
+      ...
+    # Subtest: HUB_RBAC_ENVIO=off + sessão hub -> next() SEMPRE, sem consultar permissões (Decision 6, FR-006)
+    ok 3 - HUB_RBAC_ENVIO=off + sessão hub -> next() SEMPRE, sem consultar permissões (Decision 6, FR-006)
+      ---
+      duration_ms: 0.834714
+      type: 'test'
+      ...
+    # Subtest: matriz papel-ação: admin_entidade tem envio_massa.aprovar -> next()
+    ok 4 - matriz papel-ação: admin_entidade tem envio_massa.aprovar -> next()
+      ---
+      duration_ms: 5.229782
+      type: 'test'
+      ...
+    # Subtest: matriz papel-ação: operador SEM envio_massa.aprovar -> 403 PERMISSAO_INSUFICIENTE (Cenário 2 US3)
+    ok 5 - matriz papel-ação: operador SEM envio_massa.aprovar -> 403 PERMISSAO_INSUFICIENTE (Cenário 2 US3)
+      ---
+      duration_ms: 1.23479
+      type: 'test'
+      ...
+    # Subtest: matriz papel-ação: leitura tem envio_massa.consultar -> next()
+    ok 6 - matriz papel-ação: leitura tem envio_massa.consultar -> next()
+      ---
+      duration_ms: 0.989669
+      type: 'test'
+      ...
+    # Subtest: matriz papel-ação: leitura SEM envio_massa.criar -> 403 PERMISSAO_INSUFICIENTE (Cenário 3 US3)
+    ok 7 - matriz papel-ação: leitura SEM envio_massa.criar -> 403 PERMISSAO_INSUFICIENTE (Cenário 3 US3)
+      ---
+      duration_ms: 0.893647
+      type: 'test'
+      ...
+    # Subtest: exceção na resolução de permissões -> 403 PERMISSAO_INSUFICIENTE, fail-closed, NUNCA next()
+    ok 8 - exceção na resolução de permissões -> 403 PERMISSAO_INSUFICIENTE, fail-closed, NUNCA next()
+      ---
+      duration_ms: 2.222977
+      type: 'test'
+      ...
+    1..8
+ok 19 - hubEnvioMassaRequirePermission — comportamento (2.2.6)
+  ---
+  duration_ms: 17.56278
+  type: 'suite'
+  ...
+# Subtest: cobertura de middleware nas 11 rotas legadas (2.2.7, achado F3)
+    # Subtest: GET /envio-massa tem claims-bridge + permission('envio_massa.consultar') na ordem certa
+    ok 1 - GET /envio-massa tem claims-bridge + permission('envio_massa.consultar') na ordem certa
+      ---
+      duration_ms: 0.86413
+      type: 'test'
+      ...
+    # Subtest: PATCH /update-envio-massa/:id tem claims-bridge + permission('envio_massa.criar') na ordem certa
+    ok 2 - PATCH /update-envio-massa/:id tem claims-bridge + permission('envio_massa.criar') na ordem certa
+      ---
+      duration_ms: 0.266161
+      type: 'test'
+      ...
+    # Subtest: DELETE /envio-massa/:id tem claims-bridge + permission('envio_massa.aprovar') na ordem certa
+    ok 3 - DELETE /envio-massa/:id tem claims-bridge + permission('envio_massa.aprovar') na ordem certa
+      ---
+      duration_ms: 0.206219
+      type: 'test'
+      ...
+    # Subtest: POST /start-process tem claims-bridge + permission('envio_massa.enviar') na ordem certa
+    ok 4 - POST /start-process tem claims-bridge + permission('envio_massa.enviar') na ordem certa
+      ---
+      duration_ms: 0.245494
+      type: 'test'
+      ...
+    # Subtest: GET /process-status tem claims-bridge + permission('envio_massa.consultar') na ordem certa
+    ok 5 - GET /process-status tem claims-bridge + permission('envio_massa.consultar') na ordem certa
+      ---
+      duration_ms: 0.226417
+      type: 'test'
+      ...
+    # Subtest: POST /stop-process tem claims-bridge + permission('envio_massa.enviar') na ordem certa
+    ok 6 - POST /stop-process tem claims-bridge + permission('envio_massa.enviar') na ordem certa
+      ---
+      duration_ms: 0.208634
+      type: 'test'
+      ...
+    # Subtest: POST /upload tem claims-bridge + permission('envio_massa.criar') na ordem certa
+    ok 7 - POST /upload tem claims-bridge + permission('envio_massa.criar') na ordem certa
+      ---
+      duration_ms: 0.20669
+      type: 'test'
+      ...
+    # Subtest: GET /export-envio-massa tem claims-bridge + permission('envio_massa.consultar') na ordem certa
+    ok 8 - GET /export-envio-massa tem claims-bridge + permission('envio_massa.consultar') na ordem certa
+      ---
+      duration_ms: 0.257666
+      type: 'test'
+      ...
+    # Subtest: GET /download-xml-movimento tem claims-bridge + permission('envio_massa.consultar') na ordem certa
+    ok 9 - GET /download-xml-movimento tem claims-bridge + permission('envio_massa.consultar') na ordem certa
+      ---
+      duration_ms: 0.316838
+      type: 'test'
+      ...
+    # Subtest: POST /validate-xml-batch tem claims-bridge + permission('envio_massa.enviar') na ordem certa
+    ok 10 - POST /validate-xml-batch tem claims-bridge + permission('envio_massa.enviar') na ordem certa
+      ---
+      duration_ms: 0.252026
+      type: 'test'
+      ...
+    # Subtest: POST /close-movimento tem claims-bridge + permission('envio_massa.aprovar') na ordem certa
+    ok 11 - POST /close-movimento tem claims-bridge + permission('envio_massa.aprovar') na ordem certa
+      ---
+      duration_ms: 0.267144
+      type: 'test'
+      ...
+    # Subtest: nenhuma rota FORA da lista fixa de 11 tem os middlewares novos (sem RBAC bypass silencioso via rota esquecida na lista)
+    ok 12 - nenhuma rota FORA da lista fixa de 11 tem os middlewares novos (sem RBAC bypass silencioso via rota esquecida na lista)
+      ---
+      duration_ms: 1.25608
+      type: 'test'
+      ...
+    # Subtest: todas as 11 rotas esperadas estão de fato cobertas (nenhuma faltando)
+    ok 13 - todas as 11 rotas esperadas estão de fato cobertas (nenhuma faltando)
+      ---
+      duration_ms: 0.478563
+      type: 'test'
+      ...
+    1..13
+ok 20 - cobertura de middleware nas 11 rotas legadas (2.2.7, achado F3)
+  ---
+  duration_ms: 5.812731
+  type: 'suite'
+  ...
+# Subtest: cobertura de auditoria nas 7 escritas do módulo envio_massa (2.1.3/2.2.3/2.2.5)
+    # Subtest: PATCH /update-envio-massa/:id chama auditarEnvioMassaSeViaHub com acao 'movimento_editado'
+    ok 1 - PATCH /update-envio-massa/:id chama auditarEnvioMassaSeViaHub com acao 'movimento_editado'
+      ---
+      duration_ms: 1.009245
+      type: 'test'
+      ...
+    # Subtest: DELETE /envio-massa/:id chama auditarEnvioMassaSeViaHub com acao 'movimento_excluido'
+    ok 2 - DELETE /envio-massa/:id chama auditarEnvioMassaSeViaHub com acao 'movimento_excluido'
+      ---
+      duration_ms: 0.436554
+      type: 'test'
+      ...
+    # Subtest: POST /start-process chama auditarEnvioMassaSeViaHub com acao 'envio_massa_iniciado'
+    ok 3 - POST /start-process chama auditarEnvioMassaSeViaHub com acao 'envio_massa_iniciado'
+      ---
+      duration_ms: 0.97981
+      type: 'test'
+      ...
+    # Subtest: POST /stop-process chama auditarEnvioMassaSeViaHub com acao 'envio_massa_parado'
+    ok 4 - POST /stop-process chama auditarEnvioMassaSeViaHub com acao 'envio_massa_parado'
+      ---
+      duration_ms: 0.401308
+      type: 'test'
+      ...
+    # Subtest: POST /upload chama auditarEnvioMassaSeViaHub com acao 'envio_massa_importado'
+    ok 5 - POST /upload chama auditarEnvioMassaSeViaHub com acao 'envio_massa_importado'
+      ---
+      duration_ms: 0.388874
+      type: 'test'
+      ...
+    # Subtest: POST /validate-xml-batch chama auditarEnvioMassaSeViaHub com acao 'envio_massa_xml_validado'
+    ok 6 - POST /validate-xml-batch chama auditarEnvioMassaSeViaHub com acao 'envio_massa_xml_validado'
+      ---
+      duration_ms: 0.464937
+      type: 'test'
+      ...
+    # Subtest: POST /close-movimento chama auditarEnvioMassaSeViaHub com acao 'movimento_fechado'
+    ok 7 - POST /close-movimento chama auditarEnvioMassaSeViaHub com acao 'movimento_fechado'
+      ---
+      duration_ms: 0.410945
+      type: 'test'
+      ...
+    # Subtest: auditarEnvioMassaSeViaHub só grava quando req.hubContext.viaHub === true (sessão legada nunca gera evento)
+    ok 8 - auditarEnvioMassaSeViaHub só grava quando req.hubContext.viaHub === true (sessão legada nunca gera evento)
+      ---
+      duration_ms: 0.274178
+      type: 'test'
+      ...
+    1..8
+ok 21 - cobertura de auditoria nas 7 escritas do módulo envio_massa (2.1.3/2.2.3/2.2.5)
+  ---
+  duration_ms: 5.46726
+  type: 'suite'
+  ...
+# Subtest: mapFaturamentoListItem
+    # Subtest: lançamento COM entregador: comEntregador=true, entregadorId/Nome preenchidos
+    ok 1 - lançamento COM entregador: comEntregador=true, entregadorId/Nome preenchidos
+      ---
+      duration_ms: 2.245429
+      type: 'test'
+      ...
+    # Subtest: lançamento agregado/bônus (entregador_id null): comEntregador=false, entregadorId/Nome null
+    ok 2 - lançamento agregado/bônus (entregador_id null): comEntregador=false, entregadorId/Nome null
+      ---
+      duration_ms: 0.310034
+      type: 'test'
+      ...
+    # Subtest: valor sempre trafega como veio da PostgREST (string) — nunca convertido a number
+    ok 3 - valor sempre trafega como veio da PostgREST (string) — nunca convertido a number
+      ---
+      duration_ms: 0.256154
+      type: 'test'
+      ...
+    1..3
+ok 22 - mapFaturamentoListItem
+  ---
+  duration_ms: 4.575937
+  type: 'suite'
+  ...
+# Subtest: dataValida
+    # Subtest: datas reais válidas
+    ok 1 - datas reais válidas
+      ---
+      duration_ms: 0.43377
+      type: 'test'
+      ...
+    # Subtest: datas sintaticamente inválidas ou inexistentes
+    ok 2 - datas sintaticamente inválidas ou inexistentes
+      ---
+      duration_ms: 0.377563
+      type: 'test'
+      ...
+    1..2
+ok 23 - dataValida
+  ---
+  duration_ms: 1.201889
+  type: 'suite'
+  ...
+# Subtest: parseFiltros
+    # Subtest: sem de/ate -> default últimos 30 dias (UTC)
+    ok 1 - sem de/ate -> default últimos 30 dias (UTC)
+      ---
+      duration_ms: 0.972606
+      type: 'test'
+      ...
+    # Subtest: de/ate informados e válidos são respeitados
+    ok 2 - de/ate informados e válidos são respeitados
+      ---
+      duration_ms: 0.465629
+      type: 'test'
+      ...
+    # Subtest: só de informado -> ate usa default (hoje); só ate informado -> de usa default (30 dias antes)
+    ok 3 - só de informado -> ate usa default (hoje); só ate informado -> de usa default (30 dias antes)
+      ---
+      duration_ms: 0.412949
+      type: 'test'
+      ...
+    # Subtest: data inválida em de ou ate -> DATA_INVALIDA
+    ok 4 - data inválida em de ou ate -> DATA_INVALIDA
+      ---
+      duration_ms: 0.411307
+      type: 'test'
+      ...
+    # Subtest: categoria/subpraca passam como string; ausentes -> null
+    ok 5 - categoria/subpraca passam como string; ausentes -> null
+      ---
+      duration_ms: 0.635941
+      type: 'test'
+      ...
+    # Subtest: entregadorId válido é parseado como inteiro; ausente -> null
+    ok 6 - entregadorId válido é parseado como inteiro; ausente -> null
+      ---
+      duration_ms: 0.321326
+      type: 'test'
+      ...
+    # Subtest: entregadorId inválido (não numérico, zero, negativo) -> ENTREGADOR_ID_INVALIDO
+    ok 7 - entregadorId inválido (não numérico, zero, negativo) -> ENTREGADOR_ID_INVALIDO
+      ---
+      duration_ms: 0.299466
+      type: 'test'
+      ...
+    # Subtest: comEntregador true/false parseados; qualquer outro valor -> null (sem filtro)
+    ok 8 - comEntregador true/false parseados; qualquer outro valor -> null (sem filtro)
+      ---
+      duration_ms: 0.256524
+      type: 'test'
+      ...
+    # Subtest: entregadorId + comEntregador=false -> FILTRO_CONTRADITORIO
+    ok 9 - entregadorId + comEntregador=false -> FILTRO_CONTRADITORIO
+      ---
+      duration_ms: 0.190679
+      type: 'test'
+      ...
+    # Subtest: entregadorId + comEntregador=true NÃO é contraditório (redundante, mas válido)
+    ok 10 - entregadorId + comEntregador=true NÃO é contraditório (redundante, mas válido)
+      ---
+      duration_ms: 3.890103
+      type: 'test'
+      ...
+    1..10
+ok 24 - parseFiltros
+  ---
+  duration_ms: 8.629207
+  type: 'suite'
+  ...
+# Subtest: parsePaginacao
+    # Subtest: default: page=1, pageSize default, from=0, to=pageSize-1
+    ok 1 - default: page=1, pageSize default, from=0, to=pageSize-1
+      ---
+      duration_ms: 0.35003
+      type: 'test'
+      ...
+    # Subtest: page/pageSize customizados
+    ok 2 - page/pageSize customizados
+      ---
+      duration_ms: 0.218763
+      type: 'test'
+      ...
+    # Subtest: pageSize acima do máximo é clampado
+    ok 3 - pageSize acima do máximo é clampado
+      ---
+      duration_ms: 0.17492
+      type: 'test'
+      ...
+    # Subtest: page/pageSize inválidos (não numérico, <1) caem no default
+    ok 4 - page/pageSize inválidos (não numérico, <1) caem no default
+      ---
+      duration_ms: 0.170603
+      type: 'test'
+      ...
+    1..4
+ok 25 - parsePaginacao
+  ---
+  duration_ms: 1.172552
+  type: 'suite'
+  ...
+# Subtest: groupByValido
+    # Subtest: aceita exatamente dia/categoria/entregador
+    ok 1 - aceita exatamente dia/categoria/entregador
+      ---
+      duration_ms: 0.285218
+      type: 'test'
+      ...
+    # Subtest: rejeita qualquer outro valor
+    ok 2 - rejeita qualquer outro valor
+      ---
+      duration_ms: 0.15874
+      type: 'test'
+      ...
+    1..2
+ok 26 - groupByValido
+  ---
+  duration_ms: 0.66197
+  type: 'suite'
+  ...
+# Subtest: mapResumoCards (FR-003/FR-012)
+    # Subtest: mapeia total_geral/categoria_maior_valor/entregadores_distintos -> camelCase
+    ok 1 - mapeia total_geral/categoria_maior_valor/entregadores_distintos -> camelCase
+      ---
+      duration_ms: 0.273496
+      type: 'test'
+      ...
+    # Subtest: período sem dados (row undefined) -> shape zerado, nunca erro (FR-012)
+    ok 2 - período sem dados (row undefined) -> shape zerado, nunca erro (FR-012)
+      ---
+      duration_ms: 0.319483
+      type: 'test'
+      ...
+    # Subtest: row com categoria_maior_valor null (RPC já retorna null quando vazio) é preservado
+    ok 3 - row com categoria_maior_valor null (RPC já retorna null quando vazio) é preservado
+      ---
+      duration_ms: 0.166665
+      type: 'test'
+      ...
+    1..3
+ok 27 - mapResumoCards (FR-003/FR-012)
+  ---
+  duration_ms: 0.962588
+  type: 'suite'
+  ...
+# Subtest: mapResumoAgrupado (FR-004/FR-005, Decision 4)
+    # Subtest: groupBy=dia -> rotulo === chave (sem lookup)
+    ok 1 - groupBy=dia -> rotulo === chave (sem lookup)
+      ---
+      duration_ms: 0.422357
+      type: 'test'
+      ...
+    # Subtest: groupBy=categoria -> rotulo === chave (sem lookup)
+    ok 2 - groupBy=categoria -> rotulo === chave (sem lookup)
+      ---
+      duration_ms: 0.212561
+      type: 'test'
+      ...
+    # Subtest: groupBy=entregador -> rotulo resolvido via nomeMap (join Entregador.nome)
+    ok 3 - groupBy=entregador -> rotulo resolvido via nomeMap (join Entregador.nome)
+      ---
+      duration_ms: 0.19671
+      type: 'test'
+      ...
+    # Subtest: groupBy=entregador, chave sem entrada no nomeMap -> rotulo cai para a própria chave (defensivo)
+    ok 4 - groupBy=entregador, chave sem entrada no nomeMap -> rotulo cai para a própria chave (defensivo)
+      ---
+      duration_ms: 0.162166
+      type: 'test'
+      ...
+    # Subtest: bucket agregados_bonus -> rotulo literal "Agregados/bônus", SEMPRE (independente do nomeMap)
+    ok 5 - bucket agregados_bonus -> rotulo literal "Agregados/bônus", SEMPRE (independente do nomeMap)
+      ---
+      duration_ms: 0.184017
+      type: 'test'
+      ...
+    # Subtest: array vazio -> array vazio (período sem dados no agrupado)
+    ok 6 - array vazio -> array vazio (período sem dados no agrupado)
+      ---
+      duration_ms: 0.179669
+      type: 'test'
+      ...
+    # Subtest: exemplo do contrato (faturamento-api.md): grupo com entregador + bucket bônus juntos
+    ok 7 - exemplo do contrato (faturamento-api.md): grupo com entregador + bucket bônus juntos
+      ---
+      duration_ms: 0.203174
+      type: 'test'
+      ...
+    1..7
+ok 28 - mapResumoAgrupado (FR-004/FR-005, Decision 4)
+  ---
+  duration_ms: 1.941265
+  type: 'suite'
+  ...
+# Subtest: hashLinha (2.4.1/2.4.2)
+    # Subtest: mesma linha normalizada 2x produz hash idêntico (determinismo)
+    ok 1 - mesma linha normalizada 2x produz hash idêntico (determinismo)
+      ---
+      duration_ms: 1.252734
+      type: 'test'
+      ...
+    # Subtest: sha256 hex de 64 caracteres
+    ok 2 - sha256 hex de 64 caracteres
+      ---
+      duration_ms: 0.341935
+      type: 'test'
+      ...
+    # Subtest: conteúdo diferente produz hash diferente
+    ok 3 - conteúdo diferente produz hash diferente
+      ---
+      duration_ms: 0.251405
+      type: 'test'
+      ...
+    # Subtest: ordem dos campos importa (contrato de estabilidade)
+    ok 4 - ordem dos campos importa (contrato de estabilidade)
+      ---
+      duration_ms: 0.290168
+      type: 'test'
+      ...
+    1..4
+ok 29 - hashLinha (2.4.1/2.4.2)
+  ---
+  duration_ms: 3.229596
+  type: 'suite'
+  ...
+# Subtest: canonicalizarValor
+    # Subtest: null/undefined -> string vazia
+    ok 1 - null/undefined -> string vazia
+      ---
+      duration_ms: 0.299145
+      type: 'test'
+      ...
+    # Subtest: texto é trim + uppercase
+    ok 2 - texto é trim + uppercase
+      ---
+      duration_ms: 0.188987
+      type: 'test'
+      ...
+    # Subtest: número inteiro vira string sem casas decimais
+    ok 3 - número inteiro vira string sem casas decimais
+      ---
+      duration_ms: 0.200509
+      type: 'test'
+      ...
+    # Subtest: número decimal vira string com 2 casas fixas
+    ok 4 - número decimal vira string com 2 casas fixas
+      ---
+      duration_ms: 0.279328
+      type: 'test'
+      ...
+    1..4
+ok 30 - canonicalizarValor
+  ---
+  duration_ms: 1.328707
+  type: 'suite'
+  ...
+# Subtest: hashLinha aplicado a linhas normalizadas reais (2.4.3 — idempotência de reimportação)
+    # Subtest: reimportar a MESMA linha (mesmo texto bruto) produz o mesmo hash
+    ok 1 - reimportar a MESMA linha (mesmo texto bruto) produz o mesmo hash
+      ---
+      duration_ms: 1.147185
+      type: 'test'
+      ...
+    # Subtest: linhas semanticamente iguais mas com whitespace/case de origem diferentes produzem o MESMO hash
+    ok 2 - linhas semanticamente iguais mas com whitespace/case de origem diferentes produzem o MESMO hash
+      ---
+      duration_ms: 0.465599
+      type: 'test'
+      ...
+    # Subtest: decimal com formatação de origem diferente (mesmo valor semântico) produz o MESMO hash
+    ok 3 - decimal com formatação de origem diferente (mesmo valor semântico) produz o MESMO hash
+      ---
+      duration_ms: 0.227109
+      type: 'test'
+      ...
+    # Subtest: linha genuinamente diferente (valor distinto) produz hash diferente
+    ok 4 - linha genuinamente diferente (valor distinto) produz hash diferente
+      ---
+      duration_ms: 0.1905
+      type: 'test'
+      ...
+    1..4
+ok 31 - hashLinha aplicado a linhas normalizadas reais (2.4.3 — idempotência de reimportação)
+  ---
+  duration_ms: 3.122473
+  type: 'suite'
+  ...
+# Subtest: normalizarDecimalVirgula (2.2.1)
+    # Subtest: remove separador de milhar ANTES de trocar vírgula por ponto
+    ok 1 - remove separador de milhar ANTES de trocar vírgula por ponto
+      ---
+      duration_ms: 0.981753
+      type: 'test'
+      ...
+    # Subtest: valor sem milhar
+    ok 2 - valor sem milhar
+      ---
+      duration_ms: 0.172156
+      type: 'test'
+      ...
+    # Subtest: múltiplos separadores de milhar
+    ok 3 - múltiplos separadores de milhar
+      ---
+      duration_ms: 0.229723
+      type: 'test'
+      ...
+    # Subtest: vazio/nulo retorna null
+    ok 4 - vazio/nulo retorna null
+      ---
+      duration_ms: 0.172617
+      type: 'test'
+      ...
+    # Subtest: sem vírgula (só ponto) trata ponto como decimal, não milhar
+    ok 5 - sem vírgula (só ponto) trata ponto como decimal, não milhar
+      ---
+      duration_ms: 0.161094
+      type: 'test'
+      ...
+    1..5
+ok 32 - normalizarDecimalVirgula (2.2.1)
+  ---
+  duration_ms: 3.037313
+  type: 'suite'
+  ...
+# Subtest: normalizarDecimalPonto (performance, 2.3.1)
+    # Subtest: ponto direto, sem transformação
+    ok 1 - ponto direto, sem transformação
+      ---
+      duration_ms: 0.241236
+      type: 'test'
+      ...
+    # Subtest: vazio retorna null
+    ok 2 - vazio retorna null
+      ---
+      duration_ms: 0.247468
+      type: 'test'
+      ...
+    1..2
+ok 33 - normalizarDecimalPonto (performance, 2.3.1)
+  ---
+  duration_ms: 0.870965
+  type: 'suite'
+  ...
+# Subtest: extrairZonaDePraca (2.2.2)
+    # Subtest: extrai zona do sufixo "(ZONA)"
+    ok 1 - extrai zona do sufixo "(ZONA)"
+      ---
+      duration_ms: 0.516163
+      type: 'test'
+      ...
+    # Subtest: sem sufixo "(ZONA)" não extrai nada
+    ok 2 - sem sufixo "(ZONA)" não extrai nada
+      ---
+      duration_ms: 1.575735
+      type: 'test'
+      ...
+    # Subtest: vazio retorna praca null
+    ok 3 - vazio retorna praca null
+      ---
+      duration_ms: 0.268637
+      type: 'test'
+      ...
+    # Subtest: múltiplas ocorrências de " - " -> usa a ÚLTIMA antes de "(ZONA)" (mesmo comportamento do regex antigo, guloso)
+    ok 4 - múltiplas ocorrências de " - " -> usa a ÚLTIMA antes de "(ZONA)" (mesmo comportamento do regex antigo, guloso)
+      ---
+      duration_ms: 0.134183
+      type: 'test'
+      ...
+    # Subtest: célula acima do cap de 200 chars -> NÃO tenta extrair zona, mesmo terminando em "(ZONA)"
+    ok 5 - célula acima do cap de 200 chars -> NÃO tenta extrair zona, mesmo terminando em "(ZONA)"
+      ---
+      duration_ms: 0.175581
+      type: 'test'
+      ...
+    # Subtest: célula dentro do cap (<=200 chars) continua extraindo normalmente
+    ok 6 - célula dentro do cap (<=200 chars) continua extraindo normalmente
+      ---
+      duration_ms: 0.153899
+      type: 'test'
+      ...
+    # Subtest: entrada adversarial (muitos " - " sem sufixo "(ZONA)") resolve em tempo LINEAR — sem travar (prova de não-ReDoS)
+    ok 7 - entrada adversarial (muitos " - " sem sufixo "(ZONA)") resolve em tempo LINEAR — sem travar (prova de não-ReDoS)
+      ---
+      duration_ms: 0.146256
+      type: 'test'
+      ...
+    # Subtest: entrada adversarial DENTRO do cap (<=200 chars, sem "(ZONA)") também resolve rápido — prova que é a REESCRITA da regex (não só o cap) que remove o backtracking
+    ok 8 - entrada adversarial DENTRO do cap (<=200 chars, sem "(ZONA)") também resolve rápido — prova que é a REESCRITA da regex (não só o cap) que remove o backtracking
+      ---
+      duration_ms: 0.120518
+      type: 'test'
+      ...
+    1..8
+ok 34 - extrairZonaDePraca (2.2.2)
+  ---
+  duration_ms: 3.535273
+  type: 'suite'
+  ...
+# Subtest: normalizarMargemFee (2.2.3)
+    # Subtest: regex casa e deriva min/inter
+    ok 1 - regex casa e deriva min/inter
+      ---
+      duration_ms: 0.267055
+      type: 'test'
+      ...
+    # Subtest: regex NÃO casa -> só raw preenchido, sem erro (D4)
+    ok 2 - regex NÃO casa -> só raw preenchido, sem erro (D4)
+      ---
+      duration_ms: 0.178427
+      type: 'test'
+      ...
+    # Subtest: vazio -> tudo null
+    ok 3 - vazio -> tudo null
+      ---
+      duration_ms: 0.220835
+      type: 'test'
+      ...
+    1..3
+ok 35 - normalizarMargemFee (2.2.3)
+  ---
+  duration_ms: 0.794069
+  type: 'suite'
+  ...
+# Subtest: normalizarDuracaoHHMMSS (2.3.3)
+    # Subtest: formato válido é aceito e devolvido como está
+    ok 1 - formato válido é aceito e devolvido como está
+      ---
+      duration_ms: 0.938682
+      type: 'test'
+      ...
+    # Subtest: aceita horas > 24 (duração acumulada, não hora do relógio)
+    ok 2 - aceita horas > 24 (duração acumulada, não hora do relógio)
+      ---
+      duration_ms: 0.158089
+      type: 'test'
+      ...
+    # Subtest: formato inválido é rejeitado
+    ok 3 - formato inválido é rejeitado
+      ---
+      duration_ms: 0.107822
+      type: 'test'
+      ...
+    # Subtest: vazio é válido (campo NULL)
+    ok 4 - vazio é válido (campo NULL)
+      ---
+      duration_ms: 0.100461
+      type: 'test'
+      ...
+    1..4
+ok 36 - normalizarDuracaoHHMMSS (2.3.3)
+  ---
+  duration_ms: 1.518296
+  type: 'suite'
+  ...
+# Subtest: uuidValido
+    # Subtest: aceita UUID bem formado
+    ok 1 - aceita UUID bem formado
+      ---
+      duration_ms: 0.215126
+      type: 'test'
+      ...
+    # Subtest: rejeita string que não é UUID
+    ok 2 - rejeita string que não é UUID
+      ---
+      duration_ms: 0.161415
+      type: 'test'
+      ...
+    1..2
+ok 37 - uuidValido
+  ---
+  duration_ms: 0.498603
+  type: 'suite'
+  ...
+# Subtest: validarHeader
+    # Subtest: header faturamento correto é válido
+    ok 1 - header faturamento correto é válido
+      ---
+      duration_ms: 0.21264
+      type: 'test'
+      ...
+    # Subtest: header performance correto é válido
+    ok 2 - header performance correto é válido
+      ---
+      duration_ms: 0.105579
+      type: 'test'
+      ...
+    # Subtest: header com nome trocado é inválido (falha estrutural)
+    ok 3 - header com nome trocado é inválido (falha estrutural)
+      ---
+      duration_ms: 0.117732
+      type: 'test'
+      ...
+    # Subtest: tolera diferenças de case/espaço no header
+    ok 4 - tolera diferenças de case/espaço no header
+      ---
+      duration_ms: 0.210678
+      type: 'test'
+      ...
+    1..4
+ok 38 - validarHeader
+  ---
+  duration_ms: 0.802915
+  type: 'suite'
+  ...
+# Subtest: normalizarLinhaFaturamento (2.2)
+    # Subtest: linha válida completa: sem erros, valor convertido corretamente
+    ok 1 - linha válida completa: sem erros, valor convertido corretamente
+      ---
+      duration_ms: 0.627274
+      type: 'test'
+      ...
+    # Subtest: ausência de UUID é VÁLIDA (4,5% legítimo — bônus agregado)
+    ok 2 - ausência de UUID é VÁLIDA (4,5% legítimo — bônus agregado)
+      ---
+      duration_ms: 0.288904
+      type: 'test'
+      ...
+    # Subtest: UUID malformado gera erro de linha
+    ok 3 - UUID malformado gera erro de linha
+      ---
+      duration_ms: 0.183556
+      type: 'test'
+      ...
+    # Subtest: atingido fora da faixa 0-1000 gera erro de linha
+    ok 4 - atingido fora da faixa 0-1000 gera erro de linha
+      ---
+      duration_ms: 0.24352
+      type: 'test'
+      ...
+    # Subtest: atingido dentro da faixa é aceito
+    ok 5 - atingido dentro da faixa é aceito
+      ---
+      duration_ms: 0.160292
+      type: 'test'
+      ...
+    # Subtest: valor <= 0 gera erro de linha
+    ok 6 - valor <= 0 gera erro de linha
+      ---
+      duration_ms: 0.216279
+      type: 'test'
+      ...
+    # Subtest: tipo novo (nem Credito nem Debito) gera AVISO, não erro (Gotcha do briefing)
+    ok 7 - tipo novo (nem Credito nem Debito) gera AVISO, não erro (Gotcha do briefing)
+      ---
+      duration_ms: 0.182323
+      type: 'test'
+      ...
+    # Subtest: Debito é aceito sem aviso (domínio conhecido)
+    ok 8 - Debito é aceito sem aviso (domínio conhecido)
+      ---
+      duration_ms: 1.010578
+      type: 'test'
+      ...
+    # Subtest: campo obrigatório ausente (descricao) gera erro de linha
+    ok 9 - campo obrigatório ausente (descricao) gera erro de linha
+      ---
+      duration_ms: 0.299837
+      type: 'test'
+      ...
+    # Subtest: margem_fee integrado na linha completa
+    ok 10 - margem_fee integrado na linha completa
+      ---
+      duration_ms: 0.177114
+      type: 'test'
+      ...
+    1..10
+ok 39 - normalizarLinhaFaturamento (2.2)
+  ---
+  duration_ms: 3.738747
+  type: 'suite'
+  ...
+# Subtest: normalizarLinhaPerformance (2.3)
+    # Subtest: linha válida completa: sem erros
+    ok 1 - linha válida completa: sem erros
+      ---
+      duration_ms: 0.899538
+      type: 'test'
+      ...
+    # Subtest: HH:MM:SS parseado corretamente (duracao e tempo_disponivel)
+    ok 2 - HH:MM:SS parseado corretamente (duracao e tempo_disponivel)
+      ---
+      duration_ms: 0.301179
+      type: 'test'
+      ...
+    # Subtest: taxas em centavos: inteiro direto, SEM divisão
+    ok 3 - taxas em centavos: inteiro direto, SEM divisão
+      ---
+      duration_ms: 0.156175
+      type: 'test'
+      ...
+    # Subtest: linha SEM UUID é rejeitada com motivo claro (obrigatório em performance)
+    ok 4 - linha SEM UUID é rejeitada com motivo claro (obrigatório em performance)
+      ---
+      duration_ms: 0.290548
+      type: 'test'
+      ...
+    # Subtest: UUID malformado em performance também é erro
+    ok 5 - UUID malformado em performance também é erro
+      ---
+      duration_ms: 0.165211
+      type: 'test'
+      ...
+    # Subtest: tempo_disponivel_escalado fora da faixa 0-150 gera erro
+    ok 6 - tempo_disponivel_escalado fora da faixa 0-150 gera erro
+      ---
+      duration_ms: 0.951476
+      type: 'test'
+      ...
+    # Subtest: consistência aceitas+rejeitadas > ofertadas gera AVISO, não erro
+    ok 7 - consistência aceitas+rejeitadas > ofertadas gera AVISO, não erro
+      ---
+      duration_ms: 0.240534
+      type: 'test'
+      ...
+    # Subtest: header sub_praca (com underscore) é lido corretamente
+    ok 8 - header sub_praca (com underscore) é lido corretamente
+      ---
+      duration_ms: 0.143591
+      type: 'test'
+      ...
+    1..8
+ok 40 - normalizarLinhaPerformance (2.3)
+  ---
+  duration_ms: 3.403406
+  type: 'suite'
+  ...
+# Subtest: hub-import-parser — stripBom + splitLinhaCsv (2.1.1)
+    # Subtest: remove BOM UTF-8 de Buffer
+    ok 1 - remove BOM UTF-8 de Buffer
+      ---
+      duration_ms: 1.33591
+      type: 'test'
+      ...
+    # Subtest: remove BOM UTF-8 de string
+    ok 2 - remove BOM UTF-8 de string
+      ---
+      duration_ms: 0.352606
+      type: 'test'
+      ...
+    # Subtest: stripBom é idempotente (sem BOM não altera nada)
+    ok 3 - stripBom é idempotente (sem BOM não altera nada)
+      ---
+      duration_ms: 0.953249
+      type: 'test'
+      ...
+    # Subtest: splitLinhaCsv separa por ; e remove \\r residual
+    ok 4 - splitLinhaCsv separa por ; e remove \\r residual
+      ---
+      duration_ms: 0.425463
+      type: 'test'
+      ...
+    1..4
+ok 41 - hub-import-parser — stripBom + splitLinhaCsv (2.1.1)
+  ---
+  duration_ms: 4.493232
+  type: 'suite'
+  ...
+# Subtest: hub-import-parser — iterarLinhas (2.1.2, streaming)
+    # Subtest: remove BOM só da primeira linha e numera linhas a partir de 1
+    ok 1 - remove BOM só da primeira linha e numera linhas a partir de 1
+      ---
+      duration_ms: 4.448186
+      type: 'test'
+      ...
+    # Subtest: ignora linha vazia final
+    ok 2 - ignora linha vazia final
+      ---
+      duration_ms: 3.19005
+      type: 'test'
+      ...
+    # Subtest: processa incrementalmente sem esperar o stream inteiro (não materializa arquivo inteiro em memória)
+    ok 3 - processa incrementalmente sem esperar o stream inteiro (não materializa arquivo inteiro em memória)
+      ---
+      duration_ms: 2.030362
+      type: 'test'
+      ...
+    1..3
+ok 42 - hub-import-parser — iterarLinhas (2.1.2, streaming)
+  ---
+  duration_ms: 10.121965
+  type: 'suite'
+  ...
+# Subtest: hub-import-parser — seleção de tipo (2.1.3, sem sniffing)
+    # Subtest: validarTipo aceita faturamento/performance
+    ok 1 - validarTipo aceita faturamento/performance
+      ---
+      duration_ms: 0.417637
+      type: 'test'
+      ...
+    # Subtest: validarTipo rejeita tipo desconhecido
+    ok 2 - validarTipo rejeita tipo desconhecido
+      ---
+      duration_ms: 0.815449
+      type: 'test'
+      ...
+    # Subtest: ehZip detecta extensão .zip case-insensitive
+    ok 3 - ehZip detecta extensão .zip case-insensitive
+      ---
+      duration_ms: 0.502318
+      type: 'test'
+      ...
+    1..3
+ok 43 - hub-import-parser — seleção de tipo (2.1.3, sem sniffing)
+  ---
+  duration_ms: 2.051402
+  type: 'suite'
+  ...
+# Subtest: hub-import-parser — extração de ZIP segura (2.1.4)
+    # Subtest: extrai corretamente ZIP de 1 entrada válida
+    ok 1 - extrai corretamente ZIP de 1 entrada válida
+      ---
+      duration_ms: 2.403587
+      type: 'test'
+      ...
+    # Subtest: CSV puro (não .zip) passa direto, sem tentar extrair
+    ok 2 - CSV puro (não .zip) passa direto, sem tentar extrair
+      ---
+      duration_ms: 0.162717
+      type: 'test'
+      ...
+    # Subtest: rejeita ZIP com path traversal no nome da entrada
+    ok 3 - rejeita ZIP com path traversal no nome da entrada
+      ---
+      duration_ms: 0.537755
+      type: 'test'
+      ...
+    # Subtest: rejeita ZIP com path absoluto no nome da entrada
+    ok 4 - rejeita ZIP com path absoluto no nome da entrada
+      ---
+      duration_ms: 0.589554
+      type: 'test'
+      ...
+    # Subtest: rejeita ZIP que declara tamanho descomprimido > limite (100 MB)
+    ok 5 - rejeita ZIP que declara tamanho descomprimido > limite (100 MB)
+      ---
+      duration_ms: 0.464737
+      type: 'test'
+      ...
+    # Subtest: respeita limite customizado via maxZipDescomprimidoBytes
+    ok 6 - respeita limite customizado via maxZipDescomprimidoBytes
+      ---
+      duration_ms: 0.480157
+      type: 'test'
+      ...
+    # Subtest: rejeita ZIP com múltiplas entradas (só 1 é aceita)
+    ok 7 - rejeita ZIP com múltiplas entradas (só 1 é aceita)
+      ---
+      duration_ms: 0.564355
+      type: 'test'
+      ...
+    # Subtest: rejeita buffer que não é um ZIP válido
+    ok 8 - rejeita buffer que não é um ZIP válido
+      ---
+      duration_ms: 0.198976
+      type: 'test'
+      ...
+    # Subtest: pipeline completo: ZIP -> resolverConteudoCsv -> iterarLinhas
+    ok 9 - pipeline completo: ZIP -> resolverConteudoCsv -> iterarLinhas
+      ---
+      duration_ms: 1.753841
+      type: 'test'
+      ...
+    1..9
+ok 44 - hub-import-parser — extração de ZIP segura (2.1.4)
+  ---
+  duration_ms: 7.588122
+  type: 'suite'
+  ...
+# [hub-import-processor] erro não tratado no pipeline — marcando failed (F1): fim do mock — fora do escopo deste teste
+# [hub-import-processor] falha ao marcar failed (best-effort) — registro pode ficar preso em validating/processing até o próximo boot (recuperarImportacoesOrfas): fim do mock — fora do escopo deste teste
+# {"evento":"hub_import_processado","importacaoId":1,"idEmpresa":100,"tipo":"faturamento","status":"completed","totalLinhas":3,"linhasValidas":3,"linhasInvalidas":0,"duracaoMs":0,"linhasPorSegundo":3}
+# [hub-import-processor] falha ao atualizar a MV de resumo (rpc/hub_faturamento_refresh_mv, best-effort, staleness até o próximo refresh): PostgREST indisponível (simulado)
+# {"evento":"hub_import_processado","importacaoId":1,"idEmpresa":100,"tipo":"faturamento","status":"completed","totalLinhas":1,"linhasValidas":1,"linhasInvalidas":0,"duracaoMs":0,"linhasPorSegundo":1}
+# {"evento":"hub_import_processado","importacaoId":1,"idEmpresa":100,"tipo":"performance","status":"completed","totalLinhas":2,"linhasValidas":2,"linhasInvalidas":0,"duracaoMs":0,"linhasPorSegundo":2}
+# [hub-import-processor] falha ao atualizar a MV de resumo (rpc/hub_performance_refresh_mv, best-effort, staleness até o próximo refresh): PostgREST indisponível (simulado)
+# {"evento":"hub_import_processado","importacaoId":1,"idEmpresa":100,"tipo":"performance","status":"completed","totalLinhas":1,"linhasValidas":1,"linhasInvalidas":0,"duracaoMs":0,"linhasPorSegundo":1}
+# {"evento":"hub_import_processado","importacaoId":1,"idEmpresa":100,"tipo":"faturamento","status":"completed","totalLinhas":1,"linhasValidas":1,"linhasInvalidas":0,"duracaoMs":0,"linhasPorSegundo":1}
+# {"evento":"hub_import_processado","importacaoId":1,"idEmpresa":100,"tipo":"faturamento","status":"completed_with_errors","totalLinhas":3,"linhasValidas":2,"linhasInvalidas":1,"duracaoMs":0,"linhasPorSegundo":3}
+# [hub-import-processor] erro não tratado no pipeline — marcando failed (F1): PostgREST indisponível
+# {"evento":"hub_import_recuperacao_orfa_boot","totalRecuperadas":2}
+# {"evento":"hub_import_recuperacao_orfa_boot","totalRecuperadas":2}
+# [hub-import-processor] recuperarImportacoesOrfas falhou (best-effort, não bloqueia o boot): POSTGREST_URL ausente no ambiente do hub.
+# {"evento":"hub_import_recuperacao_orfa_boot","totalRecuperadas":2}
+# [hub-import-processor] falha ao registrar auditoria de recuperacao orfa (best-effort): PostgREST indisponível para este evento
+# {"evento":"hub_import_processado","importacaoId":1,"idEmpresa":100,"tipo":"faturamento","status":"completed_with_errors","totalLinhas":2,"linhasValidas":1,"linhasInvalidas":1,"duracaoMs":0,"linhasPorSegundo":2}
+# {"evento":"hub_import_processado","importacaoId":1,"idEmpresa":100,"tipo":"faturamento","status":"completed_with_errors","totalLinhas":2,"linhasValidas":1,"linhasInvalidas":1,"duracaoMs":0,"linhasPorSegundo":2}
+# Subtest: transicaoValida (4.1.2/4.1.3 — máquina de estados)
+    # Subtest: transições válidas do fluxo feliz
+    ok 1 - transições válidas do fluxo feliz
+      ---
+      duration_ms: 0.804308
+      type: 'test'
+      ...
+    # Subtest: transições válidas de falha estrutural/cancelamento
+    ok 2 - transições válidas de falha estrutural/cancelamento
+      ---
+      duration_ms: 0.167166
+      type: 'test'
+      ...
+    # Subtest: reprocessar (FASE 5): failed/cancelled -> pending
+    ok 3 - reprocessar (FASE 5): failed/cancelled -> pending
+      ---
+      duration_ms: 0.208594
+      type: 'test'
+      ...
+    # Subtest: transições INVÁLIDAS são rejeitadas
+    ok 4 - transições INVÁLIDAS são rejeitadas
+      ---
+      duration_ms: 0.135788
+      type: 'test'
+      ...
+    # Subtest: estado desconhecido em qualquer lado -> false (fail-closed)
+    ok 5 - estado desconhecido em qualquer lado -> false (fail-closed)
+      ---
+      duration_ms: 0.170562
+      type: 'test'
+      ...
+    # Subtest: todo estado tem entrada na tabela de transições (nenhum esquecido)
+    ok 6 - todo estado tem entrada na tabela de transições (nenhum esquecido)
+      ---
+      duration_ms: 0.197603
+      type: 'test'
+      ...
+    1..6
+ok 45 - transicaoValida (4.1.2/4.1.3 — máquina de estados)
+  ---
+  duration_ms: 2.941821
+  type: 'suite'
+  ...
+# Subtest: tentarAdquirirLock (4.2 — mutex via índice único parcial)
+    # Subtest: sucesso: PATCH devolve a linha -> lock adquirido
+    ok 1 - sucesso: PATCH devolve a linha -> lock adquirido
+      ---
+      duration_ms: 0.436553
+      type: 'test'
+      ...
+    # Subtest: 409 (índice único parcial colidiu — outra ativa) -> NÃO adquirido, sem lançar
+    ok 2 - 409 (índice único parcial colidiu — outra ativa) -> NÃO adquirido, sem lançar
+      ---
+      duration_ms: 0.388303
+      type: 'test'
+      ...
+    # Subtest: 0 linhas afetadas (já não está mais pending) -> NÃO adquirido
+    ok 3 - 0 linhas afetadas (já não está mais pending) -> NÃO adquirido
+      ---
+      duration_ms: 0.305708
+      type: 'test'
+      ...
+    # Subtest: erro NÃO relacionado a conflito (ex.: 500) é propagado, não engolido
+    ok 4 - erro NÃO relacionado a conflito (ex.: 500) é propagado, não engolido
+      ---
+      duration_ms: 0.740868
+      type: 'test'
+      ...
+    1..4
+ok 46 - tentarAdquirirLock (4.2 — mutex via índice único parcial)
+  ---
+  duration_ms: 2.242353
+  type: 'suite'
+  ...
+# Subtest: tentarIniciarProximaPendente (4.2.2 — espera automática, sem 409)
+    # Subtest: sem pendente -> nenhuma chamada extra além do GET de busca
+    ok 1 - sem pendente -> nenhuma chamada extra além do GET de busca
+      ---
+      duration_ms: 0.367413
+      type: 'test'
+      ...
+    # Subtest: com pendente -> dispara nova tentativa de lock (fire-and-forget) para o próximo id
+    ok 2 - com pendente -> dispara nova tentativa de lock (fire-and-forget) para o próximo id
+      ---
+      duration_ms: 2.244226
+      type: 'test'
+      ...
+    1..2
+ok 47 - tentarIniciarProximaPendente (4.2.2 — espera automática, sem 409)
+  ---
+  duration_ms: 2.781609
+  type: 'suite'
+  ...
+# Subtest: computarStatusLimiar (4.4 — >50% inválidas)
+    # Subtest: exatamente 50% -> ok (limiar é ESTRITAMENTE maior que 50%)
+    ok 1 - exatamente 50% -> ok (limiar é ESTRITAMENTE maior que 50%)
+      ---
+      duration_ms: 0.181723
+      type: 'test'
+      ...
+    # Subtest: 51% -> failed
+    ok 2 - 51% -> failed
+      ---
+      duration_ms: 0.100189
+      type: 'test'
+      ...
+    # Subtest: 0% inválidas -> ok
+    ok 3 - 0% inválidas -> ok
+      ---
+      duration_ms: 0.086844
+      type: 'test'
+      ...
+    # Subtest: 100% inválidas -> failed
+    ok 4 - 100% inválidas -> failed
+      ---
+      duration_ms: 0.0898
+      type: 'test'
+      ...
+    # Subtest: total=0 -> failed (arquivo sem linhas de dados)
+    ok 5 - total=0 -> failed (arquivo sem linhas de dados)
+      ---
+      duration_ms: 0.08526
+      type: 'test'
+      ...
+    1..5
+ok 48 - computarStatusLimiar (4.4 — >50% inválidas)
+  ---
+  duration_ms: 0.757249
+  type: 'suite'
+  ...
+# Subtest: mascararValor (4.5.2/4.5.4 — nunca retorna o valor original)
+    # Subtest: nunca igual ao original: "11111111-1111-1111-1111-111111111111"
+    ok 1 - nunca igual ao original: "11111111-1111-1111-1111-111111111111"
+      ---
+      duration_ms: 0.277023
+      type: 'test'
+      ...
+    # Subtest: nunca igual ao original: "Fulano de Tal"
+    ok 2 - nunca igual ao original: "Fulano de Tal"
+      ---
+      duration_ms: 0.07384
+      type: 'test'
+      ...
+    # Subtest: nunca igual ao original: "abc"
+    ok 3 - nunca igual ao original: "abc"
+      ---
+      duration_ms: 0.076584
+      type: 'test'
+      ...
+    # Subtest: nunca igual ao original: "ab"
+    ok 4 - nunca igual ao original: "ab"
+      ---
+      duration_ms: 0.06331
+      type: 'test'
+      ...
+    # Subtest: nunca igual ao original: "a"
+    ok 5 - nunca igual ao original: "a"
+      ---
+      duration_ms: 0.068468
+      type: 'test'
+      ...
+    # Subtest: nunca igual ao original: "-5"
+    ok 6 - nunca igual ao original: "-5"
+      ---
+      duration_ms: 0.060082
+      type: 'test'
+      ...
+    # Subtest: nunca igual ao original: "0"
+    ok 7 - nunca igual ao original: "0"
+      ---
+      duration_ms: 0.122271
+      type: 'test'
+      ...
+    # Subtest: nunca igual ao original: "DINHEIRO$@\#!"
+    ok 8 - nunca igual ao original: "DINHEIRO$@\#!"
+      ---
+      duration_ms: 0.126959
+      type: 'test'
+      ...
+    # Subtest: null -> null (sem conteúdo a vazar)
+    ok 9 - null -> null (sem conteúdo a vazar)
+      ---
+      duration_ms: 0.111149
+      type: 'test'
+      ...
+    # Subtest: undefined -> null
+    ok 10 - undefined -> null
+      ---
+      duration_ms: 0.092025
+      type: 'test'
+      ...
+    # Subtest: string vazia -> string vazia
+    ok 11 - string vazia -> string vazia
+      ---
+      duration_ms: 0.177364
+      type: 'test'
+      ...
+    # Subtest: preserva o comprimento original (não vaza tamanho incomum, mas também não mente)
+    ok 12 - preserva o comprimento original (não vaza tamanho incomum, mas também não mente)
+      ---
+      duration_ms: 0.124576
+      type: 'test'
+      ...
+    1..12
+ok 49 - mascararValor (4.5.2/4.5.4 — nunca retorna o valor original)
+  ---
+  duration_ms: 1.781333
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — happy path (completed)
+    # Subtest: 3 linhas válidas -> completed, contadores corretos, sem ImportacaoLinhaErro
+    ok 1 - 3 linhas válidas -> completed, contadores corretos, sem ImportacaoLinhaErro
+      ---
+      duration_ms: 9.021139
+      type: 'test'
+      ...
+    # Subtest: falha no refresh da mv_faturamento_dia é best-effort — importação segue completed
+    ok 2 - falha no refresh da mv_faturamento_dia é best-effort — importação segue completed
+      ---
+      duration_ms: 4.408271
+      type: 'test'
+      ...
+    # Subtest: performance: refresh da mv_performance_dia exatamente 1x, APÓS a transição terminal; nunca o RPC de faturamento
+    ok 3 - performance: refresh da mv_performance_dia exatamente 1x, APÓS a transição terminal; nunca o RPC de faturamento
+      ---
+      duration_ms: 2.566845
+      type: 'test'
+      ...
+    # Subtest: performance: falha no refresh da mv_performance_dia é best-effort — importação segue completed
+    ok 4 - performance: falha no refresh da mv_performance_dia é best-effort — importação segue completed
+      ---
+      duration_ms: 1.343766
+      type: 'test'
+      ...
+    # Subtest: upsert de Entregador carrega claim origemImportacao=true, aditiva ao escopo do job
+    ok 5 - upsert de Entregador carrega claim origemImportacao=true, aditiva ao escopo do job
+      ---
+      duration_ms: 1.840233
+      type: 'test'
+      ...
+    1..5
+ok 50 - executarPipeline — happy path (completed)
+  ---
+  duration_ms: 19.500628
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — completed_with_errors
+    # Subtest: 1 de 3 linhas inválida (33% < 50%) -> completed_with_errors, valor_mascarado nunca bruto
+    ok 1 - 1 de 3 linhas inválida (33% < 50%) -> completed_with_errors, valor_mascarado nunca bruto
+      ---
+      duration_ms: 1.762907
+      type: 'test'
+      ...
+    1..1
+ok 51 - executarPipeline — completed_with_errors
+  ---
+  duration_ms: 1.86476
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — failed (>50% inválidas, rollback por construção)
+    # Subtest: 4 de 5 linhas inválidas (80%) -> failed, ZERO chamadas de insert de fato
+    ok 1 - 4 de 5 linhas inválidas (80%) -> failed, ZERO chamadas de insert de fato
+      ---
+      duration_ms: 1.564061
+      type: 'test'
+      ...
+    1..1
+ok 52 - executarPipeline — failed (>50% inválidas, rollback por construção)
+  ---
+  duration_ms: 2.374713
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — cabeçalho inválido (falha estrutural)
+    # Subtest: cabeçalho fora de ordem -> failed imediatamente, zero linhas processadas
+    ok 1 - cabeçalho fora de ordem -> failed imediatamente, zero linhas processadas
+      ---
+      duration_ms: 1.505091
+      type: 'test'
+      ...
+    1..1
+ok 53 - executarPipeline — cabeçalho inválido (falha estrutural)
+  ---
+  duration_ms: 1.630107
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — cancelamento entre lotes (4.6)
+    # Subtest: cancela detectado antes do 2º lote -> status cancelled, só o 1º lote foi inserido
+    ok 1 - cancela detectado antes do 2º lote -> status cancelled, só o 1º lote foi inserido
+      ---
+      duration_ms: 40.609812
+      type: 'test'
+      ...
+    1..1
+ok 54 - executarPipeline — cancelamento entre lotes (4.6)
+  ---
+  duration_ms: 40.781866
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — arquivo inacessível
+    # Subtest: leitura do arquivo falha -> failed, com motivo explícito
+    ok 1 - leitura do arquivo falha -> failed, com motivo explícito
+      ---
+      duration_ms: 0.420084
+      type: 'test'
+      ...
+    1..1
+ok 55 - executarPipeline — arquivo inacessível
+  ---
+  duration_ms: 0.496278
+  type: 'suite'
+  ...
+# Subtest: processarImportacao — F1.1: catch de topo marca failed em erro NÃO tratado
+    # Subtest: infoLinhas (1ª chamada do pipeline) rejeita com erro de infra não capturado por nenhum try/catch interno -> failed, mutex liberado
+    ok 1 - infoLinhas (1ª chamada do pipeline) rejeita com erro de infra não capturado por nenhum try/catch interno -> failed, mutex liberado
+      ---
+      duration_ms: 1.34037
+      type: 'test'
+      ...
+    1..1
+ok 56 - processarImportacao — F1.1: catch de topo marca failed em erro NÃO tratado
+  ---
+  duration_ms: 1.417636
+  type: 'suite'
+  ...
+# Subtest: recuperarImportacoesOrfas (F1.3 — boot)
+    # Subtest: PATCH usa claim hubBootRecovery e filtro status=in.(validating,processing); libera o mutex
+    ok 1 - PATCH usa claim hubBootRecovery e filtro status=in.(validating,processing); libera o mutex
+      ---
+      duration_ms: 0.76768
+      type: 'test'
+      ...
+    # Subtest: registra 1 evento de auditoria POR linha recuperada, com idEmpresa/recursoId corretos (2.2.2/2.2.5)
+    ok 2 - registra 1 evento de auditoria POR linha recuperada, com idEmpresa/recursoId corretos (2.2.2/2.2.5)
+      ---
+      duration_ms: 0.629188
+      type: 'test'
+      ...
+    # Subtest: nenhuma órfã (0 linhas) -> totalRecuperadas 0, sem lançar, sem auditoria
+    ok 3 - nenhuma órfã (0 linhas) -> totalRecuperadas 0, sem lançar, sem auditoria
+      ---
+      duration_ms: 0.190029
+      type: 'test'
+      ...
+    # Subtest: PostgREST indisponível (ex.: POSTGREST_URL ausente) -> NUNCA lança, best-effort
+    ok 4 - PostgREST indisponível (ex.: POSTGREST_URL ausente) -> NUNCA lança, best-effort
+      ---
+      duration_ms: 0.458045
+      type: 'test'
+      ...
+    # Subtest: falha ao registrar auditoria de 1 linha NUNCA impede a recuperação nem as demais linhas (best-effort por item)
+    ok 5 - falha ao registrar auditoria de 1 linha NUNCA impede a recuperação nem as demais linhas (best-effort por item)
+      ---
+      duration_ms: 0.779201
+      type: 'test'
+      ...
+    1..5
+ok 57 - recuperarImportacoesOrfas (F1.3 — boot)
+  ---
+  duration_ms: 3.023487
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — F5: guard de status nas transições terminais
+    # Subtest: cancelado ANTES da transição validating->processing -> cancelled, ZERO fatos inseridos
+    ok 1 - cancelado ANTES da transição validating->processing -> cancelled, ZERO fatos inseridos
+      ---
+      duration_ms: 1.267001
+      type: 'test'
+      ...
+    # Subtest: cancelado NA JANELA entre o último lote inserido e a PATCH terminal -> cancelled preservado, NÃO sobrescrito por completed
+    ok 2 - cancelado NA JANELA entre o último lote inserido e a PATCH terminal -> cancelled preservado, NÃO sobrescrito por completed
+      ---
+      duration_ms: 1.203511
+      type: 'test'
+      ...
+    1..2
+ok 58 - executarPipeline — F5: guard de status nas transições terminais
+  ---
+  duration_ms: 2.597882
+  type: 'suite'
+  ...
+# Subtest: errorTransiente (F12)
+    # Subtest: HTTP 5xx -> transiente
+    ok 1 - HTTP 5xx -> transiente
+      ---
+      duration_ms: 0.211509
+      type: 'test'
+      ...
+    # Subtest: HTTP 429 (rate limit) -> transiente
+    ok 2 - HTTP 429 (rate limit) -> transiente
+      ---
+      duration_ms: 0.102263
+      type: 'test'
+      ...
+    # Subtest: HTTP 4xx (exceto 429) -> NÃO transiente
+    ok 3 - HTTP 4xx (exceto 429) -> NÃO transiente
+      ---
+      duration_ms: 0.214354
+      type: 'test'
+      ...
+    # Subtest: erro de rede real (err.cause.code POSIX) -> transiente
+    ok 4 - erro de rede real (err.cause.code POSIX) -> transiente
+      ---
+      duration_ms: 0.123463
+      type: 'test'
+      ...
+    # Subtest: TypeError de BUG de código, sem status/código de rede -> NÃO transiente (F12, achado do review)
+    ok 5 - TypeError de BUG de código, sem status/código de rede -> NÃO transiente (F12, achado do review)
+      ---
+      duration_ms: 0.144342
+      type: 'test'
+      ...
+    # Subtest: erro sem status/cause/code qualquer -> NÃO transiente (fail-safe: propaga em vez de mascarar)
+    ok 6 - erro sem status/cause/code qualquer -> NÃO transiente (fail-safe: propaga em vez de mascarar)
+      ---
+      duration_ms: 0.12686
+      type: 'test'
+      ...
+    # Subtest: nulo/undefined -> false
+    ok 7 - nulo/undefined -> false
+      ---
+      duration_ms: 0.092214
+      type: 'test'
+      ...
+    1..7
+ok 59 - errorTransiente (F12)
+  ---
+  duration_ms: 1.231726
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — F13: inserirLoteErros usa on_conflict/ignore-duplicates
+    # Subtest: POST em ImportacaoLinhaErro carrega on_conflict=importacao_id,numero_linha + resolution=ignore-duplicates
+    ok 1 - POST em ImportacaoLinhaErro carrega on_conflict=importacao_id,numero_linha + resolution=ignore-duplicates
+      ---
+      duration_ms: 1.68445
+      type: 'test'
+      ...
+    # Subtest: retry do MESMO lote de erros (simulado 2x) não duplica visivelmente — 2 POSTs, mesmo payload, dedupe é responsabilidade do índice único (migration 0018) + on_conflict
+    ok 2 - retry do MESMO lote de erros (simulado 2x) não duplica visivelmente — 2 POSTs, mesmo payload, dedupe é responsabilidade do índice único (migration 0018) + on_conflict
+      ---
+      duration_ms: 1.140262
+      type: 'test'
+      ...
+    1..2
+ok 60 - executarPipeline — F13: inserirLoteErros usa on_conflict/ignore-duplicates
+  ---
+  duration_ms: 2.938717
+  type: 'suite'
+  ...
+# Subtest: executarPipeline — F3: MAX_LINHAS_IMPORTACAO
+    # Subtest: constante é 300000 (documentação viva do limite)
+    ok 1 - constante é 300000 (documentação viva do limite)
+      ---
+      duration_ms: 0.260682
+      type: 'test'
+      ...
+    # Subtest: arquivo com mais linhas que o limite -> failed, sem estourar memória (corta o parse)
+    ok 2 - arquivo com mais linhas que o limite -> failed, sem estourar memória (corta o parse)
+      ---
+      duration_ms: 4029.351176
+      type: 'test'
+      ...
+    1..2
+ok 61 - executarPipeline — F3: MAX_LINHAS_IMPORTACAO
+  ---
+  duration_ms: 4029.742384
+  type: 'suite'
+  ...
+# Subtest: armazenarOriginal (F10 — pós-review PR \#57, LGPD)
+    # Subtest: grava o arquivo no path determinístico (mesmo de caminhoArmazenamento)
+    ok 1 - grava o arquivo no path determinístico (mesmo de caminhoArmazenamento)
+      ---
+      duration_ms: 4.390407
+      type: 'test'
+      ...
+    # Subtest: diretório da importação é criado com modo 0700 (só o dono acessa)
+    ok 2 - diretório da importação é criado com modo 0700 (só o dono acessa)
+      ---
+      duration_ms: 1.699658
+      type: 'test'
+      ...
+    # Subtest: arquivo original é gravado com modo 0600 (só o dono lê/escreve)
+    ok 3 - arquivo original é gravado com modo 0600 (só o dono lê/escreve)
+      ---
+      duration_ms: 1.467239
+      type: 'test'
+      ...
+    1..3
+ok 62 - armazenarOriginal (F10 — pós-review PR \#57, LGPD)
+  ---
+  duration_ms: 14.526599
+  type: 'suite'
+  ...
+# Subtest: parsePaginacao
+    # Subtest: default: page=1, pageSize default, from=0, to=pageSize-1
+    ok 1 - default: page=1, pageSize default, from=0, to=pageSize-1
+      ---
+      duration_ms: 0.888286
+      type: 'test'
+      ...
+    # Subtest: page=3, pageSize=10 -> from=20, to=29
+    ok 2 - page=3, pageSize=10 -> from=20, to=29
+      ---
+      duration_ms: 0.166234
+      type: 'test'
+      ...
+    # Subtest: pageSize acima do máximo é clampado
+    ok 3 - pageSize acima do máximo é clampado
+      ---
+      duration_ms: 0.209083
+      type: 'test'
+      ...
+    # Subtest: page/pageSize inválidos (não numéricos, negativos, zero) caem no default
+    ok 4 - page/pageSize inválidos (não numéricos, negativos, zero) caem no default
+      ---
+      duration_ms: 0.262465
+      type: 'test'
+      ...
+    1..4
+ok 63 - parsePaginacao
+  ---
+  duration_ms: 2.722448
+  type: 'suite'
+  ...
+# Subtest: parseJanelaPadrao
+    # Subtest: sem de/ate -> default 30 dias atrás até agora (ate=null, aplicado pelo caller)
+    ok 1 - sem de/ate -> default 30 dias atrás até agora (ate=null, aplicado pelo caller)
+      ---
+      duration_ms: 0.471811
+      type: 'test'
+      ...
+    # Subtest: de informado, ate ausente -> respeita a intenção explícita
+    ok 2 - de informado, ate ausente -> respeita a intenção explícita
+      ---
+      duration_ms: 0.217
+      type: 'test'
+      ...
+    # Subtest: ambos informados -> passthrough
+    ok 3 - ambos informados -> passthrough
+      ---
+      duration_ms: 0.236627
+      type: 'test'
+      ...
+    1..3
+ok 64 - parseJanelaPadrao
+  ---
+  duration_ms: 1.34505
+  type: 'suite'
+  ...
+# Subtest: calcularDuracaoSegundos
+    # Subtest: ambas as pontas presentes -> diferença em segundos
+    ok 1 - ambas as pontas presentes -> diferença em segundos
+      ---
+      duration_ms: 0.417839
+      type: 'test'
+      ...
+    # Subtest: faltando qualquer ponta -> null
+    ok 2 - faltando qualquer ponta -> null
+      ---
+      duration_ms: 0.241526
+      type: 'test'
+      ...
+    # Subtest: concluido antes de iniciado (inconsistente) -> null
+    ok 3 - concluido antes de iniciado (inconsistente) -> null
+      ---
+      duration_ms: 0.302411
+      type: 'test'
+      ...
+    1..3
+ok 65 - calcularDuracaoSegundos
+  ---
+  duration_ms: 1.310874
+  type: 'suite'
+  ...
+# Subtest: mapImportacaoListItem — aguardandoLock (dec-032/CHK013)
+    # Subtest: pending SEM tipo ativo -> aguardandoLock=false (recém-criado)
+    ok 1 - pending SEM tipo ativo -> aguardandoLock=false (recém-criado)
+      ---
+      duration_ms: 0.245535
+      type: 'test'
+      ...
+    # Subtest: pending COM outro do mesmo tipo ativo -> aguardandoLock=true
+    ok 2 - pending COM outro do mesmo tipo ativo -> aguardandoLock=true
+      ---
+      duration_ms: 0.140316
+      type: 'test'
+      ...
+    # Subtest: status != pending -> aguardandoLock sempre false, mesmo com tipo ativo
+    ok 3 - status != pending -> aguardandoLock sempre false, mesmo com tipo ativo
+      ---
+      duration_ms: 0.130126
+      type: 'test'
+      ...
+    # Subtest: mapeia todos os campos do contrato em camelCase
+    ok 4 - mapeia todos os campos do contrato em camelCase
+      ---
+      duration_ms: 1.021388
+      type: 'test'
+      ...
+    1..4
+ok 66 - mapImportacaoListItem — aguardandoLock (dec-032/CHK013)
+  ---
+  duration_ms: 1.716409
+  type: 'suite'
+  ...
+# Subtest: mapImportacaoDetalhe
+    # Subtest: agrupa contadores + mantém erroResumo
+    ok 1 - agrupa contadores + mantém erroResumo
+      ---
+      duration_ms: 0.286981
+      type: 'test'
+      ...
+    1..1
+ok 67 - mapImportacaoDetalhe
+  ---
+  duration_ms: 1.913802
+  type: 'suite'
+  ...
+# Subtest: mapErroItem — nunca expõe campo bruto
+    # Subtest: só expõe numeroLinha/campo/motivo/valorMascarado
+    ok 1 - só expõe numeroLinha/campo/motivo/valorMascarado
+      ---
+      duration_ms: 0.214185
+      type: 'test'
+      ...
+    1..1
+ok 68 - mapErroItem — nunca expõe campo bruto
+  ---
+  duration_ms: 0.288805
+  type: 'suite'
+  ...
+# Subtest: escaparCelulaCsvInjection (FR-016/CHK017)
+    # Subtest: prefixa aspas simples em células iniciadas por = + - @
+    ok 1 - prefixa aspas simples em células iniciadas por = + - @
+      ---
+      duration_ms: 0.162957
+      type: 'test'
+      ...
+    # Subtest: células normais passam intactas
+    ok 2 - células normais passam intactas
+      ---
+      duration_ms: 0.129413
+      type: 'test'
+      ...
+    # Subtest: null/undefined/vazio -> string vazia, sem lançar
+    ok 3 - null/undefined/vazio -> string vazia, sem lançar
+      ---
+      duration_ms: 0.146416
+      type: 'test'
+      ...
+    1..3
+ok 69 - escaparCelulaCsvInjection (FR-016/CHK017)
+  ---
+  duration_ms: 0.585134
+  type: 'suite'
+  ...
+# Subtest: gerarCsvErros — 5.3.4 (célula maliciosa recebe prefixo no CSV)
+    # Subtest: célula =1+1 em valorMascarado vira '=1+1 no CSV, cabeçalho fixo, CRLF
+    ok 1 - célula =1+1 em valorMascarado vira '=1+1 no CSV, cabeçalho fixo, CRLF
+      ---
+      duration_ms: 0.479084
+      type: 'test'
+      ...
+    # Subtest: JSON (mapErroItem) nunca contém UUID/nome bruto — só valorMascarado
+    ok 2 - JSON (mapErroItem) nunca contém UUID/nome bruto — só valorMascarado
+      ---
+      duration_ms: 0.245634
+      type: 'test'
+      ...
+    # Subtest: vírgula/aspas na célula são quotadas (RFC 4180), sem quebrar o CSV
+    ok 3 - vírgula/aspas na célula são quotadas (RFC 4180), sem quebrar o CSV
+      ---
+      duration_ms: 0.292913
+      type: 'test'
+      ...
+    1..3
+ok 70 - gerarCsvErros — 5.3.4 (célula maliciosa recebe prefixo no CSV)
+  ---
+  duration_ms: 1.202901
+  type: 'suite'
+  ...
+# Subtest: extensaoDe
+    # Subtest: extrai extensão em minúsculas
+    ok 1 - extrai extensão em minúsculas
+      ---
+      duration_ms: 0.891643
+      type: 'test'
+      ...
+    # Subtest: nome sem extensão -> string vazia
+    ok 2 - nome sem extensão -> string vazia
+      ---
+      duration_ms: 0.333028
+      type: 'test'
+      ...
+    # Subtest: nome ausente/undefined -> string vazia (sem lançar)
+    ok 3 - nome ausente/undefined -> string vazia (sem lançar)
+      ---
+      duration_ms: 0.242247
+      type: 'test'
+      ...
+    1..3
+ok 71 - extensaoDe
+  ---
+  duration_ms: 2.523012
+  type: 'suite'
+  ...
+# Subtest: sanitizarNomeArquivo
+    # Subtest: mantém nome simples intacto
+    ok 1 - mantém nome simples intacto
+      ---
+      duration_ms: 0.288535
+      type: 'test'
+      ...
+    # Subtest: remove path traversal — só o basename sobrevive
+    ok 2 - remove path traversal — só o basename sobrevive
+      ---
+      duration_ms: 0.17001
+      type: 'test'
+      ...
+    # Subtest: caracteres perigosos viram underscore
+    ok 3 - caracteres perigosos viram underscore
+      ---
+      duration_ms: 0.23332
+      type: 'test'
+      ...
+    # Subtest: nome vazio/ausente cai no default "arquivo"
+    ok 4 - nome vazio/ausente cai no default "arquivo"
+      ---
+      duration_ms: 0.229393
+      type: 'test'
+      ...
+    # Subtest: nome muito longo é truncado a 255 chars
+    ok 5 - nome muito longo é truncado a 255 chars
+      ---
+      duration_ms: 0.377091
+      type: 'test'
+      ...
+    1..5
+ok 72 - sanitizarNomeArquivo
+  ---
+  duration_ms: 1.698937
+  type: 'suite'
+  ...
+# Subtest: caminhoArmazenamento
+    # Subtest: é determinístico por id, nunca pelo nome do usuário
+    ok 1 - é determinístico por id, nunca pelo nome do usuário
+      ---
+      duration_ms: 0.338689
+      type: 'test'
+      ...
+    # Subtest: ids diferentes -> diretórios diferentes
+    ok 2 - ids diferentes -> diretórios diferentes
+      ---
+      duration_ms: 0.373515
+      type: 'test'
+      ...
+    1..2
+ok 73 - caminhoArmazenamento
+  ---
+  duration_ms: 0.925936
+  type: 'suite'
+  ...
+# Subtest: validarConteudo
+    # Subtest: CSV simples com header + 1 linha -> resolve sem lançar
+    ok 1 - CSV simples com header + 1 linha -> resolve sem lançar
+      ---
+      duration_ms: 3.43302
+      type: 'test'
+      ...
+    # Subtest: conteúdo vazio -> HubImportParseError motivo conteudo_vazio
+    ok 2 - conteúdo vazio -> HubImportParseError motivo conteudo_vazio
+      ---
+      duration_ms: 0.647462
+      type: 'test'
+      ...
+    # Subtest: CSV só com quebra de linha (sem linha decodificável) -> conteudo_vazio
+    ok 3 - CSV só com quebra de linha (sem linha decodificável) -> conteudo_vazio
+      ---
+      duration_ms: 1.576795
+      type: 'test'
+      ...
+    # Subtest: ZIP inválido (sem EOCD) -> HubImportParseError motivo zip_invalido
+    ok 4 - ZIP inválido (sem EOCD) -> HubImportParseError motivo zip_invalido
+      ---
+      duration_ms: 0.464106
+      type: 'test'
+      ...
+    # Subtest: F2: ZIP estruturalmente válido -> resolve sem lançar e SEM inflar (devolve o buffer ORIGINAL do upload, não o CSV extraído)
+    ok 5 - F2: ZIP estruturalmente válido -> resolve sem lançar e SEM inflar (devolve o buffer ORIGINAL do upload, não o CSV extraído)
+      ---
+      duration_ms: 1.124062
+      type: 'test'
+      ...
+    # Subtest: F2: ZIP com >1 entrada -> rejeitado SEM inflar (mesma taxonomia de erro de antes)
+    ok 6 - F2: ZIP com >1 entrada -> rejeitado SEM inflar (mesma taxonomia de erro de antes)
+      ---
+      duration_ms: 0.281922
+      type: 'test'
+      ...
+    1..6
+ok 74 - validarConteudo
+  ---
+  duration_ms: 7.78868
+  type: 'suite'
+  ...
+# Subtest: idValido (F11 — pós-review PR \#57)
+    # Subtest: aceita string de só dígitos
+    ok 1 - aceita string de só dígitos
+      ---
+      duration_ms: 0.187143
+      type: 'test'
+      ...
+    # Subtest: rejeita lixo à direita/esquerda que parseInt aceitaria silenciosamente
+    ok 2 - rejeita lixo à direita/esquerda que parseInt aceitaria silenciosamente
+      ---
+      duration_ms: 0.098796
+      type: 'test'
+      ...
+    # Subtest: rejeita negativo/vazio/não-string
+    ok 3 - rejeita negativo/vazio/não-string
+      ---
+      duration_ms: 0.11151
+      type: 'test'
+      ...
+    1..3
+ok 75 - idValido (F11 — pós-review PR \#57)
+  ---
+  duration_ms: 0.521023
+  type: 'suite'
+  ...
+# Subtest: parseFiltrosAuditoria
+    # Subtest: sem nenhum filtro -> ok:true, tudo null
+    ok 1 - sem nenhum filtro -> ok:true, tudo null
+      ---
+      duration_ms: 1.518757
+      type: 'test'
+      ...
+    # Subtest: filtros combinados válidos (acao+usuarioId+recurso+periodo)
+    ok 2 - filtros combinados válidos (acao+usuarioId+recurso+periodo)
+      ---
+      duration_ms: 0.372562
+      type: 'test'
+      ...
+    # Subtest: acao fora do vocabulário fechado (maiúscula/espaço/hífen) -> PARAMETRO_INVALIDO
+    ok 3 - acao fora do vocabulário fechado (maiúscula/espaço/hífen) -> PARAMETRO_INVALIDO
+      ---
+      duration_ms: 0.199015
+      type: 'test'
+      ...
+    # Subtest: recurso fora do vocabulário fechado -> PARAMETRO_INVALIDO
+    ok 4 - recurso fora do vocabulário fechado -> PARAMETRO_INVALIDO
+      ---
+      duration_ms: 0.144323
+      type: 'test'
+      ...
+    # Subtest: usuarioId não-inteiro -> PARAMETRO_INVALIDO
+    ok 5 - usuarioId não-inteiro -> PARAMETRO_INVALIDO
+      ---
+      duration_ms: 0.277545
+      type: 'test'
+      ...
+    # Subtest: entidadeId não-inteiro -> PARAMETRO_INVALIDO
+    ok 6 - entidadeId não-inteiro -> PARAMETRO_INVALIDO
+      ---
+      duration_ms: 0.147779
+      type: 'test'
+      ...
+    # Subtest: de/ate fora do formato ISO YYYY-MM-DD -> PARAMETRO_INVALIDO
+    ok 7 - de/ate fora do formato ISO YYYY-MM-DD -> PARAMETRO_INVALIDO
+      ---
+      duration_ms: 0.219233
+      type: 'test'
+      ...
+    # Subtest: de > ate -> PERIODO_INVALIDO (edge case da spec)
+    ok 8 - de > ate -> PERIODO_INVALIDO (edge case da spec)
+      ---
+      duration_ms: 0.211389
+      type: 'test'
+      ...
+    # Subtest: de === ate -> válido (não é PERIODO_INVALIDO)
+    ok 9 - de === ate -> válido (não é PERIODO_INVALIDO)
+      ---
+      duration_ms: 0.258228
+      type: 'test'
+      ...
+    1..9
+ok 76 - parseFiltrosAuditoria
+  ---
+  duration_ms: 5.062505
+  type: 'suite'
+  ...
+# Subtest: parsePaginacaoAuditoria
+    # Subtest: sem params -> default page=1 pageSize=20
+    ok 1 - sem params -> default page=1 pageSize=20
+      ---
+      duration_ms: 0.385227
+      type: 'test'
+      ...
+    # Subtest: page=3 pageSize=10 -> from/to corretos
+    ok 2 - page=3 pageSize=10 -> from/to corretos
+      ---
+      duration_ms: 0.149572
+      type: 'test'
+      ...
+    # Subtest: pageSize acima de 100 -> clamp em 100
+    ok 3 - pageSize acima de 100 -> clamp em 100
+      ---
+      duration_ms: 0.120227
+      type: 'test'
+      ...
+    # Subtest: page<1 ou não-numérico -> default 1
+    ok 4 - page<1 ou não-numérico -> default 1
+      ---
+      duration_ms: 0.128632
+      type: 'test'
+      ...
+    # Subtest: pageSize<1 ou não-numérico -> default 20
+    ok 5 - pageSize<1 ou não-numérico -> default 20
+      ---
+      duration_ms: 0.111892
+      type: 'test'
+      ...
+    # Subtest: página além do total -> paginação continua válida (from/to seguem, sem lançar)
+    ok 6 - página além do total -> paginação continua válida (from/to seguem, sem lançar)
+      ---
+      duration_ms: 0.166695
+      type: 'test'
+      ...
+    1..6
+ok 77 - parsePaginacaoAuditoria
+  ---
+  duration_ms: 1.375827
+  type: 'suite'
+  ...
+# Subtest: montarFiltrosQueryAuditoria
+    # Subtest: só id_empresa quando nenhum filtro adicional
+    ok 1 - só id_empresa quando nenhum filtro adicional
+      ---
+      duration_ms: 0.251053
+      type: 'test'
+      ...
+    # Subtest: acao/recurso/usuarioId/periodo combinados, com encodeURIComponent
+    ok 2 - acao/recurso/usuarioId/periodo combinados, com encodeURIComponent
+      ---
+      duration_ms: 0.234222
+      type: 'test'
+      ...
+    # Subtest: de vira 00:00 UTC e ate vira 23:59:59.999 UTC (janela inclusiva do dia inteiro)
+    ok 3 - de vira 00:00 UTC e ate vira 23:59:59.999 UTC (janela inclusiva do dia inteiro)
+      ---
+      duration_ms: 0.160192
+      type: 'test'
+      ...
+    1..3
+ok 78 - montarFiltrosQueryAuditoria
+  ---
+  duration_ms: 0.781765
+  type: 'suite'
+  ...
+# Subtest: montarFiltrosQueryAuditoriaGlobal (FASE 3.2 — escopo admin_plataforma)
+    # Subtest: sem entidadeId -> NENHUM filtro de id_empresa (vê tudo + globais)
+    ok 1 - sem entidadeId -> NENHUM filtro de id_empresa (vê tudo + globais)
+      ---
+      duration_ms: 0.217662
+      type: 'test'
+      ...
+    # Subtest: com entidadeId -> filtra só aquela entidade (qualquer uma, visão global)
+    ok 2 - com entidadeId -> filtra só aquela entidade (qualquer uma, visão global)
+      ---
+      duration_ms: 0.127912
+      type: 'test'
+      ...
+    # Subtest: combina entidadeId com os demais filtros
+    ok 3 - combina entidadeId com os demais filtros
+      ---
+      duration_ms: 0.163649
+      type: 'test'
+      ...
+    1..3
+ok 79 - montarFiltrosQueryAuditoriaGlobal (FASE 3.2 — escopo admin_plataforma)
+  ---
+  duration_ms: 0.663822
+  type: 'suite'
+  ...
+# Subtest: mapEventoAuditoria — roundtrip snake_case -> camelCase
+    # Subtest: mapeia todas as chaves do envelope (contracts/auditoria-api.md Response 200)
+    ok 1 - mapeia todas as chaves do envelope (contracts/auditoria-api.md Response 200)
+      ---
+      duration_ms: 0.294356
+      type: 'test'
+      ...
+    # Subtest: id_empresa NULL (evento global) -> entidadeId null (sem lançar)
+    ok 2 - id_empresa NULL (evento global) -> entidadeId null (sem lançar)
+      ---
+      duration_ms: 0.139443
+      type: 'test'
+      ...
+    1..2
+ok 80 - mapEventoAuditoria — roundtrip snake_case -> camelCase
+  ---
+  duration_ms: 0.622654
+  type: 'suite'
+  ...
+# Subtest: parsePaginacao
+    # Subtest: default: page=1, pageSize default, from=0, to=pageSize-1
+    ok 1 - default: page=1, pageSize default, from=0, to=pageSize-1
+      ---
+      duration_ms: 0.832471
+      type: 'test'
+      ...
+    # Subtest: page=3, pageSize=10 -> from=20, to=29
+    ok 2 - page=3, pageSize=10 -> from=20, to=29
+      ---
+      duration_ms: 0.167366
+      type: 'test'
+      ...
+    # Subtest: pageSize acima do máximo (100) é clampado
+    ok 3 - pageSize acima do máximo (100) é clampado
+      ---
+      duration_ms: 0.319513
+      type: 'test'
+      ...
+    # Subtest: page < 1 ou não numérico -> 1
+    ok 4 - page < 1 ou não numérico -> 1
+      ---
+      duration_ms: 0.170431
+      type: 'test'
+      ...
+    # Subtest: pageSize não numérico -> default
+    ok 5 - pageSize não numérico -> default
+      ---
+      duration_ms: 0.139784
+      type: 'test'
+      ...
+    1..5
+ok 81 - parsePaginacao
+  ---
+  duration_ms: 2.768685
+  type: 'suite'
+  ...
+# Subtest: normalizarNome — tolerância a acento/caixa
+    # Subtest: remove acentos comuns (á, ã, ç, é, ô, í, ú)
+    ok 1 - remove acentos comuns (á, ã, ç, é, ô, í, ú)
+      ---
+      duration_ms: 0.337878
+      type: 'test'
+      ...
+    # Subtest: lowercase
+    ok 2 - lowercase
+      ---
+      duration_ms: 0.443336
+      type: 'test'
+      ...
+    # Subtest: null/undefined -> string vazia
+    ok 3 - null/undefined -> string vazia
+      ---
+      duration_ms: 0.400376
+      type: 'test'
+      ...
+    # Subtest: trim de espaços nas pontas
+    ok 4 - trim de espaços nas pontas
+      ---
+      duration_ms: 0.276112
+      type: 'test'
+      ...
+    1..4
+ok 82 - normalizarNome — tolerância a acento/caixa
+  ---
+  duration_ms: 2.035011
+  type: 'suite'
+  ...
+# Subtest: nomeCasa — busca parcial tolerante a acento
+    # Subtest: termo sem acento casa nome COM acento (prova de tolerância)
+    ok 1 - termo sem acento casa nome COM acento (prova de tolerância)
+      ---
+      duration_ms: 1.75923
+      type: 'test'
+      ...
+    # Subtest: termo COM acento casa nome sem acento
+    ok 2 - termo COM acento casa nome sem acento
+      ---
+      duration_ms: 0.12175
+      type: 'test'
+      ...
+    # Subtest: caixa diferente casa
+    ok 3 - caixa diferente casa
+      ---
+      duration_ms: 0.098145
+      type: 'test'
+      ...
+    # Subtest: substring que não existe não casa
+    ok 4 - substring que não existe não casa
+      ---
+      duration_ms: 0.200709
+      type: 'test'
+      ...
+    # Subtest: termo vazio/ausente casa tudo
+    ok 5 - termo vazio/ausente casa tudo
+      ---
+      duration_ms: 0.103595
+      type: 'test'
+      ...
+    1..5
+ok 83 - nomeCasa — busca parcial tolerante a acento
+  ---
+  duration_ms: 2.49491
+  type: 'suite'
+  ...
+# Subtest: areaCasa — qualquer área distinta corresponde
+    # Subtest: área presente na lista (normalizada) casa
+    ok 1 - área presente na lista (normalizada) casa
+      ---
+      duration_ms: 0.176913
+      type: 'test'
+      ...
+    # Subtest: área ausente não casa
+    ok 2 - área ausente não casa
+      ---
+      duration_ms: 0.126349
+      type: 'test'
+      ...
+    # Subtest: área vazia/ausente casa tudo
+    ok 3 - área vazia/ausente casa tudo
+      ---
+      duration_ms: 0.09533
+      type: 'test'
+      ...
+    # Subtest: lista de áreas vazia nunca casa (exceto termo vazio)
+    ok 4 - lista de áreas vazia nunca casa (exceto termo vazio)
+      ---
+      duration_ms: 0.08991
+      type: 'test'
+      ...
+    1..4
+ok 84 - areaCasa — qualquer área distinta corresponde
+  ---
+  duration_ms: 0.659014
+  type: 'suite'
+  ...
+# Subtest: agruparAreasPorEntregador
+    # Subtest: agrupa por entregador_id e ordena por dataMaisRecente DESC
+    ok 1 - agrupa por entregador_id e ordena por dataMaisRecente DESC
+      ---
+      duration_ms: 0.870533
+      type: 'test'
+      ...
+    # Subtest: entrada vazia/nula -> mapa vazio
+    ok 2 - entrada vazia/nula -> mapa vazio
+      ---
+      duration_ms: 0.105159
+      type: 'test'
+      ...
+    1..2
+ok 85 - agruparAreasPorEntregador
+  ---
+  duration_ms: 1.148829
+  type: 'suite'
+  ...
+# Subtest: mapMotoristaListItem
+    # Subtest: mapeia comVinculo=true quando motorista_id presente
+    ok 1 - mapeia comVinculo=true quando motorista_id presente
+      ---
+      duration_ms: 0.221207
+      type: 'test'
+      ...
+    # Subtest: mapeia comVinculo=false quando motorista_id null
+    ok 2 - mapeia comVinculo=false quando motorista_id null
+      ---
+      duration_ms: 0.191932
+      type: 'test'
+      ...
+    # Subtest: areas default para [] quando não informado
+    ok 3 - areas default para [] quando não informado
+      ---
+      duration_ms: 0.118023
+      type: 'test'
+      ...
+    1..3
+ok 86 - mapMotoristaListItem
+  ---
+  duration_ms: 0.648614
+  type: 'suite'
+  ...
+# Subtest: mapMotoristaDetalhe
+    # Subtest: vinculo presente -> objeto com cnpjPrestadorMascarado
+    ok 1 - vinculo presente -> objeto com cnpjPrestadorMascarado
+      ---
+      duration_ms: 0.342016
+      type: 'test'
+      ...
+    # Subtest: vinculo ausente -> null, sem erro
+    ok 2 - vinculo ausente -> null, sem erro
+      ---
+      duration_ms: 0.163589
+      type: 'test'
+      ...
+    # Subtest: sem histórico de importação -> resumo zerado, areas vazio, sem erro
+    ok 3 - sem histórico de importação -> resumo zerado, areas vazio, sem erro
+      ---
+      duration_ms: 0.127891
+      type: 'test'
+      ...
+    # Subtest: resumo undefined -> defaults zerados (nunca lança)
+    ok 4 - resumo undefined -> defaults zerados (nunca lança)
+      ---
+      duration_ms: 0.11151
+      type: 'test'
+      ...
+    1..4
+ok 87 - mapMotoristaDetalhe
+  ---
+  duration_ms: 0.880632
+  type: 'suite'
+  ...
+# Subtest: mascararCnpj — LGPD, formato NN.***.***/NNNN-**
+    # Subtest: 14 dígitos puros
+    ok 1 - 14 dígitos puros
+      ---
+      duration_ms: 0.224284
+      type: 'test'
+      ...
+    # Subtest: CNPJ com pontuação (normaliza para dígitos antes de fatiar)
+    ok 2 - CNPJ com pontuação (normaliza para dígitos antes de fatiar)
+      ---
+      duration_ms: 0.098435
+      type: 'test'
+      ...
+    # Subtest: outro CNPJ formatado — confere prefixo/bloco distintos
+    ok 3 - outro CNPJ formatado — confere prefixo/bloco distintos
+      ---
+      duration_ms: 0.106592
+      type: 'test'
+      ...
+    # Subtest: entrada inválida/curta não quebra — retorna null
+    ok 4 - entrada inválida/curta não quebra — retorna null
+      ---
+      duration_ms: 0.136258
+      type: 'test'
+      ...
+    # Subtest: entrada null/undefined -> null, nunca lança
+    ok 5 - entrada null/undefined -> null, nunca lança
+      ---
+      duration_ms: 0.112844
+      type: 'test'
+      ...
+    # Subtest: entrada com dígitos além de 14 (inválida) -> null
+    ok 6 - entrada com dígitos além de 14 (inválida) -> null
+      ---
+      duration_ms: 0.093828
+      type: 'test'
+      ...
+    1..6
+ok 88 - mascararCnpj — LGPD, formato NN.***.***/NNNN-**
+  ---
+  duration_ms: 0.964731
+  type: 'suite'
+  ...
+# Subtest: validarPatchMotorista — allowlist estrita FASE 4 (task 4.1), contracts/motoristas-api.md §PATCH
+    # Subtest: só nome -> patch com nome + nome_editado_manualmente=true
+    ok 1 - só nome -> patch com nome + nome_editado_manualmente=true
+      ---
+      duration_ms: 0.460449
+      type: 'test'
+      ...
+    # Subtest: nome com espaços nas pontas -> trim aplicado
+    ok 2 - nome com espaços nas pontas -> trim aplicado
+      ---
+      duration_ms: 0.199256
+      type: 'test'
+      ...
+    # Subtest: só ativo -> patch com ativo, SEM nome_editado_manualmente
+    ok 3 - só ativo -> patch com ativo, SEM nome_editado_manualmente
+      ---
+      duration_ms: 0.134855
+      type: 'test'
+      ...
+    # Subtest: nome + ativo juntos -> ambos no patch, 1 único UPDATE (FR-004)
+    ok 4 - nome + ativo juntos -> ambos no patch, 1 único UPDATE (FR-004)
+      ---
+      duration_ms: 0.531924
+      type: 'test'
+      ...
+    # Subtest: nome vazio -> erro INVALIDO (422)
+    ok 5 - nome vazio -> erro INVALIDO (422)
+      ---
+      duration_ms: 1.723053
+      type: 'test'
+      ...
+    # Subtest: nome só espaços -> erro INVALIDO (422)
+    ok 6 - nome só espaços -> erro INVALIDO (422)
+      ---
+      duration_ms: 0.142699
+      type: 'test'
+      ...
+    # Subtest: nome não-string (ex.: número) -> erro INVALIDO
+    ok 7 - nome não-string (ex.: número) -> erro INVALIDO
+      ---
+      duration_ms: 0.136288
+      type: 'test'
+      ...
+    # Subtest: ativo não-booleano -> erro INVALIDO
+    ok 8 - ativo não-booleano -> erro INVALIDO
+      ---
+      duration_ms: 0.132229
+      type: 'test'
+      ...
+    # Subtest: corpo vazio (nenhum campo) -> erro VAZIO
+    ok 9 - corpo vazio (nenhum campo) -> erro VAZIO
+      ---
+      duration_ms: 0.16377
+      type: 'test'
+      ...
+    # Subtest: corpo null/undefined -> erro VAZIO, nunca lança
+    ok 10 - corpo null/undefined -> erro VAZIO, nunca lança
+      ---
+      duration_ms: 0.122733
+      type: 'test'
+      ...
+    # Subtest: mass-assignment/BOPLA — campos extras são IGNORADOS, nunca vazam para o patch (Decision 12)
+    ok 11 - mass-assignment/BOPLA — campos extras são IGNORADOS, nunca vazam para o patch (Decision 12)
+      ---
+      duration_ms: 0.181463
+      type: 'test'
+      ...
+    1..11
+ok 89 - validarPatchMotorista — allowlist estrita FASE 4 (task 4.1), contracts/motoristas-api.md §PATCH
+  ---
+  duration_ms: 4.32782
+  type: 'suite'
+  ...
+# Subtest: validarVinculoBody — allowlist estrita FASE 6 (task 6.1), contracts/motoristas-api.md §POST vinculo
+    # Subtest: contaMotoristaId numérico -> ok, origem default "nao_informado"
+    ok 1 - contaMotoristaId numérico -> ok, origem default "nao_informado"
+      ---
+      duration_ms: 0.29743
+      type: 'test'
+      ...
+    # Subtest: contaMotoristaId como string numérica -> ok
+    ok 2 - contaMotoristaId como string numérica -> ok
+      ---
+      duration_ms: 0.131668
+      type: 'test'
+      ...
+    # Subtest: origem="sugestao" -> preservada
+    ok 3 - origem="sugestao" -> preservada
+      ---
+      duration_ms: 1.169307
+      type: 'test'
+      ...
+    # Subtest: origem="busca_manual" -> preservada
+    ok 4 - origem="busca_manual" -> preservada
+      ---
+      duration_ms: 0.193867
+      type: 'test'
+      ...
+    # Subtest: origem com valor fora do enum -> "nao_informado", nunca rejeita a requisição
+    ok 5 - origem com valor fora do enum -> "nao_informado", nunca rejeita a requisição
+      ---
+      duration_ms: 0.733324
+      type: 'test'
+      ...
+    # Subtest: contaMotoristaId ausente -> erro INVALIDO (422)
+    ok 6 - contaMotoristaId ausente -> erro INVALIDO (422)
+      ---
+      duration_ms: 0.128733
+      type: 'test'
+      ...
+    # Subtest: contaMotoristaId não-numérico (string) -> erro INVALIDO
+    ok 7 - contaMotoristaId não-numérico (string) -> erro INVALIDO
+      ---
+      duration_ms: 0.123974
+      type: 'test'
+      ...
+    # Subtest: contaMotoristaId negativo/float -> erro INVALIDO
+    ok 8 - contaMotoristaId negativo/float -> erro INVALIDO
+      ---
+      duration_ms: 0.112863
+      type: 'test'
+      ...
+    # Subtest: corpo null/undefined -> erro INVALIDO, nunca lança
+    ok 9 - corpo null/undefined -> erro INVALIDO, nunca lança
+      ---
+      duration_ms: 0.103966
+      type: 'test'
+      ...
+    # Subtest: mass-assignment/BOPLA — campos extras (ex.: idEmpresa, id) nunca aparecem no retorno
+    ok 10 - mass-assignment/BOPLA — campos extras (ex.: idEmpresa, id) nunca aparecem no retorno
+      ---
+      duration_ms: 0.148059
+      type: 'test'
+      ...
+    1..10
+ok 90 - validarVinculoBody — allowlist estrita FASE 6 (task 6.1), contracts/motoristas-api.md §POST vinculo
+  ---
+  duration_ms: 3.550041
+  type: 'suite'
+  ...
+# Subtest: termoBuscaValido (corte mínimo do termo de busca manual)
+    # Subtest: TERMO_BUSCA_MIN_CHARS = 2 (contracts/motoristas-api.md §contas-elegiveis)
+    ok 1 - TERMO_BUSCA_MIN_CHARS = 2 (contracts/motoristas-api.md §contas-elegiveis)
+      ---
+      duration_ms: 1.393771
+      type: 'test'
+      ...
+    # Subtest: null/undefined -> false
+    ok 2 - null/undefined -> false
+      ---
+      duration_ms: 0.172576
+      type: 'test'
+      ...
+    # Subtest: não-string -> false
+    ok 3 - não-string -> false
+      ---
+      duration_ms: 0.321086
+      type: 'test'
+      ...
+    # Subtest: string vazia -> false
+    ok 4 - string vazia -> false
+      ---
+      duration_ms: 0.139712
+      type: 'test'
+      ...
+    # Subtest: só espaços -> false (trim antes do corte)
+    ok 5 - só espaços -> false (trim antes do corte)
+      ---
+      duration_ms: 0.12219
+      type: 'test'
+      ...
+    # Subtest: 1 caractere (abaixo do corte) -> false
+    ok 6 - 1 caractere (abaixo do corte) -> false
+      ---
+      duration_ms: 0.107784
+      type: 'test'
+      ...
+    # Subtest: 1 caractere + espaços ao redor (trim ainda deixa abaixo do corte) -> false
+    ok 7 - 1 caractere + espaços ao redor (trim ainda deixa abaixo do corte) -> false
+      ---
+      duration_ms: 0.187123
+      type: 'test'
+      ...
+    # Subtest: exatamente 2 caracteres (no corte) -> true
+    ok 8 - exatamente 2 caracteres (no corte) -> true
+      ---
+      duration_ms: 0.210255
+      type: 'test'
+      ...
+    # Subtest: 2 caracteres úteis + espaços ao redor -> true (trim conta só o conteúdo)
+    ok 9 - 2 caracteres úteis + espaços ao redor -> true (trim conta só o conteúdo)
+      ---
+      duration_ms: 0.29114
+      type: 'test'
+      ...
+    # Subtest: acima do corte -> true
+    ok 10 - acima do corte -> true
+      ---
+      duration_ms: 0.419952
+      type: 'test'
+      ...
+    1..10
+ok 91 - termoBuscaValido (corte mínimo do termo de busca manual)
+  ---
+  duration_ms: 5.067865
+  type: 'suite'
+  ...
+# Subtest: mapCandidato (GET /motoristas/:id/sugestoes)
+    # Subtest: mapeia todos os campos snake_case -> camelCase
+    ok 1 - mapeia todos os campos snake_case -> camelCase
+      ---
+      duration_ms: 1.942717
+      type: 'test'
+      ...
+    # Subtest: ja_vinculado_a presente -> jaVinculadoA = {entregadorId, nome}
+    ok 2 - ja_vinculado_a presente -> jaVinculadoA = {entregadorId, nome}
+      ---
+      duration_ms: 0.16387
+      type: 'test'
+      ...
+    # Subtest: cnpj_prestador inválido/curto -> cnpjPrestadorMascarado=null (nunca lança)
+    ok 3 - cnpj_prestador inválido/curto -> cnpjPrestadorMascarado=null (nunca lança)
+      ---
+      duration_ms: 0.109246
+      type: 'test'
+      ...
+    # Subtest: preserva a ordenação por similaridade decrescente já entregue pelo RPC (map não reordena)
+    ok 4 - preserva a ordenação por similaridade decrescente já entregue pelo RPC (map não reordena)
+      ---
+      duration_ms: 0.208995
+      type: 'test'
+      ...
+    1..4
+ok 92 - mapCandidato (GET /motoristas/:id/sugestoes)
+  ---
+  duration_ms: 2.597222
+  type: 'suite'
+  ...
+# Subtest: mapContaElegivel (GET /motoristas/contas-elegiveis)
+    # Subtest: mapeia todos os campos snake_case -> camelCase, sem campo similaridade
+    ok 1 - mapeia todos os campos snake_case -> camelCase, sem campo similaridade
+      ---
+      duration_ms: 0.257626
+      type: 'test'
+      ...
+    # Subtest: ja_vinculado_a presente -> jaVinculadoA = {entregadorId, nome}
+    ok 2 - ja_vinculado_a presente -> jaVinculadoA = {entregadorId, nome}
+      ---
+      duration_ms: 0.124424
+      type: 'test'
+      ...
+    1..2
+ok 93 - mapContaElegivel (GET /motoristas/contas-elegiveis)
+  ---
+  duration_ms: 0.478212
+  type: 'suite'
+  ...
+# Subtest: lib/hub-postgrest-jwt — claims por request (FASE 3 -> FASE 5)
+    # Subtest: sem argumentos (FASE 3): payload só tem role=authenticated
+    ok 1 - sem argumentos (FASE 3): payload só tem role=authenticated
+      ---
+      duration_ms: 3.23736
+      type: 'test'
+      ...
+    # Subtest: com claims completas (FASE 5): sub/empresa_ativa/escopo presentes e corretos
+    ok 2 - com claims completas (FASE 5): sub/empresa_ativa/escopo presentes e corretos
+      ---
+      duration_ms: 1.5317
+      type: 'test'
+      ...
+    # Subtest: claims parciais (só usuarioId): empresa_ativa/escopo ausentes, não null
+    ok 3 - claims parciais (só usuarioId): empresa_ativa/escopo ausentes, não null
+      ---
+      duration_ms: 0.706974
+      type: 'test'
+      ...
+    # Subtest: PGRST_JWT_SECRET ausente -> lança (nega-por-padrão em vez de assinar sem segredo)
+    ok 4 - PGRST_JWT_SECRET ausente -> lança (nega-por-padrão em vez de assinar sem segredo)
+      ---
+      duration_ms: 0.710181
+      type: 'test'
+      ...
+    # Subtest: hubBootRecovery=true -> payload.hub_boot_recovery=true; ausente/false -> claim NUNCA aparece
+    ok 5 - hubBootRecovery=true -> payload.hub_boot_recovery=true; ausente/false -> claim NUNCA aparece
+      ---
+      duration_ms: 0.902604
+      type: 'test'
+      ...
+    # Subtest: origemImportacao=true -> payload.origem_importacao=true; ausente/false -> claim NUNCA aparece
+    ok 6 - origemImportacao=true -> payload.origem_importacao=true; ausente/false -> claim NUNCA aparece
+      ---
+      duration_ms: 1.033652
+      type: 'test'
+      ...
+    # Subtest: adminPlataforma=true -> payload.admin_plataforma=true; ausente/false -> claim NUNCA aparece
+    ok 7 - adminPlataforma=true -> payload.admin_plataforma=true; ausente/false -> claim NUNCA aparece
+      ---
+      duration_ms: 0.775262
+      type: 'test'
+      ...
+    1..7
+ok 94 - lib/hub-postgrest-jwt — claims por request (FASE 3 -> FASE 5)
+  ---
+  duration_ms: 10.927416
+  type: 'suite'
+  ...
+# Subtest: lib/hub-postgrest-jwt — alg-pinning (research.md Decision 12, owasp-security)
+    # Subtest: token gerado é sempre HS256 no header (assinatura)
+    ok 1 - token gerado é sempre HS256 no header (assinatura)
+      ---
+      duration_ms: 0.576499
+      type: 'test'
+      ...
+    # Subtest: verify com algorithms:[HS256] ACEITA um token HS256 legítimo
+    ok 2 - verify com algorithms:[HS256] ACEITA um token HS256 legítimo
+      ---
+      duration_ms: 1.095989
+      type: 'test'
+      ...
+    # Subtest: verify com algorithms:[HS256] REJEITA um token assinado com HS384 (mesmo segredo) — confusão de algoritmo
+    ok 3 - verify com algorithms:[HS256] REJEITA um token assinado com HS384 (mesmo segredo) — confusão de algoritmo
+      ---
+      duration_ms: 0.570437
+      type: 'test'
+      ...
+    # Subtest: verify REJEITA token alg=none (ataque clássico de confusão de algoritmo)
+    ok 4 - verify REJEITA token alg=none (ataque clássico de confusão de algoritmo)
+      ---
+      duration_ms: 0.335172
+      type: 'test'
+      ...
+    1..4
+ok 95 - lib/hub-postgrest-jwt — alg-pinning (research.md Decision 12, owasp-security)
+  ---
+  duration_ms: 2.96181
+  type: 'suite'
+  ...
+# [hub-postgrest] Content-Range ausente/`*` em resposta com count=exact — usando fallback offset+data.length (total pode estar subestimado se houver mais páginas além da atual).
+# Subtest: hub-postgrest — hubPostgrestRequest
+    # Subtest: corpo JSON simples (sem opts.count) -> devolve o array parseado direto
+    ok 1 - corpo JSON simples (sem opts.count) -> devolve o array parseado direto
+      ---
+      duration_ms: 3.827875
+      type: 'test'
+      ...
+    # Subtest: resposta 204 (sem corpo) -> null
+    ok 2 - resposta 204 (sem corpo) -> null
+      ---
+      duration_ms: 0.90079
+      type: 'test'
+      ...
+    # Subtest: erro HTTP (!ok) -> lança com .status/.body
+    ok 3 - erro HTTP (!ok) -> lança com .status/.body
+      ---
+      duration_ms: 1.349798
+      type: 'test'
+      ...
+    # Subtest: opts.range -> headers Range-Unit/Range enviados corretamente
+    ok 4 - opts.range -> headers Range-Unit/Range enviados corretamente
+      ---
+      duration_ms: 0.793979
+      type: 'test'
+      ...
+    # Subtest: opts.signal -> repassado ao fetch (F1.2, watchdog do processor)
+    ok 5 - opts.signal -> repassado ao fetch (F1.2, watchdog do processor)
+      ---
+      duration_ms: 0.570828
+      type: 'test'
+      ...
+    # Subtest: opts.count com Content-Range normal ("0-9/42") -> total extraído do header
+    ok 6 - opts.count com Content-Range normal ("0-9/42") -> total extraído do header
+      ---
+      duration_ms: 1.388761
+      type: 'test'
+      ...
+    # Subtest: F9: Content-Range AUSENTE com opts.count -> fallback offset+data.length, NUNCA total:0 quando há linhas
+    ok 7 - F9: Content-Range AUSENTE com opts.count -> fallback offset+data.length, NUNCA total:0 quando há linhas
+      ---
+      duration_ms: 1.097272
+      type: 'test'
+      ...
+    # Subtest: F9: Content-Range = "*/*" (PostgREST não conseguiu contar) -> mesmo fallback, não 0
+    ok 8 - F9: Content-Range = "*/*" (PostgREST não conseguiu contar) -> mesmo fallback, não 0
+      ---
+      duration_ms: 0.510364
+      type: 'test'
+      ...
+    # Subtest: F9: sem opts.range (from ausente) e sem Content-Range -> fallback usa offset 0 + data.length
+    ok 9 - F9: sem opts.range (from ausente) e sem Content-Range -> fallback usa offset 0 + data.length
+      ---
+      duration_ms: 0.998375
+      type: 'test'
+      ...
+    1..9
+ok 96 - hub-postgrest — hubPostgrestRequest
+  ---
+  duration_ms: 13.002473
+  type: 'suite'
+  ...
+# [hub-rbac-cache] erro ao carregar permissoes do banco (fail-closed -> vazio, nao cacheado): postgrest indisponível
+# [hub-rbac-cache] erro ao carregar permissoes do banco (fail-closed -> vazio, nao cacheado): postgrest indisponível
+# Subtest: usuarioEhAdminPlataforma
+    # Subtest: vínculo ativo com papel admin_plataforma -> true
+    ok 1 - vínculo ativo com papel admin_plataforma -> true
+      ---
+      duration_ms: 4.23819
+      type: 'test'
+      ...
+    # Subtest: só vínculos com outros papéis -> false
+    ok 2 - só vínculos com outros papéis -> false
+      ---
+      duration_ms: 1.203642
+      type: 'test'
+      ...
+    # Subtest: sem nenhum vínculo -> false
+    ok 3 - sem nenhum vínculo -> false
+      ---
+      duration_ms: 1.194185
+      type: 'test'
+      ...
+    # Subtest: cache: 2ª chamada dentro do TTL não bate fetch de novo
+    ok 4 - cache: 2ª chamada dentro do TTL não bate fetch de novo
+      ---
+      duration_ms: 1.166833
+      type: 'test'
+      ...
+    # Subtest: invalidarUsuario limpa a entrada (prefixo usuarioId: — mesmo mecanismo síncrono)
+    ok 5 - invalidarUsuario limpa a entrada (prefixo usuarioId: — mesmo mecanismo síncrono)
+      ---
+      duration_ms: 2.304008
+      type: 'test'
+      ...
+    # Subtest: erro de infra -> fail-closed (false), NUNCA cacheado
+    ok 6 - erro de infra -> fail-closed (false), NUNCA cacheado
+      ---
+      duration_ms: 2.07131
+      type: 'test'
+      ...
+    1..6
+ok 97 - usuarioEhAdminPlataforma
+  ---
+  duration_ms: 13.879558
+  type: 'suite'
+  ...
+# Subtest: montarUniaoDePermissoes
+    # Subtest: sem grants -> Set vazio
+    ok 1 - sem grants -> Set vazio
+      ---
+      duration_ms: 1.978636
+      type: 'test'
+      ...
+    # Subtest: un único papel -> permissões desse papel
+    ok 2 - un único papel -> permissões desse papel
+      ---
+      duration_ms: 0.751539
+      type: 'test'
+      ...
+    # Subtest: papel global + papel de entidade -> UNIÃO (sem herança/negação, FR-009)
+    ok 3 - papel global + papel de entidade -> UNIÃO (sem herança/negação, FR-009)
+      ---
+      duration_ms: 0.183757
+      type: 'test'
+      ...
+    # Subtest: permissão repetida em papéis diferentes -> deduplicada (Set)
+    ok 4 - permissão repetida em papéis diferentes -> deduplicada (Set)
+      ---
+      duration_ms: 0.19592
+      type: 'test'
+      ...
+    # Subtest: linhas malformadas (sem permissao/codigo) são ignoradas, não quebram
+    ok 5 - linhas malformadas (sem permissao/codigo) são ignoradas, não quebram
+      ---
+      duration_ms: 0.167066
+      type: 'test'
+      ...
+    1..5
+ok 98 - montarUniaoDePermissoes
+  ---
+  duration_ms: 4.538367
+  type: 'suite'
+  ...
+# Subtest: permissões por entidade (\#1 — gate de auditoria contra entidade ativa)
+    # Subtest: união FLAT enxerga auditoria.consultar (vem de B) — por isso NÃO serve de gate por-tenant
+    ok 1 - união FLAT enxerga auditoria.consultar (vem de B) — por isso NÃO serve de gate por-tenant
+      ---
+      duration_ms: 0.266172
+      type: 'test'
+      ...
+    # Subtest: POR ENTIDADE A: auditoria.consultar AUSENTE (só leitura em A) -> gate nega (403)
+    ok 2 - POR ENTIDADE A: auditoria.consultar AUSENTE (só leitura em A) -> gate nega (403)
+      ---
+      duration_ms: 0.316147
+      type: 'test'
+      ...
+    # Subtest: POR ENTIDADE B: auditoria.consultar PRESENTE -> gate permite
+    ok 3 - POR ENTIDADE B: auditoria.consultar PRESENTE -> gate permite
+      ---
+      duration_ms: 0.404634
+      type: 'test'
+      ...
+    # Subtest: entidade sem vínculo -> Set vazio (nega por construção)
+    ok 4 - entidade sem vínculo -> Set vazio (nega por construção)
+      ---
+      duration_ms: 0.344
+      type: 'test'
+      ...
+    1..4
+ok 99 - permissões por entidade (\#1 — gate de auditoria contra entidade ativa)
+  ---
+  duration_ms: 1.840052
+  type: 'suite'
+  ...
+# Subtest: invalidação coerente flat + por-entidade (\#1)
+    # Subtest: invalidarUsuario apaga a entrada flat E todas as `id:*` do usuário, sem tocar outros
+    ok 1 - invalidarUsuario apaga a entrada flat E todas as `id:*` do usuário, sem tocar outros
+      ---
+      duration_ms: 0.329552
+      type: 'test'
+      ...
+    1..1
+ok 100 - invalidação coerente flat + por-entidade (\#1)
+  ---
+  duration_ms: 0.451012
+  type: 'suite'
+  ...
+# Subtest: cache RBAC — TTL + invalidação
+    # Subtest: cache-miss chama o loader; hit subsequente dentro do TTL não chama de novo
+    ok 1 - cache-miss chama o loader; hit subsequente dentro do TTL não chama de novo
+      ---
+      duration_ms: 0.434671
+      type: 'test'
+      ...
+    # Subtest: expiração natural do TTL (60s): após expirar, recarrega do loader
+    ok 2 - expiração natural do TTL (60s): após expirar, recarrega do loader
+      ---
+      duration_ms: 0.219675
+      type: 'test'
+      ...
+    # Subtest: invalidarUsuario força reload mesmo dentro do TTL (SC-004: reflete em <=60s)
+    ok 3 - invalidarUsuario força reload mesmo dentro do TTL (SC-004: reflete em <=60s)
+      ---
+      duration_ms: 0.307289
+      type: 'test'
+      ...
+    # Subtest: invalidação é isolada por usuário (não afeta cache de outro usuarioId)
+    ok 4 - invalidação é isolada por usuário (não afeta cache de outro usuarioId)
+      ---
+      duration_ms: 0.310386
+      type: 'test'
+      ...
+    1..4
+ok 101 - cache RBAC — TTL + invalidação
+  ---
+  duration_ms: 1.510532
+  type: 'suite'
+  ...
+# Subtest: cache RBAC — fail-closed (Decision 13)
+    # Subtest: erro do loader -> Set vazio (nega tudo), não lança
+    ok 1 - erro do loader -> Set vazio (nega tudo), não lança
+      ---
+      duration_ms: 1.173796
+      type: 'test'
+      ...
+    # Subtest: resultado de erro NÃO é cacheado: falha transitória se recupera na próxima chamada
+    ok 2 - resultado de erro NÃO é cacheado: falha transitória se recupera na próxima chamada
+      ---
+      duration_ms: 0.261533
+      type: 'test'
+      ...
+    1..2
+ok 102 - cache RBAC — fail-closed (Decision 13)
+  ---
+  duration_ms: 1.557459
+  type: 'suite'
+  ...
+# Subtest: avaliarPermissao (requirePermission)
+    # Subtest: sem usuarioId (sem accessToken válido) -> 401 NAO_AUTENTICADO
+    ok 1 - sem usuarioId (sem accessToken válido) -> 401 NAO_AUTENTICADO
+      ---
+      duration_ms: 0.190499
+      type: 'test'
+      ...
+    # Subtest: autenticado mas sem o grant específico -> 403 PERMISSAO_NEGADA
+    ok 2 - autenticado mas sem o grant específico -> 403 PERMISSAO_NEGADA
+      ---
+      duration_ms: 0.162266
+      type: 'test'
+      ...
+    # Subtest: autenticado com o grant (via papel global OU de entidade) -> ok
+    ok 3 - autenticado com o grant (via papel global OU de entidade) -> ok
+      ---
+      duration_ms: 0.107091
+      type: 'test'
+      ...
+    # Subtest: Set de permissões vazio (fail-closed do cache em erro) -> sempre 403, nunca ok
+    ok 4 - Set de permissões vazio (fail-closed do cache em erro) -> sempre 403, nunca ok
+      ---
+      duration_ms: 0.095982
+      type: 'test'
+      ...
+    1..4
+ok 103 - avaliarPermissao (requirePermission)
+  ---
+  duration_ms: 0.703057
+  type: 'suite'
+  ...
+# Subtest: filtrarModulosPorPermissao (GET /me)
+    # Subtest: só inclui módulo se houver ao menos 1 permissão desse módulo
+    ok 1 - só inclui módulo se houver ao menos 1 permissão desse módulo
+      ---
+      duration_ms: 0.269158
+      type: 'test'
+      ...
+    # Subtest: sem nenhuma permissão -> lista vazia mesmo com módulos ativos na entidade
+    ok 2 - sem nenhuma permissão -> lista vazia mesmo com módulos ativos na entidade
+      ---
+      duration_ms: 0.104488
+      type: 'test'
+      ...
+    # Subtest: módulo inativo na entidade nunca aparece, mesmo com permissão
+    ok 3 - módulo inativo na entidade nunca aparece, mesmo com permissão
+      ---
+      duration_ms: 0.135456
+      type: 'test'
+      ...
+    # Subtest: resultado ordenado por `ordem`
+    ok 4 - resultado ordenado por `ordem`
+      ---
+      duration_ms: 0.256304
+      type: 'test'
+      ...
+    1..4
+ok 104 - filtrarModulosPorPermissao (GET /me)
+  ---
+  duration_ms: 0.905068
+  type: 'suite'
+  ...
+# [hub-rbac-cache] erro ao carregar permissoes do banco (fail-closed -> vazio, nao cacheado): postgrest indisponível
+# [hub-rbac-cache] erro ao carregar permissoes do banco (fail-closed -> vazio, nao cacheado): postgrest indisponível
+# [hub-rbac-cache] erro ao carregar permissoes do banco (fail-closed -> vazio, nao cacheado): não deveria consultar módulos sem entidade ativa
+# [hub-rbac-cache] erro ao carregar permissoes do banco (fail-closed -> vazio, nao cacheado): postgrest indisponível
+# Subtest: obterModulosAtivosPorEntidade
+    # Subtest: retorna o Set de códigos ativos
+    ok 1 - retorna o Set de códigos ativos
+      ---
+      duration_ms: 4.009717
+      type: 'test'
+      ...
+    # Subtest: sem linhas -> Set vazio
+    ok 2 - sem linhas -> Set vazio
+      ---
+      duration_ms: 0.955814
+      type: 'test'
+      ...
+    # Subtest: cache: 2ª chamada dentro do TTL não bate fetch de novo
+    ok 3 - cache: 2ª chamada dentro do TTL não bate fetch de novo
+      ---
+      duration_ms: 1.435078
+      type: 'test'
+      ...
+    # Subtest: invalidarEntidadeModulos limpa a entrada — próxima chamada bate fetch de novo
+    ok 4 - invalidarEntidadeModulos limpa a entrada — próxima chamada bate fetch de novo
+      ---
+      duration_ms: 2.205632
+      type: 'test'
+      ...
+    # Subtest: erro de infra -> fail-closed (Set vazio), NUNCA cacheado
+    ok 5 - erro de infra -> fail-closed (Set vazio), NUNCA cacheado
+      ---
+      duration_ms: 2.351739
+      type: 'test'
+      ...
+    # Subtest: invalidarEntidadeModulos não colide com cache de usuário (namespace mod: distinto)
+    ok 6 - invalidarEntidadeModulos não colide com cache de usuário (namespace mod: distinto)
+      ---
+      duration_ms: 0.510012
+      type: 'test'
+      ...
+    1..6
+ok 105 - obterModulosAtivosPorEntidade
+  ---
+  duration_ms: 13.018262
+  type: 'suite'
+  ...
+# Subtest: requireModuloAtivo
+    # Subtest: sem cookie/token -> 401 NAO_AUTENTICADO (nunca consulta módulos)
+    ok 1 - sem cookie/token -> 401 NAO_AUTENTICADO (nunca consulta módulos)
+      ---
+      duration_ms: 1.191849
+      type: 'test'
+      ...
+    # Subtest: token válido sem entidade_ativa -> 403 MODULO_DESABILITADO
+    ok 2 - token válido sem entidade_ativa -> 403 MODULO_DESABILITADO
+      ---
+      duration_ms: 2.783425
+      type: 'test'
+      ...
+    # Subtest: módulo ATIVO na entidade -> next()
+    ok 3 - módulo ATIVO na entidade -> next()
+      ---
+      duration_ms: 1.140954
+      type: 'test'
+      ...
+    # Subtest: módulo INATIVO/ausente na entidade -> 403 MODULO_DESABILITADO
+    ok 4 - módulo INATIVO/ausente na entidade -> 403 MODULO_DESABILITADO
+      ---
+      duration_ms: 0.944914
+      type: 'test'
+      ...
+    # Subtest: erro de infra ao resolver módulos -> 403 (fail-closed, NUNCA next())
+    ok 5 - erro de infra ao resolver módulos -> 403 (fail-closed, NUNCA next())
+      ---
+      duration_ms: 1.066514
+      type: 'test'
+      ...
+    # Subtest: token assinado com segredo errado -> 401 (nunca next())
+    ok 6 - token assinado com segredo errado -> 401 (nunca next())
+      ---
+      duration_ms: 0.905459
+      type: 'test'
+      ...
+    1..6
+ok 106 - requireModuloAtivo
+  ---
+  duration_ms: 8.665345
+  type: 'suite'
+  ...
+# Subtest: isStrongPassword
+    # Subtest: senha forte (>=6, maiúscula, dígito) -> true
+    ok 1 - senha forte (>=6, maiúscula, dígito) -> true
+      ---
+      duration_ms: 1.097391
+      type: 'test'
+      ...
+    # Subtest: curta demais (<6) -> false
+    ok 2 - curta demais (<6) -> false
+      ---
+      duration_ms: 0.176573
+      type: 'test'
+      ...
+    # Subtest: sem maiúscula -> false
+    ok 3 - sem maiúscula -> false
+      ---
+      duration_ms: 0.294637
+      type: 'test'
+      ...
+    # Subtest: sem dígito -> false
+    ok 4 - sem dígito -> false
+      ---
+      duration_ms: 0.157207
+      type: 'test'
+      ...
+    # Subtest: não-string (number/undefined/null) -> false, nunca lança
+    ok 5 - não-string (number/undefined/null) -> false, nunca lança
+      ---
+      duration_ms: 0.148651
+      type: 'test'
+      ...
+    1..5
+ok 107 - isStrongPassword
+  ---
+  duration_ms: 3.119949
+  type: 'suite'
+  ...
+# Subtest: parsePaginacaoUsuarios
+    # Subtest: sem params -> default page=1 pageSize=20
+    ok 1 - sem params -> default page=1 pageSize=20
+      ---
+      duration_ms: 0.949533
+      type: 'test'
+      ...
+    # Subtest: pageSize acima de 100 -> clamp em 100
+    ok 2 - pageSize acima de 100 -> clamp em 100
+      ---
+      duration_ms: 0.283354
+      type: 'test'
+      ...
+    # Subtest: page<1 ou não-numérico -> default 1
+    ok 3 - page<1 ou não-numérico -> default 1
+      ---
+      duration_ms: 0.370209
+      type: 'test'
+      ...
+    1..3
+ok 108 - parsePaginacaoUsuarios
+  ---
+  duration_ms: 2.756664
+  type: 'suite'
+  ...
+# Subtest: resolverEntidadeAlvo
+    # Subtest: entidadeIdParam null -> retorna a entidade ativa (não informado)
+    ok 1 - entidadeIdParam null -> retorna a entidade ativa (não informado)
+      ---
+      duration_ms: 0.503951
+      type: 'test'
+      ...
+    # Subtest: admin_entidade com entidadeId IGUAL à ativa -> permitido
+    ok 2 - admin_entidade com entidadeId IGUAL à ativa -> permitido
+      ---
+      duration_ms: 0.367454
+      type: 'test'
+      ...
+    # Subtest: admin_entidade com entidadeId DIVERGENTE -> 403 PERMISSAO_NEGADA, retorna undefined
+    ok 3 - admin_entidade com entidadeId DIVERGENTE -> 403 PERMISSAO_NEGADA, retorna undefined
+      ---
+      duration_ms: 0.280479
+      type: 'test'
+      ...
+    # Subtest: admin_plataforma com entidadeId DIVERGENTE -> permitido (visão global)
+    ok 4 - admin_plataforma com entidadeId DIVERGENTE -> permitido (visão global)
+      ---
+      duration_ms: 0.182293
+      type: 'test'
+      ...
+    1..4
+ok 109 - resolverEntidadeAlvo
+  ---
+  duration_ms: 1.675673
+  type: 'suite'
+  ...
+# Subtest: 2.1.4 authenticateMotorista
+    # Subtest: sem token → 401
+    ok 1 - sem token → 401
+      ---
+      duration_ms: 17.198532
+      type: 'test'
+      ...
+    # Subtest: token de Empresa → 401
+    ok 2 - token de Empresa → 401
+      ---
+      duration_ms: 8.427547
+      type: 'test'
+      ...
+    # Subtest: token expirado → 401
+    ok 3 - token expirado → 401
+      ---
+      duration_ms: 2.629112
+      type: 'test'
+      ...
+    # Subtest: token válido → 200 com cnpjPrestador
+    ok 4 - token válido → 200 com cnpjPrestador
+      ---
+      duration_ms: 2.640713
+      type: 'test'
+      ...
+    1..4
+ok 110 - 2.1.4 authenticateMotorista
+  ---
+  duration_ms: 31.92066
+  type: 'suite'
+  ...
+# Subtest: 2.2.5 POST /motorista/login
+    # Subtest: login ok → 200 + cookies httpOnly
+    ok 1 - login ok → 200 + cookies httpOnly
+      ---
+      duration_ms: 76.32798
+      type: 'test'
+      ...
+    # Subtest: senha errada → 401 com mensagem genérica
+    ok 2 - senha errada → 401 com mensagem genérica
+      ---
+      duration_ms: 69.67873
+      type: 'test'
+      ...
+    # Subtest: CNPJ inexistente → 401 (anti-enumeração — mesmo erro)
+    ok 3 - CNPJ inexistente → 401 (anti-enumeração — mesmo erro)
+      ---
+      duration_ms: 2.869105
+      type: 'test'
+      ...
+    # Subtest: campos ausentes → 400
+    ok 4 - campos ausentes → 400
+      ---
+      duration_ms: 3.158861
+      type: 'test'
+      ...
+    1..4
+ok 111 - 2.2.5 POST /motorista/login
+  ---
+  duration_ms: 214.803402
+  type: 'suite'
+  ...
+# Subtest: 2.3.5 POST /motorista/register
+    # Subtest: cadastro elegível → 201
+    not ok 1 - cadastro elegível → 201
+      ---
+      duration_ms: 5.515349
+      type: 'test'
+      location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:294:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        409 !== 201
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 201
+      actual: 409
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:298:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1442:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: CNPJ desconhecido (não está na EnvioMassa) → 409
+    ok 2 - CNPJ desconhecido (não está na EnvioMassa) → 409
+      ---
+      duration_ms: 3.7724
+      type: 'test'
+      ...
+    # Subtest: CNPJ já tem conta Motorista → 409
+    ok 3 - CNPJ já tem conta Motorista → 409
+      ---
+      duration_ms: 67.82478
+      type: 'test'
+      ...
+    # Subtest: senha curta (< 8 chars) → 400
+    ok 4 - senha curta (< 8 chars) → 400
+      ---
+      duration_ms: 2.871209
+      type: 'test'
+      ...
+    1..4
+not ok 112 - 2.3.5 POST /motorista/register
+  ---
+  duration_ms: 80.726522
+  type: 'suite'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:287:1'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: 3.1.5 GET /motorista/movimento-aberto
+    # Subtest: sem auth → 401
+    ok 1 - sem auth → 401
+      ---
+      duration_ms: 3.997636
+      type: 'test'
+      ...
+    # Subtest: motorista A vê apenas seu movimento (id=10)
+    not ok 2 - motorista A vê apenas seu movimento (id=10)
+      ---
+      duration_ms: 3.885976
+      type: 'test'
+      location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:368:3'
+      failureType: 'testCodeFailure'
+      error: 'movimento deve existir'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: ~
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:374:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: motorista B não vê dados de A
+    not ok 3 - motorista B não vê dados de A
+      ---
+      duration_ms: 3.392995
+      type: 'test'
+      location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:379:3'
+      failureType: 'testCodeFailure'
+      error: "Cannot read properties of null (reading 'valor')"
+      code: 'ERR_TEST_FAILURE'
+      name: 'TypeError'
+      stack: |-
+        TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:385:35)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: CNPJ sem movimento → { movimento: null }
+    ok 4 - CNPJ sem movimento → { movimento: null }
+      ---
+      duration_ms: 3.070846
+      type: 'test'
+      ...
+    1..4
+not ok 113 - 3.1.5 GET /motorista/movimento-aberto
+  ---
+  duration_ms: 15.12669
+  type: 'suite'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:330:1'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: 3.2 / 3.3 POST /motorista/validar-nota
+    # Subtest: sem auth → 401
+    ok 1 - sem auth → 401
+      ---
+      duration_ms: 7.133555
+      type: 'test'
+      ...
+    # Subtest: sem arquivo → 400
+    ok 2 - sem arquivo → 400
+      ---
+      duration_ms: 2.842345
+      type: 'test'
+      ...
+    # Subtest: nota válida (mock retorna valid:true) → 200 + notaOk:true
+    not ok 3 - nota válida (mock retorna valid:true) → 200 + notaOk:true
+      ---
+      duration_ms: 9.368021
+      type: 'test'
+      location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:443:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        409 !== 200
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 200
+      actual: 409
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:453:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: nota inválida (mock retorna valid:false com campos) → 200 + camposInvalidos
+    not ok 4 - nota inválida (mock retorna valid:false com campos) → 200 + camposInvalidos
+      ---
+      duration_ms: 3.508211
+      type: 'test'
+      location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:458:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        409 !== 200
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 200
+      actual: 409
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:491:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: CNPJ sem movimento aberto → 409
+    ok 5 - CNPJ sem movimento aberto → 409
+      ---
+      duration_ms: 2.827086
+      type: 'test'
+      ...
+    # Subtest: falha do serviço externo (mock lança erro) → 502
+    not ok 6 - falha do serviço externo (mock lança erro) → 502
+      ---
+      duration_ms: 2.439494
+      type: 'test'
+      location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:508:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        409 !== 502
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 502
+      actual: 409
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:527:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    1..6
+not ok 114 - 3.2 / 3.3 POST /motorista/validar-nota
+  ---
+  duration_ms: 28.878218
+  type: 'suite'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:403:1'
+  failureType: 'subtestsFailed'
+  error: '3 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: gorjeta Task 2.2 — parse de gorjeta no upload
+    # Subtest: "R$ 22,00" → 22.00 (FR-001)
+    ok 1 - "R$ 22,00" → 22.00 (FR-001)
+      ---
+      duration_ms: 0.287423
+      type: 'test'
+      ...
+    # Subtest: gorjeta undefined (coluna ausente na planilha) → null (FR-002 / FR-003)
+    ok 2 - gorjeta undefined (coluna ausente na planilha) → null (FR-002 / FR-003)
+      ---
+      duration_ms: 0.086263
+      type: 'test'
+      ...
+    # Subtest: gorjeta vazia ("") → null
+    ok 3 - gorjeta vazia ("") → null
+      ---
+      duration_ms: 0.073599
+      type: 'test'
+      ...
+    # Subtest: "R$ -" → null sem rowError (CL-004)
+    ok 4 - "R$ -" → null sem rowError (CL-004)
+      ---
+      duration_ms: 0.072115
+      type: 'test'
+      ...
+    # Subtest: "0" → null (zero é ausência — CL-001)
+    ok 5 - "0" → null (zero é ausência — CL-001)
+      ---
+      duration_ms: 0.105581
+      type: 'test'
+      ...
+    # Subtest: dataToInsert sem gorjeta: outros campos intactos
+    ok 6 - dataToInsert sem gorjeta: outros campos intactos
+      ---
+      duration_ms: 0.113314
+      type: 'test'
+      ...
+    1..6
+ok 115 - gorjeta Task 2.2 — parse de gorjeta no upload
+  ---
+  duration_ms: 0.946787
+  type: 'suite'
+  ...
+# Subtest: gorjeta Task 3.2 — leitura no mapper /movimento-aberto
+    # Subtest: gorjeta "22.0" no banco → gorjeta: "22.0" na resposta (FR-004)
+    ok 1 - gorjeta "22.0" no banco → gorjeta: "22.0" na resposta (FR-004)
+      ---
+      duration_ms: 0.203845
+      type: 'test'
+      ...
+    # Subtest: gorjeta null no banco → gorjeta: null na resposta (FR-004)
+    ok 2 - gorjeta null no banco → gorjeta: null na resposta (FR-004)
+      ---
+      duration_ms: 0.098727
+      type: 'test'
+      ...
+    # Subtest: campo gorjeta ausente no registro (base antiga) → null (retrocompatibilidade — CL-002)
+    ok 3 - campo gorjeta ausente no registro (base antiga) → null (retrocompatibilidade — CL-002)
+      ---
+      duration_ms: 0.231298
+      type: 'test'
+      ...
+    # Subtest: gorjeta não altera campo valor
+    ok 4 - gorjeta não altera campo valor
+      ---
+      duration_ms: 0.124846
+      type: 'test'
+      ...
+    # Subtest: outros campos preservados — regressão zero
+    ok 5 - outros campos preservados — regressão zero
+      ---
+      duration_ms: 0.108144
+      type: 'test'
+      ...
+    1..5
+ok 116 - gorjeta Task 3.2 — leitura no mapper /movimento-aberto
+  ---
+  duration_ms: 0.940766
+  type: 'suite'
+  ...
+# Subtest: gorjeta Task 3.1 via HTTP — gorjeta no endpoint /movimento-aberto
+    # Subtest: movimento com gorjeta → resposta inclui gorjeta: "22.00"
+    not ok 1 - movimento com gorjeta → resposta inclui gorjeta: "22.00"
+      ---
+      duration_ms: 7.192325
+      type: 'test'
+      location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:697:3'
+      failureType: 'testCodeFailure'
+      error: 'movimento deve existir'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: ~
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:703:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1442:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: movimento sem gorjeta (base antiga) → resposta inclui gorjeta: null (CL-002)
+    not ok 2 - movimento sem gorjeta (base antiga) → resposta inclui gorjeta: null (CL-002)
+      ---
+      duration_ms: 2.204351
+      type: 'test'
+      location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:707:3'
+      failureType: 'testCodeFailure'
+      error: 'movimento deve existir'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: ~
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:713:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    1..2
+not ok 117 - gorjeta Task 3.1 via HTTP — gorjeta no endpoint /movimento-aberto
+  ---
+  duration_ms: 9.875531
+  type: 'suite'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/motorista-integration.test.js:662:1'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: FIELD_MESSAGES mapper
+    # Subtest: all flags false → 7 campos inválidos
+    ok 1 - all flags false → 7 campos inválidos
+      ---
+      duration_ms: 1.168395
+      type: 'test'
+      ...
+    # Subtest: all flags true → nenhum campo inválido
+    ok 2 - all flags true → nenhum campo inválido
+      ---
+      duration_ms: 1.510793
+      type: 'test'
+      ...
+    # Subtest: apenas valid_valor false → 1 campo inválido com mensagem correta
+    ok 3 - apenas valid_valor false → 1 campo inválido com mensagem correta
+      ---
+      duration_ms: 0.405285
+      type: 'test'
+      ...
+    # Subtest: flag undefined (campo ausente) não conta como inválido
+    ok 4 - flag undefined (campo ausente) não conta como inválido
+      ---
+      duration_ms: 0.212181
+      type: 'test'
+      ...
+    # Subtest: flag null não conta como inválido (apenas false)
+    ok 5 - flag null não conta como inválido (apenas false)
+      ---
+      duration_ms: 0.225515
+      type: 'test'
+      ...
+    # Subtest: todas as mensagens estão em pt-BR e não vazia
+    ok 6 - todas as mensagens estão em pt-BR e não vazia
+      ---
+      duration_ms: 0.430042
+      type: 'test'
+      ...
+    1..6
+ok 118 - FIELD_MESSAGES mapper
+  ---
+  duration_ms: 5.389884
+  type: 'suite'
+  ...
+# Subtest: normalizeApiData (parser da resposta)
+    # Subtest: array com 1 elemento → retorna o elemento
+    ok 1 - array com 1 elemento → retorna o elemento
+      ---
+      duration_ms: 0.350961
+      type: 'test'
+      ...
+    # Subtest: objeto direto → retorna como está
+    ok 2 - objeto direto → retorna como está
+      ---
+      duration_ms: 0.314895
+      type: 'test'
+      ...
+    # Subtest: array vazio → retorna undefined (tolerância FR-012)
+    ok 3 - array vazio → retorna undefined (tolerância FR-012)
+      ---
+      duration_ms: 0.29659
+      type: 'test'
+      ...
+    # Subtest: null → retorna null (tratado como falha de serviço)
+    ok 4 - null → retorna null (tratado como falha de serviço)
+      ---
+      duration_ms: 0.298604
+      type: 'test'
+      ...
+    1..4
+ok 119 - normalizeApiData (parser da resposta)
+  ---
+  duration_ms: 1.775261
+  type: 'suite'
+  ...
+# Subtest: isNotaJaAprovada (bloqueio de reenvio)
+    # Subtest: true booleano → aprovada
+    ok 1 - true booleano → aprovada
+      ---
+      duration_ms: 0.314423
+      type: 'test'
+      ...
+    # Subtest: "true" string → aprovada
+    ok 2 - "true" string → aprovada
+      ---
+      duration_ms: 0.122231
+      type: 'test'
+      ...
+    # Subtest: "sim" string → aprovada
+    ok 3 - "sim" string → aprovada
+      ---
+      duration_ms: 0.107223
+      type: 'test'
+      ...
+    # Subtest: "1" string → aprovada
+    ok 4 - "1" string → aprovada
+      ---
+      duration_ms: 0.097463
+      type: 'test'
+      ...
+    # Subtest: 1 inteiro → aprovada
+    ok 5 - 1 inteiro → aprovada
+      ---
+      duration_ms: 0.096392
+      type: 'test'
+      ...
+    # Subtest: false → não aprovada
+    ok 6 - false → não aprovada
+      ---
+      duration_ms: 0.108004
+      type: 'test'
+      ...
+    # Subtest: null → não aprovada
+    ok 7 - null → não aprovada
+      ---
+      duration_ms: 0.103825
+      type: 'test'
+      ...
+    # Subtest: undefined → não aprovada
+    ok 8 - undefined → não aprovada
+      ---
+      duration_ms: 0.094598
+      type: 'test'
+      ...
+    # Subtest: "nao" → não aprovada
+    ok 9 - "nao" → não aprovada
+      ---
+      duration_ms: 0.096282
+      type: 'test'
+      ...
+    # Subtest: 0 → não aprovada
+    ok 10 - 0 → não aprovada
+      ---
+      duration_ms: 1.222166
+      type: 'test'
+      ...
+    1..10
+ok 120 - isNotaJaAprovada (bloqueio de reenvio)
+  ---
+  duration_ms: 2.755661
+  type: 'suite'
+  ...
+# Subtest: CNPJ normalizer
+    # Subtest: CNPJ com pontuação → apenas dígitos
+    ok 1 - CNPJ com pontuação → apenas dígitos
+      ---
+      duration_ms: 0.193175
+      type: 'test'
+      ...
+    # Subtest: CNPJ já limpo → inalterado
+    ok 2 - CNPJ já limpo → inalterado
+      ---
+      duration_ms: 0.150625
+      type: 'test'
+      ...
+    # Subtest: string vazia → string vazia
+    ok 3 - string vazia → string vazia
+      ---
+      duration_ms: 0.089919
+      type: 'test'
+      ...
+    1..3
+ok 121 - CNPJ normalizer
+  ---
+  duration_ms: 0.548826
+  type: 'suite'
+  ...
+1..121
+# tests 539
+# suites 121
+# pass 531
+# fail 8
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4389.724391
