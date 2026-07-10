@@ -1,0 +1,661 @@
+{
+  "/hub/dashboard/auditoria": {
+    "total_paradas_de_foco": 43,
+    "sequencia": [
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Motoristas",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Faturamento",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Importações",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Envio em Massa",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Gestão de Usuários",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Auditoria",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Meu perfil",
+        "tag": "a"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "button",
+        "name": "Limpar filtros",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 422",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 420",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 418",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 416",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 414",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 413",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 412",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 411",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 410",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 409",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 408",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 407",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 406",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 405",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 402",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 400",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 398",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 390",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 388",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Ver detalhe do evento 386",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Próxima",
+        "tag": "button"
+      },
+      {
+        "role": "body",
+        "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+        "tag": "body"
+      },
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      }
+    ]
+  },
+  "/hub/dashboard/usuarios": {
+    "total_paradas_de_foco": 31,
+    "sequencia": [
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Motoristas",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Faturamento",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Importações",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Envio em Massa",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Gestão de Usuários",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Auditoria",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Meu perfil",
+        "tag": "a"
+      },
+      {
+        "role": "button",
+        "name": "Novo usuário",
+        "tag": "button"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "button",
+        "name": "Editar",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Editar",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Editar",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Editar",
+        "tag": "button"
+      },
+      {
+        "role": "body",
+        "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+        "tag": "body"
+      },
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Motoristas",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Faturamento",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Importações",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Envio em Massa",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Gestão de Usuários",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Auditoria",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Meu perfil",
+        "tag": "a"
+      },
+      {
+        "role": "button",
+        "name": "Novo usuário",
+        "tag": "button"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "button",
+        "name": "Editar",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Editar",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Editar",
+        "tag": "button"
+      },
+      {
+        "role": "button",
+        "name": "Editar",
+        "tag": "button"
+      },
+      {
+        "role": "body",
+        "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+        "tag": "body"
+      },
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      }
+    ]
+  },
+  "/hub/dashboard/usuarios/papeis": {
+    "total_paradas_de_foco": 28,
+    "sequencia": [
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Motoristas",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Faturamento",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Importações",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Envio em Massa",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Gestão de Usuários",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Auditoria",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Meu perfil",
+        "tag": "a"
+      },
+      {
+        "role": "body",
+        "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+        "tag": "body"
+      },
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Motoristas",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Faturamento",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Importações",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Envio em Massa",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Gestão de Usuários",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Auditoria",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Meu perfil",
+        "tag": "a"
+      },
+      {
+        "role": "body",
+        "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+        "tag": "body"
+      },
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Motoristas",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Faturamento",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Importações",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Envio em Massa",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Gestão de Usuários",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Auditoria",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Meu perfil",
+        "tag": "a"
+      },
+      {
+        "role": "body",
+        "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+        "tag": "body"
+      },
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      }
+    ]
+  },
+  "/hub/dashboard/usuarios#dialog-novo-usuario": {
+    "abre_por_enter": true,
+    "fecha_por_escape": true
+  },
+  "/hub/dashboard/admin": {
+    "total_paradas_de_foco": 25,
+    "sequencia": [
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Motoristas",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Faturamento",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Importações",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Envio em Massa",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Gestão de Usuários",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Auditoria",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Administração",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Meu perfil",
+        "tag": "a"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "button",
+        "name": "Consultar",
+        "tag": "button"
+      },
+      {
+        "role": "body",
+        "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+        "tag": "body"
+      },
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Motoristas",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Faturamento",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Importações",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Envio em Massa",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Gestão de Usuários",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Auditoria",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Administração",
+        "tag": "a"
+      },
+      {
+        "role": "a",
+        "name": "Meu perfil",
+        "tag": "a"
+      },
+      {
+        "role": "input",
+        "name": null,
+        "tag": "input"
+      },
+      {
+        "role": "button",
+        "name": "Consultar",
+        "tag": "button"
+      },
+      {
+        "role": "body",
+        "name": "((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"ligh",
+        "tag": "body"
+      },
+      {
+        "role": "a",
+        "name": "Painel Geral",
+        "tag": "a"
+      }
+    ]
+  }
+}

@@ -69,6 +69,27 @@ const hubFaturamentoRoutes = require('./routes/hub-faturamento');
 // (routes/hub-performance.js). Somente leitura (FR-010).
 const hubPerformanceRoutes = require('./routes/hub-performance');
 
+// hub-auditoria-admin (S9 do hub de frota, FASE 4.2) — GET/POST/PUT
+// /api/v1/usuarios + POST/PUT /api/v1/usuarios/:id/vinculos (gestão de
+// usuários e vínculos). requireModuloAtivo('usuarios') +
+// requirePermission('usuarios.gerenciar') aplicados dentro do próprio
+// router. Arquivo 100% novo (routes/hub-usuarios.js).
+const hubUsuariosRoutes = require('./routes/hub-usuarios');
+
+// hub-auditoria-admin (S9, FASE 4.3) — GET /api/v1/papeis (matriz
+// papel×permissão, leitura) + PUT /api/v1/papeis/:papelId/permissoes/
+// :permissaoId (toggle, exclusivo admin_plataforma via RPC SECURITY
+// DEFINER). requireModuloAtivo('usuarios') + requirePermission aplicados
+// dentro do próprio router. Arquivo 100% novo (routes/hub-papeis.js).
+const hubPapeisRoutes = require('./routes/hub-papeis');
+
+// hub-auditoria-admin (S9, FASE 4.4) — GET /api/v1/admin/modulos, GET/PUT
+// /api/v1/admin/entidades/:id/modulos(/:codigo) (habilitação de módulo por
+// entidade, EXCLUSIVO admin_plataforma — FR-017/dec-009).
+// requireModuloAtivo('admin') + requirePermission('admin.gerenciar')
+// aplicados dentro do próprio router. Arquivo 100% novo (routes/hub-admin.js).
+const hubAdminRoutes = require('./routes/hub-admin');
+
 // hub-envio-massa (S8 do hub de frota, FASE 3) — os 11 endpoints legados de
 // envio em massa abaixo ganham 2 middlewares novos na cadeia (claims-bridge +
 // gate de permissão RBAC), atuando somente quando a sessão é do hub
@@ -78,6 +99,29 @@ const { hubEnvioMassaRequirePermission } = require('./middleware/hub-envio-massa
 // hub-envio-massa FASE 4 (tasks.md 4.1.6) — histórico leve de importação,
 // fire-and-forget, chamado só dentro de POST /upload (ver guard viaHub lá).
 const { registrarImportacaoEnvioMassa } = require('./lib/hub-envio-massa-import-log');
+// hub-auditoria-admin FASE 2.2 (tasks.md 2.2.3) — trilha unificada `Auditoria`
+// nas escritas legadas do módulo envio_massa (diff mínimo, best-effort, só
+// quando `req.hubContext.viaHub === true` — sessão legada não tem
+// `usuario_id` hub para preencher a trilha, mesmo guard de `registrarImportacaoEnvioMassa` acima).
+const { registrarAuditoria: registrarAuditoriaEnvioMassa } = require('./lib/hub-auditoria');
+async function auditarEnvioMassaSeViaHub(req, evento) {
+  if (!(req.hubContext && req.hubContext.viaHub === true)) return;
+  const idEmpresa = req.user && req.user.empresaId != null ? req.user.empresaId : null;
+  const usuarioId = req.hubContext.usuarioId;
+  try {
+    await registrarAuditoriaEnvioMassa({
+      idEmpresa,
+      usuarioId,
+      acao: evento.acao,
+      recurso: evento.recurso,
+      recursoId: evento.recursoId,
+      detalhes: evento.detalhes,
+      claims: { usuarioId, empresaAtiva: idEmpresa, escopo: idEmpresa != null ? [idEmpresa] : [] },
+    });
+  } catch (e) {
+    console.error('[server] falha ao registrar auditoria envio_massa (best-effort, nao bloqueia o fluxo):', evento.acao, e && e.message);
+  }
+}
 
 const app = express();
 const upload = multer({ dest: 'uploads/' }); // Usado para upload de arquivos
@@ -1008,6 +1052,9 @@ app.patch('/update-envio-massa/:id', authenticateToken, hubEnvioMassaClaimsBridg
         // [G] PATCH demais campos do movimento editado (enviado/men1/men2/tipo) — não-regressão
         const result = await updateEnvioMassa(id, enviado, mensagem, tipo, idEmp);
 
+        // hub-auditoria-admin 2.2.3 — chegou aqui sem exceção: escrita OK (cnpj e/ou campos).
+        await auditarEnvioMassaSeViaHub(req, { acao: 'movimento_editado', recurso: 'EnvioMassa', recursoId: id, detalhes: { tipo, cnpjAlterado: hasCnpjChange } });
+
         // PostgREST retorna [] em DOIS casos distintos: (a) nenhuma linha casou o filtro
         // (id/empresa errados — "não encontrado"); (b) o update foi VAZIO porque o body não
         // trazia enviado/men1/men2 — caso típico de edição SÓ de CNPJ. Logo, [] sozinho NÃO
@@ -1046,6 +1093,7 @@ app.delete('/envio-massa/:id', authenticateToken, hubEnvioMassaClaimsBridge, hub
             `EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}`,
             'DELETE'
         );
+        await auditarEnvioMassaSeViaHub(req, { acao: 'movimento_excluido', recurso: 'EnvioMassa', recursoId: id, detalhes: {} });
         res.json({ message: 'Registro deletado com sucesso!' });
     } catch (error) {
         console.error('Erro ao deletar o registro:', error.message);
@@ -1301,6 +1349,7 @@ app.post('/start-process', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvi
         // Chama o processamento em lote diretamente
         await processBatchMessages(userId, req.user.tk, req.user.connection_id);
 
+        await auditarEnvioMassaSeViaHub(req, { acao: 'envio_massa_iniciado', recurso: 'ProcessControl', recursoId: userId, detalhes: {} });
         res.json({ message: 'Processo iniciado com sucesso!' });
     } catch (error) {
         await updateProcessControl(req.user.empresaId, 'inactive');
@@ -1335,6 +1384,7 @@ app.post('/stop-process', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvio
         // Atualiza o status do processo no banco
         await updateProcessControl(userId, 'inactive');
 
+        await auditarEnvioMassaSeViaHub(req, { acao: 'envio_massa_parado', recurso: 'ProcessControl', recursoId: userId, detalhes: {} });
         console.log(`Processo interrompido para o usuário: ${userId}`);
         res.json({ message: 'Processo parado com sucesso!' });
     } catch (error) {
@@ -1885,6 +1935,11 @@ app.post('/upload', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaR
     const motoristaWarning = (motoristaUpsert && motoristaUpsert.ok === false)
       ? 'Movimento salvo, mas o pré-cadastro de motoristas na base Motorista falhou. Os motoristas podem não conseguir acessar o app até a correção.'
       : null;
+
+    // hub-auditoria-admin 2.2.3 — POST /upload passou do check de erro do
+    // PostgREST: a escrita OCORREU (bulk insert em EnvioMassa), independente
+    // de conseguirmos ou não inferir a contagem de linhas logo abaixo.
+    await auditarEnvioMassaSeViaHub(req, { acao: 'envio_massa_importado', recurso: 'EnvioMassa', recursoId: null, detalhes: { totalLinhas: dataToInsert.length } });
 
     // Tenta inferir quantas linhas foram inseridas
     let insertedRows = null;
@@ -2565,6 +2620,9 @@ app.post('/validate-xml-batch', authenticateToken, hubEnvioMassaClaimsBridge, hu
   // task 1.3.11: log de aggregates ao final (sem PII).
   console.log('[validate-xml-batch][stats] ' + JSON.stringify(stats));
 
+  // hub-auditoria-admin 2.2.3 — só stats agregados (sem PII, mesmo padrão do log acima).
+  await auditarEnvioMassaSeViaHub(req, { acao: 'envio_massa_xml_validado', recurso: 'EnvioMassa', recursoId: null, detalhes: stats });
+
   // task 1.3.10: resposta enriquecida { stats, results } em snake_case.
   res.json({ stats: stats, results: results });
 });
@@ -2585,6 +2643,7 @@ app.post('/close-movimento', authenticateToken, hubEnvioMassaClaimsBridge, hubEn
     const updated = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false`, 'PATCH', { mov_fechado: true });
     const fechados = Array.isArray(updated) ? updated.length : 0;
 
+    await auditarEnvioMassaSeViaHub(req, { acao: 'movimento_fechado', recurso: 'EnvioMassa', recursoId: null, detalhes: { fechados } });
     res.json({ message: 'Movimento fechado com sucesso', fechados });
   } catch (err) {
     console.error('Erro no servidor ao fechar o movimento:', err);
@@ -2699,6 +2758,23 @@ app.use('/api/v1/faturamento', hubFaturamentoRoutes.router);
 // é aplicado dentro do próprio router (mesmo padrão do bloco
 // /api/v1/faturamento acima).
 app.use('/api/v1/performance', hubPerformanceRoutes.router);
+
+// hub-auditoria-admin (S9, FASE 4.2) — /api/v1/usuarios (gestão de usuários
+// e vínculos). requireModuloAtivo('usuarios')/requirePermission('usuarios.
+// gerenciar') são aplicados dentro do próprio router (mesmo padrão do bloco
+// /api/v1/performance acima).
+app.use('/api/v1/usuarios', hubUsuariosRoutes.router);
+
+// hub-auditoria-admin (S9, FASE 4.3) — /api/v1/papeis (matriz
+// papel×permissão). requireModuloAtivo/requirePermission aplicados dentro
+// do próprio router (mesmo padrão do bloco /api/v1/usuarios acima).
+app.use('/api/v1/papeis', hubPapeisRoutes.router);
+
+// hub-auditoria-admin (S9, FASE 4.4) — /api/v1/admin (módulos por
+// entidade, exclusivo admin_plataforma). requireModuloAtivo/
+// requirePermission aplicados dentro do próprio router (mesmo padrão do
+// bloco /api/v1/papeis acima).
+app.use('/api/v1/admin', hubAdminRoutes.router);
 
 // hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
 // boot: um restart no meio de uma importação (deploy) deixa o registro

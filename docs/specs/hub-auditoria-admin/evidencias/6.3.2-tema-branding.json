@@ -1,0 +1,56 @@
+{
+  "/hub/dashboard/auditoria": {
+    "escuro": {
+      "temaAtivo": "dark",
+      "corSchemeStyle": "dark",
+      "bannerAmbientePresente": true,
+      "bannerTexto": "HOMOLOGAÇÃO — dados fictícios",
+      "botoesSemNomeAcessivel": 0,
+      "headingsH1": 1
+    },
+    "claro": {
+      "temaAtivo": "light",
+      "corSchemeStyle": "light",
+      "bannerAmbientePresente": true,
+      "bannerTexto": "HOMOLOGAÇÃO — dados fictícios",
+      "botoesSemNomeAcessivel": 0,
+      "headingsH1": 1
+    }
+  },
+  "/hub/dashboard/usuarios": {
+    "escuro": {
+      "temaAtivo": "dark",
+      "corSchemeStyle": "dark",
+      "bannerAmbientePresente": true,
+      "bannerTexto": "HOMOLOGAÇÃO — dados fictícios",
+      "botoesSemNomeAcessivel": 0,
+      "headingsH1": 1
+    },
+    "claro": {
+      "temaAtivo": "light",
+      "corSchemeStyle": "light",
+      "bannerAmbientePresente": true,
+      "bannerTexto": "HOMOLOGAÇÃO — dados fictícios",
+      "botoesSemNomeAcessivel": 0,
+      "headingsH1": 1
+    }
+  },
+  "/hub/dashboard/usuarios/papeis": {
+    "escuro": {
+      "temaAtivo": "dark",
+      "corSchemeStyle": "dark",
+      "bannerAmbientePresente": true,
+      "bannerTexto": "HOMOLOGAÇÃO — dados fictícios",
+      "botoesSemNomeAcessivel": 0,
+      "headingsH1": 1
+    },
+    "claro": {
+      "temaAtivo": "light",
+      "corSchemeStyle": "light",
+      "bannerAmbientePresente": true,
+      "bannerTexto": "HOMOLOGAÇÃO — dados fictícios",
+      "botoesSemNomeAcessivel": 0,
+      "headingsH1": 1
+    }
+  }
+}

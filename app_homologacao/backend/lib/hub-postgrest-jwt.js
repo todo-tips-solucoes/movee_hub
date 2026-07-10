@@ -48,6 +48,15 @@ const jwt = require('jsonwebtoken');
  *   `hub_jwt_origem_importacao()`) para distinguir: reimportação S4 NUNCA
  *   sobrescreve um nome já editado manualmente; PATCH manual do operador
  *   (sem esta claim) sempre pode reeditar o nome, mesmo repetidamente.
+ * @param {boolean} [claims.adminPlataforma] - vira `admin_plataforma`
+ *   (S9/hub-auditoria-admin, tasks.md FASE 3.2/4.5, research.md Decision 2)
+ *   — claim booleana lida por `hub_jwt_admin_plataforma()` (migration 0035)
+ *   nas políticas RLS de `Auditoria`/`ModuloEntidade`/RPC
+ *   `hub_papel_permissao_set`. Emitida SOMENTE pelo backend após verificar,
+ *   no request corrente, que o usuário tem vínculo ATIVO
+ *   (`UsuarioEntidade.ativo=true`) com o papel `admin_plataforma`
+ *   (`lib/hub-rbac-cache.js#usuarioEhAdminPlataforma`) — NUNCA aceita valor
+ *   vindo de input do cliente (menor privilégio, gate owasp).
  * @returns {string} JWT assinado (HS256)
  */
 function generateHubPostgrestJWT(claims = {}) {
@@ -66,6 +75,9 @@ function generateHubPostgrestJWT(claims = {}) {
   }
   if (claims.origemImportacao === true) {
     payload.origem_importacao = true;
+  }
+  if (claims.adminPlataforma === true) {
+    payload.admin_plataforma = true;
   }
 
   const secret = process.env.PGRST_JWT_SECRET;

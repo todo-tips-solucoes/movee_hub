@@ -720,8 +720,9 @@ describe('recuperarImportacoesOrfas (F1.3 — boot)', () => {
     const deps = {
       hubPostgrestRequest: async (endpoint, method, body, claims) => {
         chamadas.push({ endpoint, method, body, claims });
-        return [{ id: 10, status: 'failed' }, { id: 11, status: 'failed' }];
+        return [{ id: 10, id_empresa: 9001, status: 'failed' }, { id: 11, id_empresa: 9002, status: 'failed' }];
       },
+      registrarAuditoria: async () => {},
       isoAgora: () => '2026-07-07T00:00:00Z',
     };
 
@@ -736,13 +737,47 @@ describe('recuperarImportacoesOrfas (F1.3 — boot)', () => {
     assert.equal(chamadas[0].claims.hubBootRecovery, true, 'deve usar a claim interna hub_boot_recovery — nunca escopo de usuário');
   });
 
-  test('nenhuma órfã (0 linhas) -> totalRecuperadas 0, sem lançar', async () => {
+  // hub-auditoria-admin FASE 2.2.2/2.2.5 — gap fechado: 1 evento de auditoria
+  // POR tenant afetado (não 1 global), com idEmpresa/recursoId corretos.
+  test('registra 1 evento de auditoria POR linha recuperada, com idEmpresa/recursoId corretos (2.2.2/2.2.5)', async () => {
+    const eventosAuditoria = [];
+    const deps = {
+      hubPostgrestRequest: async () => ([
+        { id: 10, id_empresa: 9001, status: 'failed' },
+        { id: 11, id_empresa: 9002, status: 'failed' },
+      ]),
+      registrarAuditoria: async (evento) => { eventosAuditoria.push(evento); },
+      isoAgora: () => '2026-07-07T00:00:00Z',
+    };
+
+    const resultado = await recuperarImportacoesOrfas(deps);
+
+    assert.equal(resultado.totalRecuperadas, 2);
+    assert.equal(eventosAuditoria.length, 2, 'deve gravar exatamente 1 evento por linha recuperada');
+
+    assert.equal(eventosAuditoria[0].acao, 'importacao_recuperada_boot');
+    assert.equal(eventosAuditoria[0].recurso, 'ImportacaoArquivo');
+    assert.equal(eventosAuditoria[0].recursoId, 10);
+    assert.equal(eventosAuditoria[0].idEmpresa, 9001);
+    assert.deepEqual(eventosAuditoria[0].claims, { empresaAtiva: 9001, escopo: [9001] });
+
+    assert.equal(eventosAuditoria[1].acao, 'importacao_recuperada_boot');
+    assert.equal(eventosAuditoria[1].recurso, 'ImportacaoArquivo');
+    assert.equal(eventosAuditoria[1].recursoId, 11);
+    assert.equal(eventosAuditoria[1].idEmpresa, 9002);
+    assert.deepEqual(eventosAuditoria[1].claims, { empresaAtiva: 9002, escopo: [9002] });
+  });
+
+  test('nenhuma órfã (0 linhas) -> totalRecuperadas 0, sem lançar, sem auditoria', async () => {
+    const eventosAuditoria = [];
     const deps = {
       hubPostgrestRequest: async () => [],
+      registrarAuditoria: async (evento) => { eventosAuditoria.push(evento); },
       isoAgora: () => '2026-07-07T00:00:00Z',
     };
     const resultado = await recuperarImportacoesOrfas(deps);
     assert.equal(resultado.totalRecuperadas, 0);
+    assert.equal(eventosAuditoria.length, 0);
   });
 
   test('PostgREST indisponível (ex.: POSTGREST_URL ausente) -> NUNCA lança, best-effort', async () => {
@@ -753,6 +788,25 @@ describe('recuperarImportacoesOrfas (F1.3 — boot)', () => {
     const resultado = await recuperarImportacoesOrfas(deps);
     assert.equal(resultado.totalRecuperadas, 0);
     assert.ok(resultado.erro);
+  });
+
+  test('falha ao registrar auditoria de 1 linha NUNCA impede a recuperação nem as demais linhas (best-effort por item)', async () => {
+    const eventosAuditoria = [];
+    const deps = {
+      hubPostgrestRequest: async () => ([
+        { id: 10, id_empresa: 9001, status: 'failed' },
+        { id: 11, id_empresa: 9002, status: 'failed' },
+      ]),
+      registrarAuditoria: async (evento) => {
+        if (evento.recursoId === 10) throw new Error('PostgREST indisponível para este evento');
+        eventosAuditoria.push(evento);
+      },
+      isoAgora: () => '2026-07-07T00:00:00Z',
+    };
+    const resultado = await recuperarImportacoesOrfas(deps);
+    assert.equal(resultado.totalRecuperadas, 2, 'a recuperação (o PATCH) já tinha ocorrido — falha de auditoria não reverte nada');
+    assert.equal(eventosAuditoria.length, 1, 'a linha 11 ainda deve ter sido auditada apesar da falha na linha 10');
+    assert.equal(eventosAuditoria[0].recursoId, 11);
   });
 });
 

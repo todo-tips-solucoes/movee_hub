@@ -144,6 +144,80 @@ async function obterPermissoesEfetivasPorEntidade(usuarioId, empresaId) {
 }
 
 /**
+ * Consulta se o usuário tem vínculo ATIVO (`UsuarioEntidade.ativo=true`) com
+ * o papel de escopo global `admin_plataforma` — hub-auditoria-admin (S9),
+ * tasks.md FASE 3.2/4.5, research.md Decision 2. Cache próprio (mesmo TTL
+ * 60s + fail-closed do núcleo `obterComCache`), chave `usuarioId:__admin_plataforma__`
+ * — o prefixo `usuarioId:` garante que `invalidarUsuario` também limpa esta
+ * entrada (mesmo mecanismo de invalidação síncrona, sem código extra).
+ *
+ * Resultado é a ÚNICA fonte usada para decidir se o backend emite a claim
+ * `admin_plataforma` no JWT do PostgREST (`lib/hub-postgrest-jwt.js`) —
+ * NUNCA aceitar esse valor de input do cliente (menor privilégio, gate
+ * owasp). NUNCA lança — fail-closed resolve para `false`.
+ * @param {number|string} usuarioId
+ * @returns {Promise<boolean>}
+ */
+async function usuarioEhAdminPlataforma(usuarioId) {
+  const chave = `${usuarioId}:__admin_plataforma__`;
+  const resultado = await obterComCache(chave, async () => {
+    const vinculos = await hubPostgrestRequest(
+      `UsuarioEntidade?usuario_id=eq.${usuarioId}&ativo=eq.true&select=papel:Papel(nome)`,
+      'GET',
+      null,
+      { usuarioId }
+    );
+    const tem = (vinculos || []).some((v) => v && v.papel && v.papel.nome === 'admin_plataforma');
+    return tem ? new Set(['admin_plataforma']) : new Set();
+  });
+  return resultado.has('admin_plataforma');
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Cache de módulos ATIVOS por entidade (hub-auditoria-admin S9, tasks.md
+// FASE 4.1, research.md Decision 3) — namespace de chave PRÓPRIO (`mod:<id>`,
+// nunca colide com as chaves de usuário acima: `usuarioId`, `usuarioId:*`).
+// Mesmo núcleo `obterComCache` (TTL 60s + fail-closed, NUNCA cacheia erro).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna o Set de códigos de módulo ATIVOS (`ModuloEntidade.ativo=true`,
+ * join `Modulo.codigo`) para a entidade `empresaId` — usado por
+ * `middleware/hub-require-modulo.js#requireModuloAtivo` para bloquear acesso
+ * direto a rotas de módulo desabilitado (FR-008/SC-005). NUNCA lança —
+ * fail-closed resolve para Set vazio (nenhum módulo ativo, nega tudo).
+ * @param {number|string} empresaId
+ * @returns {Promise<Set<string>>}
+ */
+async function obterModulosAtivosPorEntidade(empresaId) {
+  const chave = `mod:${empresaId}`;
+  return obterComCache(chave, async () => {
+    const linhas = await hubPostgrestRequest(
+      `ModuloEntidade?empresa_id=eq.${empresaId}&ativo=eq.true&select=modulo:Modulo(codigo)`,
+      'GET',
+      null,
+      { empresaAtiva: empresaId, escopo: [empresaId] }
+    );
+    const codigos = new Set();
+    for (const linha of linhas || []) {
+      if (linha && linha.modulo && linha.modulo.codigo) codigos.add(linha.modulo.codigo);
+    }
+    return codigos;
+  });
+}
+
+/**
+ * Invalidação ativa e SÍNCRONA do cache de módulos de UMA entidade — chamada
+ * OBRIGATÓRIA em todo `PUT /admin/entidades/:id/modulos/:codigo`
+ * (`routes/hub-admin.js`, FASE 4.4) que altere `ModuloEntidade` (FR-008/
+ * SC-005: efeito imediato, sem esperar o TTL de 60s).
+ * @param {number|string} entidadeId
+ */
+function invalidarEntidadeModulos(entidadeId) {
+  cache.delete(`mod:${entidadeId}`);
+}
+
+/**
  * Invalidação ativa (Decision 7) — a ser chamada por qualquer operação
  * administrativa que altere `UsuarioEntidade`/`PapelPermissao` do usuário
  * afetado, garantindo que SC-004 (≤60s) seja cumprido com folga mesmo no
@@ -161,7 +235,13 @@ function invalidarUsuario(usuarioId) {
   }
 }
 
-/** Limpa o cache inteiro — uso exclusivo de testes. */
+/**
+ * Limpa o cache inteiro. Uso em testes E em produção: chamado por
+ * `routes/hub-papeis.js` (S9, tasks.md 4.3.5) após todo toggle bem-sucedido
+ * da matriz papel×permissão — uma mudança na matriz afeta um conjunto
+ * NÃO-ENUMERADO de usuários (todos com aquele papel, em qualquer entidade),
+ * diferente de `invalidarUsuario` (1 usuário só) — research.md Decision 6.
+ */
 function limparCache() {
   cache.clear();
 }
@@ -169,6 +249,9 @@ function limparCache() {
 module.exports = {
   obterPermissoesEfetivas,
   obterPermissoesEfetivasPorEntidade,
+  usuarioEhAdminPlataforma,
+  obterModulosAtivosPorEntidade,
+  invalidarEntidadeModulos,
   invalidarUsuario,
   limparCache,
   carregarPermissoesDoBanco,
