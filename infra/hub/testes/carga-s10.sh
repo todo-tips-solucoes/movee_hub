@@ -48,7 +48,6 @@ DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"; DB_NAME="$(get_var HUB_DB_NAME "$E
 dc() { docker compose -f "$COMPOSE" -p "$PROJECT" --env-file "$ENV_FILE" "$@"; }
 psql_t() { dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@"; }
 node_e() { dc exec -T backend node -e "$1" "${@:2}"; }
-run_node() { dc exec -T backend node - "$@"; }
 
 fails=0
 check() {
@@ -58,6 +57,11 @@ check() {
 echo "carga-s10: projeto=$PROJECT, evidências em $EVID"
 
 # ── backend no ar (build com o cap anti-starvation obrigatório) ─────────────
+# preflight fail-safe (§4.8) ANTES de qualquer up — mesmo gate de todas as
+# outras suítes; a checagem de prefixo hub-* acima é só a primeira camada
+"$HUB_DIR/scripts/preflight.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" \
+  || { echo "preflight abortou — não prossegue"; exit 1; }
+
 echo "── build/up do backend (DOCKER_BUILDKIT=0, --memory=2g)"
 DOCKER_BUILDKIT=0 dc build --memory=2g backend >"$EVID/build.log" 2>&1 \
   || { echo "FAIL: build do backend"; tail -40 "$EVID/build.log"; exit 1; }

@@ -38,6 +38,17 @@ DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"; DB_NAME="$(get_var HUB_DB_NAME "$E
 dc() { docker compose -f "$COMPOSE" -p "$PROJECT" --env-file "$ENV_FILE" "$@"; }
 psql_t() { dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@"; }
 smoke() { curl -sk -o /dev/null -w '%{http_code}' https://localhost:8443/hub/login; }
+# o serviço backend do homolog não tem healthcheck no compose — em vez de um
+# sleep fixo (flaky sob host carregado), aguarda o 200 real por até 30s
+smoke_com_retry() {
+  local i code=000
+  for i in $(seq 1 30); do
+    code="$(smoke)"
+    [ "$code" = "200" ] && break
+    sleep 1
+  done
+  printf '%s' "$code"
+}
 img_id() { docker inspect hub_homolog_backend --format '{{.Image}}'; }
 
 fails=0
@@ -56,11 +67,17 @@ contagens() {
   ID_ANTES="$(img_id)"
   echo "backend image-id ANTES: $ID_ANTES"
   echo "smoke ANTES: HTTP $(smoke)"
-  echo "contagens ANTES:"; contagens
+  C_ANTES="$(contagens)"
+  echo "contagens ANTES:"; echo "$C_ANTES"
 
   echo
   echo "═ 2. Backup real (backup.sh)"
-  "$HUB_DIR/scripts/backup.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE"
+  if "$HUB_DIR/scripts/backup.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE"; then
+    echo "PASS: backup.sh concluiu sem erro"
+  else
+    echo "FAIL: backup.sh falhou — o restore abaixo validaria um dump ANTIGO"
+    fails=$((fails + 1))
+  fi
 
   echo
   echo "═ 3. Restore TESTADO (restore.sh — banco hub_restore + comparação de contagens)"
@@ -77,24 +94,24 @@ contagens() {
     | docker build -q -t hub-backend:ensaio-nova - >/dev/null
   docker tag hub-backend:ensaio-nova hub-backend:homolog
   dc up -d --no-build backend >/dev/null 2>&1
-  sleep 5
   ID_NOVA="$(img_id)"
   echo "backend image-id com a 'nova': $ID_NOVA"
   [ "$ID_NOVA" != "$ID_ANTES" ] && echo "PASS: imagem efetivamente trocada" \
     || { echo "FAIL: imagem não trocou"; fails=$((fails + 1)); }
-  echo "smoke com a 'nova': HTTP $(smoke)"
+  echo "smoke com a 'nova': HTTP $(smoke_com_retry)"
 
   echo
   echo "═ 5. ROLLBACK (voltar a imagem anterior — equivalente compose do service update --image <anterior>)"
   docker tag hub-backend:ensaio-prev hub-backend:homolog
   dc up -d --no-build backend >/dev/null 2>&1
-  sleep 5
   ID_DEPOIS="$(img_id)"
   echo "backend image-id DEPOIS do rollback: $ID_DEPOIS"
   check "rollback devolve exatamente o image-id anterior" "$ID_DEPOIS" "$ID_ANTES"
-  SM="$(smoke)"
+  SM="$(smoke_com_retry)"
   check "smoke pós-rollback = 200" "$SM" "200"
-  echo "contagens DEPOIS (devem ser idênticas ao ANTES — nenhum dado tocado):"; contagens
+  C_DEPOIS="$(contagens)"
+  echo "contagens DEPOIS:"; echo "$C_DEPOIS"
+  check "contagens do banco preservadas pós-rollback (nenhum dado tocado)" "$C_DEPOIS" "$C_ANTES"
 
   docker rmi hub-backend:ensaio-nova hub-backend:ensaio-prev >/dev/null 2>&1 || true
 

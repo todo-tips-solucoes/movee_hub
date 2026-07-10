@@ -26,6 +26,12 @@ while getopts "f:p:e:t:" opt; do
   esac
 done
 [ -n "$COMPOSE_FILE" ] && [ -n "$PROJECT" ] && [ -n "$ENV_FILE" ] || { echo "argumentos -f/-p/-e obrigatórios" >&2; exit 2; }
+# -t compara prefixos LEXICOGRAFICAMENTE — sem zero-padding ('-t 19') todas as
+# migrations comparariam menor e a série completa aplicaria em silêncio.
+if [ -n "$LIMITE" ] && ! printf '%s' "$LIMITE" | grep -qE '^[0-9]{4}$'; then
+  echo "-t exige prefixo NNNN zero-padded (ex.: -t 0019); recebido: '$LIMITE'" >&2
+  exit 2
+fi
 
 MIG_DIR="$(cd "$(dirname "$0")/../migrations" && pwd)"
 
@@ -49,12 +55,15 @@ count=0
 for f in "$MIG_DIR"/*.sql; do
   [ -e "$f" ] || { echo "nenhuma migration em $MIG_DIR"; exit 1; }
   nome="$(basename "$f")"
-  if [ -n "$LIMITE" ] && [ "${nome%%_*}" \> "$LIMITE" ]; then
-    echo "ignorada (além de -t $LIMITE): $nome"
-    continue
-  fi
+  # 'já aplicada' vem ANTES do corte -t: assim a mensagem 'ignorada' significa
+  # inequivocamente "ausente do banco e além do limite" (sem ambiguidade em
+  # banco reaproveitado onde migrations além do -t já constam da SchemaMigration)
   if applied "$nome"; then
     echo "pulada (já aplicada): $nome"
+    continue
+  fi
+  if [ -n "$LIMITE" ] && [ "${nome%%_*}" \> "$LIMITE" ]; then
+    echo "ignorada (além de -t $LIMITE): $nome"
     continue
   fi
   echo "aplicando: $nome"

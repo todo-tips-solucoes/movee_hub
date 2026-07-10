@@ -675,6 +675,13 @@ cp "$TMP/npm-test.log" "$EVID_DIR/npm-test-$(date -u +%Y%m%dT%H%M%SZ).log"
 PASS_COUNT="$(grep -oE '# pass [0-9]+' "$TMP/npm-test.log" | tail -1 | grep -oE '[0-9]+')"
 FAIL_COUNT="$(grep -oE '# fail [0-9]+' "$TMP/npm-test.log" | tail -1 | grep -oE '[0-9]+')"
 echo "npm test: pass=$PASS_COUNT fail=$FAIL_COUNT (exit=$NPM_TEST_EXIT)"
+# Guard complementar à baseline dinâmica: pass >= piso não detecta REMOÇÃO de
+# suíte da lista `test` do package.json (testes novos compensariam) — conta os
+# arquivos tests/* da lista e exige que nunca encolha (26 na S10).
+# String(...) impede o node -p de colorizar o número com ANSI (quebraria o -ge)
+N_SUITES_TEST="$(node -p "String(require('$REPO_DIR/app_homologacao/backend/package.json').scripts.test.split(/\s+/).filter(function (s) { return s.indexOf('tests/') === 0; }).length)")"
+SUITES_OK="$([ "${N_SUITES_TEST:-0}" -ge 26 ] && echo ok || echo "encolheu:${N_SUITES_TEST:-?}")"
+check "suíte legada: lista do npm test não encolheu (>= 26 arquivos)" "$SUITES_OK" "ok"
 # Baseline dinâmica (correção S10): fases posteriores à S8 acrescentam testes
 # novos ao `npm test` legado (na S8 eram 466/458; a S9 elevou para 539/531) —
 # o invariante de regressão é "as ÚNICAS falhas são as 8 pré-existentes de

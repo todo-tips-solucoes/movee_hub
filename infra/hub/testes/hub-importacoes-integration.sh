@@ -312,24 +312,27 @@ OK_ID="$(jget ok_id)"
 N_REGISTROS_OK="$(psql_t -tAc "SELECT count(*) FROM \"ImportacaoArquivo\" WHERE id=$OK_ID" | tr -d '[:space:]')"
 check "DB: exatamente 1 registro ImportacaoArquivo para o id retornado" "$N_REGISTROS_OK" "1"
 
-STATUS_DB="$(psql_t -tAc "SELECT status FROM \"ImportacaoArquivo\" WHERE id=$OK_ID" | tr -d '[:space:]')"
 # Atualizado na S10: este teste nasceu na FASE 3 (sem processador) e assertava
-# status=pending; desde a FASE 4/5 o worker consome o 'pending' em background,
-# e o CSV deste cenário tem header estruturalmente inválido de propósito —
-# então o estado legítimo é qualquer ponto do caminho pending→validating→
-# failed da máquina de estados (nunca completed*). A resposta HTTP do upload
-# continua assertada como 'pending' acima (essa É síncrona).
-case "$STATUS_DB" in
-  pending|validating|failed) STATUS_DB_OK="ok" ;;
-  *) STATUS_DB_OK="inesperado:$STATUS_DB" ;;
-esac
-if [ "$STATUS_DB_OK" != "ok" ]; then
-  echo "DEBUG: status inesperado='$STATUS_DB' para id=$OK_ID — erro_resumo:"
+# status=pending; desde a FASE 4/5 o worker consome o 'pending' em background.
+# Worker VIVO faz parte do contrato: aguarda o estado TERMINAL (até 30s) e
+# exige 'failed' — o CSV deste cenário tem header estruturalmente inválido de
+# propósito. 'pending' eterno (worker morto/parado) agora é FAIL, não passe
+# silencioso. A resposta HTTP do upload continua assertada como 'pending'
+# acima (essa É síncrona).
+STATUS_DB=""
+for _ in $(seq 1 30); do
+  STATUS_DB="$(psql_t -tAc "SELECT status FROM \"ImportacaoArquivo\" WHERE id=$OK_ID" | tr -d '[:space:]')"
+  case "$STATUS_DB" in completed|completed_with_errors|failed|cancelled) break ;; esac
+  sleep 1
+done
+if [ "$STATUS_DB" != "failed" ]; then
+  echo "DEBUG: status final inesperado='$STATUS_DB' para id=$OK_ID — erro_resumo:"
   psql_t -tAc "SELECT erro_resumo FROM \"ImportacaoArquivo\" WHERE id=$OK_ID"
   echo "DEBUG: logs do backend (últimas 40 linhas):"
   dc logs --tail 40 backend
 fi
-check "DB: status dentro da máquina de estados esperada (pending|validating|failed)" "$STATUS_DB_OK" "ok"
+check "DB: worker processou o CSV inválido até o estado terminal 'failed'" "$STATUS_DB" "failed"
+echo "erro_resumo registrado: $(psql_t -tAc "SELECT left(COALESCE(erro_resumo, '(vazio)'), 120) FROM \"ImportacaoArquivo\" WHERE id=$OK_ID")"
 
 # Conta só pelo MESMO hash do upload original (não pelo total empresa+tipo —
 # os cenários (e)/(f) legitimamente criam OUTROS registros faturamento/E_OP

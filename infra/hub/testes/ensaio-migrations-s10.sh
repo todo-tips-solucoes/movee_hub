@@ -2,14 +2,14 @@
 # =============================================================================
 # ensaio-migrations-s10.sh — S10, escopo item 2 (briefing s10-regressao-
 # cutover.md, com a correção de drift: o local canônico das migrations é
-# infra/hub/migrations/ — série 0000–0039 — aplicadas via migrate.sh +
+# infra/hub/migrations/ — série 0000–0040 — aplicadas via migrate.sh +
 # SIGUSR1, NUNCA app_homologacao/backend/db/011+).
 #
 # Duas medições, dois projetos compose efêmeros (compose.hub.s10.yml — banco
 # em DISCO, não tmpfs, para pagar I/O real como o postgres:13 de produção):
 #
 #   RUN A (hub-s10a-<runid>) — cenário do CUTOVER REAL: banco VAZIO, série
-#     completa 0000→0039 pelo migrate.sh (caminho real, com SIGUSR1 no
+#     completa 0000→0040 pelo migrate.sh (caminho real, com SIGUSR1 no
 #     PostgREST), tempo por migration extraído do stdout com timestamps ms.
 #     No cutover as tabelas de fato nascem vazias (primeira importação real é
 #     passo pós-smoke do runbook), então ESTES são os números esperados no G3.
@@ -18,7 +18,7 @@
 #     (migrate.sh -t 0019), carrega o dataset sintético volumoso do gen-seeds
 #     (~1,5M FaturamentoLancamento + ~1M PerformanceTurno, 374 dos 375 dias —
 #     o último dia fica reservado para o teste de import diário da carga-
-#     s10.sh), e aplica 0020→0039 cronometradas SOBRE o volume, com:
+#     s10.sh), e aplica 0020→0040 cronometradas SOBRE o volume, com:
 #       - sampler de pg_locks (bloqueios não-granted) em background;
 #       - log_lock_waits=on + deadlock_timeout=200ms no postgres;
 #       - integridade ao final (contagens, FKs órfãs, SchemaMigration=40);
@@ -119,8 +119,8 @@ check "RUN A: re-run do migrate.sh é no-op" \
   "$(grep -c 'concluído (0 aplicadas agora)' "$EVID/run-a-rerun.log")" "1"
 dca down -v --remove-orphans >/dev/null 2>&1
 
-# ═══ RUN B — volume: 0000→0019, carga bulk, 0020→0039 sob 2,5M linhas ══════
-echo "── RUN B ($P_B): 0000→0019, carga volumosa, 0020→0039 medidas sob volume"
+# ═══ RUN B — volume: 0000→0019, carga bulk, 0020→0040 sob 2,5M linhas ══════
+echo "── RUN B ($P_B): 0000→0019, carga volumosa, 0020→0040 medidas sob volume"
 "$HUB_DIR/scripts/preflight.sh" -f "$COMPOSE" -p "$P_B" -e "$ENV_FILE" || { echo "preflight abortou (RUN B)"; exit 1; }
 dcb up -d --wait db postgrest
 
@@ -268,21 +268,35 @@ PERF_N="$(psql_b -tAc 'SELECT count(*) FROM "PerformanceTurno"' | tr -d '[:space
 [ "${FAT_N:-0}" -ge 1400000 ] && echo "PASS: volume de faturamento >= 1,4M ($FAT_N)" || { echo "FAIL: volume de faturamento insuficiente ($FAT_N)"; fails=$((fails + 1)); }
 [ "${PERF_N:-0}" -ge 950000 ] && echo "PASS: volume de performance >= 950k ($PERF_N)" || { echo "FAIL: volume de performance insuficiente ($PERF_N)"; fails=$((fails + 1)); }
 
-# sampler de locks em background (bloqueios NÃO-granted a cada ~1s)
+# staging (~1 GB all-text) e helpers s10_* já cumpriram o papel — dropa ANTES
+# da fase cronometrada para não inflar cache/autovacuum durante a medição nem
+# deixar peso morto no stack mantido pelo -k
+psql_b -c 'DROP TABLE IF EXISTS staging_faturamento, staging_performance;' >/dev/null
+psql_b -c 'DROP FUNCTION IF EXISTS s10_num(text); DROP FUNCTION IF EXISTS s10_date(text); DROP FUNCTION IF EXISTS s10_interval(text);' >/dev/null
+
+# sampler de locks em background — UM docker exec com o loop DENTRO do
+# container (1 fork de compose no total; período real ~0,5s — o desenho
+# anterior pagava o startup do CLI do compose por amostra e o período efetivo
+# passava de 1s). Loop LIMITADO (2400 × 0,5s = 20 min) para nunca ficar órfão
+# no container caso o kill do cliente docker exec não propague.
 (
-  while :; do
-    dcb exec -T db psql -U "$DB_USER" -d "$DB_NAME" -tAc "
-      SELECT to_char(now(), 'HH24:MI:SS.MS') || ' | pid=' || a.pid || ' | ' || l.mode ||
-             ' | rel=' || coalesce(l.relation::regclass::text, '-') ||
-             ' | espera: ' || left(regexp_replace(a.query, '\s+', ' ', 'g'), 100)
-      FROM pg_locks l JOIN pg_stat_activity a USING (pid)
-      WHERE NOT l.granted" 2>/dev/null
-    sleep 0.5
-  done
+  dcb exec -T db bash -s "$DB_USER" "$DB_NAME" <<'SAMPLER'
+DB_USER="$1"; DB_NAME="$2"; i=0
+while [ "$i" -lt 2400 ]; do
+  psql -U "$DB_USER" -d "$DB_NAME" -tAc "
+    SELECT to_char(now(), 'HH24:MI:SS.MS') || ' | pid=' || a.pid || ' | ' || l.mode ||
+           ' | rel=' || coalesce(l.relation::regclass::text, '-') ||
+           ' | espera: ' || left(regexp_replace(a.query, '\s+', ' ', 'g'), 100)
+    FROM pg_locks l JOIN pg_stat_activity a USING (pid)
+    WHERE NOT l.granted" 2>/dev/null
+  sleep 0.5
+  i=$((i + 1))
+done
+SAMPLER
 ) >>"$EVID/run-b-locks-sampler.log" &
 SAMPLER_PID=$!
 
-echo "── RUN B: migrations 0020→0039 sobre o volume (sampler de locks ativo)"
+echo "── RUN B: migrations 0020→0040 sobre o volume (sampler de locks ativo)"
 migrate_timed "$EVID/run-b-fase2.log" -f "$COMPOSE" -p "$P_B" -e "$ENV_FILE" \
   || { echo "FAIL: migrate.sh fase 2 RUN B"; tail -20 "$EVID/run-b-fase2.log"; exit 1; }
 
@@ -323,7 +337,7 @@ check "RUN B: re-run do migrate.sh é no-op (idempotência sob volume)" \
   echo "| migration | ms |"; echo "|---|---|"
   tabela_tempos "$EVID/run-b-fase1.log"
   echo
-  echo "## RUN B — fase 2 (0020→0039 sobre ~$FAT_N fat + $PERF_N perf)"
+  echo "## RUN B — fase 2 (0020→0040 sobre ~$FAT_N fat + $PERF_N perf)"
   echo
   echo "| migration | ms |"; echo "|---|---|"
   tabela_tempos "$EVID/run-b-fase2.log"

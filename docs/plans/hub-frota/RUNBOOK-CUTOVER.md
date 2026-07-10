@@ -73,6 +73,9 @@ Objetos que a série 0000–0039 **pressupõe** existir (checklist de validaçã
       backend (achado da S8: em produção os dois carregam o mesmo valor —
       reconfirmar sem expor o valor, por fingerprint sha256).
 - [ ] Postgres 13.x e PostgREST v14.1 (paridade com o ambiente do ensaio).
+- [ ] Extensões `unaccent` e `pg_trgm`: ou AUSENTES (a 0021 as cria em
+      `public`) ou já instaladas NO SCHEMA `public` — se existirem em outro
+      schema, a 0040 (`public.unaccent`) falharia em runtime; PARAR e adaptar.
 - [ ] **Não** existir nenhuma tabela do hub (`"Usuario"`, `"SchemaMigration"`,
       `"Entregador"`, …) — se existir, investigar antes (aplicação parcial
       anterior?).
@@ -110,7 +113,7 @@ migrations são exclusivas do ambiente isolado e NUNCA rodam em produção:**
 
 | Migration | Em produção | Motivo |
 |---|---|---|
-| 0000–0007, 0009–0021, 0023–0032, 0035–0037, 0039, 0040 | **aplicar** | schema/seed hub-nativo, não toca tabela legada (0040 é a corretiva do ensaio de rollback: `hub_normaliza_nome` com `public.unaccent` — sem ela o dump não restaura limpo) |
+| 0000–0007, 0009–0032, 0035–0037, 0039, 0040 | **aplicar** | schema/seed hub-nativo, não toca tabela legada (0022 cria `EmpresaGrupoMovee` VAZIA — o seed do grupo real é o P4; 0040 é a corretiva do ensaio de rollback: `hub_normaliza_nome` com `public.unaccent` — sem ela o dump não restaura limpo) |
 | 0008_migracao_empresa_para_usuario | **aplicar + conferir** | lê a `"Empresa"` REAL e cria os logins do hub (`Usuario`/`UsuarioEntidade`, papel `admin_entidade`, hash bcrypt copiado). Conferir contagens (§7 P3). Contas sem `pass` não migram (por design) |
 | **0033_schema_legado_envio_massa** | **PULAR (pré-registro)** | recriaria espelho do schema legado: em produção as tabelas REAIS já existem; a migration ainda adicionaria constraints UNIQUE (`email`/`cnpj` em `"Empresa"`) e GRANTs — risco de falha por dados duplicados e mudança de permissão não planejada |
 | **0034_seed_legado_envio_massa_teste** | **PULAR (pré-registro)** | inseriria empresas/movimentos QA na `"EnvioMassa"` REAL e motoristas de teste na base `"Motorista"` (exclusiva do grupo Movee — violaria a regra de domínio do CLAUDE.md) |
@@ -157,9 +160,13 @@ contagens baseline no banco (colar):
 
 **P1 — Backup completo + validação.**
 ```bash
+DUMP=/backups/chatmasterveloz-pre-hub-$(date +%Y%m%dT%H%M).dump   # nome EXPLÍCITO — nunca validar por glob (casaria dump antigo de tentativa anterior)
 docker exec $(docker ps -qf name=pgadmin_db) \
-  pg_dump -U <user> -Fc chatmasterveloz > /backups/chatmasterveloz-pre-hub-$(date +%Y%m%dT%H%M).dump
-pg_restore --list /backups/chatmasterveloz-pre-hub-*.dump | head   # valida o formato
+  pg_dump -U <user> -Fc chatmasterveloz > "$DUMP" \
+  || { echo "pg_dump FALHOU — NO-GO"; }
+test -s "$DUMP" || echo "dump vazio — NO-GO"
+# valida o formato DENTRO do container (o host pode não ter client tools)
+docker exec -i $(docker ps -qf name=pgadmin_db) pg_restore --list < "$DUMP" | head
 ```
 Validação REAL (não só `--list`): restaurar num banco descartável `hub_*`
 (mesmo desenho do ensaio de rollback da S10, `infra/hub/scripts/restore.sh`) e
@@ -182,18 +189,23 @@ ON CONFLICT (nome) DO NOTHING;   -- PULADAS por decisão (§5) — nunca executa
 SQL
 
 cd /var/lib/envioMassa_homologacao/infra/hub/migrations
+ok=1
 for f in $(ls *.sql | sort); do
   if docker exec $DB_CONT psql -U <user> -d chatmasterveloz -tAc \
        "SELECT 1 FROM \"SchemaMigration\" WHERE nome='$f'" | grep -q 1; then
     echo "pulada (já registrada): $f"; continue
   fi
   echo "aplicando: $f"
-  docker exec -i $DB_CONT psql -U <user> -d chatmasterveloz -v ON_ERROR_STOP=1 -1 -f - < "$f" || { echo "FALHOU em $f — PARAR"; break; }
+  docker exec -i $DB_CONT psql -U <user> -d chatmasterveloz -v ON_ERROR_STOP=1 -1 -f - < "$f" \
+    || { echo "FALHOU em $f — PARAR (colar o erro para a sessão)"; ok=0; break; }
   docker exec $DB_CONT psql -U <user> -d chatmasterveloz -c \
     "INSERT INTO \"SchemaMigration\" (nome) VALUES ('$f') ON CONFLICT DO NOTHING"
 done
-# reload do PostgREST de produção (mesmo mecanismo do migrate.sh)
-docker kill -s SIGUSR1 $(docker ps -qf name=pgadmin_postgrest)
+# reload do PostgREST de produção SÓ com a série completa aplicada — recarregar
+# com schema meio-aplicado exporia objetos parciais (sem GRANTs/policies das
+# migrations seguintes) pela API viva enquanto o problema é diagnosticado
+[ "$ok" = 1 ] && docker kill -s SIGUSR1 $(docker ps -qf name=pgadmin_postgrest) \
+  || echo "SIGUSR1 NÃO enviado (série incompleta) — resolver a falha antes"
 ```
 
 Tempo esperado: **ver a tabela real do ensaio**
