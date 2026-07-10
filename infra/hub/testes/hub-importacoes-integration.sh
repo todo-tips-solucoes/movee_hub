@@ -313,13 +313,23 @@ N_REGISTROS_OK="$(psql_t -tAc "SELECT count(*) FROM \"ImportacaoArquivo\" WHERE 
 check "DB: exatamente 1 registro ImportacaoArquivo para o id retornado" "$N_REGISTROS_OK" "1"
 
 STATUS_DB="$(psql_t -tAc "SELECT status FROM \"ImportacaoArquivo\" WHERE id=$OK_ID" | tr -d '[:space:]')"
-if [ "$STATUS_DB" != "pending" ]; then
+# Atualizado na S10: este teste nasceu na FASE 3 (sem processador) e assertava
+# status=pending; desde a FASE 4/5 o worker consome o 'pending' em background,
+# e o CSV deste cenário tem header estruturalmente inválido de propósito —
+# então o estado legítimo é qualquer ponto do caminho pending→validating→
+# failed da máquina de estados (nunca completed*). A resposta HTTP do upload
+# continua assertada como 'pending' acima (essa É síncrona).
+case "$STATUS_DB" in
+  pending|validating|failed) STATUS_DB_OK="ok" ;;
+  *) STATUS_DB_OK="inesperado:$STATUS_DB" ;;
+esac
+if [ "$STATUS_DB_OK" != "ok" ]; then
   echo "DEBUG: status inesperado='$STATUS_DB' para id=$OK_ID — erro_resumo:"
   psql_t -tAc "SELECT erro_resumo FROM \"ImportacaoArquivo\" WHERE id=$OK_ID"
   echo "DEBUG: logs do backend (últimas 40 linhas):"
   dc logs --tail 40 backend
 fi
-check "DB: status=pending" "$STATUS_DB" "pending"
+check "DB: status dentro da máquina de estados esperada (pending|validating|failed)" "$STATUS_DB_OK" "ok"
 
 # Conta só pelo MESMO hash do upload original (não pelo total empresa+tipo —
 # os cenários (e)/(f) legitimamente criam OUTROS registros faturamento/E_OP
