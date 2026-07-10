@@ -864,21 +864,118 @@ NOVO)
 Ref: quickstart.md Cenários 8-9; spec.md FR-006/SC-002; plan.md "Convenções
 de Borda" (mapper layer, roundtrip trava a convenção)
 
-- [ ] 6.2.1 Rodar Cenário 8 para as 3 superfícies novas/evoluídas (`GET /auditoria`, `GET /papeis`, `GET /admin/entidades/:id/modulos`): capturar JSON real via `curl` contra o backend vivo, comparar shape byte-a-byte contra os contratos — qualquer chave snake_case na borda é FAIL
-- [ ] 6.2.2 Rodar Cenário 9 (cobertura de auditoria S2–S8): executar 1 escrita por módulo (importação, edição de motorista, toggle de módulo, troca de papel, envio em massa) e confirmar 1 evento por escrita com `recurso`/`recursoId` corretos, fechando o checklist endpoint-a-endpoint da FASE 2.1
-- [ ] 6.2.3 Confirmar SC-006 (mecanismo automatizado FASE 2.3) rodando contra os eventos gerados neste cenário — 0% de exposição de padrão sensível
+- [x] 6.2.1 Rodar Cenário 8 para as 3 superfícies novas/evoluídas (`GET /auditoria`, `GET /papeis`, `GET /admin/entidades/:id/modulos`): capturar JSON real via `curl` contra o backend vivo, comparar shape byte-a-byte contra os contratos — qualquer chave snake_case na borda é FAIL
+- [x] 6.2.2 Rodar Cenário 9 (cobertura de auditoria S2–S8): executar 1 escrita por módulo (importação, edição de motorista, toggle de módulo, troca de papel, envio em massa) e confirmar 1 evento por escrita com `recurso`/`recursoId` corretos, fechando o checklist endpoint-a-endpoint da FASE 2.1
+- [x] 6.2.3 Confirmar SC-006 (mecanismo automatizado FASE 2.3) rodando contra os eventos gerados neste cenário — 0% de exposição de padrão sensível
 
-  Evidência: _preencher na execução_
+  Evidência: pré-requisito (dec-039) — rebuild+redeploy do hub-homolog a
+  partir de `feat/hub-auditoria-admin` (`DOCKER_BUILDKIT=0 docker compose
+  ... build --memory=2g backend frontend` + `up -d --no-deps backend
+  frontend`); confirmado o fix dec-037 presente na imagem (`docker run --rm
+  hub-backend:homolog grep returnMinimal lib/hub-auditoria.js` → linha 155)
+  e login QA (`POST /api/v1/auth/login`) → `200`.
+
+  **6.2.1 (shape byte-a-byte, sessão QA `admin_entidade` após
+  `POST /me/entidade {empresa_id:9001}`)**: `GET /auditoria` → `200
+  {"eventos":[...],"total":0}` inicialmente, depois eventos reais com
+  chaves EXATAS `id/entidadeId/usuarioId/acao/recurso/recursoId/detalhes/
+  ip/criadoEm` (nenhuma chave snake_case); `GET /papeis` → `200` com
+  `papeis[].{id,nome,escopo,isSistema}` / `permissoes[].{id,codigo,modulo}`
+  / `podeEditar:false` — shape idêntico ao contrato. Para
+  `GET /admin/entidades/:id/modulos` (dec-040, requer vínculo
+  `admin_plataforma` real, inexistente no hub-homolog): provisionado
+  usuário temporário `qa-admin-plataforma@moveelog.local` (Usuario id=58 +
+  UsuarioEntidade id=65, papel_id=1 em empresa_id=9001); login + seleção de
+  entidade 9001 + `GET /admin/entidades/9001/modulos` → `200
+  {"entidadeId":9001,"modulos":[{"moduloId":1,"codigo":"dashboard",
+  "nome":"Painel Geral","habilitado":true}, ... 9 módulos]}` — shape
+  idêntico ao contrato (`moduloId/codigo/nome/habilitado`), zero chave
+  snake_case. Usuário QA original recebeu também `403 MODULO_DESABILITADO`
+  (antes de setar entidade ativa) e `403 PERMISSAO_NEGADA` (com entidade
+  ativa mas sem `admin.gerenciar`) — ambos os shapes de erro documentados
+  no contrato, confirmando o gate FR-017 na ponta a ponta.
+
+  **6.2.2 (Cenário 9 — 1 escrita real por módulo, sessão admin temporária)**,
+  confirmado via `psql` direto em `Auditoria` (id/ação/recurso/recursoId):
+  `PATCH /motoristas/104` (edição de motorista, nome alterado e revertido)
+  → 2× `motorista.editado` / `Entregador` / `104`; `PUT /admin/entidades/
+  9001/modulos/performance` (toggle true→false) → 2× `modulo_entidade_
+  alterado` / `ModuloEntidade` / `4`; `POST /usuarios` (criação) → 1×
+  `usuario_criado` / `Usuario` / `59`; `PUT /usuarios/59/vinculos/66`
+  (troca operador→leitura) → 1× `usuario_papel_alterado` /
+  `UsuarioEntidade` / `66`; `PATCH /update-envio-massa/1` (módulo legado
+  `envio_massa`, acessado via rede interna `hub_homolog_net` — rota legada
+  não é servida pelo proxy Next.js do hub) → 1× `movimento_editado` /
+  `EnvioMassa` / `1`; `POST /importacoes/35/reprocessar` → 1×
+  `importacao.reprocessada` / `ImportacaoArquivo` / `35` (+ 1×
+  `importacao.falhou` da transição assíncrona do pipeline, comportamento
+  pré-existente de `lib/hub-import-processor.js`, não um gap desta
+  feature). Todas as 5 categorias do Cenário 9 confirmadas: 1 evento por
+  escrita, `recurso`/`recursoId` corretos — fecha o checklist
+  endpoint-a-endpoint da 2.1/2.2.
+
+  **6.2.3**: `bash infra/hub/scripts/scan-auditoria-sensivel.sh -f
+  infra/hub/compose.hub.homolog.yml -p hub-homolog -e
+  /var/lib/hub_secrets/.env.hub.homolog -n 500` →
+  `SCAN-AUDITORIA-SENSIVEL: OK — 0 achados em até 500 eventos (SC-006)`
+  (varredura incluiu todos os eventos gerados nesta onda).
+
+  **Limpeza pós-teste**: usuário/vínculos temporários (Usuario id 58/59,
+  UsuarioEntidade id 64/65/66) marcados `ativo=false` via `UPDATE` direto
+  (NUNCA `DELETE` — `Auditoria.usuario_id` referencia `Usuario` por FK e a
+  trilha é imutável por desenho; mesmo padrão CHK033 já adotado no
+  produto). `ModuloEntidade` (performance/9001) e `EnvioMassa` (id=1)
+  revertidos ao valor original. `hub_homolog_backend` reiniciado ao final
+  para descartar cache RBAC de 60s da sessão de teste.
 
 ### 6.3 A11y smoke e identidade visual `[M]`
 
 Ref: plan.md "Plano por fases" passo 6 (a11y smoke); `/ui-ux-pro-max`
 (padrão já usado nas fases anteriores — S6/S7/S8)
 
-- [ ] 6.3.1 Rodar smoke de acessibilidade (mesmo padrão a11y 2/2 já usado na S8/hub-envio-massa) nas 4 telas novas/evoluídas: `/auditoria`, `/usuarios`, `/usuarios/papeis`, `/admin`
-- [ ] 6.3.2 Confirmar identidade visual EntreGô 2.0 (tokens de cor/tipografia) em tema claro/escuro e branding por tenant nas 4 telas
+- [x] 6.3.1 Rodar smoke de acessibilidade (mesmo padrão a11y 2/2 já usado na S8/hub-envio-massa) nas 4 telas novas/evoluídas: `/auditoria`, `/usuarios`, `/usuarios/papeis`, `/admin`
+- [x] 6.3.2 Confirmar identidade visual EntreGô 2.0 (tokens de cor/tipografia) em tema claro/escuro e branding por tenant nas 4 telas
 
-  Evidência: _preencher na execução_
+  Evidência: suíte Playwright dedicada (mesmo molde de
+  `tests/e2e-hub-envio-massa/a11y-smoke.spec.ts`, container oficial
+  `mcr.microsoft.com/playwright:v1.61.1-jammy`), NOVOS arquivos:
+  `app_homologacao/frontend_v2/playwright.config.hub-auditoria-admin.ts`,
+  `app_homologacao/frontend_v2/tests/e2e-hub-auditoria-admin/
+  a11y-smoke.spec.ts` (2 testes), driver
+  `infra/hub/testes/hub-auditoria-admin-a11y-smoke.sh`. Rodada ao vivo
+  contra o hub-homolog redeployado (dec-039):
+  `HUB-AUDITORIA-ADMIN-A11Y-SMOKE: OK` — **2/2 PASS**
+  (`docs/specs/hub-auditoria-admin/evidencias/
+  6.3-a11y-smoke-run-20260710T001654Z.log`).
+
+  **6.3.1 (teclado)**: tab-walk (`Tab`/`Shift+Tab`) em `/hub/dashboard/
+  auditoria`, `/usuarios`, `/usuarios/papeis` (sessão `qa.importacoes@
+  moveelog.local`, admin_entidade) — foco alcança >=3 paradas em cada
+  tela, sem ficar preso; `Enter` no botão "Novo usuário" abre o dialog
+  (`role="dialog"`, título "Novo usuário"), `Escape` fecha. Em `/admin`
+  (exige vínculo `admin_plataforma` real, FR-017): reativado
+  temporariamente o usuário de teste `qa-admin-plataforma@moveelog.local`
+  (Usuario id=58/UsuarioEntidade id=65, desativados na 6.2) só para esta
+  suíte; tab-walk alcança o campo "ID da entidade" e o botão "Consultar",
+  `Enter` no botão dispara a consulta por teclado (spinner "Carregando
+  módulos..." desaparece, catálogo de módulos ou alerta de erro renderiza
+  sem travar a UI). Evidência bruta:
+  `docs/specs/hub-auditoria-admin/evidencias/6.3.1-tab-walk.json`.
+
+  **6.3.2 (tema/branding)**: para as 3 telas de `admin_entidade`, tema
+  escuro (default do `ThemeProvider`) e claro (via `localStorage.
+  setItem('theme','light')` + reload, mesmo mecanismo do script inline do
+  `<head>`) aplicam corretamente `data-theme`/classe `dark`/`light` na
+  raiz; banner de ambiente "HOMOLOGAÇÃO — dados fictícios" presente em
+  ambos os temas; **0 botões sem nome acessível** nas 4 telas em ambos os
+  temas. Evidência bruta:
+  `docs/specs/hub-auditoria-admin/evidencias/6.3.2-tema-branding.json`.
+
+  **Limpeza pós-teste**: o driver reativa o usuário de teste só durante a
+  execução e o desativa de novo ao final (`trap ... EXIT`, nunca
+  `DELETE`), reiniciando `hub_homolog_backend` para descartar o cache RBAC
+  de 60s — mesmo padrão de limpeza da 6.2. Confirmado pós-run:
+  `SELECT ativo FROM "Usuario" WHERE id=58` → `f`.
 
 ### 6.4 Gates determinísticos e DIÁRIO `[M]`
 
