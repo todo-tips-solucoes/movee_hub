@@ -41,6 +41,15 @@
 # ALCANÇADOS pelo fluxo exercitado aqui, não porque uma proteção os desviou.
 # Ver relatório final para a Decisão que o orquestrador-pai precisa tomar.
 #
+# ATUALIZAÇÃO (issue #62, pós-S10): o achado acima foi RESOLVIDO —
+# lib/envio-gate.js passou a gatear TODAS as saídas externas do fluxo legado
+# (ENVIO_DRY_RUN/ENVIO_ALLOWLIST; URLs vindas de env com fallback para os
+# valores históricos de produção), e o cenário "gate" no fim desta suíte
+# agora EXERCITA uma linha elegível de verdade, assertando o bloqueio em
+# runtime e o n8n-mock zerado. A neutralização da seed 0034 e o desenho
+# "nenhuma linha elegível" dos cenários antigos foram MANTIDOS — viraram
+# defesa em profundidade, não a única barreira.
+#
 # Uso: docs/specs/hub-envio-massa/e2e-hub-envio-massa.sh
 # =============================================================================
 set -uo pipefail
@@ -656,6 +665,76 @@ check "INSERT do log falhando (tabela renomeada) -> upload de negócio ainda res
 psql_t -c 'ALTER TABLE "ImportacaoArquivo_tmp_disabled_e2e" RENAME TO "ImportacaoArquivo";' >/dev/null
 N_IMPORT_POS_RESTORE="$(psql_t -tAc "SELECT count(*) FROM \"ImportacaoArquivo\" WHERE tipo='envio_massa' AND nome_arquivo='lote-failsim.xlsx'" | tr -d '[:space:]')"
 check "após restaurar a tabela: nenhuma entrada 'lote-failsim.xlsx' (o INSERT realmente falhou, não foi só atrasado)" "$N_IMPORT_POS_RESTORE" "0"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# issue #62 — Cenário GATE (fecha o gap CHK018/SC-006 da S8): com
+# ENVIO_DRY_RUN=true no env do backend (compose.hub.test.yml, default
+# fail-safe), uma linha ELEGÍVEL (enviado='off') processada por POST
+# /start-process é BLOQUEADA por lib/envio-gate.js ANTES de qualquer axios
+# externo: a linha vira 'erro' com motivo '[gate] ...' e o n8n-mock permanece
+# com ZERO chamadas. Antes desta feature, o "zero chamadas reais" desta suíte
+# era garantido apenas por construção de cenário (nenhuma linha elegível);
+# agora é garantido por gate de RUNTIME — e assertado aqui com linha elegível.
+# ─────────────────────────────────────────────────────────────────────────────
+echo
+echo "── issue #62 — gate ENVIO_DRY_RUN no fluxo vivo de /start-process ─────────"
+DRY_ENV="$(node_e 'process.stdout.write(String(process.env.ENVIO_DRY_RUN))' | tr -d '[:space:]')"
+check "gate: backend do ambiente isolado tem ENVIO_DRY_RUN=true" "$DRY_ENV" "true"
+
+psql_t <<'SQL' >/dev/null
+INSERT INTO "EnvioMassa" (number, nome, cnpj_prestador, cnpj_tomador, valor, mensagem1, enviado, mov_fechado, id_empresa)
+SELECT '5511999990062', 'Gate Teste Issue62', '99999999000162', '11.222.333/0001-81', 10.50,
+       'Mensagem sintética do teste do gate (issue 62)', 'off', false, 9001
+WHERE NOT EXISTS (SELECT 1 FROM "EnvioMassa" WHERE number = '5511999990062');
+SQL
+
+OUTG="$(run_node <<'JS'
+const BASE = 'http://localhost:3000';
+function parseSetCookie(r) {
+  const out = {};
+  const list = r.headers.getSetCookie ? r.headers.getSetCookie() : [];
+  for (const c of list) { const kv = c.split(';')[0]; const i = kv.indexOf('='); out[kv.slice(0, i)] = kv.slice(i + 1); }
+  return out;
+}
+const cookieHeader = (jar) => Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ');
+(async () => {
+  const out = {};
+  const rl = await fetch(`${BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'qa.envio-massa.matriz@hub-test.local', password: 'EnvioMassaQA@2026' }) });
+  out.login_status = rl.status;
+  const jar = parseSetCookie(rl);
+  const rs = await fetch(`${BASE}/start-process`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) }, body: '{}' });
+  out.start_status = rs.status;
+  console.log('___RESULT_JSON___' + JSON.stringify(out));
+})().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
+JS
+)"
+echo "$OUTG" | grep -v '___RESULT_JSON___' || true
+RG="$(echo "$OUTG" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+[ -n "$RG" ] || { echo "FAIL: cenário gate não retornou resultado"; echo "$OUTG"; exit 1; }
+gval() { node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(String(d[process.argv[2]]));" "$RG" "$1"; }
+check "gate: POST /login (legado) -> 200" "$(gval login_status)" "200"
+check "gate: POST /start-process com linha ELEGÍVEL -> 200" "$(gval start_status)" "200"
+
+GATE_ENVIADO=""
+for _ in $(seq 1 20); do
+  GATE_ENVIADO="$(psql_t -tAc "SELECT enviado FROM \"EnvioMassa\" WHERE number='5511999990062'" | tr -d '[:space:]')"
+  [ "$GATE_ENVIADO" = "erro" ] && break
+  sleep 1
+done
+check "gate: linha elegível marcada 'erro' (nunca enviada)" "$GATE_ENVIADO" "erro"
+GATE_RETORNO="$(psql_t -tAc "SELECT retorno_envio_msg_1 FROM \"EnvioMassa\" WHERE number='5511999990062'")"
+case "$GATE_RETORNO" in
+  *"[gate] envio bloqueado: ENVIO_DRY_RUN=true"*) GATE_MOTIVO_OK="ok" ;;
+  *) GATE_MOTIVO_OK="inesperado:$GATE_RETORNO" ;;
+esac
+check "gate: retorno_envio_msg_1 registra o motivo (ENVIO_DRY_RUN=true)" "$GATE_MOTIVO_OK" "ok"
+
+N8N_CHAMADAS="$(node_e "fetch('http://n8n-mock:8080/_log').then(function (r) { return r.json(); }).then(function (a) { process.stdout.write(String(a.length)); }).catch(function () { process.stdout.write('erro'); })" | tr -d '[:space:]')"
+check "gate: n8n-mock com ZERO chamadas recebidas (bloqueio ANTES do axios)" "$N8N_CHAMADAS" "0"
+
+# limpeza do cenário: linha própria removida; ProcessControl volta a inactive
+psql_t -c "DELETE FROM \"EnvioMassa\" WHERE number='5511999990062';" >/dev/null
+psql_t -c "UPDATE \"ProcessControl\" SET status='inactive' WHERE user_id=9001;" >/dev/null
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6.3.1 — suíte legada completa, 100% verde (exceto as 8 falhas pré-existentes

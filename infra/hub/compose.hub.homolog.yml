@@ -122,8 +122,14 @@ services:
       JWT_SECRET: "${JWT_SECRET:?}"
       JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?}"
       FASTAPI_URL: "${FASTAPI_URL}"
+      FASTAPI_NEXUS_URL: "${FASTAPI_NEXUS_URL:-${FASTAPI_URL}}"
       N8N_URL: "${N8N_URL}"
       MAIL_MOCK_URL: "${MAIL_MOCK_URL}"
+      # issue #62: gate de saída externa do fluxo legado (lib/envio-gate.js).
+      # Default fail-safe TRUE nos ambientes do hub; produção NUNCA define
+      # estas vars (gate inerte = comportamento histórico).
+      ENVIO_DRY_RUN: "${ENVIO_DRY_RUN:-true}"
+      ENVIO_ALLOWLIST: "${ENVIO_ALLOWLIST:-}"
       # hub-envio-massa (S8): flags reversíveis instantâneas (research.md
       # Decision 6/FR-006, FR-010) — lidas por request pelo middleware, sem
       # cache; alterar aqui exige recreate do container p/ efeito (task 2.2.9

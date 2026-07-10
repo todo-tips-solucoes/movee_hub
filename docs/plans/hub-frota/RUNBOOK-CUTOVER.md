@@ -33,7 +33,7 @@ Números de ensaio citados: `docs/plans/hub-frota/evidencias/S10/`
 
 | # | Pré-requisito | Dono | Status ao escrever |
 |---|---|---|---|
-| 1 | **Issue #62** (gate `ENVIO_DRY_RUN`/allowlist não lidos por `sendMessage`/`validate-xml-batch` no legado) resolvida e deployada, **ou** aceite de risco formal do operador | operador | **ABERTA** — recomendada ANTES do cutover; não resolver sem autorização explícita |
+| 1 | **Issue #62** (gate `ENVIO_DRY_RUN`/allowlist não lidos por `sendMessage`/`validate-xml-batch` no legado) resolvida e deployada, **ou** aceite de risco formal do operador | operador | **RESOLVIDA** (lib/envio-gate.js + URLs de env com fallback; E2E asserta o bloqueio com linha elegível). ⚠️ Em produção **NÃO** setar `ENVIO_DRY_RUN`/`ENVIO_ALLOWLIST` no serviço — sem env, o gate é inerte e o comportamento é o histórico |
 | 2 | **Decisão D5** — retenção/expurgo da trilha de `Auditoria` (a tabela cresce sem política; nada foi implementado por decisão) | operador | **PENDENTE** — decidir antes do G3; implementação pode ser pós-cutover |
 | 3 | PR da S10 revisado e mergeado; suíte de regressão 100% verde em execução única | operador | evidência em `evidencias/S10/` |
 | 4 | Ensaio de migrations (do zero + sob ~2,5M linhas, sem lock disruptivo) e ensaio de rollback anexados | sessão S10 | evidência em `evidencias/S10/` |
@@ -145,6 +145,9 @@ docker service update \
   LGPD: fica em volume privado, nunca em git/logs).
 - Flags da S8: **não setar** `HUB_RBAC_ENVIO`/`HUB_IMPORT_LOG_ENVIO`
   (ausente = comportamento ligado, o desejado). Aposentadoria: §9.
+- Gate da issue #62: **não setar** `ENVIO_DRY_RUN`/`ENVIO_ALLOWLIST`/`N8N_URL`/
+  `FASTAPI_URL`/`FASTAPI_NEXUS_URL` em produção — sem env, o gate é inerte e as
+  URLs caem nos valores históricos (comportamento byte a byte idêntico).
 
 ## 7. Sequência da janela (cada passo com go/no-go)
 
