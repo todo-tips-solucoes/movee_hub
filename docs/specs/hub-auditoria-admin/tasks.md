@@ -983,12 +983,38 @@ Ref: docs/plans/hub-frota/DIARIO.md; review-task (relatório final);
 skills/create-tasks/scripts/validate-tasks-template.sh;
 skills/validate-docs-rendered
 
-- [ ] 6.4.1 Rodar `validate-tasks-template.sh` sobre este `tasks.md` (gate determinístico de fidelidade ao template — critical: re-normalizar; warning: nota)
-- [ ] 6.4.2 Rodar o gate `validate-docs-rendered` sobre `docs/specs/hub-auditoria-admin/` (Mermaid, links internos, frontmatter, code blocks)
-- [ ] 6.4.3 Registrar no DIÁRIO do hub-frota a conclusão da S9 com evidências (link deste `tasks.md`, resultados do quickstart, PR)
-- [ ] 6.4.4 Registrar explicitamente a decisão do dono do produto (ou a ausência dela, como pendência) sobre os 3 gaps `{humano}` puros do checklist (CHK009 — critério de "relevância" da escrita auditada, default seguro = toda escrita é relevante; CHK016 — protocolo de medição de SC-001, default = medição manual no smoke de aceite; CHK032 — trade-off retenção×performance, nota de roadmap pós-S9) e do gap CHK028 (meta de performance sem SC formal — manter como meta técnica interna do plan.md, sem promover a SC nesta feature) — nenhum bloqueia o fechamento
+- [x] 6.4.1 Rodar `validate-tasks-template.sh` sobre este `tasks.md` (gate determinístico de fidelidade ao template — critical: re-normalizar; warning: nota)
+- [x] 6.4.2 Rodar o gate `validate-docs-rendered` sobre `docs/specs/hub-auditoria-admin/` (Mermaid, links internos, frontmatter, code blocks)
+- [x] 6.4.3 Registrar no DIÁRIO do hub-frota a conclusão da S9 com evidências (link deste `tasks.md`, resultados do quickstart, PR)
+- [x] 6.4.4 Registrar explicitamente a decisão do dono do produto (ou a ausência dela, como pendência) sobre os 3 gaps `{humano}` puros do checklist (CHK009 — critério de "relevância" da escrita auditada, default seguro = toda escrita é relevante; CHK016 — protocolo de medição de SC-001, default = medição manual no smoke de aceite; CHK032 — trade-off retenção×performance, nota de roadmap pós-S9) e do gap CHK028 (meta de performance sem SC formal — manter como meta técnica interna do plan.md, sem promover a SC nesta feature) — nenhum bloqueia o fechamento
 
-  Evidência: _preencher na execução_
+  Evidência: **6.4.1** — `bash ~/.claude/skills/create-tasks/scripts/
+  validate-tasks-template.sh docs/specs/hub-auditoria-admin/tasks.md
+  --config ~/.claude/skills/create-tasks/config.json` →
+  `RESULT|docs/specs/hub-auditoria-admin/tasks.md|critical=0|warning=0`.
+
+  **6.4.2** — 1ª rodada de `validate-docs-rendered` sobre
+  `docs/specs/hub-auditoria-admin/` encontrou 4 AVISO (fences sem
+  linguagem em `plan.md:61/77` e `research.md:44/135`); corrigidos no ato
+  (`text` para as árvores de diretório, `sql` para os trechos SQL); 2ª
+  rodada → `ERRO=0 AVISO=0` ("Nenhum issue encontrado").
+
+  **6.4.3** — entrada registrada em
+  `docs/plans/hub-frota/DIARIO.md` ("2026-07-10 — S9 (Módulo Auditoria +
+  Administração) FASE 6 CONCLUÍDA — pronta para review-task"), com
+  evidências de 6.1/6.2/6.3/6.4 e ponteiro para este `tasks.md` +
+  `quickstart.md`.
+
+  **6.4.4** — decisão explícita registrada (default seguro, nenhuma
+  pendência bloqueante): CHK009 (toda escrita é relevante), CHK016
+  (medição manual no smoke de aceite), CHK032 (nota de roadmap pós-S9,
+  sem expurgo por FR-014) e CHK028 (meta técnica interna do `plan.md`,
+  não promovida a SC formal). Detalhe completo no DIÁRIO (6.4.3);
+  nenhuma constitui achado de segurança nem bloqueia `review-task`.
+
+  **Resumo quantitativo final: 126/126 subtarefas `[x]` — FASES 1–6
+  completas.** `current_stage` avança para `review-task` ao fechar esta
+  onda (onda-011).
 
 ---
 

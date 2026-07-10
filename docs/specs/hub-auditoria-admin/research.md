@@ -41,7 +41,7 @@ pelo backend SOMENTE após verificar que o usuário tem vínculo ativo
 `hub_jwt_escopo_ids()`) e a política SELECT da `"Auditoria"` é substituída
 (DROP POLICY IF EXISTS + CREATE POLICY — idempotente) para:
 
-```
+```sql
 (hub_jwt_admin_plataforma())                                   -- vê tudo, incl. globais
 OR (id_empresa IS NOT NULL AND id_empresa = ANY (hub_jwt_escopo_ids()))
 ```
@@ -132,7 +132,7 @@ na Decision 5).
 p_permissao_id int, p_ativo boolean) RETURNS jsonb`, `LANGUAGE plpgsql`,
 `SECURITY DEFINER`, `SET search_path = public, pg_temp`, com guard no topo:
 
-```
+```sql
 IF NOT hub_jwt_admin_plataforma() THEN RAISE EXCEPTION ... ERRCODE '42501'; END IF;
 ```
 

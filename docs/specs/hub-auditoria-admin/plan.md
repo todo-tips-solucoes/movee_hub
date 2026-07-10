@@ -58,7 +58,7 @@ data-driven do `GET /me`).
 
 ### Documentação (feature dir)
 
-```
+```text
 docs/specs/hub-auditoria-admin/
 ├── spec.md              # clarificada (dec-008/dec-009)
 ├── plan.md              # este arquivo
@@ -74,7 +74,7 @@ docs/specs/hub-auditoria-admin/
 
 ### Código (árvore real do projeto)
 
-```
+```text
 infra/hub/migrations/
 ├── 0035_auditoria_visao_global.sql        # NOVO — helper claim + SELECT policy
 ├── 0036_moduloentidade_escrita_admin.sql  # NOVO — write policies + branch admin

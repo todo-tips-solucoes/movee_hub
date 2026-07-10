@@ -1370,3 +1370,84 @@ Produção, CLAUDE.md).
 `AGENTE_00C_STATE_DIR=.claude/feature-00c-state/hub-envio-massa`,
 `.execution.status=concluida`; **S8 fechada do lado da pipeline SDD** —
 falta só o rito de PR/push (operador) para fechar do lado do repositório.
+
+## 2026-07-10 — S9 (Módulo Auditoria + Administração) FASE 6 CONCLUÍDA — pronta para review-task
+
+**Onda-011** (`/feature-00c-resume`, retomando de onda-010 que fechou a
+FASE 6.1 com o achado crítico dec-037). Pré-requisito: rebuild+redeploy do
+`hub-homolog` a partir de `feat/hub-auditoria-admin` (dec-039) —
+`hub_homolog_backend`/`hub_homolog_frontend` recriados via
+`docker compose ... build --memory=2g backend frontend` +
+`up -d --no-deps backend frontend` (recursos `hub-*`, exceção standing
+G1); confirmado o fix dec-037 presente na imagem
+(`grep returnMinimal lib/hub-auditoria.js` → linha 155) e login QA
+(`POST /api/v1/auth/login`) → `200`.
+
+**FASE 6.2 (Cenários 8/9 do quickstart, roundtrip ao vivo):** shape
+byte-a-byte confirmado para as 3 superfícies (`GET /auditoria`,
+`GET /papeis`, `GET /admin/entidades/:id/modulos`) — zero chave
+snake_case na borda; o terceiro endpoint exigiu provisionar um vínculo
+`admin_plataforma` temporário (inexistente até então no hub-homolog,
+mesmo gap já documentado em 5.4.4), desativado (nunca `DELETE` — trilha
+`Auditoria` imutável por FK) ao final do teste. Cobertura de auditoria
+S2–S8 (Cenário 9): 1 escrita real por módulo — edição de motorista,
+toggle de módulo, criação de usuário, troca de papel, edição de movimento
+`envio_massa` (rota legada, acessada via rede interna `hub_homolog_net`
+já que não é servida pelo proxy Next.js do hub) e reprocessamento de
+importação — todas confirmadas com exatamente 1 evento de auditoria por
+escrita, `recurso`/`recursoId` corretos (checklist endpoint-a-endpoint da
+2.1/2.2 fechado ao vivo). `scan-auditoria-sensivel.sh` → 0 achados em até
+500 eventos (SC-006).
+
+**FASE 6.3 (a11y smoke, mesmo padrão "2/2" de S6/S7/S8):** como as 4
+telas (`/auditoria`, `/usuarios`, `/usuarios/papeis`, `/admin`) são 100%
+novas (sem contraparte legada para comparação ARIA, diferente do S8), foi
+criada suíte Playwright dedicada
+(`playwright.config.hub-auditoria-admin.ts` +
+`tests/e2e-hub-auditoria-admin/a11y-smoke.spec.ts` + driver
+`infra/hub/testes/hub-auditoria-admin-a11y-smoke.sh`) cobrindo
+teclado/dialogs (6.3.1) e tema claro/escuro + branding + nomes acessíveis
+(6.3.2). **2/2 PASS** ao vivo contra o hub-homolog.
+
+**FASE 6.4 (gates determinísticos):** `validate-tasks-template.sh` → 0
+critical/0 warning; `validate-docs-rendered` → 4 avisos triviais (fences
+sem linguagem em `plan.md`/`research.md`) corrigidos no ato, 2ª rodada
+0 ERRO/0 AVISO.
+
+**Gaps `{humano}` do checklist — decisão default aplicada, nenhum
+bloqueia o fechamento (6.4.4):**
+- **CHK009** (critério de "relevância" da escrita auditada) — default
+  seguro aplicado: TODA escrita de módulo é tratada como relevante (já é
+  a leitura corrente de research Decision 11; nenhuma escrita foi
+  excluída da cobertura em 2.1/2.2/6.2.2).
+- **CHK016** (protocolo de medição de SC-001, <30s) — default aplicado:
+  medição manual no smoke de aceite (Cenário 8/9 desta fase), sem
+  automação dedicada; nenhuma regressão de latência observada nos
+  roundtrips ao vivo.
+- **CHK032** (trade-off retenção×performance de longo prazo) — registrado
+  como **nota de roadmap pós-S9**: `Auditoria` não tem expurgo (FR-014 é
+  explícito em excluir retenção do escopo); revisitar quando o volume de
+  eventos justificar partição/arquivamento.
+- **CHK028** (meta de performance "p95 <500ms" sem SC formal) — mantida
+  como meta técnica interna documentada só no `plan.md`; NÃO promovida a
+  SC nesta feature (decisão: não reabrir `/clarify` para isso).
+
+Nenhuma dessas 4 decisões (aplicadas com o default já proposto no próprio
+checklist) constitui achado de segurança nem bloqueia `review-task`;
+ficam registradas aqui como decisão explícita do orquestrador na ausência
+de resposta do dono do produto, conforme tasks.md 6.4.4 permitia
+("nenhum bloqueia o fechamento").
+
+**Resumo quantitativo final:** 126/126 subtarefas `[x]` em `tasks.md`
+(FASES 1–6 completas). `current_stage` avança para `review-task` ao
+fechar esta onda (onda-011) — lembrete permanente: `review-task` NUNCA em
+haiku, sempre `sonnet` (precedente dec-031/dec-038/dec-055).
+
+**Ponteiros:** branch `feat/hub-auditoria-admin` (commits locais até
+`c4dea8f`, sem push); `AGENTE_00C_STATE_DIR=.claude/feature-00c-state/
+hub-auditoria-admin`; spec completa em
+`docs/specs/hub-auditoria-admin/tasks.md`; quickstart em
+`docs/specs/hub-auditoria-admin/quickstart.md` (9 cenários, todos
+exercitados entre FASE 6.1 e 6.2). PR ainda não aberto — aguarda
+`review-task` + autorização do operador (Governança/Rito de Produção,
+CLAUDE.md).
