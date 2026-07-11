@@ -16,14 +16,16 @@ Números de ensaio citados: `docs/plans/hub-frota/evidencias/S10/`
 
 | Componente | Hoje (anotado em 2026-07-10) | Depois do cutover |
 |---|---|---|
-| `envio-massa-homologacao_backend_homologacao` | `registry.todo-tips.com/envio-massa-backend:upload-motorista-paginacao` (node:14, Dockerfile legado) | imagem nova `envio-massa-backend:<TAG_HUB>` (node:20, **Dockerfile.hub**, mesmo server.js + rotas `/api/v1/*` do hub) |
-| `envio-massa-homologacao_frontend_v2_homologacao` | `registry.todo-tips.com/envio-massa-frontend-v2:motoristas-filtros` | imagem nova `envio-massa-frontend-v2:<TAG_HUB>` (inclui as telas `/hub/*`) |
-| Banco `chatmasterveloz` (container `pgadmin_db`, postgres:13, volume `pgadmin_pg_data`) | schema legado | + tabelas do hub (migrations `infra/hub/migrations/` — série 0000–0039, **expand-only**; ver mapa §5) |
+| `envio-massa-homologacao_backend_homologacao` | `registry.todo-tips.com/envio-massa-backend:upload-motorista-paginacao` (node:14, Dockerfile legado) | imagem nova `envio-massa-backend:hub-g3-1` (node:20, **Dockerfile.hub**, mesmo server.js + rotas `/api/v1/*` do hub) |
+| `envio-massa-homologacao_frontend_v2_homologacao` | `registry.todo-tips.com/envio-massa-frontend-v2:motoristas-filtros` | imagem nova `envio-massa-frontend-v2:hub-g3-1` (inclui as telas `/hub/*`) |
+| Banco `chatmasterveloz` (container `pgadmin_db`, postgres:13, volume `pgadmin_pg_data`) | schema legado | + tabelas do hub (migrations `infra/hub/migrations/` — série 0000–0041, **expand-only**; ver mapa §5) |
 | PostgREST de produção (`pgadmin_postgrest`, postgrest/postgrest:v14.1) | serve o legado | mesmo serviço; recebe SIGUSR1 (reload de schema) após as migrations |
 | **Não muda** | `frontend_homologacao` (painel legado), `frontend_motorista_homologacao` (app motorista), FastAPIs, Traefik, n8n | intocados |
 
-- **Tags de imagem SEMPRE fixas** (`<TAG_HUB>` = ex. `hub-cutover-g3-1`), nunca
-  `latest`. As tags ATUAIS acima são o alvo do rollback — reconfirmar com
+- **Tags de imagem SEMPRE fixas** — definidas pelo operador em 2026-07-11:
+  `hub-g3-1` (nunca `latest`). Digests no registry:
+  backend `sha256:28031a356d36a0dd…` · frontend-v2 `sha256:2bf6d23ec1d49c56…`.
+  As tags ATUAIS acima são o alvo do rollback — reconfirmar com
   `docker service ls` no início da janela (§7 P0).
 - Deploy **somente** com `docker service update --with-registry-auth --image …`.
   **Nunca** `docker stack deploy` (destruiria env/labels/segredos).
@@ -37,9 +39,9 @@ Números de ensaio citados: `docs/plans/hub-frota/evidencias/S10/`
 | 2 | **Decisão D5** — retenção/expurgo da trilha de `Auditoria` | operador | **DECIDIDA E IMPLEMENTADA** (2026-07-10): retenção de **12 meses** + expurgo **mensal** — migration 0041 (`hub_auditoria_expurgo()`, imutabilidade preservada, meta-evento global por expurgo); homolog agendado pelo backup-daemon; produção = cron mensal do operador PÓS-cutover (§11) |
 | 3 | PR da S10 revisado e mergeado; suíte de regressão 100% verde em execução única | operador | evidência em `evidencias/S10/` |
 | 4 | Ensaio de migrations (do zero + sob ~2,5M linhas, sem lock disruptivo) e ensaio de rollback anexados | sessão S10 | evidência em `evidencias/S10/` |
-| 5 | Auditoria do **schema real de produção** aprovada (§3) | operador + sessão | fazer na véspera |
+| 5 | Auditoria do **schema real de produção** aprovada (§3) | operador + sessão | **EXECUTADA 2026-07-10** (dump read-only autorizado): `valida-schema-prod.sh` PASS em todos os itens, 0 avisos; fingerprints JWT idênticos; re-rodar na véspera imediata da janela |
 | 6 | Segredos do hub para produção definidos (§6): `JWT_SECRET`, `JWT_REFRESH_SECRET`, `PGRST_JWT_SECRET` (= `POSTGREST_API_KEY` de produção), volume de uploads | operador | conferir |
-| 7 | Imagens novas buildadas e no registry com tag fixa (§4) | operador | janela ou véspera |
+| 7 | Imagens novas buildadas e no registry com tag fixa (§4) | operador | **FEITO 2026-07-11**: `hub-g3-1` no registry (digests no §1), sob rito anti-starvation com produção monitorada |
 | 8 | Backup validado (§7 P1) | operador | dentro da janela |
 | 9 | Aposentadoria futura das flags `HUB_RBAC_ENVIO`/`HUB_IMPORT_LOG_ENVIO` registrada como pendência pós-cutover (§9) | operador | registrada |
 
@@ -57,7 +59,7 @@ docker exec $(docker ps -qf name=pgadmin_db) \
 # colar/inspecionar com a sessão — NUNCA commitar (contém nomes de objetos internos)
 ```
 
-Objetos que a série 0000–0039 **pressupõe** existir (checklist de validação):
+Objetos que a série 0000–0041 **pressupõe** existir (checklist de validação):
 
 - [ ] Tabela `"Empresa"` com colunas `id`, `email`, `pass`, `nome_empresa`,
       `cnpj`, `id_grupo` (0008 lê `email`/`pass`/`nome_empresa` para migrar
@@ -92,21 +94,21 @@ cd /var/lib/envioMassa_homologacao   # working tree na main pós-merge da S10
 # backend do hub (node:20, Dockerfile.hub)
 DOCKER_BUILDKIT=0 docker build --memory=2g \
   -f app_homologacao/backend/Dockerfile.hub \
-  -t registry.todo-tips.com/envio-massa-backend:<TAG_HUB> \
+  -t registry.todo-tips.com/envio-massa-backend:hub-g3-1 \
   app_homologacao/backend
 # frontend v2 com o hub — ⚠️ conferir ENV BACKEND_URL do Dockerfile (CLAUDE.md)
 DOCKER_BUILDKIT=0 docker build --memory=2g \
-  -t registry.todo-tips.com/envio-massa-frontend-v2:<TAG_HUB> \
+  -t registry.todo-tips.com/envio-massa-frontend-v2:hub-g3-1 \
   app_homologacao/frontend_v2
-docker push registry.todo-tips.com/envio-massa-backend:<TAG_HUB>
-docker push registry.todo-tips.com/envio-massa-frontend-v2:<TAG_HUB>
+docker push registry.todo-tips.com/envio-massa-backend:hub-g3-1
+docker push registry.todo-tips.com/envio-massa-frontend-v2:hub-g3-1
 ```
 
 A imagem só vira produção no `service update` (§7 P6/P7).
 
 ## 5. Mapa de aplicabilidade das migrations em produção
 
-A série canônica é `infra/hub/migrations/0000–0039`, idempotente, expand-only,
+A série canônica é `infra/hub/migrations/0000–0041`, idempotente, expand-only,
 validada 3× (banco vazio, homolog com dados, cópia sintética volumosa —
 §4.10 do plano técnico; tempos medidos em `evidencias/S10/`). **Duas
 migrations são exclusivas do ambiente isolado e NUNCA rodam em produção:**
@@ -244,7 +246,7 @@ imagem ATUAL (legada) — smoke do painel legado depois: `/login` → 200.
 **P6 — Deploy do backend do hub.**
 ```bash
 docker service update --with-registry-auth \
-  --image registry.todo-tips.com/envio-massa-backend:<TAG_HUB> \
+  --image registry.todo-tips.com/envio-massa-backend:hub-g3-1 \
   envio-massa-homologacao_backend_homologacao
 docker service ps envio-massa-homologacao_backend_homologacao   # 1/1 Running
 ```
@@ -252,7 +254,7 @@ docker service ps envio-massa-homologacao_backend_homologacao   # 1/1 Running
 ❌ no-go: rollback imediato do backend (§8, 1 comando).
 
 **P7 — Deploy do frontend v2 do hub.** Mesmo padrão com
-`envio-massa-frontend-v2:<TAG_HUB>` no serviço
+`envio-massa-frontend-v2:hub-g3-1` no serviço
 `envio-massa-homologacao_frontend_v2_homologacao`.
 
 **P8 — Smoke (HTTP, sem expor segredos; colar saídas).**
