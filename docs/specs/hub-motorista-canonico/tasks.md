@@ -258,58 +258,102 @@ Ref: plan.md Fase C (fundação); spec.md US4-US5 (FR-011..FR-020); data-model.m
 §Migrations/§Permissões; research.md Decision 4, 6, 8; Constitution V (DDL só em
 `hub_homolog_db`).
 
-### 3.1 Migration 0042 — `ContaMotorista.senha` `[C]`
+### 3.1 Migration 0043 — `ContaMotorista.senha` `[C]`
 
 Ref: FR-017..FR-019, data-model.md §Migrations, research.md Decision 6/8, D-C5
 
-- [ ] 3.1.1 Criar `infra/hub/migrations/0042_conta_motorista_senha.sql`:
-  `ALTER TABLE "ContaMotorista" ADD COLUMN IF NOT EXISTS senha text NULL;`
-- [ ] 3.1.2 Confirmar idempotência: rodar `migrate.sh` duas vezes seguidas — a
-  segunda execução não deve alterar o schema (no-op)
-- [ ] 3.1.3 Aplicar via `infra/hub/scripts/migrate.sh -f
-  infra/hub/compose.hub.homolog.yml` **apenas** no `hub_homolog_db` (registra
-  `SchemaMigration` + envia SIGUSR1 ao PostgREST)
-- [ ] 3.1.4 Confirmar que os grants existentes (`SELECT, INSERT, UPDATE ... TO
-  authenticated`) cobrem a coluna nova sem necessidade de grant adicional
-  (data-model.md nota de segurança)
+**Renumeração**: data-model.md descreve esta migration como "0042", mas esse
+número já foi consumido pela FASE 2/WS-B numa onda anterior desta mesma
+feature (`0042_hub_entregadores_busca_rpc.sql`, aplicado ao `hub_homolog_db`
+nesta onda como pré-requisito). Número real: **0043** (a seguinte, permissão
+`motoristas.credencial`, passa a **0044** — ver 3.2).
 
-### 3.2 Migration 0043 — Permissão `motoristas.credencial` `[C]`
+- [x] 3.1.1 Criar `infra/hub/migrations/0043_conta_motorista_senha.sql`:
+  `ALTER TABLE "ContaMotorista" ADD COLUMN IF NOT EXISTS senha text NULL;`
+- [x] 3.1.2 Confirmar idempotência: rodar `migrate.sh` duas vezes seguidas — a
+  segunda execução não deve alterar o schema (no-op) — verificado em 2
+  camadas: (i) `infra/hub/testes/hub-motorista-canonico-fundacao-integration.sh`
+  contra hub-test efêmero (re-executa o `ALTER TABLE` diretamente + roda
+  `migrate.sh` 2x, confirmando contagem de `SchemaMigration` inalterada —
+  11/11 asserts PASS); (ii) `migrate.sh` real contra o `hub_homolog_db`
+  rodado 2x nesta onda — 2a execução: `SchemaMigration` com 45 linhas em
+  ambas, `aplicado_em` de 0043/0044 idêntico entre as 2 execuções
+  (`2026-07-12 22:38:16...` sem alteração)
+- [x] 3.1.3 Aplicar via `infra/hub/scripts/migrate.sh -f
+  infra/hub/compose.hub.homolog.yml` **apenas** no `hub_homolog_db` (registra
+  `SchemaMigration` + envia SIGUSR1 ao PostgREST) — aplicado nesta onda
+  (id=44, `2026-07-12 22:38:16.058504+00`); no mesmo lote também aplicou o
+  0042 pendente da FASE 2 (pré-requisito de ordem, puramente aditivo/sem
+  rebuild — não conflita com o smoke visual 2.5.3, ainda deferido ao gate de
+  E2E consolidado por depender do rebuild do Next.js)
+- [x] 3.1.4 Confirmar que os grants existentes (`SELECT, INSERT, UPDATE ... TO
+  authenticated`) cobrem a coluna nova sem necessidade de grant adicional
+  (data-model.md nota de segurança) — confirmado por inspeção (0021 concede
+  sem lista de colunas) + teste real: role `authenticated` grava/lê `senha`
+  no hub-test efêmero sem GRANT extra (assert (d) do script de integração)
+
+### 3.2 Migration 0044 — Permissão `motoristas.credencial` `[C]`
 
 Ref: FR-020, data-model.md §Permissões, research.md Decision 6, D-C1
 
-- [ ] 3.2.1 Criar
-  `infra/hub/migrations/0043_seed_permissao_motoristas_credencial.sql`:
+- [x] 3.2.1 Criar
+  `infra/hub/migrations/0044_seed_permissao_motoristas_credencial.sql`:
   inserir a permissão `motoristas.credencial` e concedê-la aos papéis admin,
-  idempotente (`WHERE NOT EXISTS` / `ON CONFLICT DO NOTHING`)
-- [ ] 3.2.2 Confirmar que `motoristas.editar` (já existente) cobre
+  idempotente (`ON CONFLICT DO NOTHING`)
+- [x] 3.2.2 Confirmar que `motoristas.editar` (já existente) cobre
   cadastro+edição de motorista sem necessidade de uma permissão `criar`
-  distinta (reconciliação do clarify Q1 — research.md Decision 6)
-- [ ] 3.2.3 Aplicar via `migrate.sh`; validar idempotência do seed (rodar duas
-  vezes, segunda execução não duplica linhas)
-- [ ] 3.2.4 Teste (`node --test` ou verificação SQL direta) confirmando que as
+  distinta (reconciliação do clarify Q1 — research.md Decision 6) —
+  confirmado: `motoristas.editar` já seedada em 0007 e usada em
+  `hub-motoristas.js` (PATCH `/:id`, `/:id/vinculo`); nenhuma permissão
+  `motoristas.criar` nova foi introduzida
+- [x] 3.2.3 Aplicar via `migrate.sh`; validar idempotência do seed (rodar duas
+  vezes, segunda execução não duplica linhas) — aplicado ao `hub_homolog_db`
+  (id=45) + validado em dobro no hub-test efêmero (assert (c): contagem de
+  `SchemaMigration` para 0043/0044 = 2 em ambas as execuções)
+- [x] 3.2.4 Teste (`node --test` ou verificação SQL direta) confirmando que as
   duas permissões (`motoristas.editar`, `motoristas.credencial`) existem e são
   concedíveis de forma independente a um usuário (FR-020: "um usuário pode
-  receber uma sem a outra")
+  receber uma sem a outra") — `infra/hub/testes/hub-motorista-canonico-
+  fundacao-integration.sh` asserts (e)/(f): `motoristas.credencial` existe
+  (1 linha), concedida só a admin_plataforma/admin_entidade (2/2), NÃO a
+  operador/leitura (0/2); `operador` tem `motoristas.editar` SEM
+  `motoristas.credencial` (caso real do seed); papel ad-hoc de teste prova
+  que o schema também permite o inverso (credencial sem editar) — sem
+  FK/CHECK acoplando as duas permissões
 
 ### 3.3 Confirmar path do DTO de motorista `[M]`
 
 Ref: plan.md nota de rodapé (`*` nome do arquivo a confirmar), research.md
 §Riscos e mitigações
 
-- [ ] 3.3.1 Confirmar o path exato do `require` em `hub-motoristas.js:46-48`
+- [x] 3.3.1 Confirmar o path exato do `require` em `hub-motoristas.js:46-48`
   (esperado: `lib/hub-motoristas-dto.js` com
   `mapMotoristaListItem`/`mapMotoristaDetalhe`/`validarPatchMotorista`);
-  documentar no código/PR se o path real divergir do planejado
+  documentar no código/PR se o path real divergir do planejado — **sem
+  divergência**: confirmado por `grep` que `hub-motoristas.js:41-51` faz
+  `require('../lib/hub-motoristas-dto')` com exatamente
+  `mapMotoristaListItem`, `mapMotoristaDetalhe`, `validarPatchMotorista` (+
+  `parsePaginacao`, `nomeCasa`, `areaCasa`, `agruparAreasPorEntregador`,
+  `validarVinculoBody`, `mascararCnpj`) entre os destructured; nenhuma ação
+  de código necessária
 
 ### 3.4 Gate de fechamento da Fase C — Fundação `[C]`
 
 Ref: Constitution V, FR-023
 
-- [ ] 3.4.1 Confirmar as migrations 0042/0043 aplicadas no `hub_homolog_db`
-  (`SELECT * FROM "SchemaMigration" ORDER BY id DESC LIMIT 5`)
-- [ ] 3.4.2 Confirmar **zero** DDL aplicada em produção (`chatmasterveloz`) —
-  nenhuma alteração de `SchemaMigration` fora do `hub_homolog_db` (FR-023)
-- [ ] 3.4.3 Registrar Decisão de fechamento com evidência (score ≥ 2)
+- [x] 3.4.1 Confirmar as migrations 0042/0043 (reais: 0042/0043/0044)
+  aplicadas no `hub_homolog_db` (`SELECT * FROM "SchemaMigration" ORDER BY id
+  DESC LIMIT 5`) — confirmado: ids 43/44/45 =
+  `0042_hub_entregadores_busca_rpc.sql` / `0043_conta_motorista_senha.sql` /
+  `0044_seed_permissao_motoristas_credencial.sql`, todas aplicadas
+  `2026-07-12 22:38:1{5,6}`
+- [x] 3.4.2 Confirmar **zero** DDL aplicada em produção (`chatmasterveloz`) —
+  nenhuma alteração de `SchemaMigration` fora do `hub_homolog_db` (FR-023) —
+  confirmado: nesta onda só houve `docker compose ... -p hub-homolog` (db do
+  hub) e `docker compose ... -p hub-test-<runid>` (efêmero); nenhum `docker
+  service update`/psql contra `pgadmin_db`/`chatmasterveloz` foi executado
+  (`docker service ls` mostra os serviços de produção intocados)
+- [x] 3.4.3 Registrar Decisão de fechamento com evidência (score ≥ 2)
 
 ---
 

@@ -1,0 +1,23 @@
+-- 0043 — ContaMotorista.senha (motorista canônico, WS-C fundação; tasks.md
+-- 3.1; data-model.md §Migrations; research.md Decision 6/8, D-C5).
+-- Idempotente (ADD COLUMN IF NOT EXISTS).
+--
+-- Renumeração: data-model.md descreve esta migration como "0042", mas o
+-- número 0042 já foi consumido pela FASE 2/WS-B (0042_hub_entregadores_
+-- busca_rpc.sql) numa onda anterior desta mesma feature. A numeração real
+-- (confirmada pela última migration existente no momento desta FASE) é
+-- 0043; a seguinte (permissão motoristas.credencial, descrita como "0043"
+-- no data-model.md) passa a 0044.
+--
+-- Coluna de senha bcrypt (hash, nunca texto plano) para a credencial de
+-- acesso do motorista ao app (FR-017..FR-019). NULL = motorista ainda sem
+-- credencial de acesso — a criação da credencial (fase seguinte da feature)
+-- popula esta coluna via bcrypt cost>=12 (mandato de segurança S3 do
+-- research.md). Os grants de tabela já concedidos em
+-- 0021_conta_motorista.sql (`GRANT SELECT, INSERT, UPDATE ON
+-- "ContaMotorista" TO authenticated;`) são column-list-less — cobrem
+-- automaticamente qualquer coluna nova, inclusive esta, sem necessidade de
+-- GRANT adicional (verificado: nenhum GRANT com lista de colunas restrita
+-- foi emitido sobre esta tabela em nenhuma migration anterior).
+
+ALTER TABLE "ContaMotorista" ADD COLUMN IF NOT EXISTS senha text NULL;
