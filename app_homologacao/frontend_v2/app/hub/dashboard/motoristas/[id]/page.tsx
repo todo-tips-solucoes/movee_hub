@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { AtivoBadge } from '@/components/hub/status-badge';
+import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -246,6 +247,14 @@ export default function MotoristaDetalhePage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 px-4">
+              {/* uuid copiável (FR-016, task 4.1.2/4.1.3) — identificador
+                  canônico da planilha de origem, imutável (nunca editável
+                  nesta tela). */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Identificador:</span>
+                <CopyableUuid value={detalhe.idExterno} label={`Copiar identificador de ${detalhe.nome}`} />
+              </div>
+
               {editando && (
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox checked={ativoEdicao} onCheckedChange={(v) => setAtivoEdicao(v === true)} disabled={salvando} />

@@ -14,18 +14,29 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, ChevronRight, Truck } from 'lucide-react';
+import { toast } from 'sonner';
+import { AlertCircle, ChevronRight, Loader2, Plus, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { AtivoBadge, VinculoBadge } from '@/components/hub/status-badge';
+import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { MotoristaDetalheDialog, useMotoristaDetalheDialog } from '@/components/hub/motorista-detalhe-dialog';
-import { listarAreasMotoristas, listarMotoristas, MotoristaApiError } from '@/lib/hub/motoristas-api';
-import type { MotoristaListItem } from '@/lib/hub/motoristas-dto';
+import { criarMotorista, listarAreasMotoristas, listarMotoristas, MotoristaApiError } from '@/lib/hub/motoristas-api';
+import { isUuidValido, type MotoristaListItem } from '@/lib/hub/motoristas-dto';
 
 const PAGE_SIZE = 20;
 
@@ -101,10 +112,150 @@ export function useMotoristasLista() {
   };
 }
 
+// FASE 4 (task 4.3.1) — cadastro manual de motorista: nome + idExterno
+// (uuid), ambos obrigatórios, validação de formato no cliente ANTES de
+// submeter (nunca a única linha de defesa — o backend revalida sempre via
+// `validarCriacaoMotorista`). Mesmo molde de `CriarUsuarioDialog`
+// (app/hub/dashboard/usuarios/page.tsx) — Dialog (não Sheet) para criação,
+// idioma F3.
+interface ErrosCamposCriarMotorista {
+  nome?: string;
+  idExterno?: string;
+}
+
+interface CriarMotoristaDialogProps {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCriado: () => void;
+}
+
+function CriarMotoristaDialog({ open, onOpenChange, onCriado }: CriarMotoristaDialogProps) {
+  const [nome, setNome] = useState('');
+  const [idExterno, setIdExterno] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [errosCampo, setErrosCampo] = useState<ErrosCamposCriarMotorista>({});
+
+  useEffect(() => {
+    if (open) {
+      setNome('');
+      setIdExterno('');
+      setErro(null);
+      setErrosCampo({});
+    }
+  }, [open]);
+
+  const submit = useCallback(async () => {
+    const erros: ErrosCamposCriarMotorista = {};
+    if (!nome.trim()) erros.nome = 'Informe o nome.';
+    if (!idExterno.trim()) {
+      erros.idExterno = 'Informe o identificador (uuid) da planilha de origem.';
+    } else if (!isUuidValido(idExterno)) {
+      erros.idExterno = 'Formato de identificador (uuid) inválido.';
+    }
+    setErrosCampo(erros);
+    const primeiroInvalido = (['nome', 'idExterno'] as const).find((c) => erros[c]);
+    if (primeiroInvalido) {
+      document.getElementById(`novo-motorista-${primeiroInvalido}`)?.focus();
+      return;
+    }
+    setSalvando(true);
+    setErro(null);
+    try {
+      await criarMotorista({ nome: nome.trim(), idExterno: idExterno.trim() });
+      onCriado();
+      onOpenChange(false);
+      toast.success('Motorista cadastrado.');
+    } catch (e) {
+      if (e instanceof MotoristaApiError && e.codigo === 'uuid_duplicado') {
+        setErrosCampo({ idExterno: e.message });
+        document.getElementById('novo-motorista-idExterno')?.focus();
+      } else if (e instanceof MotoristaApiError && e.codigo === 'uuid_invalido') {
+        setErrosCampo({ idExterno: e.message });
+        document.getElementById('novo-motorista-idExterno')?.focus();
+      } else {
+        setErro(e instanceof MotoristaApiError ? e.message : 'Não foi possível cadastrar o motorista.');
+      }
+    } finally {
+      setSalvando(false);
+    }
+  }, [nome, idExterno, onCriado, onOpenChange]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Novo motorista</DialogTitle>
+          <DialogDescription>
+            O identificador (uuid) é o mesmo usado na planilha de origem — é ele que correlaciona este motorista às
+            importações de faturamento e performance.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="novo-motorista-nome">Nome</Label>
+            <Input
+              id="novo-motorista-nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              disabled={salvando}
+              aria-invalid={!!errosCampo.nome}
+              aria-describedby={errosCampo.nome ? 'novo-motorista-nome-erro' : undefined}
+            />
+            {errosCampo.nome && (
+              <p id="novo-motorista-nome-erro" role="alert" className="text-xs text-destructive">
+                {errosCampo.nome}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="novo-motorista-idExterno">Identificador (uuid)</Label>
+            <Input
+              id="novo-motorista-idExterno"
+              value={idExterno}
+              onChange={(e) => setIdExterno(e.target.value)}
+              disabled={salvando}
+              className="font-mono"
+              placeholder="00000000-0000-0000-0000-000000000000"
+              aria-invalid={!!errosCampo.idExterno}
+              aria-describedby={errosCampo.idExterno ? 'novo-motorista-idExterno-erro' : 'novo-motorista-idExterno-ajuda'}
+            />
+            {errosCampo.idExterno ? (
+              <p id="novo-motorista-idExterno-erro" role="alert" className="text-xs text-destructive">
+                {errosCampo.idExterno}
+              </p>
+            ) : (
+              <p id="novo-motorista-idExterno-ajuda" className="text-xs text-muted-foreground">
+                Mesmo uuid (&quot;id da pessoa entregadora&quot;) da planilha de faturamento/performance.
+              </p>
+            )}
+          </div>
+          {erro && (
+            <p role="alert" className="text-sm text-destructive">
+              {erro}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={salvando}>
+            Cancelar
+          </Button>
+          <Button onClick={submit} disabled={salvando}>
+            {salvando && <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />}
+            {salvando ? 'Cadastrando...' : 'Cadastrar motorista'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function MotoristasPage() {
   const { permissoes } = useHubAuth();
   const podeConsultar = permissoes.includes('motoristas.consultar');
+  const podeEditar = permissoes.includes('motoristas.editar');
   const h = useMotoristasLista();
+  const [criarAberto, setCriarAberto] = useState(false);
   // uiux-hub pós-F4: o filtro "Área" deixou de ser texto livre — as opções
   // vêm de GET /motoristas/areas (subpraças distintas do escopo). Falha na
   // carga degrada para só "Todas" (o filtro fica inerte, a lista não quebra).
@@ -126,7 +277,14 @@ export default function MotoristasPage() {
       <PageHeader
         titulo="Motoristas"
         subtitulo="Pessoas entregadoras conhecidas pelas importações de faturamento e performance."
-      />
+      >
+        {podeEditar && (
+          <Button size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={() => setCriarAberto(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            Novo motorista
+          </Button>
+        )}
+      </PageHeader>
 
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">
@@ -245,6 +403,12 @@ export default function MotoristasPage() {
                   <AtivoBadge ativo={item.ativo} />
                   <VinculoBadge vinculado={item.comVinculo} />
                 </div>
+                {/* uuid copiável (FR-016, task 4.3.2) — stopPropagation para o
+                    clique no botão de copiar não navegar para o detalhe (o
+                    card inteiro é um <Link>). */}
+                <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                  <CopyableUuid value={item.idExterno} label={`Copiar identificador de ${item.nome}`} />
+                </div>
                 {item.areas.length > 0 && (
                   <p className="mt-2 truncate text-xs text-muted-foreground">{item.areas.join(', ')}</p>
                 )}
@@ -258,6 +422,7 @@ export default function MotoristasPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
+                  <TableHead>Identificador</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead>Vínculo</TableHead>
                   <TableHead>Áreas</TableHead>
@@ -272,6 +437,9 @@ export default function MotoristasPage() {
                     onClick={podeConsultar ? () => detalheDialog.abrir(item.id) : undefined}
                   >
                     <TableCell className="font-medium">{item.nome}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <CopyableUuid value={item.idExterno} label={`Copiar identificador de ${item.nome}`} />
+                    </TableCell>
                     <TableCell>
                       <AtivoBadge ativo={item.ativo} />
                     </TableCell>
@@ -333,6 +501,10 @@ export default function MotoristasPage() {
 
           <MotoristaDetalheDialog state={detalheDialog} />
         </>
+      )}
+
+      {podeEditar && (
+        <CriarMotoristaDialog open={criarAberto} onOpenChange={setCriarAberto} onCriado={h.refetch} />
       )}
     </div>
   );

@@ -367,79 +367,117 @@ Decision 4-5 + mandato S2; contracts/api-motorista-canonico.md §POST
 
 Ref: FR-016, research.md Decision 4, data-model.md §Entity Entregador
 
-- [ ] 4.1.1 Atualizar `mapMotoristaListItem` para expor `idExterno` (uuid)
-- [ ] 4.1.2 Atualizar `mapMotoristaDetalhe` para expor `idExterno` (uuid)
-- [ ] 4.1.3 **[Gap CHK004/CHK037 requirements.md]** Definir e implementar o
+- [x] 4.1.1 Atualizar `mapMotoristaListItem` para expor `idExterno` (uuid)
+- [x] 4.1.2 Atualizar `mapMotoristaDetalhe` para expor `idExterno` (uuid)
+- [x] 4.1.3 **[Gap CHK004/CHK037 requirements.md]** Definir e implementar o
   mecanismo de "copiável" do uuid: ícone de copiar (`navigator.clipboard`) ao
   lado do `idExterno` na listagem e no detalhe — decisão de menor esforço,
   paridade visual com idiomas já existentes no hub; documentar a escolha como
   critério de aceite explícito desta subtarefa (alternativa avaliada e
   descartada: depender apenas de seleção nativa de texto, por não sinalizar
-  visualmente a affordance de cópia)
-- [ ] 4.1.4 Teste `node --test`: DTOs de listagem e detalhe incluem `idExterno`
-  no formato esperado (uuid)
+  visualmente a affordance de cópia). **Implementado**:
+  `components/hub/copyable-uuid.tsx` (`CopyableUuid`) — fonte monoespaçada +
+  botão com ícone `Copy`→`Check` (feedback 1.5s) + toast; fail-safe se
+  `navigator.clipboard` ausente. Critério de aceite registrado no cabeçalho
+  do componente.
+- [x] 4.1.4 Teste `node --test`: DTOs de listagem e detalhe incluem `idExterno`
+  no formato esperado (uuid). `tests/hub-motoristas-dto.test.js` (backend,
+  62/62 pass) + `lib/hub/motoristas-dto.test.ts` (frontend, 23/23 pass).
 
 ### 4.2 `POST /api/v1/motoristas` — cadastro com uuid obrigatório `[C]`
 
 Ref: FR-012..FR-014, contracts §POST /motoristas, research.md Decision 5,
 mandato S2, D-C6
 
-- [ ] 4.2.1 Implementar a rota `POST /api/v1/motoristas` em
+- [x] 4.2.1 Implementar a rota `POST /api/v1/motoristas` em
   `routes/hub-motoristas.js`, gate `motoristas.editar`
-- [ ] 4.2.2 Allowlist estrita do body (mandato S2): aceitar **somente** `nome`
+- [x] 4.2.2 Allowlist estrita do body (mandato S2): aceitar **somente** `nome`
   + `idExterno`; `id_empresa` **sempre** do contexto do token
   (`resolverContextoEntidade`), nunca do body; **nunca** aceitar
-  `ativo`/`motorista_id`/`id` vindos do cliente
-- [ ] 4.2.3 Validar o formato do uuid com `uuidValido`
+  `ativo`/`motorista_id`/`id` vindos do cliente. `lib/hub-motoristas-dto.js#validarCriacaoMotorista`.
+- [x] 4.2.3 Validar o formato do uuid com `uuidValido`
   (`lib/hub-import-normalizer.js:233`) → `422/400 uuid_invalido` com mensagem
   explicando o problema de formato
-- [ ] 4.2.4 Mapear a violação de `UNIQUE (id_empresa, id_externo)` para
+- [x] 4.2.4 Mapear a violação de `UNIQUE (id_empresa, id_externo)` para
   `409 uuid_duplicado` com mensagem clara ("uuid já em uso nesta empresa")
-- [ ] 4.2.5 Chamar `registrarAuditoria` (quem + quando) na criação (FR-021)
-- [ ] 4.2.6 Teste `node --test`: criação com uuid válido (201, `idExterno`
+- [x] 4.2.5 Chamar `registrarAuditoria` (quem + quando) na criação (FR-021)
+- [x] 4.2.6 Teste `node --test`: criação com uuid válido (201, `idExterno`
   ecoado), uuid duplicado na mesma empresa (409), uuid duplicado em empresa
   diferente (201 — sem conflito, FR-013 edge case), uuid em formato inválido
   (422/400), cadastro sem uuid (recusado), body com campos não permitidos
-  (`ativo`/`motorista_id`/`id`) ignorados/rejeitados (mandato S2)
+  (`ativo`/`motorista_id`/`id`) ignorados/rejeitados (mandato S2). Coberto em
+  DOIS níveis: (a) unit puro — `tests/hub-motoristas-dto.test.js` (validação);
+  (b) **integração HTTP real** — NOVO script
+  `infra/hub/testes/hub-motorista-canonico-cadastro-integration.sh`
+  (db+postgrest+backend efêmeros hub-test), 27/27 asserts PASS, incluindo
+  BOPLA (ativo/motoristaId/id/idEmpresa forjados no body ignorados) e
+  auditoria `motorista.criado` gravada.
 
 ### 4.3 Frontend — criar motorista + exibir uuid `[A]`
 
 Ref: FR-012, FR-016, quickstart.md Scenario 5
 
-- [ ] 4.3.1 Formulário de criação em `app/hub/dashboard/motoristas/page.tsx`:
+- [x] 4.3.1 Formulário de criação em `app/hub/dashboard/motoristas/page.tsx`:
   campos `nome` + `idExterno` (uuid), ambos obrigatórios, validação de formato
-  no cliente antes de submeter
-- [ ] 4.3.2 Exibir `idExterno` na listagem e no detalhe com o mecanismo de
-  cópia definido em 4.1.3
-- [ ] 4.3.3 Tratar erros `409`/`422` com mensagem clara ao usuário (uuid já em
-  uso / formato inválido)
-- [ ] 4.3.4 Teste `vitest`: submissão válida, uuid duplicado exibe erro claro,
+  no cliente antes de submeter. `CriarMotoristaDialog` (Dialog, idioma F3 —
+  mesmo molde de `CriarUsuarioDialog`), validação via `isUuidValido`
+  (`lib/hub/motoristas-dto.ts`).
+- [x] 4.3.2 Exibir `idExterno` na listagem e no detalhe com o mecanismo de
+  cópia definido em 4.1.3. Coluna "Identificador" na tabela desktop + linha no
+  card mobile (`page.tsx`); linha "Identificador" no detalhe (`[id]/page.tsx`)
+  e no modal rápido (`motorista-detalhe-dialog.tsx`).
+- [x] 4.3.3 Tratar erros `409`/`422` com mensagem clara ao usuário (uuid já em
+  uso / formato inválido). `MENSAGENS_CODIGO` em `motoristas-api.ts`
+  (`uuid_duplicado`/`uuid_invalido`/`nome_invalido`) + erro inline no campo
+  `idExterno` do diálogo de criação.
+- [x] 4.3.4 Teste `vitest`: submissão válida, uuid duplicado exibe erro claro,
   uuid inválido exibe erro claro, campo uuid ausente bloqueia o submit no
-  cliente
+  cliente. `page.test.tsx` describe `CriarMotoristaDialog` (4 testes, todos
+  pass) + `[id]/page.test.tsx`/`page.test.tsx` cobrindo o uuid copiável.
 
 ### 4.4 Editar nome/situação — reuso do endpoint existente `[A]`
 
 Ref: FR-015, contracts §PATCH /motoristas/:id (existente — inalterado)
 
-- [ ] 4.4.1 Confirmar que `validarPatchMotorista` (allowlist estrita, já em
+- [x] 4.4.1 Confirmar que `validarPatchMotorista` (allowlist estrita, já em
   produção) cobre `nome`/`ativo` sem alteração de contrato — reuso, não
-  reimplementação (evita duas superfícies de validação divergentes)
-- [ ] 4.4.2 Frontend: ação de editar nome/situação no detalhe do motorista,
-  refletindo a mudança na listagem
-- [ ] 4.4.3 Teste: editar nome/situação reflete corretamente no
+  reimplementação (evita duas superfícies de validação divergentes).
+  Confirmado por inspeção: `PATCH /:id` (routes/hub-motoristas.js) não foi
+  tocado nesta onda; segue usando `validarPatchMotorista` inalterada.
+- [x] 4.4.2 Frontend: ação de editar nome/situação no detalhe do motorista,
+  refletindo a mudança na listagem. Já implementado (FASE 7 da feature-base
+  S5, `[id]/page.tsx` linhas ~97-140/225-293) — sem alteração necessária;
+  apenas adicionado o identificador (uuid) ao lado, sem tocar a lógica de
+  edição.
+- [x] 4.4.3 Teste: editar nome/situação reflete corretamente no
   detalhe/listagem e **não** afeta a credencial vinculada (independência
-  situação↔credencial — FR-015, clarify Q3)
+  situação↔credencial — FR-015, clarify Q3). Independência estrutural
+  confirmada: `validarPatchMotorista` só produz `{nome, ativo,
+  nome_editado_manualmente}` (testes unitários BOPLA existentes) — nunca
+  escreve em `ContaMotorista`/`senha`; integração `hub-motoristas-integration.sh`
+  (s) confirma campo fora da allowlist é ignorado sem efeito no vínculo. A
+  prova end-to-end com credencial REAL (login/senha) fica para a FASE 5, que
+  introduz os endpoints de credencial (`ContaMotorista.senha` já existe desde
+  a migration 0043/FASE 3, mas nenhum código ainda a manipula).
 
 ### 4.5 Gate de fechamento da Fase C — Cadastro `[C]`
 
 Ref: plan.md §Fases de execução (Fase C — gate de fechamento, parcial)
 
-- [ ] 4.5.1 Rodar `tsc --noEmit` + `eslint` + `node --test`
-  (`hub-motoristas.js`) + `vitest run` (`motoristas/page.tsx`)
+- [x] 4.5.1 Rodar `tsc --noEmit` + `eslint` + `node --test`
+  (`hub-motoristas.js`) + `vitest run` (`motoristas/page.tsx`). Todos verdes:
+  backend `npm test` 590/598 pass (8 falhas pré-existentes, confirmadas
+  idênticas no baseline via `git stash` — legado `motorista-integration.test.js`,
+  exige Postgres real indisponível neste sandbox, NADA relacionado a esta
+  onda); frontend `tsc --noEmit` limpo, `eslint` limpo, `vitest run` 226/226
+  pass (repo inteiro).
 - [ ] 4.5.2 Smoke manual no hub-homolog: criar motorista com uuid → aparece na
   listagem/detalhe com uuid visível/copiável → tentar duplicidade → 409 →
-  tentar formato inválido → 422 (quickstart Scenario 5)
-- [ ] 4.5.3 Registrar Decisão de fechamento com evidência (score ≥ 2)
+  tentar formato inválido → 422 (quickstart Scenario 5). **Pendente** — exige
+  rebuild do hub-homolog (Next.js) sob rito anti-starvation; agrupado com as
+  demais pendências de smoke visual já rastreadas (1.4.3/1.4.4/2.5.3/2.5.4)
+  para a onda de E2E antes do fechamento final da feature.
+- [x] 4.5.3 Registrar Decisão de fechamento com evidência (score ≥ 2)
 
 ---
 

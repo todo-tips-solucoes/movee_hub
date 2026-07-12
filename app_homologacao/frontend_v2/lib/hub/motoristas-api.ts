@@ -10,11 +10,13 @@
 import {
   parseAreasResponse,
   parseContasElegiveisResponse,
+  parseCriarMotoristaResponse,
   parseMotoristaDetalhe,
   parseMotoristaListResponse,
   parseSugestoesResponse,
   parseVincularResponse,
   type ContasElegiveisResponse,
+  type CriarMotoristaResponse,
   type MotoristaDetalhe,
   type MotoristaListResponse,
   type OrigemVinculo,
@@ -37,6 +39,11 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   INVALIDO: 'Dados inválidos.',
   CONFLITO: 'Esta conta já está vinculada a outra pessoa entregadora.',
   ERRO_SERVIDOR: 'Erro no servidor. Tente novamente em instantes.',
+  // POST /motoristas (FASE 4, contracts/api-motorista-canonico.md §POST) —
+  // única rota deste módulo com códigos de erro em snake_case minúsculo.
+  nome_invalido: 'Informe o nome do motorista.',
+  uuid_invalido: 'O identificador (uuid) informado está em formato inválido.',
+  uuid_duplicado: 'Este identificador (uuid) já pertence a outro motorista desta empresa.',
 };
 
 export class MotoristaApiError extends Error {
@@ -120,6 +127,23 @@ export async function listarMotoristas(filtros: ListarMotoristasQuery = {}): Pro
 export async function obterMotorista(id: number): Promise<MotoristaDetalhe> {
   const raw = await request<unknown>(`/motoristas/${id}`);
   return parseMotoristaDetalhe(raw);
+}
+
+/** POST /motoristas — cadastro manual com uuid obrigatório (FASE 4, task
+ * 4.2). Allowlist estrita do lado do cliente: só `nome`/`idExterno` são
+ * enviados — mesmo mandato S2 aplicado no backend
+ * (`validarCriacaoMotorista`). */
+export interface CriarMotoristaBody {
+  nome: string;
+  idExterno: string;
+}
+
+export async function criarMotorista(body: CriarMotoristaBody): Promise<CriarMotoristaResponse> {
+  const raw = await request<unknown>('/motoristas', {
+    method: 'POST',
+    body: JSON.stringify({ nome: body.nome, idExterno: body.idExterno }),
+  });
+  return parseCriarMotoristaResponse(raw);
 }
 
 /** Subpraças distintas visíveis à entidade ativa — opções do filtro "Área". */

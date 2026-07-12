@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { AtivoBadge, VinculoBadge } from '@/components/hub/status-badge';
+import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { obterMotorista, MotoristaApiError } from '@/lib/hub/motoristas-api';
 import type { MotoristaDetalhe } from '@/lib/hub/motoristas-dto';
@@ -90,6 +91,11 @@ export function MotoristaDetalheDialog({ state: v }: MotoristaDetalheDialogProps
           <dl className="grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-3 text-sm">
             <dt className="text-muted-foreground">Nome</dt>
             <dd className="font-medium">{v.detalhe.nome || '—'}</dd>
+
+            <dt className="text-muted-foreground">Identificador</dt>
+            <dd>
+              <CopyableUuid value={v.detalhe.idExterno} label={`Copiar identificador de ${v.detalhe.nome}`} />
+            </dd>
 
             <dt className="text-muted-foreground">CNPJ</dt>
             <dd className="tabular-nums">{v.detalhe.vinculo?.cnpjPrestadorMascarado || '—'}</dd>

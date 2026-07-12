@@ -29,6 +29,8 @@ function isNumberOrNull(v: unknown): v is number | null {
 export interface MotoristaListItem {
   id: number;
   nome: string;
+  /** uuid canônico (planilha de origem) — visível/copiável (FR-016). */
+  idExterno: string;
   ativo: boolean;
   comVinculo: boolean;
   areas: string[];
@@ -52,6 +54,7 @@ export function parseMotoristaListItem(raw: unknown): MotoristaListItem {
   return {
     id: r.id,
     nome: r.nome,
+    idExterno: isString(r.idExterno) ? r.idExterno : '',
     ativo: r.ativo === true,
     comVinculo: r.comVinculo === true,
     areas: Array.isArray(r.areas) ? r.areas.filter(isString) : [],
@@ -98,6 +101,8 @@ export interface MotoristaVinculo {
 export interface MotoristaDetalhe {
   id: number;
   nome: string;
+  /** uuid canônico (planilha de origem) — visível/copiável (FR-016). */
+  idExterno: string;
   ativo: boolean;
   nomeEditadoManualmente: boolean;
   areas: MotoristaArea[];
@@ -136,6 +141,7 @@ export function parseMotoristaDetalhe(raw: unknown): MotoristaDetalhe {
   return {
     id: r.id,
     nome: r.nome,
+    idExterno: isString(r.idExterno) ? r.idExterno : '',
     ativo: r.ativo === true,
     nomeEditadoManualmente: r.nomeEditadoManualmente === true,
     areas: Array.isArray(r.areas) ? r.areas.map(parseArea) : [],
@@ -273,6 +279,43 @@ export function parseVincularResponse(raw: unknown): VincularResponse {
     throw new TypeError('Resposta de vínculo inválida: id/vinculo ausentes');
   }
   return { id: r.id, vinculo };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /motoristas — cadastro manual com uuid obrigatório (FASE 4, task 4.1)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface CriarMotoristaResponse {
+  id: number;
+  idExterno: string;
+  nome: string;
+  ativo: boolean;
+}
+
+export function parseCriarMotoristaResponse(raw: unknown): CriarMotoristaResponse {
+  if (!raw || typeof raw !== 'object') {
+    throw new TypeError('Resposta de criação de motorista inválida: shape não é objeto');
+  }
+  const r = raw as Record<string, unknown>;
+  if (typeof r.id !== 'number' || !isString(r.nome) || !isString(r.idExterno)) {
+    throw new TypeError('Resposta de criação de motorista inválida: id/nome/idExterno ausentes');
+  }
+  return {
+    id: r.id,
+    idExterno: r.idExterno,
+    nome: r.nome,
+    ativo: r.ativo === true,
+  };
+}
+
+// Mesmo formato validado pelo backend (`uuidValido`,
+// lib/hub-import-normalizer.js:233) — validação client-side ANTES de
+// submeter (task 4.3.1), nunca a única linha de defesa (o backend
+// revalida sempre).
+const REGEX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuidValido(valor: string): boolean {
+  return REGEX_UUID.test(valor.trim());
 }
 
 // ────────────────────────────────────────────────────────────────────────────

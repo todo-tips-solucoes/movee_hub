@@ -46,6 +46,7 @@ const {
   mapMotoristaListItem,
   mapMotoristaDetalhe,
   validarPatchMotorista,
+  validarCriacaoMotorista,
   validarVinculoBody,
   mascararCnpj,
 } = require('../lib/hub-motoristas-dto');
@@ -197,7 +198,9 @@ router.get('/', requirePermission('motoristas.listar'), async (req, res) => {
       filtros.push('motorista_id=is.null');
     }
     filtros.push('order=nome.asc');
-    filtros.push('select=id,nome,ativo,motorista_id');
+    // FASE 4 (task 4.1.1): id_externo (uuid) exposto como `idExterno` nos
+    // DTOs de listagem (FR-016).
+    filtros.push('select=id,nome,ativo,motorista_id,id_externo');
 
     const candidatos = await hubPostgrestRequest(
       `Entregador?${filtros.join('&')}`,
@@ -336,9 +339,11 @@ async function buscarDetalheMotorista(id, entidadeAtiva, claims) {
   // em profundidade — RLS já nega a linha via escopo). Embed nativo do
   // PostgREST via FK física Entregador.motorista_id -> ContaMotorista(id)
   // (migration 0021) — confirmado empiricamente no teste de integração.
+  // FASE 4 (task 4.1.2): id_externo (uuid) exposto como `idExterno` no
+  // detalhe (FR-016).
   const linhas = await hubPostgrestRequest(
     `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
-    + '&select=id,nome,ativo,nome_editado_manualmente,motorista_id,'
+    + '&select=id,nome,ativo,nome_editado_manualmente,motorista_id,id_externo,'
     + 'ContaMotorista(id,nome,cnpj_prestador)',
     'GET', null, claims
   );
@@ -441,6 +446,78 @@ router.get('/:id/sugestoes', requirePermission('motoristas.editar'), async (req,
     return res.status(200).json({ items, entidadeElegivel: true });
   } catch (e) {
     console.error('[hub-motoristas] erro em GET /motoristas/:id/sugestoes:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /motoristas — cadastro manual com uuid obrigatório (task 4.2)
+//
+// Allowlist estrita do corpo (mandato S2 — BOPLA/mass assignment):
+// `lib/hub-motoristas-dto.js#validarCriacaoMotorista` só lê `nome` +
+// `idExterno` do corpo cru — qualquer outra chave (`ativo`, `motoristaId`,
+// `id`, `idEmpresa`, etc.) nunca é lida, nunca chega ao PostgREST.
+// `id_empresa` é SEMPRE resolvido do contexto do token
+// (`resolverContextoEntidade`), nunca do corpo (Princípio II). Sem
+// verificação de duplicidade PRÉVIA por SELECT: a UNIQUE (id_empresa,
+// id_externo) do banco (migration 0010) é a fonte de verdade — a violação é
+// mapeada para 409 amigável DEPOIS do INSERT (mesmo padrão de defesa em
+// profundidade de `POST /:id/vinculo` acima, evita corrida entre o
+// pre-check e o INSERT). FR-012..FR-014.
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/', requirePermission('motoristas.editar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.editar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const validado = validarCriacaoMotorista(req.body);
+    if (!validado.ok) {
+      return res.status(422).json({ erro: validado.erro });
+    }
+    const { nome, idExterno } = validado;
+
+    let criados;
+    try {
+      criados = await hubPostgrestRequest(
+        'Entregador', 'POST',
+        { nome, id_externo: idExterno, id_empresa: entidadeAtiva, ativo: true },
+        claims
+      );
+    } catch (e) {
+      // Violação de UNIQUE (id_empresa, id_externo) -> 409 amigável
+      // (contracts/api-motorista-canonico.md §POST /motoristas). PostgREST
+      // já mapeia unique_violation (23505) para HTTP 409 nativamente —
+      // mesmo padrão de POST /usuarios (routes/hub-usuarios.js).
+      if (e && e.status === 409) {
+        return res.status(409).json({ erro: 'uuid_duplicado' });
+      }
+      throw e;
+    }
+    const novo = criados && criados[0];
+    if (!novo) {
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.criado',
+      recurso: 'Entregador',
+      recursoId: novo.id,
+      detalhes: { idExterno },
+      claims,
+    });
+
+    return res.status(201).json({
+      id: novo.id,
+      idExterno: novo.id_externo,
+      nome: novo.nome,
+      ativo: novo.ativo,
+    });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em POST /motoristas:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });

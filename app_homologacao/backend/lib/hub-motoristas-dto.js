@@ -17,6 +17,8 @@
 
 'use strict';
 
+const { uuidValido } = require('./hub-import-normalizer');
+
 const PAGE_SIZE_DEFAULT = 20;
 const PAGE_SIZE_MAX = 100;
 
@@ -109,13 +111,14 @@ function agruparAreasPorEntregador(linhas) {
 /**
  * Mapeia 1 linha `Entregador` (snake_case/PostgREST) + suas áreas para o
  * shape de item de listagem do contrato (`GET /motoristas`).
- * @param {{id:number, nome:string, ativo:boolean, motorista_id:number|null}} row
+ * @param {{id:number, nome:string, ativo:boolean, motorista_id:number|null, id_externo:string}} row
  * @param {Array<{subpraca:string, dataMaisRecente:string}>} areas
  */
 function mapMotoristaListItem(row, areas = []) {
   return {
     id: row.id,
     nome: row.nome,
+    idExterno: row.id_externo,
     ativo: row.ativo,
     comVinculo: row.motorista_id !== null && row.motorista_id !== undefined,
     areas: areas.map((a) => a.subpraca),
@@ -135,6 +138,7 @@ function mapMotoristaDetalhe(row, areas, resumo) {
   return {
     id: row.id,
     nome: row.nome,
+    idExterno: row.id_externo,
     ativo: row.ativo,
     nomeEditadoManualmente: !!row.nome_editado_manualmente,
     areas: areas || [],
@@ -208,6 +212,48 @@ function validarPatchMotorista(corpoCru) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// FASE 4 — POST /motoristas (task 4.2.2/4.2.3): allowlist estrita do corpo
+// (mandato S2, contracts/api-motorista-canonico.md §POST /motoristas). Mesmo
+// padrão de `validarPatchMotorista`/`validarVinculoBody`: função PURA
+// testável sem PostgREST/Express real. SOMENTE `nome` + `idExterno`
+// influenciam o INSERT — `id_empresa` é resolvido pelo caller a partir do
+// contexto do token (`resolverContextoEntidade`), NUNCA lido do corpo aqui;
+// qualquer outra chave do corpo (`ativo`, `motoristaId`, `id`, `idEmpresa`
+// etc.) é simplesmente ignorada (nunca lida por esta função, nunca chega ao
+// PostgREST — D-C6/FR-012).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Valida e extrai `nome`/`idExterno` do corpo cru de `POST /motoristas`.
+ * `idExterno` é SEMPRE obrigatório (FR-012, D-C6, sem geração automática de
+ * identificador — FR-014) e validado com `uuidValido`
+ * (lib/hub-import-normalizer.js:233). Normaliza para minúsculas (mesma
+ * convenção de `lib/hub-import-processor.js` no pipeline de importação —
+ * garante que um uuid cadastrado manualmente aqui casa com o mesmo uuid
+ * vindo depois de uma planilha, independente da caixa usada por quem digitou).
+ *
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, nome:string, idExterno:string}|{ok:false, erro:'nome_invalido'|'uuid_invalido'}}
+ *   `ok:false, erro:'nome_invalido'` — `nome` ausente/vazio/só espaços.
+ *   `ok:false, erro:'uuid_invalido'` — `idExterno` ausente ou fora do formato uuid.
+ */
+function validarCriacaoMotorista(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+
+  const nome = typeof corpo.nome === 'string' ? corpo.nome.trim() : '';
+  if (!nome) {
+    return { ok: false, erro: 'nome_invalido' };
+  }
+
+  const idExternoBruto = typeof corpo.idExterno === 'string' ? corpo.idExterno.trim() : '';
+  if (!uuidValido(idExternoBruto)) {
+    return { ok: false, erro: 'uuid_invalido' };
+  }
+
+  return { ok: true, nome, idExterno: idExternoBruto.toLowerCase() };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Máscara de CNPJ (LGPD, contracts/motoristas-api.md §Mascaramento de CNPJ)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -278,6 +324,7 @@ module.exports = {
   mapMotoristaListItem,
   mapMotoristaDetalhe,
   validarPatchMotorista,
+  validarCriacaoMotorista,
   mascararCnpj,
   validarVinculoBody,
 };

@@ -22,6 +22,7 @@ const {
   mapMotoristaListItem,
   mapMotoristaDetalhe,
   validarPatchMotorista,
+  validarCriacaoMotorista,
   mascararCnpj,
   validarVinculoBody,
   PAGE_SIZE_DEFAULT,
@@ -155,20 +156,45 @@ describe('agruparAreasPorEntregador', () => {
 describe('mapMotoristaListItem', () => {
   test('mapeia comVinculo=true quando motorista_id presente', () => {
     const item = mapMotoristaListItem(
-      { id: 1, nome: 'Fulano', ativo: true, motorista_id: 7 },
+      { id: 1, nome: 'Fulano', ativo: true, motorista_id: 7, id_externo: '11111111-1111-1111-1111-111111111111' },
       [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }]
     );
-    assert.deepEqual(item, { id: 1, nome: 'Fulano', ativo: true, comVinculo: true, areas: ['Zona Sul'] });
+    assert.deepEqual(item, {
+      id: 1,
+      nome: 'Fulano',
+      idExterno: '11111111-1111-1111-1111-111111111111',
+      ativo: true,
+      comVinculo: true,
+      areas: ['Zona Sul'],
+    });
   });
 
   test('mapeia comVinculo=false quando motorista_id null', () => {
-    const item = mapMotoristaListItem({ id: 2, nome: 'Ciclano', ativo: false, motorista_id: null }, []);
-    assert.deepEqual(item, { id: 2, nome: 'Ciclano', ativo: false, comVinculo: false, areas: [] });
+    const item = mapMotoristaListItem(
+      { id: 2, nome: 'Ciclano', ativo: false, motorista_id: null, id_externo: '22222222-2222-2222-2222-222222222222' },
+      []
+    );
+    assert.deepEqual(item, {
+      id: 2,
+      nome: 'Ciclano',
+      idExterno: '22222222-2222-2222-2222-222222222222',
+      ativo: false,
+      comVinculo: false,
+      areas: [],
+    });
   });
 
   test('areas default para [] quando não informado', () => {
-    const item = mapMotoristaListItem({ id: 3, nome: 'X', ativo: true, motorista_id: null });
+    const item = mapMotoristaListItem({ id: 3, nome: 'X', ativo: true, motorista_id: null, id_externo: '33333333-3333-3333-3333-333333333333' });
     assert.deepEqual(item.areas, []);
+  });
+
+  // FASE 4 (task 4.1.1/4.1.4): idExterno (uuid) exposto no item de listagem (FR-016)
+  test('idExterno (uuid) exposto no formato esperado', () => {
+    const item = mapMotoristaListItem({
+      id: 4, nome: 'Beltrano', ativo: true, motorista_id: null, id_externo: '44444444-4444-4444-4444-444444444444',
+    });
+    assert.equal(item.idExterno, '44444444-4444-4444-4444-444444444444');
   });
 });
 
@@ -179,6 +205,7 @@ describe('mapMotoristaDetalhe', () => {
       nome: 'Fulano da Silva',
       ativo: true,
       nome_editado_manualmente: false,
+      id_externo: '55555555-5555-5555-5555-555555555555',
       ContaMotorista: { id: 7, nome: 'Fulano da Silva', cnpj_prestador: '12345678000195' },
     };
     const areas = [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }];
@@ -187,6 +214,7 @@ describe('mapMotoristaDetalhe', () => {
     assert.deepEqual(detalhe, {
       id: 1,
       nome: 'Fulano da Silva',
+      idExterno: '55555555-5555-5555-5555-555555555555',
       ativo: true,
       nomeEditadoManualmente: false,
       areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
@@ -385,5 +413,62 @@ describe('validarVinculoBody — allowlist estrita FASE 6 (task 6.1), contracts/
     assert.equal(r.ok, true);
     const chaves = Object.keys(r).sort();
     assert.deepEqual(chaves, ['contaMotoristaId', 'ok', 'origem']);
+  });
+});
+
+describe('validarCriacaoMotorista — allowlist estrita FASE 4 (task 4.2.2/4.2.3), contracts/api-motorista-canonico.md §POST /motoristas', () => {
+  const UUID_VALIDO = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+
+  test('nome + idExterno válidos -> ok, idExterno normalizado para minúsculas', () => {
+    const r = validarCriacaoMotorista({ nome: '  Fulano da Silva  ', idExterno: 'A1B2C3D4-E5F6-7890-ABCD-EF1234567890' });
+    assert.equal(r.ok, true);
+    assert.equal(r.nome, 'Fulano da Silva');
+    assert.equal(r.idExterno, UUID_VALIDO);
+  });
+
+  test('nome ausente -> erro nome_invalido', () => {
+    const r = validarCriacaoMotorista({ idExterno: UUID_VALIDO });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'nome_invalido');
+  });
+
+  test('nome vazio/só espaços -> erro nome_invalido', () => {
+    assert.equal(validarCriacaoMotorista({ nome: '', idExterno: UUID_VALIDO }).erro, 'nome_invalido');
+    assert.equal(validarCriacaoMotorista({ nome: '   ', idExterno: UUID_VALIDO }).erro, 'nome_invalido');
+  });
+
+  test('idExterno ausente -> erro uuid_invalido (sempre obrigatório, FR-012/D-C6)', () => {
+    const r = validarCriacaoMotorista({ nome: 'Fulano' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'uuid_invalido');
+  });
+
+  test('idExterno em formato inválido -> erro uuid_invalido', () => {
+    assert.equal(validarCriacaoMotorista({ nome: 'Fulano', idExterno: 'nao-e-um-uuid' }).erro, 'uuid_invalido');
+    assert.equal(validarCriacaoMotorista({ nome: 'Fulano', idExterno: '12345' }).erro, 'uuid_invalido');
+  });
+
+  test('corpo null/undefined -> erro nome_invalido, nunca lança', () => {
+    assert.equal(validarCriacaoMotorista(null).ok, false);
+    assert.equal(validarCriacaoMotorista(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA (mandato S2) — ativo/motoristaId/id/idEmpresa do corpo nunca aparecem no retorno', () => {
+    const r = validarCriacaoMotorista({
+      nome: 'Fulano',
+      idExterno: UUID_VALIDO,
+      ativo: false,
+      motoristaId: 999,
+      id: 1,
+      idEmpresa: 42,
+      __proto__: { hacked: true },
+    });
+    assert.equal(r.ok, true);
+    const chaves = Object.keys(r).sort();
+    assert.deepEqual(chaves, ['idExterno', 'nome', 'ok']);
+    assert.equal(r.ativo, undefined);
+    assert.equal(r.motoristaId, undefined);
+    assert.equal(r.idEmpresa, undefined);
+    assert.equal(r.hacked, undefined);
   });
 });

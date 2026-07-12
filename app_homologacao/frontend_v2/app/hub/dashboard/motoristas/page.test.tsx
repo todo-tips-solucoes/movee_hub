@@ -2,7 +2,7 @@
 // (tabela + filtros), estados de loading/vazio/erro, paginação, gate de
 // permissão da ação de detalhe (motoristas.consultar) e modal de detalhe
 // rápido (uiux-hub pós-F4: "Detalhes" abre modal com os campos do legado).
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MotoristasPage from './page';
 import { MotoristaApiError } from '@/lib/hub/motoristas-api';
@@ -11,9 +11,14 @@ const mockUseHubAuth = vi.fn();
 const mockListarMotoristas = vi.fn();
 const mockObterMotorista = vi.fn();
 const mockListarAreasMotoristas = vi.fn();
+const mockCriarMotorista = vi.fn();
 
 vi.mock('@/contexts/hub-auth-context', () => ({
   useHubAuth: () => mockUseHubAuth(),
+}));
+
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('@/lib/hub/motoristas-api', async () => {
@@ -23,12 +28,14 @@ vi.mock('@/lib/hub/motoristas-api', async () => {
     listarMotoristas: (...args: unknown[]) => mockListarMotoristas(...args),
     obterMotorista: (...args: unknown[]) => mockObterMotorista(...args),
     listarAreasMotoristas: (...args: unknown[]) => mockListarAreasMotoristas(...args),
+    criarMotorista: (...args: unknown[]) => mockCriarMotorista(...args),
   };
 });
 
 const ITEM_BASE = {
   id: 1,
   nome: 'Fulano da Silva',
+  idExterno: '11111111-1111-1111-1111-111111111111',
   ativo: true,
   comVinculo: true,
   areas: ['Zona Sul', 'Centro'],
@@ -37,6 +44,7 @@ const ITEM_BASE = {
 const DETALHE_BASE = {
   id: 1,
   nome: 'Fulano da Silva',
+  idExterno: '11111111-1111-1111-1111-111111111111',
   ativo: true,
   nomeEditadoManualmente: false,
   areas: [],
@@ -54,6 +62,7 @@ describe('MotoristasPage', () => {
     mockListarMotoristas.mockReset();
     mockObterMotorista.mockReset();
     mockListarAreasMotoristas.mockReset();
+    mockCriarMotorista.mockReset();
     mockListarAreasMotoristas.mockResolvedValue(['Centro', 'Zona Sul']);
     withPermissoes(['motoristas.listar', 'motoristas.consultar']);
   });
@@ -116,6 +125,7 @@ describe('MotoristasPage', () => {
     expect(screen.getByText('**.***.***/0001-95')).toBeInTheDocument();
     expect(screen.getAllByText('Vinculado').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ativo').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(DETALHE_BASE.idExterno).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /Ver página completa/ })).toHaveAttribute(
       'href',
       '/hub/dashboard/motoristas/1'
@@ -202,5 +212,103 @@ describe('MotoristasPage', () => {
     render(<MotoristasPage />);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled());
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
+  });
+
+  it('identificador (uuid) copiável aparece na listagem (FR-016, task 4.3.2)', async () => {
+    mockListarMotoristas.mockResolvedValueOnce({ items: [ITEM_BASE], total: 1, page: 1, pageSize: 20 });
+    render(<MotoristasPage />);
+    await waitFor(() => expect(screen.getAllByText(ITEM_BASE.idExterno).length).toBeGreaterThan(0));
+    expect(
+      screen.getAllByRole('button', { name: `Copiar identificador de ${ITEM_BASE.nome}` }).length
+    ).toBeGreaterThan(0);
+  });
+
+  it('gate de permissão: sem motoristas.editar, o botão "Novo motorista" não aparece', async () => {
+    mockListarMotoristas.mockResolvedValueOnce({ items: [], total: 0, page: 1, pageSize: 20 });
+    render(<MotoristasPage />);
+    await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Novo motorista' })).not.toBeInTheDocument();
+  });
+});
+
+describe('MotoristasPage — CriarMotoristaDialog (FASE 4, task 4.3)', () => {
+  beforeEach(() => {
+    mockUseHubAuth.mockReset();
+    mockListarMotoristas.mockReset();
+    mockObterMotorista.mockReset();
+    mockListarAreasMotoristas.mockReset();
+    mockCriarMotorista.mockReset();
+    mockListarAreasMotoristas.mockResolvedValue([]);
+    mockListarMotoristas.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 });
+    withPermissoes(['motoristas.listar', 'motoristas.consultar', 'motoristas.editar']);
+  });
+
+  async function abrirDialog() {
+    render(<MotoristasPage />);
+    await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Novo motorista' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Novo motorista' })).toBeInTheDocument());
+    return within(screen.getByRole('dialog'));
+  }
+
+  it('campo uuid ausente bloqueia o submit no cliente (nunca chama a API)', async () => {
+    const dialog = await abrirDialog();
+    fireEvent.change(dialog.getByLabelText('Nome'), { target: { value: 'Fulano da Silva' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Cadastrar motorista' }));
+    await waitFor(() =>
+      expect(dialog.getByText('Informe o identificador (uuid) da planilha de origem.')).toBeInTheDocument()
+    );
+    expect(mockCriarMotorista).not.toHaveBeenCalled();
+  });
+
+  it('uuid em formato inválido exibe erro claro e bloqueia o submit no cliente', async () => {
+    const dialog = await abrirDialog();
+    fireEvent.change(dialog.getByLabelText('Nome'), { target: { value: 'Fulano da Silva' } });
+    fireEvent.change(dialog.getByLabelText('Identificador (uuid)'), { target: { value: 'nao-e-um-uuid' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Cadastrar motorista' }));
+    await waitFor(() => expect(dialog.getByText('Formato de identificador (uuid) inválido.')).toBeInTheDocument());
+    expect(mockCriarMotorista).not.toHaveBeenCalled();
+  });
+
+  it('submissão válida chama a API, fecha o diálogo e atualiza a lista', async () => {
+    mockCriarMotorista.mockResolvedValueOnce({
+      id: 10,
+      idExterno: '11111111-1111-1111-1111-111111111111',
+      nome: 'Fulano da Silva',
+      ativo: true,
+    });
+    const dialog = await abrirDialog();
+    fireEvent.change(dialog.getByLabelText('Nome'), { target: { value: 'Fulano da Silva' } });
+    fireEvent.change(dialog.getByLabelText('Identificador (uuid)'), {
+      target: { value: '11111111-1111-1111-1111-111111111111' },
+    });
+    fireEvent.click(dialog.getByRole('button', { name: 'Cadastrar motorista' }));
+
+    await waitFor(() =>
+      expect(mockCriarMotorista).toHaveBeenCalledWith({
+        nome: 'Fulano da Silva',
+        idExterno: '11111111-1111-1111-1111-111111111111',
+      })
+    );
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Novo motorista' })).not.toBeInTheDocument());
+    // refetch da lista após criar (h.refetch)
+    await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalledTimes(2));
+  });
+
+  it('uuid duplicado (409) exibe erro claro no campo, sem fechar o diálogo', async () => {
+    mockCriarMotorista.mockRejectedValueOnce(
+      new MotoristaApiError(409, 'Este identificador (uuid) já pertence a outro motorista desta empresa.', 'uuid_duplicado')
+    );
+    const dialog = await abrirDialog();
+    fireEvent.change(dialog.getByLabelText('Nome'), { target: { value: 'Fulano da Silva' } });
+    fireEvent.change(dialog.getByLabelText('Identificador (uuid)'), {
+      target: { value: '11111111-1111-1111-1111-111111111111' },
+    });
+    fireEvent.click(dialog.getByRole('button', { name: 'Cadastrar motorista' }));
+
+    await waitFor(() =>
+      expect(dialog.getByText('Este identificador (uuid) já pertence a outro motorista desta empresa.')).toBeInTheDocument()
+    );
+    expect(screen.getByRole('heading', { name: 'Novo motorista' })).toBeInTheDocument();
   });
 });

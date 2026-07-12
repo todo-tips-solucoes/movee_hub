@@ -37,6 +37,7 @@ vi.mock('@/lib/hub/motoristas-api', async () => {
 const DETALHE_SEM_VINCULO = {
   id: 1,
   nome: 'Fulano da Silva',
+  idExterno: '11111111-1111-1111-1111-111111111111',
   ativo: true,
   nomeEditadoManualmente: false,
   areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
@@ -72,6 +73,16 @@ describe('MotoristaDetalhePage', () => {
     expect(screen.getByText('42')).toBeInTheDocument();
     expect(screen.getByText('30')).toBeInTheDocument();
     expect(screen.getByText('Zona Sul')).toBeInTheDocument();
+  });
+
+  it('identificador (uuid) copiável aparece no detalhe (FR-016, task 4.1.2/4.1.3)', async () => {
+    mockObterMotorista.mockResolvedValueOnce(DETALHE_SEM_VINCULO);
+    render(<MotoristaDetalhePage />);
+
+    await waitFor(() => expect(screen.getByText(DETALHE_SEM_VINCULO.idExterno)).toBeInTheDocument());
+    expect(
+      screen.getByRole('button', { name: `Copiar identificador de ${DETALHE_SEM_VINCULO.nome}` })
+    ).toBeInTheDocument();
   });
 
   it('sem vínculo: mostra estado vazio + botão Vincular (com permissão)', async () => {

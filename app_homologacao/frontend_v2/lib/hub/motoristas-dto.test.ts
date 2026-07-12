@@ -1,8 +1,10 @@
 // hub-motoristas (S5) FASE 7 — paridade DTO↔contrato (contracts/motoristas-api.md).
 import { describe, expect, it } from 'vitest';
 import {
+  isUuidValido,
   parseContaCandidata,
   parseContasElegiveisResponse,
+  parseCriarMotoristaResponse,
   parseMotoristaDetalhe,
   parseMotoristaListItem,
   parseMotoristaListResponse,
@@ -14,6 +16,7 @@ describe('parseMotoristaListItem', () => {
   const ITEM_VALIDO = {
     id: 1,
     nome: 'Fulano da Silva',
+    idExterno: '11111111-1111-1111-1111-111111111111',
     ativo: true,
     comVinculo: true,
     areas: ['Zona Sul', 'Centro'],
@@ -28,11 +31,18 @@ describe('parseMotoristaListItem', () => {
     expect(parsed.ativo).toBe(false);
     expect(parsed.comVinculo).toBe(false);
     expect(parsed.areas).toEqual([]);
+    expect(parsed.idExterno).toBe('');
   });
 
   it('rejeita item sem id/nome (shape incompatível com o contrato)', () => {
     expect(() => parseMotoristaListItem({ ativo: true })).toThrow(TypeError);
     expect(() => parseMotoristaListItem(null)).toThrow(TypeError);
+  });
+
+  // FASE 4 (task 4.1.4): idExterno (uuid) exposto no item de listagem (FR-016)
+  it('idExterno (uuid) exposto no formato esperado', () => {
+    const parsed = parseMotoristaListItem(ITEM_VALIDO);
+    expect(parsed.idExterno).toBe('11111111-1111-1111-1111-111111111111');
   });
 });
 
@@ -51,6 +61,7 @@ describe('parseMotoristaDetalhe', () => {
   const DETALHE_VALIDO = {
     id: 1,
     nome: 'Fulano da Silva',
+    idExterno: '22222222-2222-2222-2222-222222222222',
     ativo: true,
     nomeEditadoManualmente: false,
     areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
@@ -75,6 +86,44 @@ describe('parseMotoristaDetalhe', () => {
     const parsed = parseMotoristaDetalhe({ id: 1, nome: 'X' });
     expect(parsed.resumo).toEqual({ totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
     expect(parsed.areas).toEqual([]);
+    expect(parsed.idExterno).toBe('');
+  });
+
+  // FASE 4 (task 4.1.4): idExterno (uuid) exposto no detalhe (FR-016)
+  it('idExterno (uuid) exposto no formato esperado', () => {
+    const parsed = parseMotoristaDetalhe(DETALHE_VALIDO);
+    expect(parsed.idExterno).toBe('22222222-2222-2222-2222-222222222222');
+  });
+});
+
+describe('parseCriarMotoristaResponse (POST /motoristas — FASE 4, task 4.2)', () => {
+  const RESPOSTA_VALIDA = {
+    id: 10,
+    idExterno: '33333333-3333-3333-3333-333333333333',
+    nome: 'Fulano da Silva',
+    ativo: true,
+  };
+
+  it('aceita o shape do contrato (§POST /motoristas — 201)', () => {
+    expect(parseCriarMotoristaResponse(RESPOSTA_VALIDA)).toEqual(RESPOSTA_VALIDA);
+  });
+
+  it('rejeita shape sem id/nome/idExterno', () => {
+    expect(() => parseCriarMotoristaResponse({ id: 1 })).toThrow(TypeError);
+    expect(() => parseCriarMotoristaResponse(null)).toThrow(TypeError);
+  });
+});
+
+describe('isUuidValido (validação client-side espelhando lib/hub-import-normalizer.js#uuidValido)', () => {
+  it('aceita uuid em formato válido (minúsculo ou maiúsculo)', () => {
+    expect(isUuidValido('11111111-1111-1111-1111-111111111111')).toBe(true);
+    expect(isUuidValido('AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE')).toBe(true);
+  });
+
+  it('rejeita formato inválido', () => {
+    expect(isUuidValido('nao-e-um-uuid')).toBe(false);
+    expect(isUuidValido('')).toBe(false);
+    expect(isUuidValido('12345')).toBe(false);
   });
 });
 
