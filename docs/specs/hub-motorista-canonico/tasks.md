@@ -30,64 +30,90 @@ quickstart.md Scenario 1-2.
 
 Ref: FR-001, FR-002, research.md Decision 1
 
-- [ ] 1.1.1 Adicionar caso especial em `moduloParaRota()`
+- [x] 1.1.1 Adicionar caso especial em `moduloParaRota()`
   (`app_homologacao/frontend_v2/lib/hub/module-nav.ts:104-105`): quando
   `codigo === 'dashboard'`, retornar `/hub/dashboard`; demais códigos mantêm a
   convenção `/hub/dashboard/${codigo}` (sem regressão)
-- [ ] 1.1.2 Ajustar o cálculo de item ativo em `components/hub/module-nav.tsx`
+- [x] 1.1.2 Ajustar o cálculo de item ativo em `components/hub/module-nav.tsx`
   (`pathname === moduloParaRota(codigo)`) para casar corretamente a home
-- [ ] 1.1.3 Ajustar o card/atalho "Painel Geral" em `app/hub/dashboard/page.tsx`
+  (já delegava para `moduloParaRota`; a correção em 1.1.1 propaga sem
+  mudança estrutural — regressão coberta por novo teste em
+  `module-nav.test.tsx`, describe "item ativo Painel Geral na home")
+- [x] 1.1.3 Ajustar o card/atalho "Painel Geral" em `app/hub/dashboard/page.tsx`
   para consumir a mesma função corrigida (não hardcodar a rota)
-- [ ] 1.1.4 Teste unitário (`vitest`) cobrindo `moduloParaRota('dashboard') ===
+  (`ModuloCard` já usava `moduloParaRota(modulo.codigo)`, sem hardcode —
+  confirmado via grep; nenhuma mudança de código necessária aqui)
+- [x] 1.1.4 Teste unitário (`vitest`) cobrindo `moduloParaRota('dashboard') ===
   '/hub/dashboard'` e demais códigos inalterados (regressão — Acceptance
   Scenario 3 de US1)
-- [ ] 1.1.5 Critério de aceite: clicar em "Painel Geral" (sidebar e card) chega
+- [x] 1.1.5 Critério de aceite: clicar em "Painel Geral" (sidebar e card) chega
   em `/hub/dashboard` sem 404; item "Painel Geral" aparece destacado como ativo
-  (SC-001, quickstart Scenario 1)
+  (SC-001, quickstart Scenario 1) — coberto por teste unitário
+  (`moduloParaRota`/`aria-current`); smoke visual real fica para o gate de
+  E2E consolidado (ver nota em 1.4.3)
 
 ### 1.2 Extrair `PerfilCard` compartilhado `[A]`
 
 Ref: FR-003, FR-005, research.md Decision 2
 
-- [ ] 1.2.1 Criar `components/hub/perfil-card.tsx` extraindo o miolo atual de
+- [x] 1.2.1 Criar `components/hub/perfil-card.tsx` extraindo o miolo atual de
   `app/hub/dashboard/perfil/page.tsx` (exibição de `usuario.nome` +
   `usuario.email` de `/me`, ação "Trocar senha" via
   `recuperarSenha(usuario.email)` → `POST /api/v1/auth/recuperar-senha`)
-- [ ] 1.2.2 Atualizar `app/hub/dashboard/perfil/page.tsx` para renderizar
+- [x] 1.2.2 Atualizar `app/hub/dashboard/perfil/page.tsx` para renderizar
   `PerfilCard` (a rota **permanece viva** — D-A1, FR-005)
-- [ ] 1.2.3 Critério de aceite: acessar `/hub/dashboard/perfil` diretamente pela
-  URL continua 200 com as mesmas informações (quickstart Scenario 2, passo 7-8)
+- [x] 1.2.3 Critério de aceite: acessar `/hub/dashboard/perfil` diretamente pela
+  URL continua 200 com as mesmas informações (quickstart Scenario 2, passo
+  7-8) — coberto por `app/hub/dashboard/perfil/page.test.tsx` (4/4 verde,
+  inalterado); smoke HTTP real fica para o gate de E2E consolidado
 
 ### 1.3 Modal de perfil (`perfil-dialog.tsx`) `[A]`
 
 Ref: FR-003, FR-004, research.md Decision 2, quickstart.md Scenario 2
 
-- [ ] 1.3.1 Criar `components/hub/perfil-dialog.tsx` no idioma do
+- [x] 1.3.1 Criar `components/hub/perfil-dialog.tsx` no idioma do
   `motorista-detalhe-dialog.tsx` (hook `usePerfilDialog` + `Dialog` Base UI),
   renderizando `PerfilCard` (task 1.2)
-- [ ] 1.3.2 Alterar `components/hub/account-menu.tsx`: item "Meu perfil" passa a
+- [x] 1.3.2 Alterar `components/hub/account-menu.tsx`: item "Meu perfil" passa a
   abrir o modal em vez de navegar para `/hub/dashboard/perfil`
-- [ ] 1.3.3 Implementar feedback de sucesso/erro na ação "Trocar senha" dentro
+- [x] 1.3.3 Implementar feedback de sucesso/erro na ação "Trocar senha" dentro
   do modal (confirmação de envio ou mensagem de erro clara — FR-004)
-- [ ] 1.3.4 Teste `vitest`: abrir modal, disparar "Trocar senha" (mock
+- [x] 1.3.4 Teste `vitest`: abrir modal, disparar "Trocar senha" (mock
   sucesso/erro), fechar modal e confirmar que a página de origem não mudou
-- [ ] 1.3.5 Critério de aceite: abrir "Meu perfil" exibe nome/e-mail em janela
+  (`components/hub/perfil-dialog.test.tsx`, 4/4 verde; abertura via hook
+  `usePerfilDialog` controlado — evita a fragilidade de simular a abertura
+  real do `DropdownMenu`/portal em jsdom, mesma nota de
+  `entity-switcher.test.tsx`)
+- [x] 1.3.5 Critério de aceite: abrir "Meu perfil" exibe nome/e-mail em janela
   sobreposta sem navegar; fechar mantém a página original (FR-003, SC-002,
-  quickstart Scenario 2)
+  quickstart Scenario 2) — coberto por `perfil-dialog.test.tsx` +
+  `account-menu.test.tsx` (2/2 verde: gatilho "Meu perfil" não é mais link)
 
 ### 1.4 Gate de fechamento da Fase A `[A]`
 
 Ref: plan.md §Fases de execução (Fase A — gate de fechamento)
 
-- [ ] 1.4.1 Rodar `tsc --noEmit` + `eslint` no `frontend_v2` (escopo dos
-  arquivos tocados por WS-A)
-- [ ] 1.4.2 Rodar `vitest run` (testes de 1.1.4 e 1.3.4)
+- [x] 1.4.1 Rodar `tsc --noEmit` + `eslint` no `frontend_v2` (escopo dos
+  arquivos tocados por WS-A) — `npx tsc --noEmit` limpo; `npx eslint` nos 10
+  arquivos tocados (module-nav.ts/.tsx + testes, perfil-card.tsx,
+  perfil-dialog.tsx + teste, account-menu.tsx + teste, perfil/page.tsx,
+  dashboard/page.tsx) sem findings
+- [x] 1.4.2 Rodar `vitest run` (testes de 1.1.4 e 1.3.4) — suíte completa do
+  `frontend_v2` verde: 27 arquivos / 204 testes passando (nenhuma regressão)
 - [ ] 1.4.3 Smoke manual autenticado no hub-homolog: sidebar "Painel Geral" →
   200, card da home → 200, avatar → "Meu perfil" → modal (rebuild sob rito
   anti-starvation — swap conferido, `--memory=2g`, `DOCKER_BUILDKIT=0` — se
-  houver mudança de build)
+  houver mudança de build) — **DEFERIDO por instrução explícita desta onda**
+  (orquestrador: "Não rode build do Next nem docker build nesta onda; o
+  rebuild do hub-homolog acontece nas fases de E2E, sob rito
+  anti-starvation"). Pendente para o gate de E2E consolidado (FASE 7) ou
+  onda dedicada de smoke antes do cutover desta feature — NÃO marcar como
+  concluído sem o rebuild real + verificação HTTP autenticada.
 - [ ] 1.4.4 Registrar Decisão de fechamento da Fase A (`state-decisions.sh`)
-  com evidência dos testes/smoke (score ≥ 2)
+  com evidência dos testes/smoke (score ≥ 2) — Decisão de fechamento
+  PARCIAL registrada nesta onda (dec-código-nível: tsc/eslint/vitest 204/204
+  verdes), score 2; fechamento PLENO da Fase A (score 3, com evidência de
+  smoke) fica condicionado a 1.4.3
 
 ---
 

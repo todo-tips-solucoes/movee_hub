@@ -100,7 +100,15 @@ export function resolveModuleIcon(
  * a rota legada. O prefixo `/hub/` isola TODA a árvore de rotas autenticadas
  * do shell da árvore do envio-massa legado (que "permanece onde está" até a
  * S8 — briefing S3), sem tocar nenhum arquivo legado.
+ *
+ * Correção (hub-motorista-canonico, FASE 1, FR-001/FR-002, research.md
+ * Decision 1): o módulo `dashboard` (seed 0007, nome "Painel Geral") é a
+ * ÚNICA exceção à convenção `/hub/dashboard/<codigo>` — a página real dele é
+ * a raiz `/hub/dashboard` (`app/hub/dashboard/page.tsx`), não
+ * `/hub/dashboard/dashboard` (rota inexistente → 404 antes desta correção).
+ * Demais códigos mantêm a convenção pura, sem regressão.
  */
 export function moduloParaRota(codigo: string): string {
+  if (codigo === 'dashboard') return '/hub/dashboard';
   return `/hub/dashboard/${codigo}`;
 }
