@@ -108,7 +108,7 @@ export default function RecuperarSenhaPage() {
                 />
               </div>
               <Button type="submit" className="h-11 w-full sm:h-10" disabled={carregando}>
-                {carregando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {carregando && <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" />}
                 Enviar link de redefinição
               </Button>
             </form>

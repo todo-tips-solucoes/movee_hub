@@ -172,7 +172,7 @@ export default function HubLoginPage() {
                 </div>
               </div>
               <Button type="submit" className="h-11 w-full sm:h-10" disabled={carregandoSubmit}>
-                {carregandoSubmit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {carregandoSubmit && <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" />}
                 Entrar
               </Button>
             </form>

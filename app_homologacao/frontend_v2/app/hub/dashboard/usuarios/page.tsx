@@ -303,7 +303,7 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
             Cancelar
           </Button>
           <Button onClick={submit} disabled={salvando}>
-            {salvando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {salvando && <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />}
             {salvando ? 'Criando...' : 'Criar usuário'}
           </Button>
         </DialogFooter>
@@ -505,7 +505,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
             Fechar
           </Button>
           <Button onClick={salvarDados} disabled={salvando}>
-            {salvando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {salvando && <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />}
             {salvando ? 'Salvando...' : 'Salvar dados'}
           </Button>
         </SheetFooter>

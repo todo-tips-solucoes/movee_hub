@@ -281,7 +281,7 @@ export default function ImportacaoDetalhePage() {
                 {podeCriar && STATUS_REPROCESSAVEL.has(detalhe.status) && (
                   <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" disabled={acaoEmAndamento !== null} onClick={acionarReprocessar}>
                     {acaoEmAndamento === 'reprocessar' ? (
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
                     ) : (
                       <RotateCw className="size-4" aria-hidden="true" />
                     )}
@@ -297,7 +297,7 @@ export default function ImportacaoDetalhePage() {
                 {podeExportar && (
                   <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" disabled={acaoEmAndamento !== null} onClick={acionarBaixarOriginal}>
                     {acaoEmAndamento === 'original' ? (
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
                     ) : (
                       <Download className="size-4" aria-hidden="true" />
                     )}
@@ -406,7 +406,7 @@ export default function ImportacaoDetalhePage() {
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   {acaoEmAndamento === 'cancelar' && (
-                    <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                    <Loader2 className="mr-2 size-4 motion-safe:animate-spin" aria-hidden="true" />
                   )}
                   Cancelar importação
                 </AlertDialogAction>

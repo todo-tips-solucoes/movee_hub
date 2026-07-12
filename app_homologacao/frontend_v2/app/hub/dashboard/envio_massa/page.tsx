@@ -53,7 +53,7 @@ import { PaginationControls } from '@/components/pagination-controls';
 import { XmlValidationCard } from '@/components/xml-validation-card';
 import { PageHeader } from '@/components/hub/page-header';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 
 export const SELECIONAR_ENTIDADE_ROUTE = '/selecionar-entidade';
 
@@ -92,6 +92,7 @@ function EnvioMassaSkeleton() {
 function EnvioMassaClient() {
   const { entidadeAtiva, carregando: carregandoAuth } = useHubAuth();
   const router = useRouter();
+  const reduzirMovimento = useReducedMotion();
 
   // Guard FR-004 (diferença 2 do cabeçalho): sem entidade ativa, nenhuma
   // chamada aos hooks legados chega a ser útil — redireciona direto.
@@ -170,9 +171,11 @@ function EnvioMassaClient() {
   return (
     <motion.div
       className="flex flex-col gap-4"
-      initial={{ opacity: 0 }}
+      // uiux-hub F4: respeita prefers-reduced-motion — sem fade quando o
+      // usuário pediu menos movimento (conteúdo legível imediatamente).
+      initial={reduzirMovimento ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: reduzirMovimento ? 0 : 0.3 }}
     >
       <div className="shrink-0 space-y-4">
         <PageHeader

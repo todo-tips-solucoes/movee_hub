@@ -261,7 +261,7 @@ export function VinculoMotoristaDialog({ state: v }: VinculoMotoristaDialogProps
                     </div>
                     {v.buscando ? (
                       <p role="status" className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                        <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
                         Buscando...
                       </p>
                     ) : v.erroBusca ? (
@@ -332,7 +332,7 @@ export function VinculoMotoristaDialog({ state: v }: VinculoMotoristaDialogProps
                 Voltar
               </Button>
               <Button className="min-h-11 sm:min-h-8" disabled={v.confirmando} onClick={v.confirmar}>
-                {v.confirmando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                {v.confirmando && <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />}
                 Confirmar vínculo
               </Button>
             </DialogFooter>

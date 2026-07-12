@@ -42,9 +42,18 @@ import {
   baixarPerformanceCsv,
   listarPerformance,
   obterPerformanceResumo,
+  obterPerformanceResumoAgrupado,
   PerformanceApiError,
+  type PerformanceFiltros,
 } from '@/lib/hub/performance-api';
-import type { PerformanceListItem, PerformanceResumoCards } from '@/lib/hub/performance-dto';
+import type {
+  PerformanceGroupBy,
+  PerformanceListItem,
+  PerformanceResumoCards,
+  PerformanceResumoGrupo,
+} from '@/lib/hub/performance-dto';
+import { HorizontalBarChart } from '@/components/hub/bar-chart';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatBRL, formatDateBR } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
@@ -187,7 +196,9 @@ function CardsResumo({ cards }: { cards: PerformanceResumoCards }) {
           <CardTitle className="text-sm text-muted-foreground">Corridas completadas</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="font-heading text-xl font-semibold text-foreground">{cards.corridasCompletadas}</p>
+          <p className="font-heading text-xl font-semibold text-foreground">
+            {formatInt(cards.corridasCompletadas)}
+          </p>
         </CardContent>
       </Card>
 
@@ -233,6 +244,94 @@ function CardsResumo({ cards }: { cards: PerformanceResumoCards }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** uiux-hub F4 — corridas completadas por dia/período, consumindo
+ * `GET /performance/resumo?groupBy=...` (agregação 100% no backend, mesmos
+ * filtros da lista; endpoint já existia no contrato e estava sem consumidor). */
+function DistribuicaoPerformance({ filtrosApi }: { filtrosApi: () => PerformanceFiltros }) {
+  const [groupBy, setGroupBy] = useState<Extract<PerformanceGroupBy, 'dia' | 'periodo'>>('dia');
+  const [grupos, setGrupos] = useState<PerformanceResumoGrupo[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // Mesmo idioma dos hooks de lista (buscar em useCallback + useEffect).
+  const buscar = useCallback(async () => {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const r = await obterPerformanceResumoAgrupado(groupBy, filtrosApi());
+      setGrupos(r.grupos);
+    } catch (e) {
+      setGrupos([]);
+      setErro(e instanceof PerformanceApiError ? e.message : 'Não foi possível carregar a distribuição.');
+    } finally {
+      setCarregando(false);
+    }
+  }, [groupBy, filtrosApi]);
+
+  useEffect(() => {
+    buscar();
+  }, [buscar]);
+
+  // Ordenação SÓ de apresentação: dia = cronológico; período = maiores primeiro.
+  const dados = [...grupos]
+    .sort((a, b) =>
+      groupBy === 'dia' ? a.chave.localeCompare(b.chave) : b.corridasCompletadas - a.corridasCompletadas
+    )
+    .map((g) => ({
+      chave: g.chave,
+      rotulo: groupBy === 'dia' ? formatDateBR(g.chave) || g.rotulo : g.rotulo,
+      valor: g.corridasCompletadas,
+      valorFormatado: formatInt(g.corridasCompletadas),
+    }));
+
+  return (
+    <Card size="sm">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+        <CardTitle className="text-sm text-muted-foreground">Corridas completadas</CardTitle>
+        <div className="flex gap-1" role="group" aria-label="Agrupar corridas completadas por">
+          <Button
+            size="sm"
+            variant={groupBy === 'dia' ? 'default' : 'outline'}
+            className="min-h-11 sm:min-h-7"
+            aria-pressed={groupBy === 'dia'}
+            onClick={() => setGroupBy('dia')}
+          >
+            Por dia
+          </Button>
+          <Button
+            size="sm"
+            variant={groupBy === 'periodo' ? 'default' : 'outline'}
+            className="min-h-11 sm:min-h-7"
+            aria-pressed={groupBy === 'periodo'}
+            onClick={() => setGroupBy('periodo')}
+          >
+            Por período
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {carregando ? (
+          <div role="status" className="flex flex-col gap-2 py-1" aria-label="Carregando distribuição...">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-4 w-full" />
+            ))}
+          </div>
+        ) : erro ? (
+          <p role="alert" className="py-4 text-center text-sm text-destructive">
+            {erro}
+          </p>
+        ) : (
+          <HorizontalBarChart
+            titulo={groupBy === 'dia' ? 'Corridas completadas por dia' : 'Corridas completadas por período'}
+            dados={dados}
+            corVar="--chart-2"
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -284,6 +383,8 @@ export default function PerformancePage() {
       ) : (
         <CardsResumo cards={h.cards} />
       )}
+
+      <DistribuicaoPerformance filtrosApi={h.filtrosApi} />
 
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">

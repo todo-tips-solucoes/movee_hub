@@ -44,8 +44,17 @@ import {
   FaturamentoApiError,
   listarFaturamento,
   obterFaturamentoResumo,
+  obterFaturamentoResumoAgrupado,
+  type FaturamentoFiltros,
 } from '@/lib/hub/faturamento-api';
-import type { FaturamentoListItem, FaturamentoResumoCards } from '@/lib/hub/faturamento-dto';
+import type {
+  FaturamentoGroupBy,
+  FaturamentoListItem,
+  FaturamentoResumoCards,
+  FaturamentoResumoGrupo,
+} from '@/lib/hub/faturamento-dto';
+import { HorizontalBarChart } from '@/components/hub/bar-chart';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatBRL, formatDateBR } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
@@ -228,6 +237,95 @@ function CardsResumo({ cards }: { cards: FaturamentoResumoCards }) {
   );
 }
 
+/** uiux-hub F4 — distribuição do faturamento por categoria/dia, consumindo
+ * `GET /faturamento/resumo?groupBy=...` (agregação 100% no backend, mesmos
+ * filtros da lista; endpoint já existia no contrato e estava sem consumidor). */
+function DistribuicaoFaturamento({ filtrosApi }: { filtrosApi: () => FaturamentoFiltros }) {
+  const [groupBy, setGroupBy] = useState<Extract<FaturamentoGroupBy, 'categoria' | 'dia'>>('categoria');
+  const [grupos, setGrupos] = useState<FaturamentoResumoGrupo[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // Mesmo idioma dos hooks de lista (buscar em useCallback + useEffect).
+  const buscar = useCallback(async () => {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const r = await obterFaturamentoResumoAgrupado(groupBy, filtrosApi());
+      setGrupos(r.grupos);
+    } catch (e) {
+      setGrupos([]);
+      setErro(e instanceof FaturamentoApiError ? e.message : 'Não foi possível carregar a distribuição.');
+    } finally {
+      setCarregando(false);
+    }
+  }, [groupBy, filtrosApi]);
+
+  useEffect(() => {
+    buscar();
+  }, [buscar]);
+
+  // Ordenação SÓ de apresentação (o valor exibido segue sendo a string do
+  // backend): categoria = maiores primeiro; dia = cronológico pela chave.
+  const dados = [...grupos]
+    .sort((a, b) =>
+      groupBy === 'dia' ? a.chave.localeCompare(b.chave) : parseFloat(b.total) - parseFloat(a.total)
+    )
+    .map((g) => ({
+      chave: g.chave,
+      rotulo: groupBy === 'dia' ? formatDateBR(g.chave) || g.rotulo : g.rotulo,
+      valor: parseFloat(g.total) || 0,
+      valorFormatado: formatBRL(g.total),
+    }));
+
+  return (
+    <Card size="sm">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+        <CardTitle className="text-sm text-muted-foreground">Distribuição do faturamento</CardTitle>
+        <div className="flex gap-1" role="group" aria-label="Agrupar distribuição por">
+          <Button
+            size="sm"
+            variant={groupBy === 'categoria' ? 'default' : 'outline'}
+            className="min-h-11 sm:min-h-7"
+            aria-pressed={groupBy === 'categoria'}
+            onClick={() => setGroupBy('categoria')}
+          >
+            Por categoria
+          </Button>
+          <Button
+            size="sm"
+            variant={groupBy === 'dia' ? 'default' : 'outline'}
+            className="min-h-11 sm:min-h-7"
+            aria-pressed={groupBy === 'dia'}
+            onClick={() => setGroupBy('dia')}
+          >
+            Por dia
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {carregando ? (
+          <div role="status" className="flex flex-col gap-2 py-1" aria-label="Carregando distribuição...">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-4 w-full" />
+            ))}
+          </div>
+        ) : erro ? (
+          <p role="alert" className="py-4 text-center text-sm text-destructive">
+            {erro}
+          </p>
+        ) : (
+          <HorizontalBarChart
+            titulo={groupBy === 'categoria' ? 'Faturamento por categoria' : 'Faturamento por dia'}
+            dados={dados}
+            corVar="--chart-1"
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function FaturamentoPage() {
   const { permissoes } = useHubAuth();
   const podeExportar = permissoes.includes('faturamento.exportar');
@@ -277,6 +375,8 @@ export default function FaturamentoPage() {
       ) : (
         <CardsResumo cards={h.cards} />
       )}
+
+      <DistribuicaoFaturamento filtrosApi={h.filtrosApi} />
 
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">

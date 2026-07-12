@@ -266,7 +266,7 @@ export default function MotoristaDetalhePage() {
                     <>
                       <Button size="sm" className="min-h-11 sm:min-h-8" disabled={salvando} onClick={salvarEdicao}>
                         {salvando ? (
-                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                          <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
                         ) : (
                           <Check className="size-4" aria-hidden="true" />
                         )}
@@ -393,7 +393,7 @@ export default function MotoristaDetalhePage() {
                     disabled={desvinculando}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    {desvinculando && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+                    {desvinculando && <Loader2 className="mr-2 size-4 motion-safe:animate-spin" aria-hidden="true" />}
                     Desvincular
                   </AlertDialogAction>
                 </AlertDialogFooter>

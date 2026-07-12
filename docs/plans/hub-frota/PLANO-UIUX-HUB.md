@@ -225,8 +225,17 @@ mapa por `codigo` → `LayoutGrid`. O `ICON_MAP` já existe; é ligar o fio.
 
 21. Faturamento: barras por categoria/período; Performance: tendência das taxas
     (paleta `--chart-*`, tooltips, legenda, alternativa textual, formatação pt-BR).
-22. Ordenação de colunas com `aria-sort` nas 6 tabelas.
-23. Quick-peek em `Sheet` nas listas de importações/motoristas.
+    *(Implementado consumindo `GET /*/resumo?groupBy=…`, endpoints que já
+    existiam no contrato sem consumidor — agregação 100% no backend.)*
+22. ~~Ordenação de colunas com `aria-sort` nas 6 tabelas.~~ **Decisão na
+    implementação:** as listas são paginadas server-side com `order` fixo no
+    backend (ex.: `hub-faturamento.js:150`); ordenar só a página atual no
+    cliente seria enganoso. Vira **follow-up de API** (parâmetro `sort` nos
+    endpoints de lista) — registrar junto do follow-up do nome amigável de
+    entidade no `/me`.
+23. ~~Quick-peek em `Sheet` nas listas.~~ **Decisão na implementação:**
+    descartado — conflita com a linha inteira clicável entregue na F3 (dois
+    gestos concorrentes na mesma linha); o detalhe já está a 1 clique.
 24. `prefers-reduced-motion` no fade do envio_massa e nos `animate-spin`.
 
 ---

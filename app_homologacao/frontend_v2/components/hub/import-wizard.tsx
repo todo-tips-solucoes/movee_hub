@@ -308,7 +308,7 @@ export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizar
           </Button>
           <Button className="min-h-11 sm:min-h-8" disabled={!w.arquivo || w.enviando} onClick={w.enviar}>
             {w.enviando ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
             ) : (
               <UploadCloud className="size-4" aria-hidden="true" />
             )}
