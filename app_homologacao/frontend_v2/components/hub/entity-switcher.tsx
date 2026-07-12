@@ -20,6 +20,8 @@
 // spec.md FR-005/FR-006/FR-007.
 
 import { useCallback, useId, useState } from 'react';
+import { toast } from 'sonner';
+import { Building2, Loader2 } from 'lucide-react';
 import { useHubAuth, HubApiError } from '@/contexts/hub-auth-context';
 import type { HubVinculo } from '@/lib/hub/me-dto';
 import {
@@ -63,11 +65,13 @@ export function useEntitySwitcher() {
         // aqui manualmente — a fonte da verdade é sempre o /me).
         await trocarEntidade(empresaId);
         const alvo = entidades.find((e) => e.empresaId === empresaId);
-        setLiveMessage(
-          alvo
-            ? `${labelVinculo(alvo)} selecionada. Dados recarregados.`
-            : 'Entidade selecionada. Dados recarregados.'
-        );
+        const mensagem = alvo
+          ? `${labelVinculo(alvo)} selecionada. Dados recarregados.`
+          : 'Entidade selecionada. Dados recarregados.';
+        setLiveMessage(mensagem);
+        // uiux-hub F3: feedback VISUAL complementando o aria-live — antes a
+        // única pista para quem enxerga era a troca silenciosa dos dados.
+        toast.success(mensagem);
       } catch (e) {
         // FR-006: 400 EMPRESA_ID_INVALIDO / 403 SEM_VINCULO — trocarEntidade
         // só chama refetchMe() em sucesso (hub-auth-context.tsx), então `me`
@@ -113,6 +117,11 @@ export function EntitySwitcher({ className }: EntitySwitcherProps) {
           aria-label="Trocar entidade de trabalho"
           className="w-full sm:w-[240px]"
         >
+          {trocando ? (
+            <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
+          ) : (
+            <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          )}
           <SelectValue placeholder="Selecionar entidade" />
         </SelectTrigger>
         <SelectContent>

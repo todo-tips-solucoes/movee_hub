@@ -9,6 +9,10 @@ import { ImportacaoApiError } from '@/lib/hub/importacoes-api';
 const mockUseHubAuth = vi.fn();
 const mockListarImportacoes = vi.fn();
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 vi.mock('@/contexts/hub-auth-context', () => ({
   useHubAuth: () => mockUseHubAuth(),
 }));

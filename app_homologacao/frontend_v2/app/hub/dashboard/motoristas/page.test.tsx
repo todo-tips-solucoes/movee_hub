@@ -9,6 +9,10 @@ import { MotoristaApiError } from '@/lib/hub/motoristas-api';
 const mockUseHubAuth = vi.fn();
 const mockListarMotoristas = vi.fn();
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 vi.mock('@/contexts/hub-auth-context', () => ({
   useHubAuth: () => mockUseHubAuth(),
 }));

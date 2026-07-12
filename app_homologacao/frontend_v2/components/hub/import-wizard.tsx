@@ -14,6 +14,16 @@ import { useCallback, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { AlertCircle, FileWarning, Loader2, UploadCloud } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -66,6 +76,28 @@ export function useImportWizard(onEnviado?: (id: number) => void) {
     },
     [reset]
   );
+
+  // uiux-hub F3: pedido de fechamento vindo da UI (Escape/click-fora/botão
+  // Cancelar). Com arquivo selecionado, fechar descartaria a seleção em
+  // silêncio — pede confirmação. Sem arquivo (ou durante o envio, que já
+  // desabilita os botões), fecha direto. O fluxo de sucesso usa `setOpen`
+  // diretamente e nunca passa por aqui.
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const solicitarFechamento = useCallback(
+    (next: boolean) => {
+      if (!next && arquivo && !enviando) {
+        setConfirmandoDescarte(true);
+        return;
+      }
+      setOpen(next);
+    },
+    [arquivo, enviando, setOpen]
+  );
+  const confirmarDescarte = useCallback(() => {
+    setConfirmandoDescarte(false);
+    setOpen(false);
+  }, [setOpen]);
+  const manterEdicao = useCallback(() => setConfirmandoDescarte(false), []);
 
   const selecionarArquivo = useCallback((file: File | null) => {
     setErroEnvio(null);
@@ -121,6 +153,10 @@ export function useImportWizard(onEnviado?: (id: number) => void) {
     conflito,
     enviar,
     reset,
+    confirmandoDescarte,
+    solicitarFechamento,
+    confirmarDescarte,
+    manterEdicao,
   };
 }
 
@@ -145,7 +181,7 @@ export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizar
   if (!podeCriar) return null;
 
   return (
-    <Dialog open={w.open} onOpenChange={w.setOpen}>
+    <Dialog open={w.open} onOpenChange={w.solicitarFechamento}>
       <DialogTrigger render={<Button className="min-h-11 gap-1.5 sm:min-h-8" />}>
         <UploadCloud className="size-4" aria-hidden="true" />
         Nova importação
@@ -266,7 +302,7 @@ export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizar
             variant="outline"
             className="min-h-11 sm:min-h-8"
             disabled={w.enviando}
-            onClick={() => w.setOpen(false)}
+            onClick={() => w.solicitarFechamento(false)}
           >
             Cancelar
           </Button>
@@ -280,6 +316,22 @@ export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizar
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={w.confirmandoDescarte} onOpenChange={(v) => !v && w.manterEdicao()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar arquivo selecionado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você selecionou {w.arquivo?.name ?? 'um arquivo'} mas ainda não enviou. Fechar agora
+              descarta a seleção.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={w.manterEdicao}>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction onClick={w.confirmarDescarte}>Descartar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

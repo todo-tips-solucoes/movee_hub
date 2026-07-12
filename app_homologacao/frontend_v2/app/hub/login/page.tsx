@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useHubAuth, HubApiError } from '@/contexts/hub-auth-context';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { AuthShell } from '@/components/hub/auth-shell';
 import { Wordmark } from '@/components/brand/wordmark';
 
 export const SELECIONAR_ENTIDADE_ROUTE = '/selecionar-entidade';
@@ -101,19 +101,9 @@ export default function HubLoginPage() {
   if (telaCarregando) return null;
 
   return (
-    // `<main>` — landmark único da página (achado onda E2E FASE 6.3: axe
-    // `landmark-one-main`/`region`; nenhuma outra rota de auth tinha main).
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-background" />
-      <div className="aurora-orb bg-gradient-warm -left-24 -top-24 h-72 w-72 animate-float" aria-hidden />
-      <div
-        className="aurora-orb bg-gradient-blue -bottom-32 -right-24 h-80 w-80 animate-float-soft"
-        aria-hidden
-      />
-      <div className="absolute top-4 right-4 z-10">
-        <ThemeToggle />
-      </div>
-      <div className="w-full max-w-[95vw] sm:max-w-sm">
+    // Moldura compartilhada das telas de auth (uiux-hub F3) — orbs +
+    // ThemeToggle + <main> landmark vivem em AuthShell.
+    <AuthShell>
         <Card className="glass w-full border-0 shadow-none">
           <CardHeader className="text-center">
             <div className="mb-3 flex justify-center">
@@ -188,7 +178,6 @@ export default function HubLoginPage() {
             </form>
           </CardContent>
         </Card>
-      </div>
-    </main>
+    </AuthShell>
   );
 }

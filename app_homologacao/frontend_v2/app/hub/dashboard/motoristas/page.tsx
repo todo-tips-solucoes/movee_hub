@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AlertCircle, ChevronRight, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,6 +105,9 @@ export default function MotoristasPage() {
   const { permissoes } = useHubAuth();
   const podeConsultar = permissoes.includes('motoristas.consultar');
   const h = useMotoristasLista();
+  // uiux-hub F3: a linha inteira navega (o hover já sugeria clique); o link
+  // "Detalhes" permanece como caminho de teclado/leitor de tela.
+  const router = useRouter();
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
@@ -243,7 +247,11 @@ export default function MotoristasPage() {
               </TableHeader>
               <TableBody>
                 {h.items.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/50">
+                  <TableRow
+                    key={item.id}
+                    className={podeConsultar ? 'cursor-pointer hover:bg-muted/50' : undefined}
+                    onClick={podeConsultar ? () => router.push(`/hub/dashboard/motoristas/${item.id}`) : undefined}
+                  >
                     <TableCell className="font-medium">{item.nome}</TableCell>
                     <TableCell>
                       <AtivoBadge ativo={item.ativo} />

@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   ChevronRight,
@@ -169,6 +170,9 @@ export default function ImportacoesPage() {
   // Hook do wizard criado na página (uiux-hub F2) para o empty state também
   // poder abrir o diálogo — mesmo idioma de useVinculoMotoristaDialog.
   const wizard = useImportWizard(() => h.refetch());
+  // uiux-hub F3: a linha inteira navega (o hover já sugeria clique); o link
+  // "Detalhes" permanece como caminho de teclado/leitor de tela.
+  const router = useRouter();
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
@@ -301,7 +305,7 @@ export default function ImportacoesPage() {
               <Link
                 key={item.id}
                 href={`/hub/dashboard/importacoes/${item.id}`}
-                className="rounded-lg border p-3 hover:bg-muted/50"
+                className="rounded-lg border p-3 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{TIPO_LABELS[item.tipo]}</span>
@@ -336,7 +340,11 @@ export default function ImportacoesPage() {
               </TableHeader>
               <TableBody>
                 {h.items.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/50">
+                  <TableRow
+                    key={item.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => router.push(`/hub/dashboard/importacoes/${item.id}`)}
+                  >
                     <TableCell>{TIPO_LABELS[item.tipo]}</TableCell>
                     <TableCell>
                       <StatusBadge item={item} />

@@ -33,6 +33,21 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { listarPapeisMatriz } from '@/lib/hub/admin-api';
 import type { PapelCatalogo } from '@/lib/hub/admin-dto';
@@ -93,6 +108,55 @@ function usePapeisCatalogo() {
   return papeis;
 }
 
+/** Select de papel do design system (uiux-hub F3 — substitui os <select>
+ * nativos; gotcha Base UI: o Root precisa de `items` para exibir o rótulo). */
+function PapelSelect({
+  id,
+  ariaLabel,
+  value,
+  onChange,
+  papeis,
+  disabled,
+  className,
+}: {
+  id?: string;
+  ariaLabel?: string;
+  value: string;
+  onChange: (v: string) => void;
+  papeis: PapelCatalogo[];
+  disabled?: boolean;
+  className?: string;
+}) {
+  const items = papeis.map((p) => ({ value: String(p.id), label: p.nome }));
+  return (
+    <Select
+      items={items}
+      value={value}
+      onValueChange={(v: string | null) => {
+        if (v !== null) onChange(v);
+      }}
+      disabled={disabled}
+    >
+      <SelectTrigger id={id} aria-label={ariaLabel} className={className ?? 'w-full'}>
+        <SelectValue placeholder="Selecionar papel" />
+      </SelectTrigger>
+      <SelectContent>
+        {items.map((item) => (
+          <SelectItem key={item.value} value={item.value}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+interface ErrosCamposCriar {
+  nome?: string;
+  email?: string;
+  senha?: string;
+}
+
 interface CriarUsuarioDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -108,6 +172,8 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
   const [papelId, setPapelId] = useState<string>('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // uiux-hub F3: validação inline — erro perto do campo, não agregado no rodapé.
+  const [errosCampo, setErrosCampo] = useState<ErrosCamposCriar>({});
 
   useEffect(() => {
     if (open) {
@@ -116,16 +182,23 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
       setSenha('');
       setPapelId(papeis[0] ? String(papeis[0].id) : '');
       setErro(null);
+      setErrosCampo({});
     }
   }, [open, papeis]);
 
   const submit = useCallback(async () => {
-    if (!nome.trim() || !email.trim() || !papelId) {
-      setErro('Preencha nome, e-mail e papel.');
+    const erros: ErrosCamposCriar = {};
+    if (!nome.trim()) erros.nome = 'Informe o nome.';
+    if (!email.trim()) erros.email = 'Informe o e-mail.';
+    if (!isStrongPassword(senha)) erros.senha = 'A senha precisa de 6+ caracteres, 1 maiúscula e 1 número.';
+    setErrosCampo(erros);
+    const primeiroInvalido = (['nome', 'email', 'senha'] as const).find((c) => erros[c]);
+    if (primeiroInvalido) {
+      document.getElementById(`novo-usuario-${primeiroInvalido}`)?.focus();
       return;
     }
-    if (!isStrongPassword(senha)) {
-      setErro('A senha precisa de 6+ caracteres, 1 maiúscula e 1 número.');
+    if (!papelId) {
+      setErro('Selecione um papel.');
       return;
     }
     setSalvando(true);
@@ -157,7 +230,19 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <Label htmlFor="novo-usuario-nome">Nome</Label>
-            <Input id="novo-usuario-nome" value={nome} onChange={(e) => setNome(e.target.value)} disabled={salvando} />
+            <Input
+              id="novo-usuario-nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              disabled={salvando}
+              aria-invalid={!!errosCampo.nome}
+              aria-describedby={errosCampo.nome ? 'novo-usuario-nome-erro' : undefined}
+            />
+            {errosCampo.nome && (
+              <p id="novo-usuario-nome-erro" role="alert" className="text-xs text-destructive">
+                {errosCampo.nome}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <Label htmlFor="novo-usuario-email">E-mail</Label>
@@ -167,7 +252,14 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={salvando}
+              aria-invalid={!!errosCampo.email}
+              aria-describedby={errosCampo.email ? 'novo-usuario-email-erro' : undefined}
             />
+            {errosCampo.email && (
+              <p id="novo-usuario-email-erro" role="alert" className="text-xs text-destructive">
+                {errosCampo.email}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <Label htmlFor="novo-usuario-senha">Senha inicial</Label>
@@ -177,24 +269,28 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               disabled={salvando}
+              aria-invalid={!!errosCampo.senha}
+              aria-describedby={errosCampo.senha ? 'novo-usuario-senha-erro' : 'novo-usuario-senha-ajuda'}
             />
-            <p className="text-xs text-muted-foreground">Mínimo 6 caracteres, 1 letra maiúscula e 1 número.</p>
+            {errosCampo.senha ? (
+              <p id="novo-usuario-senha-erro" role="alert" className="text-xs text-destructive">
+                {errosCampo.senha}
+              </p>
+            ) : (
+              <p id="novo-usuario-senha-ajuda" className="text-xs text-muted-foreground">
+                Mínimo 6 caracteres, 1 letra maiúscula e 1 número.
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <Label htmlFor="novo-usuario-papel">Papel</Label>
-            <select
+            <PapelSelect
               id="novo-usuario-papel"
               value={papelId}
-              onChange={(e) => setPapelId(e.target.value)}
+              onChange={setPapelId}
+              papeis={papeis}
               disabled={salvando}
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              {papeis.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nome}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           {erro && (
             <p role="alert" className="text-sm text-destructive">
@@ -230,6 +326,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
   const [novaSenha, setNovaSenha] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroSenha, setErroSenha] = useState<string | null>(null);
   const [novoVinculoPapelId, setNovoVinculoPapelId] = useState<string>('');
   const [vinculos, setVinculos] = useState<UsuarioVinculo[]>([]);
 
@@ -239,6 +336,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
       setAtivo(usuario.ativo);
       setNovaSenha('');
       setErro(null);
+      setErroSenha(null);
       setVinculos(usuario.vinculos);
       setNovoVinculoPapelId(papeis[0] ? String(papeis[0].id) : '');
     }
@@ -247,9 +345,12 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
   const salvarDados = useCallback(async () => {
     if (!usuario) return;
     if (novaSenha && !isStrongPassword(novaSenha)) {
-      setErro('A nova senha precisa de 6+ caracteres, 1 maiúscula e 1 número.');
+      // uiux-hub F3: erro inline junto do campo + foco, não no rodapé.
+      setErroSenha('A nova senha precisa de 6+ caracteres, 1 maiúscula e 1 número.');
+      document.getElementById('editar-usuario-senha')?.focus();
       return;
     }
+    setErroSenha(null);
     setSalvando(true);
     setErro(null);
     try {
@@ -305,13 +406,16 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
   const jaTemVinculoNaEntidade = vinculos.some((v) => v.entidadeId === entidadeAtiva);
 
   return (
-    <Dialog open={usuario !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Editar usuário</DialogTitle>
-          <DialogDescription>{usuario?.email}</DialogDescription>
-        </DialogHeader>
-        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
+    /* uiux-hub F3: Sheet lateral em vez de Dialog — o conteúdo (dados +
+       vínculos + papéis) era grande demais para um modal com scroll interno;
+       mesmo padrão do detalhe de auditoria. */
+    <Sheet open={usuario !== null} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Editar usuário</SheetTitle>
+          <SheetDescription>{usuario?.email}</SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
           <div className="flex flex-col gap-1">
             <Label htmlFor="editar-usuario-nome">Nome</Label>
             <Input id="editar-usuario-nome" value={nome} onChange={(e) => setNome(e.target.value)} disabled={salvando} />
@@ -334,7 +438,14 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
               onChange={(e) => setNovaSenha(e.target.value)}
               placeholder="Deixe em branco para manter a atual"
               disabled={salvando}
+              aria-invalid={!!erroSenha}
+              aria-describedby={erroSenha ? 'editar-usuario-senha-erro' : undefined}
             />
+            {erroSenha && (
+              <p id="editar-usuario-senha-erro" role="alert" className="text-xs text-destructive">
+                {erroSenha}
+              </p>
+            )}
           </div>
 
           <div className="rounded-md border p-3">
@@ -343,20 +454,15 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
               {vinculos.map((v) => (
                 <div key={v.id} className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
                   <span className="min-w-0 flex-1">Entidade #{v.entidadeId}</span>
-                  <select
-                    aria-label={`Papel do vínculo ${v.id}`}
-                    value={v.papelId ?? ''}
-                    onChange={(e) => alterarVinculo(v, { papelId: Number(e.target.value) })}
+                  <PapelSelect
+                    ariaLabel={`Papel do vínculo ${v.id}`}
+                    value={v.papelId !== null ? String(v.papelId) : ''}
+                    onChange={(papel) => alterarVinculo(v, { papelId: Number(papel) })}
+                    papeis={papeis}
                     disabled={salvando}
-                    className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                  >
-                    {papeis.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nome}
-                      </option>
-                    ))}
-                  </select>
-                  <label className="flex items-center gap-1 text-xs">
+                    className="h-11 w-[150px] text-xs sm:h-8"
+                  />
+                  <label className="flex min-h-11 items-center gap-1 text-xs sm:min-h-8">
                     <Checkbox
                       checked={v.ativo}
                       onCheckedChange={(checked) => alterarVinculo(v, { ativo: checked === true })}
@@ -372,20 +478,15 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
             {!jaTemVinculoNaEntidade && (
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
                 <span className="text-xs text-muted-foreground">Vincular à entidade atual (#{entidadeAtiva}):</span>
-                <select
-                  aria-label="Papel do novo vínculo"
+                <PapelSelect
+                  ariaLabel="Papel do novo vínculo"
                   value={novoVinculoPapelId}
-                  onChange={(e) => setNovoVinculoPapelId(e.target.value)}
+                  onChange={setNovoVinculoPapelId}
+                  papeis={papeis}
                   disabled={salvando}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                >
-                  {papeis.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome}
-                    </option>
-                  ))}
-                </select>
-                <Button size="sm" variant="outline" onClick={adicionarVinculo} disabled={salvando}>
+                  className="h-11 w-[150px] text-xs sm:h-8"
+                />
+                <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={adicionarVinculo} disabled={salvando}>
                   <Plus className="size-3.5" aria-hidden="true" />
                   Vincular
                 </Button>
@@ -399,7 +500,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
             </p>
           )}
         </div>
-        <DialogFooter>
+        <SheetFooter className="flex-row justify-end gap-2 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={salvando}>
             Fechar
           </Button>
@@ -407,9 +508,9 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
             {salvando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             {salvando ? 'Salvando...' : 'Salvar dados'}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 

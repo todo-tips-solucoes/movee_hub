@@ -218,6 +218,7 @@ export function VinculoMotoristaDialog({ state: v }: VinculoMotoristaDialogProps
         {v.passo === 'buscar' ? (
           <>
             <DialogHeader>
+              <p className="text-xs font-medium text-muted-foreground">Passo 1 de 2 — buscar conta</p>
               <DialogTitle>Vincular conta de acesso</DialogTitle>
               <DialogDescription>
                 Escolha uma conta sugerida por semelhança de nome ou busque manualmente.
@@ -294,6 +295,7 @@ export function VinculoMotoristaDialog({ state: v }: VinculoMotoristaDialogProps
         ) : (
           <>
             <DialogHeader>
+              <p className="text-xs font-medium text-muted-foreground">Passo 2 de 2 — confirmar</p>
               <DialogTitle>Confirmar vínculo</DialogTitle>
               <DialogDescription>Esta ação substitui um vínculo existente, se houver (FR-013).</DialogDescription>
             </DialogHeader>
