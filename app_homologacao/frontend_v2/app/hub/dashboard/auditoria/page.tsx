@@ -21,7 +21,10 @@
 // spec.md FR-001/FR-004/FR-012, quickstart.md Cenário 8.
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Eye, RotateCw, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Eye, ShieldCheck } from 'lucide-react';
+import { PageHeader } from '@/components/hub/page-header';
+import { EmptyState } from '@/components/hub/empty-state';
+import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -192,12 +195,10 @@ export default function AuditoriaPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
-      <div>
-        <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Auditoria</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Trilha imutável de ações relevantes {podeVerTudo ? 'de toda a plataforma' : 'da sua entidade'}.
-        </p>
-      </div>
+      <PageHeader
+        titulo="Auditoria"
+        subtitulo={`Trilha imutável de ações relevantes ${podeVerTudo ? 'de toda a plataforma' : 'da sua entidade'}.`}
+      />
 
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">
@@ -290,10 +291,7 @@ export default function AuditoriaPage() {
 
       {/* Conteúdo */}
       {h.carregando ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando trilha de auditoria...</p>
-        </div>
+        <ListSkeleton label="Carregando trilha de auditoria..." linhas={8} />
       ) : h.erro ? (
         <div
           role="alert"
@@ -306,14 +304,11 @@ export default function AuditoriaPage() {
           </Button>
         </div>
       ) : h.eventos.length === 0 ? (
-        <div
-          role="status"
-          className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-10 text-center text-muted-foreground"
-        >
-          <ShieldCheck className="size-10 opacity-30" aria-hidden="true" />
-          <p className="font-medium">Nenhum evento encontrado</p>
-          <p className="text-xs">Ajuste os filtros ou o período selecionado.</p>
-        </div>
+        <EmptyState
+          icone={ShieldCheck}
+          titulo="Nenhum evento encontrado"
+          dica="Ajuste os filtros ou o período selecionado."
+        />
       ) : (
         <>
           {/* Mobile card layout */}

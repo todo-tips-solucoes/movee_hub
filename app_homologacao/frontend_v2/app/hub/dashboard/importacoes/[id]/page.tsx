@@ -32,8 +32,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ImportacaoStatusBadge } from '@/components/hub/status-badge';
+import { ListSkeleton } from '@/components/hub/table-skeleton';
 import {
   Table,
   TableBody,
@@ -55,7 +56,6 @@ import {
 import {
   STATUS_CANCELAVEL,
   STATUS_EM_ANDAMENTO,
-  STATUS_LABELS,
   STATUS_REPROCESSAVEL,
   TIPO_LABELS,
   type ImportacaoErroItem,
@@ -63,18 +63,6 @@ import {
 import { formatDateBR } from '@/lib/utils';
 
 const ERROS_PAGE_SIZE = 20;
-
-function badgeVariantDoStatus(
-  status: string,
-): 'success' | 'warning' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'completed') return 'success';
-  // uiux-hub F1: antes era 'outline', idêntico a pending/processing — estados
-  // diferentes ficavam com a mesma aparência.
-  if (status === 'completed_with_errors') return 'warning';
-  if (status === 'failed') return 'destructive';
-  if (status === 'cancelled') return 'secondary';
-  return 'outline';
-}
 
 /** Lógica de erros paginados, isolada do polling do detalhe (fetch
  * independente — não precisa repetir a cada tick de polling). */
@@ -206,10 +194,7 @@ export default function ImportacaoDetalhePage() {
       </Button>
 
       {carregando && !detalhe ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando importação...</p>
-        </div>
+        <ListSkeleton label="Carregando importação..." linhas={4} />
       ) : erro && !detalhe ? (
         <div role="alert" className="flex flex-col items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-10 text-center">
           <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
@@ -226,7 +211,7 @@ export default function ImportacaoDetalhePage() {
               <CardTitle as="h1" className="text-lg">
                 Importação #{detalhe.id} — {TIPO_LABELS[detalhe.tipo]}
               </CardTitle>
-              <Badge variant={badgeVariantDoStatus(detalhe.status)}>{STATUS_LABELS[detalhe.status]}</Badge>
+              <ImportacaoStatusBadge status={detalhe.status} />
             </CardHeader>
             <CardContent className="flex flex-col gap-3 px-4">
               <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">

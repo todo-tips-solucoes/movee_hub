@@ -13,7 +13,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, RotateCw, ShieldAlert } from 'lucide-react';
+import { AlertCircle, ShieldAlert } from 'lucide-react';
+import { PageHeader } from '@/components/hub/page-header';
+import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
@@ -108,13 +110,10 @@ export default function PapeisMatrizPage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
-      <div>
-        <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Papéis e permissões</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Catálogo fixo de papéis (nenhum papel novo pode ser criado). Marque/desmarque a célula para conceder ou
-          remover uma permissão do papel.
-        </p>
-      </div>
+      <PageHeader
+        titulo="Papéis e permissões"
+        subtitulo="Catálogo fixo de papéis (nenhum papel novo pode ser criado). Marque/desmarque a célula para conceder ou remover uma permissão do papel."
+      />
 
       {h.dados && !h.dados.podeEditar && (
         <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong">
@@ -130,10 +129,7 @@ export default function PapeisMatrizPage() {
       )}
 
       {h.carregando ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando matriz de papéis...</p>
-        </div>
+        <ListSkeleton label="Carregando matriz de papéis..." linhas={8} />
       ) : h.erro || !h.dados ? (
         <div
           role="alert"
@@ -141,7 +137,7 @@ export default function PapeisMatrizPage() {
         >
           <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
           <p className="text-sm font-medium text-destructive">{h.erro ?? 'Erro ao carregar.'}</p>
-          <Button size="sm" variant="outline" onClick={h.refetch}>
+          <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={h.refetch}>
             Tentar novamente
           </Button>
         </div>

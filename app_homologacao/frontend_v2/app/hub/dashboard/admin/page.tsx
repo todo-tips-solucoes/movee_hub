@@ -20,7 +20,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, RotateCw, Settings2 } from 'lucide-react';
+import { AlertCircle, Settings2 } from 'lucide-react';
+import { PageHeader } from '@/components/hub/page-header';
+import { EmptyState } from '@/components/hub/empty-state';
+import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -109,13 +112,10 @@ export default function AdminModulosPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
-      <div>
-        <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Administração da plataforma</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Habilite ou desabilite módulos por entidade. O efeito é imediato: o usuário afetado perde/recupera acesso
-          sem precisar logar novamente.
-        </p>
-      </div>
+      <PageHeader
+        titulo="Administração da plataforma"
+        subtitulo="Habilite ou desabilite módulos por entidade. O efeito é imediato: o usuário afetado perde/recupera acesso sem precisar logar novamente."
+      />
 
       <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3">
         <div className="flex flex-col gap-1">
@@ -141,10 +141,7 @@ export default function AdminModulosPage() {
       )}
 
       {h.carregando ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando módulos...</p>
-        </div>
+        <ListSkeleton label="Carregando módulos..." linhas={5} />
       ) : h.erro ? (
         <div
           role="alert"
@@ -157,13 +154,11 @@ export default function AdminModulosPage() {
           </Button>
         </div>
       ) : h.entidadeId === null ? (
-        <div
-          role="status"
-          className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-10 text-center text-muted-foreground"
-        >
-          <Settings2 className="size-10 opacity-30" aria-hidden="true" />
-          <p className="font-medium">Informe um ID de entidade para começar</p>
-        </div>
+        <EmptyState
+          icone={Settings2}
+          titulo="Informe um ID de entidade para começar"
+          dica="Use o campo acima e clique em Consultar."
+        />
       ) : (
         <div className="flex flex-col gap-2">
           {h.modulos.map((m) => (
