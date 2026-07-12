@@ -17,11 +17,13 @@
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { AuthShell } from '@/components/hub/auth-shell';
+import { Wordmark } from '@/components/brand/wordmark';
 import { useHubAuth, HubApiError } from '@/contexts/hub-auth-context';
 
 const SENHA_MIN_LENGTH = 8;
@@ -80,12 +82,17 @@ function RedefinirSenhaConteudo() {
   const token = searchParams.get('token');
   const { novaSenha, setNovaSenha, erroValidacaoLocal, carregando, estado, erro, submeter } =
     useRedefinirSenha(token);
+  const [mostrarSenha, setMostrarSenha] = useState(false);
 
   return (
-    // `<main>` — landmark único da página (achado onda E2E FASE 6.3: axe `landmark-one-main`/`region`).
-    <main className="flex min-h-svh items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    // Moldura compartilhada das telas de auth (uiux-hub F3 — orbs + glass +
+    // Wordmark, paridade com o login).
+    <AuthShell>
+      <Card className="glass w-full border-0 shadow-none">
         <CardHeader className="items-center text-center">
+          <div className="mb-3 flex justify-center">
+            <Wordmark className="h-10" />
+          </div>
           {estado === 'sucesso' ? (
             <CheckCircle2 className="mb-2 size-10 text-primary" aria-hidden="true" />
           ) : null}
@@ -125,17 +132,30 @@ function RedefinirSenhaConteudo() {
               )}
               <div className="grid gap-1.5">
                 <Label htmlFor="nova-senha">Nova senha</Label>
-                <Input
-                  id="nova-senha"
-                  type="password"
-                  placeholder="********"
-                  value={novaSenha}
-                  onChange={(e) => setNovaSenha(e.target.value)}
-                  autoComplete="new-password"
-                  aria-required="true"
-                  aria-invalid={!!erroValidacaoLocal}
-                  className="h-11 sm:h-10"
-                />
+                {/* uiux-hub F3: toggle mostrar/ocultar — paridade com o login,
+                    especialmente útil ao digitar uma senha NOVA. */}
+                <div className="relative">
+                  <Input
+                    id="nova-senha"
+                    type={mostrarSenha ? 'text' : 'password'}
+                    placeholder="********"
+                    value={novaSenha}
+                    onChange={(e) => setNovaSenha(e.target.value)}
+                    autoComplete="new-password"
+                    aria-required="true"
+                    aria-invalid={!!erroValidacaoLocal}
+                    className="h-11 pr-10 sm:h-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarSenha((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    tabIndex={-1}
+                    aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 {erroValidacaoLocal && (
                   <p className="text-xs font-medium text-muted-foreground">{erroValidacaoLocal}</p>
                 )}
@@ -148,7 +168,7 @@ function RedefinirSenhaConteudo() {
           )}
         </CardContent>
       </Card>
-    </main>
+    </AuthShell>
   );
 }
 

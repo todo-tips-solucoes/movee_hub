@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { AuthShell } from '@/components/hub/auth-shell';
+import { Wordmark } from '@/components/brand/wordmark';
 import { useHubAuth, HubApiError } from '@/contexts/hub-auth-context';
 
 type Estado = 'formulario' | 'enviado' | 'rate-limit';
@@ -58,10 +60,14 @@ export default function RecuperarSenhaPage() {
   const { email, setEmail, carregando, estado, mensagem, submeter } = useRecuperarSenha();
 
   return (
-    // `<main>` — landmark único da página (achado onda E2E FASE 6.3: axe `landmark-one-main`/`region`).
-    <main className="flex min-h-svh items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    // Moldura compartilhada das telas de auth (uiux-hub F3 — orbs + glass +
+    // Wordmark, paridade com o login).
+    <AuthShell>
+      <Card className="glass w-full border-0 shadow-none">
         <CardHeader className="items-center text-center">
+          <div className="mb-3 flex justify-center">
+            <Wordmark className="h-10" />
+          </div>
           {estado === 'enviado' ? (
             <MailCheck className="mb-2 size-10 text-primary" aria-hidden="true" />
           ) : (
@@ -112,6 +118,6 @@ export default function RecuperarSenhaPage() {
           </Link>
         </CardContent>
       </Card>
-    </main>
+    </AuthShell>
   );
 }
