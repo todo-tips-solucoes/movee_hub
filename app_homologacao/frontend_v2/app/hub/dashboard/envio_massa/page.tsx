@@ -51,6 +51,7 @@ import { Filters } from '@/components/filters';
 import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
 import { XmlValidationCard } from '@/components/xml-validation-card';
+import { PageHeader } from '@/components/hub/page-header';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -174,8 +175,10 @@ function EnvioMassaClient() {
       transition={{ duration: 0.3 }}
     >
       <div className="shrink-0 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Envio em Massa</h1>
+        <PageHeader
+          titulo="Envio em Massa"
+          subtitulo="Disparo de notificações e validação de notas do movimento aberto."
+        >
           <span
             role="status"
             aria-live="polite"
@@ -191,7 +194,7 @@ function EnvioMassaClient() {
             />
             {processLoading ? 'Atualizando…' : isActive ? 'Processando' : 'Parado'}
           </span>
-        </div>
+        </PageHeader>
 
         <StatsCards stats={stats} />
 

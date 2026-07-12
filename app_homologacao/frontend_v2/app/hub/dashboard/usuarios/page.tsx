@@ -16,8 +16,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, Loader2, Plus, RotateCw, UserCog, Users as UsersIcon } from 'lucide-react';
+import { AlertCircle, Loader2, Plus, UserCog, Users as UsersIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/hub/page-header';
+import { EmptyState } from '@/components/hub/empty-state';
+import { ListSkeleton } from '@/components/hub/table-skeleton';
+import { AtivoBadge } from '@/components/hub/status-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -420,16 +424,12 @@ export default function UsuariosPage() {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Usuários</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Gestão de usuários, vínculos e papéis da sua entidade.</p>
-        </div>
+      <PageHeader titulo="Usuários" subtitulo="Gestão de usuários, vínculos e papéis da sua entidade.">
         <Button size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={() => setCriarAberto(true)}>
           <Plus className="size-4" aria-hidden="true" />
           Novo usuário
         </Button>
-      </div>
+      </PageHeader>
 
       <div className="flex flex-col gap-1">
         <Label htmlFor="usuarios-busca" className="sr-only">
@@ -445,10 +445,7 @@ export default function UsuariosPage() {
       </div>
 
       {h.carregando ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando usuários...</p>
-        </div>
+        <ListSkeleton label="Carregando usuários..." />
       ) : h.erro ? (
         <div
           role="alert"
@@ -461,13 +458,16 @@ export default function UsuariosPage() {
           </Button>
         </div>
       ) : h.usuarios.length === 0 ? (
-        <div
-          role="status"
-          className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-10 text-center text-muted-foreground"
+        <EmptyState
+          icone={UsersIcon}
+          titulo="Nenhum usuário encontrado"
+          dica="Ajuste a busca ou crie um novo usuário."
         >
-          <UsersIcon className="size-10 opacity-30" aria-hidden="true" />
-          <p className="font-medium">Nenhum usuário encontrado</p>
-        </div>
+          <Button size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={() => setCriarAberto(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            Novo usuário
+          </Button>
+        </EmptyState>
       ) : (
         <div className="flex flex-col gap-2">
           {h.usuarios.map((u) => (
@@ -475,11 +475,7 @@ export default function UsuariosPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{u.nome}</span>
-                  {!u.ativo && (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Inativo
-                    </span>
-                  )}
+                  {!u.ativo && <AtivoBadge ativo={false} />}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                 <p className="text-xs text-muted-foreground">

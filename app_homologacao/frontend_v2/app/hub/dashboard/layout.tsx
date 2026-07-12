@@ -18,9 +18,10 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { User } from 'lucide-react';
 import { ModuleNav } from '@/components/hub/module-nav';
 import { EntitySwitcher } from '@/components/hub/entity-switcher';
+import { AccountMenu } from '@/components/hub/account-menu';
+import { Wordmark } from '@/components/brand/wordmark';
 
 export default function HubDashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -31,15 +32,20 @@ export default function HubDashboardLayout({ children }: { children: ReactNode }
         <ModuleNav />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-end gap-2 border-b border-border bg-card/40 px-4 py-2">
-          <EntitySwitcher />
+        {/* uiux-hub F2: sticky (EntitySwitcher/conta sempre à mão em telas
+            longas) + Wordmark à esquerda — a marca antes só existia no login. */}
+        <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card/80 px-4 py-2 backdrop-blur">
           <Link
-            href="/hub/dashboard/perfil"
-            className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            href="/hub/dashboard"
+            aria-label="Ir para o painel de módulos"
+            className="flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
-            <User className="size-4 shrink-0" aria-hidden="true" />
-            Meu perfil
+            <Wordmark className="h-6" />
           </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <EntitySwitcher />
+            <AccountMenu />
+          </div>
         </header>
         <main className="flex-1">{children}</main>
       </div>

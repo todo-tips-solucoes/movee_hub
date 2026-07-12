@@ -129,10 +129,15 @@ export interface ImportWizardProps {
   /** Gate de permissão (`importacoes.criar`) — resolvido pela página-mãe;
    * o componente não sabe de RBAC, só não renderiza nada sem permissão. */
   podeCriar?: boolean;
+  /** Estado externo (mesmo idioma de `VinculoMotoristaDialog`): a página
+   * cria o hook e pode abrir o wizard de outros pontos (ex.: ação do empty
+   * state — uiux-hub F2). Sem `state`, o componente se auto-gerencia. */
+  state?: ReturnType<typeof useImportWizard>;
 }
 
-export function ImportWizard({ onEnviado, podeCriar = true }: ImportWizardProps) {
-  const w = useImportWizard(onEnviado);
+export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizardProps) {
+  const interno = useImportWizard(onEnviado);
+  const w = state ?? interno;
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [arrastando, setArrastando] = useState(false);

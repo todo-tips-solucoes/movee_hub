@@ -14,12 +14,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, ChevronRight, RotateCw, Truck } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { AlertCircle, ChevronRight, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useHubAuth } from '@/contexts/hub-auth-context';
+import { PageHeader } from '@/components/hub/page-header';
+import { EmptyState } from '@/components/hub/empty-state';
+import { ListSkeleton } from '@/components/hub/table-skeleton';
+import { AtivoBadge, VinculoBadge } from '@/components/hub/status-badge';
 import { listarMotoristas, MotoristaApiError } from '@/lib/hub/motoristas-api';
 import type { MotoristaListItem } from '@/lib/hub/motoristas-dto';
 
@@ -97,16 +100,6 @@ export function useMotoristasLista() {
   };
 }
 
-function VinculoBadge({ comVinculo }: { comVinculo: boolean }) {
-  return (
-    <Badge variant={comVinculo ? 'default' : 'secondary'}>{comVinculo ? 'Vinculado' : 'Sem vínculo'}</Badge>
-  );
-}
-
-function AtivoBadge({ ativo }: { ativo: boolean }) {
-  return <Badge variant={ativo ? 'default' : 'outline'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
-}
-
 export default function MotoristasPage() {
   const { permissoes } = useHubAuth();
   const podeConsultar = permissoes.includes('motoristas.consultar');
@@ -114,12 +107,10 @@ export default function MotoristasPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
-      <div>
-        <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Motoristas</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pessoas entregadoras conhecidas pelas importações de faturamento e performance.
-        </p>
-      </div>
+      <PageHeader
+        titulo="Motoristas"
+        subtitulo="Pessoas entregadoras conhecidas pelas importações de faturamento e performance."
+      />
 
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">
@@ -194,10 +185,7 @@ export default function MotoristasPage() {
 
       {/* Conteúdo */}
       {h.carregando ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando motoristas...</p>
-        </div>
+        <ListSkeleton label="Carregando motoristas..." />
       ) : h.erro ? (
         <div
           role="alert"
@@ -210,14 +198,11 @@ export default function MotoristasPage() {
           </Button>
         </div>
       ) : h.items.length === 0 ? (
-        <div
-          role="status"
-          className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-10 text-center text-muted-foreground"
-        >
-          <Truck className="size-10 opacity-30" aria-hidden="true" />
-          <p className="font-medium">Nenhum motorista encontrado</p>
-          <p className="text-xs">Ajuste os filtros ou aguarde uma nova importação.</p>
-        </div>
+        <EmptyState
+          icone={Truck}
+          titulo="Nenhum motorista encontrado"
+          dica="Ajuste os filtros ou aguarde uma nova importação."
+        />
       ) : (
         <>
           {/* Mobile card layout */}
@@ -235,7 +220,7 @@ export default function MotoristasPage() {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <AtivoBadge ativo={item.ativo} />
-                  <VinculoBadge comVinculo={item.comVinculo} />
+                  <VinculoBadge vinculado={item.comVinculo} />
                 </div>
                 {item.areas.length > 0 && (
                   <p className="mt-2 truncate text-xs text-muted-foreground">{item.areas.join(', ')}</p>
@@ -264,7 +249,7 @@ export default function MotoristasPage() {
                       <AtivoBadge ativo={item.ativo} />
                     </TableCell>
                     <TableCell>
-                      <VinculoBadge comVinculo={item.comVinculo} />
+                      <VinculoBadge vinculado={item.comVinculo} />
                     </TableCell>
                     <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">
                       {item.areas.join(', ') || '-'}

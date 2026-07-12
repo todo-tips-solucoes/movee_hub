@@ -39,6 +39,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { AtivoBadge } from '@/components/hub/status-badge';
+import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -203,10 +205,7 @@ export default function MotoristaDetalhePage() {
       </Button>
 
       {carregando && !detalhe ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando motorista...</p>
-        </div>
+        <ListSkeleton label="Carregando motorista..." linhas={4} />
       ) : erro && !detalhe ? (
         <div
           role="alert"
@@ -242,7 +241,7 @@ export default function MotoristaDetalhePage() {
                 </CardTitle>
               )}
               <div className="flex items-center gap-2">
-                <Badge variant={detalhe.ativo ? 'default' : 'outline'}>{detalhe.ativo ? 'Ativo' : 'Inativo'}</Badge>
+                <AtivoBadge ativo={detalhe.ativo} />
                 {detalhe.nomeEditadoManualmente && <Badge variant="secondary">Nome editado manualmente</Badge>}
               </div>
             </CardHeader>

@@ -15,13 +15,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { PageHeader } from '@/components/hub/page-header';
+import { EmptyState } from '@/components/hub/empty-state';
+import { KpiSkeleton, ListSkeleton } from '@/components/hub/table-skeleton';
 import {
   AlertCircle,
   CheckCircle2,
   Clock,
   Download,
   Percent,
-  RotateCw,
   TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -256,13 +258,7 @@ export default function PerformancePage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Performance</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Registros de turno importados: ofertas, aceites, conclusões e tempo disponível por entregador.
-          </p>
-        </div>
+      <PageHeader titulo="Performance" subtitulo="Registros de turno importados: ofertas, aceites, conclusões e tempo disponível por entregador.">
         {podeExportar && (
           <Button
             size="sm"
@@ -275,7 +271,7 @@ export default function PerformancePage() {
             {exportando ? 'Exportando...' : 'Exportar CSV'}
           </Button>
         )}
-      </div>
+      </PageHeader>
 
       {erroExport && (
         <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
@@ -283,7 +279,11 @@ export default function PerformancePage() {
         </div>
       )}
 
-      <CardsResumo cards={h.cards} />
+      {h.carregando ? (
+        <KpiSkeleton label="Carregando indicadores de performance..." cards={4} />
+      ) : (
+        <CardsResumo cards={h.cards} />
+      )}
 
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">
@@ -368,10 +368,7 @@ export default function PerformancePage() {
 
       {/* Conteúdo */}
       {h.carregando ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando performance...</p>
-        </div>
+        <ListSkeleton label="Carregando performance..." />
       ) : h.erro ? (
         <div
           role="alert"
@@ -384,14 +381,11 @@ export default function PerformancePage() {
           </Button>
         </div>
       ) : h.items.length === 0 ? (
-        <div
-          role="status"
-          className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-10 text-center text-muted-foreground"
-        >
-          <TrendingUp className="size-10 opacity-30" aria-hidden="true" />
-          <p className="font-medium">Nenhum registro de turno no período selecionado</p>
-          <p className="text-xs">Ajuste os filtros ou selecione outro período.</p>
-        </div>
+        <EmptyState
+          icone={TrendingUp}
+          titulo="Nenhum registro de turno no período selecionado"
+          dica="Ajuste os filtros ou selecione outro período."
+        />
       ) : (
         <>
           {/* Mobile card layout */}

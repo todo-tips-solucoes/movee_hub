@@ -19,10 +19,9 @@ import {
   ChevronRight,
   Clock,
   FileText,
-  RotateCw,
+  UploadCloud,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -34,7 +33,11 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useHubAuth } from '@/contexts/hub-auth-context';
-import { ImportWizard } from '@/components/hub/import-wizard';
+import { ImportWizard, useImportWizard } from '@/components/hub/import-wizard';
+import { PageHeader } from '@/components/hub/page-header';
+import { EmptyState } from '@/components/hub/empty-state';
+import { ListSkeleton } from '@/components/hub/table-skeleton';
+import { ImportacaoStatusBadge } from '@/components/hub/status-badge';
 import { listarImportacoes, ImportacaoApiError } from '@/lib/hub/importacoes-api';
 import {
   STATUS_LABELS,
@@ -67,18 +70,6 @@ export interface ImportacoesFiltros {
 }
 
 const FILTROS_INICIAIS: ImportacoesFiltros = { tipo: '', status: '', responsavel: '', de: '', ate: '' };
-
-function badgeVariantDoStatus(
-  status: StatusImportacao,
-): 'success' | 'warning' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'completed') return 'success';
-  // uiux-hub F1: antes era 'outline', idêntico a pending/processing — estados
-  // diferentes ficavam com a mesma aparência.
-  if (status === 'completed_with_errors') return 'warning';
-  if (status === 'failed') return 'destructive';
-  if (status === 'cancelled') return 'secondary';
-  return 'outline'; // pending/validating/processing — em andamento
-}
 
 /** Lógica isolada do JSX (mesmo padrão de `usePerfil`/`useEntitySwitcher`). */
 export function useImportacoesHistorico() {
@@ -163,7 +154,7 @@ function LinhaAguardandoLock() {
 function StatusBadge({ item }: { item: ImportacaoListItem }) {
   return (
     <span className="inline-flex items-center">
-      <Badge variant={badgeVariantDoStatus(item.status)}>{STATUS_LABELS[item.status]}</Badge>
+      <ImportacaoStatusBadge status={item.status} />
       {/* 6.5 — dec-032/CHK013: sinal adicional distinguindo "pending recém-criado"
           de "pending aguardando lock", sem introduzir novo estado na máquina. */}
       {item.aguardandoLock && <LinhaAguardandoLock />}
@@ -175,18 +166,15 @@ export default function ImportacoesPage() {
   const { permissoes } = useHubAuth();
   const podeCriar = permissoes.includes('importacoes.criar');
   const h = useImportacoesHistorico();
+  // Hook do wizard criado na página (uiux-hub F2) para o empty state também
+  // poder abrir o diálogo — mesmo idioma de useVinculoMotoristaDialog.
+  const wizard = useImportWizard(() => h.refetch());
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Importações</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Histórico de importações de faturamento e performance.
-          </p>
-        </div>
-        <ImportWizard podeCriar={podeCriar} onEnviado={() => h.refetch()} />
-      </div>
+      <PageHeader titulo="Importações" subtitulo="Histórico de importações de faturamento e performance.">
+        <ImportWizard podeCriar={podeCriar} state={wizard} />
+      </PageHeader>
 
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">
@@ -280,10 +268,7 @@ export default function ImportacoesPage() {
 
       {/* Conteúdo */}
       {h.carregando ? (
-        <div role="status" className="flex flex-col items-center gap-2 rounded-lg border p-10 text-muted-foreground">
-          <RotateCw className="size-6 animate-spin" aria-hidden="true" />
-          <p className="text-sm">Carregando importações...</p>
-        </div>
+        <ListSkeleton label="Carregando importações..." />
       ) : h.erro ? (
         <div
           role="alert"
@@ -296,14 +281,18 @@ export default function ImportacoesPage() {
           </Button>
         </div>
       ) : h.items.length === 0 ? (
-        <div
-          role="status"
-          className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-10 text-center text-muted-foreground"
+        <EmptyState
+          icone={FileText}
+          titulo="Nenhuma importação encontrada"
+          dica="Ajuste os filtros ou importe um novo arquivo."
         >
-          <FileText className="size-10 opacity-30" aria-hidden="true" />
-          <p className="font-medium">Nenhuma importação encontrada</p>
-          <p className="text-xs">Ajuste os filtros ou importe um novo arquivo.</p>
-        </div>
+          {podeCriar && (
+            <Button size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={() => wizard.setOpen(true)}>
+              <UploadCloud className="size-4" aria-hidden="true" />
+              Nova importação
+            </Button>
+          )}
+        </EmptyState>
       ) : (
         <>
           {/* Mobile card layout */}
