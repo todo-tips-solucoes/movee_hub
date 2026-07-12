@@ -118,7 +118,7 @@ export function EntitySwitcher({ className }: EntitySwitcherProps) {
           className="w-full sm:w-[240px]"
         >
           {trocando ? (
-            <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
+            <Loader2 className="size-4 shrink-0 motion-safe:animate-spin text-muted-foreground" aria-hidden="true" />
           ) : (
             <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           )}

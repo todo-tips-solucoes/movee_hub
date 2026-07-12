@@ -8,6 +8,7 @@
 // Ref: docs/specs/hub-motoristas/contracts/motoristas-api.md.
 
 import {
+  parseAreasResponse,
   parseContasElegiveisResponse,
   parseMotoristaDetalhe,
   parseMotoristaListResponse,
@@ -119,6 +120,12 @@ export async function listarMotoristas(filtros: ListarMotoristasQuery = {}): Pro
 export async function obterMotorista(id: number): Promise<MotoristaDetalhe> {
   const raw = await request<unknown>(`/motoristas/${id}`);
   return parseMotoristaDetalhe(raw);
+}
+
+/** Subpraças distintas visíveis à entidade ativa — opções do filtro "Área". */
+export async function listarAreasMotoristas(): Promise<string[]> {
+  const raw = await request<unknown>('/motoristas/areas');
+  return parseAreasResponse(raw);
 }
 
 export interface EditarMotoristaBody {

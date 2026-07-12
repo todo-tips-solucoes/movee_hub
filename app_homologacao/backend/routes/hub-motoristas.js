@@ -234,6 +234,37 @@ router.get('/', requirePermission('motoristas.listar'), async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// GET /motoristas/areas — subpraças distintas visíveis à entidade ativa
+// (uiux-hub pós-F4: alimenta o combobox do filtro "Área" da lista, no lugar
+// do campo de texto livre). Lê a view `hub_areas_por_entregador` (0024) com
+// os claims do usuário — a RLS das tabelas base já limita à empresa do
+// escopo (validado em hub-motoristas-integration.sh). DECLARADA ANTES de
+// `GET /:id` (mesma restrição de ordem descrita em /contas-elegiveis).
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/areas', requirePermission('motoristas.listar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.listar');
+    if (!ctx) return;
+    const { claims } = ctx;
+
+    const linhas = await hubPostgrestRequest(
+      'hub_areas_por_entregador?select=subpraca',
+      'GET', null, claims
+    );
+    const distintas = [...new Set((linhas || [])
+      .map((row) => row && row.subpraca)
+      .filter((s) => typeof s === 'string' && s.trim() !== ''))];
+    distintas.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    return res.status(200).json({ areas: distintas });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em GET /motoristas/areas:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // GET /motoristas/contas-elegiveis — busca manual de conta de acesso (task 5.2)
 //
 // DECLARADA ANTES de `GET /:id` deliberadamente: Express casa rotas na ordem

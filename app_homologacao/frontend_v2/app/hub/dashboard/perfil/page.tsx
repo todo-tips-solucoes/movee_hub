@@ -118,7 +118,7 @@ export default function PerfilPage() {
                   onClick={acionarTrocaSenha}
                 >
                   {enviandoTrocaSenha ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
                   ) : (
                     <KeyRound className="size-4" aria-hidden="true" />
                   )}
@@ -131,7 +131,7 @@ export default function PerfilPage() {
           <Separator />
 
           <Button variant="outline" className="w-fit min-h-11" disabled={saindo} onClick={sair}>
-            {saindo ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <LogOut className="size-4" aria-hidden="true" />}
+            {saindo ? <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" /> : <LogOut className="size-4" aria-hidden="true" />}
             Sair
           </Button>
         </CardContent>

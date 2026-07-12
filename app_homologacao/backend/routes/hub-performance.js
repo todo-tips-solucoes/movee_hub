@@ -280,6 +280,37 @@ router.get('/', requirePermission('performance.listar'), async (req, res) => {
   }
 });
 
+// ────────────────────────────────────────────────────────────────────────────
+// GET /performance/areas — subpraças distintas visíveis à entidade ativa
+// (uiux-hub pós-F4: alimenta o combobox do filtro "Subpraça", no lugar do
+// campo de texto livre). Mesma fonte do endpoint homônimo de motoristas: a
+// view `hub_areas_por_entregador` (0024, união de FaturamentoLancamento +
+// PerformanceTurno), consultada com os claims do usuário — a RLS das tabelas
+// base já limita à empresa do escopo.
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/areas', requirePermission('performance.listar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'performance.listar');
+    if (!ctx) return;
+    const { claims } = ctx;
+
+    const linhas = await hubPostgrestRequest(
+      'hub_areas_por_entregador?select=subpraca',
+      'GET', null, claims
+    );
+    const distintas = [...new Set((linhas || [])
+      .map((row) => row && row.subpraca)
+      .filter((s) => typeof s === 'string' && s.trim() !== ''))];
+    distintas.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    return res.status(200).json({ areas: distintas });
+  } catch (e) {
+    console.error('[hub-performance] erro em GET /performance/areas:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
 /**
  * Monta o corpo do `POST /rpc/hub_performance_totais|hub_performance_agrupado`
  * — TODOS os parâmetros SEMPRE presentes (as funções SQL não têm `DEFAULT`,
