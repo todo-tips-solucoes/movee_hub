@@ -175,7 +175,7 @@ function EnvioMassaClient() {
     >
       <div className="shrink-0 space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">Envio em Massa</h1>
+          <h1 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">Envio em Massa</h1>
           <span
             role="status"
             aria-live="polite"

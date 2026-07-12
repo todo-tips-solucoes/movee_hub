@@ -52,6 +52,7 @@
   --success-foreground: #ffffff;
   --warning: #ffb72a;
   --warning-foreground: #0f1849;
+  --warning-strong: #92400e;      /* warning em grau de TEXTO sobre fundo claro (o #ffb72a não atinge AA como texto) */
   --destructive: #d32f2f;         /* vermelho FUNCIONAL (guia não define erro); U004: 4.98:1 sobre branco (AA) p/ texto e botão */
   --destructive-foreground: #ffffff;
 
@@ -106,6 +107,7 @@
   --success-foreground: #06231a;
   --warning: #ffc555;
   --warning-foreground: #2a1c00;
+  --warning-strong: #ffc555;      /* no escuro o próprio amarelo já é legível como texto */
   --destructive: #ff6b6b;
   --destructive-foreground: #2a0606;
 
@@ -152,6 +154,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-strong: var(--warning-strong);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);

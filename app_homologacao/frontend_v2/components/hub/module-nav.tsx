@@ -47,7 +47,7 @@ function ItemContent({ modulo, active }: { modulo: HubModulo; active: boolean })
   // estático (lib/hub/module-nav.ts) — o mesmo `icone` sempre resolve para o
   // MESMO componente lucide-react (não "cria" nada a cada render, mesmo
   // padrão de `const Icon = item.icon` já usado em components/header.tsx).
-  const Icon = resolveModuleIcon(modulo.icone);
+  const Icon = resolveModuleIcon(modulo.icone, modulo.codigo);
   return (
     <>
       {/* eslint-disable-next-line react-hooks/static-components -- ver comentário acima; o lint não distingue lookup determinística de criação de componente quando o valor vem de uma chamada de função em vez de acesso direto a campo. */}

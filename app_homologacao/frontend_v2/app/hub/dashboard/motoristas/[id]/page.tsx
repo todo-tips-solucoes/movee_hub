@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   AlertCircle,
   ArrowLeft,
@@ -126,6 +127,7 @@ export default function MotoristaDetalhePage() {
       if (Object.keys(body).length > 0) {
         await editarMotorista(id, body);
         await refetch();
+        toast.success('Alterações salvas.');
       }
       setEditando(false);
     } catch (e) {
@@ -154,6 +156,7 @@ export default function MotoristaDetalhePage() {
     entidadeElegivel: sugestoes.entidadeElegivel,
     onVinculado: () => {
       refetch();
+      toast.success('Conta de acesso vinculada.');
     },
   });
 
@@ -169,6 +172,7 @@ export default function MotoristaDetalhePage() {
       await desvincularMotorista(id);
       await refetch();
       setConfirmandoDesvinculo(false);
+      toast.success('Conta de acesso desvinculada.');
     } catch (e) {
       setErroDesvinculo(e instanceof MotoristaApiError ? e.message : 'Falha ao desvincular a conta.');
     } finally {
@@ -210,6 +214,10 @@ export default function MotoristaDetalhePage() {
         >
           <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
           <p className="text-sm font-medium text-destructive">{erro}</p>
+          <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => refetch()}>
+            <RotateCw className="size-4" aria-hidden="true" />
+            Tentar novamente
+          </Button>
         </div>
       ) : detalhe ? (
         <>

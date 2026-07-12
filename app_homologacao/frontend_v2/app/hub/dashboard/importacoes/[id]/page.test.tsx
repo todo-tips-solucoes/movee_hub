@@ -124,15 +124,22 @@ describe('ImportacaoDetalhePage', () => {
     await waitFor(() => expect(screen.getByText('Pendente')).toBeInTheDocument());
   });
 
-  it('aciona cancelar: chama a API e re-busca o detalhe', async () => {
+  it('aciona cancelar: exige confirmação no AlertDialog antes de chamar a API (uiux-hub F1)', async () => {
     mockObterImportacao
       .mockResolvedValueOnce({ ...DETALHE_BASE, status: 'pending' })
       .mockResolvedValueOnce({ ...DETALHE_BASE, status: 'cancelled' });
     mockCancelar.mockResolvedValueOnce({ id: 10, status: 'cancelled' });
     render(<ImportacaoDetalhePage />);
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /Cancelar/ })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Cancelar/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Cancelar$/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^Cancelar$/ }));
+
+    // Só abrir o diálogo NÃO cancela — a ação destrutiva exige confirmação.
+    expect(mockCancelar).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Cancelar importação/ })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Cancelar importação/ }));
 
     await waitFor(() => expect(mockCancelar).toHaveBeenCalledWith(10));
     await waitFor(() => expect(screen.getByText('Cancelada')).toBeInTheDocument());

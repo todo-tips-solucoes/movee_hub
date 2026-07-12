@@ -180,7 +180,7 @@ function CandidatoItem({
         </div>
         <span className="font-mono text-xs text-muted-foreground">{conta.cnpjPrestadorMascarado}</span>
         {conta.jaVinculadoA && (
-          <span className="flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+          <span className="flex items-center gap-1 text-xs font-medium text-warning-strong">
             <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
             Já vinculada a {conta.jaVinculadoA.nome}
           </span>
@@ -310,7 +310,7 @@ export function VinculoMotoristaDialog({ state: v }: VinculoMotoristaDialogProps
                   </div>
                 </div>
                 {v.selecionado.conta.jaVinculadoA && (
-                  <p className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-warning-strong">
                     <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
                     Atenção: já vinculada a {v.selecionado.conta.jaVinculadoA.nome}. Vincular aqui será recusado
                     pelo sistema se essa outra pessoa continuar vinculada a ela.

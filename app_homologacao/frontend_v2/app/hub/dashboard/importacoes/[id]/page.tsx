@@ -20,6 +20,17 @@ import {
   RotateCw,
   XCircle,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,9 +64,13 @@ import { formatDateBR } from '@/lib/utils';
 
 const ERROS_PAGE_SIZE = 20;
 
-function badgeVariantDoStatus(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'completed') return 'default';
-  if (status === 'completed_with_errors') return 'outline';
+function badgeVariantDoStatus(
+  status: string,
+): 'success' | 'warning' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'completed') return 'success';
+  // uiux-hub F1: antes era 'outline', idêntico a pending/processing — estados
+  // diferentes ficavam com a mesma aparência.
+  if (status === 'completed_with_errors') return 'warning';
   if (status === 'failed') return 'destructive';
   if (status === 'cancelled') return 'secondary';
   return 'outline';
@@ -108,6 +123,7 @@ export default function ImportacaoDetalhePage() {
 
   const [acaoEmAndamento, setAcaoEmAndamento] = useState<'reprocessar' | 'cancelar' | 'original' | null>(null);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
+  const [confirmandoCancelar, setConfirmandoCancelar] = useState(false);
 
   const acionarReprocessar = useCallback(async () => {
     setErroAcao(null);
@@ -123,6 +139,7 @@ export default function ImportacaoDetalhePage() {
       if (novoDetalhe && STATUS_EM_ANDAMENTO.has(novoDetalhe.status)) {
         iniciarPolling();
       }
+      toast.success('Reprocessamento iniciado.');
     } catch (e) {
       setErroAcao(e instanceof ImportacaoApiError ? e.message : 'Falha ao reprocessar a importação.');
     } finally {
@@ -136,7 +153,10 @@ export default function ImportacaoDetalhePage() {
     try {
       await cancelarImportacao(id);
       await refetch();
+      setConfirmandoCancelar(false);
+      toast.success('Importação cancelada.');
     } catch (e) {
+      setConfirmandoCancelar(false);
       setErroAcao(e instanceof ImportacaoApiError ? e.message : 'Falha ao cancelar a importação.');
     } finally {
       setAcaoEmAndamento(null);
@@ -148,6 +168,7 @@ export default function ImportacaoDetalhePage() {
     setAcaoEmAndamento('original');
     try {
       await baixarOriginal(id);
+      toast.success('Download do arquivo original iniciado.');
     } catch (e) {
       setErroAcao(e instanceof ImportacaoApiError ? e.message : 'Falha ao baixar o arquivo original.');
     } finally {
@@ -193,6 +214,10 @@ export default function ImportacaoDetalhePage() {
         <div role="alert" className="flex flex-col items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-10 text-center">
           <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
           <p className="text-sm font-medium text-destructive">{erro}</p>
+          <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => refetch()}>
+            <RotateCw className="size-4" aria-hidden="true" />
+            Tentar novamente
+          </Button>
         </div>
       ) : detalhe ? (
         <>
@@ -250,7 +275,7 @@ export default function ImportacaoDetalhePage() {
                   continuam na tela, mas parou de se atualizar sozinho) — antes
                   só existia um erro de tela cheia, e SÓ quando `!detalhe`. */}
               {atualizacaoPausada && STATUS_EM_ANDAMENTO.has(detalhe.status) && (
-                <p role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                <p role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm font-medium text-warning-strong">
                   <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
                   Atualização automática pausada — não foi possível consultar o status mais recente.
                   <Button
@@ -279,12 +304,8 @@ export default function ImportacaoDetalhePage() {
                   </Button>
                 )}
                 {podeCriar && STATUS_CANCELAVEL.has(detalhe.status) && (
-                  <Button size="sm" variant="destructive" className="min-h-11 sm:min-h-8" disabled={acaoEmAndamento !== null} onClick={acionarCancelar}>
-                    {acaoEmAndamento === 'cancelar' ? (
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <XCircle className="size-4" aria-hidden="true" />
-                    )}
+                  <Button size="sm" variant="destructive" className="min-h-11 sm:min-h-8" disabled={acaoEmAndamento !== null} onClick={() => setConfirmandoCancelar(true)}>
+                    <XCircle className="size-4" aria-hidden="true" />
                     Cancelar
                   </Button>
                 )}
@@ -381,6 +402,32 @@ export default function ImportacaoDetalhePage() {
               )}
             </CardContent>
           </Card>
+
+          <AlertDialog open={confirmandoCancelar} onOpenChange={setConfirmandoCancelar}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancelar importação</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja cancelar a importação #{detalhe.id}? O processamento é
+                  interrompido e as linhas ainda não processadas são descartadas. Esta ação não pode
+                  ser desfeita — será preciso importar o arquivo novamente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={acaoEmAndamento === 'cancelar'}>Voltar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={acionarCancelar}
+                  disabled={acaoEmAndamento === 'cancelar'}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {acaoEmAndamento === 'cancelar' && (
+                    <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                  )}
+                  Cancelar importação
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       ) : null}
     </div>

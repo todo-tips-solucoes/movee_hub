@@ -12,6 +12,7 @@
 // spec.md FR-010/FR-016, quickstart.md Cenário 6.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { AlertCircle, RotateCw, ShieldAlert } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -76,6 +77,7 @@ function usePapeisMatriz() {
       });
       try {
         await alternarPapelPermissao(papelId, permissaoId, proximo);
+        toast.success(proximo ? 'Permissão concedida.' : 'Permissão removida.');
       } catch (e) {
         // Reverte a mudança otimista e explica o motivo — sem quebrar a tela
         // (contracts/papeis-api.md, guard anti-lockout `409 OPERACAO_BLOQUEADA`).
@@ -115,7 +117,7 @@ export default function PapeisMatrizPage() {
       </div>
 
       {h.dados && !h.dados.podeEditar && (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong">
           <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
           <p>Modo somente leitura — apenas o administrador da plataforma pode alterar a matriz.</p>
         </div>

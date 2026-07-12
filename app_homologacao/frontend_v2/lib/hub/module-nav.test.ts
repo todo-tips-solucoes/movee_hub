@@ -6,7 +6,7 @@ import {
   moduloParaRota,
   resolveModuleIcon,
 } from './module-nav';
-import { Truck, Upload } from 'lucide-react';
+import { FileUp, Truck, Upload } from 'lucide-react';
 
 describe('moduloParaRota', () => {
   it('deriva /hub/dashboard/<codigo> por convenção pura, sem lista fixa (dec-039/dec-041: prefixo /hub/ evita colisão com app/dashboard/motoristas legado)', () => {
@@ -32,18 +32,29 @@ describe('resolveModuleIcon', () => {
     expect(resolveModuleIcon('MOTORISTAS')).toBe(Truck);
   });
 
-  it('fail-safe: null (caso real hoje — seed não povoa icone) cai no ícone padrão', () => {
+  it('fail-safe: null sem codigo cai no ícone padrão', () => {
     expect(resolveModuleIcon(null)).toBe(DEFAULT_MODULE_ICON);
     expect(resolveModuleIcon(undefined)).toBe(DEFAULT_MODULE_ICON);
   });
 
-  it('fail-safe: string não reconhecida cai no ícone padrão, não lança', () => {
-    expect(resolveModuleIcon('valor-inexistente-no-mapa')).toBe(DEFAULT_MODULE_ICON);
-    expect(resolveModuleIcon('')).toBe(DEFAULT_MODULE_ICON);
+  it('cascata (uiux-hub F1): icone null (caso real hoje — seed não povoa icone) resolve pelo codigo do módulo', () => {
+    expect(resolveModuleIcon(null, 'motoristas')).toBe(Truck);
+    expect(resolveModuleIcon(undefined, 'importacoes')).toBe(FileUp);
+    expect(resolveModuleIcon('', 'MOTORISTAS')).toBe(Truck);
   });
 
-  it('módulo importacoes (S4, tasks.md 6.1.4): ícone Upload já mapeado, nenhuma mudança necessária neste arquivo', () => {
-    expect(resolveModuleIcon('importacoes')).toBe(Upload);
+  it('icone explícito conhecido tem precedência sobre o codigo', () => {
+    expect(resolveModuleIcon('truck', 'importacoes')).toBe(Truck);
+  });
+
+  it('fail-safe: nem icone nem codigo reconhecidos cai no ícone padrão, não lança', () => {
+    expect(resolveModuleIcon('valor-inexistente-no-mapa')).toBe(DEFAULT_MODULE_ICON);
+    expect(resolveModuleIcon('')).toBe(DEFAULT_MODULE_ICON);
+    expect(resolveModuleIcon(null, 'modulo-novo-2027')).toBe(DEFAULT_MODULE_ICON);
+  });
+
+  it('módulo importacoes: codigo resolve para FileUp (mais específico); icone literal upload segue em Upload', () => {
+    expect(resolveModuleIcon('importacoes')).toBe(FileUp);
     expect(resolveModuleIcon('upload')).toBe(Upload);
   });
 });
