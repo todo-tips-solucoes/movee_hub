@@ -41,6 +41,7 @@ import {
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import {
   baixarFaturamentoCsv,
+  buscarEntregadoresFaturamento,
   FaturamentoApiError,
   listarAreasFaturamento,
   listarFaturamento,
@@ -48,6 +49,7 @@ import {
   obterFaturamentoResumoAgrupado,
   type FaturamentoFiltros,
 } from '@/lib/hub/faturamento-api';
+import { EntregadorCombobox } from '@/components/hub/entregador-combobox';
 import type {
   FaturamentoGroupBy,
   FaturamentoListItem,
@@ -71,6 +73,10 @@ export interface FaturamentoFiltrosUI {
   ate: string;
   categoria: string;
   entregadorId: string;
+  /** Nome exibido no `EntregadorCombobox` — WS-B (tasks.md 2.4). Só usado
+   * pela UI (não vai para a API); sincronizado com `entregadorId` pela
+   * própria seleção do combobox. */
+  entregadorNome: string;
   subpraca: string;
   comEntregador: '' | 'true' | 'false';
 }
@@ -80,6 +86,7 @@ const FILTROS_INICIAIS: FaturamentoFiltrosUI = {
   ate: '',
   categoria: '',
   entregadorId: '',
+  entregadorNome: '',
   subpraca: '',
   comEntregador: '',
 };
@@ -143,6 +150,7 @@ export function useFaturamentoLista() {
       // usuário topar com o erro 400.
       if ('comEntregador' in partial && partial.comEntregador === 'false') {
         proximo.entregadorId = '';
+        proximo.entregadorNome = '';
       }
       if ('entregadorId' in partial && partial.entregadorId && proximo.comEntregador === 'false') {
         proximo.comEntregador = '';
@@ -334,6 +342,11 @@ export default function FaturamentoPage() {
   const h = useFaturamentoLista();
   const [exportando, setExportando] = useState(false);
   const [erroExport, setErroExport] = useState<string | null>(null);
+  // WS-B (tasks.md 2.3.5, FR-010, D-B1): degradação sticky — uma vez que a
+  // busca de entregador falhar (rede/5xx), a tela volta a mostrar o input
+  // numérico pelo resto da sessão (não tenta o combobox de novo sozinha;
+  // reabrir/recarregar a página tenta de novo).
+  const [entregadorBuscaIndisponivel, setEntregadorBuscaIndisponivel] = useState(false);
   // uiux-hub pós-F4: filtro "Subpraça" como combobox — opções de GET
   // /faturamento/areas; falha na carga degrada para só "Todas".
   const [areasOpcoes, setAreasOpcoes] = useState<string[]>([]);
@@ -453,17 +466,36 @@ export default function FaturamentoPage() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="faturamento-filtro-entregador" className="text-xs text-muted-foreground">
-              ID do entregador
+              Entregador
             </label>
-            <Input
-              id="faturamento-filtro-entregador"
-              type="number"
-              min={1}
-              value={h.filtros.entregadorId}
-              onChange={(e) => h.setFiltros({ entregadorId: e.target.value })}
-              placeholder="Ex.: 42"
-              className="h-11 sm:h-9"
-            />
+            {entregadorBuscaIndisponivel ? (
+              // WS-B degradação (FR-010, D-B1): busca indisponível -> volta
+              // ao input numérico original, sem quebrar a tela.
+              <Input
+                id="faturamento-filtro-entregador"
+                type="number"
+                min={1}
+                value={h.filtros.entregadorId}
+                onChange={(e) => h.setFiltros({ entregadorId: e.target.value, entregadorNome: '' })}
+                placeholder="ID do entregador (ex.: 42)"
+                className="h-11 sm:h-9"
+              />
+            ) : (
+              <EntregadorCombobox
+                id="faturamento-filtro-entregador"
+                value={h.filtros.entregadorId ? Number(h.filtros.entregadorId) : null}
+                nomeSelecionado={h.filtros.entregadorNome || null}
+                disabled={h.filtros.comEntregador === 'false'}
+                buscar={buscarEntregadoresFaturamento}
+                onIndisponivel={() => setEntregadorBuscaIndisponivel(true)}
+                onSelecionar={(id, nome) =>
+                  h.setFiltros({
+                    entregadorId: id !== null ? String(id) : '',
+                    entregadorNome: nome ?? '',
+                  })
+                }
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-1">

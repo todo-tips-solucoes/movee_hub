@@ -18,6 +18,7 @@ import {
   type FaturamentoResumoAgrupado,
   type FaturamentoResumoCards,
 } from './faturamento-dto';
+import { parseEntregadorBuscaResponse, type EntregadorBuscaItem } from './entregador-busca-dto';
 
 const HUB_API_BASE = '/api/v1';
 
@@ -98,6 +99,15 @@ export async function listarFaturamento(filtros: ListarFaturamentoQuery = {}): P
 export async function listarAreasFaturamento(): Promise<string[]> {
   const raw = await request<unknown>('/faturamento/areas');
   return parseAreasResponse(raw);
+}
+
+/** `GET /faturamento/entregadores?busca=...` — busca de entregador por nome
+ * (hub-motorista-canonico FASE 2/WS-B, contracts/api-motorista-canonico.md
+ * §WS-B), consumido por `EntregadorCombobox`. `busca` já deve ter >= 3
+ * caracteres (o combobox nem dispara a chamada antes disso — FR-006). */
+export async function buscarEntregadoresFaturamento(busca: string): Promise<EntregadorBuscaItem[]> {
+  const raw = await request<unknown>(`/faturamento/entregadores${query({ busca })}`);
+  return parseEntregadorBuscaResponse(raw);
 }
 
 /** `GET /faturamento/resumo` sem `groupBy` — cards (FR-003). */

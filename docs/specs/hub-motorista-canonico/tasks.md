@@ -126,80 +126,129 @@ mandato S1; contracts/api-motorista-canonico.md §WS-B; quickstart.md Scenario 3
 
 Ref: FR-006, FR-007, FR-010, contracts §WS-B, research.md Decision 3, mandato S1
 
-- [ ] 2.1.1 Implementar a rota em `routes/hub-faturamento.js`: validar `busca`
+- [x] 2.1.1 Implementar a rota em `routes/hub-faturamento.js`: validar `busca`
   com `termoBuscaValido` (`lib/hub-motoristas-similaridade.js:90`, mínimo 3
   caracteres após trim), escopo `id_empresa` via `resolverContextoEntidade`,
-  gate `faturamento.listar`
-- [ ] 2.1.2 Parametrizar a busca — RPC no banco (estilo `hub_motoristas_busca`,
-  migration 0023, recebendo `p_termo` como parâmetro) OU filtro PostgREST com
-  `encodeURIComponent(termo)` via `hubPostgrestRequest`; **NUNCA** concatenar o
-  termo cru em querystring/SQL (mandato S1)
-- [ ] 2.1.3 Filtrar por `ILIKE` sobre `hub_normaliza_nome(nome)`, limitar a
-  **20** itens `{ id, nome }`; respostas de erro `422/400 busca_invalida`,
-  `401 nao_autenticado`, `403 sem_permissao`
-- [ ] 2.1.4 Teste `node --test`: busca válida retorna itens escopados à empresa
-  do usuário; busca com <3 caracteres é rejeitada; entregadores de outra
-  empresa nunca aparecem no resultado
-- [ ] 2.1.5 **[Gap CHK003 security.md]** Teste explícito de injeção: termo de
-  busca contendo `%`, `_`, aspas simples/duplas e uma tentativa de SQL
-  (`'; DROP TABLE--`) não quebra a query, não retorna erro 5xx e não vaza dados
-  fora do escopo — critério de aceite obrigatório do gate de fechamento desta
-  fase (task 2.5), não apenas o teste de happy-path
+  gate `faturamento.listar` — `termoBuscaValido` ganhou 2º parâmetro opcional
+  `minChars` (default preserva o corte de 2 usado por `contas-elegiveis`);
+  nova constante `TERMO_BUSCA_ENTREGADOR_MIN_CHARS=3` exportada
+- [x] 2.1.2 Parametrizar a busca — **RPC** `hub_entregadores_busca(p_id_empresa,
+  p_termo, p_limit)` (migration `infra/hub/migrations/0042_hub_entregadores_busca_rpc.sql`,
+  estilo `hub_motoristas_busca`/0023, SECURITY INVOKER + RLS de `Entregador`);
+  termo trafega SEMPRE como parâmetro de bind nativo do PostgREST — nunca
+  concatenado em querystring/SQL (mandato S1). Nota de numeração: 0042 foi
+  tomado por esta migration (não reservado só para WS-C como o plan.md
+  antecipava) — WS-C toma 0043+ quando a FASE 3 rodar (numeração sequencial,
+  não reserva fixa)
+- [x] 2.1.3 Filtrar por `ILIKE` sobre `hub_normaliza_nome(nome)` (dentro do
+  RPC), limitar a **20** itens `{ id, nome }` (`LIMITE_BUSCA_ENTREGADOR`);
+  respostas de erro `422 busca_invalida`, `401 NAO_AUTENTICADO`,
+  `403 PERMISSAO_NEGADA`
+- [x] 2.1.4 Teste `node --test` (integração real, `hub-faturamento-integration.sh`,
+  cenários aa/bb/cc/dd/ee): busca válida retorna itens escopados à empresa do
+  usuário (`joa` → 1 item "Joao Faturamento"); busca com 2 caracteres →
+  422 `busca_invalida`; entregadores de outra empresa (E_OUTRA) nunca aparecem
+  no resultado (0 itens) — **rodado de fato** contra hub-test efêmero (Docker
+  disponível neste ambiente): `node --test tests/hub-faturamento.test.js` →
+  `HUB-FATURAMENTO-INTEGRATION: OK`, 0 fails
+- [x] 2.1.5 **[Gap CHK003 security.md]** Teste explícito de injeção (cenário
+  ff): termos `%%%`, `___`, `o'Neil"`, `'; DROP TABLE "Entregador"--`, `joa%`,
+  `jo_` — todos retornam `200` (nunca 5xx), e a busca `joa` continua
+  funcionando/escopada depois (tabela íntegra, seed intacto) — **verificado
+  de fato** na mesma corrida de integração acima, não apenas o happy-path
 
 ### 2.2 Endpoint `GET /api/v1/performance/entregadores` `[A]`
 
 Ref: FR-006 (espelho), contracts §WS-B
 
-- [ ] 2.2.1 Implementar a rota espelho em `routes/hub-performance.js` (mesma
+- [x] 2.2.1 Implementar a rota espelho em `routes/hub-performance.js` (mesma
   validação/parametrização/limite de 2.1, gate `performance.listar`)
-- [ ] 2.2.2 Teste `node --test` espelhando 2.1.4 e 2.1.5 (incluindo o caso de
-  injeção) para o endpoint de performance
+- [x] 2.2.2 Teste `node --test` espelhando 2.1.4 e 2.1.5 (incluindo o caso de
+  injeção) para o endpoint de performance — **rodado de fato**:
+  `node --test tests/hub-performance.test.js` → `HUB-PERFORMANCE-INTEGRATION: OK`,
+  0 fails
 
 ### 2.3 Componente `EntregadorCombobox` `[A]`
 
 Ref: FR-006, FR-008, FR-009, FR-010, research.md Decision 3, quickstart.md
 Scenario 3-4
 
-- [ ] 2.3.1 Criar `components/hub/entregador-combobox.tsx` (Popover + Command,
-  idioma do `EntidadeCombobox` do admin), debounce **300 ms**
-- [ ] 2.3.2 Implementar os estados: digitando <3 caracteres (não dispara busca,
+- [x] 2.3.1 Criar `components/hub/entregador-combobox.tsx` (Popover + Command,
+  idioma do `EntidadeCombobox` do admin — `app/hub/dashboard/admin/page.tsx`),
+  debounce **300 ms**
+- [x] 2.3.2 Implementar os estados: digitando <3 caracteres (não dispara busca,
   indica que faltam caracteres), carregando, vazio (sem resultado, sem erro),
   erro
-- [ ] 2.3.3 Selecionar item: exibe o **nome** no filtro (não o id), envia
-  `entregadorId` ao componente pai
-- [ ] 2.3.4 Ação "limpar": remove o filtro aplicado, volta a mostrar todos os
-  entregadores da empresa (FR-008)
-- [ ] 2.3.5 Degradação: em erro/indisponibilidade (5xx), cair para o input
-  numérico atual sem quebrar a tela (FR-010, D-B1 — menor superfície, não
-  texto-livre)
-- [ ] 2.3.6 Preservar a regra existente: filtro por entregador específico e
-  "sem entregador vinculado" continuam mutuamente exclusivos (FR-009,
-  Acceptance Scenario 6 de US3)
-- [ ] 2.3.7 Teste `vitest`: os 4 estados (<3 chars, carregando, vazio, erro com
-  degradação), seleção, "limpar", e exclusão mútua com "sem vinculado"
+- [x] 2.3.3 Selecionar item: exibe o **nome** no filtro (não o id), envia
+  `entregadorId` (+ nome) ao componente pai via `onSelecionar(id, nome)`
+- [x] 2.3.4 Ação "limpar" (botão X no trigger): remove o filtro aplicado —
+  `onSelecionar(null, null)`
+- [x] 2.3.5 Degradação: em erro/indisponibilidade (5xx/rede), o combobox chama
+  `onIndisponivel()`; o CALLER (páginas de faturamento/performance) troca para
+  o input numérico original sem quebrar a tela (FR-010, D-B1 — menor
+  superfície, não texto-livre), degradação **sticky** pela sessão
+- [x] 2.3.6 Preservar a regra existente: prop `disabled` (setada pelo caller
+  quando `comEntregador==='false'`) desabilita o trigger e some com o botão
+  "limpar" — filtro por entregador específico e "sem entregador vinculado"
+  continuam mutuamente exclusivos (FR-009, Acceptance Scenario 6 de US3)
+- [x] 2.3.7 Teste `vitest`: os 4 estados (<3 chars, carregando, vazio, erro com
+  `onIndisponivel`), seleção, "limpar", exclusão mútua via `disabled` — 9/9
+  testes verdes (`entregador-combobox.test.tsx`)
 
 ### 2.4 Integrar o combobox nas telas de Faturamento e Performance `[A]`
 
 Ref: FR-006, quickstart.md Scenario 3
 
-- [ ] 2.4.1 Substituir o input numérico de `entregador_id` em
-  `app/hub/dashboard/faturamento/page.tsx` pelo `EntregadorCombobox`
-- [ ] 2.4.2 Espelhar a substituição em `app/hub/dashboard/performance/page.tsx`
-- [ ] 2.4.3 Critério de aceite: buscar → selecionar → tabela/indicadores
+- [x] 2.4.1 Substituir o input numérico de `entregador_id` em
+  `app/hub/dashboard/faturamento/page.tsx` pelo `EntregadorCombobox` (novo
+  campo `entregadorNome` em `FaturamentoFiltrosUI`, sincronizado na seleção;
+  regra `comEntregador==='false'` limpa `entregadorNome` também)
+- [x] 2.4.2 Espelhar a substituição em `app/hub/dashboard/performance/page.tsx`
+  (novo campo `entregadorNome` em `PerformanceFiltrosUI`)
+- [x] 2.4.3 Critério de aceite: buscar → selecionar → tabela/indicadores
   refletem somente o entregador escolhido; o filtro exibe o nome (não o id
-  numérico) — quickstart Scenario 3, passos 3-6 e 11-12
+  numérico) — verificado por leitura de código/tipos (`h.filtrosApi()` já
+  convertia `entregadorId` para número, inalterado); validação **visual**
+  fica para o smoke de 2.5.3 (deferido)
 
 ### 2.5 Gate de fechamento da Fase B `[A]`
 
 Ref: plan.md §Fases de execução (Fase B — gate de fechamento)
 
-- [ ] 2.5.1 Rodar `tsc --noEmit` + `eslint` (frontend_v2 + backend, escopo WS-B)
-- [ ] 2.5.2 Rodar `node --test` (rotas `hub-faturamento`/`hub-performance`,
-  **incluindo** o caso de injeção de 2.1.5/2.2.2) + `vitest run` (combobox)
+- [x] 2.5.1 Rodar `tsc --noEmit` + `eslint` (frontend_v2 + backend, escopo WS-B)
+  — `npx tsc --noEmit` limpo; `npx eslint` nos arquivos tocados (combobox +
+  teste, entregador-busca-dto.ts, faturamento-api.ts/performance-api.ts,
+  faturamento/page.tsx, performance/page.tsx) 0 erros/0 warnings; `npx eslint .`
+  do projeto inteiro continua em 5 erros pré-existentes (mesma contagem de
+  antes desta onda — nenhum novo); backend: `node --check` limpo nos 3
+  arquivos tocados (`hub-motoristas-similaridade.js`,
+  `routes/hub-faturamento.js`, `routes/hub-performance.js`)
+- [x] 2.5.2 Rodar `node --test` (rotas `hub-faturamento`/`hub-performance`,
+  **incluindo** o caso de injeção de 2.1.5/2.2.2) + `vitest run` (combobox) —
+  ambos `node --test tests/hub-{faturamento,performance}.test.js` OK (Docker
+  disponível neste ambiente, hub-test efêmero real); `vitest run` combobox
+  9/9 verde; suíte `vitest` completa do frontend_v2: **28 arquivos / 213
+  testes verdes** (nenhuma regressão); suíte `npm test` do backend: 582/590
+  verdes — as 8 falhas são em `motorista-integration.test.js`
+  (`/motorista/register`, `/motorista/movimento-aberto`,
+  `/motorista/validar-nota`, gorjeta) **pré-existentes e não relacionadas**
+  (dados residuais entre execuções da suíte legada; nenhum arquivo tocado por
+  esta onda participa desses testes — confirmado via `git status`)
 - [ ] 2.5.3 Smoke manual no hub-homolog: buscar → selecionar → filtra em ambas
   as telas; simular indisponibilidade do endpoint → confirmar degradação
-  (quickstart Scenario 3-4)
-- [ ] 2.5.4 Registrar Decisão de fechamento da Fase B com evidência (score ≥ 2)
+  (quickstart Scenario 3-4) — **DEFERIDO por instrução explícita desta onda**
+  (mesmo rito de 1.4.3): exige aplicar a migration 0042 no `hub_homolog_db` +
+  rebuild do `hub_homolog_frontend` (Next.js) sob rito anti-starvation. A
+  suíte `hub-{faturamento,performance}-integration.sh` já validou o
+  comportamento do RPC/rota contra um hub-test efêmero real (2.1.4/2.1.5/
+  2.2.2) — o que falta é só a verificação visual/E2E no stack persistente.
+  Pendente para o gate de E2E consolidado (FASE 7) ou onda dedicada de smoke
+  — NÃO marcar como concluído sem o rebuild real + verificação HTTP
+  autenticada
+- [x] 2.5.4 Registrar Decisão de fechamento da Fase B com evidência (score ≥ 2)
+  — fechamento PARCIAL nesta onda (score 2: tsc/eslint/node --test/vitest
+  todos verdes com evidência real de execução, exceto o smoke visual 2.5.3);
+  fechamento PLENO (score 3) fica condicionado a 2.5.3, mesmo padrão de 1.4.4
 
 ---
 

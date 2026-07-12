@@ -33,6 +33,24 @@ const { mascararCnpj } = require('./hub-motoristas-dto');
 const TERMO_BUSCA_MIN_CHARS = 2;
 
 /**
+ * hub-motorista-canonico FASE 2 / WS-B (tasks.md 2.1.1, contracts/
+ * api-motorista-canonico.md §WS-B, research.md Decision 3): corte mínimo do
+ * termo de busca de ENTREGADOR por nome em `GET /faturamento/entregadores` e
+ * `GET /performance/entregadores` — 3 caracteres, DIFERENTE do corte de 2
+ * caracteres da busca manual de CONTA em `GET /motoristas/contas-elegiveis`
+ * (`TERMO_BUSCA_MIN_CHARS` acima). Os dois cortes NÃO podem compartilhar a
+ * mesma constante — por isso `termoBuscaValido` abaixo aceita `minChars`
+ * como segundo parâmetro opcional (default = `TERMO_BUSCA_MIN_CHARS`,
+ * preserva 100% o comportamento/assinatura já coberto pelos testes
+ * existentes de `hub-motoristas.js`).
+ */
+const TERMO_BUSCA_ENTREGADOR_MIN_CHARS = 3;
+
+/** Limite de itens de `GET /faturamento|performance/entregadores` (FR-007,
+ * contracts §WS-B — "até 20 itens"). */
+const LIMITE_BUSCA_ENTREGADOR = 20;
+
+/**
  * Mapeia o par `ja_vinculado_a`/`ja_vinculado_a_nome` (colunas RPC) para o
  * shape `jaVinculadoA` do contrato — `null` quando a conta não está
  * vinculada a NENHUMA outra pessoa entregadora hoje.
@@ -84,12 +102,55 @@ function mapContaElegivel(row) {
  * `TERMO_BUSCA_MIN_CHARS` caracteres exigido por `GET /motoristas/contas-elegiveis`
  * (contracts/motoristas-api.md — "q ... mínimo 2 caracteres"). `null`/
  * `undefined`/string vazia/só espaços -> `false`.
+ *
+ * `minChars` (opcional, default `TERMO_BUSCA_MIN_CHARS`=2) permite reusar a
+ * MESMA função para o corte de 3 caracteres de `GET /faturamento|
+ * performance/entregadores` (`TERMO_BUSCA_ENTREGADOR_MIN_CHARS`) sem
+ * duplicar a lógica de trim/tipo — tasks.md 2.1.1 referencia esta função
+ * nominalmente ("validar busca com termoBuscaValido... mínimo 3
+ * caracteres").
  * @param {string|null|undefined} termo
+ * @param {number} [minChars]
  * @returns {boolean}
  */
-function termoBuscaValido(termo) {
+function termoBuscaValido(termo, minChars = TERMO_BUSCA_MIN_CHARS) {
   if (typeof termo !== 'string') return false;
-  return termo.trim().length >= TERMO_BUSCA_MIN_CHARS;
+  return termo.trim().length >= minChars;
+}
+
+/**
+ * Mapeia 1 linha de `hub_entregadores_busca` (snake_case, migration 0042)
+ * para o shape de item de `GET /faturamento|performance/entregadores`
+ * (contracts/api-motorista-canonico.md §WS-B) — `{ id, nome }`, sem
+ * transformação adicional (o RPC já entrega os campos prontos).
+ * @param {{id:number, nome:string}} row
+ * @returns {{id:number, nome:string}}
+ */
+function mapEntregadorBusca(row) {
+  return { id: row.id, nome: row.nome };
+}
+
+/**
+ * Chama `POST /rpc/hub_entregadores_busca {p_id_empresa, p_termo, p_limit}`
+ * (migration 0042, research.md Decision 3) e mapeia a resposta. Termo
+ * SEMPRE trafega como parâmetro de bind nativo do PostgREST — NUNCA
+ * concatenado em querystring/SQL (mandato S1). `p_id_empresa` reforça o
+ * escopo já garantido pela RLS de "Entregador" dentro da função
+ * (SECURITY INVOKER, 0015) — defesa em profundidade, mesmo padrão de
+ * `hub_faturamento_totais` (0027).
+ * @param {number} idEmpresa - entidade ativa resolvida do token (nunca da query)
+ * @param {string} termo - já validado via `termoBuscaValido(termo, TERMO_BUSCA_ENTREGADOR_MIN_CHARS)` pelo caller
+ * @param {object} claims - repassado a hubPostgrestRequest (escopo do token)
+ * @returns {Promise<Array<{id:number, nome:string}>>}
+ */
+async function buscarEntregadoresPorNome(idEmpresa, termo, claims) {
+  const linhas = await hubPostgrestRequest(
+    'rpc/hub_entregadores_busca',
+    'POST',
+    { p_id_empresa: idEmpresa, p_termo: termo, p_limit: LIMITE_BUSCA_ENTREGADOR },
+    claims
+  );
+  return (linhas || []).map(mapEntregadorBusca);
 }
 
 /**
@@ -140,9 +201,13 @@ async function buscarContasElegiveis(entregadorId, termo, limit, offset, claims)
 
 module.exports = {
   TERMO_BUSCA_MIN_CHARS,
+  TERMO_BUSCA_ENTREGADOR_MIN_CHARS,
+  LIMITE_BUSCA_ENTREGADOR,
   termoBuscaValido,
   mapCandidato,
   mapContaElegivel,
+  mapEntregadorBusca,
   buscarCandidatos,
   buscarContasElegiveis,
+  buscarEntregadoresPorNome,
 };

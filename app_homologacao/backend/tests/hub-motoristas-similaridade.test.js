@@ -22,9 +22,12 @@ const assert = require('node:assert/strict');
 
 const {
   TERMO_BUSCA_MIN_CHARS,
+  TERMO_BUSCA_ENTREGADOR_MIN_CHARS,
+  LIMITE_BUSCA_ENTREGADOR,
   termoBuscaValido,
   mapCandidato,
   mapContaElegivel,
+  mapEntregadorBusca,
 } = require('../lib/hub-motoristas-similaridade');
 
 describe('termoBuscaValido (corte mínimo do termo de busca manual)', () => {
@@ -68,6 +71,58 @@ describe('termoBuscaValido (corte mínimo do termo de busca manual)', () => {
 
   test('acima do corte -> true', () => {
     assert.equal(termoBuscaValido('carlos pereira'), true);
+  });
+});
+
+describe('termoBuscaValido(termo, TERMO_BUSCA_ENTREGADOR_MIN_CHARS) — corte de 3 caracteres (hub-motorista-canonico FASE 2/WS-B, contracts §WS-B)', () => {
+  test('TERMO_BUSCA_ENTREGADOR_MIN_CHARS = 3 (contracts/api-motorista-canonico.md §WS-B)', () => {
+    assert.equal(TERMO_BUSCA_ENTREGADOR_MIN_CHARS, 3);
+  });
+
+  test('LIMITE_BUSCA_ENTREGADOR = 20 (contracts §WS-B — "até 20 itens")', () => {
+    assert.equal(LIMITE_BUSCA_ENTREGADOR, 20);
+  });
+
+  test('default (sem 2º arg) continua o corte de 2 caracteres — nenhum caller existente quebra', () => {
+    assert.equal(termoBuscaValido('jo'), true);
+    assert.equal(termoBuscaValido('j'), false);
+  });
+
+  test('2 caracteres com o corte de entregador (3) -> false (abaixo do corte)', () => {
+    assert.equal(termoBuscaValido('jo', TERMO_BUSCA_ENTREGADOR_MIN_CHARS), false);
+  });
+
+  test('exatamente 3 caracteres (no corte de entregador) -> true', () => {
+    assert.equal(termoBuscaValido('joa', TERMO_BUSCA_ENTREGADOR_MIN_CHARS), true);
+  });
+
+  test('3 caracteres úteis + espaços ao redor -> true (trim ainda conta só o conteúdo)', () => {
+    assert.equal(termoBuscaValido('  joa  ', TERMO_BUSCA_ENTREGADOR_MIN_CHARS), true);
+  });
+
+  test('null/undefined/não-string -> false mesmo com minChars explícito', () => {
+    assert.equal(termoBuscaValido(null, TERMO_BUSCA_ENTREGADOR_MIN_CHARS), false);
+    assert.equal(termoBuscaValido(undefined, TERMO_BUSCA_ENTREGADOR_MIN_CHARS), false);
+    assert.equal(termoBuscaValido(42, TERMO_BUSCA_ENTREGADOR_MIN_CHARS), false);
+  });
+
+  test('termo contendo caracteres de wildcard LIKE (%, _) ainda respeita só o corte de tamanho — a defesa contra injeção vive no RPC parametrizado, não aqui', () => {
+    assert.equal(termoBuscaValido('%_a', TERMO_BUSCA_ENTREGADOR_MIN_CHARS), true);
+  });
+});
+
+describe('mapEntregadorBusca (GET /faturamento|performance/entregadores)', () => {
+  test('mapeia {id, nome} sem transformação adicional', () => {
+    const row = { id: 42, nome: 'Carlos Pereira' };
+    assert.deepEqual(mapEntregadorBusca(row), { id: 42, nome: 'Carlos Pereira' });
+  });
+
+  test('não vaza campos extras da linha do RPC (ex.: colunas auxiliares futuras)', () => {
+    const row = { id: 7, nome: 'Ana', id_empresa: 9001, algum_campo_extra: 'x' };
+    const mapeado = mapEntregadorBusca(row);
+    assert.deepEqual(mapeado, { id: 7, nome: 'Ana' });
+    assert.equal('id_empresa' in mapeado, false);
+    assert.equal('algum_campo_extra' in mapeado, false);
   });
 });
 

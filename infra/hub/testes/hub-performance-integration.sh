@@ -477,6 +477,56 @@ async function main() {
   try { csvSemExportarErro = JSON.parse(rCsvSemExportar.text).erro; } catch { /* ignore */ }
   out.csvSemExportar_erro = csvSemExportarErro;
 
+  // ── GET /performance/entregadores (hub-motorista-canonico FASE 2/WS-B,
+  // tasks.md 2.2) — espelho de /faturamento/entregadores. Reusa o seed de
+  // Entregadores já criado acima (Joao Performance/Maria Performance/
+  // @Perigoso Nome/'Ja Neutro Nome em E_TESTE, Entregador De Outro Tenant
+  // em E_OUTRA) — nenhum seed adicional necessário.
+
+  // (aa) termo < 3 caracteres -> 422 busca_invalida (FR-006, espelho 2.1.4)
+  const rEntregadoresCurto = await getJson(jarLeitura, '/performance/entregadores?busca=jo');
+  out.entregadoresCurto_status = rEntregadoresCurto.status;
+  out.entregadoresCurto_erro = rEntregadoresCurto.body && rEntregadoresCurto.body.erro;
+
+  // (bb) busca válida escopada — "joa" casa "Joao Performance"
+  const rEntregadoresJoa = await getJson(jarLeitura, '/performance/entregadores?busca=joa');
+  out.entregadoresJoa_status = rEntregadoresJoa.status;
+  out.entregadoresJoa_len = rEntregadoresJoa.body && rEntregadoresJoa.body.items ? rEntregadoresJoa.body.items.length : null;
+  out.entregadoresJoa_nome = rEntregadoresJoa.body && rEntregadoresJoa.body.items && rEntregadoresJoa.body.items[0] && rEntregadoresJoa.body.items[0].nome;
+
+  // (cc) sem autenticação -> 401
+  const rEntregadoresSemAuth = await getJson(null, '/performance/entregadores?busca=joa');
+  out.entregadoresSemAuth_status = rEntregadoresSemAuth.status;
+
+  // (dd) sem performance.listar -> 403 (mesmo papel sintético do teste (h))
+  const rEntregadoresSemPermissao = await getJson(jarSemPerm, '/performance/entregadores?busca=joa');
+  out.entregadoresSemPermissao_status = rEntregadoresSemPermissao.status;
+
+  // (ee) isolamento multi-tenant: E_OUTRA busca "joa" -> NUNCA vê o Joao de
+  // E_TESTE (FR-007)
+  const rEntregadoresOutra = await getJson(jarOutra, '/performance/entregadores?busca=joa');
+  out.entregadoresOutra_status = rEntregadoresOutra.status;
+  out.entregadoresOutra_len = rEntregadoresOutra.body && rEntregadoresOutra.body.items ? rEntregadoresOutra.body.items.length : null;
+
+  // (ff) [Gap CHK003 security.md — tasks.md 2.2.2, espelho de 2.1.5] termo de
+  // busca hostil: wildcards LIKE (%, _), aspas simples/duplas e tentativa
+  // de SQL — NUNCA 5xx, NUNCA vaza dados fora do escopo.
+  const termosHostis = ['%%%', '___', 'o\'Neil"', '\'; DROP TABLE "Entregador"--', 'joa%', 'jo_'];
+  const statusHostis = [];
+  for (const termo of termosHostis) {
+    // eslint-disable-next-line no-await-in-loop -- sequencial de propósito,
+    // mesmo padrão do resto do script.
+    const r = await getJson(jarLeitura, `/performance/entregadores?busca=${encodeURIComponent(termo)}`);
+    statusHostis.push(r.status);
+  }
+  out.entregadoresHostis_statusUnicos = [...new Set(statusHostis)].sort().join(',');
+
+  // controle: depois dos termos hostis, a tabela "Entregador" ainda existe
+  // e o seed inteiro continua íntegro.
+  const rEntregadoresPosHostil = await getJson(jarLeitura, '/performance/entregadores?busca=joa');
+  out.entregadoresPosHostil_status = rEntregadoresPosHostil.status;
+  out.entregadoresPosHostil_len = rEntregadoresPosHostil.body && rEntregadoresPosHostil.body.items ? rEntregadoresPosHostil.body.items.length : null;
+
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
 main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
@@ -575,6 +625,20 @@ check "export CSV vazio -> só a linha de cabeçalho" "$(jget csvVazio_qtd_linha
 
 check "export CSV sem performance.exportar (só .listar) -> 403 (Cenário 10 passos 3-4, bypass da UI)" "$(jget csvSemExportar_status)" "403"
 check "export CSV sem performance.exportar -> erro=PERMISSAO_NEGADA" "$(jget csvSemExportar_erro)" "PERMISSAO_NEGADA"
+
+# ── GET /performance/entregadores (hub-motorista-canonico FASE 2/WS-B, tasks.md 2.2) ──
+check "busca com 2 caracteres -> 422 busca_invalida (FR-006)" "$(jget entregadoresCurto_status)" "422"
+check "busca curta -> erro=busca_invalida" "$(jget entregadoresCurto_erro)" "busca_invalida"
+check "busca 'joa' -> 200" "$(jget entregadoresJoa_status)" "200"
+check "busca 'joa' -> 1 item (Joao Performance)" "$(jget entregadoresJoa_len)" "1"
+check "busca 'joa' -> nome='Joao Performance'" "$(jget entregadoresJoa_nome)" "Joao Performance"
+check "GET /performance/entregadores sem cookie -> 401" "$(jget entregadoresSemAuth_status)" "401"
+check "GET /performance/entregadores sem performance.listar -> 403" "$(jget entregadoresSemPermissao_status)" "403"
+check "isolamento multi-tenant: E_OUTRA busca 'joa' -> 200 (nunca erro, FR-007)" "$(jget entregadoresOutra_status)" "200"
+check "isolamento multi-tenant: E_OUTRA busca 'joa' -> 0 itens (Joao é de E_TESTE, nunca vaza)" "$(jget entregadoresOutra_len)" "0"
+check "[Gap CHK003] termos hostis (%%%, ___, aspas, DROP TABLE) -> nunca 5xx, sempre 200" "$(jget entregadoresHostis_statusUnicos)" "200"
+check "pós-termos-hostis: tabela Entregador íntegra (sem DROP), busca 'joa' continua 200" "$(jget entregadoresPosHostil_status)" "200"
+check "pós-termos-hostis: seed intacto, ainda 1 item p/ 'joa'" "$(jget entregadoresPosHostil_len)" "1"
 
 # ── Validação no banco: auditoria 'performance.csv_exportado' registrada
 # (4.1.5) só para os exports BEM-SUCEDIDOS (r/s/t/u = 4), NUNCA para o 403 (v)
@@ -676,7 +740,7 @@ esac
 
 echo
 if [ "$fails" = "0" ]; then
-  echo "HUB-PERFORMANCE-INTEGRATION: OK — todos os asserts passaram (FASE 2/3/4: 2.2.5/3.1.6/4.1.7/4.2.2)"
+  echo "HUB-PERFORMANCE-INTEGRATION: OK — todos os asserts passaram (FASE 2/3/4: 2.2.5/3.1.6/4.1.7/4.2.2; hub-motorista-canonico FASE 2/WS-B: 2.2)"
 else
   echo "HUB-PERFORMANCE-INTEGRATION: $fails assert(s) FALHARAM" >&2
   exit 1

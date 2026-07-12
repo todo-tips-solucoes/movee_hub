@@ -420,6 +420,61 @@ async function main() {
   try { csvSemExportarErro = JSON.parse(rCsvSemExportar.text).erro; } catch { /* ignore */ }
   out.csvSemExportar_erro = csvSemExportarErro;
 
+  // ── GET /faturamento/entregadores (hub-motorista-canonico FASE 2/WS-B,
+  // tasks.md 2.1) — busca de entregador por nome, alimenta o
+  // EntregadorCombobox. Reusa o seed de Entregadores já criado acima (Joao
+  // Faturamento/Maria Faturamento/@Perigoso Nome em E_TESTE, Entregador De
+  // Outro Tenant em E_OUTRA) — nenhum seed adicional necessário.
+
+  // (aa) termo < 3 caracteres -> 422 busca_invalida (FR-006, front nem chama)
+  const rEntregadoresCurto = await getJson(jarLeitura, '/faturamento/entregadores?busca=jo');
+  out.entregadoresCurto_status = rEntregadoresCurto.status;
+  out.entregadoresCurto_erro = rEntregadoresCurto.body && rEntregadoresCurto.body.erro;
+
+  // (bb) busca válida escopada — "joa" casa "Joao Faturamento"
+  // (case/acento-insensitive via hub_normaliza_nome)
+  const rEntregadoresJoa = await getJson(jarLeitura, '/faturamento/entregadores?busca=joa');
+  out.entregadoresJoa_status = rEntregadoresJoa.status;
+  out.entregadoresJoa_len = rEntregadoresJoa.body && rEntregadoresJoa.body.items ? rEntregadoresJoa.body.items.length : null;
+  out.entregadoresJoa_nome = rEntregadoresJoa.body && rEntregadoresJoa.body.items && rEntregadoresJoa.body.items[0] && rEntregadoresJoa.body.items[0].nome;
+
+  // (cc) sem autenticação -> 401
+  const rEntregadoresSemAuth = await getJson(null, '/faturamento/entregadores?busca=joa');
+  out.entregadoresSemAuth_status = rEntregadoresSemAuth.status;
+
+  // (dd) sem faturamento.listar -> 403 (mesmo papel sintético do teste (h))
+  const rEntregadoresSemPermissao = await getJson(jarSemPerm, '/faturamento/entregadores?busca=joa');
+  out.entregadoresSemPermissao_status = rEntregadoresSemPermissao.status;
+
+  // (ee) isolamento multi-tenant: E_OUTRA busca "joa" -> NUNCA vê o Joao de
+  // E_TESTE (FR-007) — RLS + p_id_empresa dentro do RPC 0042
+  const rEntregadoresOutra = await getJson(jarOutra, '/faturamento/entregadores?busca=joa');
+  out.entregadoresOutra_status = rEntregadoresOutra.status;
+  out.entregadoresOutra_len = rEntregadoresOutra.body && rEntregadoresOutra.body.items ? rEntregadoresOutra.body.items.length : null;
+
+  // (ff) [Gap CHK003 security.md — tasks.md 2.1.5] termo de busca hostil:
+  // wildcards LIKE (%, _), aspas simples/duplas e tentativa de SQL — NUNCA
+  // 5xx, NUNCA vaza dados fora do escopo, resposta sempre bem-formada. Todo
+  // termo tem >=3 caracteres após trim (senão cairia no 422 de (aa), o que
+  // mascararia o teste de injeção real contra o RPC parametrizado).
+  const termosHostis = ['%%%', '___', 'o\'Neil"', '\'; DROP TABLE "Entregador"--', 'joa%', 'jo_'];
+  const statusHostis = [];
+  for (const termo of termosHostis) {
+    // eslint-disable-next-line no-await-in-loop -- sequencial de propósito
+    // (mesmo padrão do resto do script): cada termo hostil é 1 assert
+    // independente, não precisa de paralelismo.
+    const r = await getJson(jarLeitura, `/faturamento/entregadores?busca=${encodeURIComponent(termo)}`);
+    statusHostis.push(r.status);
+  }
+  out.entregadoresHostis_statusUnicos = [...new Set(statusHostis)].sort().join(',');
+
+  // controle: depois dos termos hostis, a tabela "Entregador" ainda existe e
+  // o seed inteiro continua íntegro (a tentativa de DROP TABLE não executou
+  // — prova viva de que o termo NUNCA chega como SQL, só como parâmetro)
+  const rEntregadoresPosHostil = await getJson(jarLeitura, '/faturamento/entregadores?busca=joa');
+  out.entregadoresPosHostil_status = rEntregadoresPosHostil.status;
+  out.entregadoresPosHostil_len = rEntregadoresPosHostil.body && rEntregadoresPosHostil.body.items ? rEntregadoresPosHostil.body.items.length : null;
+
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
 main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
@@ -505,6 +560,20 @@ check "export CSV vazio -> só a linha de cabeçalho" "$(jget csvVazio_qtd_linha
 
 check "export CSV sem faturamento.exportar (só .listar) -> 403 (Cenário 10 passos 3-4, bypass da UI)" "$(jget csvSemExportar_status)" "403"
 check "export CSV sem faturamento.exportar -> erro=PERMISSAO_NEGADA" "$(jget csvSemExportar_erro)" "PERMISSAO_NEGADA"
+
+# ── GET /faturamento/entregadores (hub-motorista-canonico FASE 2/WS-B, tasks.md 2.1) ──
+check "busca com 2 caracteres -> 422 busca_invalida (FR-006)" "$(jget entregadoresCurto_status)" "422"
+check "busca curta -> erro=busca_invalida" "$(jget entregadoresCurto_erro)" "busca_invalida"
+check "busca 'joa' -> 200" "$(jget entregadoresJoa_status)" "200"
+check "busca 'joa' -> 1 item (Joao Faturamento)" "$(jget entregadoresJoa_len)" "1"
+check "busca 'joa' -> nome='Joao Faturamento'" "$(jget entregadoresJoa_nome)" "Joao Faturamento"
+check "GET /faturamento/entregadores sem cookie -> 401" "$(jget entregadoresSemAuth_status)" "401"
+check "GET /faturamento/entregadores sem faturamento.listar -> 403" "$(jget entregadoresSemPermissao_status)" "403"
+check "isolamento multi-tenant: E_OUTRA busca 'joa' -> 200 (nunca erro, FR-007)" "$(jget entregadoresOutra_status)" "200"
+check "isolamento multi-tenant: E_OUTRA busca 'joa' -> 0 itens (Joao é de E_TESTE, nunca vaza)" "$(jget entregadoresOutra_len)" "0"
+check "[Gap CHK003] termos hostis (%%%, ___, aspas, DROP TABLE) -> nunca 5xx, sempre 200" "$(jget entregadoresHostis_statusUnicos)" "200"
+check "pós-termos-hostis: tabela Entregador íntegra (sem DROP), busca 'joa' continua 200" "$(jget entregadoresPosHostil_status)" "200"
+check "pós-termos-hostis: seed intacto, ainda 1 item p/ 'joa'" "$(jget entregadoresPosHostil_len)" "1"
 
 # ── Validação no banco: auditoria 'faturamento.csv_exportado' registrada
 # (5.1.5) só para os exports BEM-SUCEDIDOS (q/r/s = 3), NUNCA para o 403 (t)
@@ -606,7 +675,7 @@ esac
 
 echo
 if [ "$fails" = "0" ]; then
-  echo "HUB-FATURAMENTO-INTEGRATION: OK — todos os asserts passaram (FASE 3/4/5: 3.1/3.2/4.1/5.1)"
+  echo "HUB-FATURAMENTO-INTEGRATION: OK — todos os asserts passaram (FASE 3/4/5: 3.1/3.2/4.1/5.1; hub-motorista-canonico FASE 2/WS-B: 2.1)"
 else
   echo "HUB-FATURAMENTO-INTEGRATION: $fails assert(s) FALHARAM" >&2
   exit 1

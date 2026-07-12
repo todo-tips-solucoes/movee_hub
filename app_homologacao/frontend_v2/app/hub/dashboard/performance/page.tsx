@@ -40,6 +40,7 @@ import {
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import {
   baixarPerformanceCsv,
+  buscarEntregadoresPerformance,
   listarAreasPerformance,
   listarPerformance,
   obterPerformanceResumo,
@@ -47,6 +48,7 @@ import {
   PerformanceApiError,
   type PerformanceFiltros,
 } from '@/lib/hub/performance-api';
+import { EntregadorCombobox } from '@/components/hub/entregador-combobox';
 import type {
   PerformanceGroupBy,
   PerformanceListItem,
@@ -73,6 +75,9 @@ export interface PerformanceFiltrosUI {
   periodo: string;
   subpraca: string;
   entregadorId: string;
+  /** Nome exibido no `EntregadorCombobox` — WS-B (tasks.md 2.4), espelho de
+   * `faturamento/page.tsx#FaturamentoFiltrosUI.entregadorNome`. */
+  entregadorNome: string;
 }
 
 const FILTROS_INICIAIS: PerformanceFiltrosUI = {
@@ -81,6 +86,7 @@ const FILTROS_INICIAIS: PerformanceFiltrosUI = {
   periodo: '',
   subpraca: '',
   entregadorId: '',
+  entregadorNome: '',
 };
 
 /** `"0.8333"` (razão 0–1, research.md Decision 7) -> `"83,33%"`.
@@ -342,6 +348,9 @@ export default function PerformancePage() {
   const h = usePerformanceLista();
   const [exportando, setExportando] = useState(false);
   const [erroExport, setErroExport] = useState<string | null>(null);
+  // WS-B (tasks.md 2.3.5, FR-010, D-B1): degradação sticky — espelho de
+  // faturamento/page.tsx.
+  const [entregadorBuscaIndisponivel, setEntregadorBuscaIndisponivel] = useState(false);
   // uiux-hub pós-F4: filtro "Subpraça" como combobox — opções de GET
   // /performance/areas; falha na carga degrada para só "Todas".
   const [areasOpcoes, setAreasOpcoes] = useState<string[]>([]);
@@ -461,17 +470,35 @@ export default function PerformancePage() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="performance-filtro-entregador" className="text-xs text-muted-foreground">
-              ID do entregador
+              Entregador
             </label>
-            <Input
-              id="performance-filtro-entregador"
-              type="number"
-              min={1}
-              value={h.filtros.entregadorId}
-              onChange={(e) => h.setFiltros({ entregadorId: e.target.value })}
-              placeholder="Ex.: 42"
-              className="h-11 sm:h-9"
-            />
+            {entregadorBuscaIndisponivel ? (
+              // WS-B degradação (FR-010, D-B1): busca indisponível -> volta
+              // ao input numérico original, sem quebrar a tela.
+              <Input
+                id="performance-filtro-entregador"
+                type="number"
+                min={1}
+                value={h.filtros.entregadorId}
+                onChange={(e) => h.setFiltros({ entregadorId: e.target.value, entregadorNome: '' })}
+                placeholder="ID do entregador (ex.: 42)"
+                className="h-11 sm:h-9"
+              />
+            ) : (
+              <EntregadorCombobox
+                id="performance-filtro-entregador"
+                value={h.filtros.entregadorId ? Number(h.filtros.entregadorId) : null}
+                nomeSelecionado={h.filtros.entregadorNome || null}
+                buscar={buscarEntregadoresPerformance}
+                onIndisponivel={() => setEntregadorBuscaIndisponivel(true)}
+                onSelecionar={(id, nome) =>
+                  h.setFiltros({
+                    entregadorId: id !== null ? String(id) : '',
+                    entregadorNome: nome ?? '',
+                  })
+                }
+              />
+            )}
           </div>
         </div>
 
