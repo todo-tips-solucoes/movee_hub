@@ -149,6 +149,21 @@ export function parseMotoristaDetalhe(raw: unknown): MotoristaDetalhe {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// GET /motoristas/areas — subpraças distintas (opções do combobox de filtro)
+// ────────────────────────────────────────────────────────────────────────────
+
+export function parseAreasResponse(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object') {
+    throw new TypeError('Resposta de áreas inválida: shape não é objeto');
+  }
+  const r = raw as Record<string, unknown>;
+  if (!Array.isArray(r.areas)) {
+    throw new TypeError('Resposta de áreas inválida: areas não é array');
+  }
+  return r.areas.filter(isString);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // GET /motoristas/:id/sugestoes — candidatos automáticos
 // ────────────────────────────────────────────────────────────────────────────
 

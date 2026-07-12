@@ -9,6 +9,7 @@
 // Ref: docs/specs/hub-faturamento/contracts/faturamento-api.md.
 
 import {
+  parseAreasResponse,
   parseFaturamentoListResponse,
   parseFaturamentoResumoAgrupado,
   parseFaturamentoResumoCards,
@@ -91,6 +92,12 @@ export interface ListarFaturamentoQuery extends FaturamentoFiltros {
 export async function listarFaturamento(filtros: ListarFaturamentoQuery = {}): Promise<FaturamentoListResponse> {
   const raw = await request<unknown>(`/faturamento${query(filtros)}`);
   return parseFaturamentoListResponse(raw);
+}
+
+/** Subpraças distintas visíveis à entidade ativa — opções do filtro "Subpraça". */
+export async function listarAreasFaturamento(): Promise<string[]> {
+  const raw = await request<unknown>('/faturamento/areas');
+  return parseAreasResponse(raw);
 }
 
 /** `GET /faturamento/resumo` sem `groupBy` — cards (FR-003). */

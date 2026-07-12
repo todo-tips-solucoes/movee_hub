@@ -14,7 +14,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { AlertCircle, ChevronRight, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +23,8 @@ import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { AtivoBadge, VinculoBadge } from '@/components/hub/status-badge';
-import { listarMotoristas, MotoristaApiError } from '@/lib/hub/motoristas-api';
+import { MotoristaDetalheDialog, useMotoristaDetalheDialog } from '@/components/hub/motorista-detalhe-dialog';
+import { listarAreasMotoristas, listarMotoristas, MotoristaApiError } from '@/lib/hub/motoristas-api';
 import type { MotoristaListItem } from '@/lib/hub/motoristas-dto';
 
 const PAGE_SIZE = 20;
@@ -105,9 +105,21 @@ export default function MotoristasPage() {
   const { permissoes } = useHubAuth();
   const podeConsultar = permissoes.includes('motoristas.consultar');
   const h = useMotoristasLista();
-  // uiux-hub F3: a linha inteira navega (o hover já sugeria clique); o link
-  // "Detalhes" permanece como caminho de teclado/leitor de tela.
-  const router = useRouter();
+  // uiux-hub pós-F4: o filtro "Área" deixou de ser texto livre — as opções
+  // vêm de GET /motoristas/areas (subpraças distintas do escopo). Falha na
+  // carga degrada para só "Todas" (o filtro fica inerte, a lista não quebra).
+  const [areasOpcoes, setAreasOpcoes] = useState<string[]>([]);
+  useEffect(() => {
+    let ativo = true;
+    listarAreasMotoristas()
+      .then((areas) => { if (ativo) setAreasOpcoes(areas); })
+      .catch(() => { if (ativo) setAreasOpcoes([]); });
+    return () => { ativo = false; };
+  }, []);
+  // uiux-hub pós-F4: na tabela desktop, tanto a linha quanto a ação "Detalhes"
+  // abrem o detalhe em modal (mesmos campos do legado); a página completa
+  // segue acessível pelo rodapé do modal e pelos cards mobile.
+  const detalheDialog = useMotoristaDetalheDialog();
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
@@ -153,13 +165,20 @@ export default function MotoristasPage() {
             <label htmlFor="motoristas-filtro-area" className="text-xs text-muted-foreground">
               Área (subpraça)
             </label>
-            <Input
+            <select
               id="motoristas-filtro-area"
+              aria-label="Área (subpraça)"
               value={h.filtros.area}
               onChange={(e) => h.setFiltros({ area: e.target.value })}
-              placeholder="Ex.: Zona Sul"
-              className="h-11 sm:h-9"
-            />
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
+            >
+              <option value="">Todas</option>
+              {areasOpcoes.map((area) => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -250,7 +269,7 @@ export default function MotoristasPage() {
                   <TableRow
                     key={item.id}
                     className={podeConsultar ? 'cursor-pointer hover:bg-muted/50' : undefined}
-                    onClick={podeConsultar ? () => router.push(`/hub/dashboard/motoristas/${item.id}`) : undefined}
+                    onClick={podeConsultar ? () => detalheDialog.abrir(item.id) : undefined}
                   >
                     <TableCell className="font-medium">{item.nome}</TableCell>
                     <TableCell>
@@ -264,13 +283,17 @@ export default function MotoristasPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {podeConsultar ? (
-                        <Link
-                          href={`/hub/dashboard/motoristas/${item.id}`}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            detalheDialog.abrir(item.id);
+                          }}
                           className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
                         >
                           Detalhes
                           <ChevronRight className="size-3.5" aria-hidden="true" />
-                        </Link>
+                        </button>
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
                       )}
@@ -307,6 +330,8 @@ export default function MotoristasPage() {
               </Button>
             </div>
           </div>
+
+          <MotoristaDetalheDialog state={detalheDialog} />
         </>
       )}
     </div>

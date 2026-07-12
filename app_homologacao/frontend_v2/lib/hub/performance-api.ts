@@ -9,6 +9,7 @@
 // Ref: docs/specs/hub-performance/contracts/performance-api.md.
 
 import {
+  parseAreasResponse,
   parsePerformanceListResponse,
   parsePerformanceResumoAgrupado,
   parsePerformanceResumoCards,
@@ -89,6 +90,12 @@ export interface ListarPerformanceQuery extends PerformanceFiltros {
 export async function listarPerformance(filtros: ListarPerformanceQuery = {}): Promise<PerformanceListResponse> {
   const raw = await request<unknown>(`/performance${query(filtros)}`);
   return parsePerformanceListResponse(raw);
+}
+
+/** Subpraças distintas visíveis à entidade ativa — opções do filtro "Subpraça". */
+export async function listarAreasPerformance(): Promise<string[]> {
+  const raw = await request<unknown>('/performance/areas');
+  return parseAreasResponse(raw);
 }
 
 /** `GET /performance/resumo` sem `groupBy` — cards (FR-003). */

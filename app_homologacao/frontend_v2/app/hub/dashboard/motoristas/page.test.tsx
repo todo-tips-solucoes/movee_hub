@@ -1,6 +1,7 @@
 // hub-motoristas (S5) FASE 7 task 7.1.1/7.1.2/7.1.4 — renderização da lista
-// (tabela + filtros), estados de loading/vazio/erro, paginação e gate de
-// permissão do link de detalhe (motoristas.consultar).
+// (tabela + filtros), estados de loading/vazio/erro, paginação, gate de
+// permissão da ação de detalhe (motoristas.consultar) e modal de detalhe
+// rápido (uiux-hub pós-F4: "Detalhes" abre modal com os campos do legado).
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MotoristasPage from './page';
@@ -8,10 +9,8 @@ import { MotoristaApiError } from '@/lib/hub/motoristas-api';
 
 const mockUseHubAuth = vi.fn();
 const mockListarMotoristas = vi.fn();
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
-}));
+const mockObterMotorista = vi.fn();
+const mockListarAreasMotoristas = vi.fn();
 
 vi.mock('@/contexts/hub-auth-context', () => ({
   useHubAuth: () => mockUseHubAuth(),
@@ -22,6 +21,8 @@ vi.mock('@/lib/hub/motoristas-api', async () => {
   return {
     ...actual,
     listarMotoristas: (...args: unknown[]) => mockListarMotoristas(...args),
+    obterMotorista: (...args: unknown[]) => mockObterMotorista(...args),
+    listarAreasMotoristas: (...args: unknown[]) => mockListarAreasMotoristas(...args),
   };
 });
 
@@ -33,6 +34,16 @@ const ITEM_BASE = {
   areas: ['Zona Sul', 'Centro'],
 };
 
+const DETALHE_BASE = {
+  id: 1,
+  nome: 'Fulano da Silva',
+  ativo: true,
+  nomeEditadoManualmente: false,
+  areas: [],
+  resumo: { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null },
+  vinculo: { contaMotoristaId: 7, nome: 'Fulano Conta', cnpjPrestadorMascarado: '**.***.***/0001-95' },
+};
+
 function withPermissoes(permissoes: string[]) {
   mockUseHubAuth.mockReturnValue({ permissoes });
 }
@@ -41,6 +52,9 @@ describe('MotoristasPage', () => {
   beforeEach(() => {
     mockUseHubAuth.mockReset();
     mockListarMotoristas.mockReset();
+    mockObterMotorista.mockReset();
+    mockListarAreasMotoristas.mockReset();
+    mockListarAreasMotoristas.mockResolvedValue(['Centro', 'Zona Sul']);
     withPermissoes(['motoristas.listar', 'motoristas.consultar']);
   });
 
@@ -80,12 +94,60 @@ describe('MotoristasPage', () => {
     expect(screen.getAllByText('Sem vínculo').length).toBeGreaterThan(0);
   });
 
-  it('gate de permissão: sem motoristas.consultar, o link de detalhe não aparece na tabela desktop', async () => {
+  it('gate de permissão: sem motoristas.consultar, a ação de detalhe não aparece na tabela desktop', async () => {
     withPermissoes(['motoristas.listar']);
     mockListarMotoristas.mockResolvedValueOnce({ items: [ITEM_BASE], total: 1, page: 1, pageSize: 20 });
     render(<MotoristasPage />);
     await waitFor(() => expect(screen.getAllByText('Fulano da Silva').length).toBeGreaterThan(0));
+    expect(screen.queryByRole('button', { name: /Detalhes/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Detalhes/ })).not.toBeInTheDocument();
+  });
+
+  it('ação "Detalhes" abre o modal com os campos do legado (nome, CNPJ, cadastro, situação)', async () => {
+    mockListarMotoristas.mockResolvedValueOnce({ items: [ITEM_BASE], total: 1, page: 1, pageSize: 20 });
+    mockObterMotorista.mockResolvedValueOnce(DETALHE_BASE);
+    render(<MotoristasPage />);
+    await waitFor(() => expect(screen.getAllByText('Fulano da Silva').length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole('button', { name: /Detalhes/ }));
+    expect(mockObterMotorista).toHaveBeenCalledWith(1);
+
+    await waitFor(() => expect(screen.getByText('Detalhes do motorista')).toBeInTheDocument());
+    expect(screen.getByText('**.***.***/0001-95')).toBeInTheDocument();
+    expect(screen.getAllByText('Vinculado').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Ativo').length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: /Ver página completa/ })).toHaveAttribute(
+      'href',
+      '/hub/dashboard/motoristas/1'
+    );
+  });
+
+  it('modal de detalhe sem vínculo: CNPJ vazio e badge "Sem vínculo"', async () => {
+    mockListarMotoristas.mockResolvedValueOnce({ items: [{ ...ITEM_BASE, comVinculo: false }], total: 1, page: 1, pageSize: 20 });
+    mockObterMotorista.mockResolvedValueOnce({ ...DETALHE_BASE, vinculo: null });
+    render(<MotoristasPage />);
+    await waitFor(() => expect(screen.getAllByText('Fulano da Silva').length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole('button', { name: /Detalhes/ }));
+    await waitFor(() => expect(screen.getByText('Detalhes do motorista')).toBeInTheDocument());
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sem vínculo').length).toBeGreaterThan(0);
+  });
+
+  it('modal de detalhe: erro na busca mostra alerta com retry', async () => {
+    mockListarMotoristas.mockResolvedValueOnce({ items: [ITEM_BASE], total: 1, page: 1, pageSize: 20 });
+    mockObterMotorista.mockRejectedValueOnce(new MotoristaApiError(500, 'Erro no servidor. Tente novamente.'));
+    render(<MotoristasPage />);
+    await waitFor(() => expect(screen.getAllByText('Fulano da Silva').length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole('button', { name: /Detalhes/ }));
+    await waitFor(() =>
+      expect(screen.getAllByRole('alert').some((el) => el.textContent?.includes('Erro no servidor'))).toBe(true)
+    );
+
+    mockObterMotorista.mockResolvedValueOnce(DETALHE_BASE);
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(screen.getByText('**.***.***/0001-95')).toBeInTheDocument());
   });
 
   it('filtro de nome dispara nova busca com o filtro aplicado', async () => {
@@ -96,6 +158,33 @@ describe('MotoristasPage', () => {
     fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Fulano' } });
     await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalledTimes(2));
     expect(mockListarMotoristas.mock.calls[1][0]).toMatchObject({ nome: 'Fulano' });
+  });
+
+  it('filtro de área: combobox lista as subpraças do endpoint e envia area na busca', async () => {
+    mockListarMotoristas.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 });
+    render(<MotoristasPage />);
+    await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalledTimes(1));
+
+    const combo = screen.getByRole('combobox', { name: 'Área (subpraça)' });
+    await waitFor(() => expect(combo).toHaveTextContent('Zona Sul'));
+    expect(combo).toHaveTextContent('Todas');
+    expect(combo).toHaveTextContent('Centro');
+
+    fireEvent.change(combo, { target: { value: 'Zona Sul' } });
+    await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalledTimes(2));
+    expect(mockListarMotoristas.mock.calls[1][0]).toMatchObject({ area: 'Zona Sul' });
+  });
+
+  it('filtro de área: falha ao carregar opções degrada para só "Todas" sem quebrar a lista', async () => {
+    mockListarAreasMotoristas.mockReset();
+    mockListarAreasMotoristas.mockRejectedValue(new MotoristaApiError(500, 'Erro no servidor.'));
+    mockListarMotoristas.mockResolvedValue({ items: [ITEM_BASE], total: 1, page: 1, pageSize: 20 });
+    render(<MotoristasPage />);
+    await waitFor(() => expect(screen.getAllByText('Fulano da Silva').length).toBeGreaterThan(0));
+
+    const combo = screen.getByRole('combobox', { name: 'Área (subpraça)' });
+    expect(combo).toHaveTextContent('Todas');
+    expect(combo).not.toHaveTextContent('Zona Sul');
   });
 
   it('filtro de situação envia ativo como boolean', async () => {

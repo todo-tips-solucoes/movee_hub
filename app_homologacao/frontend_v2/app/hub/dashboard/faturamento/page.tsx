@@ -42,6 +42,7 @@ import { useHubAuth } from '@/contexts/hub-auth-context';
 import {
   baixarFaturamentoCsv,
   FaturamentoApiError,
+  listarAreasFaturamento,
   listarFaturamento,
   obterFaturamentoResumo,
   obterFaturamentoResumoAgrupado,
@@ -333,6 +334,16 @@ export default function FaturamentoPage() {
   const h = useFaturamentoLista();
   const [exportando, setExportando] = useState(false);
   const [erroExport, setErroExport] = useState<string | null>(null);
+  // uiux-hub pós-F4: filtro "Subpraça" como combobox — opções de GET
+  // /faturamento/areas; falha na carga degrada para só "Todas".
+  const [areasOpcoes, setAreasOpcoes] = useState<string[]>([]);
+  useEffect(() => {
+    let ativo = true;
+    listarAreasFaturamento()
+      .then((areas) => { if (ativo) setAreasOpcoes(areas); })
+      .catch(() => { if (ativo) setAreasOpcoes([]); });
+    return () => { ativo = false; };
+  }, []);
 
   const exportarCsv = useCallback(async () => {
     setExportando(true);
@@ -424,13 +435,20 @@ export default function FaturamentoPage() {
             <label htmlFor="faturamento-filtro-subpraca" className="text-xs text-muted-foreground">
               Subpraça
             </label>
-            <Input
+            <select
               id="faturamento-filtro-subpraca"
+              aria-label="Subpraça"
               value={h.filtros.subpraca}
               onChange={(e) => h.setFiltros({ subpraca: e.target.value })}
-              placeholder="Ex.: SAO PAULO - ZONA SUL"
-              className="h-11 sm:h-9"
-            />
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
+            >
+              <option value="">Todas</option>
+              {areasOpcoes.map((area) => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex flex-col gap-1">
