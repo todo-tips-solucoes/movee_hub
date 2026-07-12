@@ -15,7 +15,8 @@
 // spec.md FR-009, quickstart.md Cenário 5.
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Plus, RotateCw, UserCog, Users as UsersIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { AlertCircle, Loader2, Plus, RotateCw, UserCog, Users as UsersIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -134,6 +135,7 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
       });
       onCriado();
       onOpenChange(false);
+      toast.success('Usuário criado.');
     } catch (e) {
       setErro(e instanceof UsuariosApiError ? e.message : 'Não foi possível criar o usuário.');
     } finally {
@@ -201,6 +203,7 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
             Cancelar
           </Button>
           <Button onClick={submit} disabled={salvando}>
+            {salvando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             {salvando ? 'Criando...' : 'Criar usuário'}
           </Button>
         </DialogFooter>
@@ -252,6 +255,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
         senha: novaSenha || undefined,
       });
       onSalvo();
+      toast.success('Alterações salvas.');
     } catch (e) {
       setErro(e instanceof UsuariosApiError ? e.message : 'Não foi possível salvar as alterações.');
     } finally {
@@ -268,6 +272,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
         const atualizado = await editarVinculo(usuario.id, vinculo.id, patch);
         setVinculos((prev) => prev.map((v) => (v.id === vinculo.id ? atualizado : v)));
         onSalvo();
+        toast.success('Vínculo atualizado.');
       } catch (e) {
         setErro(e instanceof UsuariosApiError ? e.message : 'Não foi possível atualizar o vínculo.');
       } finally {
@@ -285,6 +290,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
       const novo = await criarVinculo(usuario.id, { entidadeId: entidadeAtiva, papelId: Number(novoVinculoPapelId) });
       setVinculos((prev) => [...prev, novo]);
       onSalvo();
+      toast.success('Vínculo criado.');
     } catch (e) {
       setErro(e instanceof UsuariosApiError ? e.message : 'Não foi possível criar o vínculo.');
     } finally {
@@ -394,6 +400,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
             Fechar
           </Button>
           <Button onClick={salvarDados} disabled={salvando}>
+            {salvando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             {salvando ? 'Salvando...' : 'Salvar dados'}
           </Button>
         </DialogFooter>
@@ -479,7 +486,7 @@ export default function UsuariosPage() {
                   {u.vinculos.map((v) => v.papel ?? '—').join(', ') || 'Sem vínculo visível'}
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setEditando(u)}>
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => setEditando(u)}>
                 <UserCog className="size-4" aria-hidden="true" />
                 Editar
               </Button>
@@ -491,12 +498,19 @@ export default function UsuariosPage() {
               Página {h.page} de {h.totalPaginas} — {h.total} usuário{h.total === 1 ? '' : 's'}
             </span>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={h.page <= 1} onClick={() => h.setPage(h.page - 1)}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="min-h-11 sm:min-h-8"
+                disabled={h.page <= 1}
+                onClick={() => h.setPage(h.page - 1)}
+              >
                 Anterior
               </Button>
               <Button
                 size="sm"
                 variant="outline"
+                className="min-h-11 sm:min-h-8"
                 disabled={h.page >= h.totalPaginas}
                 onClick={() => h.setPage(h.page + 1)}
               >

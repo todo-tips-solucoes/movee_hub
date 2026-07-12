@@ -13,11 +13,15 @@
 // reconhecido cai num ícone padrão, nunca quebra a renderização.
 
 import {
+  FileUp,
+  Gauge,
   LayoutDashboard,
   LayoutGrid,
   Receipt,
+  ScrollText,
   Send,
   Settings,
+  Settings2,
   ShieldCheck,
   TrendingUp,
   Truck,
@@ -42,17 +46,17 @@ const ICON_MAP: Record<string, LucideIcon> = {
   truck: Truck,
   faturamento: Receipt,
   receipt: Receipt,
-  performance: TrendingUp,
+  performance: Gauge,
   trendingup: TrendingUp,
-  importacoes: Upload,
+  importacoes: FileUp,
   upload: Upload,
   envio_massa: Send,
   send: Send,
   usuarios: Users,
   users: Users,
-  auditoria: ShieldCheck,
+  auditoria: ScrollText,
   shieldcheck: ShieldCheck,
-  admin: Settings,
+  admin: Settings2,
   settings: Settings,
 };
 
@@ -60,13 +64,25 @@ const ICON_MAP: Record<string, LucideIcon> = {
 export const DEFAULT_MODULE_ICON: LucideIcon = LayoutGrid;
 
 /**
- * Resolve o campo `HubModulo.icone` (pode ser `null`/string desconhecida —
- * ver nota acima) para um componente lucide-react. Fail-safe: nunca lança,
- * nunca retorna `undefined`.
+ * Resolve o ícone do módulo em cascata: `icone` explícito → `codigo` do
+ * módulo → padrão. Como `Modulo.icone` chega `null` na prática hoje (ver
+ * nota acima), sem a etapa do `codigo` TODOS os módulos renderizavam o
+ * `LayoutGrid` padrão e a sidebar ficava indistinguível item a item.
+ * Fail-safe: nunca lança, nunca retorna `undefined`.
  */
-export function resolveModuleIcon(icone: string | null | undefined): LucideIcon {
-  if (!icone) return DEFAULT_MODULE_ICON;
-  return ICON_MAP[icone.toLowerCase()] ?? DEFAULT_MODULE_ICON;
+export function resolveModuleIcon(
+  icone: string | null | undefined,
+  codigo?: string | null,
+): LucideIcon {
+  if (icone) {
+    const porIcone = ICON_MAP[icone.toLowerCase()];
+    if (porIcone) return porIcone;
+  }
+  if (codigo) {
+    const porCodigo = ICON_MAP[codigo.toLowerCase()];
+    if (porCodigo) return porCodigo;
+  }
+  return DEFAULT_MODULE_ICON;
 }
 
 /**

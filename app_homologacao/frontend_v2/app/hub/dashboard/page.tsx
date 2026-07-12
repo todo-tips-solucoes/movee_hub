@@ -33,7 +33,7 @@ export function useDashboardModulos() {
 function ModuloCard({ modulo }: { modulo: HubModulo }) {
   // Lookup pura e determinística (mesmo comentário/justificativa de
   // components/hub/module-nav.tsx sobre o lint react-hooks/static-components).
-  const Icon = resolveModuleIcon(modulo.icone);
+  const Icon = resolveModuleIcon(modulo.icone, modulo.codigo);
   return (
     <Link
       href={moduloParaRota(modulo.codigo)}

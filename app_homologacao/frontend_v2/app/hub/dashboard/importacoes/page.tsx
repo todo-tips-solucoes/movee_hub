@@ -16,10 +16,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
+  ChevronRight,
   Clock,
   FileText,
   RotateCw,
-  Upload as UploadIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -68,9 +68,13 @@ export interface ImportacoesFiltros {
 
 const FILTROS_INICIAIS: ImportacoesFiltros = { tipo: '', status: '', responsavel: '', de: '', ate: '' };
 
-function badgeVariantDoStatus(status: StatusImportacao): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'completed') return 'default';
-  if (status === 'completed_with_errors') return 'outline';
+function badgeVariantDoStatus(
+  status: StatusImportacao,
+): 'success' | 'warning' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'completed') return 'success';
+  // uiux-hub F1: antes era 'outline', idêntico a pending/processing — estados
+  // diferentes ficavam com a mesma aparência.
+  if (status === 'completed_with_errors') return 'warning';
   if (status === 'failed') return 'destructive';
   if (status === 'cancelled') return 'secondary';
   return 'outline'; // pending/validating/processing — em andamento
@@ -361,8 +365,8 @@ export default function ImportacoesPage() {
                         href={`/hub/dashboard/importacoes/${item.id}`}
                         className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
                       >
-                        <UploadIcon className="size-3.5" aria-hidden="true" />
                         Detalhes
+                        <ChevronRight className="size-3.5" aria-hidden="true" />
                       </Link>
                     </TableCell>
                   </TableRow>

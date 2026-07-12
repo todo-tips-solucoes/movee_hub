@@ -19,6 +19,7 @@
 // spec.md FR-007/FR-008/FR-013/FR-017, quickstart.md Cenário 7.
 
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { AlertCircle, RotateCw, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,6 +73,7 @@ function useModulosDaEntidade(entidadeIdInicial: number) {
       setModulos((prev) => prev.map((m) => (m.codigo === codigo ? { ...m, habilitado: proximo } : m)));
       try {
         await alternarModuloEntidade(entidadeId, codigo, proximo);
+        toast.success(proximo ? `Módulo ${codigo} habilitado.` : `Módulo ${codigo} desabilitado.`);
       } catch (e) {
         setModulos((prev) => prev.map((m) => (m.codigo === codigo ? { ...m, habilitado: !proximo } : m)));
         setErroToggle(e instanceof AdminApiError ? e.message : 'Não foi possível alterar o módulo.');
@@ -150,7 +152,7 @@ export default function AdminModulosPage() {
         >
           <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
           <p className="text-sm font-medium text-destructive">{h.erro}</p>
-          <Button size="sm" variant="outline" onClick={h.refetch}>
+          <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={h.refetch}>
             Tentar novamente
           </Button>
         </div>
@@ -173,6 +175,7 @@ export default function AdminModulosPage() {
               <Button
                 size="sm"
                 variant={m.habilitado ? 'default' : 'outline'}
+                className="min-h-11 sm:min-h-8"
                 disabled={h.emSalvamento.has(m.codigo)}
                 onClick={() => h.alternar(m.codigo, !m.habilitado)}
               >

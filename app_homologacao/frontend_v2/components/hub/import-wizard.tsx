@@ -12,6 +12,7 @@
 
 import { useCallback, useId, useRef, useState } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { AlertCircle, FileWarning, Loader2, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -93,6 +94,7 @@ export function useImportWizard(onEnviado?: (id: number) => void) {
       const resultado = await enviarImportacao(tipo, arquivo);
       onEnviado?.(resultado.id);
       setOpen(false);
+      toast.success('Importação enviada — o processamento começa em instantes.');
     } catch (e) {
       if (e instanceof ImportacaoApiError && e.importacaoOriginalId !== undefined) {
         setConflito({ importacaoOriginalId: e.importacaoOriginalId });

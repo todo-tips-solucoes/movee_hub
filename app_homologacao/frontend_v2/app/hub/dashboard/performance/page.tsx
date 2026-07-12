@@ -14,6 +14,7 @@
 // contracts/performance-api.md, quickstart.md Cenários 5/6/10/12/14.
 
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   AlertCircle,
   CheckCircle2,
@@ -86,6 +87,13 @@ function formatPontoPct(valor: string | number | null): string {
   const num = typeof valor === 'string' ? parseFloat(valor) : valor;
   if (isNaN(num)) return '—';
   return `${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
+/** Contador inteiro com separador de milhar pt-BR (`12345` -> `"12.345"`);
+ * `null` -> `"-"` — paridade de formatação com os percentuais acima. */
+function formatInt(valor: number | null | undefined): string {
+  if (valor === null || valor === undefined) return '-';
+  return valor.toLocaleString('pt-BR');
 }
 
 /** Lógica isolada do JSX (mesmo padrão de `useFaturamentoLista`). Busca
@@ -238,6 +246,7 @@ export default function PerformancePage() {
     setErroExport(null);
     try {
       await baixarPerformanceCsv(h.filtrosApi());
+      toast.success('Exportação CSV iniciada.');
     } catch (e) {
       setErroExport(e instanceof PerformanceApiError ? e.message : 'Não foi possível exportar o CSV.');
     } finally {
@@ -442,12 +451,12 @@ export default function PerformancePage() {
                     <TableCell className="text-sm">{item.entregadorNome ?? `#${item.entregadorId}`}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{item.subpraca ?? '-'}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{item.praca ?? '-'}</TableCell>
-                    <TableCell className="text-right">{item.corridasOfertadas}</TableCell>
-                    <TableCell className="text-right">{item.corridasAceitas}</TableCell>
-                    <TableCell className="text-right">{item.corridasRejeitadas}</TableCell>
-                    <TableCell className="text-right">{item.corridasCompletadas}</TableCell>
-                    <TableCell className="text-right">{item.corridasCanceladas}</TableCell>
-                    <TableCell className="text-right">{item.pedidosConcluidos ?? '-'}</TableCell>
+                    <TableCell className="text-right font-mono">{formatInt(item.corridasOfertadas)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatInt(item.corridasAceitas)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatInt(item.corridasRejeitadas)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatInt(item.corridasCompletadas)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatInt(item.corridasCanceladas)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatInt(item.pedidosConcluidos)}</TableCell>
                     <TableCell className="text-right">{formatPontoPct(item.tempoDisponivelPct)}</TableCell>
                     <TableCell className="text-right font-mono">{formatBRL(item.taxas)}</TableCell>
                   </TableRow>

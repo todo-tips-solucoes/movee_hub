@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import {
   AlertCircle,
   ChevronRight,
@@ -238,6 +239,7 @@ export default function FaturamentoPage() {
     setErroExport(null);
     try {
       await baixarFaturamentoCsv(h.filtrosApi());
+      toast.success('Exportação CSV iniciada.');
     } catch (e) {
       setErroExport(e instanceof FaturamentoApiError ? e.message : 'Não foi possível exportar o CSV.');
     } finally {
