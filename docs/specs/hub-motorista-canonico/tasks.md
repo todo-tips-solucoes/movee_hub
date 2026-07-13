@@ -917,10 +917,17 @@ Ref: plan.md §Constitution Check (Princípio IV), research.md §Segurança
 
 Ref: FR-024, SC-008, plan.md §Governança
 
-- [ ] 7.3.1 Commit local na branch `feat/hub-motorista-canonico` (push/PR
-  **somente** com autorização explícita do operador)
+- [x] 7.3.1 Commit local na branch `feat/hub-motorista-canonico` (push/PR
+  **somente** com autorização explícita do operador) — commit `f19055a`
+  ("hub-motorista-canonico FASE 7 — validação final: E2E real no
+  hub-homolog"), 6 arquivos, working tree limpo após o commit. Nenhum
+  `git push`/PR aberto (sem autorização do operador).
 - [ ] 7.3.2 Atualizar a memória do projeto (`MEMORY.md`) com o status final da
-  feature
+  feature — **deferido para o fechamento pleno**: esta onda avança
+  `current_stage` para `review-task` (a review real do pipeline ainda não
+  rodou); a atualização de memória deve refletir o veredito final
+  (`review-task` aprovar/reprovar), não um status intermediário — evita
+  memória desatualizada se o `review-task` pedir ajuste.
 - [x] 7.3.3 Confirmar que a tela legada `/dashboard/motoristas` segue
   funcional sem alteração de comportamento (FR-024/SC-008) — confirmado por
   `git diff --stat 29c3ee7^..cd2ca8c` filtrado por `app/dashboard`
