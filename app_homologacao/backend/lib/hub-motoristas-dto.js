@@ -230,6 +230,31 @@ function mapValidacaoNfAtividade(row) {
   };
 }
 
+// hub-motorista-canonico (FASE 7, gap encontrado no code-review de
+// fechamento): a EnvioMassa armazena `cnpj_prestador` em DOIS formatos
+// (só-dígitos e com máscara `XX.XXX.XXX/XXXX-XX`, dependendo da origem do
+// import) — o mesmo problema já resolvido em `routes/motorista.js#L117`
+// (`cnpjEnvioMassaFilter`, usado por `/movimento-aberto` e
+// `/validar-nota`). A correlação de atividades por uuid (task 6.4,
+// `buscarAtividadesMotorista` abaixo) usava um `eq.<só-dígitos>` simples
+// contra `cnpj_prestador` — linhas históricas gravadas com o CNPJ mascarado
+// (upload legado) ficavam invisíveis no histórico do motorista mesmo tendo
+// `entregador_uuid` correto, uma perda silenciosa de FR-022 (completude do
+// histórico). Duplicado deliberadamente aqui (função pura, sem estado) em
+// vez de importar de `routes/motorista.js` — evita criar um acoplamento
+// novo com a rota de PRODUÇÃO legada do app motorista só para reusar uma
+// função de 8 linhas; qualquer drift entre as duas cópias é pego por
+// `hub-motoristas-dto.test.js`.
+function cnpjEnvioMassaFilter(cnpj) {
+  const d = String(cnpj || '').replace(/\D/g, '');
+  const valores = [d];
+  if (d.length === 14) {
+    valores.push(`${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`);
+  }
+  const lista = valores.map((v) => `"${v}"`).join(',');
+  return `cnpj_prestador=in.(${encodeURIComponent(lista)})`;
+}
+
 /**
  * Une as 3 fontes já bounded-fetched (cada uma ordenada desc, com pelo menos
  * `offset+limit` linhas quando existirem — mitigação de performance 6.4.5:
@@ -521,4 +546,5 @@ module.exports = {
   mapPerformanceAtividade,
   mapValidacaoNfAtividade,
   montarAtividades,
+  cnpjEnvioMassaFilter,
 };

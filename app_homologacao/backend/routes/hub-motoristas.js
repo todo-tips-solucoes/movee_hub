@@ -56,6 +56,7 @@ const {
   validarDefinirSenhaCredencialBody,
   parsePaginacaoAtividades,
   montarAtividades,
+  cnpjEnvioMassaFilter,
 } = require('../lib/hub-motoristas-dto');
 const {
   termoBuscaValido,
@@ -384,7 +385,7 @@ async function buscarAtividadesMotorista(id, idExterno, contaMotorista, entidade
   const validCount = cnpjPrestadorVinculo
     ? await hubPostgrestRequest(
       `EnvioMassa?entregador_uuid=eq.${encodeURIComponent(idExterno)}`
-      + `&cnpj_prestador=eq.${encodeURIComponent(cnpjPrestadorVinculo)}&select=id`,
+      + `&${cnpjEnvioMassaFilter(cnpjPrestadorVinculo)}&select=id`,
       'GET', null, claims, { count: true, range: { from: 0, to: 0 } }
     )
     : { total: 0 };
@@ -408,7 +409,7 @@ async function buscarAtividadesMotorista(id, idExterno, contaMotorista, entidade
   const validRows = cnpjPrestadorVinculo
     ? await hubPostgrestRequest(
       `EnvioMassa?entregador_uuid=eq.${encodeURIComponent(idExterno)}`
-      + `&cnpj_prestador=eq.${encodeURIComponent(cnpjPrestadorVinculo)}`
+      + `&${cnpjEnvioMassaFilter(cnpjPrestadorVinculo)}`
       + `&select=data_emissao,criado_em:created_at,numnota,valor&order=created_at.desc&limit=${janela}`,
       'GET', null, claims
     )

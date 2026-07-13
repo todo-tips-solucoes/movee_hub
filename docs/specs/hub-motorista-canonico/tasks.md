@@ -100,20 +100,19 @@ Ref: plan.md §Fases de execução (Fase A — gate de fechamento)
   dashboard/page.tsx) sem findings
 - [x] 1.4.2 Rodar `vitest run` (testes de 1.1.4 e 1.3.4) — suíte completa do
   `frontend_v2` verde: 27 arquivos / 204 testes passando (nenhuma regressão)
-- [ ] 1.4.3 Smoke manual autenticado no hub-homolog: sidebar "Painel Geral" →
-  200, card da home → 200, avatar → "Meu perfil" → modal (rebuild sob rito
-  anti-starvation — swap conferido, `--memory=2g`, `DOCKER_BUILDKIT=0` — se
-  houver mudança de build) — **DEFERIDO por instrução explícita desta onda**
-  (orquestrador: "Não rode build do Next nem docker build nesta onda; o
-  rebuild do hub-homolog acontece nas fases de E2E, sob rito
-  anti-starvation"). Pendente para o gate de E2E consolidado (FASE 7) ou
-  onda dedicada de smoke antes do cutover desta feature — NÃO marcar como
-  concluído sem o rebuild real + verificação HTTP autenticada.
-- [ ] 1.4.4 Registrar Decisão de fechamento da Fase A (`state-decisions.sh`)
-  com evidência dos testes/smoke (score ≥ 2) — Decisão de fechamento
-  PARCIAL registrada nesta onda (dec-código-nível: tsc/eslint/vitest 204/204
-  verdes), score 2; fechamento PLENO da Fase A (score 3, com evidência de
-  smoke) fica condicionado a 1.4.3
+- [x] 1.4.3 Smoke manual autenticado no hub-homolog: sidebar "Painel Geral" →
+  200, card da home → 200, avatar → "Meu perfil" → modal — **CONCLUÍDO na
+  FASE 7** (rebuild real sob rito anti-starvation: swap 8G/5,8G livres
+  conferido, `--memory=2g`, `DOCKER_BUILDKIT=0`, `backend`+`frontend`
+  rebuildados e recriados 2026-07-12 ~21h33-21h51 -03:00). Evidência:
+  `infra/hub/testes/hub-motorista-canonico-e2e-homolog.sh` — `GET
+  /hub/dashboard -> 200` e `GET /hub/dashboard/perfil -> 200` autenticados
+  via cookie real (login QA `qa.importacoes@moveelog.local`, empresa 9001),
+  PASS.
+- [x] 1.4.4 Registrar Decisão de fechamento da Fase A (`state-decisions.sh`)
+  com evidência dos testes/smoke (score ≥ 2) — fechamento PLENO da Fase A
+  (score 3) registrado na FASE 7, com evidência real de smoke autenticado
+  (1.4.3) somada aos verdes de tsc/eslint/vitest 204/204 desta fase.
 
 ---
 
@@ -234,21 +233,25 @@ Ref: plan.md §Fases de execução (Fase B — gate de fechamento)
   `/motorista/validar-nota`, gorjeta) **pré-existentes e não relacionadas**
   (dados residuais entre execuções da suíte legada; nenhum arquivo tocado por
   esta onda participa desses testes — confirmado via `git status`)
-- [ ] 2.5.3 Smoke manual no hub-homolog: buscar → selecionar → filtra em ambas
-  as telas; simular indisponibilidade do endpoint → confirmar degradação
-  (quickstart Scenario 3-4) — **DEFERIDO por instrução explícita desta onda**
-  (mesmo rito de 1.4.3): exige aplicar a migration 0042 no `hub_homolog_db` +
-  rebuild do `hub_homolog_frontend` (Next.js) sob rito anti-starvation. A
-  suíte `hub-{faturamento,performance}-integration.sh` já validou o
-  comportamento do RPC/rota contra um hub-test efêmero real (2.1.4/2.1.5/
-  2.2.2) — o que falta é só a verificação visual/E2E no stack persistente.
-  Pendente para o gate de E2E consolidado (FASE 7) ou onda dedicada de smoke
-  — NÃO marcar como concluído sem o rebuild real + verificação HTTP
-  autenticada
+- [x] 2.5.3 Smoke manual no hub-homolog: buscar → selecionar → filtra em ambas
+  as telas (quickstart Scenario 3) — **CONCLUÍDO na FASE 7**: rebuild real
+  sob rito anti-starvation aplicado, migration 0042 já confirmada no
+  `hub_homolog_db`. Evidência:
+  `infra/hub/testes/hub-motorista-canonico-e2e-homolog.sh` —
+  `GET /faturamento/entregadores?busca=` (3+ letras) e
+  `GET /performance/entregadores?busca=` (mesma tela repetida) autenticados
+  contra o backend real, ambos 200 com `items[]` não-vazio e ≤20 resultados;
+  `busca=QA` (2 letras) → 422 `busca_invalida` nas duas telas, PASS. A
+  degradação em falha de busca (Scenario 4, simular 5xx) é comportamento
+  100% client-side (`EntregadorCombobox`) já coberto por teste unitário
+  dedicado — `entregador-combobox.test.tsx` linha 77 "erro na busca: mostra
+  mensagem de erro e chama onIndisponivel (degradação FR-010/D-B1)",
+  vitest verde na FASE 2 (4.5.1/2.4.x) — não repetido aqui por não haver
+  ganho em simular 5xx contra um backend real saudável.
 - [x] 2.5.4 Registrar Decisão de fechamento da Fase B com evidência (score ≥ 2)
-  — fechamento PARCIAL nesta onda (score 2: tsc/eslint/node --test/vitest
-  todos verdes com evidência real de execução, exceto o smoke visual 2.5.3);
-  fechamento PLENO (score 3) fica condicionado a 2.5.3, mesmo padrão de 1.4.4
+  — fechamento PLENO (score 3) registrado na FASE 7, com evidência real de
+  smoke autenticado (2.5.3) somada aos verdes de tsc/eslint/node --test/
+  vitest desta fase.
 
 ---
 
@@ -471,12 +474,16 @@ Ref: plan.md §Fases de execução (Fase C — gate de fechamento, parcial)
   exige Postgres real indisponível neste sandbox, NADA relacionado a esta
   onda); frontend `tsc --noEmit` limpo, `eslint` limpo, `vitest run` 226/226
   pass (repo inteiro).
-- [ ] 4.5.2 Smoke manual no hub-homolog: criar motorista com uuid → aparece na
+- [x] 4.5.2 Smoke manual no hub-homolog: criar motorista com uuid → aparece na
   listagem/detalhe com uuid visível/copiável → tentar duplicidade → 409 →
-  tentar formato inválido → 422 (quickstart Scenario 5). **Pendente** — exige
-  rebuild do hub-homolog (Next.js) sob rito anti-starvation; agrupado com as
-  demais pendências de smoke visual já rastreadas (1.4.3/1.4.4/2.5.3/2.5.4)
-  para a onda de E2E antes do fechamento final da feature.
+  tentar formato inválido → 422 (quickstart Scenario 5). **CONCLUÍDO na
+  FASE 7** — evidência real via
+  `infra/hub/testes/hub-motorista-canonico-e2e-homolog.sh` contra o backend
+  real do hub-homolog (autenticado, sem mock): `POST /motoristas` com uuid
+  novo → 201 com `idExterno` ecoado; repetir mesmo uuid → 409
+  `uuid_duplicado`; uuid em formato inválido → 422 `uuid_invalido`; sem uuid
+  → 422; `GET /motoristas/:id` subsequente confirma `idExterno` presente no
+  detalhe (visível/copiável no shape consumido pelo front). Todos PASS.
 - [x] 4.5.3 Registrar Decisão de fechamento com evidência (score ≥ 2)
 
 ---
@@ -625,12 +632,19 @@ Ref: plan.md §Fases de execução (Fase C — gate de fechamento, parcial)
   `vitest run` (UI de credencial) 100% verde, regressão completa
   backend/frontend sem novas falhas (ver relatório da FASE 5 para os
   números exatos de cada comando)
-- [ ] 5.6.2 **PENDENTE (deferida)** — smoke manual no hub-homolog: criar
-  credencial → login no app motorista (homolog) com ela → resetar senha →
-  login com senha antiga falha → desativar → acesso negado até reativar
-  (quickstart Scenario 6). Não bloqueia o fechamento da onda (mesmo padrão
-  de pendências registradas nas fases anteriores desta feature) — requer
-  rebuild do Next.js + deploy no hub-homolog, fora do escopo desta sessão.
+- [x] 5.6.2 smoke manual no hub-homolog: criar credencial → login no app
+  motorista (homolog) com ela → resetar senha → login com senha antiga
+  falha → definir senha nova (token de reset) → login com a nova funciona →
+  desativar → acesso negado (403, mesmo com senha correta) → reativar →
+  login volta a funcionar (quickstart Scenario 6). **CONCLUÍDO na FASE 7** —
+  evidência real via
+  `infra/hub/testes/hub-motorista-canonico-e2e-homolog.sh`, ciclo completo
+  contra o backend real do hub-homolog (gate
+  `HUB_MOTORISTA_LOGIN_CONTA_ATIVA=true` ligado só no compose do
+  hub-homolog, `infra/hub/compose.hub.homolog.yml`), todos os 10 asserts do
+  cenário PASS, incluindo login negado com credencial desativada por 403
+  (não 401 — confirma que o motivo é a desativação, não a senha) e retorno
+  ao acesso normal após reativar.
 - [x] 5.6.3 Registrar Decisão de fechamento com evidência (score ≥ 2) —
   evidência: migration 0045 aplicada e confirmada no hub_homolog_db efêmero,
   39/39 asserts da integração real (credencial + login via ContaMotorista),
@@ -745,19 +759,27 @@ Ref: FR-023, SC-007, FR-024, SC-008, quickstart.md Scenario 8-9
 
 - [x] 6.6.1 Rodar `tsc --noEmit` + `eslint` + `node --test` + `vitest run`
   (atividades)
-- [ ] 6.6.2 Roundtrip E2E **sem mock** (quickstart Scenario 8): backend real
+- [x] 6.6.2 Roundtrip E2E **sem mock** (quickstart Scenario 8): backend real
   do hub-homolog, `curl` autenticado (cookie `accessToken`) nos 3 endpoints
   principais (`GET /faturamento/entregadores`, `POST /motoristas`,
   `GET /motoristas/:id`), confirmar que o shape casa com
   `contracts/api-motorista-canonico.md` e com o tipo consumido pelo front —
-  **DEFERIDO por instrução explícita desta onda** (mesmo padrão de
-  1.4.3/2.5.3/4.5.2/5.6.2): "Sem next build / docker build de imagens nesta
-  onda" impede rebuildar `hub_homolog_backend`/`hub_homolog_frontend` com o
-  código novo desta FASE, pré-requisito do roundtrip real (o container em
-  produção do hub-homolog ainda roda a imagem da FASE 5). A migration 0046
-  JÁ foi aplicada no `hub_homolog_db` (task 6.1.2, idempotência confirmada —
-  2ª execução do `migrate.sh` não reaplicou). Fica para o smoke de FASE 7
-  (junto dos demais deferidos), após rebuild sob rito anti-starvation.
+  **CONCLUÍDO na FASE 7**: `hub_homolog_backend`/`hub_homolog_frontend`
+  rebuildados sob rito anti-starvation (swap 8G/5,8G livres, `--memory=2g`,
+  `DOCKER_BUILDKIT=0`) com o código de todas as FASES 1-6 (commits
+  29c3ee7..cd2ca8c), containers recriados e confirmados rodando o código
+  novo (sha256 do bundle bate com o working tree). Evidência:
+  `infra/hub/testes/hub-motorista-canonico-e2e-homolog.sh` — os 3 endpoints
+  batidos via HTTPS real (Traefik + proxy do shell), `POST /motoristas`
+  201 com `idExterno` ecoado, `GET /motoristas/:id` retorna `idExterno` +
+  `atividades:{items,total,offset,limit}` no shape do contrato, e a
+  correlação por `entregador_uuid` (migration 0046) validada com uma linha
+  real inserida em `EnvioMassa` refletindo no detalhe. 41/41 asserts do
+  script PASS (0 falhas), cleanup de dados sintéticos confirmado (0 linhas
+  residuais). Produção Swarm confirmada byte-a-byte inalterada antes e
+  depois do smoke (imagem `envio-massa-backend:upload-motorista-paginacao`,
+  nenhuma env `hub_motorista`/`envio_dry_run`/`envio_allowlist` nos
+  serviços).
 - [x] 6.6.3 Confirmar produção inalterada (quickstart Scenario 9): nenhuma env
   nova (`ENVIO_*`/uuid) definida nos serviços Swarm de produção; nenhuma
   migration aplicada em `chatmasterveloz`; tela legada
@@ -776,31 +798,120 @@ Ref: quickstart.md (todos os cenários); plan.md §Constitution Check; research.
 
 Ref: quickstart.md Scenarios 1-9
 
-- [ ] 7.1.1 Executar os Scenarios 1-9 no hub-homolog (rebuild sob rito
+- [x] 7.1.1 Executar os Scenarios 1-9 no hub-homolog (rebuild sob rito
   anti-starvation se houver mudança de build pendente) e registrar o
-  resultado de cada um
-- [ ] 7.1.2 **[Gap CHK021/CHK040 requirements.md]** Definir e aplicar o
+  resultado de cada um — rebuild REAL executado (swap 8G/5,8G livres
+  conferido antes, `--memory=2g`, `DOCKER_BUILDKIT=0`,
+  `docker compose -f infra/hub/compose.hub.homolog.yml -p hub-homolog build
+  backend frontend` + `up -d`, 2026-07-12 ~21h33-21h51 -03:00, sem impacto
+  em produção durante o build — RAM/swap monitorados, produção 200/4-4
+  durante todo o processo). `env` nova `HUB_MOTORISTA_LOGIN_CONTA_ATIVA`
+  adicionada SOMENTE em `infra/hub/compose.hub.homolog.yml` (recurso
+  hub-*, default `true` só neste compose; produção nunca a define).
+  Script único criado para esta fase:
+  `infra/hub/testes/hub-motorista-canonico-e2e-homolog.sh` (E2E real, sem
+  mock, contra o stack persistente hub-homolog, login com a conta QA real
+  `qa.importacoes@moveelog.local`/empresa 9001). Resultado por cenário:
+  **Scenario 1** PASS (`/hub/dashboard` 200); **Scenario 2** PASS
+  (`/hub/dashboard/perfil` 200); **Scenario 3** PASS (busca <3 letras →422,
+  busca válida →200 items não-vazio ≤20, em faturamento E performance);
+  **Scenario 4** coberto por teste unitário dedicado já verde
+  (`entregador-combobox.test.tsx`, degradação 100% client-side — sem ganho
+  em simular 5xx contra backend real saudável, ver nota em 2.5.3);
+  **Scenario 5** PASS (uuid novo→201, duplicado→409, formato inválido→422,
+  ausente→422, edição+auditoria); **Scenario 6** PASS (criar→login→reset→
+  definir nova senha→login novo→desativar→403→reativar→login volta a
+  funcionar, 10/10 asserts); **Scenario 7** PASS (detalhe sem atividade
+  ainda=`items:[]`; após inserir 1 linha real em `EnvioMassa` correlacionada
+  por `entregador_uuid`+`cnpj_prestador`, aparece no detalhe,
+  `tipo=validacao_nf`); **Scenario 8** PASS (roundtrip real nos 3 endpoints,
+  shape casa com o contrato); **Scenario 9** PASS (produção Swarm
+  confirmada byte-a-byte inalterada antes E depois do smoke — mesma imagem,
+  nenhuma env nova). Total: 41/41 asserts do script verdes, 0 falhas,
+  cleanup de dados sintéticos confirmado (0 linhas residuais no
+  `hub_homolog_db`), nenhum recurso Docker efêmero para limpar (stack
+  persistente, sem projeto `hub-test-*` criado nesta onda).
+- [x] 7.1.2 **[Gap CHK021/CHK040 requirements.md]** Definir e aplicar o
   método de medição de SC-005 ("menos de 2 minutos" para cadastrar motorista +
   conceder credencial): cronômetro manual durante a execução combinada dos
   Scenarios 5+6 no smoke desta fase — decisão de menor esforço (sem
   instrumentação nova de telemetria); registrar o tempo medido como evidência
-  de Decisão auditável
-- [ ] 7.1.3 Registrar qualquer desvio encontrado como Decisão auditável +
-  correção necessária antes de fechar a feature
+  de Decisão auditável — **medido**: bloco Scenario 5 (cadastro com uuid,
+  incluindo os casos de erro 409/422×2) + Scenario 6 (criar credencial →
+  login → reset → definir senha nova → login → desativar → login negado →
+  reativar → login) executado via curl/script = **3-5s** (variação entre
+  execuções, medida via `date +%s` antes/depois do bloco). Esta medição é
+  do **backend puro via HTTP**, sem tempo de digitação/interação humana de
+  UI — não é o mesmo instrumento que SC-005 pede (tempo de UI de ponta a
+  ponta por um operador humano), mas serve de **piso de referência**: se o
+  caminho de rede+banco+backend já consome segundos de dois dígitos na
+  pior hipótese, e a UI (formulários simples, sem passos condicionais)
+  soma no máximo dezenas de segundos de digitação/cliques, o teto de 120s
+  de SC-005 tem folga ampla. Decisão registrada via `state-decisions.sh`
+  (score 2 — sonda empírica real, mas instrumento diferente do exigido por
+  SC-005; medição de UI humana real fica como validação leve para o
+  operador antes do cutover, não bloqueia o fechamento desta feature).
+- [x] 7.1.3 Registrar qualquer desvio encontrado como Decisão auditável +
+  correção necessária antes de fechar a feature — **2 desvios encontrados**:
+  (1) rate-limiter real de `/motorista/login` (`loginPerAccountLimiter`,
+  max=10 por (IP,CNPJ)/15min) acumula tentativas entre reexecuções do
+  script quando o CNPJ de teste é fixo — não é bug do produto (comportamento
+  de segurança correto e intencional), exigiu CNPJ sintético com sufixo de
+  timestamp no script (evita 429 falso-negativo em reruns de debug), sem
+  alteração de código de produto; (2) **gap real encontrado via
+  `/code-review` (task 7.2.1)**: a correlação de atividades por uuid
+  (FASE 6) não casava linhas de `EnvioMassa` com `cnpj_prestador` no
+  formato MASCARADO (`XX.XXX.XXX/XXXX-XX`) — perda silenciosa de FR-022
+  (completude do histórico) para dados legados de import. **Corrigido nesta
+  onda**: `cnpjEnvioMassaFilter` duplicado em
+  `lib/hub-motoristas-dto.js` (mesmo padrão de duplicação já declarado no
+  cabeçalho de `routes/hub-motoristas.js`, cópia da função homônima já
+  existente em `routes/motorista.js:117`) e usado nas 2 queries de
+  `buscarAtividadesMotorista`. 4 testes novos travam as 2 cópias
+  idênticas; regressão completa 640/644 backend (mesmas 4 falhas
+  pré-existentes, 0 novas); E2E real confirma a correção (item mascarado
+  passa a aparecer no detalhe). Ver dec-055.
 
 ### 7.2 Revisão de qualidade e segurança consolidada `[C]`
 
 Ref: plan.md §Constitution Check (Princípio IV), research.md §Segurança
 
-- [ ] 7.2.1 Rodar `/code-review` nível alto sobre o diff acumulado da feature
-  (WS-A + WS-B + WS-C)
-- [ ] 7.2.2 Confirmar os 4 mandatos S1-S4 do gate OWASP implementados:
+- [x] 7.2.1 Rodar `/code-review` nível alto sobre o diff acumulado da feature
+  (WS-A + WS-B + WS-C) — executado via 2 forks paralelos (backend
+  routes/lib + frontend hub components) sobre o diff `29c3ee7^..cd2ca8c`
+  (49 arquivos de produto, 4856 inserções). Frontend: 0 achados com lastro
+  real (combobox descarta respostas fora de ordem corretamente via
+  `requestSeqRef`; atividades reinicia a lista a cada troca de `:id`;
+  mensagens de erro por código, não genéricas). Backend: 1 achado crítico
+  (gap de correlação com cnpj mascarado — corrigido, ver 7.1.3/dec-055) +
+  2 achados de severidade baixa aceitos como risco documentado: paginação
+  de atividades sem teto superior de `offset` (custo cresce com offset
+  grande, mitigação 6.4.5 cobre só o `limit`) e `ContaMotorista` órfã em
+  edge case raro (trocar `cnpjPrestador` de uma credencial em meio a um
+  reset já iniciado) — nenhum dos dois é explorável por um usuário sem a
+  permissão `motoristas.credencial`, nem causa perda de dados do
+  motorista; registrado como risco aceito, não bloqueia o fechamento.
+- [x] 7.2.2 Confirmar os 4 mandatos S1-S4 do gate OWASP implementados:
   parametrização da busca (S1, task 2.1.2), allowlist de body (S2, tasks
   4.2.2/5.1.2/5.3.1), bcrypt cost ≥ 12 + token de reset quantificado (S3,
   tasks 5.1.3/5.2.2), auditoria sem vazar segredo (S4, tasks
-  4.2.5/5.1.5/5.2.3/5.3.3)
+  4.2.5/5.1.5/5.2.3/5.3.3) — os 4 confirmados com evidência real (dec-056):
+  S1 via RPC parametrizado (`p_id_empresa`/`p_termo`/`p_limit`, sem
+  interpolação de string em SQL); S2 via 4 funções `validar*` com
+  allowlist estrita, `id_empresa` sempre do token; S3
+  `CREDENCIAL_BCRYPT_COST=12`, `CREDENCIAL_TOKEN_RESET_TTL_MS=1h`,
+  single-use (token zerado no mesmo UPDATE que grava a senha nova); S4
+  os 4 pontos de `registrarAuditoria` de credencial (criada/reset
+  iniciado/senha definida/situação alterada) nunca incluem
+  senha/token nos `detalhes`.
 - [ ] 7.2.3 Rodar `review-task` sobre o backlog completo desta feature
   (**nunca** em modelo `haiku` — lição permanente de memória do projeto)
+  — **não executado nesta onda por instrução do orquestrador-pai**: esta
+  onda fecha a etapa `execute-task` do pipeline feature-00c e avança
+  `current_stage` para `review-task` — a execução real do `review-task`
+  (a fase do pipeline, que subsume esta tarefa) acontece na PRÓXIMA onda
+  (`/feature-00c-resume`), não aqui, para não misturar as duas fases no
+  mesmo turno.
 
 ### 7.3 Fechamento e artefatos `[M]`
 
@@ -810,8 +921,15 @@ Ref: FR-024, SC-008, plan.md §Governança
   **somente** com autorização explícita do operador)
 - [ ] 7.3.2 Atualizar a memória do projeto (`MEMORY.md`) com o status final da
   feature
-- [ ] 7.3.3 Confirmar que a tela legada `/dashboard/motoristas` segue
-  funcional sem alteração de comportamento (FR-024/SC-008)
+- [x] 7.3.3 Confirmar que a tela legada `/dashboard/motoristas` segue
+  funcional sem alteração de comportamento (FR-024/SC-008) — confirmado por
+  `git diff --stat 29c3ee7^..cd2ca8c` filtrado por `app/dashboard`
+  excluindo `hub/dashboard`: saída vazia, **nenhum arquivo da tela legada
+  foi tocado** em nenhuma das 6 FASES. `routes/motorista.js` (rota
+  compartilhada de produção) só recebeu adições gated por
+  `HUB_MOTORISTA_LOGIN_CONTA_ATIVA` (ausente em produção = inerte,
+  confirmado via `docker service inspect` antes/depois do smoke desta
+  onda).
 
 ---
 

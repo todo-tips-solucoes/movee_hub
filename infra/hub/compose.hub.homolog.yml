@@ -136,6 +136,13 @@ services:
       # mede esse tempo). Default (não setada) = comportamento ligado.
       HUB_RBAC_ENVIO: "${HUB_RBAC_ENVIO:-}"
       HUB_IMPORT_LOG_ENVIO: "${HUB_IMPORT_LOG_ENVIO:-}"
+      # hub-motorista-canonico (FASE 7, smoke E2E): gate NOVO, análogo ao
+      # padrão ENVIO_* acima — lib/hub-motorista-app-login.js. Default "false"
+      # em qualquer ambiente que não defina a var (produção NUNCA define =
+      # comportamento legado inalterado, FR-023/SC-007). Ligado aqui, SOMENTE
+      # no compose do hub-homolog (recurso hub-*), para exercitar o login via
+      # ContaMotorista nos Scenarios 6 do quickstart.md sem tocar produção.
+      HUB_MOTORISTA_LOGIN_CONTA_ATIVA: "${HUB_MOTORISTA_LOGIN_CONTA_ATIVA:-true}"
     # hub-importacoes (S4, FASE 3): volume privado para os originais de
     # upload (routes/hub-importacoes.js grava em uploads/importacoes/<id>)
     # — sem isto o filesystem do container é efêmero e o arquivo some a

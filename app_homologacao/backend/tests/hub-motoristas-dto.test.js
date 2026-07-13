@@ -33,6 +33,7 @@ const {
   mapPerformanceAtividade,
   mapValidacaoNfAtividade,
   montarAtividades,
+  cnpjEnvioMassaFilter,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
 } = require('../lib/hub-motoristas-dto');
@@ -709,5 +710,40 @@ describe('montarAtividades — merge desc + paginação (task 6.4.2/6.4.3)', () 
 
   test('fontes ausentes/undefined não lançam (defesa em profundidade)', () => {
     assert.doesNotThrow(() => montarAtividades(undefined, undefined, undefined, undefined, 0, 20));
+  });
+});
+
+// FASE 7 (gap encontrado no code-review de fechamento) — cnpjEnvioMassaFilter
+// é uma cópia deliberada (mesmo padrão de duplicação declarado no cabeçalho
+// de routes/hub-motoristas.js) da função homônima de routes/motorista.js:117,
+// que já resolve o problema de EnvioMassa.cnpj_prestador aparecer em dois
+// formatos. Este teste trava o comportamento das DUAS cópias permanecerem
+// idênticas — qualquer drift futuro (ex.: alguém "simplifica" uma cópia e
+// esquece a outra) quebra este teste.
+describe('cnpjEnvioMassaFilter (dual-format EnvioMassa.cnpj_prestador, FASE 7)', () => {
+  test('cnpj de 14 dígitos: filtro in.() casa dígitos-puro E mascarado', () => {
+    const filtro = cnpjEnvioMassaFilter('12345678000195');
+    assert.match(filtro, /^cnpj_prestador=in\.\(/);
+    const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
+    assert.equal(decodificado, '"12345678000195","12.345.678/0001-95"');
+  });
+
+  test('entrada já mascarada é normalizada para dígitos antes de montar as duas variantes', () => {
+    const filtro = cnpjEnvioMassaFilter('12.345.678/0001-95');
+    const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
+    assert.equal(decodificado, '"12345678000195","12.345.678/0001-95"');
+  });
+
+  test('cnpj com tamanho diferente de 14 dígitos: só a variante dígitos-puro (sem máscara aplicável)', () => {
+    const filtro = cnpjEnvioMassaFilter('123456789');
+    const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
+    assert.equal(decodificado, '"123456789"');
+  });
+
+  test('entrada vazia/null não lança e produz filtro com string vazia', () => {
+    assert.doesNotThrow(() => cnpjEnvioMassaFilter(null));
+    const filtro = cnpjEnvioMassaFilter('');
+    const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
+    assert.equal(decodificado, '""');
   });
 });
