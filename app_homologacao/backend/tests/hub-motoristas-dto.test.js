@@ -660,16 +660,21 @@ describe('map*Atividade — normalização por fonte', () => {
     );
   });
 
-  test('mapValidacaoNfAtividade — data_emissao tem prioridade sobre criado_em', () => {
+  // review-task de fechamento (finding #1): `criado_em` (= created_at) é a
+  // chave de merge/ordenação — TEM de casar com o `order=created_at.desc`
+  // do fetch bounded da EnvioMassa (invariante do k-way merge). NF
+  // retro-datada (data_emissao antiga, criado_em recente) posiciona pela
+  // data da ATIVIDADE (criado_em), não pela emissão.
+  test('mapValidacaoNfAtividade — criado_em tem prioridade sobre data_emissao (chave de merge = created_at)', () => {
     assert.deepEqual(
       mapValidacaoNfAtividade({ data_emissao: '2026-07-03', criado_em: '2026-06-01T00:00:00Z', numnota: '123', valor: 99 }),
-      { tipo: 'validacao_nf', data: '2026-07-03', descricao: '123', valor: 99 }
+      { tipo: 'validacao_nf', data: '2026-06-01T00:00:00Z', descricao: '123', valor: 99 }
     );
   });
 
-  test('mapValidacaoNfAtividade — sem data_emissao cai para criado_em', () => {
-    const r = mapValidacaoNfAtividade({ data_emissao: null, criado_em: '2026-06-01T00:00:00Z', numnota: null, valor: null });
-    assert.equal(r.data, '2026-06-01T00:00:00Z');
+  test('mapValidacaoNfAtividade — sem criado_em cai para data_emissao (fallback defensivo)', () => {
+    const r = mapValidacaoNfAtividade({ data_emissao: '2026-07-03', criado_em: null, numnota: null, valor: null });
+    assert.equal(r.data, '2026-07-03');
     assert.equal(r.descricao, null);
     assert.equal(r.valor, null);
   });

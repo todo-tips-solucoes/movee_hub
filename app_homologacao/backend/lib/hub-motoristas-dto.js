@@ -220,11 +220,25 @@ function mapPerformanceAtividade(row) {
   };
 }
 
-/** @param {{data_emissao:string|null, criado_em:string|null, numnota:string|null, valor:number|string|null}} row */
+/**
+ * hub-motorista-canonico (review-task de fechamento, finding #1 do
+ * code-review adversarial): a chave `data` DEVE ser `criado_em`
+ * (= `created_at`), NUNCA `data_emissao`. O bounded k-way merge de
+ * `montarAtividades` só é correto se cada fonte for pré-ordenada pela MESMA
+ * chave usada no sort final — e o fetch da EnvioMassa em
+ * `buscarAtividadesMotorista` ordena por `created_at.desc`. Usar
+ * `data_emissao` como chave de merge (versão anterior) quebrava o
+ * invariante: uma NF retro-datada/import histórico (emissão recente,
+ * created_at antigo) ficava fora da janela `offset+limit` e sumia/errava de
+ * posição nas páginas intermediárias (violação de FR-022). `criado_em` é
+ * também o timestamp semanticamente correto da ATIVIDADE (quando a
+ * validação ocorreu); `data_emissao` permanece como fallback defensivo.
+ * @param {{data_emissao:string|null, criado_em:string|null, numnota:string|null, valor:number|string|null}} row
+ */
 function mapValidacaoNfAtividade(row) {
   return {
     tipo: 'validacao_nf',
-    data: row.data_emissao || row.criado_em || null,
+    data: row.criado_em || row.data_emissao || null,
     descricao: row.numnota || null,
     valor: row.valor != null ? Number(row.valor) : null,
   };

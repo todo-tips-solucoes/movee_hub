@@ -372,7 +372,15 @@ router.get('/contas-elegiveis', requirePermission('motoristas.editar'), async (r
  */
 async function buscarAtividadesMotorista(id, idExterno, contaMotorista, entidadeAtiva, claims, offset, limit) {
   const janela = offset + limit;
-  const cnpjPrestadorVinculo = contaMotorista && contaMotorista.cnpj_prestador;
+  // Guard nas DUAS variáveis interpoladas na URL da EnvioMassa (review-task
+  // de fechamento, finding #3): sem `idExterno` o filtro viraria
+  // `entregador_uuid=eq.null` — sintaxe inválida para o tipo uuid no
+  // Postgres, derrubando o GET /:id inteiro com 500. Entregador com
+  // `id_externo` nulo é raro (backfill da 0010), mas o gate correto é nas
+  // duas pontas da correlação (uuid E cnpj), não só no cnpj.
+  const cnpjPrestadorVinculo = idExterno
+    ? (contaMotorista && contaMotorista.cnpj_prestador)
+    : null;
 
   const faturCount = await hubPostgrestRequest(
     `FaturamentoLancamento?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
