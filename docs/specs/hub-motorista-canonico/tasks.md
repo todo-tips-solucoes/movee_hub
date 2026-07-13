@@ -904,14 +904,21 @@ Ref: plan.md §Constitution Check (Princípio IV), research.md §Segurança
   os 4 pontos de `registrarAuditoria` de credencial (criada/reset
   iniciado/senha definida/situação alterada) nunca incluem
   senha/token nos `detalhes`.
-- [ ] 7.2.3 Rodar `review-task` sobre o backlog completo desta feature
+- [x] 7.2.3 Rodar `review-task` sobre o backlog completo desta feature
   (**nunca** em modelo `haiku` — lição permanente de memória do projeto)
-  — **não executado nesta onda por instrução do orquestrador-pai**: esta
-  onda fecha a etapa `execute-task` do pipeline feature-00c e avança
-  `current_stage` para `review-task` — a execução real do `review-task`
-  (a fase do pipeline, que subsume esta tarefa) acontece na PRÓXIMA onda
-  (`/feature-00c-resume`), não aqui, para não misturar as duas fases no
-  mesmo turno.
+  — executado na onda-011 (fase terminal, modelo Fable — não-haiku):
+  auditoria de conformidade por subagente = **25/25 FRs SATISFIED** com
+  evidência file:symbol, 5/5 Clarifications refletidas, mandatos S1–S4
+  confirmados no código (dec-059); reconcile `.tasks[]` ↔ `tasks.md`
+  back-fillou 6 outcomes ausentes (dec-058, finding
+  `task-outcome-nao-gravado` não-bloqueante); code-review adversarial
+  nível ALTO (2 passes) sobre `git diff main...HEAD` = 2 findings
+  confirmados e CORRIGIDOS (commit `a3b32bb`: chave de merge das
+  atividades `criado_em` alinhada ao fetch `created_at.desc`; guard de
+  `idExterno` nulo na correlação EnvioMassa), 1 finding refutado por
+  sonda empírica de teclado (dec-060/dec-061), superfícies de segurança
+  (injection/BOLA/JWT/inércia de produção/credencial) verified-safe;
+  testes pós-fix 98/98 (inclui integração real). **Veredito: APROVAR.**
 
 ### 7.3 Fechamento e artefatos `[M]`
 
@@ -922,12 +929,11 @@ Ref: FR-024, SC-008, plan.md §Governança
   ("hub-motorista-canonico FASE 7 — validação final: E2E real no
   hub-homolog"), 6 arquivos, working tree limpo após o commit. Nenhum
   `git push`/PR aberto (sem autorização do operador).
-- [ ] 7.3.2 Atualizar a memória do projeto (`MEMORY.md`) com o status final da
-  feature — **deferido para o fechamento pleno**: esta onda avança
-  `current_stage` para `review-task` (a review real do pipeline ainda não
-  rodou); a atualização de memória deve refletir o veredito final
-  (`review-task` aprovar/reprovar), não um status intermediário — evita
-  memória desatualizada se o `review-task` pedir ajuste.
+- [x] 7.3.2 Atualizar a memória do projeto (`MEMORY.md`) com o status final da
+  feature — feito na onda-011 após o veredito **APROVAR** do
+  `review-task`: entrada `feature hub-motorista-canonico` adicionada ao
+  `MEMORY.md` do projeto com status (pipeline completa, review aprovada,
+  fixes `a3b32bb`, branch local aguardando autorização de push/PR).
 - [x] 7.3.3 Confirmar que a tela legada `/dashboard/motoristas` segue
   funcional sem alteração de comportamento (FR-024/SC-008) — confirmado por
   `git diff --stat 29c3ee7^..cd2ca8c` filtrado por `app/dashboard`
