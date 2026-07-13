@@ -138,6 +138,17 @@ services:
       # não define esta var). NUNCA presente em compose.hub.dev.yml/
       # compose.hub.homolog.yml.
       HUB_IMPORT_TEST_LOTE_DELAY_MS: "${HUB_IMPORT_TEST_LOTE_DELAY_MS:-0}"
+      # hub-motorista-canonico FASE 5 (tasks.md 5.4, lib/hub-motorista-app-login.js)
+      # — gate de ambiente do login do app motorista contra ContaMotorista
+      # canônica em vez da tabela Motorista legada. Default (não setada) =
+      # comportamento legado idêntico (byte-a-byte) — mesmo espírito de
+      # ENVIO_DRY_RUN acima. Usada SOMENTE por
+      # infra/hub/testes/hub-motorista-canonico-credencial-integration.sh
+      # (exporta HUB_MOTORISTA_LOGIN_CONTA_ATIVA=true no shell antes do `up`
+      # para exercitar o fluxo novo) — NUNCA presente em
+      # compose.hub.dev.yml/compose.hub.homolog.yml nesta fase (rollout real
+      # para hub-homolog fica para além da FASE 5, smoke manual pendente).
+      HUB_MOTORISTA_LOGIN_CONTA_ATIVA: "${HUB_MOTORISTA_LOGIN_CONTA_ATIVA:-}"
     depends_on:
       db:
         condition: service_healthy

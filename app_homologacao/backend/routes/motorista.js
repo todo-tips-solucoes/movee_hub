@@ -24,6 +24,12 @@ const FormData = require('form-data');
 // não por id_empresa===6 estrito — alinha com a validação em massa (server.js). grupo.js é
 // inicializado no boot (server.js), então o _postgrestRequest interno já está disponível.
 const { mesmoGrupoQue } = require('./grupo');
+// hub-motorista-canonico (FASE 5, tasks.md 5.4) — gate de ambiente NOVO,
+// aditivo/inerte em produção (ver lib/hub-motorista-app-login.js). Só é
+// EXERCITADO quando HUB_MOTORISTA_LOGIN_CONTA_ATIVA=true (nunca definida em
+// produção hoje) — o require em si não tem efeito colateral.
+const { hubPostgrestRequest } = require('../lib/hub-postgrest');
+const { hubMotoristaLoginHabilitado } = require('../lib/hub-motorista-app-login');
 
 const router = express.Router();
 
@@ -192,6 +198,66 @@ function clearAuthCookies(res) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// hub-motorista-canonico (FASE 5, tasks.md 5.4) — login via ContaMotorista
+// canônica do hub, só EXERCITADO quando HUB_MOTORISTA_LOGIN_CONTA_ATIVA=true
+// (lib/hub-motorista-app-login.js — inerte em produção sem a env var). NÃO
+// reescreve o login legado (abaixo) — reproduz A MESMA sequência de
+// checagens (conta não encontrada -> 401 genérico; senha NULL -> 401;
+// bcrypt.compare falha -> 401), com UMA checagem adicional
+// (`ativo === false` -> 403) ANTES de emitir qualquer token/cookie — critério
+// de aceite central da task 5.4 (negar credencial desativada ANTES de
+// qualquer efeito colateral/registro de atividade). Gera os tokens com as
+// MESMAS funções já usadas pelo login legado
+// (`generateMotoristaAccessToken`/`generateMotoristaRefreshToken`/
+// `setAuthCookies`) — nenhuma lógica de JWT duplicada.
+// ──────────────────────────────────────────────────────────────────────────────
+async function loginViaContaMotorista(cnpjNorm, senha, res) {
+  // Mesma mensagem anti-enumeração do login legado (FR-016) — não revela
+  // qual campo falhou.
+  const INVALID_MSG = 'Credenciais inválidas.';
+
+  const contas = await hubPostgrestRequest(
+    `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}`
+  );
+
+  if (!contas || contas.length === 0) {
+    return res.status(401).json({ error: INVALID_MSG });
+  }
+
+  const conta = contas[0];
+
+  // Conta sem senha definida (credencial ainda não criada, ou em meio a um
+  // reset — routes/hub-motoristas.js#POST /credencial/reset-senha zera a
+  // senha imediatamente) -> mesma mensagem genérica, sem crashar
+  // bcrypt.compare(_, null).
+  if (!conta.senha) {
+    return res.status(401).json({ error: INVALID_MSG });
+  }
+
+  const senhaOk = await bcrypt.compare(senha, conta.senha);
+  if (!senhaOk) {
+    return res.status(401).json({ error: INVALID_MSG });
+  }
+
+  // Credencial desativada -> 403, ANTES de qualquer token/cookie/atividade
+  // (task 5.4 — critério de aceite central). Mesma mensagem do login legado.
+  if (conta.ativo === false) {
+    return res.status(403).json({ error: 'Conta inativa. Entre em contato com o suporte.' });
+  }
+
+  const payload = { cnpjPrestador: conta.cnpj_prestador, nome: conta.nome || '' };
+  const accessToken = generateMotoristaAccessToken(payload);
+  const refreshToken = generateMotoristaRefreshToken(payload);
+
+  setAuthCookies(res, accessToken, refreshToken);
+
+  return res.json({
+    cnpjPrestador: conta.cnpj_prestador,
+    nome: conta.nome || '',
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // ROTA: POST /motorista/login  (público)
 // Ref: tarefa 2.2.1 / contracts §login / spec FR-001 / quickstart 1, 2
 // ──────────────────────────────────────────────────────────────────────────────
@@ -205,6 +271,14 @@ router.post('/login', loginPerIpLimiter, loginPerAccountLimiter, async (req, res
 
     // Normalizar CNPJ (remover pontuação)
     const cnpjNorm = String(cnpjPrestador).replace(/\D/g, '');
+
+    // hub-motorista-canonico (FASE 5, tasks.md 5.4) — ADITIVO: só desvia para
+    // o fluxo novo quando a env var está ligada (inerte em produção — ver
+    // lib/hub-motorista-app-login.js). Nenhuma linha do fluxo legado abaixo é
+    // alterada/removida.
+    if (hubMotoristaLoginHabilitado()) {
+      return await loginViaContaMotorista(cnpjNorm, senha, res);
+    }
 
     // Buscar motorista no PostgREST
     const motoristas = await _postgrestRequest(

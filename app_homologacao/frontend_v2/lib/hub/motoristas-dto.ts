@@ -96,6 +96,10 @@ export interface MotoristaVinculo {
   contaMotoristaId: number;
   nome: string;
   cnpjPrestadorMascarado: string;
+  /** FASE 5 (task 5.5) — estado da CREDENCIAL de acesso ao app
+   * (ContaMotorista.ativo), independente de `MotoristaDetalhe.ativo`
+   * (situação do próprio motorista/Entregador — FR-015/FR-018). */
+  ativo: boolean;
 }
 
 export interface MotoristaDetalhe {
@@ -118,6 +122,7 @@ function parseVinculo(raw: unknown): MotoristaVinculo | null {
     contaMotoristaId: r.contaMotoristaId,
     nome: r.nome,
     cnpjPrestadorMascarado: isString(r.cnpjPrestadorMascarado) ? r.cnpjPrestadorMascarado : '',
+    ativo: r.ativo === true,
   };
 }
 
@@ -323,3 +328,69 @@ export function isUuidValido(valor: string): boolean {
 // ────────────────────────────────────────────────────────────────────────────
 
 export type OrigemVinculo = 'sugestao' | 'busca_manual';
+
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 5 — Credencial de acesso ao app do motorista (tasks.md 5.1/5.2/5.3;
+// contracts/api-motorista-canonico.md §WS-C Credencial).
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface CriarCredencialResponse {
+  id: number;
+  /** Já mascarado pelo backend (LGPD, mesmo padrão de `cnpjPrestadorMascarado`). */
+  cnpjPrestador: string;
+  ativo: boolean;
+  /** Só presente quando a senha foi AUTO-gerada pelo backend (nenhuma
+   * `senhaInicial` foi enviada no corpo) — ausente quando o caller já
+   * informou a própria senha inicial. */
+  senhaTemporaria?: string;
+}
+
+export function parseCriarCredencialResponse(raw: unknown): CriarCredencialResponse {
+  if (!raw || typeof raw !== 'object') {
+    throw new TypeError('Resposta de criação de credencial inválida: shape não é objeto');
+  }
+  const r = raw as Record<string, unknown>;
+  if (typeof r.id !== 'number' || !isString(r.cnpjPrestador)) {
+    throw new TypeError('Resposta de criação de credencial inválida: id/cnpjPrestador ausentes');
+  }
+  return {
+    id: r.id,
+    cnpjPrestador: r.cnpjPrestador,
+    ativo: r.ativo === true,
+    senhaTemporaria: isString(r.senhaTemporaria) ? r.senhaTemporaria : undefined,
+  };
+}
+
+export interface ResetCredencialResponse {
+  ok: boolean;
+  /** Token de definição de nova senha — devolvido UMA ÚNICA vez, expira em
+   * 60 minutos, uso único (contracts §POST reset-senha). */
+  tokenDefinicao: string;
+}
+
+export function parseResetCredencialResponse(raw: unknown): ResetCredencialResponse {
+  if (!raw || typeof raw !== 'object') {
+    throw new TypeError('Resposta de redefinição de senha inválida: shape não é objeto');
+  }
+  const r = raw as Record<string, unknown>;
+  if (!isString(r.tokenDefinicao)) {
+    throw new TypeError('Resposta de redefinição de senha inválida: tokenDefinicao ausente');
+  }
+  return { ok: r.ok === true, tokenDefinicao: r.tokenDefinicao };
+}
+
+export interface AtualizarCredencialResponse {
+  id: number;
+  ativo: boolean;
+}
+
+export function parseAtualizarCredencialResponse(raw: unknown): AtualizarCredencialResponse {
+  if (!raw || typeof raw !== 'object') {
+    throw new TypeError('Resposta de atualização de credencial inválida: shape não é objeto');
+  }
+  const r = raw as Record<string, unknown>;
+  if (typeof r.id !== 'number') {
+    throw new TypeError('Resposta de atualização de credencial inválida: id ausente');
+  }
+  return { id: r.id, ativo: r.ativo === true };
+}

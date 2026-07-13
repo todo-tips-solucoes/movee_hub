@@ -9,17 +9,23 @@
 
 import {
   parseAreasResponse,
+  parseAtualizarCredencialResponse,
   parseContasElegiveisResponse,
+  parseCriarCredencialResponse,
   parseCriarMotoristaResponse,
   parseMotoristaDetalhe,
   parseMotoristaListResponse,
+  parseResetCredencialResponse,
   parseSugestoesResponse,
   parseVincularResponse,
+  type AtualizarCredencialResponse,
   type ContasElegiveisResponse,
+  type CriarCredencialResponse,
   type CriarMotoristaResponse,
   type MotoristaDetalhe,
   type MotoristaListResponse,
   type OrigemVinculo,
+  type ResetCredencialResponse,
   type SugestoesResponse,
   type VincularResponse,
 } from './motoristas-dto';
@@ -44,6 +50,15 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   nome_invalido: 'Informe o nome do motorista.',
   uuid_invalido: 'O identificador (uuid) informado está em formato inválido.',
   uuid_duplicado: 'Este identificador (uuid) já pertence a outro motorista desta empresa.',
+  // Credencial de acesso ao app do motorista (FASE 5, task 5.5,
+  // contracts/api-motorista-canonico.md §WS-C Credencial).
+  cnpj_invalido: 'Informe o CNPJ do prestador.',
+  senha_invalida: 'A senha informada precisa ter pelo menos 8 caracteres.',
+  credencial_existente: 'Este motorista (ou este CNPJ) já tem uma credencial de acesso vinculada.',
+  credencial_inexistente: 'Este motorista ainda não tem uma credencial de acesso criada.',
+  token_ausente: 'Informe o token de definição de senha.',
+  token_invalido: 'Token inválido. Solicite uma nova redefinição de senha.',
+  token_expirado: 'Este token expirou. Solicite uma nova redefinição de senha.',
 };
 
 export class MotoristaApiError extends Error {
@@ -196,4 +211,68 @@ export async function vincularMotorista(
 
 export async function desvincularMotorista(id: number): Promise<void> {
   await request<void>(`/motoristas/${id}/vinculo`, { method: 'DELETE' });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 5 (task 5.5) — Credencial de acesso ao app do motorista.
+// `entregadorId` é sempre o `Entregador.id` (mesmo parâmetro de
+// `vincularMotorista`/`desvincularMotorista` acima), NUNCA o
+// `contaMotoristaId` — mesmo padrão de todas as rotas `:id/...` deste módulo.
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface CriarCredencialBody {
+  cnpjPrestador: string;
+  /** Opcional — se ausente, o backend gera uma senha temporária de alta
+   * entropia e a devolve em `senhaTemporaria` (uma única vez). */
+  senhaInicial?: string;
+}
+
+export async function criarCredencial(
+  entregadorId: number,
+  body: CriarCredencialBody
+): Promise<CriarCredencialResponse> {
+  const raw = await request<unknown>(`/motoristas/${entregadorId}/credencial`, {
+    method: 'POST',
+    body: JSON.stringify({
+      cnpjPrestador: body.cnpjPrestador,
+      ...(body.senhaInicial ? { senhaInicial: body.senhaInicial } : {}),
+    }),
+  });
+  return parseCriarCredencialResponse(raw);
+}
+
+/** Invalida a senha atual IMEDIATAMENTE e devolve `tokenDefinicao` (60 min,
+ * uso único) — ver `definirNovaSenhaCredencial`. */
+export async function resetSenhaCredencial(entregadorId: number): Promise<ResetCredencialResponse> {
+  const raw = await request<unknown>(`/motoristas/${entregadorId}/credencial/reset-senha`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+  return parseResetCredencialResponse(raw);
+}
+
+export interface DefinirNovaSenhaCredencialBody {
+  token: string;
+  novaSenha: string;
+}
+
+export async function definirNovaSenhaCredencial(
+  entregadorId: number,
+  body: DefinirNovaSenhaCredencialBody
+): Promise<void> {
+  await request<unknown>(`/motoristas/${entregadorId}/credencial/reset-senha/definir`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function atualizarCredencial(
+  entregadorId: number,
+  body: { ativo: boolean }
+): Promise<AtualizarCredencialResponse> {
+  const raw = await request<unknown>(`/motoristas/${entregadorId}/credencial`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  return parseAtualizarCredencialResponse(raw);
 }

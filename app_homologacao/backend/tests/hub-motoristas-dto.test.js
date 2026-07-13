@@ -25,6 +25,9 @@ const {
   validarCriacaoMotorista,
   mascararCnpj,
   validarVinculoBody,
+  validarCriacaoCredencialBody,
+  validarPatchCredencialBody,
+  validarDefinirSenhaCredencialBody,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
 } = require('../lib/hub-motoristas-dto');
@@ -206,7 +209,7 @@ describe('mapMotoristaDetalhe', () => {
       ativo: true,
       nome_editado_manualmente: false,
       id_externo: '55555555-5555-5555-5555-555555555555',
-      ContaMotorista: { id: 7, nome: 'Fulano da Silva', cnpj_prestador: '12345678000195' },
+      ContaMotorista: { id: 7, nome: 'Fulano da Silva', cnpj_prestador: '12345678000195', ativo: true },
     };
     const areas = [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }];
     const resumo = { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' };
@@ -219,8 +222,26 @@ describe('mapMotoristaDetalhe', () => {
       nomeEditadoManualmente: false,
       areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
       resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
-      vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**' },
+      vinculo: {
+        contaMotoristaId: 7,
+        nome: 'Fulano da Silva',
+        cnpjPrestadorMascarado: '12.***.***/0001-**',
+        ativo: true,
+      },
     });
+  });
+
+  test('vinculo presente com credencial DESATIVADA (FASE 5, task 5.5) -> vinculo.ativo=false', () => {
+    const row = {
+      id: 1,
+      nome: 'Fulano da Silva',
+      ativo: true,
+      nome_editado_manualmente: false,
+      id_externo: '55555555-5555-5555-5555-555555555555',
+      ContaMotorista: { id: 7, nome: 'Fulano da Silva', cnpj_prestador: '12345678000195', ativo: false },
+    };
+    const detalhe = mapMotoristaDetalhe(row, [], { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+    assert.equal(detalhe.vinculo.ativo, false);
   });
 
   test('vinculo ausente -> null, sem erro', () => {
@@ -470,5 +491,106 @@ describe('validarCriacaoMotorista — allowlist estrita FASE 4 (task 4.2.2/4.2.3
     assert.equal(r.motoristaId, undefined);
     assert.equal(r.idEmpresa, undefined);
     assert.equal(r.hacked, undefined);
+  });
+});
+
+describe('validarCriacaoCredencialBody — allowlist estrita FASE 5 (task 5.1.2), contracts §POST /credencial', () => {
+  test('cnpjPrestador formatado -> normalizado para só-dígitos', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12.345.678/0001-95' });
+    assert.equal(r.ok, true);
+    assert.equal(r.cnpjPrestador, '12345678000195');
+  });
+
+  test('senhaInicial ausente -> ok, sem a chave senhaInicial no retorno (senha será gerada pelo caller)', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12345678000195' });
+    assert.equal(r.ok, true);
+    assert.equal(Object.prototype.hasOwnProperty.call(r, 'senhaInicial'), false);
+  });
+
+  test('senhaInicial válida (>=8 chars) -> ecoada', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12345678000195', senhaInicial: 'SenhaForte1' });
+    assert.equal(r.ok, true);
+    assert.equal(r.senhaInicial, 'SenhaForte1');
+  });
+
+  test('senhaInicial curta (<8 chars) -> erro senha_invalida', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12345678000195', senhaInicial: '123' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'senha_invalida');
+  });
+
+  test('cnpjPrestador ausente/vazio -> erro cnpj_invalido', () => {
+    assert.equal(validarCriacaoCredencialBody({}).erro, 'cnpj_invalido');
+    assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '' }).erro, 'cnpj_invalido');
+    assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '...' }).erro, 'cnpj_invalido');
+  });
+
+  test('corpo null/undefined -> erro cnpj_invalido, nunca lança', () => {
+    assert.equal(validarCriacaoCredencialBody(null).ok, false);
+    assert.equal(validarCriacaoCredencialBody(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA (mandato S2) — `ativo` do corpo é IGNORADO, nunca aparece no retorno', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12345678000195', ativo: false, motoristaId: 999 });
+    assert.equal(r.ok, true);
+    const chaves = Object.keys(r).sort();
+    assert.deepEqual(chaves, ['cnpjPrestador', 'ok']);
+    assert.equal(r.ativo, undefined);
+    assert.equal(r.motoristaId, undefined);
+  });
+});
+
+describe('validarPatchCredencialBody — allowlist estrita FASE 5 (task 5.3.1), contracts §PATCH /credencial', () => {
+  test('ativo boolean -> ok', () => {
+    assert.deepEqual(validarPatchCredencialBody({ ativo: true }), { ok: true, ativo: true });
+    assert.deepEqual(validarPatchCredencialBody({ ativo: false }), { ok: true, ativo: false });
+  });
+
+  test('ativo ausente/não-booleano -> erro INVALIDO', () => {
+    assert.equal(validarPatchCredencialBody({}).erro, 'INVALIDO');
+    assert.equal(validarPatchCredencialBody({ ativo: 'true' }).erro, 'INVALIDO');
+    assert.equal(validarPatchCredencialBody({ ativo: 1 }).erro, 'INVALIDO');
+  });
+
+  test('corpo null/undefined -> erro INVALIDO, nunca lança', () => {
+    assert.equal(validarPatchCredencialBody(null).ok, false);
+    assert.equal(validarPatchCredencialBody(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA — campos extras nunca aparecem no retorno', () => {
+    const r = validarPatchCredencialBody({ ativo: true, senha: 'hackeada', id: 1 });
+    assert.equal(r.ok, true);
+    assert.deepEqual(Object.keys(r).sort(), ['ativo', 'ok']);
+  });
+});
+
+describe('validarDefinirSenhaCredencialBody — allowlist estrita FASE 5 (gap-fill CHK011, reset-senha/definir)', () => {
+  test('token + novaSenha válidos -> ok', () => {
+    const r = validarDefinirSenhaCredencialBody({ token: 'abc123', novaSenha: 'NovaSenhaForte1' });
+    assert.equal(r.ok, true);
+    assert.equal(r.token, 'abc123');
+    assert.equal(r.novaSenha, 'NovaSenhaForte1');
+  });
+
+  test('token ausente/vazio -> erro token_ausente', () => {
+    assert.equal(validarDefinirSenhaCredencialBody({ novaSenha: 'NovaSenhaForte1' }).erro, 'token_ausente');
+    assert.equal(validarDefinirSenhaCredencialBody({ token: '   ', novaSenha: 'NovaSenhaForte1' }).erro, 'token_ausente');
+  });
+
+  test('novaSenha curta (<8 chars) -> erro senha_invalida', () => {
+    const r = validarDefinirSenhaCredencialBody({ token: 'abc123', novaSenha: '123' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'senha_invalida');
+  });
+
+  test('corpo null/undefined -> erro, nunca lança', () => {
+    assert.equal(validarDefinirSenhaCredencialBody(null).ok, false);
+    assert.equal(validarDefinirSenhaCredencialBody(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA — campos extras nunca aparecem no retorno', () => {
+    const r = validarDefinirSenhaCredencialBody({ token: 'abc123', novaSenha: 'NovaSenhaForte1', ativo: true });
+    assert.equal(r.ok, true);
+    assert.deepEqual(Object.keys(r).sort(), ['novaSenha', 'ok', 'token']);
   });
 });

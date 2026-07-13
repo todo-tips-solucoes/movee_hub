@@ -2,12 +2,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   isUuidValido,
+  parseAtualizarCredencialResponse,
   parseContaCandidata,
   parseContasElegiveisResponse,
+  parseCriarCredencialResponse,
   parseCriarMotoristaResponse,
   parseMotoristaDetalhe,
   parseMotoristaListItem,
   parseMotoristaListResponse,
+  parseResetCredencialResponse,
   parseSugestoesResponse,
   parseVincularResponse,
 } from './motoristas-dto';
@@ -66,7 +69,7 @@ describe('parseMotoristaDetalhe', () => {
     nomeEditadoManualmente: false,
     areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
     resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
-    vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**' },
+    vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
   };
 
   it('aceita o shape completo do contrato (§GET /motoristas/:id)', () => {
@@ -200,5 +203,60 @@ describe('parseVincularResponse', () => {
 
   it('rejeita resposta sem vinculo (shape incompatível)', () => {
     expect(() => parseVincularResponse({ id: 1 })).toThrow(TypeError);
+  });
+
+  it('vinculo.ativo (FASE 5, task 5.5) — estado da credencial exposto', () => {
+    const ativa = parseVincularResponse({
+      id: 1,
+      vinculo: { contaMotoristaId: 7, nome: 'Fulano', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
+    });
+    expect(ativa.vinculo.ativo).toBe(true);
+
+    const inativa = parseVincularResponse({
+      id: 1,
+      vinculo: { contaMotoristaId: 7, nome: 'Fulano', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: false },
+    });
+    expect(inativa.vinculo.ativo).toBe(false);
+  });
+});
+
+describe('parseCriarCredencialResponse (POST .../credencial — FASE 5, task 5.5)', () => {
+  it('senha AUTO-gerada -> senhaTemporaria presente', () => {
+    const parsed = parseCriarCredencialResponse({
+      id: 9, cnpjPrestador: '12.***.***/0001-**', ativo: true, senhaTemporaria: 'abc123XYZ',
+    });
+    expect(parsed).toEqual({ id: 9, cnpjPrestador: '12.***.***/0001-**', ativo: true, senhaTemporaria: 'abc123XYZ' });
+  });
+
+  it('senhaInicial fornecida pelo caller -> senhaTemporaria ausente vira undefined', () => {
+    const parsed = parseCriarCredencialResponse({ id: 9, cnpjPrestador: '12.***.***/0001-**', ativo: true });
+    expect(parsed.senhaTemporaria).toBeUndefined();
+  });
+
+  it('rejeita resposta sem id/cnpjPrestador', () => {
+    expect(() => parseCriarCredencialResponse({ ativo: true })).toThrow(TypeError);
+    expect(() => parseCriarCredencialResponse(null)).toThrow(TypeError);
+  });
+});
+
+describe('parseResetCredencialResponse (POST .../credencial/reset-senha — FASE 5)', () => {
+  it('aceita ok + tokenDefinicao', () => {
+    const parsed = parseResetCredencialResponse({ ok: true, tokenDefinicao: 'deadbeef'.repeat(8) });
+    expect(parsed.ok).toBe(true);
+    expect(parsed.tokenDefinicao).toBe('deadbeef'.repeat(8));
+  });
+
+  it('rejeita resposta sem tokenDefinicao', () => {
+    expect(() => parseResetCredencialResponse({ ok: true })).toThrow(TypeError);
+  });
+});
+
+describe('parseAtualizarCredencialResponse (PATCH .../credencial — FASE 5)', () => {
+  it('aceita id + ativo', () => {
+    expect(parseAtualizarCredencialResponse({ id: 9, ativo: false })).toEqual({ id: 9, ativo: false });
+  });
+
+  it('rejeita resposta sem id', () => {
+    expect(() => parseAtualizarCredencialResponse({ ativo: true })).toThrow(TypeError);
   });
 });

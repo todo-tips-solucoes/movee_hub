@@ -49,6 +49,11 @@ import { Input } from '@/components/ui/input';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { useVinculoMotoristaDialog, VinculoMotoristaDialog } from '@/components/hub/vinculo-motorista-dialog';
 import {
+  CredencialMotoristaAcoes,
+  CredencialMotoristaDialogs,
+  useCredencialMotoristaDialog,
+} from '@/components/hub/credencial-motorista-dialog';
+import {
   desvincularMotorista,
   editarMotorista,
   obterMotorista,
@@ -92,6 +97,11 @@ export default function MotoristaDetalhePage() {
   const id = Number(params?.id);
   const { permissoes } = useHubAuth();
   const podeEditar = permissoes.includes('motoristas.editar');
+  // FASE 5 (task 5.5) — gestão de credencial de acesso ao app do motorista
+  // visível/acionável SOMENTE com `motoristas.credencial` (permissão
+  // distinta de `motoristas.editar`, seed 0044) — mesmo padrão de
+  // `podeEditar` acima.
+  const podeCredencial = permissoes.includes('motoristas.credencial');
 
   const { detalhe, carregando, erro, refetch } = useMotoristaDetalhe(id);
 
@@ -160,6 +170,17 @@ export default function MotoristaDetalhePage() {
     onVinculado: () => {
       refetch();
       toast.success('Conta de acesso vinculada.');
+    },
+  });
+
+  // Credencial de acesso ao app (task 5.5) — mesmo padrão de vinculoDialog
+  // acima: hook isolado do JSX, `onAtualizado` re-busca o detalhe (reflete
+  // `vinculo.ativo` novo) + feedback de sucesso.
+  const credencialDialog = useCredencialMotoristaDialog({
+    entregadorId: id,
+    onAtualizado: () => {
+      refetch();
+      toast.success('Credencial atualizada.');
     },
   });
 
@@ -382,6 +403,38 @@ export default function MotoristaDetalhePage() {
               )}
             </CardContent>
           </Card>
+
+          {podeCredencial && (
+            <Card>
+              <CardHeader>
+                <CardTitle as="h2" className="text-base">
+                  Credencial de acesso
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 px-4">
+                {detalhe.vinculo ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Situação da credencial:{' '}
+                        <span className={detalhe.vinculo.ativo ? 'font-medium text-success' : 'font-medium text-destructive'}>
+                          {detalhe.vinculo.ativo ? 'ativa' : 'desativada'}
+                        </span>
+                      </p>
+                    </div>
+                    <CredencialMotoristaAcoes state={credencialDialog} credencialAtiva={detalhe.vinculo.ativo} />
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
+                    <p className="text-sm text-muted-foreground">Nenhuma credencial de acesso criada.</p>
+                    <CredencialMotoristaAcoes state={credencialDialog} credencialAtiva={null} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {podeCredencial && <CredencialMotoristaDialogs state={credencialDialog} />}
 
           {podeEditar && <VinculoMotoristaDialog state={vinculoDialog} />}
 

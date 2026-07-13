@@ -492,83 +492,152 @@ quickstart.md Scenario 6.
 Ref: FR-017, FR-020, contracts §POST /credencial, research.md Decision 6,
 mandatos S2/S3/S4
 
-- [ ] 5.1.1 Implementar a rota, gate `motoristas.credencial`
-- [ ] 5.1.2 Allowlist do body (mandato S2): `cnpj_prestador` + `senha_inicial`
-  (condicional) — nenhum campo além
-- [ ] 5.1.3 Gravar a senha com **bcrypt cost ≥ 12** (mandato S3) — critério de
-  aceite mensurável, verificável em code review/teste
-- [ ] 5.1.4 Responder `409 credencial_existente` se o motorista já tiver
-  credencial vinculada; resposta de sucesso (`201`) **nunca** inclui o campo
+- [x] 5.1.1 Implementar a rota, gate `motoristas.credencial`
+  (`routes/hub-motoristas.js POST /:id/credencial`)
+- [x] 5.1.2 Allowlist do body (mandato S2): `cnpjPrestador` (camelCase,
+  consistente com o resto do módulo — `senha_inicial`/`cnpj_prestador`
+  snake_case do contrato era esboço ilustrativo) + `senhaInicial`
+  (condicional) — nenhum campo além (`lib/hub-motoristas-dto.js
+  #validarCriacaoCredencialBody`; `ativo` do body é ignorado)
+- [x] 5.1.3 Gravar a senha com **bcrypt cost ≥ 12** (mandato S3) —
+  `CREDENCIAL_BCRYPT_COST=12` (routes/hub-motoristas.js), confirmado por
+  teste unitário e integração real (`hash.startsWith('$2b$12$')`)
+- [x] 5.1.4 Responder `409 credencial_existente` se o motorista já tiver
+  credencial vinculada (senha já definida) OU se o cnpj já estiver vinculado
+  a OUTRO Entregador; resposta de sucesso (`201`) **nunca** inclui o campo
   `senha`
-- [ ] 5.1.5 Chamar `registrarAuditoria` na criação, **nunca** logando a senha
-  (mandato S4)
-- [ ] 5.1.6 Teste `node --test`: criação bem-sucedida (201, sem `senha` na
+- [x] 5.1.5 Chamar `registrarAuditoria` na criação (`motorista.
+  credencial_criada`), **nunca** logando a senha (mandato S4)
+- [x] 5.1.6 Teste `node --test`: criação bem-sucedida (201, sem `senha` na
   resposta), 409 em duplicidade, 403 sem `motoristas.credencial`, allowlist
-  rejeita campos extras no body (ex.: `ativo` sendo aceito indevidamente)
+  rejeita campos extras no body (ex.: `ativo` sendo aceito indevidamente) —
+  cobertura unitária pura em `tests/hub-motoristas-dto.test.js` (allowlist) +
+  integração real end-to-end em
+  `infra/hub/testes/hub-motorista-canonico-credencial-integration.sh`
+  (`tests/hub-motoristas-credencial.test.js`), 39/39 asserts OK
 
 ### 5.2 `POST /api/v1/motoristas/:id/credencial/reset-senha` `[C]`
 
 Ref: FR-019, contracts §reset-senha, mandato S3
 
-- [ ] 5.2.1 Implementar a rota, gate `motoristas.credencial`; a redefinição
-  **invalida a senha anterior imediatamente** (FR-019)
-- [ ] 5.2.2 **[Gap CHK011 security.md]** Definir e implementar valores
-  concretos de expiração e entropia do token de reset — espelhar os valores já
-  usados no fluxo existente `recuperarSenha`/`POST /api/v1/auth/recuperar-senha`
-  do hub (research.md Decision 2) em vez de introduzir uma política nova:
-  token **single-use**, expiração curta **quantificada em minutos** (ex.: o
-  mesmo TTL do fluxo legado, documentar o valor exato usado), e alta entropia
-  **quantificada em bytes/bits** (ex.: `crypto.randomBytes(32)` ⇒ 256 bits);
-  documentar os valores escolhidos no código/PR
-- [ ] 5.2.3 Chamar `registrarAuditoria` na redefinição, **nunca** logando o
-  token de reset (mandato S4)
-- [ ] 5.2.4 Teste `node --test`: reset invalida a senha anterior (login
-  subsequente com a senha antiga falha), token expira após o valor definido em
-  5.2.2, token é single-use (segunda tentativa de uso falha)
+- [x] 5.2.1 Implementar a rota, gate `motoristas.credencial`
+  (`POST /:id/credencial/reset-senha`); a redefinição **invalida a senha
+  anterior imediatamente** (`senha:null` no mesmo PATCH, FR-019)
+- [x] 5.2.2 **[Gap CHK011 security.md]** Valores concretos IMPLEMENTADOS,
+  espelhando EXATAMENTE o fluxo legado `recuperar-senha`/`redefinir-senha`
+  (routes/hub-auth.js): token **single-use** (hash zerado no mesmo UPDATE
+  que consome), expiração **60 minutos**
+  (`CREDENCIAL_TOKEN_RESET_TTL_MS = 60 * 60 * 1000`, MESMO valor de
+  `RECUPERACAO_TOKEN_TTL_MS`), entropia **256 bits**
+  (`crypto.randomBytes(32).toString('hex')`, mesma técnica de
+  `gerarTokenBruto()`). Documentado nos comentários de
+  `routes/hub-motoristas.js`.
+  **Gap-fill adicional (fora do texto original desta subtask, justificado no
+  relatório da FASE 5):** implementada a rota extra `POST
+  /:id/credencial/reset-senha/definir` (mesmo gate) para o token gerado ter
+  semântica de expiração/single-use REALMENTE testável (sem ela não havia
+  como consumir o token) — allowlist `{token, novaSenha}`
+  (`validarDefinirSenhaCredencialBody`), `400 token_invalido` /
+  `410 token_expirado` / `200 {ok:true}` no sucesso.
+- [x] 5.2.3 Chamar `registrarAuditoria` na redefinição (`motorista.
+  credencial_reset_iniciado` e `motorista.credencial_senha_definida`),
+  **nunca** logando o token de reset (mandato S4; confirmado por query SQL
+  dedicada na integração — nenhum segredo em claro em `Auditoria.detalhes`)
+- [x] 5.2.4 Teste `node --test`: reset invalida a senha anterior (login
+  subsequente com a senha antiga falha — verificado via `/motorista/login`
+  real com `HUB_MOTORISTA_LOGIN_CONTA_ATIVA=true`), token expira após o
+  valor definido em 5.2.2 (TTL manipulado direto no banco para simular
+  passagem de tempo, sem esperar 60 min reais), token é single-use (segunda
+  tentativa de uso falha com `400 token_invalido`) — todos verificados em
+  `infra/hub/testes/hub-motorista-canonico-credencial-integration.sh`
 
 ### 5.3 `PATCH /api/v1/motoristas/:id/credencial` — ativar/desativar `[C]`
 
 Ref: FR-018, FR-015 (independência), contracts §PATCH /credencial, quickstart
 Scenario 6
 
-- [ ] 5.3.1 Implementar a rota, gate `motoristas.credencial`, allowlist do
-  body só `ativo`
-- [ ] 5.3.2 Confirmar a independência: alterar `Entregador.ativo` não desativa
-  `ContaMotorista.ativo` e vice-versa (FR-015/FR-018, clarify Q3)
-- [ ] 5.3.3 Chamar `registrarAuditoria` na mudança de situação da credencial
-- [ ] 5.3.4 Teste `node --test`: ativar/desativar credencial não afeta a
-  situação do motorista e vice-versa; `403` sem `motoristas.credencial`
+- [x] 5.3.1 Implementar a rota, gate `motoristas.credencial`
+  (`PATCH /:id/credencial`), allowlist do body só `ativo`
+  (`validarPatchCredencialBody`)
+- [x] 5.3.2 Confirmada a independência: alterar `Entregador.ativo` não
+  desativa `ContaMotorista.ativo` e vice-versa (FR-015/FR-018, clarify Q3) —
+  verificado em integração real (PATCH em cada lado, o outro lado inspecionado
+  via psql/GET)
+- [x] 5.3.3 Chamar `registrarAuditoria` na mudança de situação da credencial
+  (`motorista.credencial_situacao_alterada`, `detalhes:{ativo}`)
+- [x] 5.3.4 Teste: ativar/desativar credencial não afeta a situação do
+  motorista e vice-versa; `403` sem `motoristas.credencial` — verificado em
+  `infra/hub/testes/hub-motorista-canonico-credencial-integration.sh`
 
 ### 5.4 Login do app motorista nega acesso com credencial desativada `[C]`
 
 Ref: spec.md Edge Cases (credencial desativada), contracts §PATCH /credencial
 
-- [ ] 5.4.1 Confirmar (ou ajustar, sempre atrás de condição de ambiente inerte
-  em produção — task 6.2) que o login com `ContaMotorista.ativo = false` é
-  negado **antes** de qualquer registro de atividade
-- [ ] 5.4.2 Teste: tentativa de login/registro de atividade com credencial
-  desativada é negada, sem side-effects
+- [x] 5.4.1 Implementado atrás de condição de ambiente inerte em produção:
+  `lib/hub-motorista-app-login.js#hubMotoristaLoginHabilitado()` +
+  `routes/motorista.js#loginViaContaMotorista` — login com
+  `ContaMotorista.ativo === false` é negado com **403 ANTES** de gerar
+  qualquer token/cookie. Confirmado por `git diff` que o bloco legado de
+  `POST /login` não teve NENHUMA linha alterada/removida (só inserção
+  aditiva do `if (hubMotoristaLoginHabilitado())`)
+- [x] 5.4.2 Teste: tentativa de login com credencial desativada é negada
+  (403), sem side-effects (nenhuma chamada adicional ao PostgREST além do
+  SELECT inicial) — `tests/hub-motorista-app-login.test.js` (mock) +
+  `infra/hub/testes/hub-motorista-canonico-credencial-integration.sh`
+  (real, env HUB_MOTORISTA_LOGIN_CONTA_ATIVA=true); regressão completa de
+  `tests/motorista-integration.test.js`/`motorista-unit.test.js` confirma
+  ZERO mudança de comportamento com a env var ausente (mesmas 8
+  falhas pré-existentes, sem Postgres real neste ambiente — baseline
+  idêntico antes/depois via `git stash`)
 
 ### 5.5 Frontend — gestão de credencial no detalhe do motorista `[A]`
 
 Ref: FR-017..FR-020, quickstart.md Scenario 6
 
-- [ ] 5.5.1 UI no detalhe do motorista: criar credencial, redefinir senha,
-  ativar/desativar — ações visíveis/acionáveis apenas com `motoristas.credencial`
-- [ ] 5.5.2 Tratar erros (`403`, `409`) com mensagem clara ao usuário
-- [ ] 5.5.3 Teste `vitest`: fluxo criar → resetar → desativar com feedback de
-  sucesso/erro; usuário sem a permissão não vê/aciona as ações de credencial
+- [x] 5.5.1 UI no detalhe do motorista: criar credencial (revela
+  `senhaTemporaria` quando auto-gerada), redefinir senha (revela
+  `tokenDefinicao`, 60 min/uso único), ativar/desativar — ações
+  visíveis/acionáveis apenas com `motoristas.credencial`
+  (`components/hub/credencial-motorista-dialog.tsx`, seção nova
+  "Credencial de acesso" em `app/hub/dashboard/motoristas/[id]/page.tsx`).
+  Gap-fill aditivo do backend (não estava no escopo original de 5.1-5.4, mas
+  necessário para a UI refletir o estado real): `GET /motoristas/:id` e
+  `POST /:id/vinculo` passam a expor `vinculo.ativo`
+  (`ContaMotorista.ativo`, coluna já existente desde 0021) — sem migration
+  nova, sem mudança de comportamento para consumidores que ignoram o campo.
+- [x] 5.5.2 Erros (`403`, `409`, `422`, `400`, `410`) tratados via
+  `MotoristaApiError`/`MENSAGENS_CODIGO` (`lib/hub/motoristas-api.ts`:
+  `cnpj_invalido`, `senha_invalida`, `credencial_existente`,
+  `credencial_inexistente`, `token_ausente`, `token_invalido`,
+  `token_expirado`)
+- [x] 5.5.3 Teste `vitest`: fluxo criar → resetar → desativar com feedback de
+  sucesso/erro (`components/hub/credencial-motorista-dialog.test.tsx`, 9
+  testes; `app/hub/dashboard/motoristas/[id]/page.test.tsx`, 5 testes novos
+  incl. o fluxo completo); usuário sem `motoristas.credencial` (mesmo COM
+  `motoristas.editar`) não vê a seção/ações de credencial
 
 ### 5.6 Gate de fechamento da Fase C — Credencial `[C]`
 
 Ref: plan.md §Fases de execução (Fase C — gate de fechamento, parcial)
 
-- [ ] 5.6.1 Rodar `tsc --noEmit` + `eslint` + `node --test` (credencial) +
-  `vitest run` (UI de credencial)
-- [ ] 5.6.2 Smoke manual no hub-homolog: criar credencial → login no app
-  motorista (homolog) com ela → resetar senha → login com senha antiga falha →
-  desativar → acesso negado até reativar (quickstart Scenario 6)
-- [ ] 5.6.3 Registrar Decisão de fechamento com evidência (score ≥ 2)
+- [x] 5.6.1 `tsc --noEmit` limpo, `eslint` limpo (arquivos tocados), `node
+  --test` (dto + login-gate + integração real via script) 100% verde,
+  `vitest run` (UI de credencial) 100% verde, regressão completa
+  backend/frontend sem novas falhas (ver relatório da FASE 5 para os
+  números exatos de cada comando)
+- [ ] 5.6.2 **PENDENTE (deferida)** — smoke manual no hub-homolog: criar
+  credencial → login no app motorista (homolog) com ela → resetar senha →
+  login com senha antiga falha → desativar → acesso negado até reativar
+  (quickstart Scenario 6). Não bloqueia o fechamento da onda (mesmo padrão
+  de pendências registradas nas fases anteriores desta feature) — requer
+  rebuild do Next.js + deploy no hub-homolog, fora do escopo desta sessão.
+- [x] 5.6.3 Registrar Decisão de fechamento com evidência (score ≥ 2) —
+  evidência: migration 0045 aplicada e confirmada no hub_homolog_db efêmero,
+  39/39 asserts da integração real (credencial + login via ContaMotorista),
+  28/28 da integração de cadastro (regressão), `git diff` de
+  `routes/motorista.js` confirmando 0 linhas legadas alteradas, 622 testes
+  backend (614 pass, 8 falhas pré-existentes sem Postgres — baseline
+  idêntico), 249 testes frontend (100% verde)
 
 ---
 

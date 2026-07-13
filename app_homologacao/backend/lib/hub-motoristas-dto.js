@@ -152,6 +152,11 @@ function mapMotoristaDetalhe(row, areas, resumo) {
         contaMotoristaId: contaMotorista.id,
         nome: contaMotorista.nome,
         cnpjPrestadorMascarado: mascararCnpj(contaMotorista.cnpj_prestador),
+        // FASE 5 (task 5.5) — estado REAL da credencial de acesso
+        // (ContaMotorista.ativo, existente desde 0021_conta_motorista.sql),
+        // exposto no detalhe para a UI de "Ativar/Desativar credencial"
+        // (PATCH /:id/credencial) refletir o servidor em vez de adivinhar.
+        ativo: !!contaMotorista.ativo,
       }
       : null,
   };
@@ -313,6 +318,88 @@ function validarVinculoBody(corpoCru) {
   return { ok: true, contaMotoristaId, origem };
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 5 — Credencial de acesso ao app do motorista (tasks.md 5.1/5.2/5.3):
+// allowlist estrita do corpo de POST/PATCH .../credencial* (mandato S2,
+// mesmo padrão de `validarPatchMotorista`/`validarVinculoBody` acima —
+// função PURA testável sem PostgREST/Express real).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Valida e extrai `cnpjPrestador`/`senhaInicial` do corpo cru de
+ * `POST /motoristas/:id/credencial`. Allowlist estrita (5.1.2): qualquer
+ * outra chave do corpo (ex.: `ativo`) é ignorada, nunca lida por esta
+ * função, nunca chega ao PostgREST.
+ *
+ * `cnpjPrestador` é SEMPRE obrigatório, normalizado para só-dígitos (mesma
+ * convenção de `onlyDigitsLogin` em routes/motorista.js). `senhaInicial` é
+ * OPCIONAL — quando ausente/`undefined`/`null`, o caller (rota) gera uma
+ * senha temporária de alta entropia; quando presente, precisa ter pelo
+ * menos 8 caracteres (mesmo mínimo do `/register` legado e do
+ * `/redefinir-senha` do hub).
+ *
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, cnpjPrestador:string, senhaInicial?:string}|{ok:false, erro:'cnpj_invalido'|'senha_invalida'}}
+ */
+function validarCriacaoCredencialBody(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+
+  const cnpjBruto = typeof corpo.cnpjPrestador === 'string' ? corpo.cnpjPrestador : '';
+  const cnpjPrestador = cnpjBruto.replace(/\D/g, '');
+  if (!cnpjPrestador) {
+    return { ok: false, erro: 'cnpj_invalido' };
+  }
+
+  const temSenhaInicial = Object.prototype.hasOwnProperty.call(corpo, 'senhaInicial')
+    && corpo.senhaInicial !== undefined && corpo.senhaInicial !== null;
+  if (!temSenhaInicial) {
+    return { ok: true, cnpjPrestador };
+  }
+
+  if (typeof corpo.senhaInicial !== 'string' || corpo.senhaInicial.length < 8) {
+    return { ok: false, erro: 'senha_invalida' };
+  }
+  return { ok: true, cnpjPrestador, senhaInicial: corpo.senhaInicial };
+}
+
+/**
+ * Valida e extrai SOMENTE `ativo` do corpo cru de
+ * `PATCH /motoristas/:id/credencial` — allowlist estrita (5.3.1), mesmo
+ * padrão de `validarPatchMotorista`.
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, ativo:boolean}|{ok:false, erro:'INVALIDO'}}
+ */
+function validarPatchCredencialBody(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+  if (typeof corpo.ativo !== 'boolean') {
+    return { ok: false, erro: 'INVALIDO' };
+  }
+  return { ok: true, ativo: corpo.ativo };
+}
+
+/**
+ * Valida e extrai `token`/`novaSenha` do corpo cru de
+ * `POST /motoristas/:id/credencial/reset-senha/definir` (gap-fill CHK011 —
+ * ver cabeçalho de routes/hub-motoristas.js §credencial). Allowlist
+ * estrita: só estas duas chaves influenciam a rota. Validação PURA de
+ * FORMATO apenas (tipo/tamanho) — a validação de NEGÓCIO (hash bate?
+ * expirou?) é responsabilidade da rota, nunca desta função.
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, token:string, novaSenha:string}|{ok:false, erro:'token_ausente'|'senha_invalida'}}
+ */
+function validarDefinirSenhaCredencialBody(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+  const token = typeof corpo.token === 'string' ? corpo.token.trim() : '';
+  if (!token) {
+    return { ok: false, erro: 'token_ausente' };
+  }
+  const novaSenha = typeof corpo.novaSenha === 'string' ? corpo.novaSenha : '';
+  if (novaSenha.length < 8) {
+    return { ok: false, erro: 'senha_invalida' };
+  }
+  return { ok: true, token, novaSenha };
+}
+
 module.exports = {
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
@@ -327,4 +414,7 @@ module.exports = {
   validarCriacaoMotorista,
   mascararCnpj,
   validarVinculoBody,
+  validarCriacaoCredencialBody,
+  validarPatchCredencialBody,
+  validarDefinirSenhaCredencialBody,
 };
