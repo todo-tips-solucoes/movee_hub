@@ -18,7 +18,7 @@ Números de ensaio citados: `docs/plans/hub-frota/evidencias/S10/`
 |---|---|---|
 | `envio-massa-homologacao_backend_homologacao` | `registry.todo-tips.com/envio-massa-backend:upload-motorista-paginacao` (node:14, Dockerfile legado) | imagem nova `envio-massa-backend:hub-g3-1` (node:20, **Dockerfile.hub**, mesmo server.js + rotas `/api/v1/*` do hub) |
 | `envio-massa-homologacao_frontend_v2_homologacao` | `registry.todo-tips.com/envio-massa-frontend-v2:motoristas-filtros` | imagem nova `envio-massa-frontend-v2:hub-g3-1` (inclui as telas `/hub/*`) |
-| Banco `chatmasterveloz` (container `pgadmin_db`, postgres:13, volume `pgadmin_pg_data`) | schema legado | + tabelas do hub (migrations `infra/hub/migrations/` — série 0000–0041, **expand-only**; ver mapa §5) |
+| Banco `chatmasterveloz` (container `pgadmin_db`, postgres:13, volume `pgadmin_pg_data`) | schema legado | + tabelas do hub (migrations `infra/hub/migrations/` — série 0000–0046, **expand-only**; ver mapa §5) |
 | PostgREST de produção (`pgadmin_postgrest`, postgrest/postgrest:v14.1) | serve o legado | mesmo serviço; recebe SIGUSR1 (reload de schema) após as migrations |
 | **Não muda** | `frontend_homologacao` (painel legado), `frontend_motorista_homologacao` (app motorista), FastAPIs, Traefik, n8n | intocados |
 
@@ -59,7 +59,8 @@ docker exec $(docker ps -qf name=pgadmin_db) \
 # colar/inspecionar com a sessão — NUNCA commitar (contém nomes de objetos internos)
 ```
 
-Objetos que a série 0000–0041 **pressupõe** existir (checklist de validação):
+Objetos que a série 0000–0046 **pressupõe** existir (checklist de validação;
+a 0046, se aplicada, presupõe a `"EnvioMassa"` legada — já presente por definição):
 
 - [ ] Tabela `"Empresa"` com colunas `id`, `email`, `pass`, `nome_empresa`,
       `cnpj`, `id_grupo` (0008 lê `email`/`pass`/`nome_empresa` para migrar
@@ -108,10 +109,18 @@ A imagem só vira produção no `service update` (§7 P6/P7).
 
 ## 5. Mapa de aplicabilidade das migrations em produção
 
-A série canônica é `infra/hub/migrations/0000–0041`, idempotente, expand-only,
+A série canônica é `infra/hub/migrations/0000–0046`, idempotente, expand-only,
 validada 3× (banco vazio, homolog com dados, cópia sintética volumosa —
 §4.10 do plano técnico; tempos medidos em `evidencias/S10/`). **Duas
 migrations são exclusivas do ambiente isolado e NUNCA rodam em produção:**
+
+> **Nota de escopo (2026-07-13):** as migrations **0042–0046** são da feature
+> `hub-motorista-canonico` (PR #73, pós-S10 — mergeada na `main`, já aplicada e
+> validada no `hub_homolog_db`, `SchemaMigration=47`). O G3 base foi planejado
+> para a série 0000–0041; **incluir ou não a feature no MESMO cutover é decisão
+> do operador**. Se o G3 for só do hub base, pré-registrar 0042–0046 como
+> PULADAS (mesmo mecanismo de 0033/0034, §10) e aplicá-las num incremento
+> posterior. Se entrarem no G3, seguir o mapa abaixo.
 
 | Migration | Em produção | Motivo |
 |---|---|---|
@@ -120,6 +129,11 @@ migrations são exclusivas do ambiente isolado e NUNCA rodam em produção:**
 | **0033_schema_legado_envio_massa** | **PULAR (pré-registro)** | recriaria espelho do schema legado: em produção as tabelas REAIS já existem; a migration ainda adicionaria constraints UNIQUE (`email`/`cnpj` em `"Empresa"`) e GRANTs — risco de falha por dados duplicados e mudança de permissão não planejada |
 | **0034_seed_legado_envio_massa_teste** | **PULAR (pré-registro)** | inseriria empresas/movimentos QA na `"EnvioMassa"` REAL e motoristas de teste na base `"Motorista"` (exclusiva do grupo Movee — violaria a regra de domínio do CLAUDE.md) |
 | 0038_seed_modulos_admin_qa | **aplicar + revisar** | habilita módulos `usuarios`/`auditoria` para toda entidade com vínculo ativo (desejado) **e** módulo `admin` para `empresa_id=9001` (QA do isolado; em produção vira linha órfã inócua — remover depois ou habilitar `admin` para a entidade correta via tela S9) |
+| 0042_hub_entregadores_busca_rpc | **aplicar** | hub-nativo: índice trigram em `Entregador(nome)` + função `hub_entregadores_busca()` (`SECURITY INVOKER`, RLS do `Entregador`) para o combobox de entregador. Não toca legado |
+| 0043_conta_motorista_senha | **aplicar** | hub-nativo: `ALTER "ContaMotorista" ADD senha text NULL` (aditivo/nullable). Só é lida quando o app motorista autentica contra `ContaMotorista` — em produção o serviço **não** define `HUB_MOTORISTA_LOGIN_CONTA_ATIVA`, então a coluna fica inerte até o cutover do app motorista |
+| 0044_seed_permissao_motoristas_credencial | **aplicar** | hub-nativo: cria a permissão `motoristas.credencial` e a concede a `admin_plataforma`/`admin_entidade` (`ON CONFLICT DO NOTHING`, idempotente) |
+| 0045_conta_motorista_token_reset | **aplicar** | hub-nativo: `ALTER "ContaMotorista" ADD token_reset_hash / token_reset_expira` (aditivo/nullable) para o reset de senha da credencial |
+| **0046_envio_massa_entregador_uuid** | **DECISÃO do operador (toca legado)** | ÚNICA das 0042–0046 que altera a **`"EnvioMassa"` REAL**: `ADD entregador_uuid uuid NULL` + `CREATE INDEX` (não-concorrente) + `NOTIFY pgrst`. É expand-only e a coluna nasce toda NULL (o `CREATE INDEX` é praticamente instantâneo e o lock de escrita é momentâneo), mas por tocar tabela legada é ponto de decisão: **(a) aplicar** (baixo risco) **ou (b) PULAR via pré-registro** (§10) e adiar para o cutover do app motorista, já que a coluna só é gravada com `HUB_MOTORISTA_LOGIN_CONTA_ATIVA` setado (ausente em produção). Se aplicar sob carga alta, trocar por `CREATE INDEX CONCURRENTLY` fora de transação para não bloquear escrita |
 
 Pós-migrations (seed operacional, parte do §7 P4): popular
 `"EmpresaGrupoMovee"` com o grupo Movee real (`INSERT ... VALUES (6)` + filiais
@@ -190,6 +204,7 @@ CREATE TABLE IF NOT EXISTS "SchemaMigration" (
 INSERT INTO "SchemaMigration" (nome) VALUES
   ('0033_schema_legado_envio_massa.sql'),
   ('0034_seed_legado_envio_massa_teste.sql')
+  -- ,('0046_envio_massa_entregador_uuid.sql')  -- DESCOMENTAR só se optar por ADIAR a 0046 (§5, opção b): pré-registra sem alterar a "EnvioMassa" legada
 ON CONFLICT (nome) DO NOTHING;   -- PULADAS por decisão (§5) — nunca executam em produção
 SQL
 
@@ -223,7 +238,7 @@ arquivo → colar o erro para a sessão; avaliar rollback §8 (o backup P1 cobre
 
 **P3 — Checagens pós-migration (colar saídas).**
 ```sql
-SELECT count(*) FROM "SchemaMigration";                          -- = 42 (nº de arquivos em infra/hub/migrations/)
+SELECT count(*) FROM "SchemaMigration";                          -- = 47 se a feature 0042–0046 entrar no G3; = 42 se o G3 for só do hub base (0000–0041). Bater com o nº de arquivos aplicados+pré-registrados
 SELECT count(*) FROM "Usuario";                                  -- ≈ nº de "Empresa" com pass definido (0008)
 SELECT count(*) FROM "UsuarioEntidade" WHERE ativo;              -- ≥ count acima
 SELECT rolname FROM pg_roles WHERE rolname IN ('hub_web_anon');  -- 1 linha
