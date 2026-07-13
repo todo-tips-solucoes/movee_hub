@@ -18,6 +18,7 @@ import { Loader2, LogOut, User } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -61,10 +62,15 @@ export function AccountMenu() {
           <span className="hidden max-w-[160px] truncate sm:block">{usuario.nome}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-56">
-          <DropdownMenuLabel>
-            <span className="block truncate text-sm font-medium text-foreground">{usuario.nome}</span>
-            <span className="block truncate text-xs font-normal">{usuario.email}</span>
-          </DropdownMenuLabel>
+          {/* Base UI: `Menu.GroupLabel` (via DropdownMenuLabel) EXIGE um
+              `Menu.Group` ancestral que forneça o MenuGroupRootContext — sem
+              ele o Base UI lança o erro #31 e derruba o menu ao abrir. */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>
+              <span className="block truncate text-sm font-medium text-foreground">{usuario.nome}</span>
+              <span className="block truncate text-xs font-normal">{usuario.email}</span>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={perfilDialog.abrir}>
             <User aria-hidden="true" />

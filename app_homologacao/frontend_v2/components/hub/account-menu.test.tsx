@@ -6,7 +6,7 @@
 // que evita a fragilidade de portal/positioner em jsdom, mesma nota de
 // `entity-switcher.test.tsx`): confirma que o componente monta sem navegar
 // de imediato e que o gatilho "Meu perfil" não é mais um link para a rota.
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AccountMenu } from './account-menu';
 
@@ -38,5 +38,20 @@ describe('AccountMenu', () => {
   it('"Meu perfil" não é mais um link para /hub/dashboard/perfil (FR-003: virou modal, task 1.3.2)', () => {
     render(<AccountMenu />);
     expect(screen.queryByRole('link', { name: /Meu perfil/i })).not.toBeInTheDocument();
+  });
+
+  // Regressão do crash Base UI #31 ("MenuGroupRootContext is missing"): abrir o
+  // menu montava o `DropdownMenuLabel` (Menu.GroupLabel) sem um `Menu.Group`
+  // ancestral e derrubava a UI. O teste antigo nunca abria o menu, então o
+  // erro escapava — este abre e exige que o conteúdo renderize sem lançar.
+  it('abre o menu e renderiza o rótulo de conta sem lançar (Base UI #31)', async () => {
+    render(<AccountMenu />);
+    fireEvent.click(screen.getByRole('button', { name: 'Menu da conta' }));
+    await waitFor(() => {
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('Pessoa Exemplo').length).toBeGreaterThan(0);
+    expect(screen.getByText('pessoa@exemplo.com')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Meu perfil/i })).toBeInTheDocument();
   });
 });
