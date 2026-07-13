@@ -652,11 +652,11 @@ Scenario 7-9.
 
 Ref: FR-022A, data-model.md §Migrations, research.md Decision 7-8, D-C3
 
-- [ ] 6.1.1 Identificar a(s) tabela(s) de atividade do app motorista no hub
+- [x] 6.1.1 Identificar a(s) tabela(s) de atividade do app motorista no hub
   (faturamento, performance, validação de NF) e criar a migration
   `ADD COLUMN IF NOT EXISTS entregador_uuid uuid NULL`, idempotente, **apenas**
   no `hub_homolog_db`
-- [ ] 6.1.2 Aplicar via `migrate.sh`; confirmar idempotência (segunda execução
+- [x] 6.1.2 Aplicar via `migrate.sh`; confirmar idempotência (segunda execução
   não altera o schema)
 
 ### 6.2 Login do app motorista embute `entregador_uuid` (aditivo, inerte em produção) `[C]`
@@ -664,16 +664,16 @@ Ref: FR-022A, data-model.md §Migrations, research.md Decision 7-8, D-C3
 Ref: FR-022A, FR-023, contracts §App motorista, research.md Decision 7,
 mandato S3
 
-- [ ] 6.2.1 Resolver `entregador_uuid` (cnpj → `ContaMotorista` → `Entregador`
+- [x] 6.2.1 Resolver `entregador_uuid` (cnpj → `ContaMotorista` → `Entregador`
   vinculado) no login (`routes/motorista.js`), atrás de condição de ambiente —
   mesmo padrão do `lib/envio-gate.js` (fail-safe: sem env nova, comportamento
   idêntico ao atual)
-- [ ] 6.2.2 Preservar `rate-limit` + `trust proxy` no login do app motorista
+- [x] 6.2.2 Preservar `rate-limit` + `trust proxy` no login do app motorista
   (histórico do incidente 429/trust-proxy — MEMORY "fix login motorista 429
   trust-proxy") ao embutir o `entregador_uuid` (mandato S3)
-- [ ] 6.2.3 Confirmar que, sem env nova definida, o login permanece
+- [x] 6.2.3 Confirmar que, sem env nova definida, o login permanece
   **byte-a-byte idêntico** ao comportamento atual (verificação para produção)
-- [ ] 6.2.4 Teste `node --test`: login em ambiente "homolog" (env ativada)
+- [x] 6.2.4 Teste `node --test`: login em ambiente "homolog" (env ativada)
   inclui `entregador_uuid` no token; login sem env nova (simulando produção) é
   idêntico ao comportamento atual (mesmo payload, sem campo novo)
 
@@ -681,13 +681,13 @@ mandato S3
 
 Ref: FR-022A, data-model.md §Entity Atividade, D-C2
 
-- [ ] 6.3.1 Nas gravações de atividade (`server.js`/`routes/motorista.js`) que
+- [x] 6.3.1 Nas gravações de atividade (`server.js`/`routes/motorista.js`) que
   hoje usam cnpj, adicionar preenchimento de `entregador_uuid` quando resolvido
   no login (task 6.2), **sem** reescrever chaves existentes — aditivo
-- [ ] 6.3.2 Confirmar que uma atividade cujo uuid ainda não tem motorista
+- [x] 6.3.2 Confirmar que uma atividade cujo uuid ainda não tem motorista
   cadastrado é gravada normalmente, sem bloqueio nem sinalização de erro
   (clarify Q4, edge case)
-- [ ] 6.3.3 Teste `node --test`: atividade grava `entregador_uuid` quando
+- [x] 6.3.3 Teste `node --test`: atividade grava `entregador_uuid` quando
   presente; atividade com uuid não cadastrado não bloqueia a gravação nem
   sinaliza erro
 
@@ -696,26 +696,26 @@ Ref: FR-022A, data-model.md §Entity Atividade, D-C2
 Ref: FR-022, contracts §GET /motoristas/:id (enriquecido), research.md
 Decision 7
 
-- [ ] 6.4.1 **[Gap CHK018/CHK038 requirements.md]** Decidir e documentar o
+- [x] 6.4.1 **[Gap CHK018/CHK038 requirements.md]** Decidir e documentar o
   mecanismo de paginação do histórico de atividades: `offset/limit` vs.
   cursor — decisão recomendada: `?offset=&limit=` por menor esforço de
   implementação e paridade com padrões técnicos já usados no hub; registrar a
   escolha como Decisão auditável (`state-decisions.sh`) **antes** de codificar
   o endpoint
-- [ ] 6.4.2 Implementar a união read-only das fontes (faturamento,
+- [x] 6.4.2 Implementar a união read-only das fontes (faturamento,
   performance, validação de NF) correlacionadas por `Entregador.id_externo`
   (uuid), ordenada **desc** por data (mais recente primeiro)
-- [ ] 6.4.3 Implementar a paginação técnica conforme decidido em 6.4.1, sem
+- [x] 6.4.3 Implementar a paginação técnica conforme decidido em 6.4.1, sem
   limite fixo de período/quantidade (FR-022)
-- [ ] 6.4.4 Motorista sem atividades retorna `atividades: []` (estado vazio
+- [x] 6.4.4 Motorista sem atividades retorna `atividades: []` (estado vazio
   claro, sem erro)
-- [ ] 6.4.5 **[Gap CHK033 requirements.md]** Definir e documentar uma
+- [x] 6.4.5 **[Gap CHK033 requirements.md]** Definir e documentar uma
   estratégia mínima de performance para motoristas com histórico muito longo
   (ex.: página padrão de N registros mesmo sem limite fixo de período, índice
   em coluna de data já coberto pelas tabelas fonte) — mitigar o risco de
   degradação de UI/API não quantificado, sem introduzir um teto de período que
   contradiga FR-022
-- [ ] 6.4.6 Teste `node --test`: atividades ordenadas desc, paginação
+- [x] 6.4.6 Teste `node --test`: atividades ordenadas desc, paginação
   funcional (task 6.4.1/6.4.3), motorista sem atividades retorna `[]`,
   atividade com uuid ainda não correlacionado não aparece indevidamente em
   outro motorista
@@ -724,10 +724,10 @@ Decision 7
 
 Ref: FR-022, quickstart.md Scenario 7
 
-- [ ] 6.5.1 Renderizar o histórico read-only (sem nenhuma ação de edição) no
+- [x] 6.5.1 Renderizar o histórico read-only (sem nenhuma ação de edição) no
   detalhe do motorista, organizado por tipo e data
-- [ ] 6.5.2 Estado vazio claro quando não há atividades (sem erro)
-- [ ] 6.5.3 **[Gap CHK006/CHK039 requirements.md]** Aplicar os mesmos padrões
+- [x] 6.5.2 Estado vazio claro quando não há atividades (sem erro)
+- [x] 6.5.3 **[Gap CHK006/CHK039 requirements.md]** Aplicar os mesmos padrões
   de acessibilidade (navegação por teclado, rótulos ARIA para leitor de tela)
   já usados nos idiomas Base UI reaproveitados nesta feature (`Dialog` do
   `perfil-dialog.tsx` — task 1.3, `Popover`/`Command` do
@@ -736,26 +736,34 @@ Ref: FR-022, quickstart.md Scenario 7
   componente) + rótulos ARIA presentes; validar manualmente com teclado e,
   se houver ferramenta de a11y automatizada já configurada no projeto, rodá-la
   sobre os três componentes
-- [ ] 6.5.4 Teste `vitest`: renderização do histórico, estado vazio, ausência
+- [x] 6.5.4 Teste `vitest`: renderização do histórico, estado vazio, ausência
   de controles de edição na lista de atividades
 
 ### 6.6 Gate de fechamento da Fase C — Atividades e produção inalterada `[C]`
 
 Ref: FR-023, SC-007, FR-024, SC-008, quickstart.md Scenario 8-9
 
-- [ ] 6.6.1 Rodar `tsc --noEmit` + `eslint` + `node --test` + `vitest run`
+- [x] 6.6.1 Rodar `tsc --noEmit` + `eslint` + `node --test` + `vitest run`
   (atividades)
 - [ ] 6.6.2 Roundtrip E2E **sem mock** (quickstart Scenario 8): backend real
   do hub-homolog, `curl` autenticado (cookie `accessToken`) nos 3 endpoints
   principais (`GET /faturamento/entregadores`, `POST /motoristas`,
   `GET /motoristas/:id`), confirmar que o shape casa com
-  `contracts/api-motorista-canonico.md` e com o tipo consumido pelo front
-- [ ] 6.6.3 Confirmar produção inalterada (quickstart Scenario 9): nenhuma env
+  `contracts/api-motorista-canonico.md` e com o tipo consumido pelo front —
+  **DEFERIDO por instrução explícita desta onda** (mesmo padrão de
+  1.4.3/2.5.3/4.5.2/5.6.2): "Sem next build / docker build de imagens nesta
+  onda" impede rebuildar `hub_homolog_backend`/`hub_homolog_frontend` com o
+  código novo desta FASE, pré-requisito do roundtrip real (o container em
+  produção do hub-homolog ainda roda a imagem da FASE 5). A migration 0046
+  JÁ foi aplicada no `hub_homolog_db` (task 6.1.2, idempotência confirmada —
+  2ª execução do `migrate.sh` não reaplicou). Fica para o smoke de FASE 7
+  (junto dos demais deferidos), após rebuild sob rito anti-starvation.
+- [x] 6.6.3 Confirmar produção inalterada (quickstart Scenario 9): nenhuma env
   nova (`ENVIO_*`/uuid) definida nos serviços Swarm de produção; nenhuma
   migration aplicada em `chatmasterveloz`; tela legada
   `app/dashboard/motoristas/page.tsx` funcionando sem alteração de
   comportamento (FR-024/SC-008)
-- [ ] 6.6.4 Registrar Decisão de fechamento com evidência (score ≥ 2)
+- [x] 6.6.4 Registrar Decisão de fechamento com evidência (score ≥ 2)
 
 ---
 

@@ -48,10 +48,30 @@ async function mockPostgrestRequest(path, method = 'GET', body = null) {
 
   if (method === 'GET') {
     let rows = [...(DB[table] || [])];
-    // Filtros simples: campo=eq.valor
+    // Filtros simples: campo=eq.valor OU campo=in.("v1","v2",...) — este
+    // último cobre `cnpjEnvioMassaFilter()` (routes/motorista.js), usado por
+    // /movimento-aberto e /validar-nota para casar cnpj_prestador em ambos
+    // os formatos (só-dígitos e mascarado). Sem este parse, TODA consulta
+    // via `in.(...)` retorna 0 linhas neste mock — bug pré-existente do
+    // harness (não do código de produção) descoberto/corrigido na FASE 6
+    // (tasks.md 6.3.3) ao escrever os testes de gravação de entregador_uuid.
     for (const [key, val] of Object.entries(params)) {
-      if (key.startsWith('order') || key === 'limit') continue;
+      // `select` nunca foi tratado como projeção de campos aqui (outro bug
+      // pré-existente do harness, mesma descoberta acima): sem este skip,
+      // qualquer query com `&select=...` era filtrada contra um campo
+      // inexistente `r.select` e SEMPRE retornava `[]` — mascarava o reread
+      // pós-validação em /validar-nota (mesmo padrão já usado em
+      // tests/hub-motorista-app-login.test.js#mockHubPostgrestRequest).
+      if (key.startsWith('order') || key === 'limit' || key === 'select') continue;
       const field = key;
+      if (val.startsWith('in.(') && val.endsWith(')')) {
+        const valores = val
+          .slice('in.('.length, -1)
+          .split(',')
+          .map((v) => v.trim().replace(/^"|"$/g, ''));
+        rows = rows.filter((r) => valores.includes(String(r[field])));
+        continue;
+      }
       const value = val.replace(/^eq\./, '');
       rows = rows.filter((r) => String(r[field]) === String(value));
     }
@@ -527,6 +547,98 @@ describe('3.2 / 3.3 POST /motorista/validar-nota', () => {
     assert.equal(r.status, 502);
 
     // Restaurar mock
+    axiosMock.post = async () => _axiosMockResponse;
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // FASE 6 (tasks.md 6.3.3) — gravação de entregador_uuid no movimento
+  // ──────────────────────────────────────────────────────────────────────
+  test('token com entregadorUuid -> grava entregador_uuid no movimento (aditivo, não reescreve cnpj_prestador)', async () => {
+    resetDB();
+    DB.EnvioMassa.push({
+      id: 200,
+      cnpj_prestador: '66666666000100',
+      mov_fechado: false,
+      valor: 3000,
+      // nota_ok NULL (não `false`) — `false != null` é `true` em JS, então um
+      // `nota_ok: false` faria `temNotaOk`/`jaAprovada` (routes/motorista.js)
+      // interpretar "já tem nota_ok preenchido" e bloquear com 409 (pré-
+      // existente nos fixtures antigos deste describe — bug de fixture, não
+      // de produção, descoberto ao escrever este teste).
+      nota_ok: null,
+      erro_validacao: null,
+    });
+    // Restaura o mock do axios explicitamente — o teste anterior deste
+    // describe ("falha do serviço externo") só restaura `axiosMock.post` DEPOIS
+    // do seu próprio assert, que hoje já falha por um bug pré-existente do
+    // fixture (nota_ok:false em outra linha), então a restauração nunca roda
+    // e o mock "throw" vaza para os testes seguintes. Defensivo aqui.
+    // O serviço real de validação grava nota_ok/erro_validacao DIRETO na
+    // EnvioMassa (comentário em routes/motorista.js "Fonte de verdade...") —
+    // o mock do axios simula esse efeito colateral para o backend conseguir
+    // reler um resultado aprovado (mesma técnica que os testes ORIGINAIS
+    // deste describe já pressupunham, sem nunca implementar o lado do mock).
+    axiosMock.post = async () => {
+      const row = DB.EnvioMassa.find((m) => m.id === 200);
+      if (row) {
+        row.nota_ok = 'https://fake-fastapi.local/nota-200.xml';
+        row.erro_validacao = '';
+      }
+      return { data: [{ valid: true, details: {} }] };
+    };
+    _axiosMockResponse = { data: [{ valid: true, details: {} }] };
+
+    const tok = makeToken({
+      cnpjPrestador: '66666666000100',
+      entregadorUuid: '22222222-2222-2222-2222-222222222222',
+    });
+    const mp = buildMultipart(XML_VALIDO);
+    const r = await request('POST', '/motorista/validar-nota', {
+      cookies: `accessToken=${tok}`,
+      multipart: mp,
+    });
+    assert.equal(r.status, 200);
+
+    const movimento = DB.EnvioMassa.find((m) => m.id === 200);
+    assert.equal(movimento.entregador_uuid, '22222222-2222-2222-2222-222222222222');
+    // chave existente preservada — aditivo, nada reescrito
+    assert.equal(movimento.cnpj_prestador, '66666666000100');
+  });
+
+  test('token SEM entregadorUuid (uuid ainda não resolvido/cadastrado) -> grava normalmente, sem bloqueio nem erro', async () => {
+    resetDB();
+    DB.EnvioMassa.push({
+      id: 201,
+      cnpj_prestador: '77777777000100',
+      mov_fechado: false,
+      valor: 4000,
+      nota_ok: null,
+      erro_validacao: null,
+    });
+    // Mesma técnica de simulação do efeito colateral do serviço externo
+    // (grava nota_ok/erro_validacao direto na EnvioMassa) do teste anterior.
+    axiosMock.post = async () => {
+      const row = DB.EnvioMassa.find((m) => m.id === 201);
+      if (row) {
+        row.nota_ok = 'https://fake-fastapi.local/nota-201.xml';
+        row.erro_validacao = '';
+      }
+      return { data: [{ valid: true, details: {} }] };
+    };
+    _axiosMockResponse = { data: [{ valid: true, details: {} }] };
+
+    const tok = makeToken({ cnpjPrestador: '77777777000100' }); // sem entregadorUuid
+    const mp = buildMultipart(XML_VALIDO);
+    const r = await request('POST', '/motorista/validar-nota', {
+      cookies: `accessToken=${tok}`,
+      multipart: mp,
+    });
+    assert.equal(r.status, 200);
+
+    const movimento = DB.EnvioMassa.find((m) => m.id === 201);
+    assert.equal(movimento.entregador_uuid, undefined);
+
+    // Restaura o mock do axios ao default para não vazar para outros describes.
     axiosMock.post = async () => _axiosMockResponse;
   });
 });

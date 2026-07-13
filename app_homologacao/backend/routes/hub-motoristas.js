@@ -54,6 +54,8 @@ const {
   validarCriacaoCredencialBody,
   validarPatchCredencialBody,
   validarDefinirSenhaCredencialBody,
+  parsePaginacaoAtividades,
+  montarAtividades,
 } = require('../lib/hub-motoristas-dto');
 const {
   termoBuscaValido,
@@ -339,7 +341,83 @@ router.get('/contas-elegiveis', requirePermission('motoristas.editar'), async (r
  * queries (Entregador+embed, áreas, resumo) entre os dois handlers.
  * @returns {Promise<object|null>} `null` se `id` fora do escopo/inexistente.
  */
-async function buscarDetalheMotorista(id, entidadeAtiva, claims) {
+/**
+ * FASE 6 (task 6.4) — histórico de atividades correlacionadas por uuid
+ * (data-model.md §Entity Atividade, dec-046/dec-048). União read-only de 3
+ * fontes:
+ *   - FaturamentoLancamento/PerformanceTurno: já correlacionadas por
+ *     `entregador_id` (FK física) — escopadas por `id_empresa` (RLS +
+ *     filtro explícito, mesmo padrão do resumo all-time).
+ *   - EnvioMassa (validação de NF, schema legado espelhado no hub — SEM
+ *     RLS, 0006_rls_policies.sql): correlacionada por `entregador_uuid`
+ *     (migration 0046) **E** `cnpj_prestador` da conta vinculada (dec-048 —
+ *     fecha risco de colisão de uuid entre empresas, já que
+ *     `Entregador.id_externo` só é único POR empresa). Sem vínculo
+ *     (`contaMotorista` null) não há `cnpj_prestador` para correlacionar —
+ *     fonte fica vazia legitimamente (não é erro).
+ * Performance (task 6.4.5): 3 contagens exatas (count=exact + range 0-0,
+ * índice em coluna de correlação já existe — 0013/0014/0046) para o
+ * `total`; cada fonte busca só o topo `offset+limit` (ordenado desc) —
+ * nunca a tabela inteira, mesmo sem limite fixo de período/quantidade
+ * (FR-022).
+ * @param {number} id - Entregador.id
+ * @param {string|null} idExterno - Entregador.id_externo (uuid)
+ * @param {object|null} contaMotorista - embed já resolvido (cnpj_prestador)
+ * @param {number} entidadeAtiva
+ * @param {object} claims
+ * @param {number} offset
+ * @param {number} limit
+ * @returns {Promise<{items:object[], total:number, offset:number, limit:number}>}
+ */
+async function buscarAtividadesMotorista(id, idExterno, contaMotorista, entidadeAtiva, claims, offset, limit) {
+  const janela = offset + limit;
+  const cnpjPrestadorVinculo = contaMotorista && contaMotorista.cnpj_prestador;
+
+  const faturCount = await hubPostgrestRequest(
+    `FaturamentoLancamento?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+    'GET', null, claims, { count: true, range: { from: 0, to: 0 } }
+  );
+  const perfCount = await hubPostgrestRequest(
+    `PerformanceTurno?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+    'GET', null, claims, { count: true, range: { from: 0, to: 0 } }
+  );
+  const validCount = cnpjPrestadorVinculo
+    ? await hubPostgrestRequest(
+      `EnvioMassa?entregador_uuid=eq.${encodeURIComponent(idExterno)}`
+      + `&cnpj_prestador=eq.${encodeURIComponent(cnpjPrestadorVinculo)}&select=id`,
+      'GET', null, claims, { count: true, range: { from: 0, to: 0 } }
+    )
+    : { total: 0 };
+
+  const total = (faturCount.total || 0) + (perfCount.total || 0) + (validCount.total || 0);
+
+  if (janela <= 0) {
+    return montarAtividades([], [], [], total, offset, limit);
+  }
+
+  const faturRows = await hubPostgrestRequest(
+    `FaturamentoLancamento?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+    + `&select=data_referencia,descricao,valor&order=data_referencia.desc&limit=${janela}`,
+    'GET', null, claims
+  );
+  const perfRows = await hubPostgrestRequest(
+    `PerformanceTurno?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+    + `&select=data_periodo,periodo,subpraca&order=data_periodo.desc&limit=${janela}`,
+    'GET', null, claims
+  );
+  const validRows = cnpjPrestadorVinculo
+    ? await hubPostgrestRequest(
+      `EnvioMassa?entregador_uuid=eq.${encodeURIComponent(idExterno)}`
+      + `&cnpj_prestador=eq.${encodeURIComponent(cnpjPrestadorVinculo)}`
+      + `&select=data_emissao,criado_em:created_at,numnota,valor&order=created_at.desc&limit=${janela}`,
+      'GET', null, claims
+    )
+    : [];
+
+  return montarAtividades(faturRows || [], perfRows || [], validRows || [], total, offset, limit);
+}
+
+async function buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts) {
   // 404 se fora do escopo do token: filtro explícito por id_empresa (defesa
   // em profundidade — RLS já nega a linha via escopo). Embed nativo do
   // PostgREST via FK física Entregador.motorista_id -> ContaMotorista(id)
@@ -401,7 +479,16 @@ async function buscarDetalheMotorista(id, entidadeAtiva, claims) {
     dataMaisRecente,
   };
 
-  return mapMotoristaDetalhe(row, areas, resumo);
+  // FASE 6 (task 6.4) — seção "Atividades". `atividadesOpts` é opcional
+  // (PATCH /:id reusa esta função e não precisa da janela paginada — mesmo
+  // padrão de reuso já documentado no cabeçalho desta função); default
+  // offset=0/limit=20 quando ausente.
+  const { offset: atividadesOffset, limit: atividadesLimit } = atividadesOpts || { offset: 0, limit: 20 };
+  const atividades = await buscarAtividadesMotorista(
+    id, row.id_externo, row.ContaMotorista, entidadeAtiva, claims, atividadesOffset, atividadesLimit
+  );
+
+  return mapMotoristaDetalhe(row, areas, resumo, atividades);
 }
 
 router.get('/:id', requirePermission('motoristas.consultar'), async (req, res) => {
@@ -412,8 +499,9 @@ router.get('/:id', requirePermission('motoristas.consultar'), async (req, res) =
 
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
+    const atividadesOpts = parsePaginacaoAtividades(req.query);
 
-    const detalhe = await buscarDetalheMotorista(id, entidadeAtiva, claims);
+    const detalhe = await buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts);
     if (!detalhe) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
     return res.status(200).json(detalhe);

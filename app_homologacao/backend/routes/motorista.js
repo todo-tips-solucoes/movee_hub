@@ -211,6 +211,32 @@ function clearAuthCookies(res) {
 // (`generateMotoristaAccessToken`/`generateMotoristaRefreshToken`/
 // `setAuthCookies`) — nenhuma lógica de JWT duplicada.
 // ──────────────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// hub-motorista-canonico (FASE 6, tasks.md 6.2) — resolve o entregador_uuid
+// vinculado a uma ContaMotorista (Entregador.motorista_id -> Entregador
+// .id_externo), SÓ chamado dentro de loginViaContaMotorista — já atrás do
+// gate HUB_MOTORISTA_LOGIN_CONTA_ATIVA (dec-046/tasks.md nota: reusa o gate
+// existente, nenhum env novo — inerte em produção do mesmo jeito que o
+// resto do fluxo ContaMotorista, FR-023/SC-007). `motorista_id` é
+// GLOBALMENTE único (índice único parcial, migration 0021) — no máximo 1
+// Entregador vinculado por conta. Best-effort: falha aqui NUNCA bloqueia o
+// login (clarify Q4 — motorista sem cadastro no hub ainda consegue logar,
+// só sem uuid no token).
+// ──────────────────────────────────────────────────────────────────────────────
+async function resolverEntregadorUuid(contaMotoristaId) {
+  try {
+    const entregadores = await hubPostgrestRequest(
+      `Entregador?motorista_id=eq.${encodeURIComponent(contaMotoristaId)}&select=id_externo`
+    );
+    if (entregadores && entregadores[0] && entregadores[0].id_externo) {
+      return entregadores[0].id_externo;
+    }
+  } catch (err) {
+    console.error('[motorista/login] Falha ao resolver entregador_uuid (não bloqueia o login):', err.message);
+  }
+  return null;
+}
+
 async function loginViaContaMotorista(cnpjNorm, senha, res) {
   // Mesma mensagem anti-enumeração do login legado (FR-016) — não revela
   // qual campo falhou.
@@ -246,6 +272,12 @@ async function loginViaContaMotorista(cnpjNorm, senha, res) {
   }
 
   const payload = { cnpjPrestador: conta.cnpj_prestador, nome: conta.nome || '' };
+  // FASE 6 (tasks.md 6.2) — aditivo: só entra no payload quando resolvido
+  // (Entregador vinculado existe). Ausência não é erro (clarify Q4).
+  const entregadorUuid = await resolverEntregadorUuid(conta.id);
+  if (entregadorUuid) {
+    payload.entregadorUuid = entregadorUuid;
+  }
   const accessToken = generateMotoristaAccessToken(payload);
   const refreshToken = generateMotoristaRefreshToken(payload);
 
@@ -629,6 +661,27 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
         error: 'Nota já aprovada. Reenvio bloqueado.',
         notaOk: true,
       });
+    }
+
+    // hub-motorista-canonico (FASE 6, tasks.md 6.3) — ADITIVO: grava
+    // entregador_uuid no movimento quando resolvido no login (task 6.2). Só
+    // roda quando o gate HUB_MOTORISTA_LOGIN_CONTA_ATIVA populou o token com
+    // entregadorUuid — produção sem a env nunca chega aqui (inerte,
+    // FR-023/SC-007). Não reescreve nenhuma chave existente (cnpj_prestador
+    // continua a fonte de verdade); best-effort — falha aqui NUNCA bloqueia
+    // a validação da nota (clarify Q4/6.3.2: atividade cujo uuid ainda não
+    // tem motorista cadastrado é gravada normalmente, sem bloqueio nem
+    // sinalização de erro — aqui simplesmente não há uuid a gravar).
+    if (req.motorista.entregadorUuid) {
+      try {
+        await _postgrestRequest(
+          `EnvioMassa?id=eq.${movimento.id}`,
+          'PATCH',
+          { entregador_uuid: req.motorista.entregadorUuid }
+        );
+      } catch (gravaErr) {
+        console.error('[motorista/validar-nota] Falha ao gravar entregador_uuid (não bloqueia):', gravaErr.message);
+      }
     }
 
     // Chamar serviço de validação externo (server-side — FR-015)

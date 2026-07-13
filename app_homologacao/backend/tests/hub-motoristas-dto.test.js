@@ -28,6 +28,11 @@ const {
   validarCriacaoCredencialBody,
   validarPatchCredencialBody,
   validarDefinirSenhaCredencialBody,
+  parsePaginacaoAtividades,
+  mapFaturamentoAtividade,
+  mapPerformanceAtividade,
+  mapValidacaoNfAtividade,
+  montarAtividades,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
 } = require('../lib/hub-motoristas-dto');
@@ -228,7 +233,23 @@ describe('mapMotoristaDetalhe', () => {
         cnpjPrestadorMascarado: '12.***.***/0001-**',
         ativo: true,
       },
+      // FASE 6 (task 6.4) — atividades ausente no chamador cai no default
+      // (motorista sem atividades consultadas, task 6.4.4).
+      atividades: { items: [], total: 0, offset: 0, limit: 0 },
     });
+  });
+
+  test('FASE 6 (task 6.4) — atividades explícito é repassado tal-e-qual (pass-through)', () => {
+    const row = { id: 1, nome: 'Fulano', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
+    const resumo = { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null };
+    const atividades = {
+      items: [{ tipo: 'faturamento', data: '2026-07-01', descricao: 'entrega', valor: 10 }],
+      total: 1,
+      offset: 0,
+      limit: 20,
+    };
+    const detalhe = mapMotoristaDetalhe(row, [], resumo, atividades);
+    assert.deepEqual(detalhe.atividades, atividades);
   });
 
   test('vinculo presente com credencial DESATIVADA (FASE 5, task 5.5) -> vinculo.ativo=false', () => {
@@ -592,5 +613,101 @@ describe('validarDefinirSenhaCredencialBody — allowlist estrita FASE 5 (gap-fi
     const r = validarDefinirSenhaCredencialBody({ token: 'abc123', novaSenha: 'NovaSenhaForte1', ativo: true });
     assert.equal(r.ok, true);
     assert.deepEqual(Object.keys(r).sort(), ['novaSenha', 'ok', 'token']);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 6 (task 6.4) — histórico de atividades (dec-046/dec-048)
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('parsePaginacaoAtividades — offset/limit (dec-046, Gap CHK018/CHK038)', () => {
+  test('sem query -> default offset=0, limit=20', () => {
+    assert.deepEqual(parsePaginacaoAtividades({}), { offset: 0, limit: 20 });
+  });
+
+  test('offset/limit válidos são respeitados', () => {
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '40', limit: '10' }), { offset: 40, limit: 10 });
+  });
+
+  test('limit acima do máximo (100) é clampado', () => {
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '0', limit: '999' }), { offset: 0, limit: 100 });
+  });
+
+  test('offset negativo/inválido -> 0 (nunca erro)', () => {
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '-5', limit: '20' }), { offset: 0, limit: 20 });
+    assert.deepEqual(parsePaginacaoAtividades({ offset: 'abc', limit: '20' }), { offset: 0, limit: 20 });
+  });
+
+  test('limit ausente/inválido -> default 20 (nunca 0/negativo)', () => {
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '0', limit: '0' }), { offset: 0, limit: 20 });
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '0', limit: 'xyz' }), { offset: 0, limit: 20 });
+  });
+});
+
+describe('map*Atividade — normalização por fonte', () => {
+  test('mapFaturamentoAtividade', () => {
+    assert.deepEqual(
+      mapFaturamentoAtividade({ data_referencia: '2026-07-01', descricao: 'Entrega X', valor: '42.50' }),
+      { tipo: 'faturamento', data: '2026-07-01', descricao: 'Entrega X', valor: 42.5 }
+    );
+  });
+
+  test('mapPerformanceAtividade — descricao cai para subpraca quando periodo ausente', () => {
+    assert.deepEqual(
+      mapPerformanceAtividade({ data_periodo: '2026-07-02', periodo: null, subpraca: 'Zona Sul' }),
+      { tipo: 'performance', data: '2026-07-02', descricao: 'Zona Sul', valor: null }
+    );
+  });
+
+  test('mapValidacaoNfAtividade — data_emissao tem prioridade sobre criado_em', () => {
+    assert.deepEqual(
+      mapValidacaoNfAtividade({ data_emissao: '2026-07-03', criado_em: '2026-06-01T00:00:00Z', numnota: '123', valor: 99 }),
+      { tipo: 'validacao_nf', data: '2026-07-03', descricao: '123', valor: 99 }
+    );
+  });
+
+  test('mapValidacaoNfAtividade — sem data_emissao cai para criado_em', () => {
+    const r = mapValidacaoNfAtividade({ data_emissao: null, criado_em: '2026-06-01T00:00:00Z', numnota: null, valor: null });
+    assert.equal(r.data, '2026-06-01T00:00:00Z');
+    assert.equal(r.descricao, null);
+    assert.equal(r.valor, null);
+  });
+});
+
+describe('montarAtividades — merge desc + paginação (task 6.4.2/6.4.3)', () => {
+  test('une as 3 fontes e ordena desc por data', () => {
+    const fatur = [{ data_referencia: '2026-07-01', descricao: 'F1', valor: 10 }];
+    const perf = [{ data_periodo: '2026-07-03', periodo: 'Manhã', subpraca: null }];
+    const valid = [{ data_emissao: '2026-07-02', criado_em: null, numnota: 'N1', valor: 5 }];
+    const r = montarAtividades(fatur, perf, valid, 3, 0, 20);
+    assert.equal(r.total, 3);
+    assert.equal(r.offset, 0);
+    assert.equal(r.limit, 20);
+    assert.deepEqual(r.items.map((i) => i.tipo), ['performance', 'validacao_nf', 'faturamento']);
+    assert.deepEqual(r.items.map((i) => i.data), ['2026-07-03', '2026-07-02', '2026-07-01']);
+  });
+
+  test('pagina corretamente (offset+limit) sobre o conjunto unificado', () => {
+    const fatur = [
+      { data_referencia: '2026-07-05', descricao: 'F1', valor: 1 },
+      { data_referencia: '2026-07-01', descricao: 'F2', valor: 2 },
+    ];
+    const perf = [
+      { data_periodo: '2026-07-04', periodo: 'P1', subpraca: null },
+      { data_periodo: '2026-07-02', periodo: 'P2', subpraca: null },
+    ];
+    const r1 = montarAtividades(fatur, perf, [], 4, 0, 2);
+    assert.deepEqual(r1.items.map((i) => i.data), ['2026-07-05', '2026-07-04']);
+    const r2 = montarAtividades(fatur, perf, [], 4, 2, 2);
+    assert.deepEqual(r2.items.map((i) => i.data), ['2026-07-02', '2026-07-01']);
+  });
+
+  test('motorista sem atividades -> items:[] sem erro (task 6.4.4)', () => {
+    const r = montarAtividades([], [], [], 0, 0, 20);
+    assert.deepEqual(r, { items: [], total: 0, offset: 0, limit: 20 });
+  });
+
+  test('fontes ausentes/undefined não lançam (defesa em profundidade)', () => {
+    assert.doesNotThrow(() => montarAtividades(undefined, undefined, undefined, undefined, 0, 20));
   });
 });

@@ -33,13 +33,17 @@ const { test, describe, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Mock de estado em memória para ContaMotorista (lib/hub-postgrest)
+// Mock de estado em memória para ContaMotorista/Entregador (lib/hub-postgrest)
+// FASE 6 (tasks.md 6.2) — "Entregador" adicionado para cobrir a resolução de
+// entregador_uuid no login (motorista_id -> id_externo).
 // ──────────────────────────────────────────────────────────────────────────────
-const HUB_DB = { ContaMotorista: [] };
+const HUB_DB = { ContaMotorista: [], Entregador: [] };
 function resetHubDB() {
   HUB_DB.ContaMotorista = [];
+  HUB_DB.Entregador = [];
 }
 
 let chamadasHubPostgrest = 0;
@@ -57,6 +61,16 @@ async function mockHubPostgrestRequest(endpoint, method = 'GET') {
     return rows;
   }
   return null;
+}
+
+/** Decodifica o accessToken de um Set-Cookie (sem verificar assinatura — só
+ * para inspecionar o payload nos testes, mesmo padrão de extractCookie de
+ * tests/motorista-integration.test.js). */
+function decodeAccessTokenFromSetCookie(setCookieHeaders) {
+  const raw = (setCookieHeaders || []).find((c) => c.startsWith('accessToken='));
+  if (!raw) return null;
+  const token = raw.split(';')[0].split('=').slice(1).join('=');
+  return jwt.decode(token);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -179,6 +193,28 @@ describe('POST /motorista/login — via ContaMotorista (HUB_MOTORISTA_LOGIN_CONT
     assert.equal(r.status, 200);
     assert.equal(r.body.cnpjPrestador, '12345678000195');
     assert.ok(r.headers['set-cookie'] && r.headers['set-cookie'].length >= 2);
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // FASE 6 (tasks.md 6.2.4) — entregador_uuid embutido no token
+  // ────────────────────────────────────────────────────────────────────────
+  test('Entregador vinculado (motorista_id) -> token inclui entregadorUuid', async () => {
+    const hash = await bcrypt.hash('SenhaCorreta1', 12);
+    HUB_DB.ContaMotorista.push({ id: 1, cnpj_prestador: '12345678000195', nome: 'Fulano', ativo: true, senha: hash });
+    HUB_DB.Entregador.push({ id: 50, id_empresa: 9001, id_externo: '11111111-1111-1111-1111-111111111111', motorista_id: 1 });
+    const r = await request('POST', '/motorista/login', { body: { cnpjPrestador: '12345678000195', senha: 'SenhaCorreta1' } });
+    assert.equal(r.status, 200);
+    const decoded = decodeAccessTokenFromSetCookie(r.headers['set-cookie']);
+    assert.equal(decoded.entregadorUuid, '11111111-1111-1111-1111-111111111111');
+  });
+
+  test('ContaMotorista SEM Entregador vinculado -> login OK, token SEM entregadorUuid (clarify Q4)', async () => {
+    const hash = await bcrypt.hash('SenhaCorreta1', 12);
+    HUB_DB.ContaMotorista.push({ id: 2, cnpj_prestador: '98765432000188', nome: 'Ciclano', ativo: true, senha: hash });
+    const r = await request('POST', '/motorista/login', { body: { cnpjPrestador: '98765432000188', senha: 'SenhaCorreta1' } });
+    assert.equal(r.status, 200);
+    const decoded = decodeAccessTokenFromSetCookie(r.headers['set-cookie']);
+    assert.equal(decoded.entregadorUuid, undefined);
   });
 });
 

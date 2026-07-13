@@ -49,6 +49,8 @@ const DETALHE_SEM_VINCULO = {
   areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
   resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
   vinculo: null,
+  // FASE 6 (tasks.md 6.4/6.5) — seção "Atividades" (histórico read-only).
+  atividades: { items: [], total: 0, offset: 0, limit: 20 },
 };
 
 const DETALHE_COM_VINCULO = {

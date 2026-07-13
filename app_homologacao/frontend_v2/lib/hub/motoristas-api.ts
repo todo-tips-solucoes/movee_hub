@@ -139,8 +139,17 @@ export async function listarMotoristas(filtros: ListarMotoristasQuery = {}): Pro
   return parseMotoristaListResponse(raw);
 }
 
-export async function obterMotorista(id: number): Promise<MotoristaDetalhe> {
-  const raw = await request<unknown>(`/motoristas/${id}`);
+/** FASE 6 (tasks.md 6.4/6.5) — `offset`/`limit` paginam SÓ a seção
+ * "Atividades" (dec-046); ausentes -> default do backend (offset=0/limit=20). */
+export interface ObterMotoristaQuery {
+  atividadesOffset?: number;
+  atividadesLimit?: number;
+}
+
+export async function obterMotorista(id: number, filtros: ObterMotoristaQuery = {}): Promise<MotoristaDetalhe> {
+  const raw = await request<unknown>(
+    `/motoristas/${id}${query({ offset: filtros.atividadesOffset, limit: filtros.atividadesLimit })}`
+  );
   return parseMotoristaDetalhe(raw);
 }
 

@@ -53,6 +53,7 @@ import {
   CredencialMotoristaDialogs,
   useCredencialMotoristaDialog,
 } from '@/components/hub/credencial-motorista-dialog';
+import { AtividadesMotoristaSection, useAtividadesMotorista } from '@/components/hub/atividades-motorista-section';
 import {
   desvincularMotorista,
   editarMotorista,
@@ -60,8 +61,10 @@ import {
   obterSugestoes,
   MotoristaApiError,
 } from '@/lib/hub/motoristas-api';
-import type { MotoristaDetalhe } from '@/lib/hub/motoristas-dto';
+import type { AtividadesPaginadas, MotoristaDetalhe } from '@/lib/hub/motoristas-dto';
 import { formatDateBR } from '@/lib/utils';
+
+const ATIVIDADES_VAZIAS: AtividadesPaginadas = { items: [], total: 0, offset: 0, limit: 20 };
 
 /** Lógica isolada do JSX (mesmo padrão de `useImportacaoPolling`/`usePerfil`). */
 export function useMotoristaDetalhe(id: number) {
@@ -183,6 +186,16 @@ export default function MotoristaDetalhePage() {
       toast.success('Credencial atualizada.');
     },
   });
+
+  // FASE 6 (tasks.md 6.5) — seção "Atividades" read-only. Reinicia (volta à
+  // 1ª página) sempre que o detalhe é buscado de novo (edição/vínculo/
+  // credencial), mesmo padrão de qualquer lista que depende de um estado
+  // que pode ter mudado por fora.
+  const atividadesState = useAtividadesMotorista(id, detalhe?.atividades ?? ATIVIDADES_VAZIAS);
+  useEffect(() => {
+    if (detalhe) atividadesState.reiniciar(detalhe.atividades);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detalhe]);
 
   // Desvínculo com confirmação (task 7.2.4)
   const [confirmandoDesvinculo, setConfirmandoDesvinculo] = useState(false);
@@ -433,6 +446,11 @@ export default function MotoristaDetalhePage() {
               </CardContent>
             </Card>
           )}
+
+          {/* FASE 6 (tasks.md 6.5) — read-only, visível a qualquer usuário
+              com `motoristas.consultar` (sem exigir permissão de escrita —
+              FR-020/FR-022), mesmo padrão de acesso do resto do detalhe. */}
+          <AtividadesMotoristaSection carregandoDetalhe={carregando && !detalhe} state={atividadesState} />
 
           {podeCredencial && <CredencialMotoristaDialogs state={credencialDialog} />}
 

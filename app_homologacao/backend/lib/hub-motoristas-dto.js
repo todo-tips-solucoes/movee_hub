@@ -133,7 +133,7 @@ function mapMotoristaListItem(row, areas = []) {
  * @param {Array<{subpraca:string, dataMaisRecente:string}>} areas
  * @param {{totalFaturamento:number, totalPerformance:number, dataMaisRecente:string|null}} resumo
  */
-function mapMotoristaDetalhe(row, areas, resumo) {
+function mapMotoristaDetalhe(row, areas, resumo, atividades) {
   const contaMotorista = row.ContaMotorista || null;
   return {
     id: row.id,
@@ -159,7 +159,106 @@ function mapMotoristaDetalhe(row, areas, resumo) {
         ativo: !!contaMotorista.ativo,
       }
       : null,
+    // FASE 6 (task 6.4) — histórico read-only de atividades correlacionadas
+    // por uuid (faturamento/performance/validação de NF), paginação técnica
+    // offset/limit (dec-046). Sempre presente (mesmo shape) mesmo quando o
+    // caller (GET /:id) não pediu atividades — nesse caso `atividades` é
+    // `undefined` e cai no default abaixo (motorista sem atividades
+    // consultadas -> items:[] sem erro, task 6.4.4).
+    atividades: atividades || { items: [], total: 0, offset: 0, limit: 0 },
   };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 6 (task 6.4) — histórico de atividades (GET /motoristas/:id, seção
+// "Atividades"): união read-only de 3 fontes já existentes (FaturamentoLancamento,
+// PerformanceTurno, EnvioMassa/validação de NF), correlacionadas por
+// Entregador.id_externo (uuid) — data-model.md §Entity Atividade. Extraído
+// para ser testável isoladamente sem PostgREST/DB real, mesmo padrão do
+// resto deste arquivo.
+// ────────────────────────────────────────────────────────────────────────────
+
+const ATIVIDADES_LIMIT_DEFAULT = 20;
+const ATIVIDADES_LIMIT_MAX = 100;
+
+/**
+ * Paginação técnica offset/limit do histórico de atividades (dec-046,
+ * Gap CHK018/CHK038 — tasks.md 6.4.1). `offset`/`limit` inválidos ou
+ * ausentes caem no default — nunca erro (mesmo espírito de `parsePaginacao`).
+ * @param {object} query - `req.query`
+ * @returns {{offset:number, limit:number}}
+ */
+function parsePaginacaoAtividades(query) {
+  const offsetParsed = parseInt(query && query.offset, 10);
+  const offset = Number.isFinite(offsetParsed) && offsetParsed >= 0 ? offsetParsed : 0;
+
+  const limitParsed = parseInt(query && query.limit, 10);
+  const limit = Number.isFinite(limitParsed) && limitParsed >= 1
+    ? Math.min(limitParsed, ATIVIDADES_LIMIT_MAX)
+    : ATIVIDADES_LIMIT_DEFAULT;
+
+  return { offset, limit };
+}
+
+/** @param {{data_referencia:string, descricao:string|null, valor:number|string|null}} row */
+function mapFaturamentoAtividade(row) {
+  return {
+    tipo: 'faturamento',
+    data: row.data_referencia,
+    descricao: row.descricao || null,
+    valor: row.valor != null ? Number(row.valor) : null,
+  };
+}
+
+/** @param {{data_periodo:string, periodo:string|null, subpraca:string|null}} row */
+function mapPerformanceAtividade(row) {
+  return {
+    tipo: 'performance',
+    data: row.data_periodo,
+    descricao: row.periodo || row.subpraca || null,
+    valor: null,
+  };
+}
+
+/** @param {{data_emissao:string|null, criado_em:string|null, numnota:string|null, valor:number|string|null}} row */
+function mapValidacaoNfAtividade(row) {
+  return {
+    tipo: 'validacao_nf',
+    data: row.data_emissao || row.criado_em || null,
+    descricao: row.numnota || null,
+    valor: row.valor != null ? Number(row.valor) : null,
+  };
+}
+
+/**
+ * Une as 3 fontes já bounded-fetched (cada uma ordenada desc, com pelo menos
+ * `offset+limit` linhas quando existirem — mitigação de performance 6.4.5:
+ * evita full scan, cada fonte já chega aqui limitada), ordena o conjunto
+ * unificado desc por `data` e fatia a janela [offset, offset+limit) — mesmo
+ * princípio de um k-way merge bounded: a página correta é sempre um
+ * subconjunto do topo (offset+limit) de cada fonte individual.
+ * @param {object[]} faturRows - linhas cruas de FaturamentoLancamento
+ * @param {object[]} perfRows - linhas cruas de PerformanceTurno
+ * @param {object[]} validRows - linhas cruas de EnvioMassa (correlacionadas por entregador_uuid)
+ * @param {number} total - contagem EXATA das 3 fontes (count=exact, sem full scan)
+ * @param {number} offset
+ * @param {number} limit
+ * @returns {{items:object[], total:number, offset:number, limit:number}}
+ */
+function montarAtividades(faturRows, perfRows, validRows, total, offset, limit) {
+  const unificado = [
+    ...(faturRows || []).map(mapFaturamentoAtividade),
+    ...(perfRows || []).map(mapPerformanceAtividade),
+    ...(validRows || []).map(mapValidacaoNfAtividade),
+  ];
+  unificado.sort((a, b) => {
+    if (a.data === b.data) return 0;
+    if (a.data == null) return 1;
+    if (b.data == null) return -1;
+    return a.data < b.data ? 1 : -1;
+  });
+  const items = unificado.slice(offset, offset + limit);
+  return { items, total: total || 0, offset, limit };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -417,4 +516,9 @@ module.exports = {
   validarCriacaoCredencialBody,
   validarPatchCredencialBody,
   validarDefinirSenhaCredencialBody,
+  parsePaginacaoAtividades,
+  mapFaturamentoAtividade,
+  mapPerformanceAtividade,
+  mapValidacaoNfAtividade,
+  montarAtividades,
 };

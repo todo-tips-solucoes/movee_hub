@@ -102,6 +102,25 @@ export interface MotoristaVinculo {
   ativo: boolean;
 }
 
+// FASE 6 (tasks.md 6.4/6.5) — histórico read-only de atividades
+// correlacionadas por uuid (faturamento/performance/validação de NF),
+// paginação técnica offset/limit (dec-046).
+export type TipoAtividade = 'faturamento' | 'performance' | 'validacao_nf';
+
+export interface Atividade {
+  tipo: TipoAtividade;
+  data: string | null;
+  descricao: string | null;
+  valor: number | null;
+}
+
+export interface AtividadesPaginadas {
+  items: Atividade[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 export interface MotoristaDetalhe {
   id: number;
   nome: string;
@@ -112,6 +131,7 @@ export interface MotoristaDetalhe {
   areas: MotoristaArea[];
   resumo: MotoristaResumo;
   vinculo: MotoristaVinculo | null;
+  atividades: AtividadesPaginadas;
 }
 
 function parseVinculo(raw: unknown): MotoristaVinculo | null {
@@ -131,6 +151,32 @@ function parseArea(raw: unknown): MotoristaArea {
   return {
     subpraca: isString(r.subpraca) ? r.subpraca : '',
     dataMaisRecente: isStringOrNull(r.dataMaisRecente) ? r.dataMaisRecente : null,
+  };
+}
+
+const TIPOS_ATIVIDADE: TipoAtividade[] = ['faturamento', 'performance', 'validacao_nf'];
+
+function parseAtividade(raw: unknown): Atividade | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const tipo = isString(r.tipo) && (TIPOS_ATIVIDADE as string[]).includes(r.tipo) ? (r.tipo as TipoAtividade) : null;
+  if (!tipo) return null;
+  return {
+    tipo,
+    data: isStringOrNull(r.data) ? r.data : null,
+    descricao: isStringOrNull(r.descricao) ? r.descricao : null,
+    valor: isNumberOrNull(r.valor) ? r.valor : null,
+  };
+}
+
+function parseAtividadesPaginadas(raw: unknown): AtividadesPaginadas {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const items = Array.isArray(r.items) ? r.items.map(parseAtividade).filter((a): a is Atividade => a !== null) : [];
+  return {
+    items,
+    total: typeof r.total === 'number' ? r.total : items.length,
+    offset: typeof r.offset === 'number' ? r.offset : 0,
+    limit: typeof r.limit === 'number' ? r.limit : items.length,
   };
 }
 
@@ -156,6 +202,7 @@ export function parseMotoristaDetalhe(raw: unknown): MotoristaDetalhe {
       dataMaisRecente: isStringOrNull(resumoRaw.dataMaisRecente) ? resumoRaw.dataMaisRecente : null,
     },
     vinculo: parseVinculo(r.vinculo),
+    atividades: parseAtividadesPaginadas(r.atividades),
   };
 }
 

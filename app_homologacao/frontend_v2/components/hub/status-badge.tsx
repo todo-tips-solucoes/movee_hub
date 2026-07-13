@@ -9,15 +9,19 @@ import {
   CheckCircle2,
   CircleOff,
   Clock,
+  FileCheck2,
+  Gauge,
   Link2,
   Link2Off,
   RotateCw,
+  Wallet,
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
 import { Badge, type badgeVariants } from '@/components/ui/badge';
 import type { VariantProps } from 'class-variance-authority';
 import { STATUS_LABELS, type StatusImportacao } from '@/lib/hub/importacoes-dto';
+import type { TipoAtividade } from '@/lib/hub/motoristas-dto';
 import { cn } from '@/lib/utils';
 
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>['variant']>;
@@ -78,6 +82,25 @@ export function AtivoBadge({ ativo }: { ativo: boolean }) {
   ) : (
     <StatusBadge variant="secondary" icon={CircleOff}>
       Inativo
+    </StatusBadge>
+  );
+}
+
+// FASE 6 (tasks.md 6.4/6.5) — tipo da atividade (seção "Atividades" do
+// detalhe do motorista): faturamento/performance/validação de NF.
+const ATIVIDADE_TIPO_BADGE: Record<TipoAtividade, { variant: BadgeVariant; icon: LucideIcon; label: string }> = {
+  faturamento: { variant: 'default', icon: Wallet, label: 'Faturamento' },
+  performance: { variant: 'outline', icon: Gauge, label: 'Performance' },
+  validacao_nf: { variant: 'secondary', icon: FileCheck2, label: 'Validação de NF' },
+};
+
+/** Tipo de atividade (faturamento/performance/validação de NF). Fail-safe:
+ * tipo desconhecido cai em outline+Clock com o próprio código como rótulo. */
+export function TipoAtividadeBadge({ tipo }: { tipo: TipoAtividade }) {
+  const cfg = ATIVIDADE_TIPO_BADGE[tipo] ?? { variant: 'outline' as const, icon: Clock, label: tipo };
+  return (
+    <StatusBadge variant={cfg.variant} icon={cfg.icon}>
+      {cfg.label}
     </StatusBadge>
   );
 }

@@ -70,6 +70,13 @@ describe('parseMotoristaDetalhe', () => {
     areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
     resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
     vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
+    // FASE 6 (tasks.md 6.4/6.5) — seção "Atividades" (histórico read-only).
+    atividades: {
+      items: [{ tipo: 'faturamento', data: '2026-07-01', descricao: 'Entrega X', valor: 42.5 }],
+      total: 1,
+      offset: 0,
+      limit: 20,
+    },
   };
 
   it('aceita o shape completo do contrato (§GET /motoristas/:id)', () => {
@@ -96,6 +103,31 @@ describe('parseMotoristaDetalhe', () => {
   it('idExterno (uuid) exposto no formato esperado', () => {
     const parsed = parseMotoristaDetalhe(DETALHE_VALIDO);
     expect(parsed.idExterno).toBe('22222222-2222-2222-2222-222222222222');
+  });
+
+  // FASE 6 (tasks.md 6.4/6.5) — atividades ausente/malformado nunca lança
+  // (motorista sem atividades ainda consultadas, task 6.4.4).
+  it('atividades ausente -> default vazio, nunca lança', () => {
+    const parsed = parseMotoristaDetalhe({ id: 1, nome: 'X' });
+    expect(parsed.atividades).toEqual({ items: [], total: 0, offset: 0, limit: 0 });
+  });
+
+  it('atividades com item de tipo desconhecido é filtrado (defesa em profundidade)', () => {
+    const parsed = parseMotoristaDetalhe({
+      id: 1,
+      nome: 'X',
+      atividades: {
+        items: [
+          { tipo: 'faturamento', data: '2026-07-01', descricao: null, valor: 10 },
+          { tipo: 'tipo-desconhecido', data: '2026-07-02', descricao: null, valor: null },
+        ],
+        total: 2,
+        offset: 0,
+        limit: 20,
+      },
+    });
+    expect(parsed.atividades.items).toHaveLength(1);
+    expect(parsed.atividades.items[0].tipo).toBe('faturamento');
   });
 });
 
