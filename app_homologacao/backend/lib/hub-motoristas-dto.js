@@ -17,6 +17,8 @@
 
 'use strict';
 
+const { uuidValido } = require('./hub-import-normalizer');
+
 const PAGE_SIZE_DEFAULT = 20;
 const PAGE_SIZE_MAX = 100;
 
@@ -109,13 +111,14 @@ function agruparAreasPorEntregador(linhas) {
 /**
  * Mapeia 1 linha `Entregador` (snake_case/PostgREST) + suas áreas para o
  * shape de item de listagem do contrato (`GET /motoristas`).
- * @param {{id:number, nome:string, ativo:boolean, motorista_id:number|null}} row
+ * @param {{id:number, nome:string, ativo:boolean, motorista_id:number|null, id_externo:string}} row
  * @param {Array<{subpraca:string, dataMaisRecente:string}>} areas
  */
 function mapMotoristaListItem(row, areas = []) {
   return {
     id: row.id,
     nome: row.nome,
+    idExterno: row.id_externo,
     ativo: row.ativo,
     comVinculo: row.motorista_id !== null && row.motorista_id !== undefined,
     areas: areas.map((a) => a.subpraca),
@@ -130,11 +133,12 @@ function mapMotoristaListItem(row, areas = []) {
  * @param {Array<{subpraca:string, dataMaisRecente:string}>} areas
  * @param {{totalFaturamento:number, totalPerformance:number, dataMaisRecente:string|null}} resumo
  */
-function mapMotoristaDetalhe(row, areas, resumo) {
+function mapMotoristaDetalhe(row, areas, resumo, atividades) {
   const contaMotorista = row.ContaMotorista || null;
   return {
     id: row.id,
     nome: row.nome,
+    idExterno: row.id_externo,
     ativo: row.ativo,
     nomeEditadoManualmente: !!row.nome_editado_manualmente,
     areas: areas || [],
@@ -148,9 +152,152 @@ function mapMotoristaDetalhe(row, areas, resumo) {
         contaMotoristaId: contaMotorista.id,
         nome: contaMotorista.nome,
         cnpjPrestadorMascarado: mascararCnpj(contaMotorista.cnpj_prestador),
+        // FASE 5 (task 5.5) — estado REAL da credencial de acesso
+        // (ContaMotorista.ativo, existente desde 0021_conta_motorista.sql),
+        // exposto no detalhe para a UI de "Ativar/Desativar credencial"
+        // (PATCH /:id/credencial) refletir o servidor em vez de adivinhar.
+        ativo: !!contaMotorista.ativo,
       }
       : null,
+    // FASE 6 (task 6.4) — histórico read-only de atividades correlacionadas
+    // por uuid (faturamento/performance/validação de NF), paginação técnica
+    // offset/limit (dec-046). Sempre presente (mesmo shape) mesmo quando o
+    // caller (GET /:id) não pediu atividades — nesse caso `atividades` é
+    // `undefined` e cai no default abaixo (motorista sem atividades
+    // consultadas -> items:[] sem erro, task 6.4.4).
+    atividades: atividades || { items: [], total: 0, offset: 0, limit: 0 },
   };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 6 (task 6.4) — histórico de atividades (GET /motoristas/:id, seção
+// "Atividades"): união read-only de 3 fontes já existentes (FaturamentoLancamento,
+// PerformanceTurno, EnvioMassa/validação de NF), correlacionadas por
+// Entregador.id_externo (uuid) — data-model.md §Entity Atividade. Extraído
+// para ser testável isoladamente sem PostgREST/DB real, mesmo padrão do
+// resto deste arquivo.
+// ────────────────────────────────────────────────────────────────────────────
+
+const ATIVIDADES_LIMIT_DEFAULT = 20;
+const ATIVIDADES_LIMIT_MAX = 100;
+
+/**
+ * Paginação técnica offset/limit do histórico de atividades (dec-046,
+ * Gap CHK018/CHK038 — tasks.md 6.4.1). `offset`/`limit` inválidos ou
+ * ausentes caem no default — nunca erro (mesmo espírito de `parsePaginacao`).
+ * @param {object} query - `req.query`
+ * @returns {{offset:number, limit:number}}
+ */
+function parsePaginacaoAtividades(query) {
+  const offsetParsed = parseInt(query && query.offset, 10);
+  const offset = Number.isFinite(offsetParsed) && offsetParsed >= 0 ? offsetParsed : 0;
+
+  const limitParsed = parseInt(query && query.limit, 10);
+  const limit = Number.isFinite(limitParsed) && limitParsed >= 1
+    ? Math.min(limitParsed, ATIVIDADES_LIMIT_MAX)
+    : ATIVIDADES_LIMIT_DEFAULT;
+
+  return { offset, limit };
+}
+
+/** @param {{data_referencia:string, descricao:string|null, valor:number|string|null}} row */
+function mapFaturamentoAtividade(row) {
+  return {
+    tipo: 'faturamento',
+    data: row.data_referencia,
+    descricao: row.descricao || null,
+    valor: row.valor != null ? Number(row.valor) : null,
+  };
+}
+
+/** @param {{data_periodo:string, periodo:string|null, subpraca:string|null}} row */
+function mapPerformanceAtividade(row) {
+  return {
+    tipo: 'performance',
+    data: row.data_periodo,
+    descricao: row.periodo || row.subpraca || null,
+    valor: null,
+  };
+}
+
+/**
+ * hub-motorista-canonico (review-task de fechamento, finding #1 do
+ * code-review adversarial): a chave `data` DEVE ser `criado_em`
+ * (= `created_at`), NUNCA `data_emissao`. O bounded k-way merge de
+ * `montarAtividades` só é correto se cada fonte for pré-ordenada pela MESMA
+ * chave usada no sort final — e o fetch da EnvioMassa em
+ * `buscarAtividadesMotorista` ordena por `created_at.desc`. Usar
+ * `data_emissao` como chave de merge (versão anterior) quebrava o
+ * invariante: uma NF retro-datada/import histórico (emissão recente,
+ * created_at antigo) ficava fora da janela `offset+limit` e sumia/errava de
+ * posição nas páginas intermediárias (violação de FR-022). `criado_em` é
+ * também o timestamp semanticamente correto da ATIVIDADE (quando a
+ * validação ocorreu); `data_emissao` permanece como fallback defensivo.
+ * @param {{data_emissao:string|null, criado_em:string|null, numnota:string|null, valor:number|string|null}} row
+ */
+function mapValidacaoNfAtividade(row) {
+  return {
+    tipo: 'validacao_nf',
+    data: row.criado_em || row.data_emissao || null,
+    descricao: row.numnota || null,
+    valor: row.valor != null ? Number(row.valor) : null,
+  };
+}
+
+// hub-motorista-canonico (FASE 7, gap encontrado no code-review de
+// fechamento): a EnvioMassa armazena `cnpj_prestador` em DOIS formatos
+// (só-dígitos e com máscara `XX.XXX.XXX/XXXX-XX`, dependendo da origem do
+// import) — o mesmo problema já resolvido em `routes/motorista.js#L117`
+// (`cnpjEnvioMassaFilter`, usado por `/movimento-aberto` e
+// `/validar-nota`). A correlação de atividades por uuid (task 6.4,
+// `buscarAtividadesMotorista` abaixo) usava um `eq.<só-dígitos>` simples
+// contra `cnpj_prestador` — linhas históricas gravadas com o CNPJ mascarado
+// (upload legado) ficavam invisíveis no histórico do motorista mesmo tendo
+// `entregador_uuid` correto, uma perda silenciosa de FR-022 (completude do
+// histórico). Duplicado deliberadamente aqui (função pura, sem estado) em
+// vez de importar de `routes/motorista.js` — evita criar um acoplamento
+// novo com a rota de PRODUÇÃO legada do app motorista só para reusar uma
+// função de 8 linhas; qualquer drift entre as duas cópias é pego por
+// `hub-motoristas-dto.test.js`.
+function cnpjEnvioMassaFilter(cnpj) {
+  const d = String(cnpj || '').replace(/\D/g, '');
+  const valores = [d];
+  if (d.length === 14) {
+    valores.push(`${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`);
+  }
+  const lista = valores.map((v) => `"${v}"`).join(',');
+  return `cnpj_prestador=in.(${encodeURIComponent(lista)})`;
+}
+
+/**
+ * Une as 3 fontes já bounded-fetched (cada uma ordenada desc, com pelo menos
+ * `offset+limit` linhas quando existirem — mitigação de performance 6.4.5:
+ * evita full scan, cada fonte já chega aqui limitada), ordena o conjunto
+ * unificado desc por `data` e fatia a janela [offset, offset+limit) — mesmo
+ * princípio de um k-way merge bounded: a página correta é sempre um
+ * subconjunto do topo (offset+limit) de cada fonte individual.
+ * @param {object[]} faturRows - linhas cruas de FaturamentoLancamento
+ * @param {object[]} perfRows - linhas cruas de PerformanceTurno
+ * @param {object[]} validRows - linhas cruas de EnvioMassa (correlacionadas por entregador_uuid)
+ * @param {number} total - contagem EXATA das 3 fontes (count=exact, sem full scan)
+ * @param {number} offset
+ * @param {number} limit
+ * @returns {{items:object[], total:number, offset:number, limit:number}}
+ */
+function montarAtividades(faturRows, perfRows, validRows, total, offset, limit) {
+  const unificado = [
+    ...(faturRows || []).map(mapFaturamentoAtividade),
+    ...(perfRows || []).map(mapPerformanceAtividade),
+    ...(validRows || []).map(mapValidacaoNfAtividade),
+  ];
+  unificado.sort((a, b) => {
+    if (a.data === b.data) return 0;
+    if (a.data == null) return 1;
+    if (b.data == null) return -1;
+    return a.data < b.data ? 1 : -1;
+  });
+  const items = unificado.slice(offset, offset + limit);
+  return { items, total: total || 0, offset, limit };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -205,6 +352,48 @@ function validarPatchMotorista(corpoCru) {
   }
 
   return { ok: true, patch, camposAlterados };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 4 — POST /motoristas (task 4.2.2/4.2.3): allowlist estrita do corpo
+// (mandato S2, contracts/api-motorista-canonico.md §POST /motoristas). Mesmo
+// padrão de `validarPatchMotorista`/`validarVinculoBody`: função PURA
+// testável sem PostgREST/Express real. SOMENTE `nome` + `idExterno`
+// influenciam o INSERT — `id_empresa` é resolvido pelo caller a partir do
+// contexto do token (`resolverContextoEntidade`), NUNCA lido do corpo aqui;
+// qualquer outra chave do corpo (`ativo`, `motoristaId`, `id`, `idEmpresa`
+// etc.) é simplesmente ignorada (nunca lida por esta função, nunca chega ao
+// PostgREST — D-C6/FR-012).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Valida e extrai `nome`/`idExterno` do corpo cru de `POST /motoristas`.
+ * `idExterno` é SEMPRE obrigatório (FR-012, D-C6, sem geração automática de
+ * identificador — FR-014) e validado com `uuidValido`
+ * (lib/hub-import-normalizer.js:233). Normaliza para minúsculas (mesma
+ * convenção de `lib/hub-import-processor.js` no pipeline de importação —
+ * garante que um uuid cadastrado manualmente aqui casa com o mesmo uuid
+ * vindo depois de uma planilha, independente da caixa usada por quem digitou).
+ *
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, nome:string, idExterno:string}|{ok:false, erro:'nome_invalido'|'uuid_invalido'}}
+ *   `ok:false, erro:'nome_invalido'` — `nome` ausente/vazio/só espaços.
+ *   `ok:false, erro:'uuid_invalido'` — `idExterno` ausente ou fora do formato uuid.
+ */
+function validarCriacaoMotorista(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+
+  const nome = typeof corpo.nome === 'string' ? corpo.nome.trim() : '';
+  if (!nome) {
+    return { ok: false, erro: 'nome_invalido' };
+  }
+
+  const idExternoBruto = typeof corpo.idExterno === 'string' ? corpo.idExterno.trim() : '';
+  if (!uuidValido(idExternoBruto)) {
+    return { ok: false, erro: 'uuid_invalido' };
+  }
+
+  return { ok: true, nome, idExterno: idExternoBruto.toLowerCase() };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -267,6 +456,88 @@ function validarVinculoBody(corpoCru) {
   return { ok: true, contaMotoristaId, origem };
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 5 — Credencial de acesso ao app do motorista (tasks.md 5.1/5.2/5.3):
+// allowlist estrita do corpo de POST/PATCH .../credencial* (mandato S2,
+// mesmo padrão de `validarPatchMotorista`/`validarVinculoBody` acima —
+// função PURA testável sem PostgREST/Express real).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Valida e extrai `cnpjPrestador`/`senhaInicial` do corpo cru de
+ * `POST /motoristas/:id/credencial`. Allowlist estrita (5.1.2): qualquer
+ * outra chave do corpo (ex.: `ativo`) é ignorada, nunca lida por esta
+ * função, nunca chega ao PostgREST.
+ *
+ * `cnpjPrestador` é SEMPRE obrigatório, normalizado para só-dígitos (mesma
+ * convenção de `onlyDigitsLogin` em routes/motorista.js). `senhaInicial` é
+ * OPCIONAL — quando ausente/`undefined`/`null`, o caller (rota) gera uma
+ * senha temporária de alta entropia; quando presente, precisa ter pelo
+ * menos 8 caracteres (mesmo mínimo do `/register` legado e do
+ * `/redefinir-senha` do hub).
+ *
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, cnpjPrestador:string, senhaInicial?:string}|{ok:false, erro:'cnpj_invalido'|'senha_invalida'}}
+ */
+function validarCriacaoCredencialBody(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+
+  const cnpjBruto = typeof corpo.cnpjPrestador === 'string' ? corpo.cnpjPrestador : '';
+  const cnpjPrestador = cnpjBruto.replace(/\D/g, '');
+  if (!cnpjPrestador) {
+    return { ok: false, erro: 'cnpj_invalido' };
+  }
+
+  const temSenhaInicial = Object.prototype.hasOwnProperty.call(corpo, 'senhaInicial')
+    && corpo.senhaInicial !== undefined && corpo.senhaInicial !== null;
+  if (!temSenhaInicial) {
+    return { ok: true, cnpjPrestador };
+  }
+
+  if (typeof corpo.senhaInicial !== 'string' || corpo.senhaInicial.length < 8) {
+    return { ok: false, erro: 'senha_invalida' };
+  }
+  return { ok: true, cnpjPrestador, senhaInicial: corpo.senhaInicial };
+}
+
+/**
+ * Valida e extrai SOMENTE `ativo` do corpo cru de
+ * `PATCH /motoristas/:id/credencial` — allowlist estrita (5.3.1), mesmo
+ * padrão de `validarPatchMotorista`.
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, ativo:boolean}|{ok:false, erro:'INVALIDO'}}
+ */
+function validarPatchCredencialBody(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+  if (typeof corpo.ativo !== 'boolean') {
+    return { ok: false, erro: 'INVALIDO' };
+  }
+  return { ok: true, ativo: corpo.ativo };
+}
+
+/**
+ * Valida e extrai `token`/`novaSenha` do corpo cru de
+ * `POST /motoristas/:id/credencial/reset-senha/definir` (gap-fill CHK011 —
+ * ver cabeçalho de routes/hub-motoristas.js §credencial). Allowlist
+ * estrita: só estas duas chaves influenciam a rota. Validação PURA de
+ * FORMATO apenas (tipo/tamanho) — a validação de NEGÓCIO (hash bate?
+ * expirou?) é responsabilidade da rota, nunca desta função.
+ * @param {object} corpoCru - `req.body`
+ * @returns {{ok:true, token:string, novaSenha:string}|{ok:false, erro:'token_ausente'|'senha_invalida'}}
+ */
+function validarDefinirSenhaCredencialBody(corpoCru) {
+  const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
+  const token = typeof corpo.token === 'string' ? corpo.token.trim() : '';
+  if (!token) {
+    return { ok: false, erro: 'token_ausente' };
+  }
+  const novaSenha = typeof corpo.novaSenha === 'string' ? corpo.novaSenha : '';
+  if (novaSenha.length < 8) {
+    return { ok: false, erro: 'senha_invalida' };
+  }
+  return { ok: true, token, novaSenha };
+}
+
 module.exports = {
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
@@ -278,6 +549,16 @@ module.exports = {
   mapMotoristaListItem,
   mapMotoristaDetalhe,
   validarPatchMotorista,
+  validarCriacaoMotorista,
   mascararCnpj,
   validarVinculoBody,
+  validarCriacaoCredencialBody,
+  validarPatchCredencialBody,
+  validarDefinirSenhaCredencialBody,
+  parsePaginacaoAtividades,
+  mapFaturamentoAtividade,
+  mapPerformanceAtividade,
+  mapValidacaoNfAtividade,
+  montarAtividades,
+  cnpjEnvioMassaFilter,
 };

@@ -8,13 +8,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { ModuleNav } from './module-nav';
 
 const mockUseHubAuth = vi.fn();
+// hub-motorista-canonico FASE 1 (FR-002): controlável por teste (default
+// preserva o comportamento anterior — pathname fixo em /hub/dashboard/motoristas
+// — para não regredir os testes de conjunto A/B/mapeamento/vazio abaixo).
+const mockUsePathname = vi.fn(() => '/hub/dashboard/motoristas');
 
 vi.mock('@/contexts/hub-auth-context', () => ({
   useHubAuth: () => mockUseHubAuth(),
 }));
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/hub/dashboard/motoristas',
+  usePathname: () => mockUsePathname(),
 }));
 
 function withModulos(modulos: Array<{ codigo: string; nome: string; icone: string | null; ordem: number }>) {
@@ -82,5 +86,22 @@ describe('ModuleNav', () => {
 
     const { container } = render(<ModuleNav />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('ModuleNav — item ativo "Painel Geral" na home (hub-motorista-canonico FASE 1, FR-002)', () => {
+  it('pathname na raiz /hub/dashboard marca "Painel Geral" como ativo (aria-current=page)', () => {
+    mockUsePathname.mockReturnValueOnce('/hub/dashboard');
+    withModulos([
+      { codigo: 'dashboard', nome: 'Painel Geral', icone: null, ordem: 10 },
+      { codigo: 'motoristas', nome: 'Motoristas', icone: 'truck', ordem: 20 },
+    ]);
+
+    render(<ModuleNav />);
+
+    const painelGeral = screen.getByRole('link', { name: 'Painel Geral' });
+    expect(painelGeral).toHaveAttribute('aria-current', 'page');
+    const motoristas = screen.getByRole('link', { name: 'Motoristas' });
+    expect(motoristas).not.toHaveAttribute('aria-current');
   });
 });

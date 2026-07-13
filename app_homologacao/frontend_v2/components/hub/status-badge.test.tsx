@@ -3,8 +3,9 @@
 // status desconhecido.
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AtivoBadge, ImportacaoStatusBadge, VinculoBadge } from './status-badge';
+import { AtivoBadge, ImportacaoStatusBadge, TipoAtividadeBadge, VinculoBadge } from './status-badge';
 import type { StatusImportacao } from '@/lib/hub/importacoes-dto';
+import type { TipoAtividade } from '@/lib/hub/motoristas-dto';
 
 function iconeDentroDoBadge(container: HTMLElement): SVGElement | null {
   return container.querySelector('svg[aria-hidden="true"]');
@@ -55,5 +56,27 @@ describe('AtivoBadge / VinculoBadge', () => {
     const b = render(<VinculoBadge vinculado={false} />);
     expect(screen.getByText('Sem vínculo')).toBeInTheDocument();
     expect(iconeDentroDoBadge(b.container)).not.toBeNull();
+  });
+});
+
+// FASE 6 (tasks.md 6.4/6.5) — tipo da atividade (faturamento/performance/
+// validação de NF) no histórico do detalhe do motorista.
+describe('TipoAtividadeBadge', () => {
+  const casos: Array<[TipoAtividade, string]> = [
+    ['faturamento', 'Faturamento'],
+    ['performance', 'Performance'],
+    ['validacao_nf', 'Validação de NF'],
+  ];
+
+  it.each(casos)('tipo %s: renderiza rótulo + ícone decorativo (nunca só cor)', (tipo, rotulo) => {
+    const { container } = render(<TipoAtividadeBadge tipo={tipo} />);
+    expect(screen.getByText(rotulo)).toBeInTheDocument();
+    expect(iconeDentroDoBadge(container)).not.toBeNull();
+  });
+
+  it('fail-safe: tipo desconhecido não lança e mostra o próprio código', () => {
+    const { container } = render(<TipoAtividadeBadge tipo={'tipo-novo-2027' as TipoAtividade} />);
+    expect(screen.getByText('tipo-novo-2027')).toBeInTheDocument();
+    expect(iconeDentroDoBadge(container)).not.toBeNull();
   });
 });

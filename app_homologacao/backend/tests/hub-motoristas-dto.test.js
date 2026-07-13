@@ -22,8 +22,18 @@ const {
   mapMotoristaListItem,
   mapMotoristaDetalhe,
   validarPatchMotorista,
+  validarCriacaoMotorista,
   mascararCnpj,
   validarVinculoBody,
+  validarCriacaoCredencialBody,
+  validarPatchCredencialBody,
+  validarDefinirSenhaCredencialBody,
+  parsePaginacaoAtividades,
+  mapFaturamentoAtividade,
+  mapPerformanceAtividade,
+  mapValidacaoNfAtividade,
+  montarAtividades,
+  cnpjEnvioMassaFilter,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
 } = require('../lib/hub-motoristas-dto');
@@ -155,20 +165,45 @@ describe('agruparAreasPorEntregador', () => {
 describe('mapMotoristaListItem', () => {
   test('mapeia comVinculo=true quando motorista_id presente', () => {
     const item = mapMotoristaListItem(
-      { id: 1, nome: 'Fulano', ativo: true, motorista_id: 7 },
+      { id: 1, nome: 'Fulano', ativo: true, motorista_id: 7, id_externo: '11111111-1111-1111-1111-111111111111' },
       [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }]
     );
-    assert.deepEqual(item, { id: 1, nome: 'Fulano', ativo: true, comVinculo: true, areas: ['Zona Sul'] });
+    assert.deepEqual(item, {
+      id: 1,
+      nome: 'Fulano',
+      idExterno: '11111111-1111-1111-1111-111111111111',
+      ativo: true,
+      comVinculo: true,
+      areas: ['Zona Sul'],
+    });
   });
 
   test('mapeia comVinculo=false quando motorista_id null', () => {
-    const item = mapMotoristaListItem({ id: 2, nome: 'Ciclano', ativo: false, motorista_id: null }, []);
-    assert.deepEqual(item, { id: 2, nome: 'Ciclano', ativo: false, comVinculo: false, areas: [] });
+    const item = mapMotoristaListItem(
+      { id: 2, nome: 'Ciclano', ativo: false, motorista_id: null, id_externo: '22222222-2222-2222-2222-222222222222' },
+      []
+    );
+    assert.deepEqual(item, {
+      id: 2,
+      nome: 'Ciclano',
+      idExterno: '22222222-2222-2222-2222-222222222222',
+      ativo: false,
+      comVinculo: false,
+      areas: [],
+    });
   });
 
   test('areas default para [] quando não informado', () => {
-    const item = mapMotoristaListItem({ id: 3, nome: 'X', ativo: true, motorista_id: null });
+    const item = mapMotoristaListItem({ id: 3, nome: 'X', ativo: true, motorista_id: null, id_externo: '33333333-3333-3333-3333-333333333333' });
     assert.deepEqual(item.areas, []);
+  });
+
+  // FASE 4 (task 4.1.1/4.1.4): idExterno (uuid) exposto no item de listagem (FR-016)
+  test('idExterno (uuid) exposto no formato esperado', () => {
+    const item = mapMotoristaListItem({
+      id: 4, nome: 'Beltrano', ativo: true, motorista_id: null, id_externo: '44444444-4444-4444-4444-444444444444',
+    });
+    assert.equal(item.idExterno, '44444444-4444-4444-4444-444444444444');
   });
 });
 
@@ -179,7 +214,8 @@ describe('mapMotoristaDetalhe', () => {
       nome: 'Fulano da Silva',
       ativo: true,
       nome_editado_manualmente: false,
-      ContaMotorista: { id: 7, nome: 'Fulano da Silva', cnpj_prestador: '12345678000195' },
+      id_externo: '55555555-5555-5555-5555-555555555555',
+      ContaMotorista: { id: 7, nome: 'Fulano da Silva', cnpj_prestador: '12345678000195', ativo: true },
     };
     const areas = [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }];
     const resumo = { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' };
@@ -187,12 +223,47 @@ describe('mapMotoristaDetalhe', () => {
     assert.deepEqual(detalhe, {
       id: 1,
       nome: 'Fulano da Silva',
+      idExterno: '55555555-5555-5555-5555-555555555555',
       ativo: true,
       nomeEditadoManualmente: false,
       areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
       resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
-      vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**' },
+      vinculo: {
+        contaMotoristaId: 7,
+        nome: 'Fulano da Silva',
+        cnpjPrestadorMascarado: '12.***.***/0001-**',
+        ativo: true,
+      },
+      // FASE 6 (task 6.4) — atividades ausente no chamador cai no default
+      // (motorista sem atividades consultadas, task 6.4.4).
+      atividades: { items: [], total: 0, offset: 0, limit: 0 },
     });
+  });
+
+  test('FASE 6 (task 6.4) — atividades explícito é repassado tal-e-qual (pass-through)', () => {
+    const row = { id: 1, nome: 'Fulano', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
+    const resumo = { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null };
+    const atividades = {
+      items: [{ tipo: 'faturamento', data: '2026-07-01', descricao: 'entrega', valor: 10 }],
+      total: 1,
+      offset: 0,
+      limit: 20,
+    };
+    const detalhe = mapMotoristaDetalhe(row, [], resumo, atividades);
+    assert.deepEqual(detalhe.atividades, atividades);
+  });
+
+  test('vinculo presente com credencial DESATIVADA (FASE 5, task 5.5) -> vinculo.ativo=false', () => {
+    const row = {
+      id: 1,
+      nome: 'Fulano da Silva',
+      ativo: true,
+      nome_editado_manualmente: false,
+      id_externo: '55555555-5555-5555-5555-555555555555',
+      ContaMotorista: { id: 7, nome: 'Fulano da Silva', cnpj_prestador: '12345678000195', ativo: false },
+    };
+    const detalhe = mapMotoristaDetalhe(row, [], { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+    assert.equal(detalhe.vinculo.ativo, false);
   });
 
   test('vinculo ausente -> null, sem erro', () => {
@@ -385,5 +456,299 @@ describe('validarVinculoBody — allowlist estrita FASE 6 (task 6.1), contracts/
     assert.equal(r.ok, true);
     const chaves = Object.keys(r).sort();
     assert.deepEqual(chaves, ['contaMotoristaId', 'ok', 'origem']);
+  });
+});
+
+describe('validarCriacaoMotorista — allowlist estrita FASE 4 (task 4.2.2/4.2.3), contracts/api-motorista-canonico.md §POST /motoristas', () => {
+  const UUID_VALIDO = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+
+  test('nome + idExterno válidos -> ok, idExterno normalizado para minúsculas', () => {
+    const r = validarCriacaoMotorista({ nome: '  Fulano da Silva  ', idExterno: 'A1B2C3D4-E5F6-7890-ABCD-EF1234567890' });
+    assert.equal(r.ok, true);
+    assert.equal(r.nome, 'Fulano da Silva');
+    assert.equal(r.idExterno, UUID_VALIDO);
+  });
+
+  test('nome ausente -> erro nome_invalido', () => {
+    const r = validarCriacaoMotorista({ idExterno: UUID_VALIDO });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'nome_invalido');
+  });
+
+  test('nome vazio/só espaços -> erro nome_invalido', () => {
+    assert.equal(validarCriacaoMotorista({ nome: '', idExterno: UUID_VALIDO }).erro, 'nome_invalido');
+    assert.equal(validarCriacaoMotorista({ nome: '   ', idExterno: UUID_VALIDO }).erro, 'nome_invalido');
+  });
+
+  test('idExterno ausente -> erro uuid_invalido (sempre obrigatório, FR-012/D-C6)', () => {
+    const r = validarCriacaoMotorista({ nome: 'Fulano' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'uuid_invalido');
+  });
+
+  test('idExterno em formato inválido -> erro uuid_invalido', () => {
+    assert.equal(validarCriacaoMotorista({ nome: 'Fulano', idExterno: 'nao-e-um-uuid' }).erro, 'uuid_invalido');
+    assert.equal(validarCriacaoMotorista({ nome: 'Fulano', idExterno: '12345' }).erro, 'uuid_invalido');
+  });
+
+  test('corpo null/undefined -> erro nome_invalido, nunca lança', () => {
+    assert.equal(validarCriacaoMotorista(null).ok, false);
+    assert.equal(validarCriacaoMotorista(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA (mandato S2) — ativo/motoristaId/id/idEmpresa do corpo nunca aparecem no retorno', () => {
+    const r = validarCriacaoMotorista({
+      nome: 'Fulano',
+      idExterno: UUID_VALIDO,
+      ativo: false,
+      motoristaId: 999,
+      id: 1,
+      idEmpresa: 42,
+      __proto__: { hacked: true },
+    });
+    assert.equal(r.ok, true);
+    const chaves = Object.keys(r).sort();
+    assert.deepEqual(chaves, ['idExterno', 'nome', 'ok']);
+    assert.equal(r.ativo, undefined);
+    assert.equal(r.motoristaId, undefined);
+    assert.equal(r.idEmpresa, undefined);
+    assert.equal(r.hacked, undefined);
+  });
+});
+
+describe('validarCriacaoCredencialBody — allowlist estrita FASE 5 (task 5.1.2), contracts §POST /credencial', () => {
+  test('cnpjPrestador formatado -> normalizado para só-dígitos', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12.345.678/0001-95' });
+    assert.equal(r.ok, true);
+    assert.equal(r.cnpjPrestador, '12345678000195');
+  });
+
+  test('senhaInicial ausente -> ok, sem a chave senhaInicial no retorno (senha será gerada pelo caller)', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12345678000195' });
+    assert.equal(r.ok, true);
+    assert.equal(Object.prototype.hasOwnProperty.call(r, 'senhaInicial'), false);
+  });
+
+  test('senhaInicial válida (>=8 chars) -> ecoada', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12345678000195', senhaInicial: 'SenhaForte1' });
+    assert.equal(r.ok, true);
+    assert.equal(r.senhaInicial, 'SenhaForte1');
+  });
+
+  test('senhaInicial curta (<8 chars) -> erro senha_invalida', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12345678000195', senhaInicial: '123' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'senha_invalida');
+  });
+
+  test('cnpjPrestador ausente/vazio -> erro cnpj_invalido', () => {
+    assert.equal(validarCriacaoCredencialBody({}).erro, 'cnpj_invalido');
+    assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '' }).erro, 'cnpj_invalido');
+    assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '...' }).erro, 'cnpj_invalido');
+  });
+
+  test('corpo null/undefined -> erro cnpj_invalido, nunca lança', () => {
+    assert.equal(validarCriacaoCredencialBody(null).ok, false);
+    assert.equal(validarCriacaoCredencialBody(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA (mandato S2) — `ativo` do corpo é IGNORADO, nunca aparece no retorno', () => {
+    const r = validarCriacaoCredencialBody({ cnpjPrestador: '12345678000195', ativo: false, motoristaId: 999 });
+    assert.equal(r.ok, true);
+    const chaves = Object.keys(r).sort();
+    assert.deepEqual(chaves, ['cnpjPrestador', 'ok']);
+    assert.equal(r.ativo, undefined);
+    assert.equal(r.motoristaId, undefined);
+  });
+});
+
+describe('validarPatchCredencialBody — allowlist estrita FASE 5 (task 5.3.1), contracts §PATCH /credencial', () => {
+  test('ativo boolean -> ok', () => {
+    assert.deepEqual(validarPatchCredencialBody({ ativo: true }), { ok: true, ativo: true });
+    assert.deepEqual(validarPatchCredencialBody({ ativo: false }), { ok: true, ativo: false });
+  });
+
+  test('ativo ausente/não-booleano -> erro INVALIDO', () => {
+    assert.equal(validarPatchCredencialBody({}).erro, 'INVALIDO');
+    assert.equal(validarPatchCredencialBody({ ativo: 'true' }).erro, 'INVALIDO');
+    assert.equal(validarPatchCredencialBody({ ativo: 1 }).erro, 'INVALIDO');
+  });
+
+  test('corpo null/undefined -> erro INVALIDO, nunca lança', () => {
+    assert.equal(validarPatchCredencialBody(null).ok, false);
+    assert.equal(validarPatchCredencialBody(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA — campos extras nunca aparecem no retorno', () => {
+    const r = validarPatchCredencialBody({ ativo: true, senha: 'hackeada', id: 1 });
+    assert.equal(r.ok, true);
+    assert.deepEqual(Object.keys(r).sort(), ['ativo', 'ok']);
+  });
+});
+
+describe('validarDefinirSenhaCredencialBody — allowlist estrita FASE 5 (gap-fill CHK011, reset-senha/definir)', () => {
+  test('token + novaSenha válidos -> ok', () => {
+    const r = validarDefinirSenhaCredencialBody({ token: 'abc123', novaSenha: 'NovaSenhaForte1' });
+    assert.equal(r.ok, true);
+    assert.equal(r.token, 'abc123');
+    assert.equal(r.novaSenha, 'NovaSenhaForte1');
+  });
+
+  test('token ausente/vazio -> erro token_ausente', () => {
+    assert.equal(validarDefinirSenhaCredencialBody({ novaSenha: 'NovaSenhaForte1' }).erro, 'token_ausente');
+    assert.equal(validarDefinirSenhaCredencialBody({ token: '   ', novaSenha: 'NovaSenhaForte1' }).erro, 'token_ausente');
+  });
+
+  test('novaSenha curta (<8 chars) -> erro senha_invalida', () => {
+    const r = validarDefinirSenhaCredencialBody({ token: 'abc123', novaSenha: '123' });
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, 'senha_invalida');
+  });
+
+  test('corpo null/undefined -> erro, nunca lança', () => {
+    assert.equal(validarDefinirSenhaCredencialBody(null).ok, false);
+    assert.equal(validarDefinirSenhaCredencialBody(undefined).ok, false);
+  });
+
+  test('mass-assignment/BOPLA — campos extras nunca aparecem no retorno', () => {
+    const r = validarDefinirSenhaCredencialBody({ token: 'abc123', novaSenha: 'NovaSenhaForte1', ativo: true });
+    assert.equal(r.ok, true);
+    assert.deepEqual(Object.keys(r).sort(), ['novaSenha', 'ok', 'token']);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 6 (task 6.4) — histórico de atividades (dec-046/dec-048)
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('parsePaginacaoAtividades — offset/limit (dec-046, Gap CHK018/CHK038)', () => {
+  test('sem query -> default offset=0, limit=20', () => {
+    assert.deepEqual(parsePaginacaoAtividades({}), { offset: 0, limit: 20 });
+  });
+
+  test('offset/limit válidos são respeitados', () => {
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '40', limit: '10' }), { offset: 40, limit: 10 });
+  });
+
+  test('limit acima do máximo (100) é clampado', () => {
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '0', limit: '999' }), { offset: 0, limit: 100 });
+  });
+
+  test('offset negativo/inválido -> 0 (nunca erro)', () => {
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '-5', limit: '20' }), { offset: 0, limit: 20 });
+    assert.deepEqual(parsePaginacaoAtividades({ offset: 'abc', limit: '20' }), { offset: 0, limit: 20 });
+  });
+
+  test('limit ausente/inválido -> default 20 (nunca 0/negativo)', () => {
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '0', limit: '0' }), { offset: 0, limit: 20 });
+    assert.deepEqual(parsePaginacaoAtividades({ offset: '0', limit: 'xyz' }), { offset: 0, limit: 20 });
+  });
+});
+
+describe('map*Atividade — normalização por fonte', () => {
+  test('mapFaturamentoAtividade', () => {
+    assert.deepEqual(
+      mapFaturamentoAtividade({ data_referencia: '2026-07-01', descricao: 'Entrega X', valor: '42.50' }),
+      { tipo: 'faturamento', data: '2026-07-01', descricao: 'Entrega X', valor: 42.5 }
+    );
+  });
+
+  test('mapPerformanceAtividade — descricao cai para subpraca quando periodo ausente', () => {
+    assert.deepEqual(
+      mapPerformanceAtividade({ data_periodo: '2026-07-02', periodo: null, subpraca: 'Zona Sul' }),
+      { tipo: 'performance', data: '2026-07-02', descricao: 'Zona Sul', valor: null }
+    );
+  });
+
+  // review-task de fechamento (finding #1): `criado_em` (= created_at) é a
+  // chave de merge/ordenação — TEM de casar com o `order=created_at.desc`
+  // do fetch bounded da EnvioMassa (invariante do k-way merge). NF
+  // retro-datada (data_emissao antiga, criado_em recente) posiciona pela
+  // data da ATIVIDADE (criado_em), não pela emissão.
+  test('mapValidacaoNfAtividade — criado_em tem prioridade sobre data_emissao (chave de merge = created_at)', () => {
+    assert.deepEqual(
+      mapValidacaoNfAtividade({ data_emissao: '2026-07-03', criado_em: '2026-06-01T00:00:00Z', numnota: '123', valor: 99 }),
+      { tipo: 'validacao_nf', data: '2026-06-01T00:00:00Z', descricao: '123', valor: 99 }
+    );
+  });
+
+  test('mapValidacaoNfAtividade — sem criado_em cai para data_emissao (fallback defensivo)', () => {
+    const r = mapValidacaoNfAtividade({ data_emissao: '2026-07-03', criado_em: null, numnota: null, valor: null });
+    assert.equal(r.data, '2026-07-03');
+    assert.equal(r.descricao, null);
+    assert.equal(r.valor, null);
+  });
+});
+
+describe('montarAtividades — merge desc + paginação (task 6.4.2/6.4.3)', () => {
+  test('une as 3 fontes e ordena desc por data', () => {
+    const fatur = [{ data_referencia: '2026-07-01', descricao: 'F1', valor: 10 }];
+    const perf = [{ data_periodo: '2026-07-03', periodo: 'Manhã', subpraca: null }];
+    const valid = [{ data_emissao: '2026-07-02', criado_em: null, numnota: 'N1', valor: 5 }];
+    const r = montarAtividades(fatur, perf, valid, 3, 0, 20);
+    assert.equal(r.total, 3);
+    assert.equal(r.offset, 0);
+    assert.equal(r.limit, 20);
+    assert.deepEqual(r.items.map((i) => i.tipo), ['performance', 'validacao_nf', 'faturamento']);
+    assert.deepEqual(r.items.map((i) => i.data), ['2026-07-03', '2026-07-02', '2026-07-01']);
+  });
+
+  test('pagina corretamente (offset+limit) sobre o conjunto unificado', () => {
+    const fatur = [
+      { data_referencia: '2026-07-05', descricao: 'F1', valor: 1 },
+      { data_referencia: '2026-07-01', descricao: 'F2', valor: 2 },
+    ];
+    const perf = [
+      { data_periodo: '2026-07-04', periodo: 'P1', subpraca: null },
+      { data_periodo: '2026-07-02', periodo: 'P2', subpraca: null },
+    ];
+    const r1 = montarAtividades(fatur, perf, [], 4, 0, 2);
+    assert.deepEqual(r1.items.map((i) => i.data), ['2026-07-05', '2026-07-04']);
+    const r2 = montarAtividades(fatur, perf, [], 4, 2, 2);
+    assert.deepEqual(r2.items.map((i) => i.data), ['2026-07-02', '2026-07-01']);
+  });
+
+  test('motorista sem atividades -> items:[] sem erro (task 6.4.4)', () => {
+    const r = montarAtividades([], [], [], 0, 0, 20);
+    assert.deepEqual(r, { items: [], total: 0, offset: 0, limit: 20 });
+  });
+
+  test('fontes ausentes/undefined não lançam (defesa em profundidade)', () => {
+    assert.doesNotThrow(() => montarAtividades(undefined, undefined, undefined, undefined, 0, 20));
+  });
+});
+
+// FASE 7 (gap encontrado no code-review de fechamento) — cnpjEnvioMassaFilter
+// é uma cópia deliberada (mesmo padrão de duplicação declarado no cabeçalho
+// de routes/hub-motoristas.js) da função homônima de routes/motorista.js:117,
+// que já resolve o problema de EnvioMassa.cnpj_prestador aparecer em dois
+// formatos. Este teste trava o comportamento das DUAS cópias permanecerem
+// idênticas — qualquer drift futuro (ex.: alguém "simplifica" uma cópia e
+// esquece a outra) quebra este teste.
+describe('cnpjEnvioMassaFilter (dual-format EnvioMassa.cnpj_prestador, FASE 7)', () => {
+  test('cnpj de 14 dígitos: filtro in.() casa dígitos-puro E mascarado', () => {
+    const filtro = cnpjEnvioMassaFilter('12345678000195');
+    assert.match(filtro, /^cnpj_prestador=in\.\(/);
+    const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
+    assert.equal(decodificado, '"12345678000195","12.345.678/0001-95"');
+  });
+
+  test('entrada já mascarada é normalizada para dígitos antes de montar as duas variantes', () => {
+    const filtro = cnpjEnvioMassaFilter('12.345.678/0001-95');
+    const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
+    assert.equal(decodificado, '"12345678000195","12.345.678/0001-95"');
+  });
+
+  test('cnpj com tamanho diferente de 14 dígitos: só a variante dígitos-puro (sem máscara aplicável)', () => {
+    const filtro = cnpjEnvioMassaFilter('123456789');
+    const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
+    assert.equal(decodificado, '"123456789"');
+  });
+
+  test('entrada vazia/null não lança e produz filtro com string vazia', () => {
+    assert.doesNotThrow(() => cnpjEnvioMassaFilter(null));
+    const filtro = cnpjEnvioMassaFilter('');
+    const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
+    assert.equal(decodificado, '""');
   });
 });

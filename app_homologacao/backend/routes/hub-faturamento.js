@@ -29,6 +29,11 @@ const {
   mapResumoAgrupado,
   CHAVE_AGREGADOS_BONUS,
 } = require('../lib/hub-faturamento-dto');
+const {
+  TERMO_BUSCA_ENTREGADOR_MIN_CHARS,
+  termoBuscaValido,
+  buscarEntregadoresPorNome,
+} = require('../lib/hub-motoristas-similaridade');
 
 const router = express.Router();
 
@@ -301,6 +306,35 @@ router.get('/areas', requirePermission('faturamento.listar'), async (req, res) =
     return res.status(200).json({ areas: distintas });
   } catch (e) {
     console.error('[hub-faturamento] erro em GET /faturamento/areas:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /faturamento/entregadores — busca de entregador por nome
+// (hub-motorista-canonico FASE 2 / WS-B, tasks.md 2.1, contracts/
+// api-motorista-canonico.md §WS-B, research.md Decision 3): alimenta o
+// `EntregadorCombobox` no lugar do input numérico de `entregador_id`. Termo
+// SEMPRE parametrizado via RPC (`hub_entregadores_busca`, migration 0042) —
+// NUNCA concatenado em querystring/SQL (mandato S1). Espelho em
+// routes/hub-performance.js (mesma validação/parametrização/limite).
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/entregadores', requirePermission('faturamento.listar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'faturamento.listar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const busca = typeof req.query.busca === 'string' ? req.query.busca : '';
+    if (!termoBuscaValido(busca, TERMO_BUSCA_ENTREGADOR_MIN_CHARS)) {
+      return res.status(422).json({ erro: 'busca_invalida' });
+    }
+
+    const items = await buscarEntregadoresPorNome(entidadeAtiva, busca.trim(), claims);
+    return res.status(200).json({ items });
+  } catch (e) {
+    console.error('[hub-faturamento] erro em GET /faturamento/entregadores:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });

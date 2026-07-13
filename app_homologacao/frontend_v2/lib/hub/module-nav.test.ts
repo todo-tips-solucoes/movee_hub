@@ -23,6 +23,16 @@ describe('moduloParaRota', () => {
     // resolve corretamente pela convenção.
     expect(moduloParaRota('modulo-novo-2027')).toBe('/hub/dashboard/modulo-novo-2027');
   });
+
+  it('hub-motorista-canonico FASE 1 (FR-001/FR-002, Acceptance Scenario 3 US1): dashboard resolve para a raiz /hub/dashboard, sem regressão nos demais códigos', () => {
+    expect(moduloParaRota('dashboard')).toBe('/hub/dashboard');
+    // Regressão: demais códigos continuam na convenção /hub/dashboard/<codigo>.
+    expect(moduloParaRota('motoristas')).toBe('/hub/dashboard/motoristas');
+    expect(moduloParaRota('faturamento')).toBe('/hub/dashboard/faturamento');
+    expect(moduloParaRota('performance')).toBe('/hub/dashboard/performance');
+    expect(moduloParaRota('importacoes')).toBe('/hub/dashboard/importacoes');
+    expect(moduloParaRota('admin')).toBe('/hub/dashboard/admin');
+  });
 });
 
 describe('resolveModuleIcon', () => {

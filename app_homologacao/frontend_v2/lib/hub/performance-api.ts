@@ -18,6 +18,7 @@ import {
   type PerformanceResumoAgrupado,
   type PerformanceResumoCards,
 } from './performance-dto';
+import { parseEntregadorBuscaResponse, type EntregadorBuscaItem } from './entregador-busca-dto';
 
 const HUB_API_BASE = '/api/v1';
 
@@ -96,6 +97,15 @@ export async function listarPerformance(filtros: ListarPerformanceQuery = {}): P
 export async function listarAreasPerformance(): Promise<string[]> {
   const raw = await request<unknown>('/performance/areas');
   return parseAreasResponse(raw);
+}
+
+/** `GET /performance/entregadores?busca=...` — busca de entregador por nome
+ * (hub-motorista-canonico FASE 2/WS-B, contracts/api-motorista-canonico.md
+ * §WS-B), consumido por `EntregadorCombobox`. Espelho de
+ * `faturamento-api.ts#buscarEntregadoresFaturamento`. */
+export async function buscarEntregadoresPerformance(busca: string): Promise<EntregadorBuscaItem[]> {
+  const raw = await request<unknown>(`/performance/entregadores${query({ busca })}`);
+  return parseEntregadorBuscaResponse(raw);
 }
 
 /** `GET /performance/resumo` sem `groupBy` — cards (FR-003). */

@@ -29,6 +29,11 @@ const {
   mapResumoCards,
   mapResumoAgrupado,
 } = require('../lib/hub-performance-dto');
+const {
+  TERMO_BUSCA_ENTREGADOR_MIN_CHARS,
+  termoBuscaValido,
+  buscarEntregadoresPorNome,
+} = require('../lib/hub-motoristas-similaridade');
 
 const router = express.Router();
 
@@ -307,6 +312,32 @@ router.get('/areas', requirePermission('performance.listar'), async (req, res) =
     return res.status(200).json({ areas: distintas });
   } catch (e) {
     console.error('[hub-performance] erro em GET /performance/areas:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /performance/entregadores — busca de entregador por nome
+// (hub-motorista-canonico FASE 2 / WS-B, tasks.md 2.2, contracts/
+// api-motorista-canonico.md §WS-B — espelho de routes/hub-faturamento.js,
+// mesma validação/parametrização/limite, gate `performance.listar`).
+// ────────────────────────────────────────────────────────────────────────────
+
+router.get('/entregadores', requirePermission('performance.listar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'performance.listar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const busca = typeof req.query.busca === 'string' ? req.query.busca : '';
+    if (!termoBuscaValido(busca, TERMO_BUSCA_ENTREGADOR_MIN_CHARS)) {
+      return res.status(422).json({ erro: 'busca_invalida' });
+    }
+
+    const items = await buscarEntregadoresPorNome(entidadeAtiva, busca.trim(), claims);
+    return res.status(200).json({ items });
+  } catch (e) {
+    console.error('[hub-performance] erro em GET /performance/entregadores:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });

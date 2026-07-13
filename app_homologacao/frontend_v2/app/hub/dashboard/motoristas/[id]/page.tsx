@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { AtivoBadge } from '@/components/hub/status-badge';
+import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,14 +49,22 @@ import { Input } from '@/components/ui/input';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { useVinculoMotoristaDialog, VinculoMotoristaDialog } from '@/components/hub/vinculo-motorista-dialog';
 import {
+  CredencialMotoristaAcoes,
+  CredencialMotoristaDialogs,
+  useCredencialMotoristaDialog,
+} from '@/components/hub/credencial-motorista-dialog';
+import { AtividadesMotoristaSection, useAtividadesMotorista } from '@/components/hub/atividades-motorista-section';
+import {
   desvincularMotorista,
   editarMotorista,
   obterMotorista,
   obterSugestoes,
   MotoristaApiError,
 } from '@/lib/hub/motoristas-api';
-import type { MotoristaDetalhe } from '@/lib/hub/motoristas-dto';
+import type { AtividadesPaginadas, MotoristaDetalhe } from '@/lib/hub/motoristas-dto';
 import { formatDateBR } from '@/lib/utils';
+
+const ATIVIDADES_VAZIAS: AtividadesPaginadas = { items: [], total: 0, offset: 0, limit: 20 };
 
 /** Lógica isolada do JSX (mesmo padrão de `useImportacaoPolling`/`usePerfil`). */
 export function useMotoristaDetalhe(id: number) {
@@ -91,6 +100,11 @@ export default function MotoristaDetalhePage() {
   const id = Number(params?.id);
   const { permissoes } = useHubAuth();
   const podeEditar = permissoes.includes('motoristas.editar');
+  // FASE 5 (task 5.5) — gestão de credencial de acesso ao app do motorista
+  // visível/acionável SOMENTE com `motoristas.credencial` (permissão
+  // distinta de `motoristas.editar`, seed 0044) — mesmo padrão de
+  // `podeEditar` acima.
+  const podeCredencial = permissoes.includes('motoristas.credencial');
 
   const { detalhe, carregando, erro, refetch } = useMotoristaDetalhe(id);
 
@@ -161,6 +175,27 @@ export default function MotoristaDetalhePage() {
       toast.success('Conta de acesso vinculada.');
     },
   });
+
+  // Credencial de acesso ao app (task 5.5) — mesmo padrão de vinculoDialog
+  // acima: hook isolado do JSX, `onAtualizado` re-busca o detalhe (reflete
+  // `vinculo.ativo` novo) + feedback de sucesso.
+  const credencialDialog = useCredencialMotoristaDialog({
+    entregadorId: id,
+    onAtualizado: () => {
+      refetch();
+      toast.success('Credencial atualizada.');
+    },
+  });
+
+  // FASE 6 (tasks.md 6.5) — seção "Atividades" read-only. Reinicia (volta à
+  // 1ª página) sempre que o detalhe é buscado de novo (edição/vínculo/
+  // credencial), mesmo padrão de qualquer lista que depende de um estado
+  // que pode ter mudado por fora.
+  const atividadesState = useAtividadesMotorista(id, detalhe?.atividades ?? ATIVIDADES_VAZIAS);
+  useEffect(() => {
+    if (detalhe) atividadesState.reiniciar(detalhe.atividades);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detalhe]);
 
   // Desvínculo com confirmação (task 7.2.4)
   const [confirmandoDesvinculo, setConfirmandoDesvinculo] = useState(false);
@@ -246,6 +281,14 @@ export default function MotoristaDetalhePage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 px-4">
+              {/* uuid copiável (FR-016, task 4.1.2/4.1.3) — identificador
+                  canônico da planilha de origem, imutável (nunca editável
+                  nesta tela). */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Identificador:</span>
+                <CopyableUuid value={detalhe.idExterno} label={`Copiar identificador de ${detalhe.nome}`} />
+              </div>
+
               {editando && (
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox checked={ativoEdicao} onCheckedChange={(v) => setAtivoEdicao(v === true)} disabled={salvando} />
@@ -373,6 +416,43 @@ export default function MotoristaDetalhePage() {
               )}
             </CardContent>
           </Card>
+
+          {podeCredencial && (
+            <Card>
+              <CardHeader>
+                <CardTitle as="h2" className="text-base">
+                  Credencial de acesso
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 px-4">
+                {detalhe.vinculo ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Situação da credencial:{' '}
+                        <span className={detalhe.vinculo.ativo ? 'font-medium text-success' : 'font-medium text-destructive'}>
+                          {detalhe.vinculo.ativo ? 'ativa' : 'desativada'}
+                        </span>
+                      </p>
+                    </div>
+                    <CredencialMotoristaAcoes state={credencialDialog} credencialAtiva={detalhe.vinculo.ativo} />
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
+                    <p className="text-sm text-muted-foreground">Nenhuma credencial de acesso criada.</p>
+                    <CredencialMotoristaAcoes state={credencialDialog} credencialAtiva={null} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* FASE 6 (tasks.md 6.5) — read-only, visível a qualquer usuário
+              com `motoristas.consultar` (sem exigir permissão de escrita —
+              FR-020/FR-022), mesmo padrão de acesso do resto do detalhe. */}
+          <AtividadesMotoristaSection carregandoDetalhe={carregando && !detalhe} state={atividadesState} />
+
+          {podeCredencial && <CredencialMotoristaDialogs state={credencialDialog} />}
 
           {podeEditar && <VinculoMotoristaDialog state={vinculoDialog} />}
 

@@ -33,6 +33,8 @@
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
@@ -46,8 +48,15 @@ const {
   mapMotoristaListItem,
   mapMotoristaDetalhe,
   validarPatchMotorista,
+  validarCriacaoMotorista,
   validarVinculoBody,
   mascararCnpj,
+  validarCriacaoCredencialBody,
+  validarPatchCredencialBody,
+  validarDefinirSenhaCredencialBody,
+  parsePaginacaoAtividades,
+  montarAtividades,
+  cnpjEnvioMassaFilter,
 } = require('../lib/hub-motoristas-dto');
 const {
   termoBuscaValido,
@@ -197,7 +206,9 @@ router.get('/', requirePermission('motoristas.listar'), async (req, res) => {
       filtros.push('motorista_id=is.null');
     }
     filtros.push('order=nome.asc');
-    filtros.push('select=id,nome,ativo,motorista_id');
+    // FASE 4 (task 4.1.1): id_externo (uuid) exposto como `idExterno` nos
+    // DTOs de listagem (FR-016).
+    filtros.push('select=id,nome,ativo,motorista_id,id_externo');
 
     const candidatos = await hubPostgrestRequest(
       `Entregador?${filtros.join('&')}`,
@@ -331,15 +342,105 @@ router.get('/contas-elegiveis', requirePermission('motoristas.editar'), async (r
  * queries (Entregador+embed, áreas, resumo) entre os dois handlers.
  * @returns {Promise<object|null>} `null` se `id` fora do escopo/inexistente.
  */
-async function buscarDetalheMotorista(id, entidadeAtiva, claims) {
+/**
+ * FASE 6 (task 6.4) — histórico de atividades correlacionadas por uuid
+ * (data-model.md §Entity Atividade, dec-046/dec-048). União read-only de 3
+ * fontes:
+ *   - FaturamentoLancamento/PerformanceTurno: já correlacionadas por
+ *     `entregador_id` (FK física) — escopadas por `id_empresa` (RLS +
+ *     filtro explícito, mesmo padrão do resumo all-time).
+ *   - EnvioMassa (validação de NF, schema legado espelhado no hub — SEM
+ *     RLS, 0006_rls_policies.sql): correlacionada por `entregador_uuid`
+ *     (migration 0046) **E** `cnpj_prestador` da conta vinculada (dec-048 —
+ *     fecha risco de colisão de uuid entre empresas, já que
+ *     `Entregador.id_externo` só é único POR empresa). Sem vínculo
+ *     (`contaMotorista` null) não há `cnpj_prestador` para correlacionar —
+ *     fonte fica vazia legitimamente (não é erro).
+ * Performance (task 6.4.5): 3 contagens exatas (count=exact + range 0-0,
+ * índice em coluna de correlação já existe — 0013/0014/0046) para o
+ * `total`; cada fonte busca só o topo `offset+limit` (ordenado desc) —
+ * nunca a tabela inteira, mesmo sem limite fixo de período/quantidade
+ * (FR-022).
+ * @param {number} id - Entregador.id
+ * @param {string|null} idExterno - Entregador.id_externo (uuid)
+ * @param {object|null} contaMotorista - embed já resolvido (cnpj_prestador)
+ * @param {number} entidadeAtiva
+ * @param {object} claims
+ * @param {number} offset
+ * @param {number} limit
+ * @returns {Promise<{items:object[], total:number, offset:number, limit:number}>}
+ */
+async function buscarAtividadesMotorista(id, idExterno, contaMotorista, entidadeAtiva, claims, offset, limit) {
+  const janela = offset + limit;
+  // Guard nas DUAS variáveis interpoladas na URL da EnvioMassa (review-task
+  // de fechamento, finding #3): sem `idExterno` o filtro viraria
+  // `entregador_uuid=eq.null` — sintaxe inválida para o tipo uuid no
+  // Postgres, derrubando o GET /:id inteiro com 500. Entregador com
+  // `id_externo` nulo é raro (backfill da 0010), mas o gate correto é nas
+  // duas pontas da correlação (uuid E cnpj), não só no cnpj.
+  const cnpjPrestadorVinculo = idExterno
+    ? (contaMotorista && contaMotorista.cnpj_prestador)
+    : null;
+
+  const faturCount = await hubPostgrestRequest(
+    `FaturamentoLancamento?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+    'GET', null, claims, { count: true, range: { from: 0, to: 0 } }
+  );
+  const perfCount = await hubPostgrestRequest(
+    `PerformanceTurno?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+    'GET', null, claims, { count: true, range: { from: 0, to: 0 } }
+  );
+  const validCount = cnpjPrestadorVinculo
+    ? await hubPostgrestRequest(
+      `EnvioMassa?entregador_uuid=eq.${encodeURIComponent(idExterno)}`
+      + `&${cnpjEnvioMassaFilter(cnpjPrestadorVinculo)}&select=id`,
+      'GET', null, claims, { count: true, range: { from: 0, to: 0 } }
+    )
+    : { total: 0 };
+
+  const total = (faturCount.total || 0) + (perfCount.total || 0) + (validCount.total || 0);
+
+  if (janela <= 0) {
+    return montarAtividades([], [], [], total, offset, limit);
+  }
+
+  const faturRows = await hubPostgrestRequest(
+    `FaturamentoLancamento?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+    + `&select=data_referencia,descricao,valor&order=data_referencia.desc&limit=${janela}`,
+    'GET', null, claims
+  );
+  const perfRows = await hubPostgrestRequest(
+    `PerformanceTurno?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+    + `&select=data_periodo,periodo,subpraca&order=data_periodo.desc&limit=${janela}`,
+    'GET', null, claims
+  );
+  const validRows = cnpjPrestadorVinculo
+    ? await hubPostgrestRequest(
+      `EnvioMassa?entregador_uuid=eq.${encodeURIComponent(idExterno)}`
+      + `&${cnpjEnvioMassaFilter(cnpjPrestadorVinculo)}`
+      + `&select=data_emissao,criado_em:created_at,numnota,valor&order=created_at.desc&limit=${janela}`,
+      'GET', null, claims
+    )
+    : [];
+
+  return montarAtividades(faturRows || [], perfRows || [], validRows || [], total, offset, limit);
+}
+
+async function buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts) {
   // 404 se fora do escopo do token: filtro explícito por id_empresa (defesa
   // em profundidade — RLS já nega a linha via escopo). Embed nativo do
   // PostgREST via FK física Entregador.motorista_id -> ContaMotorista(id)
   // (migration 0021) — confirmado empiricamente no teste de integração.
+  // FASE 4 (task 4.1.2): id_externo (uuid) exposto como `idExterno` no
+  // detalhe (FR-016). FASE 5 (task 5.5): `ContaMotorista.ativo` incluído no
+  // embed — aditivo, campo já existente desde 0021_conta_motorista.sql —
+  // para a UI de "Ativar/Desativar credencial" (routes/hub-motoristas.js
+  // §PATCH /:id/credencial) refletir o estado REAL da credencial em vez de
+  // adivinhar/assumir um default no cliente.
   const linhas = await hubPostgrestRequest(
     `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
-    + '&select=id,nome,ativo,nome_editado_manualmente,motorista_id,'
-    + 'ContaMotorista(id,nome,cnpj_prestador)',
+    + '&select=id,nome,ativo,nome_editado_manualmente,motorista_id,id_externo,'
+    + 'ContaMotorista(id,nome,cnpj_prestador,ativo)',
     'GET', null, claims
   );
   if (!linhas || linhas.length === 0) return null;
@@ -387,7 +488,16 @@ async function buscarDetalheMotorista(id, entidadeAtiva, claims) {
     dataMaisRecente,
   };
 
-  return mapMotoristaDetalhe(row, areas, resumo);
+  // FASE 6 (task 6.4) — seção "Atividades". `atividadesOpts` é opcional
+  // (PATCH /:id reusa esta função e não precisa da janela paginada — mesmo
+  // padrão de reuso já documentado no cabeçalho desta função); default
+  // offset=0/limit=20 quando ausente.
+  const { offset: atividadesOffset, limit: atividadesLimit } = atividadesOpts || { offset: 0, limit: 20 };
+  const atividades = await buscarAtividadesMotorista(
+    id, row.id_externo, row.ContaMotorista, entidadeAtiva, claims, atividadesOffset, atividadesLimit
+  );
+
+  return mapMotoristaDetalhe(row, areas, resumo, atividades);
 }
 
 router.get('/:id', requirePermission('motoristas.consultar'), async (req, res) => {
@@ -398,8 +508,9 @@ router.get('/:id', requirePermission('motoristas.consultar'), async (req, res) =
 
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
+    const atividadesOpts = parsePaginacaoAtividades(req.query);
 
-    const detalhe = await buscarDetalheMotorista(id, entidadeAtiva, claims);
+    const detalhe = await buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts);
     if (!detalhe) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
     return res.status(200).json(detalhe);
@@ -441,6 +552,78 @@ router.get('/:id/sugestoes', requirePermission('motoristas.editar'), async (req,
     return res.status(200).json({ items, entidadeElegivel: true });
   } catch (e) {
     console.error('[hub-motoristas] erro em GET /motoristas/:id/sugestoes:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /motoristas — cadastro manual com uuid obrigatório (task 4.2)
+//
+// Allowlist estrita do corpo (mandato S2 — BOPLA/mass assignment):
+// `lib/hub-motoristas-dto.js#validarCriacaoMotorista` só lê `nome` +
+// `idExterno` do corpo cru — qualquer outra chave (`ativo`, `motoristaId`,
+// `id`, `idEmpresa`, etc.) nunca é lida, nunca chega ao PostgREST.
+// `id_empresa` é SEMPRE resolvido do contexto do token
+// (`resolverContextoEntidade`), nunca do corpo (Princípio II). Sem
+// verificação de duplicidade PRÉVIA por SELECT: a UNIQUE (id_empresa,
+// id_externo) do banco (migration 0010) é a fonte de verdade — a violação é
+// mapeada para 409 amigável DEPOIS do INSERT (mesmo padrão de defesa em
+// profundidade de `POST /:id/vinculo` acima, evita corrida entre o
+// pre-check e o INSERT). FR-012..FR-014.
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/', requirePermission('motoristas.editar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.editar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    const validado = validarCriacaoMotorista(req.body);
+    if (!validado.ok) {
+      return res.status(422).json({ erro: validado.erro });
+    }
+    const { nome, idExterno } = validado;
+
+    let criados;
+    try {
+      criados = await hubPostgrestRequest(
+        'Entregador', 'POST',
+        { nome, id_externo: idExterno, id_empresa: entidadeAtiva, ativo: true },
+        claims
+      );
+    } catch (e) {
+      // Violação de UNIQUE (id_empresa, id_externo) -> 409 amigável
+      // (contracts/api-motorista-canonico.md §POST /motoristas). PostgREST
+      // já mapeia unique_violation (23505) para HTTP 409 nativamente —
+      // mesmo padrão de POST /usuarios (routes/hub-usuarios.js).
+      if (e && e.status === 409) {
+        return res.status(409).json({ erro: 'uuid_duplicado' });
+      }
+      throw e;
+    }
+    const novo = criados && criados[0];
+    if (!novo) {
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.criado',
+      recurso: 'Entregador',
+      recursoId: novo.id,
+      detalhes: { idExterno },
+      claims,
+    });
+
+    return res.status(201).json({
+      id: novo.id,
+      idExterno: novo.id_externo,
+      nome: novo.nome,
+      ativo: novo.ativo,
+    });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em POST /motoristas:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
@@ -547,7 +730,7 @@ router.post('/:id/vinculo', requirePermission('motoristas.editar'), async (req, 
     // (distinto do 409 de conflito abaixo — contrato §POST vinculo, "404 ...
     // OU contaMotoristaId inexistente").
     const contaLinhas = await hubPostgrestRequest(
-      `ContaMotorista?id=eq.${contaMotoristaId}&select=id,nome,cnpj_prestador`,
+      `ContaMotorista?id=eq.${contaMotoristaId}&select=id,nome,cnpj_prestador,ativo`,
       'GET', null, claims
     );
     if (!contaLinhas || contaLinhas.length === 0) {
@@ -610,6 +793,7 @@ router.post('/:id/vinculo', requirePermission('motoristas.editar'), async (req, 
         contaMotoristaId: conta.id,
         nome: conta.nome,
         cnpjPrestadorMascarado: mascararCnpj(conta.cnpj_prestador),
+        ativo: !!conta.ativo,
       },
     });
   } catch (e) {
@@ -674,6 +858,384 @@ router.delete('/:id/vinculo', requirePermission('motoristas.editar'), async (req
     return res.status(204).end();
   } catch (e) {
     console.error('[hub-motoristas] erro em DELETE /motoristas/:id/vinculo:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Credencial de acesso ao app do motorista (FASE 5 — tasks.md 5.1/5.2/5.3;
+// contracts/api-motorista-canonico.md §WS-C Credencial). Todas as rotas
+// abaixo exigem `motoristas.credencial` — permissão distinta de
+// `motoristas.editar` (seed 0044): gestão de credencial é ação sensível
+// (define/reseta segredo de acesso ao app), separada do cadastro/edição
+// operacional do Entregador.
+// ────────────────────────────────────────────────────────────────────────────
+
+// mandato S3 (research.md) — cost >= 12, LITERAL. NÃO reusar o cost=10 do
+// legado de `Usuario`/`Motorista` (bcrypt mais barato, aceitável em 2020,
+// insuficiente para hardware atual).
+const CREDENCIAL_BCRYPT_COST = 12;
+
+// CHK011/tasks.md 5.2.2 — MESMO valor do fluxo legado `recuperar-senha`/
+// `redefinir-senha` (routes/hub-auth.js#RECUPERACAO_TOKEN_TTL_MS = 1 hora).
+// Documentado aqui em vez de importado: os dois arquivos mantêm cada um sua
+// própria cópia de constantes pequenas (mesmo padrão de duplicação
+// deliberada descrito no cabeçalho deste arquivo) — o valor precisa
+// permanecer IDÊNTICO por decisão de produto (espelhar o legado), não por
+// acoplamento de código.
+const CREDENCIAL_TOKEN_RESET_TTL_MS = 60 * 60 * 1000; // 1 hora
+
+/**
+ * SHA-256 hex do token bruto de reset de senha — NUNCA persiste o token em
+ * claro (mesmo padrão de `hashToken()` em routes/hub-auth.js).
+ * @param {string} tokenBruto
+ * @returns {string}
+ */
+function hashTokenResetCredencial(tokenBruto) {
+  return crypto.createHash('sha256').update(tokenBruto).digest('hex');
+}
+
+/**
+ * 256 bits de entropia via `crypto.randomBytes` (NUNCA `Math.random()`/uuid
+ * v4 para segredo criptográfico) — mesmo padrão de `gerarTokenBruto()` em
+ * routes/hub-auth.js.
+ * @returns {string}
+ */
+function gerarTokenResetCredencial() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /motoristas/:id/credencial — criar credencial (task 5.1)
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/:id/credencial', requirePermission('motoristas.credencial'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.credencial');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    // Allowlist estrita (5.1.2, mandato S2) — só `cnpjPrestador`/`senhaInicial`
+    // influenciam esta rota; `ativo` (ou qualquer outra chave) do corpo é
+    // ignorado, nunca lido.
+    const validado = validarCriacaoCredencialBody(req.body);
+    if (!validado.ok) {
+      return res.status(422).json({ erro: validado.erro });
+    }
+    const { cnpjPrestador, senhaInicial } = validado;
+
+    // 1. 404 fora do escopo — filtro explícito por id_empresa (defesa em
+    // profundidade, mesmo padrão de GET/PATCH /:id).
+    const entregadorLinhas = await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,nome,motorista_id`,
+      'GET', null, claims
+    );
+    if (!entregadorLinhas || entregadorLinhas.length === 0) {
+      return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    }
+    const entregador = entregadorLinhas[0];
+
+    // 2. já tem credencial (ContaMotorista.senha IS NOT NULL) vinculada a
+    // ESTE Entregador -> 409.
+    if (entregador.motorista_id) {
+      const vinculadaAtual = await hubPostgrestRequest(
+        `ContaMotorista?id=eq.${entregador.motorista_id}&select=id,senha`,
+        'GET', null, claims
+      );
+      if (vinculadaAtual && vinculadaAtual[0] && vinculadaAtual[0].senha) {
+        return res.status(409).json({ erro: 'credencial_existente' });
+      }
+    }
+
+    // 3. ContaMotorista por cnpj_prestador informado — se já vinculada a
+    // OUTRO Entregador (dentro do escopo), 409 sem vazar qual entregador
+    // (mesmo espírito do 409 defensivo de POST /:id/vinculo).
+    const contasPorCnpj = await hubPostgrestRequest(
+      `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjPrestador)}&select=id,nome`,
+      'GET', null, claims
+    );
+    const contaExistente = contasPorCnpj && contasPorCnpj[0];
+    if (contaExistente) {
+      const vinculoOutro = await hubPostgrestRequest(
+        `Entregador?motorista_id=eq.${contaExistente.id}&id=neq.${id}`
+        + `&id_empresa=eq.${entidadeAtiva}&select=id`,
+        'GET', null, claims
+      );
+      if (vinculoOutro && vinculoOutro.length > 0) {
+        return res.status(409).json({ erro: 'credencial_existente' });
+      }
+    }
+
+    // 4. senha em claro: do body se veio válida (validada acima, >=8
+    // chars), senão gerada (alta entropia, ~12 chars via base64url de 9
+    // bytes aleatórios).
+    let senhaGerada = false;
+    let senhaEmClaro = senhaInicial;
+    if (!senhaEmClaro) {
+      senhaEmClaro = crypto.randomBytes(9).toString('base64url');
+      senhaGerada = true;
+    }
+
+    // 5. bcrypt cost >= 12 (mandato S3).
+    const hash = await bcrypt.hash(senhaEmClaro, CREDENCIAL_BCRYPT_COST);
+
+    // 6. PATCH se a conta já existia (reaproveita cadastro), POST se não.
+    let conta;
+    if (contaExistente) {
+      await hubPostgrestRequest(
+        `ContaMotorista?id=eq.${contaExistente.id}`, 'PATCH', { senha: hash }, claims,
+        { returnMinimal: true }
+      );
+      conta = contaExistente;
+    } else {
+      const criados = await hubPostgrestRequest(
+        'ContaMotorista', 'POST',
+        { cnpj_prestador: cnpjPrestador, nome: entregador.nome, ativo: true, senha: hash },
+        claims
+      );
+      conta = criados && criados[0];
+      if (!conta) return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+
+    // 7. vincular Entregador -> conta, se ainda não apontava para ela
+    // (mesmo idioma de PATCH em POST /:id/vinculo).
+    if (entregador.motorista_id !== conta.id) {
+      await hubPostgrestRequest(
+        `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`, 'PATCH', { motorista_id: conta.id }, claims,
+        { returnMinimal: true }
+      );
+    }
+
+    // 8. auditoria — NUNCA a senha (mandato S4, defesa em profundidade além
+    // do scrub automático de lib/hub-auditoria.js).
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.credencial_criada',
+      recurso: 'ContaMotorista',
+      recursoId: conta.id,
+      detalhes: { contaMotoristaId: conta.id },
+      claims,
+    });
+
+    // 9. resposta — NUNCA a chave `senha`; `senhaTemporaria` só quando
+    // AUTO-gerada (nunca ecoa uma senha que o próprio caller já sabia).
+    const resposta = { id: conta.id, cnpjPrestador: mascararCnpj(cnpjPrestador), ativo: true };
+    if (senhaGerada) {
+      resposta.senhaTemporaria = senhaEmClaro;
+    }
+    return res.status(201).json(resposta);
+  } catch (e) {
+    console.error('[hub-motoristas] erro em POST /motoristas/:id/credencial:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /motoristas/:id/credencial/reset-senha — iniciar reset (task 5.2)
+//
+// Invalida a senha atual IMEDIATAMENTE (`senha: null`) — próximo login falha
+// (mesma semântica de `if (!motorista.senha)` já existente no login legado,
+// routes/motorista.js) — e emite um token de definição de nova senha
+// (single-use, TTL de 1h, 256 bits — ver constantes acima).
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/:id/credencial/reset-senha', requirePermission('motoristas.credencial'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.credencial');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    // 404 se fora do escopo OU sem credencial vinculada (motivo mais
+    // preciso que 409 aqui: não há nada de "conflito", só nada para
+    // resetar).
+    const linhas = await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,motorista_id`,
+      'GET', null, claims
+    );
+    if (!linhas || linhas.length === 0 || !linhas[0].motorista_id) {
+      return res.status(404).json({ erro: 'credencial_inexistente' });
+    }
+    const contaMotoristaId = linhas[0].motorista_id;
+
+    const tokenBruto = gerarTokenResetCredencial();
+    const tokenHash = hashTokenResetCredencial(tokenBruto);
+    const expira = new Date(Date.now() + CREDENCIAL_TOKEN_RESET_TTL_MS);
+
+    await hubPostgrestRequest(
+      `ContaMotorista?id=eq.${contaMotoristaId}`, 'PATCH',
+      { senha: null, token_reset_hash: tokenHash, token_reset_expira: expira.toISOString() },
+      claims, { returnMinimal: true }
+    );
+
+    // Auditoria — NUNCA o token (mandato S4).
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.credencial_reset_iniciado',
+      recurso: 'ContaMotorista',
+      recursoId: contaMotoristaId,
+      detalhes: { contaMotoristaId },
+      claims,
+    });
+
+    // `tokenDefinicao` devolvido uma ÚNICA vez, diretamente na resposta:
+    // diferente do fluxo `recuperar-senha` de Usuario (que "envia" por
+    // e-mail mock), não existe canal de e-mail para o motorista — o
+    // operador que aciona esta rota repassa o token à pessoa motorista por
+    // fora do sistema (WhatsApp/telefone/presencial).
+    return res.status(200).json({ ok: true, tokenDefinicao: tokenBruto });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em POST /motoristas/:id/credencial/reset-senha:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /motoristas/:id/credencial/reset-senha/definir — resgatar o token
+// (GAP-FILL, CHK011/tasks.md 5.2.2)
+//
+// tasks.md 5.2 só descreve a rota que GERA o token de reset
+// (`POST .../reset-senha`, acima). Sem um endpoint que CONSOME esse token,
+// ele nunca teria semântica testável de expiração/single-use — o próprio
+// CHK011 exige TTL + entropia + single-use CONCRETOS e VERIFICÁVEIS por
+// teste (não só "documentados"). Esta rota fecha esse gap: consome o
+// `tokenDefinicao` devolvido por `.../reset-senha` e define a senha nova.
+// Mantida sob o MESMO gate (`motoristas.credencial`) — não abre superfície
+// pública nova (só quem já pode gerenciar a credencial do motorista pode
+// consumir o token de definição; o motorista em si não chama esta rota do
+// hub, só o operador, que repassa a senha definida por fora do sistema —
+// mesmo modelo operacional do `tokenDefinicao` acima).
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/:id/credencial/reset-senha/definir', requirePermission('motoristas.credencial'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.credencial');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    // Allowlist estrita: só `token`/`novaSenha` — validação de FORMATO
+    // apenas (a de NEGÓCIO — hash bate? expirou? — é feita abaixo).
+    const validado = validarDefinirSenhaCredencialBody(req.body);
+    if (!validado.ok) {
+      return res.status(422).json({ erro: validado.erro });
+    }
+    const { token, novaSenha } = validado;
+
+    const linhas = await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,motorista_id`,
+      'GET', null, claims
+    );
+    if (!linhas || linhas.length === 0 || !linhas[0].motorista_id) {
+      return res.status(404).json({ erro: 'credencial_inexistente' });
+    }
+    const contaMotoristaId = linhas[0].motorista_id;
+
+    const contas = await hubPostgrestRequest(
+      `ContaMotorista?id=eq.${contaMotoristaId}&select=id,token_reset_hash,token_reset_expira`,
+      'GET', null, claims
+    );
+    const conta = contas && contas[0];
+
+    // token ausente/hash não bate -> 400 (nunca revela QUAL parte falhou —
+    // mesmo espírito anti-enumeração do resto do hub).
+    if (!conta || !conta.token_reset_hash || hashTokenResetCredencial(token) !== conta.token_reset_hash) {
+      return res.status(400).json({ erro: 'token_invalido' });
+    }
+    // expirado -> 410 (distinto de 400: prova que o token EXISTIU e bateu,
+    // só não está mais dentro do TTL).
+    if (!conta.token_reset_expira || new Date(conta.token_reset_expira) < new Date()) {
+      return res.status(410).json({ erro: 'token_expirado' });
+    }
+
+    const hash = await bcrypt.hash(novaSenha, CREDENCIAL_BCRYPT_COST);
+
+    // Single-use: hash/expira zerados no MESMO UPDATE que grava a senha
+    // nova — uma segunda tentativa com o mesmo token não encontra mais
+    // token_reset_hash para comparar.
+    await hubPostgrestRequest(
+      `ContaMotorista?id=eq.${contaMotoristaId}`, 'PATCH',
+      { senha: hash, token_reset_hash: null, token_reset_expira: null },
+      claims, { returnMinimal: true }
+    );
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.credencial_senha_definida',
+      recurso: 'ContaMotorista',
+      recursoId: contaMotoristaId,
+      detalhes: { contaMotoristaId },
+      claims,
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em POST /motoristas/:id/credencial/reset-senha/definir:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PATCH /motoristas/:id/credencial — ativar/desativar (task 5.3)
+//
+// Independência (FR-015/FR-018, clarify Q3): esta rota SÓ toca
+// `ContaMotorista.ativo` — nunca `Entregador.ativo` e vice-versa (PATCH
+// /motoristas/:id, acima, só toca `Entregador`). Confirmado por teste
+// unitário/integração (tasks.md 5.3.4).
+// ────────────────────────────────────────────────────────────────────────────
+
+router.patch('/:id/credencial', requirePermission('motoristas.credencial'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.credencial');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    // Allowlist estrita — só `ativo` (5.3.1).
+    const validado = validarPatchCredencialBody(req.body);
+    if (!validado.ok) {
+      return res.status(422).json({ erro: validado.erro });
+    }
+
+    const linhas = await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,motorista_id`,
+      'GET', null, claims
+    );
+    if (!linhas || linhas.length === 0 || !linhas[0].motorista_id) {
+      return res.status(404).json({ erro: 'credencial_inexistente' });
+    }
+    const contaMotoristaId = linhas[0].motorista_id;
+
+    await hubPostgrestRequest(
+      `ContaMotorista?id=eq.${contaMotoristaId}`, 'PATCH', { ativo: validado.ativo }, claims,
+      { returnMinimal: true }
+    );
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'motorista.credencial_situacao_alterada',
+      recurso: 'ContaMotorista',
+      recursoId: contaMotoristaId,
+      detalhes: { ativo: validado.ativo },
+      claims,
+    });
+
+    return res.status(200).json({ id: contaMotoristaId, ativo: validado.ativo });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em PATCH /motoristas/:id/credencial:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
