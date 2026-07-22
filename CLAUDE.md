@@ -61,6 +61,84 @@ prevalece sobre a regra geral acima.** Fora dele — Swarm, stacks existentes,
 `chatmasterveloz`, `.env`, Traefik, tags de produção — o rito integral continua valendo,
 e na dúvida se um recurso é do hub: parar e devolver ao operador.
 
+## Mapa do repositório e arquitetura
+
+```
+app_homologacao/          # produto em produção (Swarm)
+├── backend/              # API Express (server.js + routes/ + lib/), porta 3000
+├── frontend_v2/          # Next.js App Router — serve painel legado E hub
+├── frontend_motorista/   # PWA do app motorista (Next.js, porta 3001)
+└── frontend/             # v1 estático legado (Nginx) — não evolui
+infra/hub/                # infra-as-code do ambiente isolado do hub (compose, migrations, scripts, testes)
+docs/                     # constitution.md, RITO-PRODUCAO.md, plans/ (planos versionados), specs/, sql/ (DDL do legado)
+```
+
+- **Persistência sem ORM**: o backend fala HTTP com **PostgREST** — o legado no banco
+  `chatmasterveloz`; o hub em banco próprio (`hub_homolog`) com RLS e JWT assinado por
+  requisição (`lib/hub-postgrest.js` / `lib/hub-postgrest-jwt.js`). Integrações externas:
+  **n8n** (disparo de mensagens) e **FastAPI** de validação de nota fiscal.
+- **Dois produtos no mesmo backend**: o envio em massa legado vive em `server.js` (~2,8k
+  linhas, rotas inline) + `routes/{motorista,grupo,branding,admin-motorista}.js`; o **hub de
+  frota** vive em `routes/hub-*.js`, com a lógica pura testável extraída para `lib/` (DTOs,
+  parser/normalizer de importação, RBAC, auditoria, `envio-gate.js`).
+- **frontend_v2 serve os dois apps**: painel legado em `app/{login,dashboard,…}` e hub em
+  `app/hub/*`; `app/api/[...path]` é o proxy que repassa os cookies httpOnly ao backend —
+  o browser nunca chama o backend direto. UI: Tailwind 4 + **Base UI** (`@base-ui/react`,
+  **não** Radix — ex.: `Select` exige `items` no Root para exibir o rótulo) + shadcn.
+- **Migrations do hub**: série única `infra/hub/migrations/NNNN_*.sql`, aplicada por
+  `infra/hub/scripts/migrate.sh` (idempotente; registra em `"SchemaMigration"`). Nunca
+  editar migration já aplicada — criar a próxima `NNNN`. Segredos do hub vivem **somente**
+  em `/var/lib/hub_secrets/` (fora do git; templates `.env.hub.*.example`; geração via
+  `scripts/gen-secrets.sh`).
+- **Auth (constitution §I–III)**: JWT em cookies httpOnly (`accessToken` 15 min +
+  `refreshToken`), nunca em localStorage/query/header exposto; escopo multi-tenant é
+  resolvido server-side a partir do token, nunca do corpo da requisição.
+
+## Comandos
+
+Backend (`app_homologacao/backend/`):
+
+```bash
+npm start                            # node server.js (porta 3000)
+npm test                             # todas as suítes unit (node --test; exige Node ≥18 no host)
+npm run test:hub:unit                # unit do hub
+npm run test:hub:integration         # integração do hub (exige ambiente hub no ar)
+node --test tests/<arquivo>.test.js  # um arquivo de teste só
+```
+
+⚠️ A imagem de produção do backend legado é `node:14` — código carregado por `server.js`
+(fora de `tests/`) não pode usar sintaxe/API posterior ao Node 14. O `Dockerfile.hub` usa
+node 20.
+
+Frontend_v2 (`app_homologacao/frontend_v2/`):
+
+```bash
+npm run dev | build | lint
+npm test                   # vitest run (jsdom)
+npx vitest run <arquivo>   # um teste só
+npm run test:e2e:hub       # Playwright do hub — rodar sempre via driver (abaixo)
+```
+
+Testes de integração e E2E do hub rodam pelos drivers `infra/hub/testes/*.sh` (ex.:
+`hub-shell-e2e-browser.sh` executa o Playwright dentro do container oficial
+`mcr.microsoft.com/playwright` — nunca instalar browsers no host). Cada
+`playwright.config.<cenário>.ts` tem seu driver correspondente.
+
+Ambiente isolado do hub (na raiz do repo; operação completa em `infra/hub/RUNBOOK.md`):
+
+```bash
+# preflight é OBRIGATÓRIO antes do primeiro up (aborta se alcançar produção)
+infra/hub/scripts/preflight.sh -f infra/hub/compose.hub.homolog.yml -p hub-homolog -e /var/lib/hub_secrets/.env.hub.homolog
+docker compose -f infra/hub/compose.hub.homolog.yml -p hub-homolog --env-file /var/lib/hub_secrets/.env.hub.homolog up -d
+infra/hub/scripts/migrate.sh -f infra/hub/compose.hub.homolog.yml -p hub-homolog -e /var/lib/hub_secrets/.env.hub.homolog
+```
+
+Builds pesados no host (`next build`, `docker build`) seguem o rito anti-starvation:
+garantir swap ativa e limitar com `--memory=2g` (incidente de starvation 2026-06-11).
+Limpeza docker sempre com filtro `hub_*` — nunca prune genérico. Gotcha turbopack:
+comentário JSX `{/* */}` imediatamente após `return (` quebra o build — usar `//` na
+linha acima do `return`.
+
 ## Convenções de deploy
 
 - Deploy = `docker build` → `docker push` → `docker service update --with-registry-auth --image …`.
@@ -96,6 +174,7 @@ terá; o critério de grupo deixa o sistema correto quando elas existirem). Deco
 ## Governança
 
 - Commit/push/merge/deploy **somente com autorização explícita** do operador.
-- Mensagens de commit terminam com `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`;
+- Mensagens de commit terminam com o trailer `Co-Authored-By` do modelo vigente
+  (ex.: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`);
   corpos de PR terminam com `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - Princípios de projeto em [`docs/constitution.md`](docs/constitution.md).
