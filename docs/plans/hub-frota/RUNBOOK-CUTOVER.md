@@ -139,7 +139,9 @@ Pós-migrations (seed operacional, parte do §7 P4): popular
 `"EmpresaGrupoMovee"` com o grupo Movee real (`INSERT ... VALUES (6)` + filiais
 futuras) — a 0022 cria a tabela vazia; o seed é por ambiente.
 
-## 6. Configuração dos serviços (env vars novas do backend)
+## 6. Configuração dos serviços (env vars novas)
+
+### 6.1 Backend
 
 O backend novo (hub) exige env vars que o serviço atual não tem. Aplicar
 **antes** do update de imagem (env update reinicia o serviço com a MESMA
@@ -164,6 +166,26 @@ docker service update \
 - Gate da issue #62: **não setar** `ENVIO_DRY_RUN`/`ENVIO_ALLOWLIST`/`N8N_URL`/
   `FASTAPI_URL`/`FASTAPI_NEXUS_URL` em produção — sem env, o gate é inerte e as
   URLs caem nos valores históricos (comportamento byte a byte idêntico).
+
+### 6.2 Frontend v2 — `HUB_BACKEND_URL` (OBRIGATÓRIA — achado do G3 2026-07-25)
+
+⚠️ **Sem esta env o login do hub dá 404.** O proxy `app/api/[...path]/route.ts`
+tira o prefixo `/api` e roteia os paths `/v1/*` (rotas do hub) para
+`HUB_BACKEND_URL`; **quando ausente, cai em `BACKEND_URL` (raiz)** e a chamada
+vira `<API>/v1/auth/login` — mas o backend do hub monta em **`/api/v1/*`** → 404
+`Cannot POST /v1/auth/login`. A nota antiga do compose ("produção não define
+`HUB_BACKEND_URL`") só valia enquanto o hub NÃO era produção. Aplicar no
+serviço de **frontend** (junto do P7, antes de validar o login):
+
+```bash
+docker service update \
+  --env-add HUB_BACKEND_URL=https://envmassapihomologacao.todo-tips.com/api \
+  envio-massa-homologacao_frontend_v2_homologacao
+```
+(valor = `BACKEND_URL` do Dockerfile do frontend + `/api`.) Validar:
+`curl -s -w '%{http_code}' -X POST https://app.moveelog.com.br/api/v1/auth/login
+-H 'Content-Type: application/json' -d '{"email":"x@x","senha":"x"}'` → **401**
+(não 404). Rollback: `--env-rm HUB_BACKEND_URL` (nível 2, inócuo ao legado).
 
 ## 7. Sequência da janela (cada passo com go/no-go)
 
@@ -271,6 +293,8 @@ docker service ps envio-massa-homologacao_backend_homologacao   # 1/1 Running
 **P7 — Deploy do frontend v2 do hub.** Mesmo padrão com
 `envio-massa-frontend-v2:hub-g3-1` no serviço
 `envio-massa-homologacao_frontend_v2_homologacao`.
+⚠️ **Aplicar TAMBÉM a env `HUB_BACKEND_URL` do §6.2** (sem ela o login do hub
+dá 404 no P8) — validar com o curl → 401 antes de ir ao smoke.
 
 **P8 — Smoke (HTTP, sem expor segredos; colar saídas).**
 1. Painel legado: `https://app.moveelog.com.br/login` → 200; login real de uma
