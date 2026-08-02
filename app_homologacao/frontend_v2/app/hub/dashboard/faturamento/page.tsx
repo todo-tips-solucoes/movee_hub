@@ -372,7 +372,7 @@ export default function FaturamentoPage() {
   }, [h]);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4 sm:p-6 lg:p-8">
       <PageHeader titulo="Faturamento" subtitulo="Lançamentos de faturamento importados, por corrida/lote de entregador.">
         {podeExportar && (
           <Button
