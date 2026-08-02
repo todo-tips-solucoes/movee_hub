@@ -1,3 +1,10 @@
+# ⚠️ NÃO USE ESTE ARQUIVO PARA BUILDAR PRODUÇÃO.
+#
+# Build histórico (node:14). Desde o cutover do hub (G3), o serviço
+# `envio-massa-homologacao_backend_homologacao` roda node:20-alpine, gerado
+# pelo `Dockerfile.hub` — buildar produção por aqui derruba o runtime de 20
+# para 14 sob o código do hub. Ver CLAUDE.md §Comandos e §Convenções de deploy.
+#
 # Usar uma imagem oficial do Node.js
 FROM node:14
 

@@ -106,9 +106,18 @@ npm run test:hub:integration         # integração do hub (exige ambiente hub n
 node --test tests/<arquivo>.test.js  # um arquivo de teste só
 ```
 
-⚠️ A imagem de produção do backend legado é `node:14` — código carregado por `server.js`
-(fora de `tests/`) não pode usar sintaxe/API posterior ao Node 14. O `Dockerfile.hub` usa
-node 20.
+⚠️ **A imagem de produção do backend é `node:20-alpine`, buildada pelo `Dockerfile.hub`** —
+foi o que o cutover do hub (G3) colocou no serviço `envio-massa-homologacao_backend_homologacao`.
+Confirmado em 2026-08-01: `docker run --rm <imagem em produção> node --version` → `v20.20.2`.
+O `Dockerfile` (`node:14`) é o build ANTIGO e **não** corresponde mais ao que roda em
+produção — buildar produção com ele derruba o runtime de 20 para 14 sob o código do hub.
+Para gerar imagem de produção do backend, sempre:
+
+```bash
+DOCKER_BUILDKIT=0 docker build --memory=2g -f Dockerfile.hub -t <registry>/envio-massa-backend:<tag> .
+```
+
+e conferir com `docker run --rm <tag> node --version` antes de entregar a imagem.
 
 Frontend_v2 (`app_homologacao/frontend_v2/`):
 
@@ -143,9 +152,12 @@ linha acima do `return`.
 
 - Deploy = `docker build` → `docker push` → `docker service update --with-registry-auth --image …`.
   **Nunca** `docker stack deploy` (preserva env/labels/segredos do serviço).
-- Backend roda em `node:14`; frontend_v2 em `node:20-alpine` (Next.js standalone). O
-  `.dockerignore` exclui `node_modules`, então módulos nativos (ex.: `bcrypt`) recompilam no
-  build — não copiar binários do host.
+- Backend e frontend_v2 rodam em `node:20-alpine` (backend via `Dockerfile.hub`; frontend_v2
+  em Next.js standalone). O `.dockerignore` exclui `node_modules`, então módulos nativos
+  (ex.: `bcrypt`) recompilam no build — não copiar binários do host.
+- **Antes de qualquer `service update`, conferir de qual Dockerfile veio a imagem que está
+  no ar**: `docker service ls --filter name=envio-massa-homologacao_ --format '{{.Name}}\t{{.Image}}'`
+  e `docker run --rm <imagem> node --version`. Anotar essa imagem — ela é o rollback.
 - ⚠️ O `ENV BACKEND_URL` do Dockerfile do `frontend_v2` aponta para a API do ambiente; conferir
   antes de buildar para outro destino.
 
