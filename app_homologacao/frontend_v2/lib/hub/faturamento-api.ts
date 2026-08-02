@@ -1,13 +1,13 @@
 // hub-faturamento (S6) FASE 6 task 6.1 — chamadas HTTP para
 // `/api/v1/faturamento*`.
 //
-// Mesmo molde de `lib/hub/motoristas-api.ts`: `request<T>()` local (fetch
-// nativo + `credentials: 'include'`), `query()` para querystring filtrando
-// vazio/undefined, classe de erro própria. Este contrato usa SEMPRE a
-// chave `erro` (nunca `error`) — contracts/faturamento-api.md.
+// Molde compartilhado em `lib/hub/api.ts` (`criarRequest`/`query`). Este
+// contrato usa SEMPRE a chave `erro` (nunca `error`) —
+// contracts/faturamento-api.md.
 //
 // Ref: docs/specs/hub-faturamento/contracts/faturamento-api.md.
 
+import { HUB_API_BASE, HubApiError, criarRequest, mensagemPorCodigo, codigoDoErro, query } from './api';
 import {
   parseAreasResponse,
   parseFaturamentoListResponse,
@@ -20,8 +20,6 @@ import {
 } from './faturamento-dto';
 import { parseEntregadorBuscaResponse, type EntregadorBuscaItem } from './entregador-busca-dto';
 
-const HUB_API_BASE = '/api/v1';
-
 const MENSAGENS_CODIGO: Record<string, string> = {
   NAO_AUTENTICADO: 'Sua sessão expirou. Faça login novamente.',
   ENTIDADE_NAO_SELECIONADA: 'Selecione uma entidade antes de continuar.',
@@ -33,48 +31,17 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   ERRO_SERVIDOR: 'Erro no servidor. Tente novamente em instantes.',
 };
 
-export class FaturamentoApiError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly codigo?: string
-  ) {
-    super(message);
-    this.name = 'FaturamentoApiError';
-  }
+export class FaturamentoApiError extends HubApiError {
+  readonly name = 'FaturamentoApiError';
 }
 
-function mensagemAmigavel(body: Record<string, unknown>, status: number): string {
-  const codigo = typeof body.erro === 'string' ? body.erro : undefined;
-  if (codigo && MENSAGENS_CODIGO[codigo]) return MENSAGENS_CODIGO[codigo];
-  return `Erro ${status}. Tente novamente.`;
-}
+const mensagemAmigavel = (body: Record<string, unknown>, status: number) =>
+  mensagemPorCodigo(MENSAGENS_CODIGO, body, status);
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${HUB_API_BASE}${path}`, {
-    credentials: 'include',
-    ...init,
-    headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init?.headers as Record<string, string> | undefined),
-    },
-  });
-  const body: unknown = await res.json().catch(() => ({}));
-  const bodyObj = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  if (!res.ok) {
-    const codigo = typeof bodyObj.erro === 'string' ? bodyObj.erro : undefined;
-    throw new FaturamentoApiError(res.status, mensagemAmigavel(bodyObj, res.status), codigo);
-  }
-  return body as T;
-}
-
-function query<T extends object>(params: T): string {
-  const qs = Object.entries(params as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join('&');
-  return qs ? `?${qs}` : '';
-}
+const request = criarRequest(
+  (status, body) =>
+    new FaturamentoApiError(status, mensagemPorCodigo(MENSAGENS_CODIGO, body, status), codigoDoErro(body))
+);
 
 export interface FaturamentoFiltros {
   de?: string;

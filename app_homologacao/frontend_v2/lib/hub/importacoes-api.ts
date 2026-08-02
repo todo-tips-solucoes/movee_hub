@@ -6,10 +6,12 @@
 // `{erro: "NAO_ENCONTRADO"}` (401/400/403/404/500, código-enum) e
 // `{error: "CONFLITO", importacaoOriginalId}` / `{error: "INVALIDO", motivo}`
 // (409/422, com dado extra que a UI precisa: link para a importação
-// original, motivo legível) — por isso um cliente próprio.
+// original, motivo legível) — por isso a leitura do erro é própria daqui,
+// enquanto o `fetch` em si vem do molde compartilhado `lib/hub/api.ts`.
 //
 // Ref: docs/specs/hub-importacoes/contracts/importacoes-api.md.
 
+import { HUB_API_BASE, HubApiError, criarRequest, query } from './api';
 import {
   parseImportacaoDetalhe,
   parseImportacaoErrosResponse,
@@ -19,8 +21,6 @@ import {
   type ImportacaoListResponse,
   type TipoImportacao,
 } from './importacoes-dto';
-
-const HUB_API_BASE = '/api/v1';
 
 /** Mensagens legíveis para os `motivo`/códigos que o backend emite
  * (routes/hub-importacoes.js) — nunca expor o código bruto na tela. */
@@ -44,63 +44,48 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   ERRO_SERVIDOR: 'Erro no servidor. Tente novamente em instantes.',
 };
 
-export class ImportacaoApiError extends Error {
+export class ImportacaoApiError extends HubApiError {
   constructor(
-    public readonly status: number,
+    status: number,
     message: string,
-    public readonly codigo?: string,
+    codigo?: string,
     public readonly motivo?: string,
     public readonly importacaoOriginalId?: number
   ) {
-    super(message);
+    super(status, message, codigo);
     this.name = 'ImportacaoApiError';
   }
+}
+
+/** Único módulo do hub que aceita as DUAS chaves — ver o cabeçalho. */
+function codigoDoErroImportacao(body: Record<string, unknown>): string | undefined {
+  return (
+    (typeof body.erro === 'string' && body.erro) ||
+    (typeof body.error === 'string' && body.error) ||
+    undefined
+  );
 }
 
 function mensagemAmigavel(body: Record<string, unknown>, status: number): string {
   const motivo = typeof body.motivo === 'string' ? body.motivo : undefined;
   if (motivo && MENSAGENS_MOTIVO[motivo]) return MENSAGENS_MOTIVO[motivo];
 
-  const codigo = (typeof body.erro === 'string' && body.erro) || (typeof body.error === 'string' && body.error) || undefined;
+  const codigo = codigoDoErroImportacao(body);
   if (codigo === 'CONFLITO') return 'Este arquivo já foi importado anteriormente.';
   if (codigo && MENSAGENS_CODIGO[codigo]) return MENSAGENS_CODIGO[codigo];
   return `Erro ${status}. Tente novamente.`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${HUB_API_BASE}${path}`, {
-    credentials: 'include',
-    ...init,
-    headers: {
-      ...(init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
-      ...(init?.headers as Record<string, string> | undefined),
-    },
-  });
-  const body: unknown = await res.json().catch(() => ({}));
-  const bodyObj = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  if (!res.ok) {
-    const codigo =
-      (typeof bodyObj.erro === 'string' && bodyObj.erro) ||
-      (typeof bodyObj.error === 'string' && bodyObj.error) ||
-      undefined;
-    throw new ImportacaoApiError(
-      res.status,
-      mensagemAmigavel(bodyObj, res.status),
-      codigo,
-      typeof bodyObj.motivo === 'string' ? bodyObj.motivo : undefined,
-      typeof bodyObj.importacaoOriginalId === 'number' ? bodyObj.importacaoOriginalId : undefined
-    );
-  }
-  return body as T;
-}
-
-function query<T extends object>(params: T): string {
-  const qs = Object.entries(params as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join('&');
-  return qs ? `?${qs}` : '';
-}
+const request = criarRequest(
+  (status, body) =>
+    new ImportacaoApiError(
+      status,
+      mensagemAmigavel(body, status),
+      codigoDoErroImportacao(body),
+      typeof body.motivo === 'string' ? body.motivo : undefined,
+      typeof body.importacaoOriginalId === 'number' ? body.importacaoOriginalId : undefined
+    )
+);
 
 export interface ListarImportacoesQuery {
   tipo?: TipoImportacao | '';

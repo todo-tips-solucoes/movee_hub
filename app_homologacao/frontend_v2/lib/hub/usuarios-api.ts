@@ -1,12 +1,12 @@
 // hub-auditoria-admin (S9) FASE 5.2 task 5.2.2 — chamadas HTTP para
 // `/api/v1/usuarios` e `/api/v1/usuarios/:id/vinculos`.
 //
-// Mesmo molde de `lib/hub/faturamento-api.ts`: `request<T>()` local (fetch
-// nativo + `credentials: 'include'`), `query()` para querystring, classe de
-// erro própria, chave `erro` sempre.
+// Molde compartilhado em `lib/hub/api.ts` (`criarRequest`/`query`), chave
+// `erro` sempre.
 //
 // Ref: docs/specs/hub-auditoria-admin/contracts/usuarios-api.md.
 
+import { HubApiError, criarRequest, mensagemPorCodigo, codigoDoErro, query } from './api';
 import {
   parseUsuarioCriadoResponse,
   parseUsuarioEditadoResponse,
@@ -17,8 +17,6 @@ import {
   type UsuarioListResponse,
   type UsuarioVinculo,
 } from './usuarios-dto';
-
-const HUB_API_BASE = '/api/v1';
 
 /** Mesma regra do servidor (routes/hub-usuarios.js#isStrongPassword) —
  * espelhada aqui para validação client-side (nunca substitui a validação
@@ -40,48 +38,14 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   ERRO_SERVIDOR: 'Erro no servidor. Tente novamente em instantes.',
 };
 
-export class UsuariosApiError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly codigo?: string
-  ) {
-    super(message);
-    this.name = 'UsuariosApiError';
-  }
+export class UsuariosApiError extends HubApiError {
+  readonly name = 'UsuariosApiError';
 }
 
-function mensagemAmigavel(body: Record<string, unknown>, status: number): string {
-  const codigo = typeof body.erro === 'string' ? body.erro : undefined;
-  if (codigo && MENSAGENS_CODIGO[codigo]) return MENSAGENS_CODIGO[codigo];
-  return `Erro ${status}. Tente novamente.`;
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${HUB_API_BASE}${path}`, {
-    credentials: 'include',
-    ...init,
-    headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init?.headers as Record<string, string> | undefined),
-    },
-  });
-  const body: unknown = await res.json().catch(() => ({}));
-  const bodyObj = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  if (!res.ok) {
-    const codigo = typeof bodyObj.erro === 'string' ? bodyObj.erro : undefined;
-    throw new UsuariosApiError(res.status, mensagemAmigavel(bodyObj, res.status), codigo);
-  }
-  return body as T;
-}
-
-function query<T extends object>(params: T): string {
-  const qs = Object.entries(params as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join('&');
-  return qs ? `?${qs}` : '';
-}
+const request = criarRequest(
+  (status, body) =>
+    new UsuariosApiError(status, mensagemPorCodigo(MENSAGENS_CODIGO, body, status), codigoDoErro(body))
+);
 
 export interface ListarUsuariosQuery {
   busca?: string;

@@ -2,13 +2,13 @@
 // `/api/v1/papeis` e `/api/v1/admin` (módulos por entidade). Um único
 // arquivo cobre os dois contratos (plan.md §Project Structure).
 //
-// Mesmo molde de `lib/hub/faturamento-api.ts`: `request<T>()` local (fetch
-// nativo + `credentials: 'include'`), classe de erro própria, chave `erro`
-// sempre.
+// Molde compartilhado em `lib/hub/api.ts` (`criarRequest`), chave `erro`
+// sempre. Não usa `query()` — todos os paths daqui são fixos.
 //
 // Ref: docs/specs/hub-auditoria-admin/contracts/papeis-api.md,
 // docs/specs/hub-auditoria-admin/contracts/admin-modulos-api.md.
 
+import { HubApiError, criarRequest, mensagemPorCodigo, codigoDoErro } from './api';
 import {
   parseModulosCatalogoResponse,
   parseModulosEntidadeResponse,
@@ -21,8 +21,6 @@ import {
   type ToggleModuloEntidadeResponse,
   type TogglePapelPermissaoResponse,
 } from './admin-dto';
-
-const HUB_API_BASE = '/api/v1';
 
 const MENSAGENS_CODIGO: Record<string, string> = {
   NAO_AUTENTICADO: 'Sua sessão expirou. Faça login novamente.',
@@ -38,40 +36,14 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   ERRO_SERVIDOR: 'Erro no servidor. Tente novamente em instantes.',
 };
 
-export class AdminApiError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly codigo?: string
-  ) {
-    super(message);
-    this.name = 'AdminApiError';
-  }
+export class AdminApiError extends HubApiError {
+  readonly name = 'AdminApiError';
 }
 
-function mensagemAmigavel(body: Record<string, unknown>, status: number): string {
-  const codigo = typeof body.erro === 'string' ? body.erro : undefined;
-  if (codigo && MENSAGENS_CODIGO[codigo]) return MENSAGENS_CODIGO[codigo];
-  return `Erro ${status}. Tente novamente.`;
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${HUB_API_BASE}${path}`, {
-    credentials: 'include',
-    ...init,
-    headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init?.headers as Record<string, string> | undefined),
-    },
-  });
-  const body: unknown = await res.json().catch(() => ({}));
-  const bodyObj = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  if (!res.ok) {
-    const codigo = typeof bodyObj.erro === 'string' ? bodyObj.erro : undefined;
-    throw new AdminApiError(res.status, mensagemAmigavel(bodyObj, res.status), codigo);
-  }
-  return body as T;
-}
+const request = criarRequest(
+  (status, body) =>
+    new AdminApiError(status, mensagemPorCodigo(MENSAGENS_CODIGO, body, status), codigoDoErro(body))
+);
 
 // ────────────────────────────────────────────────────────────────────────────
 // /api/v1/papeis — matriz papel × permissão
