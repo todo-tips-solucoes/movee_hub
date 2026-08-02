@@ -16,8 +16,8 @@ const crypto = require('node:crypto');
 
 const express = require('express');
 const multer = require('multer');
-const jwt = require('jsonwebtoken');
 
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
@@ -92,16 +92,6 @@ const upload = multer({
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
-
-function decodificarAccessToken(accessToken) {
-  if (!accessToken) return null;
-  try {
-    // Decision 12 (owasp-security) — pinagem de algoritmo obrigatória.
-    return jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-  } catch (_e) {
-    return null;
-  }
-}
 
 /** Wrapper de multer.single('file') que traduz erros do multer (fileSize/
  * fileCount) para o formato de erro padrão do hub (422 INVALIDO) — contract

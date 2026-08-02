@@ -1,12 +1,13 @@
 // hub-motoristas (S5) FASE 7 — chamadas HTTP para `/api/v1/motoristas*`.
 //
-// Mesmo molde de `lib/hub/importacoes-api.ts`: `request<T>()` local (fetch
-// nativo + `credentials: 'include'`), `query()` para querystring filtrando
-// vazio/undefined, classe de erro própria. Diferença: este contrato usa
-// SEMPRE a chave `erro` (nunca `error`) — contracts/motoristas-api.md.
+// Molde compartilhado em `lib/hub/api.ts` (`criarRequest`/`query`). Este
+// contrato usa SEMPRE a chave `erro` (nunca `error`) —
+// contracts/motoristas-api.md. O erro deste módulo carrega `motivo` e
+// `vinculadaA` além do código, então a construção fica aqui.
 //
 // Ref: docs/specs/hub-motoristas/contracts/motoristas-api.md.
 
+import { HubApiError, criarRequest, codigoDoErro, query } from './api';
 import {
   parseAreasResponse,
   parseAtualizarCredencialResponse,
@@ -29,8 +30,6 @@ import {
   type SugestoesResponse,
   type VincularResponse,
 } from './motoristas-dto';
-
-const HUB_API_BASE = '/api/v1';
 
 const MENSAGENS_MOTIVO: Record<string, string> = {
   entidade_fora_do_grupo: 'Esta entidade não pertence ao grupo elegível para vínculo de motoristas.',
@@ -61,15 +60,15 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   token_expirado: 'Este token expirou. Solicite uma nova redefinição de senha.',
 };
 
-export class MotoristaApiError extends Error {
+export class MotoristaApiError extends HubApiError {
   constructor(
-    public readonly status: number,
+    status: number,
     message: string,
-    public readonly codigo?: string,
+    codigo?: string,
     public readonly motivo?: string,
     public readonly vinculadaA?: { entregadorId: number; nome: string }
   ) {
-    super(message);
+    super(status, message, codigo);
     this.name = 'MotoristaApiError';
   }
 }
@@ -90,40 +89,16 @@ function parseVinculadaA(body: Record<string, unknown>): { entregadorId: number;
   return { entregadorId: r.entregadorId, nome: r.nome };
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${HUB_API_BASE}${path}`, {
-    credentials: 'include',
-    ...init,
-    headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init?.headers as Record<string, string> | undefined),
-    },
-  });
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  const body: unknown = await res.json().catch(() => ({}));
-  const bodyObj = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  if (!res.ok) {
-    const codigo = typeof bodyObj.erro === 'string' ? bodyObj.erro : undefined;
-    throw new MotoristaApiError(
-      res.status,
-      mensagemAmigavel(bodyObj, res.status),
-      codigo,
-      typeof bodyObj.motivo === 'string' ? bodyObj.motivo : undefined,
-      parseVinculadaA(bodyObj)
-    );
-  }
-  return body as T;
-}
-
-function query<T extends object>(params: T): string {
-  const qs = Object.entries(params as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join('&');
-  return qs ? `?${qs}` : '';
-}
+const request = criarRequest(
+  (status, body) =>
+    new MotoristaApiError(
+      status,
+      mensagemAmigavel(body, status),
+      codigoDoErro(body),
+      typeof body.motivo === 'string' ? body.motivo : undefined,
+      parseVinculadaA(body)
+    )
+);
 
 export interface ListarMotoristasQuery {
   nome?: string;

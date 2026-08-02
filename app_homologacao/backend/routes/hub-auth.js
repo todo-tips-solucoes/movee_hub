@@ -16,6 +16,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 
@@ -199,14 +200,8 @@ function gerarAccessToken(usuario) {
 }
 
 function decodificarUsuarioIdDoAccessToken(accessToken) {
-  if (!accessToken) return null;
-  try {
-    // Decision 12 — pinagem obrigatória em TODO jwt.verify do hub.
-    const payload = jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-    return payload && payload.sub ? payload.sub : null;
-  } catch (_e) {
-    return null;
-  }
+  const payload = decodificarAccessToken(accessToken);
+  return payload && payload.sub ? payload.sub : null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

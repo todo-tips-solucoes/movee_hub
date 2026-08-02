@@ -14,8 +14,8 @@
 'use strict';
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
 
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivasPorEntidade,
@@ -29,18 +29,8 @@ const { registrarAuditoria } = require('../lib/hub-auditoria');
 const router = express.Router();
 
 // ────────────────────────────────────────────────────────────────────────────
-// Helpers (mesmo padrão de routes/hub-usuarios.js — cópia local pequena,
-// sem import cross-domain)
+// Helpers (mesmo padrão de routes/hub-usuarios.js)
 // ────────────────────────────────────────────────────────────────────────────
-
-function decodificarAccessToken(accessToken) {
-  if (!accessToken) return null;
-  try {
-    return jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-  } catch (_e) {
-    return null;
-  }
-}
 
 /**
  * Resolve payload+entidadeAtiva+isAdminPlataforma+permsEntidade e confirma

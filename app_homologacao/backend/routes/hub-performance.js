@@ -13,8 +13,8 @@
 'use strict';
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
 
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { obterPermissoesEfetivas, obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { requirePermission } = require('../middleware/hub-require-permission');
@@ -47,20 +47,13 @@ const CABECALHO_CSV = [
 ];
 
 // ────────────────────────────────────────────────────────────────────────────
-// Helpers (DUPLICADOS deliberadamente — mesmo padrão de routes/hub-faturamento.js
-// e routes/hub-motoristas.js: cada arquivo de rota do hub mantém sua própria
-// cópia destes helpers pequenos, sem import cross-domain)
+// Helpers de domínio (DUPLICADOS deliberadamente com routes/hub-faturamento.js:
+// `montarFiltrosQuery`/`montarParamsRpc` são específicos da forma de cada
+// tabela e divergem, então cada rota mantém a sua cópia).
+//
+// `decodificarAccessToken` NÃO entra nessa regra — a pinagem de algoritmo é um
+// controle de segurança e vive em `lib/hub-access-token.js`, fonte única.
 // ────────────────────────────────────────────────────────────────────────────
-
-function decodificarAccessToken(accessToken) {
-  if (!accessToken) return null;
-  try {
-    // Pinagem de algoritmo obrigatória (owasp-security) em TODO jwt.verify do hub.
-    return jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-  } catch (_e) {
-    return null;
-  }
-}
 
 /**
  * Resolve payload+entidadeAtiva+claims do accessToken e confirma que a

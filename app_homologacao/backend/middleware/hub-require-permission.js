@@ -18,8 +18,7 @@
 // este middleware só verifica pertencimento (`.has(codigo)`).
 'use strict';
 
-const jwt = require('jsonwebtoken');
-
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { obterPermissoesEfetivas } = require('../lib/hub-rbac-cache');
 
 /**
@@ -30,15 +29,8 @@ const { obterPermissoesEfetivas } = require('../lib/hub-rbac-cache');
  * @returns {string|number|null}
  */
 function extrairUsuarioIdDoRequest(req) {
-  const accessToken = req.cookies && req.cookies.accessToken;
-  if (!accessToken) return null;
-  try {
-    // Decision 12 — pinagem de algoritmo obrigatória em TODO jwt.verify do hub.
-    const payload = jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-    return payload && payload.sub ? payload.sub : null;
-  } catch (_e) {
-    return null;
-  }
+  const payload = decodificarAccessToken(req.cookies && req.cookies.accessToken);
+  return payload && payload.sub ? payload.sub : null;
 }
 
 /**
