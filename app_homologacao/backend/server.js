@@ -151,7 +151,6 @@ app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
 // Configurações básicas do servidor
 app.use(cookieParser());
 const allowedOrigins = [
-  'https://envmasshomologacao.todo-tips.com',
   'https://envmassv2.todo-tips.com',
   'https://appmotorista.todo-tips.com', // App Motorista PWA
 ];
