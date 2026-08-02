@@ -13,9 +13,9 @@
 'use strict';
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivasPorEntidade,
@@ -35,16 +35,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers puros (testáveis sem PostgREST real)
 // ────────────────────────────────────────────────────────────────────────────
-
-function decodificarAccessToken(accessToken) {
-  if (!accessToken) return null;
-  try {
-    // Pinagem de algoritmo obrigatória (owasp-security) em TODO jwt.verify do hub.
-    return jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-  } catch (_e) {
-    return null;
-  }
-}
 
 /**
  * Mesma regra de força de senha do painel (contracts/usuarios-api.md

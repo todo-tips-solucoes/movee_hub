@@ -13,8 +13,7 @@
 // módulo está habilitado sem uma entidade para consultar `ModuloEntidade`).
 'use strict';
 
-const jwt = require('jsonwebtoken');
-
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { obterModulosAtivosPorEntidade } = require('../lib/hub-rbac-cache');
 
 /**
@@ -23,16 +22,7 @@ const { obterModulosAtivosPorEntidade } = require('../lib/hub-rbac-cache');
  */
 function requireModuloAtivo(codigoModulo) {
   return async function requireModuloAtivoMiddleware(req, res, next) {
-    const accessToken = req.cookies && req.cookies.accessToken;
-    let payload = null;
-    try {
-      // Pinagem de algoritmo obrigatória (owasp-security) em TODO jwt.verify do hub.
-      payload = accessToken
-        ? jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] })
-        : null;
-    } catch (_e) {
-      payload = null;
-    }
+    const payload = decodificarAccessToken(req.cookies && req.cookies.accessToken);
     if (!payload || !payload.sub) {
       return res.status(401).json({ erro: 'NAO_AUTENTICADO' });
     }

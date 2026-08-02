@@ -13,6 +13,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivas,
@@ -41,16 +42,6 @@ const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function cookiesSaoSeguras() {
   return process.env.APP_ENV !== 'dev';
-}
-
-function decodificarAccessToken(accessToken) {
-  if (!accessToken) return null;
-  try {
-    // Decision 12 — pinagem de algoritmo obrigatória em TODO jwt.verify do hub.
-    return jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-  } catch (_e) {
-    return null;
-  }
 }
 
 function gerarAccessToken(payloadBase) {

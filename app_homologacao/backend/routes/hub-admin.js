@@ -14,8 +14,8 @@
 'use strict';
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
 
+const { decodificarAccessToken } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivasPorEntidade,
@@ -33,15 +33,6 @@ const CODIGO_MODULO_RE = /^[a-z0-9_]+$/;
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers (mesmo padrão de routes/hub-usuarios.js/hub-papeis.js)
 // ────────────────────────────────────────────────────────────────────────────
-
-function decodificarAccessToken(accessToken) {
-  if (!accessToken) return null;
-  try {
-    return jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-  } catch (_e) {
-    return null;
-  }
-}
 
 /**
  * Resolve payload+entidadeAtiva e EXIGE admin_plataforma (FR-017 —
