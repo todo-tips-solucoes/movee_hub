@@ -151,6 +151,13 @@ app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
 // Configurações básicas do servidor
 app.use(cookieParser());
 const allowedOrigins = [
+  // Frontend v1 (nginx). O código-fonte saiu do repo no PR #77 sob a premissa de
+  // que o serviço estava desativado, mas ele SEGUE no ar
+  // (`envio-massa-homologacao_frontend_homologacao`, 1/1) e responde 200 neste
+  // domínio. O v1 faz login/refresh/upload por fetch cross-origin contra esta
+  // API — tirar esta origem quebra o app inteiro para quem ainda o acessar.
+  // Só remover depois que o serviço e o router do Traefik forem desligados.
+  'https://envmasshomologacao.todo-tips.com',
   'https://envmassv2.todo-tips.com',
   'https://appmotorista.todo-tips.com', // App Motorista PWA
 ];
