@@ -1,7 +1,13 @@
 # =============================================================================
-# Dockerfile.hub — build do backend para o ambiente ISOLADO do Hub de Frota
-# (hub-dev/hub-test/hub-homolog). Node 20 LTS (produção continua Node 14 —
-# ver `Dockerfile`, que NÃO é alterado por este arquivo).
+# Dockerfile.hub — build do backend. Node 20 LTS.
+#
+# Nasceu para o ambiente ISOLADO do hub (hub-dev/hub-test/hub-homolog), mas
+# desde o cutover do hub (G3) é TAMBÉM o build de PRODUÇÃO: o serviço
+# `envio-massa-homologacao_backend_homologacao` roda uma imagem gerada por
+# aqui (verificado em 2026-08-01 — `node --version` na imagem em produção
+# devolve v20.20.2). O `Dockerfile` (node:14) ao lado é o build ANTIGO e não
+# corresponde mais ao que está no ar — usá-lo para produção derruba o runtime
+# de 20 para 14 sob o código do hub.
 #
 # Mesma árvore de código do backend legado (nenhuma duplicação de lógica de
 # auth/rate-limit/bcrypt — plan.md §Structure Decision). O `.dockerignore`
