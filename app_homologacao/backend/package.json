@@ -12,7 +12,6 @@
     "test:hub:integration": "node --test --test-concurrency=1 tests/hub-rls-integration.test.js tests/hub-auditoria-integration.test.js tests/hub-importacoes-integration.test.js tests/hub-import-processor-integration.test.js tests/hub-motoristas.test.js tests/hub-motoristas-credencial.test.js tests/hub-faturamento.test.js tests/hub-usuarios.test.js tests/hub-papeis.test.js tests/hub-admin.test.js tests/hub-performance.test.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.0.0",
     "archiver": "^6.0.0",
     "axios": "^1.0.0",
     "bcrypt": "^5.0.1",
