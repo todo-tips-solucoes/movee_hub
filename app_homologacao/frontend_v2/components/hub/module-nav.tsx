@@ -127,10 +127,13 @@ export function ModuleNav() {
         </SheetContent>
       </Sheet>
 
-      {/* >= lg: sidebar fixa vertical */}
+      {/* >= lg: sidebar fixa vertical. `self-start` + altura própria são o que
+          fazem o sticky valer: como item de flex esticado ela teria a altura do
+          conteúdo inteiro e rolaria junto com a página (os módulos do topo
+          sumiam ao descer). `top`/altura descontam o EnvBadge (ver env-badge). */}
       <nav
         aria-label="Navegação de módulos"
-        className="hidden w-60 shrink-0 flex-col gap-1 border-r border-sidebar-border bg-sidebar p-2 text-sidebar-foreground lg:flex"
+        className="hidden w-60 shrink-0 flex-col gap-1 border-r border-sidebar-border bg-sidebar p-2 text-sidebar-foreground lg:sticky lg:top-[var(--env-badge-h,0px)] lg:flex lg:h-[calc(100svh-var(--env-badge-h,0px))] lg:self-start lg:overflow-y-auto"
       >
         {items.map((modulo) => (
           <ItemLink

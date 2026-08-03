@@ -33,8 +33,12 @@ export default function HubDashboardLayout({ children }: { children: ReactNode }
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         {/* uiux-hub F2: sticky (EntitySwitcher/conta sempre à mão em telas
-            longas) + Wordmark à esquerda — a marca antes só existia no login. */}
-        <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card/80 px-4 py-2 backdrop-blur">
+            longas) + Wordmark à esquerda — a marca antes só existia no login.
+            `top` = altura do EnvBadge (também sticky em top-0, z maior): sem
+            isso os dois disputam o topo e o header fica atrás do badge.
+            Fundo opaco: com `bg-card/80 + backdrop-blur` o conteúdo passava
+            borrado por trás do header e lia como interface quebrada. */}
+        <header className="sticky top-[var(--env-badge-h,0px)] z-40 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-2">
           <Link
             href="/hub/dashboard"
             aria-label="Ir para o painel de módulos"

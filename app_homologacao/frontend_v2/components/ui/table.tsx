@@ -5,10 +5,13 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
+  // overflow-x-auto no container (padrão shadcn): tabela larga rola DENTRO do
+  // card em vez de vazar até a borda da viewport. Corrigido aqui, e não em cada
+  // página — só 2 das 7 telas do hub tinham wrapper com scroll próprio.
   return (
     <div
       data-slot="table-container"
-      className="relative w-full"
+      className="relative w-full overflow-x-auto"
     >
       <table
         data-slot="table"

@@ -70,13 +70,20 @@ export function EnvBadge() {
 
   if (isProd) return null;
 
+  // O badge é `sticky top-0` e global; qualquer chrome que gruda logo abaixo
+  // (header e sidebar do hub) precisa saber a altura dele, senão empilha em
+  // top-0 também e fica escondido atrás. A var só existe quando o badge existe
+  // — em produção ele não renderiza e o fallback `0px` de quem a consome vale.
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="sticky top-0 z-[60] w-full bg-warning px-3 py-1 text-center text-xs font-semibold text-warning-foreground"
-    >
-      HOMOLOGAÇÃO — dados fictícios
-    </div>
+    <>
+      <style>{':root{--env-badge-h:1.75rem}'}</style>
+      <div
+        role="status"
+        aria-live="polite"
+        className="sticky top-0 z-[60] flex h-[var(--env-badge-h)] w-full items-center justify-center bg-warning px-3 text-center text-xs font-semibold text-warning-foreground"
+      >
+        HOMOLOGAÇÃO — dados fictícios
+      </div>
+    </>
   );
 }

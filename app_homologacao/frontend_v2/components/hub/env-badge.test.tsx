@@ -62,6 +62,19 @@ describe('EnvBadge', () => {
     expect(screen.getByText('HOMOLOGAÇÃO — dados fictícios')).toBeInTheDocument();
   });
 
+  // O header e a sidebar do hub grudam em `top: var(--env-badge-h, 0px)`. Se
+  // esta var sumir junto com o banner, os dois voltam a empilhar em top-0 e o
+  // header fica escondido atrás do badge — falha visual silenciosa, sem erro.
+  it('declara --env-badge-h junto com o banner (e só com ele)', () => {
+    setEnv('homologacao');
+    const { container } = render(<EnvBadge />);
+    expect(container.querySelector('style')?.textContent).toContain('--env-badge-h');
+
+    setEnv('production');
+    const semBanner = render(<EnvBadge />);
+    expect(semBanner.container.querySelector('style')).toBeNull();
+  });
+
   it('aplica favicon alternativo (data-hub-env-favicon) quando não-produção', async () => {
     setEnv('homologacao');
     render(<EnvBadge />);
