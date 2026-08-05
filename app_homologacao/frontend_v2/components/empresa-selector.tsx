@@ -93,9 +93,11 @@ function EmpresaSelector({
   const prevValueRef = useRef<number | null>(null);
   const [liveMessage, setLiveMessage] = useState('');
 
-  // Aplicar default quando o endpoint responder e value ainda não foi definido
+  // Aplicar default quando o endpoint responder e value ainda não foi definido.
+  // `!= null` (frouxo): `default` some da resposta de /grupo/escopo quando o token
+  // não carrega `empresaId`, e o strict deixava `onChange(undefined)` passar.
   useEffect(() => {
-    if (!loading && defaultId !== null && value === null) {
+    if (!loading && defaultId != null && value === null) {
       onChange(defaultId);
     }
   }, [loading, defaultId, value, onChange]);

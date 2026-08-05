@@ -22,14 +22,21 @@ function DashboardClient() {
   // ─── Escopo de filiais ───────────────────────────────────────────────────────
   const { empresas, defaultId, loading: escopoLoading } = useGrupoEscopo();
 
-  // Lê empresa_id do query param; null = ainda não resolvido
+  // Lê empresa_id do query param; null = ainda não resolvido.
+  // Param inválido (`?empresa_id=undefined` de link/bookmark antigo) também vira
+  // null, para o efeito abaixo reescrever a URL com o default em vez de propagar
+  // NaN até a API — onde `resolveEmpresaAlvo` responde 403 e a tela fica vazia.
   const paramRaw = searchParams.get('empresa_id');
-  const empresaId: number | null = paramRaw !== null ? Number(paramRaw) : null;
+  const paramNum = paramRaw !== null ? Number(paramRaw) : NaN;
+  const empresaId: number | null = Number.isFinite(paramNum) ? paramNum : null;
 
   // Quando o endpoint de escopo retornar o default e ainda não houver param,
-  // grava o default na URL (sem push de histórico)
+  // grava o default na URL (sem push de histórico).
+  // `!= null` (frouxo) de propósito: `default` some da resposta de /grupo/escopo
+  // quando o token não carrega `empresaId` — o strict deixava `String(undefined)`
+  // virar o literal "undefined" na query string.
   useEffect(() => {
-    if (!escopoLoading && defaultId !== null && empresaId === null) {
+    if (!escopoLoading && defaultId != null && empresaId === null) {
       const params = new URLSearchParams(searchParams.toString());
       params.set('empresa_id', String(defaultId));
       router.replace(`/dashboard?${params.toString()}`);
