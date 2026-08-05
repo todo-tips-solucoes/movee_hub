@@ -37,6 +37,7 @@ import { useHubAuth } from '@/contexts/hub-auth-context';
 import { ImportWizard, useImportWizard } from '@/components/hub/import-wizard';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { FilterBar } from '@/components/hub/filter-bar';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { ImportacaoStatusBadge } from '@/components/hub/status-badge';
 import { listarImportacoes, ImportacaoApiError } from '@/lib/hub/importacoes-api';
@@ -181,94 +182,86 @@ export default function ImportacoesPage() {
       </PageHeader>
 
       {/* Filtros */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-5">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="importacoes-filtro-tipo" className="text-xs text-muted-foreground">
-              Tipo
-            </label>
-            <select
-              id="importacoes-filtro-tipo"
-              aria-label="Tipo"
-              value={h.filtros.tipo}
-              onChange={(e) => h.setFiltros({ tipo: e.target.value as TipoImportacao | '' })}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
-              <option value="">Todos</option>
-              {TIPOS_IMPORTACAO.map((t) => (
-                <option key={t} value={t}>
-                  {TIPO_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="importacoes-filtro-status" className="text-xs text-muted-foreground">
-              Status
-            </label>
-            <select
-              id="importacoes-filtro-status"
-              aria-label="Status"
-              value={h.filtros.status}
-              onChange={(e) => h.setFiltros({ status: e.target.value as StatusImportacao | '' })}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
-              <option value="">Todos</option>
-              {STATUS_OPCOES.map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="importacoes-filtro-responsavel" className="text-xs text-muted-foreground">
-              Responsável
-            </label>
-            <Input
-              id="importacoes-filtro-responsavel"
-              value={h.filtros.responsavel}
-              onChange={(e) => h.setFiltros({ responsavel: e.target.value })}
-              placeholder="ID do responsável..."
-              className="h-11 sm:h-9"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="importacoes-filtro-de" className="text-xs text-muted-foreground">
-              De
-            </label>
-            <Input
-              id="importacoes-filtro-de"
-              type="date"
-              value={h.filtros.de}
-              onChange={(e) => h.setFiltros({ de: e.target.value })}
-              className="h-11 sm:h-9"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="importacoes-filtro-ate" className="text-xs text-muted-foreground">
-              Até
-            </label>
-            <Input
-              id="importacoes-filtro-ate"
-              type="date"
-              value={h.filtros.ate}
-              onChange={(e) => h.setFiltros({ ate: e.target.value })}
-              className="h-11 sm:h-9"
-            />
-          </div>
+      <FilterBar gridClassName="grid-cols-1 xs:grid-cols-2 lg:grid-cols-5" onClear={h.resetFiltros}>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="importacoes-filtro-tipo" className="text-xs text-muted-foreground">
+            Tipo
+          </label>
+          <select
+            id="importacoes-filtro-tipo"
+            aria-label="Tipo"
+            value={h.filtros.tipo}
+            onChange={(e) => h.setFiltros({ tipo: e.target.value as TipoImportacao | '' })}
+            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
+          >
+            <option value="">Todos</option>
+            {TIPOS_IMPORTACAO.map((t) => (
+              <option key={t} value={t}>
+                {TIPO_LABELS[t]}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div className="mt-2 flex justify-end">
-          <Button size="sm" variant="ghost" className="min-h-11 sm:min-h-8" onClick={h.resetFiltros}>
-            Limpar filtros
-          </Button>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="importacoes-filtro-status" className="text-xs text-muted-foreground">
+            Status
+          </label>
+          <select
+            id="importacoes-filtro-status"
+            aria-label="Status"
+            value={h.filtros.status}
+            onChange={(e) => h.setFiltros({ status: e.target.value as StatusImportacao | '' })}
+            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
+          >
+            <option value="">Todos</option>
+            {STATUS_OPCOES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
         </div>
-      </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="importacoes-filtro-responsavel" className="text-xs text-muted-foreground">
+            Responsável
+          </label>
+          <Input
+            id="importacoes-filtro-responsavel"
+            value={h.filtros.responsavel}
+            onChange={(e) => h.setFiltros({ responsavel: e.target.value })}
+            placeholder="ID do responsável..."
+            className="h-11 sm:h-9"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="importacoes-filtro-de" className="text-xs text-muted-foreground">
+            De
+          </label>
+          <Input
+            id="importacoes-filtro-de"
+            type="date"
+            value={h.filtros.de}
+            onChange={(e) => h.setFiltros({ de: e.target.value })}
+            className="h-11 sm:h-9"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="importacoes-filtro-ate" className="text-xs text-muted-foreground">
+            Até
+          </label>
+          <Input
+            id="importacoes-filtro-ate"
+            type="date"
+            value={h.filtros.ate}
+            onChange={(e) => h.setFiltros({ ate: e.target.value })}
+            className="h-11 sm:h-9"
+          />
+        </div>
+      </FilterBar>
 
       {/* Conteúdo */}
       {h.carregando ? (

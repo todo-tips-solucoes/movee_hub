@@ -39,7 +39,7 @@ function ModuloCard({ modulo }: { modulo: HubModulo }) {
       href={moduloParaRota(modulo.codigo)}
       className="group block cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      <Card className="h-full ring-1 ring-foreground/10 transition-colors group-hover:bg-muted/50 group-hover:ring-primary/40">
+      <Card className="h-full transition-shadow group-hover:bg-muted/50 group-hover:shadow-md">
         <CardHeader className="flex flex-row items-center gap-3">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             {/* eslint-disable-next-line react-hooks/static-components -- lookup determinística, não criação de componente (mesmo padrão de module-nav.tsx) */}

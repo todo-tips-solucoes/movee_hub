@@ -111,7 +111,11 @@
   --destructive: #ff6b6b;
   --destructive-foreground: #2a0606;
 
-  --border: #283566;
+  /* hub-uiux-refresh (feedback do operador 2026-08-05): divisores de área
+     (topbar/sidebar/contorno de card) liam como linhas duras no dark.
+     --border desce para um tom pouco acima das superfícies; --input fica
+     no valor antigo — campos de formulário DEVEM continuar delimitados. */
+  --border: #1e2a52;
   --input: #283566;
   --ring: #5b8df2;
 
@@ -131,7 +135,7 @@
   --sidebar-primary-foreground: #07112e;
   --sidebar-accent: #173a44;
   --sidebar-accent-foreground: #2ceabc;
-  --sidebar-border: #283566;
+  --sidebar-border: #182248; /* hub-uiux-refresh: divisor sidebar↔conteúdo sutil */
   --sidebar-ring: #5b8df2;
 }
 

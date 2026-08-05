@@ -20,6 +20,7 @@ import { AlertCircle, Loader2, Plus, UserCog, Users as UsersIcon } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { FilterBar } from '@/components/hub/filter-bar';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { AtivoBadge } from '@/components/hub/status-badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -532,18 +533,20 @@ export default function UsuariosPage() {
         </Button>
       </PageHeader>
 
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="usuarios-busca" className="sr-only">
-          Buscar por nome ou e-mail
-        </Label>
-        <Input
-          id="usuarios-busca"
-          value={h.busca}
-          onChange={(e) => h.setBusca(e.target.value)}
-          placeholder="Buscar por nome ou e-mail..."
-          className="h-11 sm:h-9"
-        />
-      </div>
+      <FilterBar gridClassName="grid-cols-1" onClear={() => h.setBusca('')}>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="usuarios-busca" className="sr-only">
+            Buscar por nome ou e-mail
+          </Label>
+          <Input
+            id="usuarios-busca"
+            value={h.busca}
+            onChange={(e) => h.setBusca(e.target.value)}
+            placeholder="Buscar por nome ou e-mail..."
+            className="h-11 sm:h-9"
+          />
+        </div>
+      </FilterBar>
 
       {h.carregando ? (
         <ListSkeleton label="Carregando usuários..." />

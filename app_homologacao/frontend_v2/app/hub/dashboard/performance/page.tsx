@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { KpiCard } from '@/components/hub/kpi-card';
 import { KpiSkeleton, ListSkeleton } from '@/components/hub/table-skeleton';
 import {
   AlertCircle,
@@ -195,61 +196,26 @@ export function usePerformanceLista() {
 function CardsResumo({ cards }: { cards: PerformanceResumoCards }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <CheckCircle2 className="size-4" aria-hidden="true" />
-          </span>
-          <CardTitle className="text-sm text-muted-foreground">Corridas completadas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="font-heading text-xl font-semibold text-foreground">
-            {formatInt(cards.corridasCompletadas)}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <TrendingUp className="size-4" aria-hidden="true" />
-          </span>
-          <CardTitle className="text-sm text-muted-foreground">Taxa de aceitação</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="font-heading text-xl font-semibold text-foreground">
-            {formatFracaoPct(cards.taxaAceitacao)}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Percent className="size-4" aria-hidden="true" />
-          </span>
-          <CardTitle className="text-sm text-muted-foreground">Taxa de conclusão</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="font-heading text-xl font-semibold text-foreground">
-            {formatFracaoPct(cards.taxaConclusao)}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Clock className="size-4" aria-hidden="true" />
-          </span>
-          <CardTitle className="text-sm text-muted-foreground">Tempo disponível médio</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="font-heading text-xl font-semibold text-foreground">
-            {formatPontoPct(cards.tempoDisponivelMedio)}
-          </p>
-        </CardContent>
-      </Card>
+      <KpiCard
+        label="Corridas completadas"
+        value={formatInt(cards.corridasCompletadas)}
+        icon={CheckCircle2}
+      />
+      <KpiCard
+        label="Taxa de aceitação"
+        value={formatFracaoPct(cards.taxaAceitacao)}
+        icon={TrendingUp}
+      />
+      <KpiCard
+        label="Taxa de conclusão"
+        value={formatFracaoPct(cards.taxaConclusao)}
+        icon={Percent}
+      />
+      <KpiCard
+        label="Tempo disponível médio"
+        value={formatPontoPct(cards.tempoDisponivelMedio)}
+        icon={Clock}
+      />
     </div>
   );
 }

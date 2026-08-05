@@ -30,9 +30,9 @@
 //      tal como estão"). Contrato equivalente: nenhuma tela deste módulo
 //      renderiza sem `entidade_ativa`, redirecionando para
 //      `/selecionar-entidade` (mesma rota do shell, sem UI nova).
-//   3. Inclui `XmlValidationCard` (hoje em `/dashboard/validacao-xml`,
-//      rota separada no legado) como seção adicional da MESMA página —
-//      tasks.md 5.1.2 pede a reutilização deste componente aqui.
+//   3. (hub-uiux-refresh, 2026-08-05) o `XmlValidationCard` que a tasks.md
+//      5.1.2 embutia aqui migrou para o módulo próprio
+//      `/hub/dashboard/validacao_xml` (migration 0045).
 //
 // `app/dashboard/page.tsx` (legado) permanece 100% inalterado (FR-018) —
 // nenhum import daqui toca aquele arquivo.
@@ -50,7 +50,6 @@ import { ActionBar } from '@/components/action-bar';
 import { Filters } from '@/components/filters';
 import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
-import { XmlValidationCard } from '@/components/xml-validation-card';
 import { PageHeader } from '@/components/hub/page-header';
 import { toast } from 'sonner';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -241,13 +240,9 @@ function EnvioMassaClient() {
         />
       </div>
 
-      {/* tasks.md 5.1.2 — validação de XML em lote, reaproveitada de
-          app/dashboard/validacao-xml/page.tsx como seção desta mesma
-          página (no legado é rota separada; no hub, tudo em
-          /hub/dashboard/envio_massa). */}
-      <div className="shrink-0">
-        <XmlValidationCard />
-      </div>
+      {/* hub-uiux-refresh (2026-08-05): a validação de XML em lote saiu
+          desta página e virou módulo próprio do menu —
+          /hub/dashboard/validacao_xml (migration 0045). */}
     </motion.div>
   );
 }
