@@ -1,0 +1,31 @@
+
+up to date in 861ms
+
+Running 27 tests using 1 worker
+
+AXE_RESULT tela="/hub/login" score=100 violacoes=0 detalhe=[]
+  ✓   1 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:51:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/login (1.0s)
+AXE_RESULT tela="/hub/recuperar-senha" score=100 violacoes=0 detalhe=[]
+  ✓   2 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:57:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/recuperar-senha (885ms)
+AXE_RESULT tela="/hub/redefinir-senha" score=100 violacoes=0 detalhe=[]
+  ✓   3 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:63:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/redefinir-senha (921ms)
+AXE_RESULT tela="/selecionar-entidade" score=100 violacoes=0 detalhe=[]
+  ✓   4 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:73:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState admin) › /selecionar-entidade (ramo escolha, 2 vínculos) (922ms)
+AXE_RESULT tela="/hub/dashboard" score=100 violacoes=0 detalhe=[]
+  ✓   5 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:84:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard (1.1s)
+AXE_RESULT tela="/hub/dashboard/perfil" score=100 violacoes=0 detalhe=[]
+  ✓   6 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:90:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard/perfil (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard" tema=dark violacoes=0
+  ✓   7 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › dashboard — tema dark (912ms)
+  ✘   8 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › dashboard — tema light (30.1s)
+AXE_CONTRASTE tela="/hub/dashboard/performance" tema=dark violacoes=0
+  ✓   9 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › performance (kpi-card) — tema dark (1.0s)
+  ✘  10 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › performance (kpi-card) — tema light (30.2s)
+AXE_CONTRASTE tela="/hub/dashboard/faturamento" tema=dark violacoes=0
+  ✓  11 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › faturamento (kpi-card) — tema dark (1.0s)
+  ✘  12 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › faturamento (kpi-card) — tema light (30.2s)
+AXE_CONTRASTE tela="/hub/dashboard/motoristas" tema=dark violacoes=0
+  ✓  13 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › motoristas (filter-bar) — tema dark (980ms)
+  ✘  14 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › motoristas (filter-bar) — tema light (30.1s)
+AXE_CONTRASTE tela="/hub/dashboard/importacoes" tema=dark violacoes=0
+  ✓  15 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › importações (filter-bar) — tema dark (1.0s)

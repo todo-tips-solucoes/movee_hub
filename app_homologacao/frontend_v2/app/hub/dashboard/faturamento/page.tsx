@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { KpiCard } from '@/components/hub/kpi-card';
 import { KpiSkeleton, ListSkeleton } from '@/components/hub/table-skeleton';
 import {
   AlertCircle,
@@ -205,43 +206,17 @@ function EntregadorCelula({ item, podeVerDetalhe }: { item: FaturamentoListItem;
 function CardsResumo({ cards }: { cards: FaturamentoResumoCards }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Receipt className="size-4" aria-hidden="true" />
-          </span>
-          <CardTitle className="text-sm text-muted-foreground">Total geral</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="font-heading text-xl font-semibold text-foreground">{formatBRL(cards.totalGeral)}</p>
-        </CardContent>
-      </Card>
-
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Tag className="size-4" aria-hidden="true" />
-          </span>
-          <CardTitle className="text-sm text-muted-foreground">Categoria de maior valor</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="truncate font-heading text-xl font-semibold text-foreground">
-            {cards.categoriaMaiorValor ?? '—'}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card size="sm">
-        <CardHeader className="flex flex-row items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Users className="size-4" aria-hidden="true" />
-          </span>
-          <CardTitle className="text-sm text-muted-foreground">Entregadores distintos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="font-heading text-xl font-semibold text-foreground">{cards.entregadoresDistintos}</p>
-        </CardContent>
-      </Card>
+      <KpiCard label="Total geral" value={formatBRL(cards.totalGeral)} icon={Receipt} />
+      <KpiCard
+        label="Categoria de maior valor"
+        value={cards.categoriaMaiorValor ?? '—'}
+        icon={Tag}
+      />
+      <KpiCard
+        label="Entregadores distintos"
+        value={cards.entregadoresDistintos}
+        icon={Users}
+      />
     </div>
   );
 }

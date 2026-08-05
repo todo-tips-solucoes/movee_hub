@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { AlertCircle, ChevronRight, Loader2, Plus, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FilterBar } from '@/components/hub/filter-bar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -287,82 +288,74 @@ export default function MotoristasPage() {
       </PageHeader>
 
       {/* Filtros */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="motoristas-filtro-nome" className="text-xs text-muted-foreground">
-              Nome
-            </label>
-            <Input
-              id="motoristas-filtro-nome"
-              value={h.filtros.nome}
-              onChange={(e) => h.setFiltros({ nome: e.target.value })}
-              placeholder="Buscar por nome..."
-              className="h-11 sm:h-9"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="motoristas-filtro-ativo" className="text-xs text-muted-foreground">
-              Situação
-            </label>
-            <select
-              id="motoristas-filtro-ativo"
-              aria-label="Situação"
-              value={h.filtros.ativo}
-              onChange={(e) => h.setFiltros({ ativo: e.target.value as MotoristasFiltros['ativo'] })}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
-              <option value="">Todas</option>
-              <option value="true">Ativo</option>
-              <option value="false">Inativo</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="motoristas-filtro-area" className="text-xs text-muted-foreground">
-              Área (subpraça)
-            </label>
-            <select
-              id="motoristas-filtro-area"
-              aria-label="Área (subpraça)"
-              value={h.filtros.area}
-              onChange={(e) => h.setFiltros({ area: e.target.value })}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
-              <option value="">Todas</option>
-              {areasOpcoes.map((area) => (
-                <option key={area} value={area}>
-                  {area}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="motoristas-filtro-vinculo" className="text-xs text-muted-foreground">
-              Vínculo
-            </label>
-            <select
-              id="motoristas-filtro-vinculo"
-              aria-label="Vínculo"
-              value={h.filtros.comVinculo}
-              onChange={(e) => h.setFiltros({ comVinculo: e.target.value as MotoristasFiltros['comVinculo'] })}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
-              <option value="">Todos</option>
-              <option value="true">Vinculado</option>
-              <option value="false">Sem vínculo</option>
-            </select>
-          </div>
+      <FilterBar onClear={h.resetFiltros}>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="motoristas-filtro-nome" className="text-xs text-muted-foreground">
+            Nome
+          </label>
+          <Input
+            id="motoristas-filtro-nome"
+            value={h.filtros.nome}
+            onChange={(e) => h.setFiltros({ nome: e.target.value })}
+            placeholder="Buscar por nome..."
+            className="h-11 sm:h-9"
+          />
         </div>
 
-        <div className="mt-2 flex justify-end">
-          <Button size="sm" variant="ghost" className="min-h-11 sm:min-h-8" onClick={h.resetFiltros}>
-            Limpar filtros
-          </Button>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="motoristas-filtro-ativo" className="text-xs text-muted-foreground">
+            Situação
+          </label>
+          <select
+            id="motoristas-filtro-ativo"
+            aria-label="Situação"
+            value={h.filtros.ativo}
+            onChange={(e) => h.setFiltros({ ativo: e.target.value as MotoristasFiltros['ativo'] })}
+            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
+          >
+            <option value="">Todas</option>
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
         </div>
-      </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="motoristas-filtro-area" className="text-xs text-muted-foreground">
+            Área (subpraça)
+          </label>
+          <select
+            id="motoristas-filtro-area"
+            aria-label="Área (subpraça)"
+            value={h.filtros.area}
+            onChange={(e) => h.setFiltros({ area: e.target.value })}
+            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
+          >
+            <option value="">Todas</option>
+            {areasOpcoes.map((area) => (
+              <option key={area} value={area}>
+                {area}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="motoristas-filtro-vinculo" className="text-xs text-muted-foreground">
+            Vínculo
+          </label>
+          <select
+            id="motoristas-filtro-vinculo"
+            aria-label="Vínculo"
+            value={h.filtros.comVinculo}
+            onChange={(e) => h.setFiltros({ comVinculo: e.target.value as MotoristasFiltros['comVinculo'] })}
+            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
+          >
+            <option value="">Todos</option>
+            <option value="true">Vinculado</option>
+            <option value="false">Sem vínculo</option>
+          </select>
+        </div>
+      </FilterBar>
 
       {/* Conteúdo */}
       {h.carregando ? (

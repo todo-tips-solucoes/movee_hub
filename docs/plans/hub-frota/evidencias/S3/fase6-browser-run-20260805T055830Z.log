@@ -1,0 +1,86 @@
+
+up to date in 1s
+
+Running 27 tests using 1 worker
+
+AXE_RESULT tela="/hub/login" score=100 violacoes=0 detalhe=[]
+  ✓   1 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:51:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/login (939ms)
+AXE_RESULT tela="/hub/recuperar-senha" score=100 violacoes=0 detalhe=[]
+  ✓   2 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:57:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/recuperar-senha (898ms)
+AXE_RESULT tela="/hub/redefinir-senha" score=100 violacoes=0 detalhe=[]
+  ✓   3 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:63:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/redefinir-senha (1.0s)
+AXE_RESULT tela="/selecionar-entidade" score=100 violacoes=0 detalhe=[]
+  ✓   4 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:73:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState admin) › /selecionar-entidade (ramo escolha, 2 vínculos) (810ms)
+AXE_RESULT tela="/hub/dashboard" score=100 violacoes=0 detalhe=[]
+  ✓   5 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:84:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard (1.0s)
+AXE_RESULT tela="/hub/dashboard/perfil" score=100 violacoes=0 detalhe=[]
+  ✓   6 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:90:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard/perfil (964ms)
+AXE_CONTRASTE tela="/hub/dashboard" tema=dark violacoes=0
+  ✓   7 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › dashboard — tema dark (926ms)
+AXE_CONTRASTE tela="/hub/dashboard" tema=light violacoes=0
+  ✓   8 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › dashboard — tema light (971ms)
+AXE_CONTRASTE tela="/hub/dashboard/performance" tema=dark violacoes=0
+  ✓   9 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › performance (kpi-card) — tema dark (957ms)
+AXE_CONTRASTE tela="/hub/dashboard/performance" tema=light violacoes=0
+  ✓  10 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › performance (kpi-card) — tema light (999ms)
+AXE_CONTRASTE tela="/hub/dashboard/faturamento" tema=dark violacoes=0
+  ✓  11 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › faturamento (kpi-card) — tema dark (984ms)
+AXE_CONTRASTE tela="/hub/dashboard/faturamento" tema=light violacoes=0
+  ✓  12 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › faturamento (kpi-card) — tema light (1.2s)
+AXE_CONTRASTE tela="/hub/dashboard/motoristas" tema=dark violacoes=0
+  ✓  13 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › motoristas (filter-bar) — tema dark (925ms)
+AXE_CONTRASTE tela="/hub/dashboard/motoristas" tema=light violacoes=0
+  ✓  14 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › motoristas (filter-bar) — tema light (985ms)
+AXE_CONTRASTE tela="/hub/dashboard/importacoes" tema=dark violacoes=0
+  ✓  15 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › importações (filter-bar) — tema dark (897ms)
+AXE_CONTRASTE tela="/hub/dashboard/importacoes" tema=light violacoes=0
+  ✓  16 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › importações (filter-bar) — tema light (1.0s)
+AXE_CONTRASTE tela="/hub/dashboard/usuarios" tema=dark violacoes=0
+  ✓  17 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › usuários (filter-bar) — tema dark (857ms)
+AXE_CONTRASTE tela="/hub/dashboard/usuarios" tema=light violacoes=0
+  ✓  18 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › usuários (filter-bar) — tema light (1.1s)
+  ✓  19 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:43:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › admin_entidade › vê os itens exclusivos (usuários + auditoria) (530ms)
+  ✓  20 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:59:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › operador › NÃO vê nenhum dos itens exclusivos (sem auditoria.consultar/usuarios.gerenciar) (619ms)
+  ✘  21 [chromium] › tests/e2e-hub-browser/sessao-expira.spec.ts:29:7 › 6.2.5 — sessão expira em meio de ação (troca de entidade) -> redirect login › corromper accessToken mid-troca-de-entidade força logout e redirect para /hub/login (10.8s)
+  ✓  22 [chromium] › tests/e2e-hub-browser/sidebar-colapso.spec.ts:22:7 › 2.1.5 — sidebar colapsável: persistência e acessibilidade do tooltip › colapsar via topbar reduz a largura da sidebar fixa e persiste após recarregar (1.2s)
+  ✓  23 [chromium] › tests/e2e-hub-browser/sidebar-colapso.spec.ts:58:7 › 2.1.5 — sidebar colapsável: persistência e acessibilidade do tooltip › colapsada: tooltip com o nome do módulo aparece por foco de teclado E por hover (CHK001) (1.3s)
+  ✓  24 [chromium] › tests/e2e-hub-browser/theme-toggle.spec.ts:17:7 › 3.1.3 — alternar tema: navegação e persistência › tema padrão é escuro (FR-008); alternar, navegar e recarregar preserva a escolha (887ms)
+TROCA_ENTIDADE_TIMING_MS=378
+  ✓  25 [chromium] › tests/e2e-hub-browser/troca-entidade-timing.spec.ts:19:7 › 6.2.3 — troca de entidade reflete em <5s, sem novo login (SC-003) › EntitySwitcher atualiza o rótulo exibido em menos de 5s (817ms)
+  ✓  26 [chromium] › tests/e2e-hub-browser/white-label-simulacao.spec.ts:136:9 › 3.2 — validação de white-label simulado (SC-006/US2-AC3, sem seed de banco) › tema dark: injetar CSS vars do tenant simulado reflete em botão primário/sidebar ativa (1.3s)
+  ✓  27 [chromium] › tests/e2e-hub-browser/white-label-simulacao.spec.ts:136:9 › 3.2 — validação de white-label simulado (SC-006/US2-AC3, sem seed de banco) › tema light: injetar CSS vars do tenant simulado reflete em botão primário/sidebar ativa (1.2s)
+
+
+  1) [chromium] › tests/e2e-hub-browser/sessao-expira.spec.ts:29:7 › 6.2.5 — sessão expira em meio de ação (troca de entidade) -> redirect login › corromper accessToken mid-troca-de-entidade força logout e redirect para /hub/login 
+
+    TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation to "**/hub/login" until "load"
+    ============================================================
+
+      58 |     await page.getByRole('option').last().click();
+      59 |
+    > 60 |     await page.waitForURL('**/hub/login', { timeout: 10_000 });
+         |                ^
+      61 |     await expect(page).toHaveURL(/\/hub\/login$/);
+      62 |
+      63 |     // Não deve haver "flash" de conteúdo protegido residual (session-guard
+        at /work/tests/e2e-hub-browser/sessao-expira.spec.ts:60:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/sessao-expira-6-2-5-—-sess-2e83d-t-e-redirect-para-hub-login-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/sessao-expira-6-2-5-—-sess-2e83d-t-e-redirect-para-hub-login-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/sessao-expira-6-2-5-—-sess-2e83d-t-e-redirect-para-hub-login-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/sessao-expira-6-2-5-—-sess-2e83d-t-e-redirect-para-hub-login-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e-hub-browser/sessao-expira.spec.ts:29:7 › 6.2.5 — sessão expira em meio de ação (troca de entidade) -> redirect login › corromper accessToken mid-troca-de-entidade força logout e redirect para /hub/login 
+  26 passed (40.5s)

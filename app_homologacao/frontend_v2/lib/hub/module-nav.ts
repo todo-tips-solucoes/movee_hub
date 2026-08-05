@@ -13,6 +13,7 @@
 // reconhecido cai num ícone padrão, nunca quebra a renderização.
 
 import {
+  FileCheck,
   FileUp,
   Gauge,
   LayoutDashboard,
@@ -52,6 +53,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   upload: Upload,
   envio_massa: Send,
   send: Send,
+  validacao_xml: FileCheck,
+  filecheck: FileCheck,
   usuarios: Users,
   users: Users,
   auditoria: ScrollText,

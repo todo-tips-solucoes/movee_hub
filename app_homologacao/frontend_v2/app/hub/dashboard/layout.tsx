@@ -19,8 +19,10 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ModuleNav } from '@/components/hub/module-nav';
+import { SidebarCollapseToggle } from '@/components/hub/sidebar-collapse-toggle';
 import { EntitySwitcher } from '@/components/hub/entity-switcher';
 import { AccountMenu } from '@/components/hub/account-menu';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Wordmark } from '@/components/brand/wordmark';
 
 export default function HubDashboardLayout({ children }: { children: ReactNode }) {
@@ -39,14 +41,23 @@ export default function HubDashboardLayout({ children }: { children: ReactNode }
             Fundo opaco: com `bg-card/80 + backdrop-blur` o conteúdo passava
             borrado por trás do header e lia como interface quebrada. */}
         <header className="sticky top-[var(--env-badge-h,0px)] z-40 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-2">
-          <Link
-            href="/hub/dashboard"
-            aria-label="Ir para o painel de módulos"
-            className="flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            <Wordmark className="h-6" />
-          </Link>
+          <div className="flex items-center gap-1">
+            {/* task 2.2.1 — botão de colapso, só na sidebar >= lg (FR-005) */}
+            <SidebarCollapseToggle />
+            <Link
+              href="/hub/dashboard"
+              aria-label="Ir para o painel de módulos"
+              className="flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <Wordmark className="h-6" />
+            </Link>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
+            {/* task 3.1.1 — alternância de tema (FR-006/FR-007), ao lado de
+                EntitySwitcher/AccountMenu; ThemeProvider mantém
+                defaultTheme="dark" (FR-008) — este componente só oferece a
+                escolha explícita, nunca muda o padrão. */}
+            <ThemeToggle />
             <EntitySwitcher />
             <AccountMenu />
           </div>

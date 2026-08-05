@@ -12,9 +12,16 @@ const mockUseHubAuth = vi.fn();
 // preserva o comportamento anterior — pathname fixo em /hub/dashboard/motoristas
 // — para não regredir os testes de conjunto A/B/mapeamento/vazio abaixo).
 const mockUsePathname = vi.fn(() => '/hub/dashboard/motoristas');
+// hub-uiux-refresh FASE 2 (task 2.1): default expandido preserva os testes
+// pré-existentes acima; a suíte de colapso abaixo sobrescreve com mockReturnValueOnce.
+const mockUseSidebarCollapse = vi.fn(() => ({ colapsada: false, alternar: vi.fn() }));
 
 vi.mock('@/contexts/hub-auth-context', () => ({
   useHubAuth: () => mockUseHubAuth(),
+}));
+
+vi.mock('@/contexts/sidebar-collapse-context', () => ({
+  useSidebarCollapse: () => mockUseSidebarCollapse(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -103,5 +110,46 @@ describe('ModuleNav — item ativo "Painel Geral" na home (hub-motorista-canonic
     expect(painelGeral).toHaveAttribute('aria-current', 'page');
     const motoristas = screen.getByRole('link', { name: 'Motoristas' });
     expect(motoristas).not.toHaveAttribute('aria-current');
+  });
+});
+
+describe('ModuleNav — sidebar colapsada (hub-uiux-refresh FASE 2, task 2.1.2/2.1.4)', () => {
+  it('colapsada=true: mantém o nome acessível do link (rótulo vira sr-only, não some do DOM)', () => {
+    mockUseSidebarCollapse.mockReturnValueOnce({ colapsada: true, alternar: vi.fn() });
+    withModulos([
+      { codigo: 'dashboard', nome: 'Painel Geral', icone: null, ordem: 10 },
+      { codigo: 'motoristas', nome: 'Motoristas', icone: 'truck', ordem: 20 },
+    ]);
+
+    render(<ModuleNav />);
+
+    // getByRole computa o nome acessível a partir do texto, mesmo com
+    // `sr-only` (visualmente oculto, mas presente para leitor de tela) —
+    // confirma que o link continua identificável tanto por mouse quanto
+    // por teclado/leitor de tela quando colapsado (CHK001).
+    expect(screen.getByRole('link', { name: 'Painel Geral' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Motoristas' })).toBeInTheDocument();
+  });
+
+  it('colapsada=false (padrão): não envolve os itens em Tooltip', () => {
+    withModulos([{ codigo: 'dashboard', nome: 'Painel Geral', icone: null, ordem: 10 }]);
+
+    render(<ModuleNav />);
+
+    // Sem Tooltip montado, não há popup/description associado ao link.
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('drawer mobile (Sheet) ignora o estado de colapso — FR-005/task 2.1.4', () => {
+    mockUseSidebarCollapse.mockReturnValueOnce({ colapsada: true, alternar: vi.fn() });
+    withModulos([{ codigo: 'dashboard', nome: 'Painel Geral', icone: null, ordem: 10 }]);
+
+    const { container } = render(<ModuleNav />);
+
+    // O hambúrguer do drawer (`lg:hidden`) segue presente independente do
+    // colapso da sidebar fixa — o drawer não tem noção de "colapsado".
+    expect(
+      container.querySelector('button[aria-label="Abrir menu de módulos"]')
+    ).toBeInTheDocument();
   });
 });
