@@ -98,8 +98,8 @@ describe('/selecionar-entidade', () => {
     render(<SelecionarEntidadePage />);
 
     expect(screen.getByRole('heading', { name: 'Selecionar entidade' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Empresa #10 — admin/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Empresa #20 — operador/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Empresa #10 — Admin/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Empresa #20 — Operador/ })).toBeInTheDocument();
   });
 
   it('>1 entidades: selecionar uma entidade troca e redireciona a /dashboard', async () => {
@@ -107,7 +107,7 @@ describe('/selecionar-entidade', () => {
     withHubAuth({ entidades: [VINCULO_A, VINCULO_B], entidadeAtiva: 10, trocarEntidade });
     render(<SelecionarEntidadePage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Empresa #20 — operador/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Empresa #20 — Operador/ }));
 
     await waitFor(() => expect(trocarEntidade).toHaveBeenCalledWith(20));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/hub/dashboard'));
@@ -118,7 +118,7 @@ describe('/selecionar-entidade', () => {
     withHubAuth({ entidades: [VINCULO_A, VINCULO_B], entidadeAtiva: 10, trocarEntidade });
     render(<SelecionarEntidadePage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Empresa #20 — operador/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Empresa #20 — Operador/ }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Sem vínculo com essa entidade.'));
     expect(mockReplace).not.toHaveBeenCalled();

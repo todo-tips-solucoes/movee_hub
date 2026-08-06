@@ -40,13 +40,23 @@
 // Ref: docs/specs/hub-envio-massa/spec.md FR-004; contracts/claims-adapter.md;
 // tasks.md FASE 5.
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { useEnvioMassa } from '@/hooks/use-envio-massa';
 import { useProcessStatus } from '@/hooks/use-process-status';
 import { StatsCards } from '@/components/stats-cards';
 import { ActionBar } from '@/components/action-bar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Filters } from '@/components/filters';
 import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
@@ -138,6 +148,11 @@ function EnvioMassaClient() {
     }
   }, [carregandoAuth, entidadeAtiva, fetchData]);
 
+  // impeccable harden 2026-08-06: iniciar o disparo é a ação de maior raio
+  // de dano do produto (notifica motoristas reais) — confirmação com resumo
+  // de impacto antes de startProcess, mesmo idioma do CloseMovementDialog.
+  const [confirmarDisparo, setConfirmarDisparo] = useState(false);
+
   const handleStart = async () => {
     try {
       await startProcess();
@@ -203,7 +218,7 @@ function EnvioMassaClient() {
         <ActionBar
           isActive={isActive}
           isProcessLoading={processLoading}
-          onStart={handleStart}
+          onStart={() => setConfirmarDisparo(true)}
           onStop={handleStop}
           onUpload={uploadFile}
           onExportCSV={exportCSV}
@@ -243,6 +258,32 @@ function EnvioMassaClient() {
       {/* hub-uiux-refresh (2026-08-05): a validação de XML em lote saiu
           desta página e virou módulo próprio do menu —
           /hub/dashboard/validacao_xml (migration 0045). */}
+
+      <AlertDialog open={confirmarDisparo} onOpenChange={setConfirmarDisparo}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Iniciar envio em massa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O processamento dispara as notificações do movimento aberto para os motoristas.
+              Neste momento o movimento tem {stats.total} registro{stats.total === 1 ? '' : 's'},{' '}
+              {stats.msgEnviada} já com mensagem enviada e {stats.total - stats.msgEnviada} ainda
+              sem envio.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmarDisparo(false);
+                handleStart();
+              }}
+              className="bg-success text-success-foreground hover:bg-success/90"
+            >
+              Iniciar envio
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }

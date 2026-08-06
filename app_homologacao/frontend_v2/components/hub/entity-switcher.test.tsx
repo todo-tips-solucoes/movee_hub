@@ -42,8 +42,15 @@ function withEntidades(
 }
 
 describe('labelVinculo', () => {
-  it('inclui o papel quando presente', () => {
-    expect(labelVinculo(VINCULO_A)).toBe('Empresa #10 — admin');
+  it('inclui o papel quando presente (prettifier para papéis fora do seed)', () => {
+    // 'admin' não está em PAPEL_LABELS — o prettifier capitaliza o slug.
+    expect(labelVinculo(VINCULO_A)).toBe('Empresa #10 — Admin');
+  });
+
+  it('humaniza os papéis semeados', () => {
+    expect(labelVinculo({ ...VINCULO_A, papel: 'admin_entidade' })).toBe(
+      'Empresa #10 — Administrador da entidade'
+    );
   });
 
   it('cai para "Empresa #<id>" quando papel é null', () => {
@@ -127,6 +134,6 @@ describe('EntitySwitcher (componente)', () => {
     await waitFor(() => {
       expect(screen.getByRole('combobox', { name: 'Trocar entidade de trabalho' })).toBeTruthy();
     });
-    expect(screen.getByText('Empresa #10 — admin')).toBeInTheDocument();
+    expect(screen.getByText('Empresa #10 — Admin')).toBeInTheDocument();
   });
 });

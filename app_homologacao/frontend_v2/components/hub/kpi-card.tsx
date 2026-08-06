@@ -31,7 +31,9 @@ const TREND_ICON: Record<KpiCardTrend['direction'], LucideIcon> = {
 // Só cor não é sinal suficiente (WCAG 1.4.1, mesmo critério de status-badge.tsx)
 // — por isso o ícone de tendência acompanha sempre a cor.
 const TREND_COLOR: Record<KpiCardTrend['direction'], string> = {
-  up: 'text-emerald-600 dark:text-emerald-400',
+  // Token do sistema (--success), não emerald hardcoded — mantém o white-label
+  // e o dark mode coerentes com o resto dos indicadores positivos.
+  up: 'text-success',
   down: 'text-destructive',
 };
 

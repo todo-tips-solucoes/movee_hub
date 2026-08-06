@@ -26,8 +26,8 @@ function ordenarModulos(modulos: HubModulo[]): HubModulo[] {
 
 /** Lógica isolada do JSX — mesmo padrão de `useModuleNavItems`/`usePerfil`. */
 export function useDashboardModulos() {
-  const { modulos, usuario } = useHubAuth();
-  return { modulos: ordenarModulos(modulos), usuario };
+  const { modulos, usuario, carregando } = useHubAuth();
+  return { modulos: ordenarModulos(modulos), usuario, carregando };
 }
 
 function ModuloCard({ modulo }: { modulo: HubModulo }) {
@@ -58,6 +58,25 @@ function ModuloCard({ modulo }: { modulo: HubModulo }) {
   );
 }
 
+// Skeleton com o mesmo shape dos cards (impeccable harden 2026-08-06):
+// enquanto o `/me` está em voo, `modulos` ainda é `[]` — sem este estado, o
+// EstadoVazio ("nenhum módulo") aparecia por engano na primeira carga.
+function EstadoCarregando() {
+  return (
+    <div role="status" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <span className="sr-only">Carregando módulos...</span>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} aria-hidden="true" className="rounded-xl border bg-card p-6">
+          <div className="flex items-center gap-3">
+            <div className="size-11 shrink-0 animate-pulse rounded-lg bg-muted" />
+            <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function EstadoVazio() {
   const Icon = DEFAULT_MODULE_ICON;
   return (
@@ -77,7 +96,7 @@ function EstadoVazio() {
 }
 
 export default function DashboardPage() {
-  const { modulos, usuario } = useDashboardModulos();
+  const { modulos, usuario, carregando } = useDashboardModulos();
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
@@ -88,7 +107,9 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-muted-foreground">Selecione um módulo para começar.</p>
       </div>
 
-      {modulos.length === 0 ? (
+      {carregando ? (
+        <EstadoCarregando />
+      ) : modulos.length === 0 ? (
         <EstadoVazio />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

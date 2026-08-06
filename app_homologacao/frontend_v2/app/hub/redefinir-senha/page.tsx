@@ -149,8 +149,9 @@ function RedefinirSenhaConteudo() {
                   <button
                     type="button"
                     onClick={() => setMostrarSenha((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                    tabIndex={-1}
+                    // impeccable polish 2026-08-06: sem tabIndex={-1} — o
+                    // toggle faz parte do fluxo de teclado (WCAG 2.1.1).
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
                   >
                     {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
