@@ -57,6 +57,31 @@ export interface AuditoriaFiltrosUI {
   entidadeId: string;
 }
 
+// impeccable clarify 2026-08-06: ações que o backend registra E aceita no
+// filtro (`VOCABULARIO_FECHADO_RE = /^[a-z0-9_]+$/` em routes/hub-me.js) —
+// alimenta o `<datalist>` do filtro. Sugestão, não restrição: texto livre
+// continua aceito.
+// ⚠️ Achado desta passada: as ações com ponto (`importacao.criada`,
+// `motorista.criado`, `faturamento.csv_exportado`…) são REGISTRADAS na
+// auditoria mas o filtro do backend as rejeita com 400 PARAMETRO_INVALIDO —
+// por isso ficam fora desta lista até o backend ampliar a regex (decisão do
+// operador; tocaria hub-me.js + contrato + testes).
+const ACOES_CONHECIDAS = [
+  'login_falha',
+  'login_sucesso',
+  'logout',
+  'modulo_entidade_alterado',
+  'papel_permissao_alterada',
+  'recuperacao_senha_solicitada',
+  'senha_redefinida',
+  'troca_entidade_ativa',
+  'usuario_criado',
+  'usuario_editado',
+  'usuario_papel_alterado',
+  'usuario_vinculo_criado',
+  'usuario_vinculo_desativado',
+] as const;
+
 const FILTROS_INICIAIS: AuditoriaFiltrosUI = {
   acao: '',
   usuarioId: '',
@@ -236,8 +261,20 @@ export default function AuditoriaPage() {
               value={h.filtros.acao}
               onChange={(e) => h.setFiltros({ acao: e.target.value })}
               placeholder="Ex.: usuario_criado"
+              list="auditoria-acoes-conhecidas"
               className="h-11 sm:h-9"
             />
+            {/* impeccable clarify 2026-08-06: `<datalist>` nativo — o operador
+                reconhece a ação em vez de decorar o código exato (o filtro do
+                backend é igualdade exata). Texto livre continua aceito.
+                ponytail: lista estática espelhando os `acao:` dos routes
+                hub-*.js do backend; mover para o contrato se o vocabulário
+                começar a divergir. */}
+            <datalist id="auditoria-acoes-conhecidas">
+              {ACOES_CONHECIDAS.map((a) => (
+                <option key={a} value={a} />
+              ))}
+            </datalist>
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="auditoria-filtro-recurso" className="text-xs text-muted-foreground">

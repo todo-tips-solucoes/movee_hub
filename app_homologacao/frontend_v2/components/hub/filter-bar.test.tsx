@@ -43,4 +43,24 @@ describe('FilterBar', () => {
     );
     expect(screen.getByRole('button', { name: 'Resetar' })).toBeInTheDocument();
   });
+
+  // impeccable polish 2026-08-06 — estado do botão acompanha os filtros.
+  it('filtrosAtivos=0: botão desabilitado (não há o que limpar)', () => {
+    render(
+      <FilterBar onClear={() => {}} filtrosAtivos={0}>
+        <input aria-label="Nome" />
+      </FilterBar>
+    );
+    expect(screen.getByRole('button', { name: 'Limpar filtros' })).toBeDisabled();
+  });
+
+  it('filtrosAtivos>0: botão habilitado com contagem no rótulo', () => {
+    render(
+      <FilterBar onClear={() => {}} filtrosAtivos={2}>
+        <input aria-label="Nome" />
+      </FilterBar>
+    );
+    const botao = screen.getByRole('button', { name: 'Limpar filtros (2)' });
+    expect(botao).toBeEnabled();
+  });
 });

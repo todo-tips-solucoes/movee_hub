@@ -288,7 +288,10 @@ export default function MotoristasPage() {
       </PageHeader>
 
       {/* Filtros */}
-      <FilterBar onClear={h.resetFiltros}>
+      <FilterBar
+        onClear={h.resetFiltros}
+        filtrosAtivos={Object.values(h.filtros).filter((v) => v !== '').length}
+      >
         <div className="flex flex-col gap-1">
           <label htmlFor="motoristas-filtro-nome" className="text-xs text-muted-foreground">
             Nome

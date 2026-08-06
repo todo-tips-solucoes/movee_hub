@@ -33,9 +33,26 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
+// impeccable clarify 2026-08-06: o slug do papel (`admin_entidade`) é o que o
+// usuário lia o dia todo no seletor. Papéis semeados ganham rótulo humano;
+// papéis custom (a tabela "Papel" aceita novos) caem no prettifier genérico
+// em vez de exibir o slug cru.
+const PAPEL_LABELS: Record<string, string> = {
+  admin_plataforma: 'Administrador da plataforma',
+  admin_entidade: 'Administrador da entidade',
+  operador: 'Operador',
+  leitura: 'Somente leitura',
+};
+
+export function labelPapel(papel: string): string {
+  if (PAPEL_LABELS[papel]) return PAPEL_LABELS[papel];
+  const semUnderscore = papel.replace(/_/g, ' ');
+  return semUnderscore.charAt(0).toUpperCase() + semUnderscore.slice(1);
+}
+
 /** Rótulo exibido para um vínculo — ver nota acima sobre ausência de nome. */
 export function labelVinculo(v: HubVinculo): string {
-  return v.papel ? `Empresa #${v.empresaId} — ${v.papel}` : `Empresa #${v.empresaId}`;
+  return v.papel ? `Empresa #${v.empresaId} — ${labelPapel(v.papel)}` : `Empresa #${v.empresaId}`;
 }
 
 /**

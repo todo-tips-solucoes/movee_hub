@@ -26,6 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { labelPapel } from '@/components/hub/entity-switcher';
 import { AdminApiError, alternarPapelPermissao, listarPapeisMatriz } from '@/lib/hub/admin-api';
 import type { MatrizCelula, PapeisMatrizResponse } from '@/lib/hub/admin-dto';
 
@@ -149,7 +150,7 @@ export default function PapeisMatrizPage() {
                 <TableHead>Permissão</TableHead>
                 {h.dados.papeis.map((p) => (
                   <TableHead key={p.id} className="text-center">
-                    {p.nome}
+                    {labelPapel(p.nome)}
                   </TableHead>
                 ))}
               </TableRow>
@@ -170,7 +171,7 @@ export default function PapeisMatrizPage() {
                     return (
                       <TableCell key={papel.id} className="text-center">
                         <Checkbox
-                          aria-label={`${permissao.codigo} para ${papel.nome}`}
+                          aria-label={`${permissao.codigo} para ${labelPapel(papel.nome)}`}
                           checked={marcado}
                           disabled={!h.dados!.podeEditar || salvando}
                           onCheckedChange={(v) => h.alternar(papel.id, permissao.id, v === true)}

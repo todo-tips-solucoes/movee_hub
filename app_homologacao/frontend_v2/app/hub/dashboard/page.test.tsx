@@ -50,6 +50,18 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Nenhum módulo disponível');
   });
 
+  it('carregando: mostra skeleton e NUNCA o estado vazio (corrida do /me em voo)', () => {
+    // impeccable harden 2026-08-06: com o `/me` em voo, `modulos` ainda é []
+    // — sem o guard de `carregando`, o "Nenhum módulo disponível" aparecia
+    // por engano na primeira carga pós-login.
+    mockUseHubAuth.mockReturnValue({ modulos: [], usuario: null, carregando: true });
+
+    render(<DashboardPage />);
+
+    expect(screen.getByText('Carregando módulos...')).toBeInTheDocument();
+    expect(screen.queryByText(/Nenhum módulo disponível/)).not.toBeInTheDocument();
+  });
+
   it('exibe saudação com o nome do usuário da sessão', () => {
     withModulos([{ codigo: 'admin', nome: 'Administração', icone: null, ordem: 1 }]);
 

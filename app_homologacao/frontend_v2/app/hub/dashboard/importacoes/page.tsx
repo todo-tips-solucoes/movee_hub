@@ -73,6 +73,11 @@ export interface ImportacoesFiltros {
 
 const FILTROS_INICIAIS: ImportacoesFiltros = { tipo: '', status: '', responsavel: '', de: '', ate: '' };
 
+// Enquanto houver importação nestes status, a lista se atualiza sozinha —
+// o operador acompanha o processamento sem F5 (impeccable harden 2026-08-06).
+const STATUS_EM_ANDAMENTO: readonly StatusImportacao[] = ['pending', 'validating', 'processing'];
+const POLL_INTERVALO_MS = 10_000;
+
 /** Lógica isolada do JSX (mesmo padrão de `usePerfil`/`useEntitySwitcher`). */
 export function useImportacoesHistorico() {
   const [filtros, setFiltrosState] = useState<ImportacoesFiltros>(FILTROS_INICIAIS);
@@ -81,10 +86,16 @@ export function useImportacoesHistorico() {
   const [total, setTotal] = useState(0);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
 
-  const buscar = useCallback(async () => {
-    setCarregando(true);
-    setErro(null);
+  const buscar = useCallback(async (opts?: { silencioso?: boolean }) => {
+    // `silencioso` = refresh do polling: sem skeleton, e uma falha transitória
+    // não derruba a lista que o operador está acompanhando.
+    const silencioso = opts?.silencioso === true;
+    if (!silencioso) {
+      setCarregando(true);
+      setErro(null);
+    }
     try {
       const resposta = await listarImportacoes({
         tipo: filtros.tipo || undefined,
@@ -97,18 +108,34 @@ export function useImportacoesHistorico() {
       });
       setItems(resposta.items);
       setTotal(resposta.total);
+      setErro(null);
+      setAtualizadoEm(new Date());
     } catch (e) {
-      setErro(e instanceof ImportacaoApiError ? e.message : 'Não foi possível carregar o histórico de importações.');
-      setItems([]);
-      setTotal(0);
+      if (!silencioso) {
+        setErro(e instanceof ImportacaoApiError ? e.message : 'Não foi possível carregar o histórico de importações.');
+        setItems([]);
+        setTotal(0);
+      }
     } finally {
-      setCarregando(false);
+      if (!silencioso) {
+        setCarregando(false);
+      }
     }
   }, [filtros, page]);
 
   useEffect(() => {
     buscar();
   }, [buscar]);
+
+  const emAndamento = items.some((item) => STATUS_EM_ANDAMENTO.includes(item.status));
+
+  useEffect(() => {
+    if (!emAndamento) return;
+    const id = setInterval(() => {
+      buscar({ silencioso: true });
+    }, POLL_INTERVALO_MS);
+    return () => clearInterval(id);
+  }, [emAndamento, buscar]);
 
   const setFiltros = useCallback((partial: Partial<ImportacoesFiltros>) => {
     setFiltrosState((prev) => ({ ...prev, ...partial }));
@@ -122,6 +149,10 @@ export function useImportacoesHistorico() {
 
   const totalPaginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // Wrapper sem argumentos: consumidores usam `onClick={h.refetch}` e o
+  // event de clique não pode vazar para o parâmetro `opts` de `buscar`.
+  const refetch = useCallback(() => buscar(), [buscar]);
+
   return {
     filtros,
     setFiltros,
@@ -133,7 +164,9 @@ export function useImportacoesHistorico() {
     total,
     carregando,
     erro,
-    refetch: buscar,
+    atualizadoEm,
+    emAndamento,
+    refetch,
   };
 }
 
@@ -182,7 +215,11 @@ export default function ImportacoesPage() {
       </PageHeader>
 
       {/* Filtros */}
-      <FilterBar gridClassName="grid-cols-1 xs:grid-cols-2 lg:grid-cols-5" onClear={h.resetFiltros}>
+      <FilterBar
+        gridClassName="grid-cols-1 xs:grid-cols-2 lg:grid-cols-5"
+        onClear={h.resetFiltros}
+        filtrosAtivos={Object.values(h.filtros).filter((v) => v !== '').length}
+      >
         <div className="flex flex-col gap-1">
           <label htmlFor="importacoes-filtro-tipo" className="text-xs text-muted-foreground">
             Tipo
@@ -225,13 +262,13 @@ export default function ImportacoesPage() {
 
         <div className="flex flex-col gap-1">
           <label htmlFor="importacoes-filtro-responsavel" className="text-xs text-muted-foreground">
-            Responsável
+            Responsável (ID do usuário)
           </label>
           <Input
             id="importacoes-filtro-responsavel"
             value={h.filtros.responsavel}
             onChange={(e) => h.setFiltros({ responsavel: e.target.value })}
-            placeholder="ID do responsável..."
+            placeholder="Ex.: 17"
             className="h-11 sm:h-9"
           />
         </div>
@@ -262,6 +299,18 @@ export default function ImportacoesPage() {
           />
         </div>
       </FilterBar>
+
+      {/* Enquanto há importação em andamento, a lista se atualiza sozinha
+          (polling silencioso do hook) — este texto diz isso ao operador.
+          Sem live region: o badge de status da linha já comunica a mudança;
+          anunciar a cada 10s viraria ruído de leitor de tela. */}
+      {!h.carregando && h.emAndamento && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Clock className="size-3.5" aria-hidden="true" />
+          Importação em andamento — a lista atualiza sozinha a cada 10 segundos
+          {h.atualizadoEm ? ` · última atualização às ${h.atualizadoEm.toLocaleTimeString('pt-BR')}` : ''}.
+        </p>
+      )}
 
       {/* Conteúdo */}
       {h.carregando ? (

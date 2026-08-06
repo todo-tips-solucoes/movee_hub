@@ -50,6 +50,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useHubAuth } from '@/contexts/hub-auth-context';
+import { labelPapel } from '@/components/hub/entity-switcher';
 import { listarPapeisMatriz } from '@/lib/hub/admin-api';
 import type { PapelCatalogo } from '@/lib/hub/admin-dto';
 import {
@@ -128,7 +129,7 @@ function PapelSelect({
   disabled?: boolean;
   className?: string;
 }) {
-  const items = papeis.map((p) => ({ value: String(p.id), label: p.nome }));
+  const items = papeis.map((p) => ({ value: String(p.id), label: labelPapel(p.nome) }));
   return (
     <Select
       items={items}
@@ -533,7 +534,11 @@ export default function UsuariosPage() {
         </Button>
       </PageHeader>
 
-      <FilterBar gridClassName="grid-cols-1" onClear={() => h.setBusca('')}>
+      <FilterBar
+        gridClassName="grid-cols-1"
+        onClear={() => h.setBusca('')}
+        filtrosAtivos={h.busca ? 1 : 0}
+      >
         <div className="flex flex-col gap-1">
           <Label htmlFor="usuarios-busca" className="sr-only">
             Buscar por nome ou e-mail
@@ -583,7 +588,8 @@ export default function UsuariosPage() {
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                 <p className="text-xs text-muted-foreground">
-                  {u.vinculos.map((v) => v.papel ?? '—').join(', ') || 'Sem vínculo visível'}
+                  {u.vinculos.map((v) => (v.papel ? labelPapel(v.papel) : '—')).join(', ') ||
+                    'Sem vínculo visível'}
                 </p>
               </div>
               <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => setEditando(u)}>
