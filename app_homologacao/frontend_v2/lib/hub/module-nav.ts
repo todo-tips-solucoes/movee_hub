@@ -89,6 +89,48 @@ export function resolveModuleIcon(
 }
 
 /**
+ * Descrição de uma linha por módulo — impeccable rodada 3, h10 "Ajuda e
+ * documentação" (1/4 no critique #2: "nenhum help contextual estruturado;
+ * placeholders fazem todo o trabalho pedagógico"; e, na persona do
+ * recém-convidado, "cards do dashboard sem descrição").
+ *
+ * Mora aqui, ao lado do ícone e da rota, pelo mesmo motivo que eles: é
+ * cosmético e opcional. Módulo fora do mapa simplesmente não ganha descrição
+ * — nunca some do dashboard nem da navegação (a decisão de "aparecer ou não"
+ * continua 100% do backend, FR-001/SC-001).
+ *
+ * ponytail: mapa no frontend em vez de coluna `Modulo.descricao` no contrato
+ * — decidido com o operador nesta rodada, porque a alternativa exigiria
+ * migration no hub, que em produção vive dentro do `chatmasterveloz` (rito
+ * integral de 5 gates). Mover para o contrato quando a descrição precisar
+ * variar por tenant.
+ *
+ * Redação: o que o operador FAZ ali, não o que a tela é. "Importe planilhas"
+ * ensina; "Módulo de importações" não.
+ */
+const DESCRICAO_MAP: Record<string, string> = {
+  dashboard: 'Ponto de partida: seus módulos liberados nesta entidade.',
+  motoristas: 'Consulte a ficha do motorista, o acesso ao app e o histórico de atividades.',
+  faturamento: 'Acompanhe lançamentos por competência e exporte o fechamento.',
+  performance: 'Meça corridas, aceitação e tempo disponível por turno.',
+  importacoes: 'Importe planilhas de movimento e acompanhe o processamento de cada carga.',
+  envio_massa: 'Dispare mensagens ao motorista e acompanhe o movimento até o fechamento.',
+  validacao_xml: 'Valide as NFS-e do movimento em lote e veja o que foi recusado.',
+  usuarios: 'Convide pessoas, defina papéis e controle quem acessa cada módulo.',
+  auditoria: 'Consulte a trilha imutável de quem fez o quê, e quando.',
+  admin: 'Habilite ou desabilite módulos por entidade da plataforma.',
+};
+
+/**
+ * Descrição do módulo, ou `null` quando não há uma — o chamador decide se
+ * omite a linha ou usa outro texto. Nunca lança, nunca inventa.
+ */
+export function resolveModuleDescription(codigo: string | null | undefined): string | null {
+  if (!codigo) return null;
+  return DESCRICAO_MAP[codigo.toLowerCase()] ?? null;
+}
+
+/**
  * Rota do módulo — convenção pura `/hub/dashboard/<codigo>` (FR-001/SC-001:
  * "sem lista fixa de módulos"). Não hardcoda nenhum `codigo` — qualquer
  * módulo futuro que o backend passe a devolver em `modulos[]` já resolve

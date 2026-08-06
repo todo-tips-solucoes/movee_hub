@@ -38,6 +38,7 @@ import { ImportWizard, useImportWizard } from '@/components/hub/import-wizard';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { FilterBar } from '@/components/hub/filter-bar';
+import { PeriodFilter } from '@/components/hub/period-filter';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { ImportacaoStatusBadge } from '@/components/hub/status-badge';
 import { listarImportacoes, ImportacaoApiError } from '@/lib/hub/importacoes-api';
@@ -278,31 +279,14 @@ export default function ImportacoesPage() {
           />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="importacoes-filtro-de" className="text-xs text-muted-foreground">
-            De
-          </label>
-          <Input
-            id="importacoes-filtro-de"
-            type="date"
-            value={h.filtros.de}
-            onChange={(e) => h.setFiltros({ de: e.target.value })}
-            className="h-11 sm:h-9"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="importacoes-filtro-ate" className="text-xs text-muted-foreground">
-            Até
-          </label>
-          <Input
-            id="importacoes-filtro-ate"
-            type="date"
-            value={h.filtros.ate}
-            onChange={(e) => h.setFiltros({ ate: e.target.value })}
-            className="h-11 sm:h-9"
-          />
-        </div>
+        <PeriodFilter
+          className="xs:col-span-2"
+          idPrefix="importacoes-filtro"
+          de={h.filtros.de}
+          ate={h.filtros.ate}
+          onChange={(intervalo) => h.setFiltros(intervalo)}
+          legenda="da importação"
+        />
       </FilterBar>
 
       {/* Enquanto há importação em andamento, a lista se atualiza sozinha

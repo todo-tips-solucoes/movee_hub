@@ -24,6 +24,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Eye, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { EntidadeCombobox } from '@/components/hub/entidade-combobox';
+import { PeriodFilter } from '@/components/hub/period-filter';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -239,30 +241,14 @@ export default function AuditoriaPage() {
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">
         <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-6">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="auditoria-filtro-de" className="text-xs text-muted-foreground">
-              De
-            </label>
-            <Input
-              id="auditoria-filtro-de"
-              type="date"
-              value={h.filtros.de}
-              onChange={(e) => h.setFiltros({ de: e.target.value })}
-              className="h-11 sm:h-9"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="auditoria-filtro-ate" className="text-xs text-muted-foreground">
-              Até
-            </label>
-            <Input
-              id="auditoria-filtro-ate"
-              type="date"
-              value={h.filtros.ate}
-              onChange={(e) => h.setFiltros({ ate: e.target.value })}
-              className="h-11 sm:h-9"
-            />
-          </div>
+          <PeriodFilter
+            className="xs:col-span-2"
+            idPrefix="auditoria-filtro"
+            de={h.filtros.de}
+            ate={h.filtros.ate}
+            onChange={(intervalo) => h.setFiltros(intervalo)}
+            legenda="do evento"
+          />
           <div className="flex flex-col gap-1">
             <label htmlFor="auditoria-filtro-acao" className="text-xs text-muted-foreground">
               Ação
@@ -315,17 +301,20 @@ export default function AuditoriaPage() {
           </div>
           {podeVerTudo && (
             <div className="flex flex-col gap-1">
-              <label htmlFor="auditoria-filtro-entidade" className="text-xs text-muted-foreground">
-                ID da entidade (vazio = todas)
-              </label>
-              <Input
-                id="auditoria-filtro-entidade"
-                type="number"
-                min={1}
-                value={h.filtros.entidadeId}
-                onChange={(e) => h.setFiltros({ entidadeId: e.target.value })}
-                placeholder="Ex.: 9001"
-                className="h-11 sm:h-9"
+              {/* impeccable rodada 3 (h6 "Reconhecimento > memória"): era um
+                  campo numérico que exigia decorar o ID. O combobox
+                  compartilhado lista as entidades do próprio usuário COM NOME
+                  e as consultadas recentemente; ID digitado continua valendo
+                  para o admin_plataforma alcançar entidades fora do vínculo. */}
+              <span id="auditoria-filtro-entidade-label" className="text-xs text-muted-foreground">
+                Entidade
+              </span>
+              <EntidadeCombobox
+                aria-labelledby="auditoria-filtro-entidade-label"
+                className="sm:w-full"
+                entidadeId={h.filtros.entidadeId ? Number(h.filtros.entidadeId) : null}
+                onSelecionar={(id) => h.setFiltros({ entidadeId: id === null ? '' : String(id) })}
+                permitirTodas
               />
             </div>
           )}
