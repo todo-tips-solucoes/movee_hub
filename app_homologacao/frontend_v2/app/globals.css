@@ -187,7 +187,11 @@
   --font-sans: var(--font-jakarta), system-ui, sans-serif;
   --font-display: var(--font-jakarta), system-ui, sans-serif;
   --font-heading: var(--font-jakarta), system-ui, sans-serif;
-  --font-mono: var(--font-jakarta), ui-monospace, "SF Mono", Menlo, monospace;
+  /* `--font-mono` NÃO inclui a Jakarta: ela é proporcional, então UUIDs e IDs
+     marcados como mono saíam desalinhados coluna a coluna, exatamente o que a
+     escolha de mono existe para evitar (impeccable rodada 3). Mono aqui é para
+     dado que precisa alinhar — não é decoração "técnica". */
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Breakpoint extra para mobile pequeno (≥400px) — evita espremer grids
      de filtros/selects entre 320px e 640px (R001). Tailwind v4 via @theme. */

@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { KpiCard } from '@/components/hub/kpi-card';
+import { PeriodFilter } from '@/components/hub/period-filter';
 import { KpiSkeleton, ListSkeleton } from '@/components/hub/table-skeleton';
 import {
   AlertCircle,
@@ -380,31 +381,16 @@ export default function PerformancePage() {
       {/* Filtros */}
       <div className="rounded-lg border bg-card p-3">
         <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-5">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="performance-filtro-de" className="text-xs text-muted-foreground">
-              De (data do turno)
-            </label>
-            <Input
-              id="performance-filtro-de"
-              type="date"
-              value={h.filtros.de}
-              onChange={(e) => h.setFiltros({ de: e.target.value })}
-              className="h-11 sm:h-9"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="performance-filtro-ate" className="text-xs text-muted-foreground">
-              Até (data do turno)
-            </label>
-            <Input
-              id="performance-filtro-ate"
-              type="date"
-              value={h.filtros.ate}
-              onChange={(e) => h.setFiltros({ ate: e.target.value })}
-              className="h-11 sm:h-9"
-            />
-          </div>
+          <PeriodFilter
+            className="xs:col-span-2"
+            idPrefix="performance-filtro"
+            de={h.filtros.de}
+            ate={h.filtros.ate}
+            onChange={(intervalo) => h.setFiltros(intervalo)}
+            rotuloDe="De (data do turno)"
+            rotuloAte="Até (data do turno)"
+            legenda="do turno"
+          />
 
           <div className="flex flex-col gap-1">
             <label htmlFor="performance-filtro-periodo" className="text-xs text-muted-foreground">

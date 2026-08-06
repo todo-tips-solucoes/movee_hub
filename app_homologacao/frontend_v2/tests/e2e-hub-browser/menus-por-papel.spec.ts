@@ -68,8 +68,16 @@ test.describe('6.2.1 — ModuleNav difere por papel (FR-001/SC-001)', () => {
         expect(itens).not.toContain(exclusivo);
       }
       // Conjunto realmente menor (SC-001: "conjuntos diferentes de itens") —
-      // 6 módulos operacionais vs. 8 do admin_entidade (contraprova acima).
-      expect(itens.length).toBe(6);
+      // módulos operacionais vs. os >= 8 do admin_entidade (contraprova acima).
+      //
+      // Era `toBe(6)` e quebrou quando o PR #85 semeou o módulo `validacao_xml`
+      // com permissão de operador (viraram 7) — falha alheia à mudança que a
+      // expôs. A contagem exata é do SEED, não da regra sob teste; o que o
+      // SC-001 afirma é que o conjunto do operador é ESTRITAMENTE MENOR, e é
+      // isso que se assere aqui (mesmo idioma do `toBeGreaterThanOrEqual(8)`
+      // da contraprova, que já era robusto a módulo novo).
+      expect(itens.length).toBeLessThan(8);
+      expect(itens.length).toBeGreaterThan(0);
 
       await page.screenshot({ path: path.join(EVID_DIR, '6.5.1-modulenav-operador.png') });
     });

@@ -1,0 +1,200 @@
+
+up to date in 1s
+
+Running 41 tests using 1 worker
+
+AXE_RESULT tela="/hub/login" score=100 violacoes=0 detalhe=[]
+  ✓   1 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:51:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/login (988ms)
+AXE_RESULT tela="/hub/recuperar-senha" score=100 violacoes=0 detalhe=[]
+  ✓   2 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:57:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/recuperar-senha (926ms)
+AXE_RESULT tela="/hub/redefinir-senha" score=100 violacoes=0 detalhe=[]
+  ✓   3 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:63:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/redefinir-senha (890ms)
+AXE_RESULT tela="/selecionar-entidade" score=100 violacoes=0 detalhe=[]
+  ✓   4 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:73:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState admin) › /selecionar-entidade (ramo escolha, 2 vínculos) (883ms)
+AXE_RESULT tela="/hub/dashboard" score=100 violacoes=0 detalhe=[]
+  ✓   5 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:84:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard (1.3s)
+AXE_RESULT tela="/hub/dashboard/perfil" score=100 violacoes=0 detalhe=[]
+  ✓   6 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:90:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard/perfil (1.0s)
+AXE_CONTRASTE tela="/hub/dashboard" tema=dark violacoes=0
+  ✓   7 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › dashboard — tema dark (1.0s)
+AXE_CONTRASTE tela="/hub/dashboard" tema=light violacoes=0
+  ✓   8 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › dashboard — tema light (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard/performance" tema=dark violacoes=0
+  ✓   9 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › performance (kpi-card) — tema dark (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard/performance" tema=light violacoes=0
+  ✓  10 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › performance (kpi-card) — tema light (1.3s)
+AXE_CONTRASTE tela="/hub/dashboard/faturamento" tema=dark violacoes=0
+  ✓  11 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › faturamento (kpi-card) — tema dark (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard/faturamento" tema=light violacoes=0
+  ✓  12 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › faturamento (kpi-card) — tema light (1.3s)
+AXE_CONTRASTE tela="/hub/dashboard/motoristas" tema=dark violacoes=0
+  ✓  13 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › motoristas (filter-bar) — tema dark (950ms)
+AXE_CONTRASTE tela="/hub/dashboard/motoristas" tema=light violacoes=0
+  ✓  14 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › motoristas (filter-bar) — tema light (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard/importacoes" tema=dark violacoes=0
+  ✓  15 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › importações (filter-bar) — tema dark (989ms)
+AXE_CONTRASTE tela="/hub/dashboard/importacoes" tema=light violacoes=0
+  ✓  16 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › importações (filter-bar) — tema light (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard/usuarios" tema=dark violacoes=0
+  ✓  17 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › usuários (filter-bar) — tema dark (977ms)
+AXE_CONTRASTE tela="/hub/dashboard/usuarios" tema=light violacoes=0
+  ✓  18 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › usuários (filter-bar) — tema light (1.1s)
+  ✓  19 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:34:9 › impeccable rodada 3 — A) filtro de período com presets › /hub/dashboard/auditoria: os 4 chips existem e "Este mês" preenche de/até (575ms)
+  ✓  20 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:34:9 › impeccable rodada 3 — A) filtro de período com presets › /hub/dashboard/importacoes: os 4 chips existem e "Este mês" preenche de/até (592ms)
+  ✓  21 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:34:9 › impeccable rodada 3 — A) filtro de período com presets › /hub/dashboard/performance: os 4 chips existem e "Este mês" preenche de/até (606ms)
+  ✓  22 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:34:9 › impeccable rodada 3 — A) filtro de período com presets › /hub/dashboard/faturamento: os 4 chips existem e "Este mês" preenche de/até (761ms)
+  ✓  23 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:62:7 › impeccable rodada 3 — A) filtro de período com presets › o intervalo é ecoado em pt-BR (DD/MM/AAAA), não no formato do browser (537ms)
+  ✓  24 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:73:7 › impeccable rodada 3 — A) filtro de período com presets › intervalo invertido é acusado com role=alert, nomeando problema e recuperação (544ms)
+  ✓  25 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:86:7 › impeccable rodada 3 — A) filtro de período com presets › "Todo o período" limpa as duas pontas de uma vez (706ms)
+  ✓  26 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:96:7 › impeccable rodada 3 — A) filtro de período com presets › mobile 390px: os chips não estouram a largura da viewport (409ms)
+  ✓  27 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:112:7 › impeccable rodada 3 — B) ajuda contextual (h10) › cada card do dashboard diz o que o módulo faz, não só o nome (435ms)
+  ✘  28 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:130:7 › impeccable rodada 3 — B) ajuda contextual (h10) › a descrição tem contraste de texto secundário legível (>= 4.5:1) (601ms)
+  ✓  29 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:162:7 › impeccable rodada 3 — B) ajuda contextual (h10) › o cabeçalho do dashboard nomeia a entidade em operação (466ms)
+  ✓  30 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:176:7 › impeccable rodada 3 — C) combobox de entidade na auditoria (h6) › o filtro de entidade deixou de ser campo numérico e virou combobox (470ms)
+  ✘  31 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:193:7 › impeccable rodada 3 — C) combobox de entidade na auditoria (h6) › admin: o combobox lista as entidades do usuário com nome, buscáveis por texto (668ms)
+  ✘  32 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:218:7 › impeccable rodada 3 — D) --font-mono real › --font-mono não contém a Jakarta (proporcional) e monoespaça de fato (573ms)
+  ✓  33 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:43:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › admin_entidade › vê os itens exclusivos (usuários + auditoria) (578ms)
+  ✘  34 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:59:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › operador › NÃO vê nenhum dos itens exclusivos (sem auditoria.consultar/usuarios.gerenciar) (508ms)
+  ✓  35 [chromium] › tests/e2e-hub-browser/sessao-expira.spec.ts:29:7 › 6.2.5 — sessão expira em meio de ação (troca de entidade) -> redirect login › corromper accessToken mid-troca-de-entidade força logout e redirect para /hub/login (948ms)
+  ✓  36 [chromium] › tests/e2e-hub-browser/sidebar-colapso.spec.ts:22:7 › 2.1.5 — sidebar colapsável: persistência e acessibilidade do tooltip › colapsar via topbar reduz a largura da sidebar fixa e persiste após recarregar (1.1s)
+  ✓  37 [chromium] › tests/e2e-hub-browser/sidebar-colapso.spec.ts:58:7 › 2.1.5 — sidebar colapsável: persistência e acessibilidade do tooltip › colapsada: tooltip com o nome do módulo aparece por foco de teclado E por hover (CHK001) (1.3s)
+  ✓  38 [chromium] › tests/e2e-hub-browser/theme-toggle.spec.ts:17:7 › 3.1.3 — alternar tema: navegação e persistência › tema padrão é escuro (FR-008); alternar, navegar e recarregar preserva a escolha (813ms)
+TROCA_ENTIDADE_TIMING_MS=275
+  ✓  39 [chromium] › tests/e2e-hub-browser/troca-entidade-timing.spec.ts:19:7 › 6.2.3 — troca de entidade reflete em <5s, sem novo login (SC-003) › EntitySwitcher atualiza o rótulo exibido em menos de 5s (756ms)
+  ✓  40 [chromium] › tests/e2e-hub-browser/white-label-simulacao.spec.ts:141:9 › 3.2 — validação de white-label simulado (SC-006/US2-AC3, sem seed de banco) › tema dark: injetar CSS vars do tenant simulado reflete em botão primário/sidebar ativa (1.3s)
+  ✓  41 [chromium] › tests/e2e-hub-browser/white-label-simulacao.spec.ts:141:9 › 3.2 — validação de white-label simulado (SC-006/US2-AC3, sem seed de banco) › tema light: injetar CSS vars do tenant simulado reflete em botão primário/sidebar ativa (1.3s)
+
+
+  1) [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:130:7 › impeccable rodada 3 — B) ajuda contextual (h10) › a descrição tem contraste de texto secundário legível (>= 4.5:1) 
+
+    Error: expect(received).not.toBeNull()
+
+    Received: null
+
+      156 |     });
+      157 |
+    > 158 |     expect(razao).not.toBeNull();
+          |                       ^
+      159 |     expect(razao!).toBeGreaterThanOrEqual(4.5);
+      160 |   });
+      161 |
+        at /work/tests/e2e-hub-browser/impeccable-rodada3.spec.ts:158:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/impeccable-rodada3-impecca-339ce-o-secundário-legível-4-5-1--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/impeccable-rodada3-impecca-339ce-o-secundário-legível-4-5-1--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/impeccable-rodada3-impecca-339ce-o-secundário-legível-4-5-1--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/impeccable-rodada3-impecca-339ce-o-secundário-legível-4-5-1--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:193:7 › impeccable rodada 3 — C) combobox de entidade na auditoria (h6) › admin: o combobox lista as entidades do usuário com nome, buscáveis por texto 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/950101/)
+    Expected: visible
+    Error: strict mode violation: getByText(/950101/) resolved to 2 elements:
+        1) <span data-slot="select-value" class="flex flex-1 text-left">Empresa #950101 — Administrador da entidade</span> aka getByRole('combobox', { name: 'Trocar entidade de trabalho' })
+        2) <span class="truncate">Entidade #950101</span> aka getByText('Entidade #950101')
+
+    Call log:
+      - Expect "toBeVisible" with timeout 10000ms
+      - waiting for getByText(/950101/)
+
+
+      203 |     await expect(busca).toBeVisible();
+      204 |     // Os 2 vínculos do admin seedado (950101/950102) aparecem sem digitar nada.
+    > 205 |     await expect(page.getByText(/950101/)).toBeVisible();
+          |                                            ^
+      206 |     await expect(page.getByText(/950102/)).toBeVisible();
+      207 |
+      208 |     // Busca por ID continua funcionando (caminho do admin_plataforma).
+        at /work/tests/e2e-hub-browser/impeccable-rodada3.spec.ts:205:44
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/impeccable-rodada3-impecca-ec64e-om-nome-buscáveis-por-texto-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/impeccable-rodada3-impecca-ec64e-om-nome-buscáveis-por-texto-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/impeccable-rodada3-impecca-ec64e-om-nome-buscáveis-por-texto-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/impeccable-rodada3-impecca-ec64e-om-nome-buscáveis-por-texto-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:218:7 › impeccable rodada 3 — D) --font-mono real › --font-mono não contém a Jakarta (proporcional) e monoespaça de fato 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      239 |       return Math.abs(medir('iiii') - medir('WWWW')) < 0.5;
+      240 |     });
+    > 241 |     expect(iguais).toBe(true);
+          |                    ^
+      242 |   });
+      243 | });
+      244 |
+        at /work/tests/e2e-hub-browser/impeccable-rodada3.spec.ts:241:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/impeccable-rodada3-impecca-93edd-cional-e-monoespaça-de-fato-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/impeccable-rodada3-impecca-93edd-cional-e-monoespaça-de-fato-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/impeccable-rodada3-impecca-93edd-cional-e-monoespaça-de-fato-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/impeccable-rodada3-impecca-93edd-cional-e-monoespaça-de-fato-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:59:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › operador › NÃO vê nenhum dos itens exclusivos (sem auditoria.consultar/usuarios.gerenciar) 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 6
+    Received: 7
+
+      70 |       // Conjunto realmente menor (SC-001: "conjuntos diferentes de itens") —
+      71 |       // 6 módulos operacionais vs. 8 do admin_entidade (contraprova acima).
+    > 72 |       expect(itens.length).toBe(6);
+         |                            ^
+      73 |
+      74 |       await page.screenshot({ path: path.join(EVID_DIR, '6.5.1-modulenav-operador.png') });
+      75 |     });
+        at /work/tests/e2e-hub-browser/menus-por-papel.spec.ts:72:28
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/menus-por-papel-6-2-1-—-Mo-1b0e4-nsultar-usuarios-gerenciar--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/menus-por-papel-6-2-1-—-Mo-1b0e4-nsultar-usuarios-gerenciar--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/menus-por-papel-6-2-1-—-Mo-1b0e4-nsultar-usuarios-gerenciar--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/menus-por-papel-6-2-1-—-Mo-1b0e4-nsultar-usuarios-gerenciar--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:130:7 › impeccable rodada 3 — B) ajuda contextual (h10) › a descrição tem contraste de texto secundário legível (>= 4.5:1) 
+    [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:193:7 › impeccable rodada 3 — C) combobox de entidade na auditoria (h6) › admin: o combobox lista as entidades do usuário com nome, buscáveis por texto 
+    [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:218:7 › impeccable rodada 3 — D) --font-mono real › --font-mono não contém a Jakarta (proporcional) e monoespaça de fato 
+    [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:59:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › operador › NÃO vê nenhum dos itens exclusivos (sem auditoria.consultar/usuarios.gerenciar) 
+  37 passed (42.2s)
