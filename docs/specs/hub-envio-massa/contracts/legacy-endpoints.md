@@ -7,9 +7,12 @@ contrato documenta apenas a **camada nova**: quais middlewares passam a estar na
 frente de cada rota, e o comportamento de autenticação/autorização observável
 por fora (o que muda para quem chama).
 
-**Auth**: cookie `accessToken` — aceita tanto o formato legado
-(`{empresaId,...}`) quanto o formato hub (`{sub, email, entidade_ativa}`), via
-`hubEnvioMassaClaimsBridge` (`contracts/claims-adapter.md`).
+**Auth**: `authenticateTokenCompartilhado` — aceita a sessão legada (cookie
+`accessToken`, payload `{empresaId,...}`) e, na falta dela, a do hub (cookie
+`hub_accessToken`, payload `{sub, email, entidade_ativa}`); o
+`hubEnvioMassaClaimsBridge` (`contracts/claims-adapter.md`) decide o ramo pelo
+payload. Até 2026-08-04 os dois formatos viajavam no MESMO cookie `accessToken`
+— um login derrubava a sessão do outro produto.
 
 **Permissão**: `hubEnvioMassaRequirePermission(<codigo>)`, aplicada **apenas**
 quando a sessão é do hub (`req.hubContext.viaHub === true`) — sessões legadas

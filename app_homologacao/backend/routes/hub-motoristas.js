@@ -35,7 +35,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
-const { decodificarAccessToken } = require('../lib/hub-access-token');
+const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { requirePermission } = require('../middleware/hub-require-permission');
@@ -94,7 +94,7 @@ function idValido(raw) {
  * @returns {Promise<{payload:object, entidadeAtiva:number, claims:object}|null>}
  */
 async function resolverContextoEntidade(req, res, permissao) {
-  const accessToken = req.cookies && req.cookies.accessToken;
+  const accessToken = lerAccessTokenDoRequest(req);
   const payload = decodificarAccessToken(accessToken);
   if (!payload || !payload.sub) {
     res.status(401).json({ erro: 'NAO_AUTENTICADO' });

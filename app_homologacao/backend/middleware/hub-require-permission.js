@@ -18,7 +18,7 @@
 // este middleware só verifica pertencimento (`.has(codigo)`).
 'use strict';
 
-const { decodificarAccessToken } = require('../lib/hub-access-token');
+const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-access-token');
 const { obterPermissoesEfetivas } = require('../lib/hub-rbac-cache');
 
 /**
@@ -29,7 +29,7 @@ const { obterPermissoesEfetivas } = require('../lib/hub-rbac-cache');
  * @returns {string|number|null}
  */
 function extrairUsuarioIdDoRequest(req) {
-  const payload = decodificarAccessToken(req.cookies && req.cookies.accessToken);
+  const payload = decodificarAccessToken(lerAccessTokenDoRequest(req));
   return payload && payload.sub ? payload.sub : null;
 }
 

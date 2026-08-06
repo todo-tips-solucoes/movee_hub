@@ -1,7 +1,7 @@
 # Contrato — /api/v1/auditoria
 
 Padrões herdados do hub (hub-faturamento/hub-performance): prefixo
-`/api/v1`; auth por cookie JWT httpOnly (`accessToken`, HS256 pinado);
+`/api/v1`; auth por cookie JWT httpOnly (`hub_accessToken`, HS256 pinado);
 entidade SEMPRE resolvida de `payload.entidade_ativa` (nunca query/body);
 erros no formato curto `{ "erro": "CODIGO" }`; campos camelCase na borda,
 snake_case no banco. Handler: `routes/hub-me.js` (`auditoriaRouter`, montado

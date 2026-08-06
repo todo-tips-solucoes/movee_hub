@@ -95,6 +95,9 @@ const hubAdminRoutes = require('./routes/hub-admin');
 // gate de permissão RBAC), atuando somente quando a sessão é do hub
 // (req.hubContext.viaHub === true); sessão legada passa sempre (Decision 5).
 const { hubEnvioMassaClaimsBridge } = require('./middleware/hub-envio-massa-claims');
+// Nome do cookie de sessão do HUB — as rotas de envio em massa abaixo são
+// servidas aos dois produtos (ver authenticateTokenCompartilhado).
+const { COOKIE_ACCESS } = require('./lib/hub-access-token');
 const { hubEnvioMassaRequirePermission } = require('./middleware/hub-envio-massa-permission');
 // hub-envio-massa FASE 4 (tasks.md 4.1.6) — histórico leve de importação,
 // fire-and-forget, chamado só dentro de POST /upload (ver guard viaHub lá).
@@ -280,7 +283,15 @@ function generateRefreshToken(payload) {
   return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
 }
 
-// Middleware para verificar o token JWT
+// Middleware para verificar o token JWT — sessão do PAINEL LEGADO apenas.
+// Lê só o cookie `accessToken`; o cookie do hub (`hub_accessToken`) NÃO serve
+// aqui: seu payload é `{sub, email}`, sem `empresaId`, e todo este arquivo
+// resolve escopo a partir de `req.user.empresaId`. Antes de 2026-08-04 os dois
+// produtos compartilhavam o nome do cookie e o mesmo JWT_SECRET, então uma
+// sessão do hub era aceita nas rotas legadas com `empresaId === undefined` —
+// era a origem do `?empresa_id=undefined` no dashboard (PR #84).
+// Para as 11 rotas de envio em massa que o HUB também consome, use
+// `authenticateTokenCompartilhado` abaixo.
 function authenticateToken(req, res, next) {
     const token = req.cookies.accessToken;
     if (!token) return res.status(401).json({ error: 'Acesso negado, token não encontrado' });
@@ -288,6 +299,26 @@ function authenticateToken(req, res, next) {
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) {
             console.error('Erro ao verificar JWT:', err.message);
+            return res.status(403).json({ error: 'Token inválido' });
+        }
+        req.user = user;
+        next();
+    });
+}
+
+// Mesma verificação, para as rotas de envio em massa servidas AOS DOIS produtos
+// (`hubEnvioMassaClaimsBridge` logo depois decide o ramo pelo payload). Aceita a
+// sessão legada e, na falta dela, a do hub. A precedência importa: com as duas
+// sessões abertas no mesmo browser, a legada é a que o painel está usando.
+function authenticateTokenCompartilhado(req, res, next) {
+    if (req.cookies.accessToken) return authenticateToken(req, res, next);
+
+    const token = req.cookies[COOKIE_ACCESS];
+    if (!token) return res.status(401).json({ error: 'Acesso negado, token não encontrado' });
+
+    jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
+        if (err) {
+            console.error('Erro ao verificar JWT do hub:', err.message);
             return res.status(403).json({ error: 'Token inválido' });
         }
         req.user = user;
@@ -472,7 +503,7 @@ app.post('/token/refresh', async (req, res) => {
 
 
 // Rota de CRUD para EnvioMassa
-app.get('/envio-massa', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
+app.get('/envio-massa', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
   let idEmp;
   try {
     // movimento-por-filial: threading empresa_id (FR-009)
@@ -997,7 +1028,7 @@ async function updateEnvioMassa(id, enviado, mensagem, tipo, idEmp) {
 // migrar-cnpj-motorista: estendido com suporte a cnpj_prestador — ordem [A]..[H] do contrato.
 // Filtro composto id+id_empresa na query PostgREST fecha o IDOR (OWASP API4:2023 / CWE-862):
 // se o registro não pertencer à empresa-alvo, PostgREST retorna [] — respondemos 404.
-app.patch('/update-envio-massa/:id', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.criar'), async (req, res) => {
+app.patch('/update-envio-massa/:id', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.criar'), async (req, res) => {
     const { id } = req.params;
     const { enviado, mensagem, tipo } = req.body;
 
@@ -1104,7 +1135,7 @@ app.patch('/update-envio-massa/:id', authenticateToken, hubEnvioMassaClaimsBridg
 });
 
 // Endpoint para deletar registro da tabela EnvioMassa
-app.delete('/envio-massa/:id', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.aprovar'), async (req, res) => {
+app.delete('/envio-massa/:id', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.aprovar'), async (req, res) => {
     const { id } = req.params;
 
     // movimento-por-filial: empresa_id pode vir via query string
@@ -1363,7 +1394,7 @@ async function updateProcessControl(userId, status, executionId = null) {
 }
 
 // Endpoint para iniciar o processo
-app.post('/start-process', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), async (req, res) => {
+app.post('/start-process', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), async (req, res) => {
     try {
         const userId = req.user.empresaId;
 
@@ -1386,7 +1417,7 @@ app.post('/start-process', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvi
 });
 
 // Endpoint para verificar o status do processo
-app.get('/process-status', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
+app.get('/process-status', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
     try {
         const userId = req.user.empresaId;
 
@@ -1404,7 +1435,7 @@ app.get('/process-status', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvi
 });
 
 
-app.post('/stop-process', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), async (req, res) => {
+app.post('/stop-process', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), async (req, res) => {
     try {
         const userId = req.user.empresaId;
 
@@ -1685,7 +1716,7 @@ function toTimestamptzMidnightSP(input) {
 }
 
 // Rota de Upload de arquivo
-app.post('/upload', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.criar'), upload.single('file'), async (req, res) => {
+app.post('/upload', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.criar'), upload.single('file'), async (req, res) => {
   try {
     console.error('[UPLOAD] >>> Início da rota /upload');
 
@@ -2006,7 +2037,7 @@ app.post('/upload', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaR
 
 
 // Rota para exportar dados da tabela EnvioMassa em CSV
-app.get('/export-envio-massa', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
+app.get('/export-envio-massa', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
   let idEmp;
   try {
     // movimento-por-filial: threading empresa_id (FR-010)
@@ -2101,7 +2132,7 @@ function getNFeKeyFromNotaOk(notaOkRaw) {
 }
 
 // Rota para baixar XMLs do movimento em aberto em um arquivo ZIP
-app.get('/download-xml-movimento', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
+app.get('/download-xml-movimento', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.consultar'), async (req, res) => {
   let idEmp;
   try {
     // movimento-por-filial: threading empresa_id (FR-011)
@@ -2369,7 +2400,7 @@ function xmlBatchUpload(req, res, next) {
 // Casa cada XML com um movimento ABERTO da empresa-alvo e persiste o resultado
 // no registro EXISTENTE via PATCH por id — NUNCA sobrescreve nota APROVADA (gate
 // central). Usa uploadXmlBatch (limite 2 MB/arquivo, 100 arquivos — FASE 0).
-app.post('/validate-xml-batch', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), xmlBatchUpload, async (req, res) => {
+app.post('/validate-xml-batch', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), xmlBatchUpload, async (req, res) => {
   var files = req.files || [];
 
   if (files.length === 0) {
@@ -2666,7 +2697,7 @@ app.post('/validate-xml-batch', authenticateToken, hubEnvioMassaClaimsBridge, hu
 });
 
 // Rota para fechar o movimento
-app.post('/close-movimento', authenticateToken, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.aprovar'), async (req, res) => {
+app.post('/close-movimento', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.aprovar'), async (req, res) => {
   // movimento-por-filial: empresa_id pode vir via body JSON
   let idEmp;
   try {

@@ -15,7 +15,7 @@
 
 const express = require('express');
 
-const { decodificarAccessToken } = require('../lib/hub-access-token');
+const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivasPorEntidade,
@@ -46,7 +46,7 @@ const CODIGO_MODULO_RE = /^[a-z0-9_]+$/;
  * @returns {Promise<{payload:object, entidadeAtiva:number}|null>}
  */
 async function resolverContextoAdmin(req, res) {
-  const accessToken = req.cookies && req.cookies.accessToken;
+  const accessToken = lerAccessTokenDoRequest(req);
   const payload = decodificarAccessToken(accessToken);
   if (!payload || !payload.sub) {
     res.status(401).json({ erro: 'NAO_AUTENTICADO' });

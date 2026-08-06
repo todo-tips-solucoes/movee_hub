@@ -13,7 +13,7 @@
 // módulo está habilitado sem uma entidade para consultar `ModuloEntidade`).
 'use strict';
 
-const { decodificarAccessToken } = require('../lib/hub-access-token');
+const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-access-token');
 const { obterModulosAtivosPorEntidade } = require('../lib/hub-rbac-cache');
 
 /**
@@ -22,7 +22,7 @@ const { obterModulosAtivosPorEntidade } = require('../lib/hub-rbac-cache');
  */
 function requireModuloAtivo(codigoModulo) {
   return async function requireModuloAtivoMiddleware(req, res, next) {
-    const payload = decodificarAccessToken(req.cookies && req.cookies.accessToken);
+    const payload = decodificarAccessToken(lerAccessTokenDoRequest(req));
     if (!payload || !payload.sub) {
       return res.status(401).json({ erro: 'NAO_AUTENTICADO' });
     }

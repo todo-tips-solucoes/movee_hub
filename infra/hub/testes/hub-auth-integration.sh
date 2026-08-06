@@ -141,17 +141,17 @@ async function main() {
   const jarOk = parseSetCookie(rOk);
   out.login_ok_status = rOk.status;
   out.login_ok_email = bOk && bOk.usuario && bOk.usuario.email;
-  out.login_ok_tem_access = jarOk.accessToken ? 'true' : 'false';
-  out.login_ok_tem_refresh = jarOk.refreshToken ? 'true' : 'false';
+  out.login_ok_tem_access = jarOk.hub_accessToken ? 'true' : 'false';
+  out.login_ok_tem_refresh = jarOk.hub_refreshToken ? 'true' : 'false';
 
-  const refreshBrutoOriginal = jarOk.refreshToken;
+  const refreshBrutoOriginal = jarOk.hub_refreshToken;
 
   const rRefresh = await fetch(`${BASE}/refresh`, { method: 'POST', headers: { Cookie: cookieHeader(jarOk) } });
   const jarRefresh = parseSetCookie(rRefresh);
   out.refresh_status = rRefresh.status;
-  out.refresh_novo_token_diferente = jarRefresh.refreshToken && jarRefresh.refreshToken !== refreshBrutoOriginal ? 'true' : 'false';
+  out.refresh_novo_token_diferente = jarRefresh.hub_refreshToken && jarRefresh.hub_refreshToken !== refreshBrutoOriginal ? 'true' : 'false';
 
-  const rReplay = await fetch(`${BASE}/refresh`, { method: 'POST', headers: { Cookie: `refreshToken=${refreshBrutoOriginal}` } });
+  const rReplay = await fetch(`${BASE}/refresh`, { method: 'POST', headers: { Cookie: `hub_refreshToken=${refreshBrutoOriginal}` } });
   out.refresh_replay_status = rReplay.status;
 
   const rLogout = await fetch(`${BASE}/logout`, { method: 'POST', headers: { Cookie: cookieHeader(jarRefresh) } });
@@ -178,8 +178,8 @@ check "login e-mail inexistente -> 401" "$(jget login_noemail_status)" "401"
 check "FR-015: corpos idênticos (senha errada == email inexistente)" "$(jget login_bodies_iguais)" "true"
 check "login correto -> 200" "$(jget login_ok_status)" "200"
 check "login correto -> usuario.email correto" "$(jget login_ok_email)" "auth-teste@example.test"
-check "login correto -> cookie accessToken setado" "$(jget login_ok_tem_access)" "true"
-check "login correto -> cookie refreshToken setado" "$(jget login_ok_tem_refresh)" "true"
+check "login correto -> cookie hub_accessToken setado" "$(jget login_ok_tem_access)" "true"
+check "login correto -> cookie hub_refreshToken setado" "$(jget login_ok_tem_refresh)" "true"
 check "refresh -> 200" "$(jget refresh_status)" "200"
 check "refresh -> rotaciona (novo token != antigo)" "$(jget refresh_novo_token_diferente)" "true"
 check "replay de refresh já rotacionado -> 401 (Decision 9)" "$(jget refresh_replay_status)" "401"
@@ -369,8 +369,8 @@ async function main() {
   const r1 = await fetch(`${BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-multidev@example.test', senha }) });
   const r2 = await fetch(`${BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-multidev@example.test', senha }) });
   const j1 = parseSetCookie(r1), j2 = parseSetCookie(r2);
-  out.dev1_refresh = j1.refreshToken || '';
-  out.dev2_refresh = j2.refreshToken || '';
+  out.dev1_refresh = j1.hub_refreshToken || '';
+  out.dev2_refresh = j2.hub_refreshToken || '';
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
 main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
@@ -393,7 +393,7 @@ UPDATE "SessaoRefresh" SET expira_em = now() - interval '1 hour'
 SQL
 
 ST_REFRESH_EXP="$(node_e "
-  fetch('http://localhost:3000/api/v1/auth/refresh', { method: 'POST', headers: { Cookie: 'refreshToken=' + process.argv[1] } })
+  fetch('http://localhost:3000/api/v1/auth/refresh', { method: 'POST', headers: { Cookie: 'hub_refreshToken=' + process.argv[1] } })
     .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
 " "$DEV1_RT" | tr -d '[:space:]')"
 check "(#5) refresh do device 1 (sessão expirada) -> 401" "$ST_REFRESH_EXP" "401"
@@ -402,7 +402,7 @@ DEV2_ATIVA="$(psql_t -tAc "SELECT revogado_em IS NULL FROM \"SessaoRefresh\" WHE
 check "(#5) sessão do device 2 continua ATIVA (expiração benigna não revoga a família)" "$DEV2_ATIVA" "t"
 
 ST_REFRESH_DEV2="$(node_e "
-  fetch('http://localhost:3000/api/v1/auth/refresh', { method: 'POST', headers: { Cookie: 'refreshToken=' + process.argv[1] } })
+  fetch('http://localhost:3000/api/v1/auth/refresh', { method: 'POST', headers: { Cookie: 'hub_refreshToken=' + process.argv[1] } })
     .then(r => { process.stdout.write(String(r.status)); process.exit(0); });
 " "$DEV2_RT" | tr -d '[:space:]')"
 check "(#5) refresh do device 2 (sessão ativa) -> 200 (não foi deslogado pelo device 1)" "$ST_REFRESH_DEV2" "200"

@@ -30,6 +30,7 @@ const {
   limparCache,
 } = require('../lib/hub-rbac-cache');
 const { requireModuloAtivo } = require('../middleware/hub-require-modulo');
+const { COOKIE_ACCESS } = require('../lib/hub-access-token');
 
 const ORIGINAL_FETCH = global.fetch;
 
@@ -48,7 +49,9 @@ function tokenValido({ sub = 1, entidadeAtiva = 9001 } = {}) {
 }
 
 function mockReqRes({ accessToken } = {}) {
-  const req = { cookies: accessToken !== undefined ? { accessToken } : {} };
+  // Nome do cookie vem da constante — se ele mudar de novo, o teste acompanha
+  // em vez de virar um 401 silencioso.
+  const req = { cookies: accessToken !== undefined ? { [COOKIE_ACCESS]: accessToken } : {} };
   let statusCode = null;
   let jsonBody = null;
   const res = {
