@@ -25,6 +25,7 @@ const {
 const { requirePermission } = require('../middleware/hub-require-permission');
 const { requireModuloAtivo } = require('../middleware/hub-require-modulo');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
+const { buscarNomesEntidades } = require('../lib/hub-entidade-nome');
 
 const router = express.Router();
 
@@ -166,6 +167,9 @@ router.get('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.gere
       'GET', null, claims
     );
 
+    const nomesEntidades = await buscarNomesEntidades([entidadeAlvo], claims);
+    const entidadeNome = nomesEntidades.get(entidadeAlvo) || null;
+
     let usuarios = (linhas || [])
       .filter((v) => v && v.usuario)
       .map((v) => ({
@@ -176,6 +180,7 @@ router.get('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.gere
         vinculo: {
           id: v.id,
           entidadeId: entidadeAlvo,
+          entidadeNome,
           papelId: v.papel ? v.papel.id : null,
           papel: v.papel ? v.papel.nome : null,
           ativo: v.ativo,
@@ -287,13 +292,22 @@ router.post('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.ger
       claims,
     });
 
+    const nomesEntidades = await buscarNomesEntidades([entidadeAlvo], claims);
+
     return res.status(201).json({
       usuario: {
         id: novoUsuario.id,
         nome: novoUsuario.nome,
         email: novoUsuario.email,
         vinculos: novoVinculo
-          ? [{ id: novoVinculo.id, entidadeId: entidadeAlvo, papelId: papelIdParam, papel: papeis[0].nome, ativo: true }]
+          ? [{
+              id: novoVinculo.id,
+              entidadeId: entidadeAlvo,
+              entidadeNome: nomesEntidades.get(entidadeAlvo) || null,
+              papelId: papelIdParam,
+              papel: papeis[0].nome,
+              ativo: true,
+            }]
           : [],
       },
     });
@@ -438,8 +452,17 @@ router.post('/:id/vinculos', requireModuloAtivo('usuarios'), requirePermission('
       claims,
     });
 
+    const nomesEntidades = await buscarNomesEntidades([entidadeAlvo], claims);
+
     return res.status(201).json({
-      vinculo: { id: novoVinculo.id, entidadeId: entidadeAlvo, papelId: papelIdParam, papel: papeis[0].nome, ativo: true },
+      vinculo: {
+        id: novoVinculo.id,
+        entidadeId: entidadeAlvo,
+        entidadeNome: nomesEntidades.get(entidadeAlvo) || null,
+        papelId: papelIdParam,
+        papel: papeis[0].nome,
+        ativo: true,
+      },
     });
   } catch (e) {
     console.error('[hub-usuarios] erro em POST /usuarios/:id/vinculos:', e.message);

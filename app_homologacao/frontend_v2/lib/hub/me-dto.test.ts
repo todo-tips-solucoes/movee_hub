@@ -19,7 +19,7 @@ function buildDto(overrides: Partial<MeResponseDTO> = {}): MeResponseDTO {
   return {
     usuario: { id: 1, email: 'pessoa@exemplo.com', nome: 'Pessoa Exemplo' },
     entidades: [
-      { empresa_id: 10, papel: 'admin', ativo: true },
+      { empresa_id: 10, nome: 'Movee Matriz', papel: 'admin', ativo: true },
       { empresa_id: 11, papel: 'operador', ativo: true },
     ],
     entidade_ativa: 10,
@@ -39,12 +39,12 @@ describe('toHubMe — paridade com o contrato real de hub-me.js', () => {
     expect(me.usuario).toEqual({ id: 1, email: 'pessoa@exemplo.com', nome: 'Pessoa Exemplo' });
   });
 
-  it('mapeia entidades[] snake->camel preservando papel e ativo', () => {
+  it('mapeia entidades[] snake->camel preservando papel e ativo — nome ausente degrada para null', () => {
     const dto = buildDto();
     const me = toHubMe(dto);
     expect(me.entidades).toEqual([
-      { empresaId: 10, papel: 'admin', ativo: true },
-      { empresaId: 11, papel: 'operador', ativo: true },
+      { empresaId: 10, nome: 'Movee Matriz', papel: 'admin', ativo: true },
+      { empresaId: 11, nome: null, papel: 'operador', ativo: true },
     ]);
   });
 
@@ -82,7 +82,7 @@ describe('toHubMe — paridade com o contrato real de hub-me.js', () => {
       ['usuario', 'entidades', 'entidadeAtiva', 'modulos', 'permissoes'].sort()
     );
     expect(Object.keys(me.usuario).sort()).toEqual(['id', 'email', 'nome'].sort());
-    expect(Object.keys(me.entidades[0]).sort()).toEqual(['empresaId', 'papel', 'ativo'].sort());
+    expect(Object.keys(me.entidades[0]).sort()).toEqual(['empresaId', 'nome', 'papel', 'ativo'].sort());
     expect(Object.keys(me.modulos[0]).sort()).toEqual(['codigo', 'nome', 'icone', 'ordem'].sort());
   });
 });

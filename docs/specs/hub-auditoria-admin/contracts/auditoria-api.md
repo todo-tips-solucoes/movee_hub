@@ -57,6 +57,7 @@ input bruto na query string do PostgREST (evita injeção de operadores
     {
       "id": 4211,
       "entidadeId": 9001,
+      "entidadeNome": "QA Hub Envio Massa - Matriz",
       "usuarioId": 17,
       "acao": "usuario_papel_alterado",
       "recurso": "UsuarioEntidade",
@@ -71,6 +72,10 @@ input bruto na query string do PostgREST (evita injeção de operadores
   "pageSize": 20
 }
 ```
+
+`entidadeNome` (impeccable rodada 2): resolvido em batch via
+`Empresa.nome_empresa` (`lib/hub-entidade-nome.js`); `null` em evento global ou
+quando a busca de nomes falha — nunca bloqueia a resposta.
 
 `total` via `Prefer: count=exact` do PostgREST. `detalhes` chega scrubbed por
 construção (escrita via `registrarAuditoria`/`scrubDetalhes` — FR-004/SC-006);

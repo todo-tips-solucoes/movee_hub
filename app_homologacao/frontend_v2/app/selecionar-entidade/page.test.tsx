@@ -23,8 +23,8 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 
-const VINCULO_A: HubVinculo = { empresaId: 10, papel: 'admin', ativo: true };
-const VINCULO_B: HubVinculo = { empresaId: 20, papel: 'operador', ativo: true };
+const VINCULO_A: HubVinculo = { empresaId: 10, nome: null, papel: 'admin', ativo: true };
+const VINCULO_B: HubVinculo = { empresaId: 20, nome: null, papel: 'operador', ativo: true };
 
 function withHubAuth(overrides: {
   entidades: HubVinculo[];

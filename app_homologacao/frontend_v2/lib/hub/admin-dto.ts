@@ -165,6 +165,8 @@ function parseModuloEntidadeItem(raw: unknown): ModuloEntidadeItem {
 
 export interface ModulosEntidadeResponse {
   entidadeId: number;
+  /** Nome de exibição da entidade — null quando o backend não resolveu. */
+  entidadeNome: string | null;
   modulos: ModuloEntidadeItem[];
 }
 
@@ -178,6 +180,7 @@ export function parseModulosEntidadeResponse(raw: unknown): ModulosEntidadeRespo
   }
   return {
     entidadeId: typeof r.entidadeId === 'number' ? r.entidadeId : 0,
+    entidadeNome: isString(r.entidadeNome) ? r.entidadeNome : null,
     modulos: r.modulos.map(parseModuloEntidadeItem),
   };
 }

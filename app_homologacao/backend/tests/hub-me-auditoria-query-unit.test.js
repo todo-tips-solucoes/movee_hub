@@ -180,10 +180,11 @@ describe('mapEventoAuditoria — roundtrip snake_case -> camelCase', () => {
       ip: '10.0.0.5',
       criado_em: '2026-07-09T18:22:10.000Z',
     };
-    const mapeado = mapEventoAuditoria(row);
+    const mapeado = mapEventoAuditoria(row, new Map([[9001, 'Movee Matriz']]));
     assert.deepEqual(mapeado, {
       id: 4211,
       entidadeId: 9001,
+      entidadeNome: 'Movee Matriz',
       usuarioId: 17,
       acao: 'usuario_papel_alterado',
       recurso: 'UsuarioEntidade',
@@ -197,6 +198,9 @@ describe('mapEventoAuditoria — roundtrip snake_case -> camelCase', () => {
     assert.ok(!Object.prototype.hasOwnProperty.call(mapeado, 'usuario_id'));
     assert.ok(!Object.prototype.hasOwnProperty.call(mapeado, 'recurso_id'));
     assert.ok(!Object.prototype.hasOwnProperty.call(mapeado, 'criado_em'));
+    // Sem mapa de nomes (falha na busca ou id ausente) degrada para null —
+    // nunca quebra a resposta (impeccable rodada 2, lib/hub-entidade-nome.js).
+    assert.equal(mapEventoAuditoria(row).entidadeNome, null);
   });
 
   test('id_empresa NULL (evento global) -> entidadeId null (sem lançar)', () => {

@@ -18,8 +18,8 @@ vi.mock('@/contexts/hub-auth-context', async (importOriginal) => {
   return { ...actual, useHubAuth: () => mockUseHubAuth() };
 });
 
-const VINCULO_A: HubVinculo = { empresaId: 10, papel: 'admin', ativo: true };
-const VINCULO_B: HubVinculo = { empresaId: 20, papel: null, ativo: true };
+const VINCULO_A: HubVinculo = { empresaId: 10, nome: null, papel: 'admin', ativo: true };
+const VINCULO_B: HubVinculo = { empresaId: 20, nome: null, papel: null, ativo: true };
 
 function withEntidades(
   entidades: HubVinculo[],
@@ -51,6 +51,11 @@ describe('labelVinculo', () => {
     expect(labelVinculo({ ...VINCULO_A, papel: 'admin_entidade' })).toBe(
       'Empresa #10 — Administrador da entidade'
     );
+  });
+
+  it('usa o nome da entidade quando o /me o devolve (impeccable rodada 2)', () => {
+    expect(labelVinculo({ ...VINCULO_A, nome: 'Movee Matriz' })).toBe('Movee Matriz — Admin');
+    expect(labelVinculo({ ...VINCULO_B, nome: 'Filial Sul' })).toBe('Filial Sul');
   });
 
   it('cai para "Empresa #<id>" quando papel é null', () => {

@@ -35,6 +35,8 @@ export interface AuditoriaEvento {
   id: number;
   /** `null` = evento global (visível só para admin_plataforma sem `entidadeId`). */
   entidadeId: number | null;
+  /** Nome de exibição da entidade — null em evento global ou quando não resolvido. */
+  entidadeNome: string | null;
   usuarioId: number | null;
   acao: string;
   recurso: string;
@@ -68,6 +70,7 @@ export function parseAuditoriaEvento(raw: unknown): AuditoriaEvento {
   return {
     id: r.id,
     entidadeId: isNumberOrNull(r.entidadeId) ? r.entidadeId : null,
+    entidadeNome: isStringOrNull(r.entidadeNome) ? r.entidadeNome : null,
     usuarioId: isNumberOrNull(r.usuarioId) ? r.usuarioId : null,
     acao: r.acao,
     recurso: isString(r.recurso) ? r.recurso : '',

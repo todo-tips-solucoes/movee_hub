@@ -11,7 +11,7 @@
 // Ref: docs/specs/hub-auditoria-admin/contracts/papeis-api.md,
 // spec.md FR-010/FR-016, quickstart.md Cenário 6.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertCircle, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/hub/page-header';
@@ -65,6 +65,12 @@ function usePapeisMatriz() {
     return s;
   }, [dados]);
 
+  // impeccable rodada 2 (P2): o toggle persiste célula a célula no clique — o
+  // "Desfazer" do toast reaplica o valor anterior pelo MESMO fluxo (novo
+  // request, otimista + rollback inclusos). Ref porque `alternar` precisa
+  // referenciar a si mesma dentro do onClick da action.
+  const alternarRef = useRef<((papelId: number, permissaoId: number, proximo: boolean) => Promise<void>) | null>(null);
+
   const alternar = useCallback(
     async (papelId: number, permissaoId: number, proximo: boolean) => {
       const k = chave(papelId, permissaoId);
@@ -80,7 +86,14 @@ function usePapeisMatriz() {
       });
       try {
         await alternarPapelPermissao(papelId, permissaoId, proximo);
-        toast.success(proximo ? 'Permissão concedida.' : 'Permissão removida.');
+        toast.success(proximo ? 'Permissão concedida.' : 'Permissão removida.', {
+          action: {
+            label: 'Desfazer',
+            onClick: () => {
+              void alternarRef.current?.(papelId, permissaoId, !proximo);
+            },
+          },
+        });
       } catch (e) {
         // Reverte a mudança otimista e explica o motivo — sem quebrar a tela
         // (contracts/papeis-api.md, guard anti-lockout `409 OPERACAO_BLOQUEADA`).
@@ -102,6 +115,10 @@ function usePapeisMatriz() {
     },
     []
   );
+
+  useEffect(() => {
+    alternarRef.current = alternar;
+  }, [alternar]);
 
   return { dados, matrizSet, carregando, erro, erroToggle, celulasEmSalvamento, alternar, refetch: buscar };
 }

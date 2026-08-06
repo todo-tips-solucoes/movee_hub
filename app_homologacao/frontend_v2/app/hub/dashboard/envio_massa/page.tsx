@@ -224,6 +224,7 @@ function EnvioMassaClient() {
           onExportCSV={exportCSV}
           onDownloadXML={downloadXML}
           onCloseMovement={closeMovement}
+          stats={stats}
         />
 
         <Filters

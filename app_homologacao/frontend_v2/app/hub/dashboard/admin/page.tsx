@@ -79,6 +79,7 @@ export function gravarHistorico(id: number): number[] {
 
 function useModulosDaEntidade(entidadeIdInicial: number) {
   const [entidadeId, setEntidadeId] = useState<number | null>(entidadeIdInicial || null);
+  const [entidadeNome, setEntidadeNome] = useState<string | null>(null);
   const [modulos, setModulos] = useState<ModuloEntidadeItem[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -92,9 +93,11 @@ function useModulosDaEntidade(entidadeIdInicial: number) {
     try {
       const resposta = await listarModulosDaEntidade(id);
       setModulos(resposta.modulos);
+      setEntidadeNome(resposta.entidadeNome);
     } catch (e) {
       setErro(e instanceof AdminApiError ? e.message : 'Não foi possível carregar os módulos desta entidade.');
       setModulos([]);
+      setEntidadeNome(null);
     } finally {
       setCarregando(false);
     }
@@ -129,6 +132,7 @@ function useModulosDaEntidade(entidadeIdInicial: number) {
 
   return {
     entidadeId,
+    entidadeNome,
     setEntidadeId,
     modulos,
     carregando,
@@ -143,9 +147,12 @@ function useModulosDaEntidade(entidadeIdInicial: number) {
 /** Combobox de entidade: digita um ID OU escolhe uma consultada recentemente. */
 function EntidadeCombobox({
   entidadeId,
+  entidadeNome,
   onSelecionar,
 }: {
   entidadeId: number | null;
+  /** Nome resolvido pelo backend após carregar a entidade — null antes/na falha. */
+  entidadeNome?: string | null;
   onSelecionar: (id: number) => void;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -185,7 +192,11 @@ function EntidadeCombobox({
       >
         <span className="flex items-center gap-1.5 truncate">
           <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          {entidadeId !== null ? `Entidade #${entidadeId}` : 'Selecionar entidade...'}
+          {entidadeId !== null
+            ? entidadeNome
+              ? `${entidadeNome} (#${entidadeId})`
+              : `Entidade #${entidadeId}`
+            : 'Selecionar entidade...'}
         </span>
         <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" aria-hidden="true" />
       </PopoverTrigger>
@@ -242,7 +253,7 @@ export default function AdminModulosPage() {
       <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3">
         <div className="flex w-full flex-col gap-1 sm:w-auto">
           <Label id="admin-entidade-label">Entidade</Label>
-          <EntidadeCombobox entidadeId={h.entidadeId} onSelecionar={h.setEntidadeId} />
+          <EntidadeCombobox entidadeId={h.entidadeId} entidadeNome={h.entidadeNome} onSelecionar={h.setEntidadeId} />
         </div>
       </div>
 

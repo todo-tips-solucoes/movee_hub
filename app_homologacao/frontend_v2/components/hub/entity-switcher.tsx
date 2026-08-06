@@ -7,14 +7,10 @@
 // já recarrega todo o contexto (`refetchMe`) em caso de sucesso
 // (contexts/hub-auth-context.tsx).
 //
-// Achado desta onda: o contrato `GET /me` (hub-me.js) NÃO inclui o nome da
-// empresa em `entidades[]` — só `{empresaId, papel, ativo}` (a tabela
-// "Empresa" mora FORA do banco do hub — FK lógica, ver
-// infra/hub/migrations/0008_migracao_empresa_para_usuario.sql linhas 1-22).
-// Por dec-010 (fronteira desta fase: sem novo dado/endpoint de backend), o
-// rótulo exibido é "Empresa #<id>" + papel, sem nome amigável — decisão
-// auditável registrada no runtime (Decisão "rótulo de entidade sem nome
-// amigável").
+// impeccable rodada 2 (2026-08-06): o contrato `GET /me` passou a devolver
+// `nome` em `entidades[]` (hub-me.js + lib/hub-entidade-nome.js resolvem via
+// `Empresa.nome_empresa`, com degradação para null). O rótulo usa o nome e
+// mantém "Empresa #<id>" APENAS como fallback quando o backend não resolveu.
 //
 // Ref: docs/specs/hub-shell/plan.md §3.2, data-model.md §2,
 // spec.md FR-005/FR-006/FR-007.
@@ -50,9 +46,10 @@ export function labelPapel(papel: string): string {
   return semUnderscore.charAt(0).toUpperCase() + semUnderscore.slice(1);
 }
 
-/** Rótulo exibido para um vínculo — ver nota acima sobre ausência de nome. */
+/** Rótulo exibido para um vínculo — nome da entidade, com fallback "Empresa #id". */
 export function labelVinculo(v: HubVinculo): string {
-  return v.papel ? `Empresa #${v.empresaId} — ${labelPapel(v.papel)}` : `Empresa #${v.empresaId}`;
+  const nome = v.nome || `Empresa #${v.empresaId}`;
+  return v.papel ? `${nome} — ${labelPapel(v.papel)}` : nome;
 }
 
 /**

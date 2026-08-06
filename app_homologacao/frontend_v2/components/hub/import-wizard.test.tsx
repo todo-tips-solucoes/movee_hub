@@ -63,7 +63,8 @@ describe('ImportWizard', () => {
     render(<ImportWizard onEnviado={onEnviado} />);
     abrirDialog();
 
-    fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'performance' } });
+    // impeccable rodada 2: o tipo virou radio-cards — seleciona pelo rótulo.
+    fireEvent.click(screen.getByRole('radio', { name: /Performance/ }));
     selecionarArquivo(new File(['a,b\n1,2'], 'dados.csv', { type: 'text/csv' }));
 
     fireEvent.click(screen.getByRole('button', { name: /Enviar/ }));

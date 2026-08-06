@@ -25,6 +25,7 @@ const {
   usuarioEhAdminPlataforma,
 } = require('../lib/hub-rbac-cache');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
+const { buscarNomesEntidades } = require('../lib/hub-entidade-nome');
 const { requirePermission } = require('../middleware/hub-require-permission');
 
 const router = express.Router();
@@ -91,8 +92,13 @@ router.get('/', async (req, res) => {
       null,
       { usuarioId: payload.sub }
     );
+    const nomesEntidades = await buscarNomesEntidades(
+      (vinculos || []).map((v) => v.empresa_id),
+      { usuarioId: payload.sub }
+    );
     const entidades = (vinculos || []).map((v) => ({
       empresa_id: v.empresa_id,
+      nome: nomesEntidades.get(v.empresa_id) || null,
       papel: v.papel ? v.papel.nome : null,
       ativo: v.ativo,
     }));
@@ -368,12 +374,14 @@ function montarFiltrosQueryAuditoriaGlobal(f) {
  * lib/hub-auditoria.js#scrubDetalhes) — este mapper NÃO re-serializa nada
  * sensível, só troca as chaves do envelope.
  * @param {object} row - linha crua do PostgREST (snake_case)
+ * @param {Map<number, string>} [nomesEntidades] - id_empresa -> nome de exibição
  * @returns {object} evento camelCase (contracts/auditoria-api.md "Response 200")
  */
-function mapEventoAuditoria(row) {
+function mapEventoAuditoria(row, nomesEntidades) {
   return {
     id: row.id,
     entidadeId: row.id_empresa,
+    entidadeNome: (nomesEntidades && nomesEntidades.get(row.id_empresa)) || null,
     usuarioId: row.usuario_id,
     acao: row.acao,
     recurso: row.recurso,
@@ -464,8 +472,13 @@ auditoriaRouter.get('/', requirePermission('auditoria.consultar'), async (req, r
       { count: true, range: { from, to } }
     );
 
+    const nomesEntidades = await buscarNomesEntidades(
+      (linhas || []).map((r) => r.id_empresa),
+      claims
+    );
+
     return res.status(200).json({
-      eventos: (linhas || []).map(mapEventoAuditoria),
+      eventos: (linhas || []).map((row) => mapEventoAuditoria(row, nomesEntidades)),
       total: total || 0,
       page,
       pageSize,
