@@ -40,7 +40,7 @@ auditoria (scrub por construção).
       "email": "qa.importacoes@moveelog.local",
       "ativo": true,
       "vinculos": [
-        { "id": 33, "entidadeId": 9001, "papelId": 2, "papel": "admin_entidade", "ativo": true }
+        { "id": 33, "entidadeId": 9001, "entidadeNome": "QA Hub Envio Massa - Matriz", "papelId": 2, "papel": "admin_entidade", "ativo": true }
       ]
     }
   ],

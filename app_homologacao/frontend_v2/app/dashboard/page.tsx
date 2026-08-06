@@ -191,6 +191,7 @@ function DashboardClient() {
           onExportCSV={exportCSV}
           onDownloadXML={downloadXML}
           onCloseMovement={closeMovement}
+          stats={stats}
         />
 
         <Filters

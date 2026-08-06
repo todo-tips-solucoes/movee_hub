@@ -63,6 +63,7 @@ import {
   UsuariosApiError,
 } from '@/lib/hub/usuarios-api';
 import type { UsuarioListItem, UsuarioVinculo } from '@/lib/hub/usuarios-dto';
+import { useDebounce } from '@/hooks/use-debounce';
 
 const PAGE_SIZE = 20;
 
@@ -75,11 +76,15 @@ function useUsuariosLista() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
+  // impeccable rodada 2 (P2): antes era 1 fetch por tecla — o debounce espera
+  // a digitação assentar (mesmo DEBOUNCE_MS=300 do entregador-combobox).
+  const buscaDebounced = useDebounce(busca, 300);
+
   const buscar = useCallback(async () => {
     setCarregando(true);
     setErro(null);
     try {
-      const resposta = await listarUsuarios({ busca: busca || undefined, page, pageSize: PAGE_SIZE });
+      const resposta = await listarUsuarios({ busca: buscaDebounced || undefined, page, pageSize: PAGE_SIZE });
       setUsuarios(resposta.usuarios);
       setTotal(resposta.total);
     } catch (e) {
@@ -89,7 +94,7 @@ function useUsuariosLista() {
     } finally {
       setCarregando(false);
     }
-  }, [busca, page]);
+  }, [buscaDebounced, page]);
 
   useEffect(() => {
     buscar();
@@ -379,7 +384,34 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
         const atualizado = await editarVinculo(usuario.id, vinculo.id, patch);
         setVinculos((prev) => prev.map((v) => (v.id === vinculo.id ? atualizado : v)));
         onSalvo();
-        toast.success('Vínculo atualizado.');
+        // impeccable rodada 2 (P2): o toggle persiste no clique — o Desfazer
+        // reaplica o valor ANTERIOR pela mesma rota (novo request), nunca só o
+        // estado local; `vinculo` aqui ainda é o objeto pré-patch.
+        const patchInverso: { papelId?: number; ativo?: boolean } | null =
+          'ativo' in patch
+            ? { ativo: vinculo.ativo }
+            : vinculo.papelId !== null
+              ? { papelId: vinculo.papelId }
+              : null;
+        if (!patchInverso) {
+          toast.success('Vínculo atualizado.');
+          return;
+        }
+        toast.success('Vínculo atualizado.', {
+          action: {
+            label: 'Desfazer',
+            onClick: async () => {
+              try {
+                const revertido = await editarVinculo(usuario.id, vinculo.id, patchInverso);
+                setVinculos((prev) => prev.map((v) => (v.id === vinculo.id ? revertido : v)));
+                onSalvo();
+                toast.success('Alteração desfeita.');
+              } catch {
+                toast.error('Não foi possível desfazer. Ajuste manualmente.');
+              }
+            },
+          },
+        });
       } catch (e) {
         setErro(e instanceof UsuariosApiError ? e.message : 'Não foi possível atualizar o vínculo.');
       } finally {
@@ -455,7 +487,7 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
             <div className="flex flex-col gap-2">
               {vinculos.map((v) => (
                 <div key={v.id} className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
-                  <span className="min-w-0 flex-1">Entidade #{v.entidadeId}</span>
+                  <span className="min-w-0 flex-1 truncate">{v.entidadeNome ?? `Entidade #${v.entidadeId}`}</span>
                   <PapelSelect
                     ariaLabel={`Papel do vínculo ${v.id}`}
                     value={v.papelId !== null ? String(v.papelId) : ''}

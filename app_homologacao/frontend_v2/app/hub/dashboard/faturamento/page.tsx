@@ -40,6 +40,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useHubAuth } from '@/contexts/hub-auth-context';
+import { useDebounce } from '@/hooks/use-debounce';
 import {
   baixarFaturamentoCsv,
   buscarEntregadoresFaturamento,
@@ -105,16 +106,20 @@ export function useFaturamentoLista() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
+  // impeccable rodada 2 (P2): antes era 1 fetch por tecla nos campos de texto
+  // — o debounce espera a digitação assentar (DEBOUNCE_MS=300 do combobox).
+  const filtrosDebounced = useDebounce(filtros, 300);
+
   const filtrosApi = useCallback(
     () => ({
-      de: filtros.de || undefined,
-      ate: filtros.ate || undefined,
-      categoria: filtros.categoria || undefined,
-      entregadorId: filtros.entregadorId ? Number(filtros.entregadorId) : undefined,
-      subpraca: filtros.subpraca || undefined,
-      comEntregador: filtros.comEntregador === '' ? undefined : filtros.comEntregador === 'true',
+      de: filtrosDebounced.de || undefined,
+      ate: filtrosDebounced.ate || undefined,
+      categoria: filtrosDebounced.categoria || undefined,
+      entregadorId: filtrosDebounced.entregadorId ? Number(filtrosDebounced.entregadorId) : undefined,
+      subpraca: filtrosDebounced.subpraca || undefined,
+      comEntregador: filtrosDebounced.comEntregador === '' ? undefined : filtrosDebounced.comEntregador === 'true',
     }),
-    [filtros]
+    [filtrosDebounced]
   );
 
   const buscar = useCallback(async () => {

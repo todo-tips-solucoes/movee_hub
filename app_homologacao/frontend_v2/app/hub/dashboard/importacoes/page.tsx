@@ -49,6 +49,7 @@ import {
   type StatusImportacao,
   type TipoImportacao,
 } from '@/lib/hub/importacoes-dto';
+import { useDebounce } from '@/hooks/use-debounce';
 import { formatDateBR } from '@/lib/utils';
 
 const STATUS_OPCOES: StatusImportacao[] = [
@@ -88,6 +89,10 @@ export function useImportacoesHistorico() {
   const [erro, setErro] = useState<string | null>(null);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
 
+  // impeccable rodada 2 (P2): antes era 1 fetch por tecla no campo de
+  // responsável — o debounce espera a digitação assentar (DEBOUNCE_MS=300).
+  const filtrosDebounced = useDebounce(filtros, 300);
+
   const buscar = useCallback(async (opts?: { silencioso?: boolean }) => {
     // `silencioso` = refresh do polling: sem skeleton, e uma falha transitória
     // não derruba a lista que o operador está acompanhando.
@@ -98,11 +103,11 @@ export function useImportacoesHistorico() {
     }
     try {
       const resposta = await listarImportacoes({
-        tipo: filtros.tipo || undefined,
-        status: filtros.status || undefined,
-        responsavel: filtros.responsavel || undefined,
-        de: filtros.de ? new Date(`${filtros.de}T00:00:00`).toISOString() : undefined,
-        ate: filtros.ate ? new Date(`${filtros.ate}T23:59:59`).toISOString() : undefined,
+        tipo: filtrosDebounced.tipo || undefined,
+        status: filtrosDebounced.status || undefined,
+        responsavel: filtrosDebounced.responsavel || undefined,
+        de: filtrosDebounced.de ? new Date(`${filtrosDebounced.de}T00:00:00`).toISOString() : undefined,
+        ate: filtrosDebounced.ate ? new Date(`${filtrosDebounced.ate}T23:59:59`).toISOString() : undefined,
         page,
         pageSize: PAGE_SIZE,
       });
@@ -121,7 +126,7 @@ export function useImportacoesHistorico() {
         setCarregando(false);
       }
     }
-  }, [filtros, page]);
+  }, [filtrosDebounced, page]);
 
   useEffect(() => {
     buscar();

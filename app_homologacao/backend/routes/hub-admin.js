@@ -107,7 +107,7 @@ router.get('/entidades/:id/modulos', requireModuloAtivo('admin'), requirePermiss
       return res.status(400).json({ erro: 'DADOS_INVALIDOS' });
     }
 
-    const empresas = await hubPostgrestRequest(`Empresa?id=eq.${entidadeIdParam}&select=id`);
+    const empresas = await hubPostgrestRequest(`Empresa?id=eq.${entidadeIdParam}&select=id,nome_empresa`);
     if (!empresas || empresas.length === 0) {
       return res.status(404).json({ erro: 'ENTIDADE_NAO_ENCONTRADA' });
     }
@@ -124,6 +124,7 @@ router.get('/entidades/:id/modulos', requireModuloAtivo('admin'), requirePermiss
 
     return res.status(200).json({
       entidadeId: entidadeIdParam,
+      entidadeNome: empresas[0].nome_empresa || null,
       modulos: (catalogo || [])
         .filter((m) => m.ativo)
         .map((m) => ({

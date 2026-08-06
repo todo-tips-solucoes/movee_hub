@@ -38,6 +38,7 @@ import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { MotoristaDetalheDialog, useMotoristaDetalheDialog } from '@/components/hub/motorista-detalhe-dialog';
 import { criarMotorista, listarAreasMotoristas, listarMotoristas, MotoristaApiError } from '@/lib/hub/motoristas-api';
 import { isUuidValido, type MotoristaListItem } from '@/lib/hub/motoristas-dto';
+import { useDebounce } from '@/hooks/use-debounce';
 
 const PAGE_SIZE = 20;
 
@@ -59,15 +60,19 @@ export function useMotoristasLista() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
+  // impeccable rodada 2 (P2): antes era 1 fetch por tecla no campo de nome —
+  // o debounce espera a digitação assentar (DEBOUNCE_MS=300 do combobox).
+  const filtrosDebounced = useDebounce(filtros, 300);
+
   const buscar = useCallback(async () => {
     setCarregando(true);
     setErro(null);
     try {
       const resposta = await listarMotoristas({
-        nome: filtros.nome || undefined,
-        ativo: filtros.ativo === '' ? undefined : filtros.ativo === 'true',
-        area: filtros.area || undefined,
-        comVinculo: filtros.comVinculo === '' ? undefined : filtros.comVinculo === 'true',
+        nome: filtrosDebounced.nome || undefined,
+        ativo: filtrosDebounced.ativo === '' ? undefined : filtrosDebounced.ativo === 'true',
+        area: filtrosDebounced.area || undefined,
+        comVinculo: filtrosDebounced.comVinculo === '' ? undefined : filtrosDebounced.comVinculo === 'true',
         page,
         pageSize: PAGE_SIZE,
       });
@@ -80,7 +85,7 @@ export function useMotoristasLista() {
     } finally {
       setCarregando(false);
     }
-  }, [filtros, page]);
+  }, [filtrosDebounced, page]);
 
   useEffect(() => {
     buscar();

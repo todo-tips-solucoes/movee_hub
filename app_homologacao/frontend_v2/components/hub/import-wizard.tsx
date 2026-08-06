@@ -49,6 +49,12 @@ const MENSAGENS_VALIDACAO_CLIENT: Record<string, string> = {
   arquivo_vazio: 'O arquivo está vazio.',
 };
 
+/** Descrição de cada tipo nos radio-cards — copy de UI, vive no componente. */
+const TIPO_DESCRICOES: Record<TipoImportacao, string> = {
+  faturamento: 'Valores a pagar por entregador no período.',
+  performance: 'Indicadores de entrega por entregador.',
+};
+
 /** Lógica isolada do JSX (mesmo padrão de `usePerfil`/`useEntitySwitcher`) —
  * testável sem depender da interação real com o Dialog (Base UI, portal). */
 export function useImportWizard(onEnviado?: (id: number) => void) {
@@ -195,24 +201,39 @@ export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizar
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={`${inputId}-tipo`} className="text-sm font-medium">
-              Tipo
-            </label>
-            <select
-              id={`${inputId}-tipo`}
-              value={w.tipo}
-              onChange={(e) => w.setTipo(e.target.value as TipoImportacao)}
-              disabled={w.enviando}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
+          {/* impeccable rodada 2 (P3): decisão binária merece as 2 opções à
+              vista com descrição — radio-cards no lugar do <select> nativo
+              (que ainda destoava do design system). Radios nativos preservam
+              teclado/leitor de tela sem dependência nova. */}
+          <fieldset className="flex flex-col gap-1" disabled={w.enviando}>
+            <legend className="mb-1 text-sm font-medium">Tipo</legend>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {TIPOS_IMPORTACAO.map((t) => (
-                <option key={t} value={t}>
-                  {TIPO_LABELS[t]}
-                </option>
+                <label
+                  key={t}
+                  className={cn(
+                    'flex cursor-pointer flex-col gap-0.5 rounded-md border p-3 text-sm transition-colors',
+                    'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring',
+                    w.tipo === t
+                      ? 'border-primary bg-primary/5'
+                      : 'border-input hover:bg-muted/50',
+                    w.enviando && 'cursor-not-allowed opacity-60'
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name={`${inputId}-tipo`}
+                    value={t}
+                    checked={w.tipo === t}
+                    onChange={() => w.setTipo(t)}
+                    className="sr-only"
+                  />
+                  <span className="font-medium">{TIPO_LABELS[t]}</span>
+                  <span className="text-xs text-muted-foreground">{TIPO_DESCRICOES[t]}</span>
+                </label>
               ))}
-            </select>
-          </div>
+            </div>
+          </fieldset>
 
           <div
             role="button"

@@ -26,6 +26,8 @@ function isStringOrNull(v: unknown): v is string | null {
 export interface UsuarioVinculo {
   id: number;
   entidadeId: number;
+  /** Nome de exibição da entidade — null quando o backend não resolveu. */
+  entidadeNome: string | null;
   papelId: number | null;
   papel: string | null;
   ativo: boolean;
@@ -36,6 +38,7 @@ function parseUsuarioVinculo(raw: unknown): UsuarioVinculo {
   return {
     id: typeof r.id === 'number' ? r.id : 0,
     entidadeId: typeof r.entidadeId === 'number' ? r.entidadeId : 0,
+    entidadeNome: isStringOrNull(r.entidadeNome) ? r.entidadeNome : null,
     papelId: isNumberOrNull(r.papelId) ? r.papelId : null,
     papel: isStringOrNull(r.papel) ? r.papel : null,
     ativo: r.ativo === true,

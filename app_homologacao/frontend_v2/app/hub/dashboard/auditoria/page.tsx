@@ -45,6 +45,7 @@ import {
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { AuditoriaApiError, listarAuditoria } from '@/lib/hub/auditoria-api';
 import type { AuditoriaEvento } from '@/lib/hub/auditoria-dto';
+import { useDebounce } from '@/hooks/use-debounce';
 
 const PAGE_SIZE = 20;
 
@@ -106,16 +107,20 @@ export function useAuditoriaLista() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
+  // impeccable rodada 2 (P2): antes era 1 fetch por tecla nos campos de texto
+  // — o debounce espera a digitação assentar (DEBOUNCE_MS=300 do combobox).
+  const filtrosDebounced = useDebounce(filtros, 300);
+
   const filtrosApi = useCallback(
     () => ({
-      acao: filtros.acao || undefined,
-      usuarioId: filtros.usuarioId ? Number(filtros.usuarioId) : undefined,
-      recurso: filtros.recurso || undefined,
-      de: filtros.de || undefined,
-      ate: filtros.ate || undefined,
-      entidadeId: filtros.entidadeId ? Number(filtros.entidadeId) : undefined,
+      acao: filtrosDebounced.acao || undefined,
+      usuarioId: filtrosDebounced.usuarioId ? Number(filtrosDebounced.usuarioId) : undefined,
+      recurso: filtrosDebounced.recurso || undefined,
+      de: filtrosDebounced.de || undefined,
+      ate: filtrosDebounced.ate || undefined,
+      entidadeId: filtrosDebounced.entidadeId ? Number(filtrosDebounced.entidadeId) : undefined,
     }),
-    [filtros]
+    [filtrosDebounced]
   );
 
   const buscar = useCallback(async () => {
@@ -185,7 +190,13 @@ function DetalheDrawer({ evento, onClose }: { evento: AuditoriaEvento | null; on
               <dt className="text-muted-foreground">Usuário</dt>
               <dd>{evento.usuarioId !== null ? `#${evento.usuarioId}` : '—'}</dd>
               <dt className="text-muted-foreground">Entidade</dt>
-              <dd>{evento.entidadeId !== null ? `#${evento.entidadeId}` : 'Evento global'}</dd>
+              <dd>
+                {evento.entidadeId !== null
+                  ? evento.entidadeNome
+                    ? `${evento.entidadeNome} (#${evento.entidadeId})`
+                    : `#${evento.entidadeId}`
+                  : 'Evento global'}
+              </dd>
               <dt className="text-muted-foreground">IP</dt>
               <dd>{evento.ip ?? '—'}</dd>
               <dt className="text-muted-foreground">Data/hora</dt>
@@ -398,8 +409,10 @@ export default function AuditoriaPage() {
                       {evento.usuarioId !== null ? `#${evento.usuarioId}` : '—'}
                     </TableCell>
                     {podeVerTudo && (
-                      <TableCell className="text-sm text-muted-foreground">
-                        {evento.entidadeId !== null ? `#${evento.entidadeId}` : 'Global'}
+                      <TableCell className="max-w-[180px] truncate text-sm text-muted-foreground">
+                        {evento.entidadeId !== null
+                          ? evento.entidadeNome ?? `#${evento.entidadeId}`
+                          : 'Global'}
                       </TableCell>
                     )}
                     <TableCell className="text-right">

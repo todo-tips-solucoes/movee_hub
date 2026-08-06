@@ -9,6 +9,7 @@ import { CloseMovementDialog } from './close-movement-dialog';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import type { StatsData } from '@/types';
 
 interface ActionBarProps {
   isActive: boolean;
@@ -19,6 +20,8 @@ interface ActionBarProps {
   onExportCSV: () => void;
   onDownloadXML: () => Promise<void>;
   onCloseMovement: () => Promise<void>;
+  /** Números do movimento — repassados ao confirm de Fechar movimento. */
+  stats?: StatsData | null;
 }
 
 export function ActionBar({
@@ -30,6 +33,7 @@ export function ActionBar({
   onExportCSV,
   onDownloadXML,
   onCloseMovement,
+  stats,
 }: ActionBarProps) {
   const [csvLoading, setCsvLoading] = useState(false);
   const [xmlLoading, setXmlLoading] = useState(false);
@@ -85,7 +89,7 @@ export function ActionBar({
           {xmlLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           Download XML
         </Button>
-        <CloseMovementDialog onConfirm={onCloseMovement} />
+        <CloseMovementDialog onConfirm={onCloseMovement} stats={stats} />
       </div>
     </div>
   );

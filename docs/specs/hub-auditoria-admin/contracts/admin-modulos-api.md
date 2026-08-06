@@ -33,6 +33,7 @@ RLS de `ModuloEntidade`, migration 0036).
 ```json
 {
   "entidadeId": 9001,
+  "entidadeNome": "QA Hub Envio Massa - Matriz",
   "modulos": [
     { "moduloId": 1, "codigo": "dashboard", "nome": "Dashboard", "habilitado": true },
     { "moduloId": 9, "codigo": "admin", "nome": "Administração", "habilitado": false }

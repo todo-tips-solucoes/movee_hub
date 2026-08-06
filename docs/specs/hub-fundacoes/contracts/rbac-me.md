@@ -10,7 +10,7 @@ autenticado pode consultar o próprio perfil).
 | Field | Type | Description |
 |-------|------|--------------|
 | usuario | object | `{ id, email, nome }` |
-| entidades | array | lista de `{ empresa_id, papel, ativo }` — todos os vínculos ativos da pessoa (FR-010) |
+| entidades | array | lista de `{ empresa_id, nome, papel, ativo }` — todos os vínculos ativos da pessoa (FR-010); `nome` (impeccable rodada 2) resolvido de `Empresa.nome_empresa` via `lib/hub-entidade-nome.js`, `null` quando a busca falha |
 | entidade_ativa | int \| null | `empresa_id` atualmente ativo na sessão |
 | modulos | array | módulos habilitados para a entidade ativa (`ModuloEntidade.ativo = true`) cruzados com as permissões efetivas da pessoa |
 | permissoes | array\<string\> | códigos `modulo.acao` efetivos (união de todos os papéis aplicáveis — Decision 5), já filtrados pelo cache TTL 60s |

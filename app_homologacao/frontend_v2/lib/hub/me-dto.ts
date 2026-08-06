@@ -14,7 +14,7 @@
 
 export interface MeResponseDTO {
   usuario: { id: number; email: string; nome: string };
-  entidades: Array<{ empresa_id: number; papel: string | null; ativo: boolean }>;
+  entidades: Array<{ empresa_id: number; nome?: string | null; papel: string | null; ativo: boolean }>;
   entidade_ativa: number | null;
   modulos: Array<{ codigo: string; nome: string; icone: string; ordem: number; ativo: boolean }>;
   permissoes: string[];
@@ -43,6 +43,8 @@ export interface HubUsuario {
 
 export interface HubVinculo {
   empresaId: number;
+  /** Nome de exibição da entidade — null quando o backend não resolveu (fallback "Empresa #id"). */
+  nome: string | null;
   papel: string | null;
   ativo: boolean;
 }
@@ -75,6 +77,7 @@ export function toHubMe(dto: MeResponseDTO): HubMe {
     },
     entidades: dto.entidades.map((e) => ({
       empresaId: e.empresa_id,
+      nome: e.nome ?? null,
       papel: e.papel,
       ativo: e.ativo,
     })),
