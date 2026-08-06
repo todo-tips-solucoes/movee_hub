@@ -13,7 +13,11 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
-const { decodificarAccessToken } = require('../lib/hub-access-token');
+const {
+  decodificarAccessToken,
+  lerAccessTokenDoRequest,
+  COOKIE_ACCESS,
+} = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivas,
@@ -49,7 +53,7 @@ function gerarAccessToken(payloadBase) {
 }
 
 function setAccessTokenCookie(res, accessToken) {
-  res.cookie('accessToken', accessToken, {
+  res.cookie(COOKIE_ACCESS, accessToken, {
     httpOnly: true,
     sameSite: 'strict',
     secure: cookiesSaoSeguras(),
@@ -65,7 +69,7 @@ function setAccessTokenCookie(res, accessToken) {
 // ────────────────────────────────────────────────────────────────────────────
 
 router.get('/', async (req, res) => {
-  const accessToken = req.cookies && req.cookies.accessToken;
+  const accessToken = lerAccessTokenDoRequest(req);
   const payload = decodificarAccessToken(accessToken);
   if (!payload || !payload.sub) {
     return res.status(401).json({ erro: 'NAO_AUTENTICADO' });
@@ -149,7 +153,7 @@ router.get('/', async (req, res) => {
 
 router.post('/entidade', async (req, res) => {
   const ip = req.ip;
-  const accessToken = req.cookies && req.cookies.accessToken;
+  const accessToken = lerAccessTokenDoRequest(req);
   const payload = decodificarAccessToken(accessToken);
   if (!payload || !payload.sub) {
     return res.status(401).json({ erro: 'NAO_AUTENTICADO' });
@@ -387,7 +391,7 @@ function mapEventoAuditoria(row) {
 
 auditoriaRouter.get('/', requirePermission('auditoria.consultar'), async (req, res) => {
   try {
-    const accessToken = req.cookies && req.cookies.accessToken;
+    const accessToken = lerAccessTokenDoRequest(req);
     const payload = decodificarAccessToken(accessToken);
     const entidadeAtiva = payload && payload.entidade_ativa ? Number(payload.entidade_ativa) : null;
 

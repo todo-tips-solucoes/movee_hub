@@ -15,7 +15,7 @@
 
 const express = require('express');
 
-const { decodificarAccessToken } = require('../lib/hub-access-token');
+const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivasPorEntidade,
@@ -42,7 +42,7 @@ const router = express.Router();
  *   permsEntidade:Set<string>}|null>}
  */
 async function resolverContexto(req, res) {
-  const accessToken = req.cookies && req.cookies.accessToken;
+  const accessToken = lerAccessTokenDoRequest(req);
   const payload = decodificarAccessToken(accessToken);
   if (!payload || !payload.sub) {
     res.status(401).json({ erro: 'NAO_AUTENTICADO' });
@@ -108,7 +108,7 @@ router.put(
   requirePermission('admin.gerenciar'),
   async (req, res) => {
     try {
-      const accessToken = req.cookies && req.cookies.accessToken;
+      const accessToken = lerAccessTokenDoRequest(req);
       const payload = decodificarAccessToken(accessToken);
       if (!payload || !payload.sub) {
         return res.status(401).json({ erro: 'NAO_AUTENTICADO' });

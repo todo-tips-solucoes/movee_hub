@@ -287,6 +287,43 @@ describe('cobertura de middleware nas 11 rotas legadas (2.2.7, achado F3)', () =
       .filter((p) => !pathsComMiddlewareNovo.has(p));
     assert.deepEqual(faltando, [], `rota(s) da lista fixa SEM os middlewares novos: ${faltando.join(', ')}`);
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Separação de cookies hub × legado (2026-08-04). As 11 rotas acima são as
+  // ÚNICAS servidas aos dois produtos, e por isso as únicas que podem aceitar o
+  // cookie `hub_accessToken` via `authenticateTokenCompartilhado`. Toda outra
+  // rota legada usa `authenticateToken`, que só aceita a sessão do painel — é o
+  // que impede uma sessão do hub de chegar em `server.js` com
+  // `req.user.empresaId === undefined` (origem do `?empresa_id=undefined`).
+  // ──────────────────────────────────────────────────────────────────────────
+  for (const rota of ROTAS_ESPERADAS) {
+    test(`${rota.method.toUpperCase()} ${rota.pathLiteral} usa authenticateTokenCompartilhado (aceita sessão do hub)`, () => {
+      const linha = acharLinhaDaRota(rota.method, rota.pathLiteral);
+      assert.ok(linha, `rota ${rota.method.toUpperCase()} ${rota.pathLiteral} não encontrada em server.js`);
+      assert.match(
+        linha,
+        /authenticateTokenCompartilhado,/,
+        `rota compartilhada ${rota.method.toUpperCase()} ${rota.pathLiteral} precisa de authenticateTokenCompartilhado — com authenticateToken puro a tela de Envio em Massa do hub quebra (401)`,
+      );
+    });
+  }
+
+  test('nenhuma rota FORA das 11 aceita o cookie do hub (authenticateTokenCompartilhado)', () => {
+    const pathsEsperados = new Set(ROTAS_ESPERADAS.map((r) => `${r.method}:${r.pathLiteral}`));
+    const reTodasRotas = /app\.(get|post|patch|delete|put)\(\s*'([^']+)'[^\n]*/g;
+    const extras = [];
+    let m;
+    while ((m = reTodasRotas.exec(SERVER_SRC)) !== null) {
+      if (!m[0].includes('authenticateTokenCompartilhado')) continue;
+      const chave = `${m[1]}:${m[2]}`;
+      if (!pathsEsperados.has(chave)) extras.push(chave);
+    }
+    assert.deepEqual(
+      extras,
+      [],
+      `rota(s) legada(s) aceitando sessão do hub sem a claims-bridge: ${extras.join(', ')}`,
+    );
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────

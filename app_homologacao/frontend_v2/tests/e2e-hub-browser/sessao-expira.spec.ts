@@ -39,7 +39,9 @@ test.describe('6.2.5 — sessão expira em meio de ação (troca de entidade) ->
     const url = new URL(page.url());
     await page.context().addCookies([
       {
-        name: 'accessToken',
+        // Cookie do HUB — desde 2026-08-04 tem nome próprio, para não colidir
+        // com o `accessToken` do painel legado no mesmo domínio.
+        name: 'hub_accessToken',
         value: 'e2e-teste-token-corrompido-sessao-expirada',
         domain: url.hostname,
         path: '/',

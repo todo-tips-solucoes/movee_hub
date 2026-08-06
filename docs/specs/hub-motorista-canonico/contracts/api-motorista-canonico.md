@@ -1,7 +1,7 @@
 # Contracts: Motorista canônico + busca de entregador
 
 Endpoints **aditivos** ao backend do hub (`app_homologacao/backend/routes/`). Todos
-com **Auth por cookie `accessToken`** (padrão do hub) e escopo por `id_empresa` via
+com **Auth por cookie `hub_accessToken`** (padrão do hub) e escopo por `id_empresa` via
 `resolverContextoEntidade`. Base path do hub: `/api/v1`. 404-fora-do-escopo é o padrão
 (Decision 11 do S5): recurso de outra empresa responde 404, nunca 403 que vaze
 existência. Toda ação de escrita chama `registrarAuditoria` (quem + quando — FR-021).
@@ -12,7 +12,7 @@ existência. Toda ação de escrita chama `registrarAuditoria` (quem + quando �
 
 ### GET /api/v1/faturamento/entregadores
 
-**Auth**: cookie `accessToken`. **Permission**: `faturamento.listar`.
+**Auth**: cookie `hub_accessToken`. **Permission**: `faturamento.listar`.
 
 #### Request (query params)
 
@@ -49,7 +49,7 @@ por FR-006 (comportamento igual nas duas telas).
 
 ### POST /api/v1/motoristas
 
-**Auth**: cookie `accessToken`. **Permission**: `motoristas.editar`.
+**Auth**: cookie `hub_accessToken`. **Permission**: `motoristas.editar`.
 
 #### Request (JSON body)
 

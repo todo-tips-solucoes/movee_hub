@@ -1,7 +1,7 @@
 # Contrato — `/api/v1/faturamento*` (hub-faturamento / S6)
 
 Padrões herdados de `docs/plans/hub-frota/01-plano-tecnico.md §14`: prefixo
-`/api/v1`; auth por cookie JWT (`accessToken`); entidade ativa resolvida do
+`/api/v1`; auth por cookie JWT (`hub_accessToken`); entidade ativa resolvida do
 token (nunca de query/body); erros JSON `{ "error": { "code", "message",
 "details?" } }` (ou `{ "erro": "..." }` no formato curto já em uso pelos
 demais módulos do hub — ver `hub-require-permission.js`/`hub-importacoes.js`;

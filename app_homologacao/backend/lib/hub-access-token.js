@@ -10,11 +10,32 @@
  * a aceitação de `alg: none`.
  *
  * Módulo PURO (sem I/O, sem express): token → payload | null.
+ *
+ * Nomes de cookie: o hub usa `hub_accessToken`/`hub_refreshToken`. Até 2026-08-04
+ * usava `accessToken`/`refreshToken` — os MESMOS nomes do painel legado, no mesmo
+ * domínio (`app.moveelog.com.br`) e sem `path`. Logar num produto sobrescrevia a
+ * sessão do outro, e o `authenticateToken` do legado (mesmo `JWT_SECRET`) aceitava
+ * o token do hub, produzindo `req.user.empresaId === undefined` mundo afora.
  */
 
 'use strict';
 
 const jwt = require('jsonwebtoken');
+
+/** Nome do cookie de access token do hub — NÃO colide com o do painel legado. */
+const COOKIE_ACCESS = 'hub_accessToken';
+/** Nome do cookie de refresh token do hub. */
+const COOKIE_REFRESH = 'hub_refreshToken';
+
+/** Lê o access token do hub de um request express. */
+function lerAccessTokenDoRequest(req) {
+  return (req && req.cookies && req.cookies[COOKIE_ACCESS]) || null;
+}
+
+/** Lê o refresh token do hub de um request express. */
+function lerRefreshTokenDoRequest(req) {
+  return (req && req.cookies && req.cookies[COOKIE_REFRESH]) || null;
+}
 
 /**
  * Verifica e decodifica o `accessToken`. Devolve o payload, ou `null` quando o
@@ -32,4 +53,10 @@ function decodificarAccessToken(accessToken) {
   }
 }
 
-module.exports = { decodificarAccessToken };
+module.exports = {
+  decodificarAccessToken,
+  lerAccessTokenDoRequest,
+  lerRefreshTokenDoRequest,
+  COOKIE_ACCESS,
+  COOKIE_REFRESH,
+};

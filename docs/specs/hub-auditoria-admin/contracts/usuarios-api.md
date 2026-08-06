@@ -1,6 +1,6 @@
 # Contrato — /api/v1/usuarios
 
-Padrões herdados do hub: `/api/v1`, cookie `accessToken` HS256, entidade do
+Padrões herdados do hub: `/api/v1`, cookie `hub_accessToken` HS256, entidade do
 token, erros `{ "erro": "CODIGO" }`, camelCase na borda. Router NOVO:
 `routes/hub-usuarios.js`, montado em `server.js` sob `/api/v1/usuarios`.
 Todas as rotas sob middleware `requireModuloAtivo('usuarios')` +

@@ -16,7 +16,13 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 
-const { decodificarAccessToken } = require('../lib/hub-access-token');
+const {
+  decodificarAccessToken,
+  lerAccessTokenDoRequest,
+  lerRefreshTokenDoRequest,
+  COOKIE_ACCESS,
+  COOKIE_REFRESH,
+} = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 
@@ -172,13 +178,13 @@ function cookiesSaoSeguras() {
 
 function setAuthCookies(res, accessToken, refreshTokenBruto) {
   const secure = cookiesSaoSeguras();
-  res.cookie('accessToken', accessToken, {
+  res.cookie(COOKIE_ACCESS, accessToken, {
     httpOnly: true,
     sameSite: 'strict',
     secure,
     maxAge: ACCESS_TOKEN_TTL_MS,
   });
-  res.cookie('refreshToken', refreshTokenBruto, {
+  res.cookie(COOKIE_REFRESH, refreshTokenBruto, {
     httpOnly: true,
     sameSite: 'strict',
     secure,
@@ -187,8 +193,8 @@ function setAuthCookies(res, accessToken, refreshTokenBruto) {
 }
 
 function clearAuthCookies(res) {
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
+  res.clearCookie(COOKIE_ACCESS);
+  res.clearCookie(COOKIE_REFRESH);
 }
 
 function gerarAccessToken(usuario) {
@@ -346,7 +352,7 @@ router.post('/login', authRateLimiter, async (req, res) => {
 router.post('/refresh', async (req, res) => {
   const ip = req.ip;
   try {
-    const refreshTokenBruto = req.cookies && req.cookies.refreshToken;
+    const refreshTokenBruto = lerRefreshTokenDoRequest(req);
     if (!refreshTokenBruto) {
       return res.status(401).json({ erro: 'Sessão inválida.' });
     }
@@ -439,8 +445,8 @@ router.post('/logout', async (req, res) => {
   // cookies do cliente SEMPRE são limpos (FR-018 — o cliente nunca fica "preso"
   // logado por causa de uma falha de infraestrutura).
   try {
-    const refreshTokenBruto = req.cookies && req.cookies.refreshToken;
-    const accessToken = req.cookies && req.cookies.accessToken;
+    const refreshTokenBruto = lerRefreshTokenDoRequest(req);
+    const accessToken = lerAccessTokenDoRequest(req);
     const usuarioId = decodificarUsuarioIdDoAccessToken(accessToken);
 
     if (refreshTokenBruto) {
