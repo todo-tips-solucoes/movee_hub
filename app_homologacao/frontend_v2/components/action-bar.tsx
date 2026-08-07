@@ -89,7 +89,11 @@ export function ActionBar({
           {xmlLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           Download XML
         </Button>
-        <CloseMovementDialog onConfirm={onCloseMovement} stats={stats} />
+        {/* impeccable rodada 5 (P1): `isActive` chegava até aqui e parava no
+            ProcessControls — o Fechar movimento seguia clicável durante o
+            disparo, e um clique fora de hora lacrava o movimento com parte dos
+            motoristas notificados e parte não. */}
+        <CloseMovementDialog onConfirm={onCloseMovement} stats={stats} isActive={isActive} />
       </div>
     </div>
   );

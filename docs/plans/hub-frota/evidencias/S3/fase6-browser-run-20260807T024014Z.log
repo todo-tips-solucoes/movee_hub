@@ -1,0 +1,88 @@
+
+up to date in 1s
+
+Running 62 tests using 1 worker
+
+AXE_RESULT tela="/hub/login" score=100 violacoes=0 detalhe=[]
+  ✓   1 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:51:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/login (1.1s)
+AXE_RESULT tela="/hub/recuperar-senha" score=100 violacoes=0 detalhe=[]
+  ✓   2 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:57:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/recuperar-senha (950ms)
+AXE_RESULT tela="/hub/redefinir-senha" score=100 violacoes=0 detalhe=[]
+  ✓   3 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:63:7 › 6.3 — axe ≥95 nas telas novas do shell (públicas, sem sessão) › /hub/redefinir-senha (907ms)
+AXE_RESULT tela="/selecionar-entidade" score=100 violacoes=0 detalhe=[]
+  ✓   4 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:73:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState admin) › /selecionar-entidade (ramo escolha, 2 vínculos) (943ms)
+AXE_RESULT tela="/hub/dashboard" score=100 violacoes=0 detalhe=[]
+  ✓   5 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:84:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard (1.2s)
+AXE_RESULT tela="/hub/dashboard/perfil" score=100 violacoes=0 detalhe=[]
+  ✓   6 [chromium] › tests/e2e-hub-browser/axe-telas.spec.ts:90:7 › 6.3 — axe ≥95 nas telas novas do shell (autenticadas, storageState operador) › /hub/dashboard/perfil (1.0s)
+AXE_CONTRASTE tela="/hub/dashboard" tema=dark violacoes=0
+  ✓   7 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › dashboard — tema dark (980ms)
+AXE_CONTRASTE tela="/hub/dashboard" tema=light violacoes=0
+  ✓   8 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › dashboard — tema light (1.0s)
+AXE_CONTRASTE tela="/hub/dashboard/performance" tema=dark violacoes=0
+  ✓   9 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › performance (kpi-card) — tema dark (1.0s)
+AXE_CONTRASTE tela="/hub/dashboard/performance" tema=light violacoes=0
+  ✓  10 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › performance (kpi-card) — tema light (1.3s)
+AXE_CONTRASTE tela="/hub/dashboard/faturamento" tema=dark violacoes=0
+  ✓  11 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › faturamento (kpi-card) — tema dark (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard/faturamento" tema=light violacoes=0
+  ✓  12 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › faturamento (kpi-card) — tema light (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard/motoristas" tema=dark violacoes=0
+  ✓  13 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › motoristas (filter-bar) — tema dark (916ms)
+AXE_CONTRASTE tela="/hub/dashboard/motoristas" tema=light violacoes=0
+  ✓  14 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › motoristas (filter-bar) — tema light (938ms)
+AXE_CONTRASTE tela="/hub/dashboard/importacoes" tema=dark violacoes=0
+  ✓  15 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › importações (filter-bar) — tema dark (976ms)
+AXE_CONTRASTE tela="/hub/dashboard/importacoes" tema=light violacoes=0
+  ✓  16 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › importações (filter-bar) — tema light (1.2s)
+AXE_CONTRASTE tela="/hub/dashboard/usuarios" tema=dark violacoes=0
+  ✓  17 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › usuários (filter-bar) — tema dark (1.1s)
+AXE_CONTRASTE tela="/hub/dashboard/usuarios" tema=light violacoes=0
+  ✓  18 [chromium] › tests/e2e-hub-browser/contraste-telas-migradas.spec.ts:41:11 › 6.1 — auditoria de contraste (color-contrast) nas telas migradas, 2 temas › usuários (filter-bar) — tema light (1.2s)
+  ✓  19 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:34:9 › impeccable rodada 3 — A) filtro de período com presets › /hub/dashboard/auditoria: os 4 chips existem e "Este mês" preenche de/até (662ms)
+  ✓  20 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:34:9 › impeccable rodada 3 — A) filtro de período com presets › /hub/dashboard/importacoes: os 4 chips existem e "Este mês" preenche de/até (678ms)
+  ✓  21 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:34:9 › impeccable rodada 3 — A) filtro de período com presets › /hub/dashboard/performance: os 4 chips existem e "Este mês" preenche de/até (637ms)
+  ✓  22 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:34:9 › impeccable rodada 3 — A) filtro de período com presets › /hub/dashboard/faturamento: os 4 chips existem e "Este mês" preenche de/até (730ms)
+  ✓  23 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:62:7 › impeccable rodada 3 — A) filtro de período com presets › o intervalo é ecoado em pt-BR (DD/MM/AAAA), não no formato do browser (546ms)
+  ✓  24 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:73:7 › impeccable rodada 3 — A) filtro de período com presets › intervalo invertido é acusado com role=alert, nomeando problema e recuperação (501ms)
+  ✓  25 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:86:7 › impeccable rodada 3 — A) filtro de período com presets › "Todo o período" limpa as duas pontas de uma vez (689ms)
+  ✓  26 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:96:7 › impeccable rodada 3 — A) filtro de período com presets › mobile 390px: os chips não estouram a largura da viewport (368ms)
+  ✓  27 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:112:7 › impeccable rodada 3 — B) ajuda contextual (h10) › cada card do dashboard diz o que o módulo faz, não só o nome (406ms)
+  ✓  28 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:130:7 › impeccable rodada 3 — B) ajuda contextual (h10) › a descrição tem contraste de texto secundário legível (>= 4.5:1) (516ms)
+  ✓  29 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:165:7 › impeccable rodada 3 — B) ajuda contextual (h10) › o cabeçalho do dashboard nomeia a entidade em operação (464ms)
+  ✓  30 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:179:7 › impeccable rodada 3 — C) combobox de entidade na auditoria (h6) › o filtro de entidade deixou de ser campo numérico e virou combobox (412ms)
+  ✓  31 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:196:7 › impeccable rodada 3 — C) combobox de entidade na auditoria (h6) › admin: o combobox lista as entidades do usuário com nome, buscáveis por texto (704ms)
+  ✓  32 [chromium] › tests/e2e-hub-browser/impeccable-rodada3.spec.ts:226:7 › impeccable rodada 3 — D) --font-mono real › a utility font-mono não cai na Jakarta (proporcional) e monoespaça de fato (372ms)
+  ✓  33 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:34:9 › impeccable rodada 4 — A) paginação com idioma único (h4) › /hub/dashboard/auditoria: o rodapé artesanal ("Anterior"/"Próxima" em texto) não existe mais (511ms)
+  ✓  34 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:34:9 › impeccable rodada 4 — A) paginação com idioma único (h4) › /hub/dashboard/importacoes: o rodapé artesanal ("Anterior"/"Próxima" em texto) não existe mais (510ms)
+  ✓  35 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:34:9 › impeccable rodada 4 — A) paginação com idioma único (h4) › /hub/dashboard/usuarios: o rodapé artesanal ("Anterior"/"Próxima" em texto) não existe mais (432ms)
+  ✓  36 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:34:9 › impeccable rodada 4 — A) paginação com idioma único (h4) › /hub/dashboard/motoristas: o rodapé artesanal ("Anterior"/"Próxima" em texto) não existe mais (383ms)
+  ✓  37 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:34:9 › impeccable rodada 4 — A) paginação com idioma único (h4) › /hub/dashboard/faturamento: o rodapé artesanal ("Anterior"/"Próxima" em texto) não existe mais (429ms)
+  ✓  38 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:34:9 › impeccable rodada 4 — A) paginação com idioma único (h4) › /hub/dashboard/performance: o rodapé artesanal ("Anterior"/"Próxima" em texto) não existe mais (555ms)
+  ✓  39 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:47:9 › impeccable rodada 4 — A) paginação com idioma único (h4) › /hub/dashboard/auditoria: com dados, usa o componente compartilhado (449ms)
+  ✓  40 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:47:9 › impeccable rodada 4 — A) paginação com idioma único (h4) › /hub/dashboard/usuarios: com dados, usa o componente compartilhado (483ms)
+  ✓  41 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:59:7 › impeccable rodada 4 — A) paginação com idioma único (h4) › a página atual é anunciada com aria-current (553ms)
+  ✓  42 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:66:7 › impeccable rodada 4 — A) paginação com idioma único (h4) › mobile 390px: a paginação não estoura a largura da viewport (385ms)
+  ✓  43 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:87:9 › impeccable rodada 4 — sem rolagem horizontal no celular (shell) › /hub/dashboard: body não rola na horizontal em 390px (507ms)
+  ✓  44 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:87:9 › impeccable rodada 4 — sem rolagem horizontal no celular (shell) › /hub/dashboard/perfil: body não rola na horizontal em 390px (339ms)
+  ✓  45 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:87:9 › impeccable rodada 4 — sem rolagem horizontal no celular (shell) › /hub/dashboard/auditoria: body não rola na horizontal em 390px (552ms)
+  ✓  46 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:115:7 › impeccable rodada 4 — B) persistência declarada no Sheet (h3/h9) › cada bloco diz QUANDO o que está nele passa a valer (594ms)
+  ✓  47 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:124:7 › impeccable rodada 4 — B) persistência declarada no Sheet (h3/h9) › sem edição pendente, Salvar dados fica desabilitado e Fechar é só Fechar (530ms)
+  ✓  48 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:134:7 › impeccable rodada 4 — B) persistência declarada no Sheet (h3/h9) › com edição pendente, o painel avisa e o botão de sair diz que vai descartar (717ms)
+  ✓  49 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:147:7 › impeccable rodada 4 — B) persistência declarada no Sheet (h3/h9) › desfazer a edição volta ao estado limpo (compara com o carregado, não com um snapshot) (659ms)
+  ✓  50 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:166:7 › impeccable rodada 4 — C) filtro de pessoa por nome (h6) › auditoria: o campo de ID cru deu lugar a um combobox (562ms)
+  ✓  51 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:178:7 › impeccable rodada 4 — C) filtro de pessoa por nome (h6) › auditoria: abrir o combobox lista pessoas por nome e e-mail (587ms)
+  ✓  52 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:187:7 › impeccable rodada 4 — C) filtro de pessoa por nome (h6) › importações: o filtro de responsável também deixou de pedir ID decorado (407ms)
+  ✓  53 [chromium] › tests/e2e-hub-browser/impeccable-rodada4.spec.ts:197:7 › impeccable rodada 4 — C) filtro de pessoa por nome (h6) › 403 na listagem: degrada para campo de ID em vez de quebrar o filtro (622ms)
+  ✓  54 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:43:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › admin_entidade › vê os itens exclusivos (usuários + auditoria) (528ms)
+  ✓  55 [chromium] › tests/e2e-hub-browser/menus-por-papel.spec.ts:59:9 › 6.2.1 — ModuleNav difere por papel (FR-001/SC-001) › operador › NÃO vê nenhum dos itens exclusivos (sem auditoria.consultar/usuarios.gerenciar) (612ms)
+  ✓  56 [chromium] › tests/e2e-hub-browser/sessao-expira.spec.ts:29:7 › 6.2.5 — sessão expira em meio de ação (troca de entidade) -> redirect login › corromper accessToken mid-troca-de-entidade força logout e redirect para /hub/login (683ms)
+  ✓  57 [chromium] › tests/e2e-hub-browser/sidebar-colapso.spec.ts:22:7 › 2.1.5 — sidebar colapsável: persistência e acessibilidade do tooltip › colapsar via topbar reduz a largura da sidebar fixa e persiste após recarregar (969ms)
+  ✓  58 [chromium] › tests/e2e-hub-browser/sidebar-colapso.spec.ts:58:7 › 2.1.5 — sidebar colapsável: persistência e acessibilidade do tooltip › colapsada: tooltip com o nome do módulo aparece por foco de teclado E por hover (CHK001) (1.2s)
+  ✓  59 [chromium] › tests/e2e-hub-browser/theme-toggle.spec.ts:17:7 › 3.1.3 — alternar tema: navegação e persistência › tema padrão é escuro (FR-008); alternar, navegar e recarregar preserva a escolha (935ms)
+TROCA_ENTIDADE_TIMING_MS=244
+  ✓  60 [chromium] › tests/e2e-hub-browser/troca-entidade-timing.spec.ts:19:7 › 6.2.3 — troca de entidade reflete em <5s, sem novo login (SC-003) › EntitySwitcher atualiza o rótulo exibido em menos de 5s (792ms)
+  ✓  61 [chromium] › tests/e2e-hub-browser/white-label-simulacao.spec.ts:141:9 › 3.2 — validação de white-label simulado (SC-006/US2-AC3, sem seed de banco) › tema dark: injetar CSS vars do tenant simulado reflete em botão primário/sidebar ativa (1.2s)
+  ✓  62 [chromium] › tests/e2e-hub-browser/white-label-simulacao.spec.ts:141:9 › 3.2 — validação de white-label simulado (SC-006/US2-AC3, sem seed de banco) › tema light: injetar CSS vars do tenant simulado reflete em botão primário/sidebar ativa (1.3s)
+
+  62 passed (49.4s)

@@ -170,18 +170,50 @@ export function DataTable({
                     <TableCell className="font-mono text-sm">{item.number}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{item.nome}</TableCell>
                     <TableCell className="font-mono">{formatBRL(item.valor)}</TableCell>
+                    {/* impeccable rodada 5 (P1): as duas colunas eram ícone
+                        colorido SOZINHO — sem rótulo, sem texto, sem tooltip.
+                        Para leitor de tela não existiam (WCAG 1.1.1), e para
+                        quem enxerga o X vermelho não havia rota de diagnóstico:
+                        é o único ponto do produto onde se descobre que um
+                        prestador não foi notificado.
+                        O registro NÃO carrega o motivo da falha (o tipo só tem
+                        `enviado: 'ok' | 'erro'`), então o tooltip diz o que se
+                        sabe e qual é a saída — inventar uma causa seria pior
+                        que o ícone mudo. */}
                     <TableCell className="text-center">
                       {item.enviado === 'ok' ? (
-                        <Check className="mx-auto h-4 w-4 text-success" />
+                        <span className="mx-auto inline-flex items-center gap-1 text-xs font-medium text-success">
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                          Enviado
+                        </span>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground" aria-label="Sem envio registrado">
+                          -
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
                       {item.enviado === 'erro' ? (
-                        <X className="mx-auto h-4 w-4 text-destructive" />
+                        <Tooltip>
+                          <TooltipTrigger
+                            aria-label="Falha no envio: a mensagem não chegou a este prestador. O motivo não é registrado neste movimento."
+                            className="mx-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden="true" />
+                            Falhou
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>
+                              A mensagem não chegou a este prestador. O motivo não fica registrado no
+                              movimento — confira o número e dispare o movimento novamente para
+                                reenviar aos que ainda não receberam.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground" aria-label="Sem falha de envio">
+                          -
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="font-mono text-sm">{item.numnota || ''}</TableCell>

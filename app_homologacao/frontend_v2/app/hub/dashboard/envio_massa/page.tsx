@@ -209,7 +209,17 @@ function EnvioMassaClient() {
               className={`h-2 w-2 rounded-full ${isActive ? 'bg-success pulse-ring' : 'bg-muted-foreground/60'}`}
               aria-hidden="true"
             />
-            {processLoading ? 'Atualizando…' : isActive ? 'Processando' : 'Parado'}
+            {/* impeccable rodada 5 (P1): a pílula dizia só "Processando" — a
+                ação de maior consequência do produto (notifica motoristas
+                reais, leva minutos) tinha o feedback mais pobre da interface.
+                Os dois números já existem no `stats` que a tela carrega; o
+                polling de 13s do useProcessStatus já refaz o fetchData, então
+                o contador anda sozinho sem nenhuma chamada nova. */}
+            {processLoading
+              ? 'Atualizando…'
+              : isActive
+                ? `Enviando — ${stats.msgEnviada} de ${stats.total}`
+                : 'Parado'}
           </span>
         </PageHeader>
 

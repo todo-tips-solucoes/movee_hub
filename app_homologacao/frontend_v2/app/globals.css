@@ -48,7 +48,12 @@
   --accent: #b4ffed;
   --accent-foreground: #0f4938;
 
-  --success: #009b7f;
+  /* impeccable rodada 5 (P1): era #009b7f, que com texto branco dá 3,50:1 —
+     abaixo do mínimo AA de 4,5:1 para texto normal. Atinge os dois botões
+     `bg-success` do fluxo de disparo (o "Iniciar" da barra e o confirm).
+     #00806a é o menor escurecimento do mesmo tom que cruza a barra: 4,89:1.
+     Só o tema claro muda; o dark usa foreground escuro sobre verde claro. */
+  --success: #00806a;
   --success-foreground: #ffffff;
   --warning: #ffb72a;
   --warning-foreground: #0f1849;
