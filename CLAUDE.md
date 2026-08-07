@@ -161,6 +161,44 @@ linha acima do `return`.
 - ⚠️ O `ENV BACKEND_URL` do Dockerfile do `frontend_v2` aponta para a API do ambiente; conferir
   antes de buildar para outro destino.
 
+## Rito do ciclo git — CLÁUSULA PÉTREA
+
+Acordado com o operador em 2026-08-07. Vale para **toda** entrega neste repositório e
+complementa (não substitui) o rito de produção dos 5 gates acima. Cada regra veio de uma
+falha real, não de boas práticas genéricas — a justificativa está ao lado.
+
+**A regra que o rito existe para proteger: produção nunca roda código que não está na `main`.**
+
+| # | Etapa | Regra |
+|---|-------|-------|
+| 0 | Branch | Nunca commitar na `main`. Branch `<tipo>/<escopo>-<slug>`. Autorização é **por etapa**: commitar, pushar/PR e deployar são três permissões distintas — uma não implica a seguinte. |
+| 1 | Gates | Todos verdes e relatados **com números**: `tsc --noEmit` · suíte unit · `next build` (se tocou frontend) · detector impeccable 0 achados (se tocou UI) · E2E do hub (se tocou o hub) · lint comparado com a **baseline** (erro pré-existente não bloqueia; erro novo bloqueia). |
+| 2 | Staging | `git status` lido arquivo a arquivo. `git add` **sempre por caminho explícito** — nunca `git add -A`/`.`. |
+| 3 | Commit | O quê, **por quê**, o que foi verificado, o que ficou de fora. Correção alheia ao escopo vai declarada no corpo, nunca escondida. Trailers de praxe (ver Governança). |
+| 4 | PR | O que muda, risco, verificação com números, o que ficou deliberadamente de fora, e os achados que mudaram o produto durante a verificação. |
+| 5 | **Merge** | Squash + branch deletada, depois `git checkout main && git pull --ff-only`. **Vem ANTES do deploy.** |
+| 6 | Build | A partir da **main já mergeada**. Tag `<rótulo>-<sha7>` (`git rev-parse --short HEAD`). Rito anti-starvation obrigatório. Conferir Dockerfile, `node --version` e `BACKEND_URL` antes de entregar. Anotar o digest. |
+| 7 | Deploy | Os 5 gates do rito de produção, sem exceção. |
+| 8 | Prova | Depois do deploy, **provar** que o bundle servido é o novo: buscar no artefato servido por produção uma string que só existe naquela entrega. HTTP 200 prova que o serviço subiu, não que subiu o código certo. |
+
+Justificativas (todas com incidente de origem):
+
+- **Merge antes do deploy** — nas rodadas 3 e 4 do impeccable, produção rodou código fora da
+  `main` e o merge quase foi esquecido nas duas vezes. Um hotfix partindo da main teria
+  partido de código diferente do que o cliente usa.
+- **Tag com `sha7`** — sem ela, provar de qual código veio a imagem exige comparar
+  `git rev-parse HEAD^{tree}` na mão.
+- **`git add` explícito** — o repo tem untracked de longa data (`arquivos_complementares/`,
+  backups, logs de E2E) que um `git add -A` arrastaria para o commit.
+- ⚠️ **`package-lock.json` é reescrito pelo container do Playwright** (npm de outra versão)
+  a cada execução do E2E, via bind mount. **Conferir e reverter antes de commitar** — foi
+  pego por acaso 2× na mesma sessão.
+- **Prova de bundle** — `NEXT_PUBLIC_*` é inlinada em build; já houve deploy com smoke 200 e
+  bundle errado (incidente do banner de ambiente, PR #81).
+
+Quando o `docker service update` for bloqueado pelo classificador do harness (acontece de
+forma intermitente): **não contornar** — entregar o comando pronto para o operador executar.
+
 ## Regras de domínio — App Motorista / base `Motorista`
 
 O **app motorista** (login + validação de nota fiscal, domínio
@@ -185,7 +223,9 @@ terá; o critério de grupo deixa o sistema correto quando elas existirem). Deco
 
 ## Governança
 
-- Commit/push/merge/deploy **somente com autorização explícita** do operador.
+- Commit/push/merge/deploy **somente com autorização explícita** do operador, **uma por
+  etapa** — autorizar o commit não autoriza o PR, que não autoriza o deploy.
+- O ciclo completo é a cláusula pétrea em [Rito do ciclo git](#rito-do-ciclo-git--cláusula-pétrea).
 - Mensagens de commit terminam com o trailer `Co-Authored-By` do modelo vigente
   (ex.: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`);
   corpos de PR terminam com `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
