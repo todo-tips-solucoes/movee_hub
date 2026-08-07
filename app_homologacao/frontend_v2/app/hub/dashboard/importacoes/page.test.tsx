@@ -109,10 +109,14 @@ describe('ImportacoesPage', () => {
     expect(mockListarImportacoes.mock.calls[1][0]).toMatchObject({ tipo: 'faturamento' });
   });
 
+  // impeccable rodada 4 (h4): a paginação artesanal desta tela deu lugar ao
+  // `PaginationControls` compartilhado — os botões viraram ícone com rótulo
+  // acessível ("Próxima página"/"Página anterior") em vez de texto. O
+  // comportamento asserido é o mesmo.
   it('paginação: botão Próxima desabilitado quando já está na última página', async () => {
     mockListarImportacoes.mockResolvedValueOnce({ items: [ITEM_BASE], total: 1, page: 1, pageSize: 20 });
     render(<ImportacoesPage />);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled());
-    expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Próxima página' })).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
   });
 });

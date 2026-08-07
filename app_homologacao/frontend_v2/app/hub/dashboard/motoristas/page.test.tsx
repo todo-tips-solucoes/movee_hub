@@ -207,11 +207,13 @@ describe('MotoristasPage', () => {
     expect(mockListarMotoristas.mock.calls[1][0]).toMatchObject({ ativo: true });
   });
 
+  // impeccable rodada 4 (h4): paginação artesanal → `PaginationControls`
+  // compartilhado; botões de ícone com rótulo acessível, comportamento igual.
   it('paginação: botão Próxima/Anterior desabilitados quando há só 1 página', async () => {
     mockListarMotoristas.mockResolvedValueOnce({ items: [ITEM_BASE], total: 1, page: 1, pageSize: 20 });
     render(<MotoristasPage />);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled());
-    expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Próxima página' })).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
   });
 
   it('identificador (uuid) copiável aparece na listagem (FR-016, task 4.3.2)', async () => {

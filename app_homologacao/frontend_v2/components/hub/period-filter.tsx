@@ -14,6 +14,7 @@
 // O estado continua sendo só `de`/`ate` no chamador — nenhum preset é
 // persistido. Qual chip acende é DERIVADO do par via `presetAtivo`.
 
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
@@ -22,6 +23,7 @@ import {
   intervaloDoPreset,
   presetAtivo,
   type Intervalo,
+  type PeriodoPreset,
 } from '@/lib/hub/periodo';
 
 export interface PeriodFilterProps {
@@ -49,7 +51,11 @@ export function PeriodFilter({
   legenda,
   className,
 }: PeriodFilterProps) {
-  const ativo = presetAtivo(de, ate);
+  // Último chip clicado — usado SÓ para desempatar quando dois presets geram o
+  // mesmo intervalo (dia 7: "7 dias" == "Este mês"). Não é o estado do filtro:
+  // se o intervalo deixar de casar, `presetAtivo` ignora este valor.
+  const [ultimoClicado, setUltimoClicado] = useState<PeriodoPreset | null>(null);
+  const ativo = presetAtivo(de, ate, new Date(), ultimoClicado);
   const deBR = formatarISOparaBR(de);
   const ateBR = formatarISOparaBR(ate);
   // Comparação lexicográfica funciona porque `YYYY-MM-DD` ordena como texto.
@@ -72,7 +78,10 @@ export function PeriodFilter({
               // filtro continua sendo `de`/`ate`.
               aria-pressed={selecionado}
               title={p.descricao}
-              onClick={() => onChange(intervaloDoPreset(p.id))}
+              onClick={() => {
+                setUltimoClicado(p.id);
+                onChange(intervaloDoPreset(p.id));
+              }}
               className={cn(
                 'min-h-8 rounded-full border px-2.5 text-xs font-medium transition-colors',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
@@ -88,7 +97,10 @@ export function PeriodFilter({
         {(de || ate) && (
           <button
             type="button"
-            onClick={() => onChange({ de: '', ate: '' })}
+            onClick={() => {
+              setUltimoClicado(null);
+              onChange({ de: '', ate: '' });
+            }}
             className="min-h-8 rounded-full px-2 text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             Todo o período

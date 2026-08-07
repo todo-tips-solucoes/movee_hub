@@ -23,7 +23,6 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -37,8 +36,10 @@ import { useHubAuth } from '@/contexts/hub-auth-context';
 import { ImportWizard, useImportWizard } from '@/components/hub/import-wizard';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { PaginationControls } from '@/components/pagination-controls';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { PeriodFilter } from '@/components/hub/period-filter';
+import { UsuarioCombobox } from '@/components/hub/usuario-combobox';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { ImportacaoStatusBadge } from '@/components/hub/status-badge';
 import { listarImportacoes, ImportacaoApiError } from '@/lib/hub/importacoes-api';
@@ -267,15 +268,19 @@ export default function ImportacoesPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="importacoes-filtro-responsavel" className="text-xs text-muted-foreground">
-            Responsável (ID do usuário)
-          </label>
-          <Input
+          {/* impeccable rodada 4 (h6): mesmo componente da auditoria. Aqui a
+              degradação importa de verdade — o papel `operador` tem o módulo
+              de importações e NÃO tem `usuarios.gerenciar`, então para ele o
+              combobox se apresenta como o campo de ID de sempre. */}
+          <span id="importacoes-filtro-responsavel-label" className="text-xs text-muted-foreground">
+            Responsável
+          </span>
+          <UsuarioCombobox
             id="importacoes-filtro-responsavel"
+            aria-labelledby="importacoes-filtro-responsavel-label"
+            ariaLabel="Filtrar por responsável pela importação"
             value={h.filtros.responsavel}
-            onChange={(e) => h.setFiltros({ responsavel: e.target.value })}
-            placeholder="Ex.: 17"
-            className="h-11 sm:h-9"
+            onChange={(v) => h.setFiltros({ responsavel: v })}
           />
         </div>
 
@@ -403,26 +408,14 @@ export default function ImportacoesPage() {
             </Table>
           </div>
 
-          {/* Paginação */}
-          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-            <span>
-              Página {h.page} de {h.totalPaginas} — {h.total} registro{h.total === 1 ? '' : 's'}
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" disabled={h.page <= 1} onClick={() => h.setPage(h.page - 1)}>
-                Anterior
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11 sm:min-h-8"
-                disabled={h.page >= h.totalPaginas}
-                onClick={() => h.setPage(h.page + 1)}
-              >
-                Próxima
-              </Button>
-            </div>
-          </div>
+          {/* Paginação — idioma único do produto (impeccable rodada 4, h4). */}
+          <PaginationControls
+            currentPage={h.page}
+            totalPages={h.totalPaginas}
+            recordsPerPage={PAGE_SIZE}
+            totalRecords={h.total}
+            onPageChange={h.setPage}
+          />
         </>
       )}
     </div>
