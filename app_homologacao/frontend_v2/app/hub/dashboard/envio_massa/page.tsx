@@ -61,6 +61,8 @@ import { Filters } from '@/components/filters';
 import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
 import { PageHeader } from '@/components/hub/page-header';
+import { DisparoRecibo } from '@/components/hub/disparo-recibo';
+import { initialFilters } from '@/lib/utils';
 import { toast } from 'sonner';
 import { motion, useReducedMotion } from 'framer-motion';
 
@@ -138,9 +140,16 @@ function EnvioMassaClient() {
     toggleSelect,
   } = useEnvioMassa();
 
-  const { isActive, isLoading: processLoading, startProcess, stopProcess } = useProcessStatus({
-    onRefresh: fetchData,
-  });
+  // `disparoConcluido`/`dispensarRecibo`: impeccable rodada 6 (P1-2) — o hook
+  // detecta a virada ativo → inativo e a tela só decide o que desenhar.
+  const {
+    isActive,
+    isLoading: processLoading,
+    startProcess,
+    stopProcess,
+    disparoConcluido,
+    dispensarRecibo,
+  } = useProcessStatus({ onRefresh: fetchData });
 
   useEffect(() => {
     if (!carregandoAuth && entidadeAtiva !== null) {
@@ -222,6 +231,17 @@ function EnvioMassaClient() {
                 : 'Parado'}
           </span>
         </PageHeader>
+
+        {disparoConcluido && (
+          <DisparoRecibo
+            stats={stats}
+            // Filtro limpo + "Com Erro": partir dos filtros atuais poderia
+            // devolver zero linhas (ex.: "Enviados" ligado) e desmentir o
+            // número que o próprio recibo acabou de mostrar.
+            onVerErros={() => updateFilters({ ...initialFilters, sucesso: 'yes' })}
+            onDispensar={dispensarRecibo}
+          />
+        )}
 
         <StatsCards stats={stats} />
 
