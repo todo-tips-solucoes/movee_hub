@@ -22,9 +22,13 @@ interface CloseMovementDialogProps {
   /** Números do movimento para o resumo de impacto — omitido, o diálogo cai
    * no texto sem resumo (callers legados que não têm stats à mão). */
   stats?: StatsData | null;
+  /** Disparo em andamento. Fechar o movimento no meio do envio o lacra com
+   * parte dos motoristas notificados e parte não — daí o bloqueio
+   * (impeccable rodada 5, P1: o botão seguia clicável durante o disparo). */
+  isActive?: boolean;
 }
 
-export function CloseMovementDialog({ onConfirm, stats }: CloseMovementDialogProps) {
+export function CloseMovementDialog({ onConfirm, stats, isActive = false }: CloseMovementDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -43,7 +47,31 @@ export function CloseMovementDialog({ onConfirm, stats }: CloseMovementDialogPro
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={<Button size="sm" variant="outline" className="gap-1.5 text-warm-2 hover:text-warm-3" />}>
+      {/* impeccable rodada 5 (P1). Duas correções no mesmo gatilho:
+          1. CONTRASTE: era `text-warm-2` (#2ceabc), que sobre o botão outline
+             claro dá 1,54:1 — e 1,39:1 sobre o fundo bege da página. O mínimo
+             AA é 4,5:1 para texto e 3:1 para componente. Era, aliás, a única
+             ocorrência de `warm-*` em todo o código de componentes: a cor de
+             assinatura da marca não pertence a uma ação de encerramento.
+          2. HIERARQUIA: renderizada igual ao "Download XML" ao lado, a ação
+             irreversível lia-se como a menos importante das seis. O idioma
+             destrutivo aqui é o mesmo que `process-controls.tsx` já usa no
+             botão de parar. */}
+      <AlertDialogTrigger
+        render={
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isActive}
+            title={
+              isActive
+                ? 'Não é possível fechar o movimento durante um disparo em andamento — pare o envio primeiro.'
+                : undefined
+            }
+            className="gap-1.5 border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          />
+        }
+      >
         <Lock className="h-4 w-4" />
         Fechar movimento
       </AlertDialogTrigger>
