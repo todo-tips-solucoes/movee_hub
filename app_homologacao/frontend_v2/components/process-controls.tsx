@@ -13,9 +13,22 @@ interface ProcessControlsProps {
   isLoading: boolean;
   onStart: () => void;
   onStop: () => void;
+  /**
+   * Quantas linhas o operador marcou na tabela (impeccable rodada 6). Zero ou
+   * ausente = disparo do movimento inteiro. O botão declara o escopo antes do
+   * clique: era possível marcar linhas e ler "Iniciar", sem nada dizendo que a
+   * seleção não mudava o alcance da ação.
+   */
+  selecionados?: number;
 }
 
-export function ProcessControls({ isActive, isLoading, onStart, onStop }: ProcessControlsProps) {
+export function ProcessControls({
+  isActive,
+  isLoading,
+  onStart,
+  onStop,
+  selecionados = 0,
+}: ProcessControlsProps) {
   return (
     <div className="flex items-center gap-2">
       <Tooltip>
@@ -33,9 +46,13 @@ export function ProcessControls({ isActive, isLoading, onStart, onStop }: Proces
           ) : (
             <Play className="h-4 w-4" />
           )}
-          Iniciar
+          {selecionados > 0 ? `Disparar para ${selecionados}` : 'Iniciar'}
         </TooltipTrigger>
-        <TooltipContent>Iniciar processamento do envio</TooltipContent>
+        <TooltipContent>
+          {selecionados > 0
+            ? `Dispara apenas para ${selecionados} registro${selecionados === 1 ? '' : 's'} selecionado${selecionados === 1 ? '' : 's'}`
+            : 'Iniciar processamento do envio para todo o movimento aberto'}
+        </TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger render={

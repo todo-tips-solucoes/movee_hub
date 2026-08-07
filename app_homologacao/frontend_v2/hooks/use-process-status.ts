@@ -59,10 +59,15 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
     }, 13000);
   }, [checkStatus, clearPolling]);
 
-  const startProcess = useCallback(async () => {
+  /**
+   * `ids` (impeccable rodada 6): dispara só para os registros selecionados.
+   * Omitido ou vazio = movimento aberto inteiro, como sempre foi — a rota
+   * trata a ausência do campo, não um array vazio.
+   */
+  const startProcess = useCallback(async (ids?: number[]) => {
     try {
       setIsLoading(true);
-      await api.post('/start-process');
+      await api.post('/start-process', ids && ids.length ? { ids } : undefined);
       setIsActive(true);
       estavaAtivoRef.current = true;
       setDisparoConcluido(false);

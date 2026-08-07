@@ -115,13 +115,23 @@ export function useEnvioMassa(empresaId?: number | null) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData, empresaId]);
 
+  // impeccable rodada 6: une/remove só os IDs da página atual. Antes o Set era
+  // sobrescrito, então marcar "todos" na página 2 apagava em silêncio o que
+  // estava marcado na página 1 — e desde que a seleção passou a decidir para
+  // quem o disparo vai, essa perda silenciosa mandaria menos mensagens do que
+  // o operador acredita ter pedido.
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === paginatedData.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(paginatedData.map((d) => d.id)));
-    }
-  }, [paginatedData, selectedIds.size]);
+    setSelectedIds((prev) => {
+      const idsDaPagina = paginatedData.map((d) => d.id);
+      const todosMarcados = idsDaPagina.length > 0 && idsDaPagina.every((id) => prev.has(id));
+      const next = new Set(prev);
+      for (const id of idsDaPagina) {
+        if (todosMarcados) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }, [paginatedData]);
 
   const toggleSelect = useCallback((id: number) => {
     setSelectedIds((prev) => {
