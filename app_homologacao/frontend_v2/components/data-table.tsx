@@ -53,7 +53,11 @@ export function DataTable({
   const [editRecord, setEditRecord] = useState<EnvioMassa | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const allSelected = data.length > 0 && selectedIds.size === data.length;
+  // impeccable rodada 6: por pertinência, não por tamanho. Comparar `size` com
+  // o total da página dava falso negativo assim que a seleção incluía linhas de
+  // outra página (3 da pág. 1 + a pág. 2 inteira ≠ 50, e o cabeçalho aparecia
+  // desmarcado com tudo marcado na frente do operador).
+  const allSelected = data.length > 0 && data.every((item) => selectedIds.has(item.id));
 
   return (
     <>

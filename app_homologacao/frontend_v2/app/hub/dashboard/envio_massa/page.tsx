@@ -40,7 +40,7 @@
 // Ref: docs/specs/hub-envio-massa/spec.md FR-004; contracts/claims-adapter.md;
 // tasks.md FASE 5.
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { useEnvioMassa } from '@/hooks/use-envio-massa';
@@ -61,6 +61,8 @@ import { Filters } from '@/components/filters';
 import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
 import { PageHeader } from '@/components/hub/page-header';
+import { DisparoRecibo } from '@/components/hub/disparo-recibo';
+import { initialFilters } from '@/lib/utils';
 import { toast } from 'sonner';
 import { motion, useReducedMotion } from 'framer-motion';
 
@@ -115,6 +117,7 @@ function EnvioMassaClient() {
   // token (diferença 1 do cabeçalho) — nunca passamos o query param aqui.
   const {
     paginatedData,
+    data,
     stats,
     filters,
     loading,
@@ -138,9 +141,16 @@ function EnvioMassaClient() {
     toggleSelect,
   } = useEnvioMassa();
 
-  const { isActive, isLoading: processLoading, startProcess, stopProcess } = useProcessStatus({
-    onRefresh: fetchData,
-  });
+  // `disparoConcluido`/`dispensarRecibo`: impeccable rodada 6 (P1-2) — o hook
+  // detecta a virada ativo → inativo e a tela só decide o que desenhar.
+  const {
+    isActive,
+    isLoading: processLoading,
+    startProcess,
+    stopProcess,
+    disparoConcluido,
+    dispensarRecibo,
+  } = useProcessStatus({ onRefresh: fetchData });
 
   useEffect(() => {
     if (!carregandoAuth && entidadeAtiva !== null) {
@@ -153,9 +163,29 @@ function EnvioMassaClient() {
   // de impacto antes de startProcess, mesmo idioma do CloseMovementDialog.
   const [confirmarDisparo, setConfirmarDisparo] = useState(false);
 
+  // impeccable rodada 6 (P2): os checkboxes marcavam linhas e nenhuma ação as
+  // consultava — quem marcasse 12 e clicasse em "Iniciar" disparava para o
+  // movimento inteiro. Agora a seleção define o escopo.
+  //
+  // `data` e não `paginatedData`: a seleção sobrevive à troca de página, então
+  // contar só o que está na tela mentiria de novo, ao contrário.
+  const selecionados = useMemo(
+    () => data.filter((d) => selectedIds.has(d.id)),
+    [data, selectedIds]
+  );
+  // O backend envia apenas quem está com `enviado === 'off'` (linha já enviada
+  // não é reenviada). Este é o número que sai de verdade — é ele que a
+  // confirmação mostra, não o total marcado.
+  const selecionadosPendentes = useMemo(
+    () => selecionados.filter((d) => d.enviado === 'off').length,
+    [selecionados]
+  );
+
   const handleStart = async () => {
     try {
-      await startProcess();
+      // Sem seleção, `startProcess` recebe lista vazia e omite o campo: a rota
+      // volta ao comportamento histórico (movimento aberto inteiro).
+      await startProcess(selecionados.map((d) => d.id));
       toast.success('Processamento iniciado!');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao iniciar processamento');
@@ -223,6 +253,17 @@ function EnvioMassaClient() {
           </span>
         </PageHeader>
 
+        {disparoConcluido && (
+          <DisparoRecibo
+            stats={stats}
+            // Filtro limpo + "Com Erro": partir dos filtros atuais poderia
+            // devolver zero linhas (ex.: "Enviados" ligado) e desmentir o
+            // número que o próprio recibo acabou de mostrar.
+            onVerErros={() => updateFilters({ ...initialFilters, sucesso: 'yes' })}
+            onDispensar={dispensarRecibo}
+          />
+        )}
+
         <StatsCards stats={stats} />
 
         <ActionBar
@@ -235,6 +276,7 @@ function EnvioMassaClient() {
           onDownloadXML={downloadXML}
           onCloseMovement={closeMovement}
           stats={stats}
+          selecionados={selecionados.length}
         />
 
         <Filters
@@ -273,12 +315,42 @@ function EnvioMassaClient() {
       <AlertDialog open={confirmarDisparo} onOpenChange={setConfirmarDisparo}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Iniciar envio em massa?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {selecionados.length > 0
+                ? `Disparar para ${selecionadosPendentes} dos ${selecionados.length} selecionados?`
+                : 'Iniciar envio em massa?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              O processamento dispara as notificações do movimento aberto para os motoristas.
-              Neste momento o movimento tem {stats.total} registro{stats.total === 1 ? '' : 's'},{' '}
-              {stats.msgEnviada} já com mensagem enviada e {stats.total - stats.msgEnviada} ainda
-              sem envio.
+              {selecionados.length > 0 ? (
+                // Com seleção, o número que importa é o que sai de verdade. Dizer
+                // "12 selecionados" quando 5 já receberam seria a mesma mentira
+                // que os checkboxes contavam antes de terem destino.
+                <>
+                  Você marcou {selecionados.length} registro
+                  {selecionados.length === 1 ? '' : 's'}
+                  {selecionados.length - selecionadosPendentes > 0 && (
+                    <>
+                      , mas {selecionados.length - selecionadosPendentes}{' '}
+                      {selecionados.length - selecionadosPendentes === 1
+                        ? 'já recebeu mensagem e será pulado'
+                        : 'já receberam mensagem e serão pulados'}
+                    </>
+                  )}
+                  .{' '}
+                  {selecionadosPendentes === 0
+                    ? 'Não há nada a enviar nessa seleção.'
+                    : `A notificação sai para ${selecionadosPendentes} motorista${
+                        selecionadosPendentes === 1 ? '' : 's'
+                      }. O restante do movimento não é tocado.`}
+                </>
+              ) : (
+                <>
+                  O processamento dispara as notificações do movimento aberto para os motoristas.
+                  Neste momento o movimento tem {stats.total} registro
+                  {stats.total === 1 ? '' : 's'}, {stats.msgEnviada} já com mensagem enviada e{' '}
+                  {stats.total - stats.msgEnviada} ainda sem envio.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -288,9 +360,11 @@ function EnvioMassaClient() {
                 setConfirmarDisparo(false);
                 handleStart();
               }}
+              // Seleção inteira já enviada: não há disparo a confirmar.
+              disabled={selecionados.length > 0 && selecionadosPendentes === 0}
               className="bg-success text-success-foreground hover:bg-success/90"
             >
-              Iniciar envio
+              {selecionados.length > 0 ? `Disparar para ${selecionadosPendentes}` : 'Iniciar envio'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

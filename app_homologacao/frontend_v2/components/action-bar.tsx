@@ -22,6 +22,8 @@ interface ActionBarProps {
   onCloseMovement: () => Promise<void>;
   /** Números do movimento — repassados ao confirm de Fechar movimento. */
   stats?: StatsData | null;
+  /** Linhas marcadas na tabela — o botão de disparo declara o escopo. */
+  selecionados?: number;
 }
 
 export function ActionBar({
@@ -34,6 +36,7 @@ export function ActionBar({
   onDownloadXML,
   onCloseMovement,
   stats,
+  selecionados,
 }: ActionBarProps) {
   const [csvLoading, setCsvLoading] = useState(false);
   const [xmlLoading, setXmlLoading] = useState(false);
@@ -70,6 +73,7 @@ export function ActionBar({
         isLoading={isProcessLoading}
         onStart={onStart}
         onStop={onStop}
+        selecionados={selecionados}
       />
 
       <Separator orientation="vertical" className="hidden h-8 sm:block" />

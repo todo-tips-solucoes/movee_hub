@@ -578,6 +578,8 @@ function trataNumero(sender) {
 // FASTAPI_NEXUS_URL apontam para os mocks; o gate (lib/envio-gate.js) decide
 // ANTES de qualquer axios se a chamada pode sair (ENVIO_DRY_RUN/allowlist).
 const { gateEnvioExterno } = require('./lib/envio-gate');
+// impeccable rodada 6: disparo por seleção — validação do `ids` de /start-process.
+const { parseIdsSelecionados } = require('./lib/envio-selecao');
 const ENVIO_API_BASE = process.env.N8N_URL || 'https://api.chatmasterveloz.com';
 const FASTAPI_BASE_MOVEE = process.env.FASTAPI_URL || 'https://fastapihomologacao.todo-tips.com';
 const FASTAPI_BASE_NEXUS = process.env.FASTAPI_NEXUS_URL || 'https://fastapihomologacaonexus.todo-tips.com';
@@ -1258,11 +1260,24 @@ function toDDMMYYYY(input, tz = 'America/Sao_Paulo') {
 
 
 // Função para processar envio de mensagens em lote
-async function processBatchMessages(empresaId, userToken, connection_id) {
+async function processBatchMessages(empresaId, userToken, connection_id, ids) {
     try {
         const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${empresaId}&mov_fechado=eq.false`, 'GET');
 
         if (!data || data.length === 0) {
+            throw new Error('Nenhum registro encontrado para processamento.');
+        }
+
+        // impeccable rodada 6: disparo por seleção. O recorte é feito em
+        // memória, não em `id=in.(...)` no PostgREST — seleção grande estoura
+        // o header do PostgREST (mesmo incidente do /upload de motoristas, que
+        // por isso pagina em lotes de 100). O escopo do tenant continua vindo
+        // do token na rota; `ids` só RESTRINGE dentro do que a empresa já
+        // podia disparar, nunca amplia.
+        const selecionados = ids && ids.length ? new Set(ids) : null;
+        const alvo = selecionados ? data.filter((item) => selecionados.has(item.id)) : data;
+
+        if (alvo.length === 0) {
             throw new Error('Nenhum registro encontrado para processamento.');
         }
 
@@ -1271,7 +1286,7 @@ async function processBatchMessages(empresaId, userToken, connection_id) {
         // Caller passa como 3º arg em mesmoGrupoQue — sem default object (OWASP MEDIUM-002).
         const _grupoCache = {};
 
-        for (const item of data) {
+        for (const item of alvo) {
             // Verifica o estado do processo no banco antes de cada iteração
             const processStatus = await postgrestRequest(`ProcessControl?user_id=eq.${empresaId}`, 'GET');
             if (processStatus[0]?.status !== 'active') {
@@ -1400,14 +1415,23 @@ app.post('/start-process', authenticateTokenCompartilhado, hubEnvioMassaClaimsBr
 
         console.log('Esse é os dados do user:', userId);
 
+        // impeccable rodada 6: `ids` é opcional — ausente, dispara o movimento
+        // aberto inteiro (comportamento histórico, intocado). Regras e porquês
+        // em lib/envio-selecao.js, com teste próprio.
+        const selecao = parseIdsSelecionados(req.body);
+        if (!selecao.ok) {
+            return res.status(400).json({ error: selecao.erro });
+        }
+        const ids = selecao.ids;
+
         // Atualiza o status do processo para ativo
         await updateProcessControl(userId, 'active');
         console.log(`Processo marcado como ativo para o usuário: ${userId}`);
 
         // Chama o processamento em lote diretamente
-        await processBatchMessages(userId, req.user.tk, req.user.connection_id);
+        await processBatchMessages(userId, req.user.tk, req.user.connection_id, ids);
 
-        await auditarEnvioMassaSeViaHub(req, { acao: 'envio_massa_iniciado', recurso: 'ProcessControl', recursoId: userId, detalhes: {} });
+        await auditarEnvioMassaSeViaHub(req, { acao: 'envio_massa_iniciado', recurso: 'ProcessControl', recursoId: userId, detalhes: { selecionados: ids ? ids.length : null } });
         res.json({ message: 'Processo iniciado com sucesso!' });
     } catch (error) {
         await updateProcessControl(req.user.empresaId, 'inactive');
