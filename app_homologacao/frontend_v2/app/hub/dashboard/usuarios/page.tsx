@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/sheet';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { labelPapel } from '@/components/hub/entity-switcher';
+import { PaginationControls } from '@/components/pagination-controls';
 import { listarPapeisMatriz } from '@/lib/hub/admin-api';
 import type { PapelCatalogo } from '@/lib/hub/admin-dto';
 import {
@@ -439,6 +440,13 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
 
   const jaTemVinculoNaEntidade = vinculos.some((v) => v.entidadeId === entidadeAtiva);
 
+  // impeccable rodada 4: com dois modos de persistência no mesmo painel, o
+  // operador precisa ver que existe algo PENDENTE — antes o botão "Salvar
+  // dados" ficava sempre igual, salvo ou não, e "Fechar" descartava em
+  // silêncio. Compara com o objeto carregado, não com um snapshot próprio.
+  const dadosAlterados =
+    usuario !== null && (nome !== usuario.nome || ativo !== usuario.ativo || novaSenha !== '');
+
   return (
     /* uiux-hub F3: Sheet lateral em vez de Dialog — o conteúdo (dados +
        vínculos + papéis) era grande demais para um modal com scroll interno;
@@ -450,40 +458,59 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
           <SheetDescription>{usuario?.email}</SheetDescription>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="editar-usuario-nome">Nome</Label>
-            <Input id="editar-usuario-nome" value={nome} onChange={(e) => setNome(e.target.value)} disabled={salvando} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="editar-usuario-ativo"
-              checked={ativo}
-              onCheckedChange={(v) => setAtivo(v === true)}
-              disabled={salvando}
-            />
-            <Label htmlFor="editar-usuario-ativo">Usuário ativo (desmarque para desativar — nunca há exclusão)</Label>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="editar-usuario-senha">Redefinir senha (opcional)</Label>
-            <Input
-              id="editar-usuario-senha"
-              type="password"
-              value={novaSenha}
-              onChange={(e) => setNovaSenha(e.target.value)}
-              placeholder="Deixe em branco para manter a atual"
-              disabled={salvando}
-              aria-invalid={!!erroSenha}
-              aria-describedby={erroSenha ? 'editar-usuario-senha-erro' : undefined}
-            />
-            {erroSenha && (
-              <p id="editar-usuario-senha-erro" role="alert" className="text-xs text-destructive">
-                {erroSenha}
+          {/* impeccable rodada 4 (h3/h9, critique #2: "Sheet com persistência
+              híbrida — vínculo salva no clique, dados no botão"). Os dois
+              modos continuam existindo porque são rotas diferentes do backend;
+              o que faltava era o painel DIZER qual é qual. Cada bloco agora
+              declara quando o que está dentro dele passa a valer. */}
+          <section className="flex flex-col gap-3" aria-labelledby="editar-usuario-dados-titulo">
+            <div>
+              <h3 id="editar-usuario-dados-titulo" className="text-sm font-medium">
+                Dados do usuário
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Passam a valer quando você clicar em <strong className="font-medium">Salvar dados</strong>.
               </p>
-            )}
-          </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="editar-usuario-nome">Nome</Label>
+              <Input id="editar-usuario-nome" value={nome} onChange={(e) => setNome(e.target.value)} disabled={salvando} />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="editar-usuario-ativo"
+                checked={ativo}
+                onCheckedChange={(v) => setAtivo(v === true)}
+                disabled={salvando}
+              />
+              <Label htmlFor="editar-usuario-ativo">Usuário ativo (desmarque para desativar — nunca há exclusão)</Label>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="editar-usuario-senha">Redefinir senha (opcional)</Label>
+              <Input
+                id="editar-usuario-senha"
+                type="password"
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                placeholder="Deixe em branco para manter a atual"
+                disabled={salvando}
+                aria-invalid={!!erroSenha}
+                aria-describedby={erroSenha ? 'editar-usuario-senha-erro' : undefined}
+              />
+              {erroSenha && (
+                <p id="editar-usuario-senha-erro" role="alert" className="text-xs text-destructive">
+                  {erroSenha}
+                </p>
+              )}
+            </div>
+          </section>
 
           <div className="rounded-md border p-3">
-            <p className="mb-2 text-sm font-medium">Vínculos</p>
+            <p className="text-sm font-medium">Vínculos</p>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Valem <strong className="font-medium">na hora</strong>: cada alteração aqui é salva no
+              clique, sem depender do botão Salvar.
+            </p>
             <div className="flex flex-col gap-2">
               {vinculos.map((v) => (
                 <div key={v.id} className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
@@ -534,11 +561,14 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
             </p>
           )}
         </div>
-        <SheetFooter className="flex-row justify-end gap-2 border-t">
+        <SheetFooter className="flex-row items-center justify-end gap-2 border-t">
+          {dadosAlterados && !salvando && (
+            <p className="mr-auto text-xs text-muted-foreground">Há alterações não salvas.</p>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={salvando}>
-            Fechar
+            {dadosAlterados ? 'Descartar e fechar' : 'Fechar'}
           </Button>
-          <Button onClick={salvarDados} disabled={salvando}>
+          <Button onClick={salvarDados} disabled={salvando || !dadosAlterados}>
             {salvando && <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />}
             {salvando ? 'Salvando...' : 'Salvar dados'}
           </Button>
@@ -631,30 +661,15 @@ export default function UsuariosPage() {
             </div>
           ))}
 
-          <div className="flex items-center justify-between gap-2 pt-2 text-sm text-muted-foreground">
-            <span>
-              Página {h.page} de {h.totalPaginas} — {h.total} usuário{h.total === 1 ? '' : 's'}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11 sm:min-h-8"
-                disabled={h.page <= 1}
-                onClick={() => h.setPage(h.page - 1)}
-              >
-                Anterior
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11 sm:min-h-8"
-                disabled={h.page >= h.totalPaginas}
-                onClick={() => h.setPage(h.page + 1)}
-              >
-                Próxima
-              </Button>
-            </div>
+          {/* Paginação — idioma único do produto (impeccable rodada 4, h4). */}
+          <div className="pt-2">
+            <PaginationControls
+              currentPage={h.page}
+              totalPages={h.totalPaginas}
+              recordsPerPage={PAGE_SIZE}
+              totalRecords={h.total}
+              onPageChange={h.setPage}
+            />
           </div>
         </div>
       )}

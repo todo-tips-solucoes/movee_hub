@@ -52,7 +52,12 @@ export default function HubDashboardLayout({ children }: { children: ReactNode }
               <Wordmark className="h-6" />
             </Link>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* `min-w-0` (impeccable rodada 4): sem ele o item flex não encolhe
+              abaixo da largura do próprio conteúdo (min-width:auto), e o
+              EntitySwitcher com nome de entidade longo empurrava o header 4px
+              além da viewport em 390px — o body do hub rolava na horizontal em
+              TODAS as telas. Achado medindo o DOM na verificação viva. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {/* task 3.1.1 — alternância de tema (FR-006/FR-007), ao lado de
                 EntitySwitcher/AccountMenu; ThemeProvider mantém
                 defaultTheme="dark" (FR-008) — este componente só oferece a

@@ -24,7 +24,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Eye, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { PaginationControls } from '@/components/pagination-controls';
 import { EntidadeCombobox } from '@/components/hub/entidade-combobox';
+import { UsuarioCombobox } from '@/components/hub/usuario-combobox';
 import { PeriodFilter } from '@/components/hub/period-filter';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Button } from '@/components/ui/button';
@@ -286,17 +288,18 @@ export default function AuditoriaPage() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="auditoria-filtro-usuario" className="text-xs text-muted-foreground">
-              ID do usuário responsável
-            </label>
-            <Input
+            {/* impeccable rodada 4 (h6): era um campo numérico que exigia
+                decorar o ID de quem fez a ação. O combobox lista as pessoas
+                por nome e e-mail; se o backend negar a listagem (403), ele
+                próprio vira o campo de ID de antes. */}
+            <span id="auditoria-filtro-usuario-label" className="text-xs text-muted-foreground">
+              Usuário responsável
+            </span>
+            <UsuarioCombobox
               id="auditoria-filtro-usuario"
-              type="number"
-              min={1}
+              aria-labelledby="auditoria-filtro-usuario-label"
               value={h.filtros.usuarioId}
-              onChange={(e) => h.setFiltros({ usuarioId: e.target.value })}
-              placeholder="Ex.: 17"
-              className="h-11 sm:h-9"
+              onChange={(v) => h.setFiltros({ usuarioId: v })}
             />
           </div>
           {podeVerTudo && (
@@ -416,32 +419,16 @@ export default function AuditoriaPage() {
             </Table>
           </div>
 
-          {/* Paginação */}
-          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-            <span>
-              Página {h.page} de {h.totalPaginas} — {h.total} evento{h.total === 1 ? '' : 's'}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11 sm:min-h-8"
-                disabled={h.page <= 1}
-                onClick={() => h.setPage(h.page - 1)}
-              >
-                Anterior
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11 sm:min-h-8"
-                disabled={h.page >= h.totalPaginas}
-                onClick={() => h.setPage(h.page + 1)}
-              >
-                Próxima
-              </Button>
-            </div>
-          </div>
+          {/* Paginação — impeccable rodada 4 (h4): o mesmo componente do
+              painel legado e das demais telas do hub, em vez do rodapé
+              artesanal que cada módulo reimplementava. */}
+          <PaginationControls
+            currentPage={h.page}
+            totalPages={h.totalPaginas}
+            recordsPerPage={PAGE_SIZE}
+            totalRecords={h.total}
+            onPageChange={h.setPage}
+          />
         </>
       )}
 

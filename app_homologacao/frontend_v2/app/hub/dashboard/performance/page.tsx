@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { KpiCard } from '@/components/hub/kpi-card';
+import { PaginationControls } from '@/components/pagination-controls';
 import { PeriodFilter } from '@/components/hub/period-filter';
 import { KpiSkeleton, ListSkeleton } from '@/components/hub/table-skeleton';
 import {
@@ -562,32 +563,14 @@ export default function PerformancePage() {
             </Table>
           </div>
 
-          {/* Paginação */}
-          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-            <span>
-              Página {h.page} de {h.totalPaginas} — {h.total} registro{h.total === 1 ? '' : 's'}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11 sm:min-h-8"
-                disabled={h.page <= 1}
-                onClick={() => h.setPage(h.page - 1)}
-              >
-                Anterior
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11 sm:min-h-8"
-                disabled={h.page >= h.totalPaginas}
-                onClick={() => h.setPage(h.page + 1)}
-              >
-                Próxima
-              </Button>
-            </div>
-          </div>
+          {/* Paginação — idioma único do produto (impeccable rodada 4, h4). */}
+          <PaginationControls
+            currentPage={h.page}
+            totalPages={h.totalPaginas}
+            recordsPerPage={PAGE_SIZE}
+            totalRecords={h.total}
+            onPageChange={h.setPage}
+          />
         </>
       )}
     </div>

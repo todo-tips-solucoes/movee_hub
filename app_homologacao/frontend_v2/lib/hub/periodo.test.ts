@@ -68,6 +68,45 @@ describe('presetAtivo', () => {
     expect(presetAtivo('2026-03-15', '', QUINZE_MARCO)).toBeNull();
     expect(presetAtivo('', '', QUINZE_MARCO)).toBeNull();
   });
+
+  // Achado da verificação viva da rodada 4 (o E2E rodou num dia 7): há datas em
+  // que dois presets descrevem EXATAMENTE o mesmo intervalo, e sem desempate
+  // quem clicava em "Este mês" via "7 dias" acender.
+  describe('empate entre presets', () => {
+    const DIA_7 = new Date(2026, 7, 7); // 7 de agosto: "7 dias" e "Este mês" == 01..07
+    const DIA_1 = new Date(2026, 7, 1); // 1º: "Hoje" e "Este mês" == 01..01
+
+    it('no dia 7, "7 dias" e "Este mês" são o mesmo intervalo', () => {
+      expect(intervaloDoPreset('7d', DIA_7)).toEqual(intervaloDoPreset('mes', DIA_7));
+    });
+
+    it('sem preferência, vence a ordem da lista (comportamento antigo, preservado)', () => {
+      const i = intervaloDoPreset('mes', DIA_7);
+      expect(presetAtivo(i.de, i.ate, DIA_7)).toBe('7d');
+    });
+
+    it('com preferência, o chip clicado é o que acende', () => {
+      const i = intervaloDoPreset('mes', DIA_7);
+      expect(presetAtivo(i.de, i.ate, DIA_7, 'mes')).toBe('mes');
+      expect(presetAtivo(i.de, i.ate, DIA_7, '7d')).toBe('7d');
+    });
+
+    it('mesmo empate entre "Hoje" e "Este mês" no dia 1º', () => {
+      const i = intervaloDoPreset('mes', DIA_1);
+      expect(presetAtivo(i.de, i.ate, DIA_1, 'mes')).toBe('mes');
+      expect(presetAtivo(i.de, i.ate, DIA_1)).toBe('hoje');
+    });
+
+    it('preferência obsoleta é ignorada — não acende um chip que não descreve o intervalo', () => {
+      // Intervalo de "30 dias", mas a preferência guardada diz "hoje".
+      const i = intervaloDoPreset('30d', QUINZE_MARCO);
+      expect(presetAtivo(i.de, i.ate, QUINZE_MARCO, 'hoje')).toBe('30d');
+    });
+
+    it('preferência não faz um intervalo personalizado acender chip nenhum', () => {
+      expect(presetAtivo('2026-03-02', '2026-03-11', QUINZE_MARCO, 'mes')).toBeNull();
+    });
+  });
 });
 
 describe('formatarISOparaBR', () => {

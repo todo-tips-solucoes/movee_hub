@@ -54,12 +54,30 @@ export function intervaloDoPreset(preset: PeriodoPreset, hoje: Date = new Date()
 
 /** Qual preset o par (de, ate) representa, ou `null` se for um intervalo
  * personalizado. É o que permite ao chip acender sozinho depois de um reload
- * — o estado do filtro continua sendo só `de`/`ate`, sem preset persistido. */
-export function presetAtivo(de: string, ate: string, hoje: Date = new Date()): PeriodoPreset | null {
+ * — o estado do filtro continua sendo só `de`/`ate`, sem preset persistido.
+ *
+ * `preferido` desempata quando DOIS presets produzem o mesmo intervalo, que é
+ * mais comum do que parece: no dia 7 de qualquer mês, "7 dias" e "Este mês"
+ * são ambos 01..07; no dia 30, "30 dias" e "Este mês" coincidem; no dia 1º,
+ * "Hoje" e "Este mês" também. Sem o desempate, quem clicava em "Este mês" via
+ * "7 dias" acender (achado da verificação viva da rodada 4, em 2026-08-07).
+ * O chamador passa o último preset clicado; se ele ainda descreve o intervalo
+ * atual, é ele que vence. Nada é persistido: após um reload sem `preferido`,
+ * volta a valer a ordem da lista. */
+export function presetAtivo(
+  de: string,
+  ate: string,
+  hoje: Date = new Date(),
+  preferido?: PeriodoPreset | null,
+): PeriodoPreset | null {
   if (!de || !ate) return null;
-  for (const { id } of PERIODO_PRESETS) {
+  const casa = (id: PeriodoPreset) => {
     const alvo = intervaloDoPreset(id, hoje);
-    if (alvo.de === de && alvo.ate === ate) return id;
+    return alvo.de === de && alvo.ate === ate;
+  };
+  if (preferido && casa(preferido)) return preferido;
+  for (const { id } of PERIODO_PRESETS) {
+    if (casa(id)) return id;
   }
   return null;
 }

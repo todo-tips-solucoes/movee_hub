@@ -120,7 +120,9 @@ export function EntitySwitcher({ className }: EntitySwitcherProps) {
   if (entidades.length < 2) return null;
 
   return (
-    <div className={cn('flex flex-col gap-1', className)}>
+    // `min-w-0`: par do mesmo fix em `dashboard/layout.tsx` — este componente
+    // é item flex do header e precisa poder encolher (impeccable rodada 4).
+    <div className={cn('flex min-w-0 flex-col gap-1', className)}>
       <label htmlFor="entity-switcher-trigger" className="text-sm font-semibold text-foreground">
         Entidade
       </label>

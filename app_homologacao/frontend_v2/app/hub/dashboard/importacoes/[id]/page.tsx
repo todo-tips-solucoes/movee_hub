@@ -35,6 +35,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ImportacaoStatusBadge } from '@/components/hub/status-badge';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
+import { PaginationControls } from '@/components/pagination-controls';
 import {
   Table,
   TableBody,
@@ -358,30 +359,17 @@ export default function ImportacaoDetalhePage() {
                       </TableBody>
                     </Table>
                   </div>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                    <span>
-                      Página {errosState.page} de {errosState.totalPaginas}
-                    </span>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="min-h-11 sm:min-h-8"
-                        disabled={errosState.page <= 1}
-                        onClick={() => errosState.setPage(errosState.page - 1)}
-                      >
-                        Anterior
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="min-h-11 sm:min-h-8"
-                        disabled={errosState.page >= errosState.totalPaginas}
-                        onClick={() => errosState.setPage(errosState.page + 1)}
-                      >
-                        Próxima
-                      </Button>
-                    </div>
+                  {/* Paginação — idioma único do produto (impeccable rodada 4,
+                      h4). Ganha de brinde o total de erros, que o rodapé
+                      artesanal daqui nem mostrava. */}
+                  <div className="mt-2">
+                    <PaginationControls
+                      currentPage={errosState.page}
+                      totalPages={errosState.totalPaginas}
+                      recordsPerPage={ERROS_PAGE_SIZE}
+                      totalRecords={errosState.total}
+                      onPageChange={errosState.setPage}
+                    />
                   </div>
                 </>
               )}
