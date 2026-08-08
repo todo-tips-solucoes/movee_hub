@@ -11,6 +11,9 @@ export function useEnvioMassa(empresaId?: number | null) {
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState<number | 'all'>(100);
   const [loading, setLoading] = useState(true);
+  /** Mensagem da última falha de carga, ou null. Distingue "não carregou" de
+   *  "carregou e está vazio" — a tela e o fechamento dependem dessa diferença. */
+  const [erro, setErro] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   // empresa_id é opcional: quando undefined/null não é enviado (backend usa empresa do token)
@@ -21,8 +24,15 @@ export function useEnvioMassa(empresaId?: number | null) {
       setLoading(true);
       const result = await api.get<EnvioMassa[]>('/envio-massa', eidParam);
       setData(Array.isArray(result) ? result : []);
-    } catch {
+      setErro(null);
+    } catch (e) {
+      // impeccable rodada 7 (P1): engolir o erro e zerar `data` fazia a tela
+      // mais usada do produto responder a um 500 com "Nenhum registro
+      // encontrado — importe um arquivo XLSX", e ainda oferecer o fechamento
+      // IRREVERSÍVEL do movimento com `stats` zeradas. Falha de carga não é
+      // movimento vazio.
       setData([]);
+      setErro(e instanceof Error ? e.message : 'Não foi possível carregar o movimento.');
     } finally {
       setLoading(false);
     }
@@ -149,6 +159,7 @@ export function useEnvioMassa(empresaId?: number | null) {
     stats,
     filters,
     loading,
+    erro,
     currentPage,
     recordsPerPage,
     totalPages,
