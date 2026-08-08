@@ -24,6 +24,13 @@ import type { StatsData } from '@/types';
 
 interface DisparoReciboProps {
   stats: StatsData;
+  /**
+   * Quantas linhas o disparo alcançou, quando foi por seleção (rodada 7).
+   * Ausente = disparo do movimento inteiro. Sem isto, um disparo para 12
+   * selecionados terminava anunciando "352 enviadas" — os números do movimento
+   * todo, nenhum deles descrevendo o que acabara de acontecer.
+   */
+  escopo?: number;
   /** Aplica o filtro "com erro" na tabela. Só é chamado quando há erros. */
   onVerErros: () => void;
   onDispensar: () => void;
@@ -40,7 +47,7 @@ export function calcularPendentes(stats: StatsData): number {
   return Math.max(0, stats.total - stats.msgEnviada - stats.msgErro);
 }
 
-export function DisparoRecibo({ stats, onVerErros, onDispensar }: DisparoReciboProps) {
+export function DisparoRecibo({ stats, escopo, onVerErros, onDispensar }: DisparoReciboProps) {
   const pendentes = calcularPendentes(stats);
   const temErro = stats.msgErro > 0;
 
@@ -58,7 +65,15 @@ export function DisparoRecibo({ stats, onVerErros, onDispensar }: DisparoReciboP
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">Disparo concluído</p>
+        <p className="text-sm font-semibold">
+          Disparo concluído
+          {escopo !== undefined && (
+            <span className="font-normal text-muted-foreground">
+              {' '}
+              — {escopo} selecionado{escopo === 1 ? '' : 's'}
+            </span>
+          )}
+        </p>
         {/* Números em text-foreground e rótulos em muted: o contraste do par
             número+rótulo não depende de nenhuma cor semântica (a rodada 5
             achou 1,54:1 justamente em texto colorido sobre superfície clara). */}
@@ -75,7 +90,13 @@ export function DisparoRecibo({ stats, onVerErros, onDispensar }: DisparoReciboP
       <div className="flex shrink-0 items-center gap-2">
         {temErro && (
           <Button size="sm" variant="outline" onClick={onVerErros}>
-            Ver {stats.msgErro === 1 ? 'a linha' : `as ${stats.msgErro} linhas`} com erro
+            {/* Com escopo, o número sai do rótulo: o filtro que este botão
+                aplica é "Com Erro" no movimento inteiro, então prometer "as 3
+                linhas" e revelar 15 seria trocar uma mentira por outra. Sem
+                escopo os dois conjuntos coincidem e o número volta. */}
+            {escopo !== undefined
+              ? 'Ver as linhas com erro'
+              : `Ver ${stats.msgErro === 1 ? 'a linha' : `as ${stats.msgErro} linhas`} com erro`}
           </Button>
         )}
         <Button

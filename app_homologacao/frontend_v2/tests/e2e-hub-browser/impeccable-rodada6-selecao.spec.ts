@@ -98,8 +98,12 @@ test.describe('impeccable rodada 6 — disparo por seleção', () => {
     await marcarLinha(page, 'Motorista 001'); // já enviada
     await marcarLinha(page, 'Motorista 003'); // pendente
 
-    // O escopo é declarado antes do clique, não depois.
-    const disparar = page.getByRole('button', { name: 'Disparar para 2' });
+    // O escopo é declarado antes do clique, não depois — e o número é o que
+    // SAI (1 pendente), não o total marcado (2). Este assert dizia
+    // "Disparar para 2" na rodada 6 e passava: ele codificava o defeito que a
+    // rodada 7 achou, porque conferia a barra e o diálogo em asserts separados
+    // sem nunca comparar um com o outro.
+    const disparar = page.getByRole('button', { name: 'Disparar para 1' });
     await expect(disparar).toBeVisible();
     await disparar.click();
 
@@ -121,7 +125,9 @@ test.describe('impeccable rodada 6 — disparo por seleção', () => {
     await page.goto(ROTA);
 
     await marcarLinha(page, 'Motorista 001');
-    await page.getByRole('button', { name: 'Disparar para 1' }).click();
+    // 1 marcado, 0 pendentes: a barra diz 0, igual ao diálogo. Na rodada 6
+    // dizia "Disparar para 1" aqui e "Disparar para 0" no confirm.
+    await page.getByRole('button', { name: 'Disparar para 0' }).click();
 
     const dialogo = page.getByRole('alertdialog');
     await expect(dialogo).toContainText('Não há nada a enviar nessa seleção');

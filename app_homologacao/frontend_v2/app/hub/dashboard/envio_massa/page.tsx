@@ -62,7 +62,9 @@ import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
 import { PageHeader } from '@/components/hub/page-header';
 import { DisparoRecibo } from '@/components/hub/disparo-recibo';
-import { initialFilters } from '@/lib/utils';
+import { initialFilters, computeStats, formatDateBR } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, useReducedMotion } from 'framer-motion';
 
@@ -121,6 +123,7 @@ function EnvioMassaClient() {
     stats,
     filters,
     loading,
+    erro,
     currentPage,
     recordsPerPage,
     totalPages,
@@ -150,6 +153,7 @@ function EnvioMassaClient() {
     stopProcess,
     disparoConcluido,
     dispensarRecibo,
+    statusIndisponivel,
   } = useProcessStatus({ onRefresh: fetchData });
 
   useEffect(() => {
@@ -181,11 +185,47 @@ function EnvioMassaClient() {
     [selecionados]
   );
 
+  // impeccable rodada 7 (P1): o que ESTE disparo alcançou. Sem isto o recibo
+  // lia o `stats` do movimento inteiro e um disparo para 12 selecionados
+  // terminava anunciando "352 enviadas" — nenhum daqueles números descrevia o
+  // que tinha acabado de acontecer. Guardado no start e não derivado da seleção
+  // atual porque o operador pode desmarcar tudo enquanto o envio roda.
+  const [escopoDisparo, setEscopoDisparo] = useState<Set<number> | null>(null);
+
+  /**
+   * Período do movimento aberto (impeccable rodada 7, P1). `dt_inicial`/
+   * `dt_final` já vinham em cada linha desde o upload e não apareciam em lugar
+   * nenhum — nem no confirm do fechamento, que perguntava "Fechar o movimento?"
+   * sem nunca dizer QUAL. Quem roda um ciclo semanal em duas abas não tinha
+   * como saber que semana estava lacrando.
+   *
+   * Min/max e não `data[0]`: nada garante que todas as linhas compartilhem o
+   * mesmo intervalo, e mostrar o da primeira linha como se fosse do movimento
+   * seria afirmar mais do que se sabe.
+   */
+  const periodo = useMemo(() => {
+    const inicios = data.map((d) => d.dt_inicial).filter((v): v is string => !!v);
+    const finais = data.map((d) => d.dt_final).filter((v): v is string => !!v);
+    if (inicios.length === 0 || finais.length === 0) return null;
+    const de = formatDateBR(inicios.reduce((a, b) => (a < b ? a : b)));
+    const ate = formatDateBR(finais.reduce((a, b) => (a > b ? a : b)));
+    return de && ate ? `${de} a ${ate}` : null;
+  }, [data]);
+
+  /** Números do recibo: só as linhas que o disparo alcançou, ou o movimento
+   *  inteiro quando o disparo não teve escopo. */
+  const statsDoRecibo = useMemo(
+    () => (escopoDisparo ? computeStats(data.filter((d) => escopoDisparo.has(d.id))) : stats),
+    [escopoDisparo, data, stats]
+  );
+
   const handleStart = async () => {
     try {
+      const ids = selecionados.map((d) => d.id);
       // Sem seleção, `startProcess` recebe lista vazia e omite o campo: a rota
       // volta ao comportamento histórico (movimento aberto inteiro).
-      await startProcess(selecionados.map((d) => d.id));
+      await startProcess(ids);
+      setEscopoDisparo(ids.length ? new Set(ids) : null);
       toast.success('Processamento iniciado!');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao iniciar processamento');
@@ -224,7 +264,11 @@ function EnvioMassaClient() {
       <div className="shrink-0 space-y-4">
         <PageHeader
           titulo="Envio em Massa"
-          subtitulo="Disparo de notificações e validação de notas do movimento aberto."
+          subtitulo={
+            periodo
+              ? `Movimento aberto · ${periodo} — disparo de notificações e validação de notas.`
+              : 'Disparo de notificações e validação de notas do movimento aberto.'
+          }
         >
           <span
             role="status"
@@ -245,17 +289,22 @@ function EnvioMassaClient() {
                 Os dois números já existem no `stats` que a tela carrega; o
                 polling de 13s do useProcessStatus já refaz o fetchData, então
                 o contador anda sozinho sem nenhuma chamada nova. */}
+            {/* rodada 7: incerteza tem rótulo próprio. Antes, poll com erro
+                virava "Parado" — a tela afirmava um fato que não sabia. */}
             {processLoading
               ? 'Atualizando…'
-              : isActive
-                ? `Enviando — ${stats.msgEnviada} de ${stats.total}`
-                : 'Parado'}
+              : statusIndisponivel
+                ? 'Status indisponível — tentando de novo'
+                : isActive
+                  ? `Enviando — ${stats.msgEnviada} de ${stats.total}`
+                  : 'Parado'}
           </span>
         </PageHeader>
 
         {disparoConcluido && (
           <DisparoRecibo
-            stats={stats}
+            stats={statsDoRecibo}
+            escopo={escopoDisparo?.size}
             // Filtro limpo + "Com Erro": partir dos filtros atuais poderia
             // devolver zero linhas (ex.: "Enviados" ligado) e desmentir o
             // número que o próprio recibo acabou de mostrar.
@@ -276,7 +325,16 @@ function EnvioMassaClient() {
           onDownloadXML={downloadXML}
           onCloseMovement={closeMovement}
           stats={stats}
-          selecionados={selecionados.length}
+          // impeccable rodada 7 (P1): o número do botão é o que SAI, não o que
+          // está marcado — a r6 mandava `.length` aqui e `selecionadosPendentes`
+          // para o diálogo, então marcar 12 com 5 já enviadas produzia
+          // "Disparar para 12" na barra e "Disparar para 5" no confirm. Dois
+          // números para a mesma ação é a mesma mentira que os checkboxes
+          // contavam antes de terem destino.
+          selecionados={selecionadosPendentes}
+          selecionadosMarcados={selecionados.length}
+          periodo={periodo}
+          dadosIndisponiveis={erro !== null}
         />
 
         <Filters
@@ -287,6 +345,20 @@ function EnvioMassaClient() {
       </div>
 
       <div className="min-h-[300px]">
+        {/* impeccable rodada 7 (P1): mesmo bloco de erro das outras 9 telas do
+            hub. Sem ele, um 500 aqui era desenhado como "movimento vazio". */}
+        {erro ? (
+          <div
+            role="alert"
+            className="flex flex-col items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-10 text-center"
+          >
+            <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
+            <p className="text-sm font-medium text-destructive">{erro}</p>
+            <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={fetchData}>
+              Tentar novamente
+            </Button>
+          </div>
+        ) : (
         <DataTable
           data={paginatedData}
           selectedIds={selectedIds}
@@ -295,6 +367,7 @@ function EnvioMassaClient() {
           onDelete={deleteRecord}
           onUpdate={updateRecord}
         />
+        )}
       </div>
 
       <div className="shrink-0">

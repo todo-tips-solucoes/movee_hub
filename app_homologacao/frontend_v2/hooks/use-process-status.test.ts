@@ -112,3 +112,71 @@ describe('useProcessStatus — refresh na virada', () => {
     expect(result.current.disparoConcluido).toBe(false);
   });
 });
+
+// impeccable rodada 7 (P1) — erro de transporte não é informação sobre o
+// processo. Antes, um poll que falhava zerava `isActive` e `estavaAtivoRef`:
+// a tela dizia "Parado" no meio de um envio, o botão Iniciar reabilitava
+// (disparo duplicado para motorista real) e a virada ativo → inativo era
+// apagada, então o recibo nunca aparecia.
+describe('useProcessStatus — falha de poll preserva o último estado conhecido', () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockPost.mockReset().mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('poll que falha durante o disparo NÃO declara "Parado"', async () => {
+    // Começa parado para o effect inicial não criar intervalo com timer real;
+    // o `startProcess` abaixo cria o polling já sob fake timers (mesmo padrão
+    // dos casos acima).
+    mockGet.mockResolvedValue({ active: false });
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() => useProcessStatus({ onRefresh }));
+    await waitFor(() => expect(mockGet).toHaveBeenCalled());
+
+    vi.useFakeTimers();
+    await act(async () => {
+      await result.current.startProcess();
+    });
+    expect(result.current.isActive).toBe(true);
+
+    mockGet.mockRejectedValue(new Error('network'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+
+    // O que o operador vê: continua ativo, agora com a incerteza declarada.
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.statusIndisponivel).toBe(true);
+  });
+
+  it('o recibo ainda aparece quando o poll falha e depois se recupera', async () => {
+    mockGet.mockResolvedValue({ active: false });
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() => useProcessStatus({ onRefresh }));
+    await waitFor(() => expect(mockGet).toHaveBeenCalled());
+
+    vi.useFakeTimers();
+    await act(async () => {
+      await result.current.startProcess();
+    });
+
+    mockGet.mockRejectedValue(new Error('network'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(result.current.disparoConcluido).toBe(false);
+
+    // Rede volta e o processo terminou de verdade: a virada foi preservada.
+    mockGet.mockResolvedValue({ active: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(result.current.isActive).toBe(false);
+    expect(result.current.statusIndisponivel).toBe(false);
+    expect(result.current.disparoConcluido).toBe(true);
+  });
+});

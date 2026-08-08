@@ -26,9 +26,20 @@ interface CloseMovementDialogProps {
    * parte dos motoristas notificados e parte não — daí o bloqueio
    * (impeccable rodada 5, P1: o botão seguia clicável durante o disparo). */
   isActive?: boolean;
+  /** Período do movimento em pt-BR ("01/08/2026 a 07/08/2026"), quando conhecido. */
+  periodo?: string | null;
+  /** A lista do movimento falhou ao carregar: `stats` está zerado por erro, não
+   *  porque o movimento esteja vazio. Bloqueia a confirmação (rodada 7). */
+  dadosIndisponiveis?: boolean;
 }
 
-export function CloseMovementDialog({ onConfirm, stats, isActive = false }: CloseMovementDialogProps) {
+export function CloseMovementDialog({
+  onConfirm,
+  stats,
+  isActive = false,
+  periodo = null,
+  dadosIndisponiveis = false,
+}: CloseMovementDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -82,21 +93,45 @@ export function CloseMovementDialog({ onConfirm, stats, isActive = false }: Clos
               fala o mesmo idioma do confirm de disparo — pt-BR correto e
               resumo quantitativo do que será travado. */}
           <AlertDialogDescription>
+            {/* rodada 7: QUAL movimento. A pergunta era feita sem nunca nomear
+                o período que está sendo lacrado. */}
+            {periodo && (
+              <>
+                Movimento de <strong className="text-foreground">{periodo}</strong>.{' '}
+              </>
+            )}
             Esta ação é permanente: com o movimento fechado, não será mais possível editar registros
             nem disparar envios para ele.
-            {stats && stats.total > 0 && (
+            {/* impeccable rodada 7 (P1): sem os números, não há confirmação de
+                impacto — e uma falha de carga zera `stats`, então o texto
+                genérico sozinho descreveria como vazio um movimento de 340
+                linhas. Neste caso o diálogo diz que não sabe, e a confirmação
+                sai do ar. */}
+            {dadosIndisponiveis ? (
               <>
                 {' '}
-                Neste momento o movimento tem {stats.total} registro{stats.total === 1 ? '' : 's'},{' '}
-                {stats.msgEnviada} já com mensagem enviada e {stats.total - stats.msgEnviada} ainda
-                sem envio.
+                <strong className="text-destructive">
+                  Os dados do movimento não puderam ser carregados
+                </strong>
+                , então não é possível mostrar o que será travado. Recarregue a lista antes de
+                fechar.
               </>
+            ) : (
+              stats &&
+              stats.total > 0 && (
+                <>
+                  {' '}
+                  Neste momento o movimento tem {stats.total} registro{stats.total === 1 ? '' : 's'},{' '}
+                  {stats.msgEnviada} já com mensagem enviada e {stats.total - stats.msgEnviada} ainda
+                  sem envio.
+                </>
+              )
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirm} disabled={loading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          <AlertDialogAction onClick={handleConfirm} disabled={loading || dadosIndisponiveis} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Fechar movimento
           </AlertDialogAction>

@@ -22,8 +22,15 @@ interface ActionBarProps {
   onCloseMovement: () => Promise<void>;
   /** Números do movimento — repassados ao confirm de Fechar movimento. */
   stats?: StatsData | null;
-  /** Linhas marcadas na tabela — o botão de disparo declara o escopo. */
+  /** Quantas linhas marcadas o disparo REALMENTE alcança (as ainda pendentes). */
   selecionados?: number;
+  /** Total de linhas marcadas, incluindo as que já receberam mensagem. */
+  selecionadosMarcados?: number;
+  /** Período do movimento aberto, repassado ao confirm de Fechar movimento. */
+  periodo?: string | null;
+  /** A lista falhou ao carregar — repassado ao confirm de Fechar movimento,
+   *  que não pode oferecer ação irreversível sobre números que não existem. */
+  dadosIndisponiveis?: boolean;
 }
 
 export function ActionBar({
@@ -37,6 +44,9 @@ export function ActionBar({
   onCloseMovement,
   stats,
   selecionados,
+  selecionadosMarcados,
+  periodo,
+  dadosIndisponiveis,
 }: ActionBarProps) {
   const [csvLoading, setCsvLoading] = useState(false);
   const [xmlLoading, setXmlLoading] = useState(false);
@@ -74,6 +84,7 @@ export function ActionBar({
         onStart={onStart}
         onStop={onStop}
         selecionados={selecionados}
+        selecionadosMarcados={selecionadosMarcados}
       />
 
       <Separator orientation="vertical" className="hidden h-8 sm:block" />
@@ -97,7 +108,13 @@ export function ActionBar({
             ProcessControls — o Fechar movimento seguia clicável durante o
             disparo, e um clique fora de hora lacrava o movimento com parte dos
             motoristas notificados e parte não. */}
-        <CloseMovementDialog onConfirm={onCloseMovement} stats={stats} isActive={isActive} />
+        <CloseMovementDialog
+          onConfirm={onCloseMovement}
+          stats={stats}
+          isActive={isActive}
+          periodo={periodo}
+          dadosIndisponiveis={dadosIndisponiveis}
+        />
       </div>
     </div>
   );

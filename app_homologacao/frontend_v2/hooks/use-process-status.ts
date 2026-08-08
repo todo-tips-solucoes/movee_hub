@@ -17,6 +17,8 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
   // padrão "setState síncrono dentro de effect" que o lint proíbe. Consumir é
   // opcional: o painel legado ignora estes dois campos e segue igual.
   const [disparoConcluido, setDisparoConcluido] = useState(false);
+  /** O poll falhou: o estado exibido é o último conhecido, não o atual. */
+  const [statusIndisponivel, setStatusIndisponivel] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   /** Última resposta conhecida de /process-status — usada só para detectar a
    *  virada ativo → inativo (refresh final + recibo). */
@@ -44,11 +46,20 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
       if (result.active) setDisparoConcluido(false);
       else if (estavaAtivoRef.current) setDisparoConcluido(true);
       estavaAtivoRef.current = result.active;
+      setStatusIndisponivel(false);
       return result.active;
     } catch {
-      setIsActive(false);
-      estavaAtivoRef.current = false;
-      return false;
+      // impeccable rodada 7 (P1): erro de transporte NÃO é informação sobre o
+      // processo. Zerar `isActive` aqui fazia um blip de rede declarar "Parado"
+      // no meio de um envio — o botão Iniciar reabilitava (`disabled={isActive
+      // || isLoading}`) e um segundo disparo notificaria os mesmos motoristas
+      // de novo. Zerar `estavaAtivoRef` ainda apagava a virada, então o recibo
+      // do fim do disparo nunca aparecia. Preserva-se o último estado conhecido
+      // e sinaliza-se a incerteza.
+      setStatusIndisponivel(true);
+      // `true` mantém o polling ligado mesmo quando o primeiro check falha —
+      // é o único caminho de volta para um estado conhecido.
+      return true;
     }
   }, [onRefresh]);
 
@@ -110,5 +121,7 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
     /** true entre o fim de um disparo e o próximo (ou o dispensar). */
     disparoConcluido,
     dispensarRecibo,
+    /** true quando o último poll falhou — `isActive` é o último valor conhecido. */
+    statusIndisponivel,
   };
 }
