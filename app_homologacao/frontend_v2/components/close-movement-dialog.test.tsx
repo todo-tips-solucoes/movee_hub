@@ -4,10 +4,20 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CloseMovementDialog } from './close-movement-dialog';
+import type { StatsData } from '@/types';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-const STATS = { total: 340, msgEnviada: 12, msgNaoEnviada: 328, notaOk: 0, notaErro: 0 };
+// Anotado como `StatsData` de propósito: sem a anotação, um literal inline
+// aceita qualquer forma e a divergência só aparece em `tsc --noEmit` — foi
+// assim que este arquivo passou meses com `msgNaoEnviada`/`notaOk`/`notaErro`,
+// campos que o tipo não tem, sem nenhum gate reclamar (o `next build` não
+// typecheck-a `.test.tsx` e o vitest não checa tipos).
+//
+// 340 registros com 12 mensagens enviadas: o diálogo lê só `total` e
+// `msgEnviada` e deriva os 328 ainda pendentes no texto.
+const STATS: StatsData = { total: 340, msgEnviada: 12, msgErro: 0, xmlEnviado: 0, xmlErro: 0 };
+const STATS_ZERADO: StatsData = { total: 0, msgEnviada: 0, msgErro: 0, xmlEnviado: 0, xmlErro: 0 };
 
 function gatilho() {
   return screen.getByRole('button', { name: /Fechar movimento/ });
@@ -62,7 +72,7 @@ describe('CloseMovementDialog — rodada 7', () => {
     render(
       <CloseMovementDialog
         onConfirm={onConfirm}
-        stats={{ total: 0, msgEnviada: 0, msgNaoEnviada: 0, notaOk: 0, notaErro: 0 }}
+        stats={STATS_ZERADO}
         dadosIndisponiveis
       />
     );
@@ -78,7 +88,7 @@ describe('CloseMovementDialog — rodada 7', () => {
     render(
       <CloseMovementDialog
         onConfirm={vi.fn()}
-        stats={{ total: 0, msgEnviada: 0, msgNaoEnviada: 0, notaOk: 0, notaErro: 0 }}
+        stats={STATS_ZERADO}
       />
     );
     fireEvent.click(gatilho());
