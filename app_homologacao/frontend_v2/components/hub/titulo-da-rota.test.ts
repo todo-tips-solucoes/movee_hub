@@ -49,3 +49,39 @@ describe('resolverTitulo', () => {
     expect(resolverTitulo('/hub/dashboard/auditoria', [])).toBe('Hub de Frota');
   });
 });
+
+// impeccable rodada 9 (P2) — medido: `/admin` e `/perfil` anunciavam "Painel
+// Geral · Hub de Frota". Não são módulos do `/me`, então o casamento por
+// prefixo caía em `/hub/dashboard`, e a aba dizia o nome de outra tela.
+describe('resolverTitulo — rotas que não são módulos', () => {
+  it('usa o h1 da própria tela quando a rota não casa exatamente com um módulo', () => {
+    expect(resolverTitulo('/hub/dashboard/admin', MODULOS, 'Administração da plataforma')).toBe(
+      'Administração da plataforma · Hub de Frota'
+    );
+  });
+
+  it('módulo exato manda mais que o h1 — o nome vem do /me, não da tela', () => {
+    // Se o h1 vencesse aqui, renomear um módulo no banco deixaria de renomear
+    // a aba, que é a propriedade pela qual esta função existe.
+    expect(resolverTitulo('/hub/dashboard/auditoria', MODULOS, 'Trilha de auditoria')).toBe(
+      'Auditoria · Hub de Frota'
+    );
+  });
+
+  it('h1 vazio ou só espaços não vira título', () => {
+    expect(resolverTitulo('/hub/dashboard/admin', MODULOS, '   ')).toBe(
+      'Painel Geral · Hub de Frota'
+    );
+    expect(resolverTitulo('/hub/dashboard/admin', MODULOS, null)).toBe(
+      'Painel Geral · Hub de Frota'
+    );
+  });
+
+  it('subrota de módulo com h1 próprio passa a nomear a tela, não o módulo', () => {
+    // Mudança deliberada da r9: "Papéis e permissões" é mais preciso que
+    // "Usuários" para quem tem as duas abas abertas.
+    expect(resolverTitulo('/hub/dashboard/usuarios/papeis', MODULOS, 'Papéis e permissões')).toBe(
+      'Papéis e permissões · Hub de Frota'
+    );
+  });
+});

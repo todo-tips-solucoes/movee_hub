@@ -166,12 +166,16 @@ export function XmlValidationCard() {
       {/* Card de upload */}
       <Card>
         <CardHeader>
-          <CardTitle as="h1" className="flex items-center gap-2 text-lg">
+          {/* impeccable rodada 9 (P2): eram DOIS h1 na mesma tela — o do
+              PageHeader ("Validação XML") e este. O card é uma seção dentro
+              dela, não outro documento. Acentos corrigidos junto: medido, era
+              a única prosa sem acento que sobrou no hub. */}
+          <CardTitle as="h2" className="flex items-center gap-2 text-lg">
             <FileCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-            Validacao XML NFSe
+            Validação XML NFSe
           </CardTitle>
           <CardDescription>
-            Selecione arquivos XML de NFSe para validacao em lote.
+            Selecione arquivos XML de NFSe para validação em lote.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -267,7 +271,8 @@ export function XmlValidationCard() {
             <Button
               onClick={handleSubmit}
               disabled={loading || files.length === 0}
-              className="gap-2"
+              // r9 (P2): 90x32 medidos a 390px.
+              className="h-11 gap-2 sm:h-9"
             >
               {loading
                 ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -275,7 +280,12 @@ export function XmlValidationCard() {
               {loading ? 'Validando...' : 'Validar'}
             </Button>
             {files.length > 0 && (
-              <Button variant="outline" onClick={handleClear} disabled={loading}>
+              <Button
+                variant="outline"
+                onClick={handleClear}
+                disabled={loading}
+                className="h-11 sm:h-9"
+              >
                 Limpar
               </Button>
             )}
