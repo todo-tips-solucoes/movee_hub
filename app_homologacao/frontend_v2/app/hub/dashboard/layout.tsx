@@ -24,10 +24,24 @@ import { EntitySwitcher } from '@/components/hub/entity-switcher';
 import { AccountMenu } from '@/components/hub/account-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Wordmark } from '@/components/brand/wordmark';
+import { TituloDaRota } from '@/components/hub/titulo-da-rota';
 
 export default function HubDashboardLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col lg:flex-row">
+      <TituloDaRota />
+      {/* impeccable rodada 8 (P2): eram 14 Tab fixos de pedágio até o conteúdo,
+          medidos em 12 de 13 rotas, sem nenhuma saída — e em /usuarios/papeis,
+          que é somente leitura para admin_entidade, o percurso de foco não
+          alcançava o conteúdo de jeito nenhum (todos os controles de lá são
+          desabilitados por RBAC). Primeiro elemento tabulável da página,
+          invisível até receber foco. */}
+      <a
+        href="#conteudo-principal"
+        className="sr-only left-4 top-4 z-50 rounded-md bg-card px-4 py-2 text-sm font-medium text-foreground shadow-lg ring-2 ring-ring focus:not-sr-only focus:absolute"
+      >
+        Pular para o conteúdo
+      </a>
       {/* < lg: agrupa o hamburger do ModuleNav numa faixa com borda, em vez de
           deixá-lo "solto" no topo — mesmo tom visual do header que segue. */}
       <div className="border-b border-sidebar-border lg:contents">
@@ -67,7 +81,9 @@ export default function HubDashboardLayout({ children }: { children: ReactNode }
             <AccountMenu />
           </div>
         </header>
-        <main className="flex-1">{children}</main>
+        <main id="conteudo-principal" tabIndex={-1} className="flex-1 focus:outline-none">
+          {children}
+        </main>
       </div>
     </div>
   );

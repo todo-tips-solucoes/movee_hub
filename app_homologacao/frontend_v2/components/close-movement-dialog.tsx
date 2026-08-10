@@ -79,7 +79,7 @@ export function CloseMovementDialog({
                 ? 'Não é possível fechar o movimento durante um disparo em andamento — pare o envio primeiro.'
                 : undefined
             }
-            className="gap-1.5 border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="h-11 gap-1.5 border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive sm:h-8"
           />
         }
       >

@@ -143,6 +143,16 @@ export function useEnvioMassa(empresaId?: number | null) {
     });
   }, [paginatedData]);
 
+  /**
+   * impeccable rodada 8 (P2): não havia como desfazer uma seleção. Duas
+   * armadilhas reais. (a) Marque 12 linhas, filtre por "Com Erro" e a tabela
+   * mostra 3 sem nenhuma marcada — os 12 continuam no escopo do disparo, fora
+   * de vista. (b) Depois de um disparo bem-sucedido os mesmos 12 seguem
+   * marcados e agora todos enviados, então o confirm aparece desabilitado sem
+   * nada explicando que era preciso desmarcar antes.
+   */
+  const limparSelecao = useCallback(() => setSelectedIds(new Set()), []);
+
   const toggleSelect = useCallback((id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -177,5 +187,6 @@ export function useEnvioMassa(empresaId?: number | null) {
     closeMovement,
     toggleSelectAll,
     toggleSelect,
+    limparSelecao,
   };
 }

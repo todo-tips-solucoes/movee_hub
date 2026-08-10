@@ -7,7 +7,15 @@
 // forma canônica do App Router, sem alterar app/layout.tsx nem afetar
 // nenhuma outra rota.
 import type { ReactNode } from 'react';
+import type { Metadata } from 'next';
 import { HubAuthProvider } from '@/contexts/hub-auth-context';
+
+// impeccable rodada 8 (P2): esta rota fica FORA de `/hub/*`, então não herdava
+// o metadata do layout do hub — media com o título do produto legado, apesar
+// de ser a primeira tela que quem tem sessão vê ao entrar no hub.
+export const metadata: Metadata = {
+  title: 'Selecionar entidade · Hub de Frota',
+};
 
 export default function SelecionarEntidadeLayout({ children }: { children: ReactNode }) {
   return <HubAuthProvider>{children}</HubAuthProvider>;

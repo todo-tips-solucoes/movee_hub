@@ -76,10 +76,17 @@ export function DataTable({
               <div key={item.id} className={`rounded-lg border p-3 space-y-2 ${item.enviado === 'erro' ? 'border-destructive/30 bg-destructive/5' : ''}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Checkbox
-                      checked={selectedIds.has(item.id)}
-                      onCheckedChange={() => onToggleSelect(item.id)}
-                    />
+                    {/* r8: a caixa segue 16px (densidade da lista); quem
+                        cresce é a área tocável ao redor. */}
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center -m-2.5">
+                      <span className="flex h-11 w-11 items-center justify-center -m-2.5 md:h-8 md:w-8 md:m-0">
+                        <Checkbox
+                          checked={selectedIds.has(item.id)}
+                          onCheckedChange={() => onToggleSelect(item.id)}
+                          aria-label={`Selecionar ${item.nome || `registro ${item.number}`}`}
+                        />
+                      </span>
+                    </span>
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{item.nome}</p>
                       <p className="text-xs text-muted-foreground font-mono">{item.number}</p>
@@ -135,7 +142,19 @@ export function DataTable({
             {/* R007: headers sem quebra de linha em larguras médias (densidade desktop) */}
             <TableRow className="whitespace-nowrap hover:bg-card">
               <TableHead className="w-10">
-                <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />
+                {/* impeccable rodada 8 (P2): estes checkboxes decidem para
+                    quem o disparo vai (rodada 6) e não tinham nome acessível —
+                    para um leitor de tela eram 100 controles idênticos e mudos,
+                    ao lado de botões de editar/excluir nominais. O rótulo do
+                    cabeçalho também declara o escopo: `toggleSelectAll` marca
+                    apenas a página atual. */}
+                <span className="flex h-11 w-11 items-center justify-center -m-2.5 md:h-8 md:w-8 md:m-0">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={onToggleSelectAll}
+                    aria-label="Selecionar todos os registros desta página"
+                  />
+                </span>
               </TableHead>
               <TableHead>Numero</TableHead>
               <TableHead>Nome</TableHead>
@@ -166,10 +185,13 @@ export function DataTable({
                 return (
                   <TableRow key={item.id} className="transition-colors hover:bg-muted/50">
                     <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(item.id)}
-                        onCheckedChange={() => onToggleSelect(item.id)}
-                      />
+                      <span className="flex h-11 w-11 items-center justify-center -m-2.5 md:h-8 md:w-8 md:m-0">
+                        <Checkbox
+                          checked={selectedIds.has(item.id)}
+                          onCheckedChange={() => onToggleSelect(item.id)}
+                          aria-label={`Selecionar ${item.nome || `registro ${item.number}`}`}
+                        />
+                      </span>
                     </TableCell>
                     <TableCell className="font-mono text-sm">{item.number}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{item.nome}</TableCell>
