@@ -27,7 +27,7 @@ Ele derrubou 3 dos 5 sinais.
 |---|---|---|
 | Título de aba | **1 título** para 13 rotas, nomeando o produto legado | **10 títulos distintos** em 12 rotas |
 | Alcance do conteúdo por teclado | 14–16 Tab de pedágio, **sem saída**; `/usuarios/papeis` inalcançável | skip link em **12/12**, conteúdo a **1 Tab** |
-| Alvos < 44px em `/hub/dashboard` (390px) | 3 | **0** |
+| Alvos < 44px em `/hub/dashboard` (390px) | 3 | **2** (ambos do chrome — ver A1) |
 | Contraste AA (axe `color-contrast`) | reprovava em `--destructive` e `--muted-foreground` | **0 violações em 24 pares** rota × tema |
 | Rolagem horizontal em 390px | — | **0 overflow em 12/12** |
 
@@ -51,8 +51,10 @@ Registrados porque quase viraram trabalho:
 
 | # | Achado (medido) | Onde | Peso |
 |---|---|---|---|
-| A1 | 3 botões com **32px** de altura em 390px: `Validar` (90×32), o seletor `Empresa #950101` (358×32) e um sem rótulo (32×32) | `/hub/dashboard/validacao_xml` | P2 |
-| A2 | 10 alvos de **37px** na matriz papel×permissão em 390px | `/hub/dashboard/usuarios/papeis` | P3 |
+| A1 | **Chrome inteiro com 32px de altura em 390px**: `Alternar tema` (32×32) e `Trocar entidade de trabalho` (358×32), presentes nas **12/12 rotas** | layout do dashboard | **P1** |
+| A1b | Botões de período `Hoje` (50×32), `7 dias` (57×32), `30 dias` (66×32) | auditoria, faturamento, importações, performance | P2 |
+| A1c | Botão `Validar` (90×32) | `/hub/dashboard/validacao_xml` | P2 |
+| A2 | Checkbox da matriz papel×permissão com **16×16** de área tocável (132 ocorrências) | `/hub/dashboard/usuarios/papeis` | P2 |
 | A3 | Cabeçalhos de tabela sem acento: `Numero`, `Data Emissao`, `Acoes` — a r8 corrigiu o *placeholder* do filtro e passou ao lado da coluna | `/hub/dashboard/envio_massa` | P2 |
 | A4 | Prosa sem acento: `H1 "Validacao XML NFSe"` e `"Selecione arquivos XML de NFSe para validacao em lote."` | `/hub/dashboard/validacao_xml` | P2 |
 | A5 | **Dois `h1`** na mesma tela (`CardTitle as="h1"` somado ao título da página) | `/hub/dashboard/validacao_xml` | P2 |
@@ -61,7 +63,7 @@ Registrados porque quase viraram trabalho:
 
 ## Placar
 
-**35/40.** A rubrica está declarada abaixo — 8 dimensões × 5 pontos, pontuadas com os números
+**33/40.** A rubrica está declarada abaixo — 8 dimensões × 5 pontos, pontuadas com os números
 medidos acima.
 
 | Dimensão | Nota | Base |
@@ -70,7 +72,7 @@ medidos acima.
 | Alcance por teclado | 5 | skip link 12/12, conteúdo a 1 Tab |
 | Foco visível | 5 | 0 controles reais sem indicador |
 | Contraste AA | 5 | 0 violações em 24 pares |
-| Alvos de toque (390px) | 3 | 10/12 rotas limpas; A1 e A2 abertos |
+| Alvos de toque (390px) | **1** | nenhuma rota limpa: o chrome tem 2 alvos de 32px em 12/12 (A1), mais A1b/A1c/A2 |
 | Rolagem horizontal (390px) | 5 | 0 overflow em 12/12 |
 | Nomes acessíveis | 5 | 0 mudos reais, incl. a matriz de 133 checkboxes |
 | Linguagem e copy | 3 | A3, A4 e A7 abertos |
@@ -87,10 +89,19 @@ A medição roda como spec Playwright temporário em `tests/e2e-hub-browser/`, e
 só imprime linhas `MEDIDA_*` lidas do DOM. Os logs acima são a evidência; o spec não fica no repo
 para não virar suíte que ninguém lê.
 
-Duas armadilhas que esta medição encontrou e que a próxima deve evitar:
+Três armadilhas que esta medição encontrou e que a próxima deve evitar:
 
 1. **Contar elementos em vez de controles.** Bibliotecas headless (Base UI) duplicam cada controle
    num par `<button role>` + `<input>` proxy invisível. Toda sonda de acessibilidade tem que medir
    o dono do papel acessível, nunca a tag crua.
 2. **Regex de acentuação não distingue prosa de identificador.** Sem imprimir a frase ao redor, um
    `usuarios.gerenciar` legítimo entra no relatório como erro de português.
+3. **A área tocável é o controle ou o `<label>`, nunca um ancestral qualquer.** A primeira versão
+   da sonda de alvos tomava `max(elemento, pai)` — e uma `<div>` de 56px de altura fazia um botão
+   de 32px passar como aprovado. Esse bug deu "0 alvos < 44px em 10 de 12 rotas" no passo 1,
+   quando a verdade é que **nenhuma rota está limpa**: o chrome tem dois alvos de 32px em todas.
+   Foi pego porque a sonda S4, escrita depois e sem o `max`, discordou da primeira na mesma tela —
+   duas sondas divergindo sobre o mesmo fato é sinal de que uma está errada, não de que o produto
+   é ambíguo. **Uma medição errada é pior que nenhuma**: ela produz aprovação onde há defeito.
+   Este documento já circulou com A1 subestimado (3 botões numa tela, P2) por conta disso; a versão
+   corrigida está acima (chrome em 12/12 rotas, P1).
