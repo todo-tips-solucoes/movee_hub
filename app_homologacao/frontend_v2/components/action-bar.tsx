@@ -31,6 +31,8 @@ interface ActionBarProps {
   /** A lista falhou ao carregar — repassado ao confirm de Fechar movimento,
    *  que não pode oferecer ação irreversível sobre números que não existem. */
   dadosIndisponiveis?: boolean;
+  /** Limpa a seleção da tabela (rodada 8). */
+  onLimparSelecao?: () => void;
 }
 
 export function ActionBar({
@@ -47,6 +49,7 @@ export function ActionBar({
   selecionadosMarcados,
   periodo,
   dadosIndisponiveis,
+  onLimparSelecao,
 }: ActionBarProps) {
   const [csvLoading, setCsvLoading] = useState(false);
   const [xmlLoading, setXmlLoading] = useState(false);
@@ -85,13 +88,14 @@ export function ActionBar({
         onStop={onStop}
         selecionados={selecionados}
         selecionadosMarcados={selecionadosMarcados}
+        onLimparSelecao={onLimparSelecao}
       />
 
       <Separator orientation="vertical" className="hidden h-8 sm:block" />
 
       <div className="flex flex-wrap items-center gap-2">
         <ImportButton onUpload={onUpload} />
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={handleExportCSV} disabled={csvLoading}>
+        <Button size="sm" variant="outline" className="h-11 gap-1.5 sm:h-8" onClick={handleExportCSV} disabled={csvLoading}>
           {csvLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
           Exportar CSV
         </Button>
@@ -100,7 +104,7 @@ export function ActionBar({
       <Separator orientation="vertical" className="hidden h-8 sm:block" />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={handleDownloadXML} disabled={xmlLoading}>
+        <Button size="sm" variant="outline" className="h-11 gap-1.5 sm:h-8" onClick={handleDownloadXML} disabled={xmlLoading}>
           {xmlLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           Download XML
         </Button>

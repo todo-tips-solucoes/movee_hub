@@ -234,14 +234,16 @@ export function XmlValidationCard() {
           </AnimatePresence>
 
           {/* Checkbox validar descricao */}
-          <label className="flex items-center gap-2 cursor-pointer">
+          {/* impeccable rodada 8 (P2): o alvo é o label inteiro, não o quadrado
+              de 16px — faltava só garantir a altura de toque no mobile. */}
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 md:min-h-0">
             <input
               type="checkbox"
               checked={validarDescricao}
               onChange={(e) => setValidarDescricao(e.target.checked)}
               className="h-4 w-4 rounded border-muted-foreground/50"
             />
-            <span className="text-sm">Validar Descricao do Servico</span>
+            <span className="text-sm">Validar descrição do serviço</span>
           </label>
 
           {/* Mensagem de erro */}

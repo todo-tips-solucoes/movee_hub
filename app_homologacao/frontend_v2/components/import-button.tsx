@@ -50,7 +50,7 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
   // Passo 1: validar extensao e abrir o dialog (NAO chama onUpload ainda).
   const stageFile = useCallback((file: File) => {
     if (!file.name.match(/\.xlsx?$/i)) {
-      toast.error('Apenas arquivos .xlsx ou .xls sao aceitos');
+      toast.error('Apenas arquivos .xlsx ou .xls são aceitos');
       if (inputRef.current) inputRef.current.value = '';
       return;
     }
@@ -107,7 +107,7 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
       <Button
         size="sm"
         variant="outline"
-        className={`gap-1.5 transition-all ${dragOver ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : ''}`}
+        className={`h-11 gap-1.5 transition-all sm:h-8 ${dragOver ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : ''}`}
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -134,11 +134,11 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
         {/* R003: largura mobile explícita (sem scroll horizontal) */}
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Periodo da movimentacao</DialogTitle>
+            <DialogTitle>Período da movimentação</DialogTitle>
             <DialogDescription>
               {pendingFile
-                ? `Defina o periodo aplicado a todas as linhas de "${pendingFile.name}".`
-                : 'Defina o periodo aplicado a todas as linhas da planilha.'}
+                ? `Defina o período aplicado a todas as linhas de "${pendingFile.name}".`
+                : 'Defina o período aplicado a todas as linhas da planilha.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -167,7 +167,7 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
             </div>
             {dtInicial !== '' && dtFinal !== '' && dtInicial > dtFinal && (
               <p className="text-sm text-destructive">
-                A data inicial deve ser anterior ou igual a data final.
+                A data inicial deve ser anterior ou igual à data final.
               </p>
             )}
           </div>

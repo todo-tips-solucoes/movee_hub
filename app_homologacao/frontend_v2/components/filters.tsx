@@ -5,7 +5,7 @@ import { X, Search, ChevronDown, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { FilterState } from '@/types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 interface FiltersProps {
   filters: FilterState;
@@ -14,6 +14,7 @@ interface FiltersProps {
 }
 
 export function Filters({ filters, onChange, onReset }: FiltersProps) {
+  const reduzirMovimento = useReducedMotion();
   const [expanded, setExpanded] = useState(true);
 
   const activeCount = useMemo(() => {
@@ -51,10 +52,13 @@ export function Filters({ filters, onChange, onReset }: FiltersProps) {
       <AnimatePresence initial={false}>
         {expanded && (
           <motion.div
-            initial={{ height: 0 }}
+            // impeccable rodada 8 (P3): a regra CSS de reduced-motion não
+            // alcança o framer-motion (estilo inline via JS) — o painel
+            // sanfonava a cada abertura para quem pediu menos movimento.
+            initial={reduzirMovimento ? false : { height: 0 }}
             animate={{ height: 'auto' }}
-            exit={{ height: 0 }}
-            transition={{ duration: 0.2 }}
+            exit={reduzirMovimento ? { height: 'auto' } : { height: 0 }}
+            transition={{ duration: reduzirMovimento ? 0 : 0.2 }}
             className="overflow-hidden"
           >
             <div className="space-y-3 border-t px-3 pb-3 pt-3">
@@ -63,7 +67,8 @@ export function Filters({ filters, onChange, onReset }: FiltersProps) {
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Numero..."
+                    placeholder="Número..."
+                    aria-label="Filtrar por número"
                     value={filters.numero}
                     onChange={(e) => onChange({ numero: e.target.value })}
                     className="h-11 pl-8 md:h-8"
@@ -73,6 +78,7 @@ export function Filters({ filters, onChange, onReset }: FiltersProps) {
                   <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Nome..."
+                    aria-label="Filtrar por nome"
                     value={filters.nome}
                     onChange={(e) => onChange({ nome: e.target.value })}
                     className="h-11 pl-8 md:h-8"
@@ -82,6 +88,7 @@ export function Filters({ filters, onChange, onReset }: FiltersProps) {
                   <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Valor..."
+                    aria-label="Filtrar por valor"
                     value={filters.valor}
                     onChange={(e) => onChange({ valor: e.target.value })}
                     className="h-11 pl-8 md:h-8"
@@ -90,7 +97,8 @@ export function Filters({ filters, onChange, onReset }: FiltersProps) {
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Num. Nota..."
+                    placeholder="Núm. nota..."
+                    aria-label="Filtrar por número da nota"
                     value={filters.numNota}
                     onChange={(e) => onChange({ numNota: e.target.value })}
                     className="h-11 pl-8 md:h-8"
@@ -101,21 +109,27 @@ export function Filters({ filters, onChange, onReset }: FiltersProps) {
               {/* R001: 2 cols <400px, 3 cols ≥400px, flex no desktop; selects ≥44px no mobile */}
               <div className="grid grid-cols-2 gap-3 xs:grid-cols-3 sm:flex sm:flex-wrap sm:items-end sm:gap-4">
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Enviado</span>
+                  <label htmlFor="filtro-enviado" className="text-xs text-muted-foreground">
+                    Enviado
+                  </label>
                   <select
+                    id="filtro-enviado"
                     value={filters.enviado}
                     onChange={(e) => onChange({ enviado: e.target.value })}
                     className="h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-9 sm:w-auto"
                   >
                     <option value="all">Todos</option>
                     <option value="yes">Enviados</option>
-                    <option value="no">Nao Enviados</option>
+                    <option value="no">Não enviados</option>
                   </select>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Erro de Envio</span>
+                  <label htmlFor="filtro-erro-envio" className="text-xs text-muted-foreground">
+                    Erro de Envio
+                  </label>
                   <select
+                    id="filtro-erro-envio"
                     value={filters.sucesso}
                     onChange={(e) => onChange({ sucesso: e.target.value })}
                     className="h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-9 sm:w-auto"
@@ -127,8 +141,11 @@ export function Filters({ filters, onChange, onReset }: FiltersProps) {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Erro de Validacao</span>
+                  <label htmlFor="filtro-erro-validacao" className="text-xs text-muted-foreground">
+                    Erro de Validação
+                  </label>
                   <select
+                    id="filtro-erro-validacao"
                     value={filters.validacao}
                     onChange={(e) => onChange({ validacao: e.target.value })}
                     className="h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-9 sm:w-auto"
@@ -140,22 +157,28 @@ export function Filters({ filters, onChange, onReset }: FiltersProps) {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Enviou Nota</span>
+                  <label htmlFor="filtro-enviou-nota" className="text-xs text-muted-foreground">
+                    Enviou Nota
+                  </label>
                   <select
+                    id="filtro-enviou-nota"
                     value={filters.enviouNota}
                     onChange={(e) => onChange({ enviouNota: e.target.value })}
                     className="h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-9 sm:w-auto"
                   >
                     <option value="all">Todos</option>
                     <option value="yes">Sim</option>
-                    <option value="no">Nao</option>
+                    <option value="no">Não</option>
                   </select>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Data Emissao</span>
+                  <label htmlFor="filtro-data-emissao" className="text-xs text-muted-foreground">
+                    Data de emissão
+                  </label>
                   <Input
                     type="date"
+                    id="filtro-data-emissao"
                     className="h-11 w-full sm:h-9 sm:w-auto"
                     value={filters.dataEmissao}
                     onChange={(e) => onChange({ dataEmissao: e.target.value })}

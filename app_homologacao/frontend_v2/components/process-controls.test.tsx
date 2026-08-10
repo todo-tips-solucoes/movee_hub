@@ -8,7 +8,7 @@
 // interação. Era a affordance da ação de maior consequência do produto mentindo
 // sobre o próprio alcance, que é exatamente o defeito que a rodada 6 existia
 // para corrigir.
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ProcessControls } from './process-controls';
 
@@ -48,5 +48,30 @@ describe('ProcessControls — escopo declarado no botão', () => {
   it('sem ninguém já enviado, os dois números coincidem e nada precisa ser explicado', () => {
     renderizar({ selecionados: 3, selecionadosMarcados: 3 });
     expect(screen.getByRole('button', { name: 'Disparar para 3' })).toBeInTheDocument();
+  });
+});
+
+// impeccable rodada 8 (P2) — a seleção não tinha como ser desfeita nem vista
+// fora da página atual: marque 12, filtre por "Com Erro", e a tabela mostra 3
+// sem nenhuma marcada, enquanto os 12 seguem no escopo do disparo.
+describe('ProcessControls — limpar seleção', () => {
+  it('sem seleção, não há o que limpar', () => {
+    renderizar({ onLimparSelecao: vi.fn() });
+    expect(screen.queryByRole('button', { name: /Limpar seleção/ })).not.toBeInTheDocument();
+  });
+
+  it('com seleção, o botão declara quantas linhas estão marcadas ao todo', () => {
+    const onLimparSelecao = vi.fn();
+    renderizar({ selecionados: 5, selecionadosMarcados: 12, onLimparSelecao });
+
+    // 12, não 5: aqui o número é o da seleção — é ela que está sendo desfeita.
+    const limpar = screen.getByRole('button', { name: 'Limpar seleção (12)' });
+    fireEvent.click(limpar);
+    expect(onLimparSelecao).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem o callback, o botão não aparece (callers legados seguem iguais)', () => {
+    renderizar({ selecionados: 3, selecionadosMarcados: 3 });
+    expect(screen.queryByRole('button', { name: /Limpar seleção/ })).not.toBeInTheDocument();
   });
 });

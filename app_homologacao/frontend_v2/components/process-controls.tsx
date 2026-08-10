@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, Square, Loader2 } from 'lucide-react';
+import { Play, Square, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -26,6 +26,9 @@ interface ProcessControlsProps {
    * "Disparar para 5" com 12 linhas marcadas parece defeito.
    */
   selecionadosMarcados?: number;
+  /** Limpa a seleção inteira (rodada 8). Sem isto, seleção feita em outra
+   *  página ficava invisível e sem como desfazer. */
+  onLimparSelecao?: () => void;
 }
 
 export function ProcessControls({
@@ -35,6 +38,7 @@ export function ProcessControls({
   onStop,
   selecionados = 0,
   selecionadosMarcados = 0,
+  onLimparSelecao,
 }: ProcessControlsProps) {
   const jaEnviados = Math.max(0, selecionadosMarcados - selecionados);
   return (
@@ -44,7 +48,7 @@ export function ProcessControls({
           <Button
             size="sm"
             variant={isActive ? 'outline' : 'default'}
-            className={`gap-1.5 ${!isActive && !isLoading ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`}
+            className={`h-11 gap-1.5 sm:h-8 ${!isActive && !isLoading ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`}
             onClick={onStart}
             disabled={isActive || isLoading}
           />
@@ -72,7 +76,7 @@ export function ProcessControls({
           <Button
             size="sm"
             variant="outline"
-            className={`gap-1.5 ${isActive ? 'border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive' : ''}`}
+            className={`h-11 gap-1.5 sm:h-8 ${isActive ? 'border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive' : ''}`}
             onClick={onStop}
             disabled={!isActive || isLoading}
           />
@@ -86,6 +90,17 @@ export function ProcessControls({
         </TooltipTrigger>
         <TooltipContent>Parar processamento</TooltipContent>
       </Tooltip>
+      {selecionadosMarcados > 0 && onLimparSelecao && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onLimparSelecao}
+          className="h-11 gap-1.5 text-muted-foreground sm:h-8"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+          Limpar seleção ({selecionadosMarcados})
+        </Button>
+      )}
       {isActive && (
         <span className="flex items-center gap-1.5 text-sm font-medium text-success">
           <span className="relative flex h-2.5 w-2.5">

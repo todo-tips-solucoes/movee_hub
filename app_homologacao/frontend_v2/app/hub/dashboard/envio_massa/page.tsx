@@ -142,6 +142,7 @@ function EnvioMassaClient() {
     closeMovement,
     toggleSelectAll,
     toggleSelect,
+    limparSelecao,
   } = useEnvioMassa();
 
   // `disparoConcluido`/`dispensarRecibo`: impeccable rodada 6 (P1-2) — o hook
@@ -226,6 +227,10 @@ function EnvioMassaClient() {
       // volta ao comportamento histórico (movimento aberto inteiro).
       await startProcess(ids);
       setEscopoDisparo(ids.length ? new Set(ids) : null);
+      // A seleção já cumpriu seu papel: o escopo está guardado acima. Mantê-la
+      // marcada faria o próximo confirm aparecer desabilitado (todas enviadas)
+      // sem nada explicando que era preciso desmarcar antes.
+      limparSelecao();
       toast.success('Processamento iniciado!');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao iniciar processamento');
@@ -254,7 +259,10 @@ function EnvioMassaClient() {
 
   return (
     <motion.div
-      className="flex flex-col gap-4"
+      // impeccable rodada 8 (P3): esta era a única rota do hub sem container
+      // nem padding — as outras aplicam `p-4 sm:p-6 lg:p-8`, e a largura
+      // acompanha as demais telas de tabela larga.
+      className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4 sm:p-6 lg:p-8"
       // uiux-hub F4: respeita prefers-reduced-motion — sem fade quando o
       // usuário pediu menos movimento (conteúdo legível imediatamente).
       initial={reduzirMovimento ? false : { opacity: 0 }}
@@ -313,7 +321,7 @@ function EnvioMassaClient() {
           />
         )}
 
-        <StatsCards stats={stats} />
+        <StatsCards stats={stats} onFiltrar={updateFilters} />
 
         <ActionBar
           isActive={isActive}
@@ -335,6 +343,7 @@ function EnvioMassaClient() {
           selecionadosMarcados={selecionados.length}
           periodo={periodo}
           dadosIndisponiveis={erro !== null}
+          onLimparSelecao={limparSelecao}
         />
 
         <Filters

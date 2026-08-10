@@ -158,14 +158,16 @@ export default function HubLoginPage() {
                     onChange={(e) => setSenha(e.target.value)}
                     autoComplete="current-password"
                     aria-required="true"
-                    className="h-11 pr-10 sm:h-10"
+                    className="h-11 pr-12 sm:h-10"
                   />
                   <button
                     type="button"
                     onClick={() => setMostrarSenha((v) => !v)}
                     // impeccable polish 2026-08-06: sem tabIndex={-1} — o
                     // toggle faz parte do fluxo de teclado (WCAG 2.1.1).
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    // impeccable rodada 8 (P2): media 16x16 — 13% da área mínima de
+                    // 44x44. O alvo cresce; o ícone segue 16px.
+                    className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:w-9"
                     aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
                   >
                     {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

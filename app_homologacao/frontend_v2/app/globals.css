@@ -44,7 +44,7 @@
   --secondary-foreground: #1b3fac;
 
   --muted: #efe6d6;
-  --muted-foreground: #5a6a87;
+  --muted-foreground: #52618a;  /* r8: 4,41:1 sobre --muted (#efe6d6) reprovava AA; agora 4,94:1 */
   --accent: #b4ffed;
   --accent-foreground: #0f4938;
 
@@ -58,7 +58,7 @@
   --warning: #ffb72a;
   --warning-foreground: #0f1849;
   --warning-strong: #92400e;      /* warning em grau de TEXTO sobre fundo claro (o #ffb72a não atinge AA como texto) */
-  --destructive: #d32f2f;         /* vermelho FUNCIONAL (guia não define erro); U004: 4.98:1 sobre branco (AA) p/ texto e botão */
+  --destructive: #c62828;         /* vermelho FUNCIONAL (guia não define erro). r8: 4,48:1 sobre --background creme reprovava AA no gatilho de Fechar movimento; agora 5,06:1 (e mais contraste ainda sobre branco e como fundo de botão) */
   --destructive-foreground: #ffffff;
 
   --border: #e7ddcd;
