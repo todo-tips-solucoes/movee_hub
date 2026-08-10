@@ -131,6 +131,11 @@ export function EntitySwitcher({ className }: EntitySwitcherProps) {
         <SelectTrigger
           id="entity-switcher-trigger"
           aria-label="Trocar entidade de trabalho"
+          // impeccable rodada 9 (P1): media 358x32 a 390px. A altura foi
+          // corrigida na RAIZ, no `SelectTrigger` — a classe de lá é
+          // `data-[size=default]:h-8`, que o tailwind-merge não trata como
+          // conflito de `h-11` e ainda vence por especificidade. Remendar aqui
+          // teria deixado todos os outros Selects do produto em 32px.
           className="w-full sm:w-[240px]"
         >
           {trocando ? (

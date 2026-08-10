@@ -83,7 +83,7 @@ export function PeriodFilter({
                 onChange(intervaloDoPreset(p.id));
               }}
               className={cn(
-                'min-h-8 rounded-full border px-2.5 text-xs font-medium transition-colors',
+                'min-h-11 rounded-full border px-2.5 text-xs font-medium transition-colors sm:min-h-8', // r9 (P2): 32px medidos a 390px nos 4 chips de período
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 selecionado
                   ? 'border-primary bg-primary text-primary-foreground'
@@ -101,7 +101,7 @@ export function PeriodFilter({
               setUltimoClicado(null);
               onChange({ de: '', ate: '' });
             }}
-            className="min-h-8 rounded-full px-2 text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="min-h-11 rounded-full px-2 text-xs text-muted-foreground sm:min-h-8 underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             Todo o período
           </button>

@@ -11,6 +11,10 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
+      // impeccable rodada 9 (P1): `size="icon"` é `size-8` — 32x32, medido em
+      // 12 de 12 rotas do hub a 390px. Era o menor alvo do produto e estava no
+      // chrome, ou seja, em toda tela. O ícone segue 20px; cresce a área.
+      className="size-11 sm:size-8"
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       aria-label="Alternar tema"
     >

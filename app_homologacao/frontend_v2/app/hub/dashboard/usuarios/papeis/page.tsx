@@ -187,12 +187,20 @@ export default function PapeisMatrizPage() {
                     const salvando = h.celulasEmSalvamento.has(k);
                     return (
                       <TableCell key={papel.id} className="text-center">
-                        <Checkbox
-                          aria-label={`${permissao.codigo} para ${labelPapel(papel.nome)}`}
-                          checked={marcado}
-                          disabled={!h.dados!.podeEditar || salvando}
-                          onCheckedChange={(v) => h.alternar(papel.id, permissao.id, v === true)}
-                        />
+                        {/* impeccable rodada 9 (P2): a caixa mede 16x16 — o
+                            menor alvo do hub, 132 deles nesta matriz, e é aqui
+                            que se concede permissão. A caixa segue 16px (a
+                            densidade da matriz é o que a torna legível); quem
+                            cresce até 44 é a área tocável ao redor, e só no
+                            mobile. */}
+                        <span className="inline-flex h-11 w-11 items-center justify-center md:h-6 md:w-6">
+                          <Checkbox
+                            aria-label={`${permissao.codigo} para ${labelPapel(papel.nome)}`}
+                            checked={marcado}
+                            disabled={!h.dados!.podeEditar || salvando}
+                            onCheckedChange={(v) => h.alternar(papel.id, permissao.id, v === true)}
+                          />
+                        </span>
                       </TableCell>
                     );
                   })}

@@ -156,16 +156,16 @@ export function DataTable({
                   />
                 </span>
               </TableHead>
-              <TableHead>Numero</TableHead>
+              <TableHead>Número</TableHead>
               <TableHead>Nome</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead className="text-center">Enviado</TableHead>
               <TableHead className="text-center">Erro</TableHead>
-              <TableHead>Num. Nota</TableHead>
+              <TableHead>Núm. nota</TableHead>
               <TableHead>XML</TableHead>
-              <TableHead>Data Emissao</TableHead>
-              <TableHead className="text-center">Erro Val.</TableHead>
-              <TableHead className="text-right">Acoes</TableHead>
+              <TableHead>Data de emissão</TableHead>
+              <TableHead className="text-center">Erro val.</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
