@@ -9,8 +9,14 @@ import { ImportacaoApiError } from '@/lib/hub/importacoes-api';
 const mockUseHubAuth = vi.fn();
 const mockListarImportacoes = vi.fn();
 
+// rodada 14: o histórico lê e escreve filtro/página na URL (`useFiltrosUrl`),
+// então `usePathname`/`useSearchParams` também precisam existir aqui.
+// `useSearchParams` vazio = histórico sem filtro, o estado que estes casos
+// assumem.
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => '/hub/dashboard/importacoes',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock('@/contexts/hub-auth-context', () => ({

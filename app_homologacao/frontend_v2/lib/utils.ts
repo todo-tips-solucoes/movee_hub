@@ -78,6 +78,21 @@ export function applyFilters(data: EnvioMassa[], filters: FilterState): EnvioMas
   });
 }
 
+/**
+ * Há algum filtro fora do padrão? (impeccable rodada 14, h3)
+ *
+ * Serve para decidir se uma ação que SUBSTITUI os filtros precisa avisar: sem
+ * nada ativo, não há trabalho a perder e o aviso seria ruído. Compara contra
+ * `initialFilters` chave a chave em vez de listar os campos "que contam" —
+ * assim um filtro novo entra na conta sozinho, sem ninguém lembrar de vir
+ * aqui.
+ */
+export function temFiltroAtivo(filters: FilterState): boolean {
+  return (Object.keys(initialFilters) as (keyof FilterState)[]).some(
+    (chave) => filters[chave] !== initialFilters[chave]
+  );
+}
+
 export const initialFilters: FilterState = {
   numero: '',
   nome: '',

@@ -27,7 +27,7 @@ function getStatusConfig(status: ValidationStatus): StatusBadgeConfig {
   switch (status) {
     case 'ja_validada':
       return {
-        label: 'Ja validada',
+        label: 'Já validada',
         icon: <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />,
         className: 'bg-muted text-muted-foreground',
       };
@@ -149,7 +149,7 @@ export function XmlValidationCard() {
     try {
       await validateBatch(files, validarDescricao);
       setCurrentPage(1);
-      toast.success('Validacao concluida!');
+      toast.success('Validação concluída!');
     } catch {
       toast.error('Erro ao validar XMLs.');
     }
@@ -320,7 +320,7 @@ export function XmlValidationCard() {
                   <CardContent className="flex flex-col items-center justify-center gap-1 p-3 text-center">
                     <CheckCircle2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     <p className="tabular text-xl font-bold text-muted-foreground">{data.stats.ja_validada}</p>
-                    <p className="text-xs text-muted-foreground leading-tight">Ja validadas</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Já validadas</p>
                   </CardContent>
                 </Card>
 
@@ -375,7 +375,7 @@ export function XmlValidationCard() {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <CardTitle className="text-sm">Detalhes da Validacao</CardTitle>
+                  <CardTitle className="text-sm">Detalhes da Validação</CardTitle>
                   <Button size="sm" variant="outline" onClick={downloadCSV} className="gap-1.5 shrink-0">
                     <Download className="h-4 w-4" aria-hidden="true" />
                     Exportar CSV
