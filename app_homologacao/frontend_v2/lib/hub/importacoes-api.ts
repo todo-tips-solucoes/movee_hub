@@ -87,7 +87,19 @@ const request = criarRequest(
     )
 );
 
+/** impeccable rodada 16: allowlist correspondente vive em
+ *  `ORDENAVEIS_IMPORTACOES` (`routes/hub-importacoes.js`). */
+export type ColunaImportacoes =
+  | 'criado_em'
+  | 'tipo'
+  | 'status'
+  | 'nome_arquivo'
+  | 'total_linhas'
+  | 'data_referencia';
+
 export interface ListarImportacoesQuery {
+  ordenarPor?: ColunaImportacoes | '';
+  direcao?: 'asc' | 'desc' | '';
   tipo?: TipoImportacao | '';
   status?: string;
   de?: string;

@@ -39,6 +39,37 @@ const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { requirePermission } = require('../middleware/hub-require-permission');
+const { parseOrdenacao } = require('../lib/hub-ordenacao');
+
+/**
+ * Colunas ordenáveis da lista de motoristas (impeccable rodada 16, h7).
+ *
+ * Aqui a ordenação NÃO vai ao PostgREST: esta rota busca os candidatos do
+ * escopo, filtra nome/área em JS (tolerante a acento) e pagina em memória —
+ * então a ordem tem de ser aplicada sobre o conjunto JÁ filtrado, senão
+ * ordenaria linhas que o filtro descartou. `area` ordena pela primeira área do
+ * motorista, que é a que a tela mostra primeiro.
+ */
+const ORDENAVEIS_MOTORISTAS = ['nome', 'ativo', 'area'];
+
+/** Comparação estável para a lista de motoristas, em pt-BR. */
+function compararMotorista(a, b, areasMap, coluna) {
+  if (coluna === 'ativo') {
+    // Ativo antes de inativo no crescente: a lista de trabalho começa por quem
+    // ainda opera.
+    return (a.ativo === b.ativo) ? 0 : (a.ativo ? -1 : 1);
+  }
+  if (coluna === 'area') {
+    const areaA = (areasMap.get(a.id) || [])[0] || '';
+    const areaB = (areasMap.get(b.id) || [])[0] || '';
+    // Sem área vai para o fim, como o nulo da ordenação client-side.
+    if (!areaA && !areaB) return 0;
+    if (!areaA) return 1;
+    if (!areaB) return -1;
+    return areaA.localeCompare(areaB, 'pt-BR');
+  }
+  return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+}
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const {
   parsePaginacao,
@@ -222,6 +253,13 @@ router.get('/', requirePermission('motoristas.listar'), async (req, res) => {
       const areasDoRow = areasMap.get(row.id) || [];
       return nomeCasa(nome, row.nome) && areaCasa(area, areasDoRow);
     });
+
+    // 3b. ordenação (rodada 16) — sobre o conjunto JÁ filtrado e ANTES de
+    // paginar: ordenar depois do `slice` ordenaria só a página, e "o primeiro
+    // nome" seria o primeiro dos 20 visíveis.
+    const ordem = parseOrdenacao(req.query, ORDENAVEIS_MOTORISTAS, { coluna: 'nome', direcao: 'asc' });
+    const fator = ordem.direcao === 'asc' ? 1 : -1;
+    filtrados.sort((a, b) => compararMotorista(a, b, areasMap, ordem.coluna) * fator);
 
     // 4. paginação em JS, após todos os filtros.
     const total = filtrados.length;
@@ -1238,4 +1276,6 @@ module.exports = {
   // exportados para testes unitários
   resolverContextoEntidade,
   idValido,
+  ORDENAVEIS_MOTORISTAS,
+  compararMotorista,
 };

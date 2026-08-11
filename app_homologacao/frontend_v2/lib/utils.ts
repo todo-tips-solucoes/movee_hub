@@ -141,7 +141,10 @@ export function ordenarDados(data: EnvioMassa[], ordem: Ordenacao | null): Envio
  * existe para dar caminho de volta à ordem original (a de chegada dos dados),
  * que é a única em que "a última linha importada" está no fim.
  */
-export function proximaOrdenacao(atual: Ordenacao | null, coluna: ColunaOrdenavel): Ordenacao | null {
+export function proximaOrdenacao<C extends string>(
+  atual: { coluna: C; direcao: 'asc' | 'desc' } | null,
+  coluna: C
+): { coluna: C; direcao: 'asc' | 'desc' } | null {
   if (!atual || atual.coluna !== coluna) return { coluna, direcao: 'asc' };
   if (atual.direcao === 'asc') return { coluna, direcao: 'desc' };
   return null;

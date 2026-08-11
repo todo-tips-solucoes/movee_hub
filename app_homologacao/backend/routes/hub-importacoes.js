@@ -22,6 +22,21 @@ const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { requirePermission } = require('../middleware/hub-require-permission');
+const { parseOrdenacao, ordenacaoParaPostgrest } = require('../lib/hub-ordenacao');
+
+/**
+ * Colunas que o histórico aceita ordenar (impeccable rodada 16, h7). Só campos
+ * já expostos no `select` da própria listagem — ordenar por coluna que a tela
+ * não mostra produz uma ordem inexplicável para quem olha.
+ */
+const ORDENAVEIS_IMPORTACOES = [
+  'criado_em',
+  'tipo',
+  'status',
+  'nome_arquivo',
+  'total_linhas',
+  'data_referencia',
+];
 const {
   HubImportParseError,
   validarZipLeve,
@@ -398,7 +413,11 @@ router.get('/', requirePermission('importacoes.consultar'), async (req, res) => 
     if (responsavel) filtros.push(`criado_por=eq.${encodeURIComponent(responsavel)}`);
     if (de) filtros.push(`criado_em=gte.${encodeURIComponent(de)}`);
     if (ate) filtros.push(`criado_em=lte.${encodeURIComponent(ate)}`);
-    filtros.push('order=criado_em.desc');
+    // impeccable rodada 16 (h7): a ordem deixa de ser fixa. A allowlist vive
+    // em `hub-ordenacao.js` — este valor é interpolado na URL do PostgREST.
+    filtros.push(ordenacaoParaPostgrest(
+      parseOrdenacao(req.query, ORDENAVEIS_IMPORTACOES, { coluna: 'criado_em', direcao: 'desc' })
+    ));
     filtros.push(
       'select=id,tipo,status,nome_arquivo,total_linhas,linhas_validas,linhas_invalidas,'
       + 'data_referencia,criado_por,iniciado_em,concluido_em'
@@ -748,4 +767,5 @@ module.exports = {
   resolverContextoEntidade,
   idValido,
   UPLOADS_DIR,
+  ORDENAVEIS_IMPORTACOES,
 };

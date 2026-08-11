@@ -357,6 +357,25 @@ async function main() {
   const itemCarlos = rLista.body && rLista.body.items.find((i) => i.id === entCarlos);
   out.lista_carlos_areas = itemCarlos ? JSON.stringify(itemCarlos.areas.slice().sort()) : null;
   out.lista_carlos_comVinculo = itemCarlos ? itemCarlos.comVinculo : null;
+  // (b2) impeccable rodada 16 — ordenação vinda do cliente, validada por
+  // allowlist (`ORDENAVEIS_MOTORISTAS`). Três coisas a provar contra o backend
+  // REAL: que a ordem padrão é nome asc, que `direcao=desc` inverte, e que
+  // coluna fora da allowlist NÃO quebra a lista (cai no padrão, 200).
+  const nomesDe = (r) => (r.body && r.body.items ? r.body.items.map((i) => i.nome).join('|') : null);
+  out.ordem_padrao_nomes = nomesDe(rLista);
+  const rDesc = await getJson(jar, '/motoristas?ordenarPor=nome&direcao=desc');
+  out.ordem_desc_status = rDesc.status;
+  out.ordem_desc_nomes = nomesDe(rDesc);
+  out.ordem_desc_inverte = out.ordem_padrao_nomes
+    ? String(out.ordem_desc_nomes === out.ordem_padrao_nomes.split('|').reverse().join('|'))
+    : 'null';
+  const rInjecao = await getJson(jar, '/motoristas?ordenarPor=' + encodeURIComponent('id_empresa.desc,nome') + '&direcao=desc');
+  out.ordem_injecao_status = rInjecao.status;
+  out.ordem_injecao_igual_padrao = String(nomesDe(rInjecao) === out.ordem_padrao_nomes);
+  const rAtivo = await getJson(jar, '/motoristas?ordenarPor=ativo&direcao=asc');
+  out.ordem_ativo_status = rAtivo.status;
+  out.ordem_ativo_primeiro_ativo = rAtivo.body && rAtivo.body.items[0] ? String(rAtivo.body.items[0].ativo) : 'null';
+
   const itemJose = rLista.body && rLista.body.items.find((i) => i.id === entJose);
   out.lista_jose_areas = itemJose ? JSON.stringify(itemJose.areas.slice().sort()) : null;
   out.lista_jose_comVinculo = itemJose ? itemJose.comVinculo : null;
@@ -692,6 +711,14 @@ check "lista -> Carlos.areas=[Centro,Zona Sul] (ordenado alfabeticamente p/ comp
 check "lista -> Carlos.comVinculo=true" "$(jget lista_carlos_comVinculo)" "true"
 check "lista -> José.areas=[Centro,Zona Sul]" "$(jget lista_jose_areas)" '["Centro","Zona Sul"]'
 check "lista -> José.comVinculo=false" "$(jget lista_jose_comVinculo)" "false"
+
+# impeccable rodada 16 — ordenação server-side
+check "ordenacao desc -> 200" "$(jget ordem_desc_status)" "200"
+check "ordenacao desc INVERTE a ordem padrao (nome asc)" "$(jget ordem_desc_inverte)" "true"
+check "ordenacao com tentativa de injecao -> 200 (nao quebra)" "$(jget ordem_injecao_status)" "200"
+check "ordenacao com coluna invalida cai no PADRAO (mesma ordem)" "$(jget ordem_injecao_igual_padrao)" "true"
+check "ordenacao por ativo -> 200" "$(jget ordem_ativo_status)" "200"
+check "ordenacao por ativo asc -> primeiro item e ativo" "$(jget ordem_ativo_primeiro_ativo)" "true"
 
 check "filtro nome=jose (sem acento) -> 200" "$(jget nome_status)" "200"
 check "filtro nome=jose -> total=1" "$(jget nome_total)" "1"

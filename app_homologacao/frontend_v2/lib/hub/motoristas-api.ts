@@ -100,7 +100,14 @@ const request = criarRequest(
     )
 );
 
+/** impeccable rodada 16: a ordem é escolhida na tela e validada por allowlist
+ *  no backend (`ORDENAVEIS_MOTORISTAS` em `routes/hub-motoristas.js`). Valor
+ *  desconhecido não é erro lá — cai no padrão `nome.asc`. */
+export type ColunaMotoristas = 'nome' | 'ativo' | 'area';
+
 export interface ListarMotoristasQuery {
+  ordenarPor?: ColunaMotoristas | '';
+  direcao?: 'asc' | 'desc' | '';
   nome?: string;
   ativo?: boolean;
   area?: string;

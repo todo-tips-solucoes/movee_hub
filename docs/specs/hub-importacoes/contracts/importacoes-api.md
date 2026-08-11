@@ -39,7 +39,18 @@ Registra `Auditoria(acao='importacao.criada')`.
 
 **Permissão**: `importacoes.consultar`.
 **Query**: `tipo`, `status`, `de`, `ate`, `responsavel`, `page`/`pageSize`
-(paginação obrigatória via Range PostgREST; default últimos 30 dias).
+(paginação obrigatória via Range PostgREST; default últimos 30 dias),
+`ordenarPor`/`direcao` (impeccable rodada 16).
+
+`ordenarPor` aceita **somente** `criado_em` (padrão), `tipo`, `status`,
+`nome_arquivo`, `total_linhas`, `data_referencia`; `direcao` aceita `asc` ou
+`desc` (padrão `desc`). O valor é validado por allowlist
+(`lib/hub-ordenacao.js`) **antes** de virar fragmento `order=` na URL do
+PostgREST. Valor fora da lista **não** é erro: cai no padrão — um link antigo
+com parâmetro inválido continua abrindo a tela em vez de devolver 400. A
+direção só é considerada quando a coluna veio válida, para que `direcao=desc`
+sozinho não inverta silenciosamente a ordem padrão. `order` sempre leva
+`nullslast`: ausência de valor não encabeça o decrescente.
 **Response** `200`: `{ items: [{ id, tipo, status, nomeArquivo, totalLinhas,
 linhasValidas, linhasInvalidas, dataReferencia, criadoPor, iniciadoEm, concluidoEm,
 duracaoSegundos, aguardandoLock }], total, page, pageSize }`.

@@ -119,6 +119,14 @@ async function trocarEntidade(jar, empresaId) {
   const r = await fetch(`${BASE}/me/entidade`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) }, body: JSON.stringify({ empresa_id: empresaId }) });
   return { ...jar, ...parseSetCookie(r) };
 }
+/** GET autenticado — a listagem não era exercitada por este driver até a
+ *  rodada 16 (só o POST/upload era). */
+async function getJson(jar, caminho) {
+  const r = await fetch(`${BASE}${caminho}`, { headers: { Cookie: cookieHeader(jar) } });
+  let body = null;
+  try { body = await r.json(); } catch { body = null; }
+  return { status: r.status, body };
+}
 async function upload(jar, { tipo, nomeArquivo, conteudo, mime }) {
   // `conteudo` pode ser string (CSV texto) ou Buffer (ZIP binário) — passar
   // SEMPRE como Buffer para o Blob evita reencode UTF-8 corrompendo bytes
@@ -272,6 +280,24 @@ async function main() {
   out.zip_ok_status = rZipOk.status;
   out.zip_ok_id = rZipOk.body && rZipOk.body.id;
 
+  // (g) impeccable rodada 16 — ordenação do histórico. Aqui o `order` chega ao
+  // PostgREST na URL, então a allowlist (`ORDENAVEIS_IMPORTACOES`) é defesa de
+  // borda, não conforto de UI: um valor arbitrário do cliente não pode virar
+  // fragmento de query.
+  const nomesDe = (r) => (r.body && r.body.items ? r.body.items.map((i) => i.nomeArquivo).join('|') : null);
+  const rPadrao = await getJson(jarOp, '/importacoes');
+  out.ord_padrao_status = rPadrao.status;
+  out.ord_padrao_nomes = nomesDe(rPadrao);
+  const rArquivoAsc = await getJson(jarOp, '/importacoes?ordenarPor=nome_arquivo&direcao=asc');
+  out.ord_arquivo_status = rArquivoAsc.status;
+  const nomesAsc = rArquivoAsc.body && rArquivoAsc.body.items ? rArquivoAsc.body.items.map((i) => i.nomeArquivo) : [];
+  out.ord_arquivo_ordenado = String(
+    nomesAsc.length > 0 && nomesAsc.every((n, i) => i === 0 || nomesAsc[i - 1].localeCompare(n) <= 0)
+  );
+  const rInjecao = await getJson(jarOp, '/importacoes?ordenarPor=' + encodeURIComponent('id_empresa.desc,criado_em') + '&direcao=asc');
+  out.ord_injecao_status = rInjecao.status;
+  out.ord_injecao_igual_padrao = String(nomesDe(rInjecao) === out.ord_padrao_nomes);
+
   console.log('___RESULT_JSON___' + JSON.stringify(out));
 }
 main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
@@ -283,6 +309,14 @@ RESULT_LINE="$(echo "$OUT" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON__
 jget() { printf '%s' "$RESULT_LINE" | node_e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); process.stdout.write(String(d['$1']))"; }
 
 check "POST /importacoes sem cookie -> 401" "$(jget sem_auth_status)" "401"
+
+# impeccable rodada 16 — ordenação server-side do histórico (o `order` alcança
+# o PostgREST nesta rota; a allowlist é defesa de borda)
+check "listagem padrao -> 200" "$(jget ord_padrao_status)" "200"
+check "ordenar por nome_arquivo asc -> 200" "$(jget ord_arquivo_status)" "200"
+check "ordenar por nome_arquivo asc -> resposta realmente ordenada" "$(jget ord_arquivo_ordenado)" "true"
+check "ordenarPor com injecao -> 200 (nao quebra)" "$(jget ord_injecao_status)" "200"
+check "ordenarPor com injecao -> mesma ordem do padrao (allowlist barrou)" "$(jget ord_injecao_igual_padrao)" "true"
 check "extensão .txt -> 422 INVALIDO" "$(jget ext_invalida_status)" "422"
 check "extensão .txt -> motivo extensao_invalida" "$(jget ext_invalida_motivo)" "extensao_invalida"
 check "tipo desconhecido (envio_massa não suportado aqui) -> 422" "$(jget tipo_invalido_status)" "422"
