@@ -20,7 +20,16 @@ Códigos de erro padrão do hub: `401 NAO_AUTENTICADO`, `403 PERMISSAO_NEGADA`
 (`true`/`false`), `area` (subpraça — casa se QUALQUER área distinta do
 Entregador corresponder, FR-002/Clarification Q2), `comVinculo`
 (`true`/`false`/omitido=todos), `page`/`pageSize` (default 20, máx. 100 — mesmo
-padrão de `parsePaginacao`).
+padrão de `parsePaginacao`), `ordenarPor`/`direcao` (impeccable rodada 16).
+
+`ordenarPor` aceita **somente** `nome` (padrão), `ativo` e `area`; `direcao`
+aceita `asc` (padrão) ou `desc`, validados por allowlist em
+`lib/hub-ordenacao.js`. Valor fora da lista cai no padrão, sem 400. Nesta rota
+a ordenação é aplicada **em memória**, sobre o conjunto já filtrado e ANTES de
+paginar (a rota busca os candidatos do escopo, filtra `nome`/`area` em JS por
+causa da tolerância a acento e pagina em JS) — ordenar depois do recorte
+ordenaria só a página. `nome` e `area` comparam com `localeCompare` pt-BR;
+`ativo` traz ativos primeiro no crescente; quem não tem área vai para o fim.
 
 **Response** `200`: `{ items: [{ id, nome, ativo, comVinculo, areas: string[]
 }], total, page, pageSize }`. `areas` é a lista de subpraças distintas já

@@ -37,8 +37,10 @@ import { AtivoBadge, VinculoBadge } from '@/components/hub/status-badge';
 import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { MotoristaDetalheDialog, useMotoristaDetalheDialog } from '@/components/hub/motorista-detalhe-dialog';
 import { PaginationControls } from '@/components/pagination-controls';
-import { criarMotorista, listarAreasMotoristas, listarMotoristas, MotoristaApiError } from '@/lib/hub/motoristas-api';
+import { criarMotorista, listarAreasMotoristas, listarMotoristas, MotoristaApiError, type ColunaMotoristas } from '@/lib/hub/motoristas-api';
 import { isUuidValido, type MotoristaListItem } from '@/lib/hub/motoristas-dto';
+import { proximaOrdenacao } from '@/lib/utils';
+import { CabecalhoOrdenavel } from '@/components/hub/cabecalho-ordenavel';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useFiltrosUrl } from '@/hooks/use-filtros-url';
 
@@ -49,9 +51,20 @@ export interface MotoristasFiltros {
   ativo: '' | 'true' | 'false';
   area: string;
   comVinculo: '' | 'true' | 'false';
+  // rodada 16: a ordenação viaja junto dos filtros — assim herda a URL (r14) e
+  // sobrevive a recarregar e a compartilhar o link, sem mecânica própria.
+  ordenarPor: '' | ColunaMotoristas;
+  direcao: '' | 'asc' | 'desc';
 }
 
-const FILTROS_INICIAIS: MotoristasFiltros = { nome: '', ativo: '', area: '', comVinculo: '' };
+const FILTROS_INICIAIS: MotoristasFiltros = {
+  nome: '',
+  ativo: '',
+  area: '',
+  comVinculo: '',
+  ordenarPor: '',
+  direcao: '',
+};
 
 /** Lógica isolada do JSX (mesmo padrão de `useImportacoesHistorico`). */
 export function useMotoristasLista() {
@@ -82,6 +95,8 @@ export function useMotoristasLista() {
         ativo: filtrosDebounced.ativo === '' ? undefined : filtrosDebounced.ativo === 'true',
         area: filtrosDebounced.area || undefined,
         comVinculo: filtrosDebounced.comVinculo === '' ? undefined : filtrosDebounced.comVinculo === 'true',
+        ordenarPor: filtrosDebounced.ordenarPor || undefined,
+        direcao: filtrosDebounced.direcao || undefined,
         page,
         pageSize: PAGE_SIZE,
       });
@@ -102,9 +117,28 @@ export function useMotoristasLista() {
 
   const totalPaginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // rodada 16: traduz "clicaram no cabeçalho X" para o par
+  // ordenarPor/direcao dos filtros. `''` nos dois campos = ordem padrão do
+  // backend (nome.asc), que é o terceiro estado do ciclo.
+  const ordem = filtros.ordenarPor
+    ? { coluna: filtros.ordenarPor, direcao: (filtros.direcao || 'asc') as 'asc' | 'desc' }
+    : null;
+  const alternarOrdem = useCallback(
+    (coluna: ColunaMotoristas) => {
+      const proxima = proximaOrdenacao(
+        filtros.ordenarPor ? { coluna: filtros.ordenarPor, direcao: (filtros.direcao || 'asc') as 'asc' | 'desc' } : null,
+        coluna
+      );
+      setFiltros({ ordenarPor: proxima?.coluna ?? '', direcao: proxima?.direcao ?? '' });
+    },
+    [filtros.ordenarPor, filtros.direcao, setFiltros]
+  );
+
   return {
     filtros,
     setFiltros,
+    ordem,
+    alternarOrdem,
     resetFiltros,
     page,
     setPage,
@@ -421,11 +455,11 @@ function MotoristasConteudo() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
+                  <CabecalhoOrdenavel coluna="nome" rotulo="Nome" ordem={h.ordem} onOrdenar={h.alternarOrdem} />
                   <TableHead>Identificador</TableHead>
-                  <TableHead>Situação</TableHead>
+                  <CabecalhoOrdenavel coluna="ativo" rotulo="Situação" ordem={h.ordem} onOrdenar={h.alternarOrdem} />
                   <TableHead>Vínculo</TableHead>
-                  <TableHead>Áreas</TableHead>
+                  <CabecalhoOrdenavel coluna="area" rotulo="Áreas" ordem={h.ordem} onOrdenar={h.alternarOrdem} />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>

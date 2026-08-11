@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Pencil, Trash2, ExternalLink, Check, X, AlertCircle, ArrowUp, ArrowDown, ArrowUpDown, FileText } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, Check, X, AlertCircle, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox, CHECKBOX_ALVO_44 } from '@/components/ui/checkbox';
 import type { ColunaOrdenavel, Ordenacao } from '@/lib/utils';
+import { CabecalhoOrdenavel } from '@/components/hub/cabecalho-ordenavel';
 import {
   Table,
   TableBody,
@@ -35,52 +36,6 @@ interface DataTableProps {
    *  ali os cabeçalhos seguem texto puro, sem virar botão sem função. */
   ordem?: Ordenacao | null;
   onOrdenar?: (coluna: ColunaOrdenavel) => void;
-}
-
-/** Cabeçalho que ordena — ou texto simples, quando a tela não passa `onOrdenar`. */
-function CabecalhoOrdenavel({
-  coluna,
-  rotulo,
-  ordem,
-  onOrdenar,
-  className,
-}: {
-  coluna: ColunaOrdenavel;
-  rotulo: string;
-  ordem?: Ordenacao | null;
-  onOrdenar?: (coluna: ColunaOrdenavel) => void;
-  className?: string;
-}) {
-  if (!onOrdenar) return <TableHead className={className}>{rotulo}</TableHead>;
-
-  const ativa = ordem?.coluna === coluna ? ordem.direcao : null;
-  // `aria-sort` é o que um leitor de tela anuncia; o ícone é a versão visual da
-  // mesma informação. Sem os dois, a ordem fica sabida só por quem enxerga.
-  return (
-    <TableHead className={className} aria-sort={ativa === 'asc' ? 'ascending' : ativa === 'desc' ? 'descending' : 'none'}>
-      <button
-        type="button"
-        onClick={() => onOrdenar(coluna)}
-        className="inline-flex items-center gap-1 font-medium hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-        title={
-          ativa === 'asc'
-            ? `Ordenado por ${rotulo}, crescente. Clique para inverter.`
-            : ativa === 'desc'
-              ? `Ordenado por ${rotulo}, decrescente. Clique para remover a ordenação.`
-              : `Ordenar por ${rotulo}`
-        }
-      >
-        {rotulo}
-        {ativa === 'asc' ? (
-          <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-        ) : ativa === 'desc' ? (
-          <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-        ) : (
-          <ArrowUpDown className="h-3.5 w-3.5 opacity-40" aria-hidden="true" />
-        )}
-      </button>
-    </TableHead>
-  );
 }
 
 function getXmlUrl(nota_ok: string | null): string | null {

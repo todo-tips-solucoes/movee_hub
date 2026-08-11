@@ -42,7 +42,7 @@ import { PeriodFilter } from '@/components/hub/period-filter';
 import { UsuarioCombobox } from '@/components/hub/usuario-combobox';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { ImportacaoStatusBadge } from '@/components/hub/status-badge';
-import { listarImportacoes, ImportacaoApiError } from '@/lib/hub/importacoes-api';
+import { listarImportacoes, ImportacaoApiError , type ColunaImportacoes } from '@/lib/hub/importacoes-api';
 import {
   STATUS_LABELS,
   TIPO_LABELS,
@@ -53,6 +53,8 @@ import {
 } from '@/lib/hub/importacoes-dto';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useFiltrosUrl } from '@/hooks/use-filtros-url';
+import { proximaOrdenacao } from '@/lib/utils';
+import { CabecalhoOrdenavel } from '@/components/hub/cabecalho-ordenavel';
 import { formatDateBR } from '@/lib/utils';
 
 const STATUS_OPCOES: StatusImportacao[] = [
@@ -73,9 +75,20 @@ export interface ImportacoesFiltros {
   responsavel: string;
   de: string;
   ate: string;
+  // rodada 16: ordenação junto dos filtros — herda a URL (r14).
+  ordenarPor: '' | ColunaImportacoes;
+  direcao: '' | 'asc' | 'desc';
 }
 
-const FILTROS_INICIAIS: ImportacoesFiltros = { tipo: '', status: '', responsavel: '', de: '', ate: '' };
+const FILTROS_INICIAIS: ImportacoesFiltros = {
+  tipo: '',
+  status: '',
+  responsavel: '',
+  de: '',
+  ate: '',
+  ordenarPor: '',
+  direcao: '',
+};
 
 // Enquanto houver importação nestes status, a lista se atualiza sozinha —
 // o operador acompanha o processamento sem F5 (impeccable harden 2026-08-06).
@@ -118,6 +131,8 @@ export function useImportacoesHistorico() {
         responsavel: filtrosDebounced.responsavel || undefined,
         de: filtrosDebounced.de ? new Date(`${filtrosDebounced.de}T00:00:00`).toISOString() : undefined,
         ate: filtrosDebounced.ate ? new Date(`${filtrosDebounced.ate}T23:59:59`).toISOString() : undefined,
+        ordenarPor: filtrosDebounced.ordenarPor || undefined,
+        direcao: filtrosDebounced.direcao || undefined,
         page,
         pageSize: PAGE_SIZE,
       });
@@ -158,9 +173,25 @@ export function useImportacoesHistorico() {
   // event de clique não pode vazar para o parâmetro `opts` de `buscar`.
   const refetch = useCallback(() => buscar(), [buscar]);
 
+  const ordem = filtros.ordenarPor
+    ? { coluna: filtros.ordenarPor, direcao: (filtros.direcao || 'asc') as 'asc' | 'desc' }
+    : null;
+  const alternarOrdem = useCallback(
+    (coluna: ColunaImportacoes) => {
+      const proxima = proximaOrdenacao(
+        filtros.ordenarPor ? { coluna: filtros.ordenarPor, direcao: (filtros.direcao || 'asc') as 'asc' | 'desc' } : null,
+        coluna
+      );
+      setFiltros({ ordenarPor: proxima?.coluna ?? '', direcao: proxima?.direcao ?? '' });
+    },
+    [filtros.ordenarPor, filtros.direcao, setFiltros]
+  );
+
   return {
     filtros,
     setFiltros,
+    ordem,
+    alternarOrdem,
     resetFiltros,
     page,
     setPage,
@@ -361,13 +392,13 @@ function ImportacoesConteudo() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Arquivo</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <CabecalhoOrdenavel coluna="tipo" rotulo="Tipo" ordem={h.ordem} onOrdenar={h.alternarOrdem} />
+                  <CabecalhoOrdenavel coluna="status" rotulo="Status" ordem={h.ordem} onOrdenar={h.alternarOrdem} />
+                  <CabecalhoOrdenavel coluna="nome_arquivo" rotulo="Arquivo" ordem={h.ordem} onOrdenar={h.alternarOrdem} />
+                  <CabecalhoOrdenavel coluna="total_linhas" rotulo="Total" ordem={h.ordem} onOrdenar={h.alternarOrdem} className="text-right" />
                   <TableHead className="text-right">Válidas</TableHead>
                   <TableHead className="text-right">Inválidas</TableHead>
-                  <TableHead>Data referência</TableHead>
+                  <CabecalhoOrdenavel coluna="data_referencia" rotulo="Data referência" ordem={h.ordem} onOrdenar={h.alternarOrdem} />
                   <TableHead>Duração</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
