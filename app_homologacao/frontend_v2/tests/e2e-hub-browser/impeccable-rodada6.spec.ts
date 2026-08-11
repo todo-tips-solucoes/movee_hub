@@ -100,6 +100,10 @@ test.describe('impeccable rodada 6 — recibo do disparo', () => {
     await expect(page.getByRole('row', { name: /Motorista Sem Envio/ })).toHaveCount(0);
 
     await recibo.getByRole('button', { name: /dispensar/i }).click();
-    await expect(page.getByText('Disparo concluído')).toHaveCount(0);
+    // Escopado ao RECIBO: a r17 pôs uma região viva que anuncia "Disparo
+    // concluído." por alguns segundos, e medir por texto solto confundia o
+    // anúncio (correto, transitório, sr-only) com o recibo (o que esta
+    // asserção quer ver sumir).
+    await expect(recibo).toHaveCount(0);
   });
 });

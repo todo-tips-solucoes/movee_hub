@@ -157,6 +157,7 @@ function EnvioMassaClient() {
     disparoConcluido,
     dispensarRecibo,
     statusIndisponivel,
+    anuncio,
   } = useProcessStatus({ onRefresh: fetchData });
 
   useEffect(() => {
@@ -280,9 +281,16 @@ function EnvioMassaClient() {
               : 'Disparo de notificações e validação de notas do movimento aberto.'
           }
         >
+          {/* impeccable rodada 17 (h1): esta pílula era `role="status"` +
+              `aria-live="polite"` — as duas coisas, e `role=status` já é
+              região viva por si. Com o poll de 13s do `useProcessStatus`, o
+              texto mudava a cada ciclo e cada mudança virava um anúncio:
+              MEDIDO em 3 anúncios por 3 ciclos, ou ~46 num disparo de 10
+              minutos, para dizer "13 de 340" virando "14 de 340". Quem usa
+              leitor de tela era interrompido justamente na tela que exige mais
+              atenção. Agora ela é só texto — continua no documento e legível
+              na navegação normal —, e quem fala são os MARCOS, logo abaixo. */}
           <span
-            role="status"
-            aria-live="polite"
             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
               isActive
                 ? 'border-success/30 bg-success/10 text-success'
@@ -310,6 +318,15 @@ function EnvioMassaClient() {
                   : 'Parado'}
           </span>
         </PageHeader>
+
+        {/* impeccable rodada 17 (h1): a ÚNICA região viva desta tela. Anuncia
+            marcos ("Disparo iniciado", "Disparo concluído") em vez do
+            progresso a cada poll — 2 anúncios por disparo no lugar de ~46. O
+            recibo logo abaixo traz os números para quem quiser conferir; a
+            interrupção fica reservada ao que muda o estado do trabalho. */}
+        <span aria-live="polite" data-anuncio="marco" className="sr-only">
+          {anuncio}
+        </span>
 
         {disparoConcluido && (
           <DisparoRecibo
