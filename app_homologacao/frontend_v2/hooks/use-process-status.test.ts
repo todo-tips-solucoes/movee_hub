@@ -179,4 +179,47 @@ describe('useProcessStatus — falha de poll preserva o último estado conhecido
     expect(result.current.statusIndisponivel).toBe(false);
     expect(result.current.disparoConcluido).toBe(true);
   });
+
+  // impeccable rodada 17 (h1) — os marcos que substituem o anúncio por tick.
+  it('anuncia início e fim, e NADA enquanto o disparo segue', async () => {
+    mockGet.mockResolvedValue({ active: false });
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() => useProcessStatus({ onRefresh }));
+    await waitFor(() => expect(mockGet).toHaveBeenCalled());
+    expect(result.current.anuncio).toBeNull();
+
+    vi.useFakeTimers();
+    mockGet.mockResolvedValue({ active: true });
+    // O polling só existe a partir do disparo — e é o próprio `startProcess`
+    // que sabe do início (o poll nunca veria a virada, porque ele já marca o
+    // estado anterior como ativo).
+    await act(async () => {
+      await result.current.startProcess();
+    });
+    expect(result.current.anuncio).toBe('Disparo iniciado.');
+
+    // A mensagem é transitória: sai depois de anunciada, para não ficar no
+    // documento como texto permanente.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(result.current.anuncio).toBeNull();
+
+    // Três ciclos de polling com o disparo em andamento: NADA é anunciado.
+    // É exatamente isto que a rodada corrige — antes, cada ciclo virava um
+    // anúncio de progresso.
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+      });
+      expect(result.current.anuncio, `ciclo ${i + 1}`).toBeNull();
+    }
+
+    mockGet.mockResolvedValue({ active: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(result.current.anuncio).toBe('Disparo concluído.');
+    vi.useRealTimers();
+  });
 });

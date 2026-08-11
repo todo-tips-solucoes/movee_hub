@@ -17,6 +17,12 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
   // padrão "setState síncrono dentro de effect" que o lint proíbe. Consumir é
   // opcional: o painel legado ignora estes dois campos e segue igual.
   const [disparoConcluido, setDisparoConcluido] = useState(false);
+  /**
+   * impeccable rodada 17 (h1): a frase que a região viva da tela anuncia.
+   * Marcos, não ticks — início e fim. Vive aqui porque é o hook que detecta as
+   * viradas (o mesmo lugar de onde o recibo da r6 nasceu); a tela só desenha.
+   */
+  const [anuncio, setAnuncio] = useState<string | null>(null);
   /** O poll falhou: o estado exibido é o último conhecido, não o atual. */
   const [statusIndisponivel, setStatusIndisponivel] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -43,8 +49,12 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
         onRefresh();
       }
       // Disparo novo apaga o recibo do anterior — nunca dois na tela.
-      if (result.active) setDisparoConcluido(false);
-      else if (estavaAtivoRef.current) setDisparoConcluido(true);
+      if (result.active) {
+        setDisparoConcluido(false);
+      } else if (estavaAtivoRef.current) {
+        setDisparoConcluido(true);
+        setAnuncio('Disparo concluído.');
+      }
       estavaAtivoRef.current = result.active;
       setStatusIndisponivel(false);
       return result.active;
@@ -82,6 +92,12 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
       setIsActive(true);
       estavaAtivoRef.current = true;
       setDisparoConcluido(false);
+      // O início é sabido AQUI, na ação aceita pelo backend — não numa virada
+      // de poll. `startProcess` já marca `estavaAtivoRef`, então o primeiro
+      // check nunca veria a transição. E abrir a tela com um disparo em
+      // andamento (iniciado em outra sessão) não deve anunciar "iniciado":
+      // aquilo não começou agora; ali fala a conclusão, quando vier.
+      setAnuncio('Disparo iniciado.');
       startPolling();
     } finally {
       setIsLoading(false);
@@ -95,7 +111,10 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
       setIsActive(false);
       // Parar na mão também termina um disparo: o operador precisa saber
       // quantas mensagens saíram antes de ele apertar o botão.
-      if (estavaAtivoRef.current) setDisparoConcluido(true);
+      if (estavaAtivoRef.current) {
+        setDisparoConcluido(true);
+        setAnuncio('Disparo concluído.');
+      }
       estavaAtivoRef.current = false;
       clearPolling();
       onRefresh();
@@ -113,6 +132,18 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
 
   const dispensarRecibo = useCallback(() => setDisparoConcluido(false), []);
 
+  /**
+   * Região viva guarda mensagem TRANSITÓRIA: o texto existe para ser
+   * anunciado e sair. Mantê-lo no DOM faria quem navega o documento tropeçar
+   * em "Disparo concluído." horas depois — e foi assim que o teste da r6
+   * pegou este defeito, ao encontrar a frase fora do recibo já dispensado.
+   */
+  useEffect(() => {
+    if (!anuncio) return;
+    const timer = setTimeout(() => setAnuncio(null), 5000);
+    return () => clearTimeout(timer);
+  }, [anuncio]);
+
   return {
     isActive,
     isLoading,
@@ -123,5 +154,7 @@ export function useProcessStatus({ onRefresh }: UseProcessStatusOptions) {
     dispensarRecibo,
     /** true quando o último poll falhou — `isActive` é o último valor conhecido. */
     statusIndisponivel,
+    /** Frase de marco para a região viva da tela (r17). null = nada a dizer. */
+    anuncio,
   };
 }

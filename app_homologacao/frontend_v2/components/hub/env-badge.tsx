@@ -77,9 +77,12 @@ export function EnvBadge() {
   return (
     <>
       <style>{':root{--env-badge-h:1.75rem}'}</style>
+      {/* impeccable rodada 17 (h1): era `role="status" aria-live="polite"` para
+          um texto que NUNCA muda. Região viva de conteúdo estático não anuncia
+          nada de útil e ainda concorre com as que têm o que dizer — esta tela
+          tinha quatro delas. O aviso continua visível e legível; deixou de
+          ocupar canal. */}
       <div
-        role="status"
-        aria-live="polite"
         className="sticky top-0 z-[60] flex h-[var(--env-badge-h)] w-full items-center justify-center bg-warning px-3 text-center text-xs font-semibold text-warning-foreground"
       >
         HOMOLOGAÇÃO — dados fictícios
