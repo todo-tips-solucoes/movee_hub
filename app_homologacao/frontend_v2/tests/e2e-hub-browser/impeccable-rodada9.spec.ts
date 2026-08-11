@@ -65,22 +65,12 @@ test.describe('impeccable rodada 9 — alvos de toque a 390px (A1)', () => {
     expect(validar!.height).toBeGreaterThanOrEqual(MINIMO);
   });
 
-  test('os checkboxes da matriz de papéis são alcançáveis com o dedo (A2)', async ({ page }) => {
-    await page.goto('/hub/dashboard/usuarios/papeis');
-    await page.waitForLoadState('networkidle');
-
-    // Mediam 16x16 — 132 deles, e é aqui que se concede permissão.
-    const pequenos = await page.evaluate((min) => {
-      const caixas = [...document.querySelectorAll('[role="checkbox"]')];
-      return caixas
-        .map((c) => {
-          const alvo = (c.parentElement ?? c).getBoundingClientRect();
-          return Math.round(Math.min(alvo.width, alvo.height));
-        })
-        .filter((lado) => lado < min).length;
-    }, MINIMO);
-    expect(pequenos, 'checkboxes com área tocável abaixo de 44px').toBe(0);
-  });
+  // O caso A2 (checkboxes da matriz de papéis) VIVIA AQUI e foi REMOVIDO na
+  // rodada 12: media `(c.parentElement ?? c).getBoundingClientRect()`, isto é,
+  // o `<span>` de 44x44 que esta mesma rodada tinha acabado de adicionar — e
+  // um `<span>` sem handler não recebe toque. Passava verde com a área tocável
+  // real em 40x32. Substituído por `impeccable-rodada12.spec.ts`, que mede com
+  // `elementFromPoint` quem responde nos quatro cantos do alvo.
 });
 
 test.describe('impeccable rodada 9 — estrutura e linguagem', () => {

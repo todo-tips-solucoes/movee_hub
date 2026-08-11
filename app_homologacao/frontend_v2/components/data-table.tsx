@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Pencil, Trash2, ExternalLink, Check, X, AlertCircle, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox, CHECKBOX_ALVO_44 } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -77,10 +77,13 @@ export function DataTable({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     {/* r8: a caixa segue 16px (densidade da lista); quem
-                        cresce é a área tocável ao redor. */}
+                        cresce é a área tocável ao redor.
+                        r12: o span reserva o espaço; a área tocável é o
+                        `after:` do Checkbox (CHECKBOX_ALVO_44). */}
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center -m-2.5">
                       <span className="flex h-11 w-11 items-center justify-center -m-2.5 md:h-8 md:w-8 md:m-0">
                         <Checkbox
+                          className={CHECKBOX_ALVO_44}
                           checked={selectedIds.has(item.id)}
                           onCheckedChange={() => onToggleSelect(item.id)}
                           aria-label={`Selecionar ${item.nome || `registro ${item.number}`}`}
@@ -150,6 +153,7 @@ export function DataTable({
                     apenas a página atual. */}
                 <span className="flex h-11 w-11 items-center justify-center -m-2.5 md:h-8 md:w-8 md:m-0">
                   <Checkbox
+                    className={CHECKBOX_ALVO_44}
                     checked={allSelected}
                     onCheckedChange={onToggleSelectAll}
                     aria-label="Selecionar todos os registros desta página"
@@ -187,6 +191,7 @@ export function DataTable({
                     <TableCell>
                       <span className="flex h-11 w-11 items-center justify-center -m-2.5 md:h-8 md:w-8 md:m-0">
                         <Checkbox
+                          className={CHECKBOX_ALVO_44}
                           checked={selectedIds.has(item.id)}
                           onCheckedChange={() => onToggleSelect(item.id)}
                           aria-label={`Selecionar ${item.nome || `registro ${item.number}`}`}
