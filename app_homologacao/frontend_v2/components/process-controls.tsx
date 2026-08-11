@@ -29,6 +29,11 @@ interface ProcessControlsProps {
   /** Limpa a seleção inteira (rodada 8). Sem isto, seleção feita em outra
    *  página ficava invisível e sem como desfazer. */
   onLimparSelecao?: () => void;
+  /** A lista falhou ao carregar (rodada 11). O disparo é a ação de maior
+   *  consequência do produto e sai do sistema; com `stats` zerado por erro não
+   *  há como dizer para quantos motoristas ela iria. Mesma trava que o
+   *  `CloseMovementDialog` já tinha. */
+  dadosIndisponiveis?: boolean;
 }
 
 export function ProcessControls({
@@ -39,6 +44,7 @@ export function ProcessControls({
   selecionados = 0,
   selecionadosMarcados = 0,
   onLimparSelecao,
+  dadosIndisponiveis = false,
 }: ProcessControlsProps) {
   const jaEnviados = Math.max(0, selecionadosMarcados - selecionados);
   return (
@@ -50,7 +56,7 @@ export function ProcessControls({
             variant={isActive ? 'outline' : 'default'}
             className={`h-11 gap-1.5 sm:h-8 ${!isActive && !isLoading ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`}
             onClick={onStart}
-            disabled={isActive || isLoading}
+            disabled={isActive || isLoading || dadosIndisponiveis}
           />
         }>
           {isLoading && !isActive ? (
@@ -64,7 +70,9 @@ export function ProcessControls({
           {selecionadosMarcados > 0 ? `Disparar para ${selecionados}` : 'Iniciar'}
         </TooltipTrigger>
         <TooltipContent>
-          {selecionadosMarcados === 0
+          {dadosIndisponiveis
+            ? 'Não foi possível carregar o movimento — recarregue a lista antes de disparar.'
+            : selecionadosMarcados === 0
             ? 'Iniciar processamento do envio para todo o movimento aberto'
             : jaEnviados > 0
               ? `${selecionados} de ${selecionadosMarcados} marcados — ${jaEnviados} já ${jaEnviados === 1 ? 'recebeu' : 'receberam'} mensagem`

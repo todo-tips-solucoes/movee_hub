@@ -75,3 +75,25 @@ describe('ProcessControls — limpar seleção', () => {
     expect(screen.queryByRole('button', { name: /Limpar seleção/ })).not.toBeInTheDocument();
   });
 });
+
+// impeccable rodada 11 (P0) — a lista falhou ao carregar e o disparo continuava
+// ofertado. O `CloseMovementDialog` já tinha essa trava desde a rodada 7; o
+// disparo, que é a ação que SAI do sistema e chega em telefone de motorista,
+// não tinha. Com `stats` zerado por erro, "Iniciar" prometia o movimento
+// inteiro sobre números que ninguém sabia se existiam.
+describe('ProcessControls — lista indisponível', () => {
+  it('com dados indisponíveis, o disparo não é ofertado', () => {
+    renderizar({ dadosIndisponiveis: true });
+    expect(screen.getByRole('button', { name: /Iniciar/ })).toBeDisabled();
+  });
+
+  it('sem a prop, nada muda para quem já usava o componente', () => {
+    renderizar({});
+    expect(screen.getByRole('button', { name: /Iniciar/ })).toBeEnabled();
+  });
+
+  it('a trava vale mesmo com seleção feita antes do erro', () => {
+    renderizar({ selecionados: 5, selecionadosMarcados: 12, dadosIndisponiveis: true });
+    expect(screen.getByRole('button', { name: /Disparar para 5/ })).toBeDisabled();
+  });
+});

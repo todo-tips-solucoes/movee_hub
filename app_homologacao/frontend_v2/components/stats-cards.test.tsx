@@ -65,3 +65,23 @@ describe('StatsCards — atalho de filtro', () => {
     expect(screen.getByText('XMLs Enviados')).toBeInTheDocument();
   });
 });
+
+// impeccable rodada 11 (P0) — cinco zeros AFIRMAM movimento vazio. Quando o que
+// houve foi erro de rede, isso é o diálogo de confirmação mentindo sobre o
+// impacto: o mesmo defeito que a rodada 7 corrigiu no fechamento.
+describe('StatsCards — lista indisponível', () => {
+  it('mostra travessão em vez de zero, e não oferece filtro sobre o que não carregou', () => {
+    const onFiltrar = vi.fn();
+    render(<StatsCards stats={{ total: 0, msgEnviada: 0, msgErro: 0, xmlEnviado: 0, xmlErro: 0 }} onFiltrar={onFiltrar} indisponivel />);
+
+    expect(screen.getAllByText('—')).toHaveLength(5);
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('sem a prop, os números seguem como sempre', () => {
+    render(<StatsCards stats={STATS} onFiltrar={vi.fn()} />);
+    expect(screen.getByText('340')).toBeInTheDocument();
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
+  });
+});

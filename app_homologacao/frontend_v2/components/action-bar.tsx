@@ -89,6 +89,7 @@ export function ActionBar({
         selecionados={selecionados}
         selecionadosMarcados={selecionadosMarcados}
         onLimparSelecao={onLimparSelecao}
+        dadosIndisponiveis={dadosIndisponiveis}
       />
 
       <Separator orientation="vertical" className="hidden h-8 sm:block" />
