@@ -13,6 +13,13 @@ interface StatsCardsProps {
    * cards seguem estáticos — o painel legado não passa nada e não muda.
    */
   onFiltrar?: (filtros: FilterState) => void;
+  /**
+   * A lista falhou ao carregar (rodada 11). `computeStats` sobre `[]` devolve
+   * zeros, e cinco zeros na tela AFIRMAM que o movimento está vazio — quando o
+   * que houve foi um erro de rede. Travessão não afirma nada, e o card deixa de
+   * ser atalho de filtro enquanto não há o que filtrar.
+   */
+  indisponivel?: boolean;
 }
 
 // Identidade Movee — status mapeados a tokens semânticos (primary/success/
@@ -58,7 +65,7 @@ const cards = [
   { key: 'xmlErro' as const, label: 'XMLs com Erro', icon: FileX, color: 'text-destructive', bg: 'bg-destructive/10', filtro: null },
 ];
 
-export function StatsCards({ stats, onFiltrar }: StatsCardsProps) {
+export function StatsCards({ stats, onFiltrar, indisponivel = false }: StatsCardsProps) {
   // impeccable rodada 8 (P3): a regra CSS de `prefers-reduced-motion` em
   // globals.css não alcança o framer-motion, que escreve estilo inline via JS —
   // quem pediu menos movimento via os cinco cards saltarem em cascata.
@@ -69,10 +76,10 @@ export function StatsCards({ stats, onFiltrar }: StatsCardsProps) {
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5">
       {cards.map((card, i) => {
         const Icon = card.icon;
-        const percentage = card.key !== 'total' && stats.total > 0
+        const percentage = !indisponivel && card.key !== 'total' && stats.total > 0
           ? Math.round((stats[card.key] / stats.total) * 100)
           : null;
-        const filtravel = card.filtro !== null && onFiltrar !== undefined;
+        const filtravel = !indisponivel && card.filtro !== null && onFiltrar !== undefined;
 
         const conteudo = (
           <CardContent className="flex items-center gap-3 p-4">
@@ -81,7 +88,9 @@ export function StatsCards({ stats, onFiltrar }: StatsCardsProps) {
             </div>
             <div className="min-w-0 text-left">
               <div className="flex items-baseline gap-1.5">
-                <p className="tabular text-2xl font-bold">{stats[card.key]}</p>
+                <p className="tabular text-2xl font-bold" aria-label={indisponivel ? `${card.label}: indisponível` : undefined}>
+                  {indisponivel ? '—' : stats[card.key]}
+                </p>
                 {percentage !== null && (
                   <span className="text-xs text-muted-foreground">({percentage}%)</span>
                 )}

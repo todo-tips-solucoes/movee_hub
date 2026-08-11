@@ -321,7 +321,7 @@ function EnvioMassaClient() {
           />
         )}
 
-        <StatsCards stats={stats} onFiltrar={updateFilters} />
+        <StatsCards stats={stats} onFiltrar={updateFilters} indisponivel={erro !== null} />
 
         <ActionBar
           isActive={isActive}
@@ -425,6 +425,19 @@ function EnvioMassaClient() {
                         selecionadosPendentes === 1 ? '' : 's'
                       }. O restante do movimento não é tocado.`}
                 </>
+              ) : erro !== null ? (
+                // impeccable rodada 11 (P0): uma falha de carga zera `stats`, e o
+                // texto abaixo descreveria como "0 registros" um movimento de 340
+                // linhas — sobre a ação que MANDA MENSAGEM para gente de verdade.
+                // É a mesma trava que o fechamento já tem desde a rodada 7; faltava
+                // aqui, onde o efeito sai do sistema e não volta.
+                <>
+                  <strong className="text-destructive">
+                    Os dados do movimento não puderam ser carregados
+                  </strong>{' '}
+                  — os números acima não valem. Recarregue a lista antes de disparar: sem eles não
+                  dá para saber para quantos motoristas a mensagem sairia.
+                </>
               ) : (
                 <>
                   O processamento dispara as notificações do movimento aberto para os motoristas.
@@ -442,8 +455,10 @@ function EnvioMassaClient() {
                 setConfirmarDisparo(false);
                 handleStart();
               }}
-              // Seleção inteira já enviada: não há disparo a confirmar.
-              disabled={selecionados.length > 0 && selecionadosPendentes === 0}
+              // Seleção inteira já enviada: não há disparo a confirmar. Lista que
+              // falhou ao carregar (r11): idem — sem seleção, confirmar aqui
+              // dispararia para o movimento ABERTO INTEIRO sobre números falsos.
+              disabled={erro !== null || (selecionados.length > 0 && selecionadosPendentes === 0)}
               className="bg-success text-success-foreground hover:bg-success/90"
             >
               {selecionados.length > 0 ? `Disparar para ${selecionadosPendentes}` : 'Iniciar envio'}
