@@ -11,7 +11,7 @@
 // Ref: docs/specs/hub-auditoria-admin/contracts/papeis-api.md,
 // spec.md FR-010/FR-016, quickstart.md Cenário 6.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertCircle, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/hub/page-header';
@@ -27,8 +27,10 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { labelPapel } from '@/components/hub/entity-switcher';
+import { useHubAuth } from '@/contexts/hub-auth-context';
 import { AdminApiError, alternarPapelPermissao, listarPapeisMatriz } from '@/lib/hub/admin-api';
-import type { MatrizCelula, PapeisMatrizResponse } from '@/lib/hub/admin-dto';
+import type { MatrizCelula, PapeisMatrizResponse, PermissaoCatalogo } from '@/lib/hub/admin-dto';
+import { ehAltoImpacto, modulosComListar, rotuloPermissao } from '@/lib/hub/rotulo-permissao';
 
 function chave(papelId: number, permissaoId: number): string {
   return `${papelId}:${permissaoId}`;
@@ -123,8 +125,52 @@ function usePapeisMatriz() {
   return { dados, matrizSet, carregando, erro, erroToggle, celulasEmSalvamento, alternar, refetch: buscar };
 }
 
+/**
+ * Agrupa as permissões por módulo, na MESMA ordem em que os módulos aparecem
+ * na navegação (`GET /me`), e com o nome de lá. Módulo que o usuário não tem
+ * — ou permissão sem módulo — cai num grupo final identificado pelo código:
+ * a matriz nunca esconde uma linha por não saber traduzi-la.
+ */
+function agruparPorModulo(
+  permissoes: PermissaoCatalogo[],
+  modulos: { codigo: string; nome: string }[]
+): { codigo: string; nome: string; permissoes: PermissaoCatalogo[] }[] {
+  const porCodigo = new Map<string, PermissaoCatalogo[]>();
+  for (const p of permissoes) {
+    const chave = p.modulo ?? 'outros';
+    const lista = porCodigo.get(chave);
+    if (lista) lista.push(p);
+    else porCodigo.set(chave, [p]);
+  }
+
+  const ordenados: { codigo: string; nome: string; permissoes: PermissaoCatalogo[] }[] = [];
+  for (const m of modulos) {
+    const lista = porCodigo.get(m.codigo);
+    if (!lista) continue;
+    ordenados.push({ codigo: m.codigo, nome: m.nome, permissoes: lista });
+    porCodigo.delete(m.codigo);
+  }
+  // O que sobrou: sem nome legível disponível, mas visível assim mesmo.
+  for (const [codigo, lista] of porCodigo) {
+    ordenados.push({ codigo, nome: codigo, permissoes: lista });
+  }
+  return ordenados;
+}
+
 export default function PapeisMatrizPage() {
   const h = usePapeisMatriz();
+  const { modulos } = useHubAuth();
+
+  const grupos = useMemo(
+    () => agruparPorModulo(h.dados?.permissoes ?? [], modulos),
+    [h.dados, modulos]
+  );
+  // Quais módulos têm lista própria — desempata o `consultar`, que significa
+  // "abrir um item" onde há `listar` e "entrar no módulo" onde não há.
+  const modulosListaveis = useMemo(
+    () => modulosComListar((h.dados?.permissoes ?? []).map((p) => p.codigo)),
+    [h.dados]
+  );
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
@@ -173,13 +219,35 @@ export default function PapeisMatrizPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {h.dados.permissoes.map((permissao) => (
+              {grupos.map((grupo) => (
+                <Fragment key={grupo.codigo}>
+                  {/* impeccable rodada 10 (A7): 34 linhas planas viravam uma
+                      parede de códigos. O agrupamento usa o nome do módulo
+                      vindo do `/me` — o mesmo que nomeia a navegação. */}
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead
+                      colSpan={1 + h.dados!.papeis.length}
+                      className="h-9 bg-muted/50 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                    >
+                      {grupo.nome}
+                    </TableHead>
+                  </TableRow>
+                  {grupo.permissoes.map((permissao) => (
                 <TableRow key={permissao.id}>
                   <TableCell className="whitespace-nowrap text-sm">
-                    <span className="font-medium">{permissao.codigo}</span>
-                    {permissao.modulo && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">({permissao.modulo})</span>
+                    {/* O rótulo é para quem CONCEDE; o código, para quem dá
+                        suporte e para quem lê a auditoria — os dois ficam. */}
+                    <span className="font-medium">
+                      {rotuloPermissao(permissao.codigo, modulosListaveis.has(grupo.codigo))}
+                    </span>
+                    {ehAltoImpacto(permissao.codigo) && (
+                      <span className="ml-1.5 rounded-full bg-warning/15 px-1.5 py-0.5 text-[0.6875rem] font-medium text-warning-strong">
+                        alto impacto
+                      </span>
                     )}
+                    <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                      {permissao.codigo}
+                    </span>
                   </TableCell>
                   {h.dados!.papeis.map((papel) => {
                     const k = chave(papel.id, permissao.id);
@@ -205,6 +273,8 @@ export default function PapeisMatrizPage() {
                     );
                   })}
                 </TableRow>
+                  ))}
+                </Fragment>
               ))}
             </TableBody>
           </Table>
