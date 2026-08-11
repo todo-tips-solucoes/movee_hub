@@ -128,6 +128,8 @@ function EnvioMassaClient() {
     recordsPerPage,
     totalPages,
     filteredData,
+    ordem,
+    alternarOrdem,
     selectedIds,
     fetchData,
     updateFilters,
@@ -384,6 +386,8 @@ function EnvioMassaClient() {
         ) : (
         <DataTable
           data={paginatedData}
+          ordem={ordem}
+          onOrdenar={alternarOrdem}
           selectedIds={selectedIds}
           onToggleSelectAll={toggleSelectAll}
           onToggleSelect={toggleSelect}
