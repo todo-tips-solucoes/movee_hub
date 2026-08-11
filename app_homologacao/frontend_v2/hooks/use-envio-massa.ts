@@ -3,7 +3,15 @@
 import { useState, useCallback, useMemo } from 'react';
 import { EnvioMassa, FilterState, StatsData } from '@/types';
 import { api } from '@/lib/api-client';
-import { applyFilters, computeStats, initialFilters } from '@/lib/utils';
+import {
+  applyFilters,
+  computeStats,
+  initialFilters,
+  ordenarDados,
+  proximaOrdenacao,
+  type ColunaOrdenavel,
+  type Ordenacao,
+} from '@/lib/utils';
 
 export function useEnvioMassa(empresaId?: number | null) {
   const [data, setData] = useState<EnvioMassa[]>([]);
@@ -39,7 +47,17 @@ export function useEnvioMassa(empresaId?: number | null) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [empresaId]);
 
-  const filteredData = useMemo(() => applyFilters(data, filters), [data, filters]);
+  // impeccable rodada 15 (h7): a ordem escolhida entra ENTRE o filtro e a
+  // paginação — ordenar depois de paginar ordenaria só as 20 linhas visíveis e
+  // chamaria de "maior valor" o maior da página.
+  const [ordem, setOrdem] = useState<Ordenacao | null>(null);
+  const filtrados = useMemo(() => applyFilters(data, filters), [data, filters]);
+  const filteredData = useMemo(() => ordenarDados(filtrados, ordem), [filtrados, ordem]);
+
+  const alternarOrdem = useCallback((coluna: ColunaOrdenavel) => {
+    setOrdem((atual) => proximaOrdenacao(atual, coluna));
+    setCurrentPage(1); // a página 4 da ordem antiga não é a página 4 da nova
+  }, []);
 
   const stats: StatsData = useMemo(() => computeStats(data), [data]);
 
@@ -164,6 +182,8 @@ export function useEnvioMassa(empresaId?: number | null) {
 
   return {
     data,
+    ordem,
+    alternarOrdem,
     filteredData,
     paginatedData,
     stats,
