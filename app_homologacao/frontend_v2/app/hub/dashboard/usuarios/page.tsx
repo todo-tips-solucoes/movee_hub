@@ -65,6 +65,7 @@ import {
 } from '@/lib/hub/usuarios-api';
 import type { UsuarioListItem, UsuarioVinculo } from '@/lib/hub/usuarios-dto';
 import { useDebounce } from '@/hooks/use-debounce';
+import { LARGURA_LISTA } from '@/lib/hub/larguras';
 
 const PAGE_SIZE = 20;
 
@@ -588,7 +589,7 @@ export default function UsuariosPage() {
   const entidade = entidadeAtiva ?? 0;
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className={`mx-auto flex ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader titulo="Usuários" subtitulo="Gestão de usuários, vínculos e papéis da sua entidade.">
         <Button size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={() => setCriarAberto(true)}>
           <Plus className="size-4" aria-hidden="true" />

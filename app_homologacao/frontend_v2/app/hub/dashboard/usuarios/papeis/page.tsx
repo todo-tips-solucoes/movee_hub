@@ -31,6 +31,7 @@ import { useHubAuth } from '@/contexts/hub-auth-context';
 import { AdminApiError, alternarPapelPermissao, listarPapeisMatriz } from '@/lib/hub/admin-api';
 import type { MatrizCelula, PapeisMatrizResponse, PermissaoCatalogo } from '@/lib/hub/admin-dto';
 import { ehAltoImpacto, modulosComListar, rotuloPermissao } from '@/lib/hub/rotulo-permissao';
+import { LARGURA_LISTA } from '@/lib/hub/larguras';
 
 function chave(papelId: number, permissaoId: number): string {
   return `${papelId}:${permissaoId}`;
@@ -173,7 +174,7 @@ export default function PapeisMatrizPage() {
   );
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className={`mx-auto flex ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader
         titulo="Papéis e permissões"
         subtitulo="Catálogo fixo de papéis (nenhum papel novo pode ser criado). Marque/desmarque a célula para conceder ou remover uma permissão do papel."
