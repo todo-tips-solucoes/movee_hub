@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { AlertCircle, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/hub/page-header';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox, CHECKBOX_ALVO_44 } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -260,9 +260,13 @@ export default function PapeisMatrizPage() {
                             que se concede permissão. A caixa segue 16px (a
                             densidade da matriz é o que a torna legível); quem
                             cresce até 44 é a área tocável ao redor, e só no
-                            mobile. */}
+                            mobile.
+                            r12: o span reserva o espaço, mas quem RECEBE o
+                            toque é o `after:` do Checkbox — sem
+                            CHECKBOX_ALVO_44 a área real era 40x32. */}
                         <span className="inline-flex h-11 w-11 items-center justify-center md:h-6 md:w-6">
                           <Checkbox
+                            className={CHECKBOX_ALVO_44}
                             aria-label={`${permissao.codigo} para ${labelPapel(papel.nome)}`}
                             checked={marcado}
                             disabled={!h.dados!.podeEditar || salvando}
