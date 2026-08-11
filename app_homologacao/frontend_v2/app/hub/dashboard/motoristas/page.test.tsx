@@ -7,6 +7,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MotoristasPage from './page';
 import { MotoristaApiError } from '@/lib/hub/motoristas-api';
 
+// rodada 14: a lista lê e escreve filtro/página na URL (`useFiltrosUrl`), então
+// o teste precisa de um router montado. `useSearchParams` vazio = lista sem
+// filtro, que é o estado inicial que estes casos assumem.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), back: vi.fn() }),
+  usePathname: () => '/hub/dashboard',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const mockUseHubAuth = vi.fn();
 const mockListarMotoristas = vi.fn();
 const mockObterMotorista = vi.fn();

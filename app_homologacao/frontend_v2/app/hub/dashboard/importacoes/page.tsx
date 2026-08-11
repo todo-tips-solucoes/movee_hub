@@ -12,7 +12,7 @@
 // Ref: docs/specs/hub-importacoes/plan.md §Plano por fases item 6,
 // contracts/importacoes-api.md §GET /importacoes.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -52,6 +52,7 @@ import {
   type TipoImportacao,
 } from '@/lib/hub/importacoes-dto';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useFiltrosUrl } from '@/hooks/use-filtros-url';
 import { formatDateBR } from '@/lib/utils';
 
 const STATUS_OPCOES: StatusImportacao[] = [
@@ -83,8 +84,15 @@ const POLL_INTERVALO_MS = 10_000;
 
 /** Lógica isolada do JSX (mesmo padrão de `usePerfil`/`useEntitySwitcher`). */
 export function useImportacoesHistorico() {
-  const [filtros, setFiltrosState] = useState<ImportacoesFiltros>(FILTROS_INICIAIS);
-  const [page, setPage] = useState(1);
+  // rodada 14 (h3): filtro e página na URL — "Voltar ao histórico" devolve o
+  // histórico como estava (ver `use-filtros-url.ts`).
+  const {
+    filtros,
+    page,
+    setFiltros,
+    setPage,
+    limpar: resetFiltros,
+  } = useFiltrosUrl<ImportacoesFiltros>(FILTROS_INICIAIS);
   const [items, setItems] = useState<ImportacaoListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [carregando, setCarregando] = useState(true);
@@ -144,16 +152,6 @@ export function useImportacoesHistorico() {
     return () => clearInterval(id);
   }, [emAndamento, buscar]);
 
-  const setFiltros = useCallback((partial: Partial<ImportacoesFiltros>) => {
-    setFiltrosState((prev) => ({ ...prev, ...partial }));
-    setPage(1);
-  }, []);
-
-  const resetFiltros = useCallback(() => {
-    setFiltrosState(FILTROS_INICIAIS);
-    setPage(1);
-  }, []);
-
   const totalPaginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // Wrapper sem argumentos: consumidores usam `onClick={h.refetch}` e o
@@ -204,7 +202,7 @@ function StatusBadge({ item }: { item: ImportacaoListItem }) {
   );
 }
 
-export default function ImportacoesPage() {
+function ImportacoesConteudo() {
   const { permissoes } = useHubAuth();
   const podeCriar = permissoes.includes('importacoes.criar');
   const h = useImportacoesHistorico();
@@ -419,5 +417,17 @@ export default function ImportacoesPage() {
         </>
       )}
     </div>
+  );
+}
+
+// rodada 14: `useFiltrosUrl` usa `useSearchParams`, e o Next reprova o
+// prerender de página sem boundary ("should be wrapped in a suspense
+// boundary"). O fallback é o mesmo esqueleto que a tela já usa enquanto
+// carrega — nada novo aparece para quem olha.
+export default function ImportacoesPage() {
+  return (
+    <Suspense>
+      <ImportacoesConteudo />
+    </Suspense>
   );
 }

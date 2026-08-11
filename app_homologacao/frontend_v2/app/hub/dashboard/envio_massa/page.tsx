@@ -62,7 +62,7 @@ import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
 import { PageHeader } from '@/components/hub/page-header';
 import { DisparoRecibo } from '@/components/hub/disparo-recibo';
-import { initialFilters, computeStats, formatDateBR } from '@/lib/utils';
+import { initialFilters, computeStats, formatDateBR, temFiltroAtivo } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -316,7 +316,21 @@ function EnvioMassaClient() {
             // Filtro limpo + "Com Erro": partir dos filtros atuais poderia
             // devolver zero linhas (ex.: "Enviados" ligado) e desmentir o
             // número que o próprio recibo acabou de mostrar.
-            onVerErros={() => updateFilters({ ...initialFilters, sucesso: 'yes' })}
+            //
+            // rodada 14 (h3): limpar continua certo pelo motivo acima — o que
+            // estava errado era limpar EM SILÊNCIO. Quem montou nove filtros
+            // perdia os nove sem aviso e sem volta. O toast só aparece quando
+            // havia mesmo algo a perder; sem filtro ativo, nada foi descartado
+            // e um aviso seria ruído.
+            onVerErros={() => {
+              const anteriores = filters;
+              updateFilters({ ...initialFilters, sucesso: 'yes' });
+              if (temFiltroAtivo(anteriores)) {
+                toast('Filtros substituídos para mostrar as linhas com erro.', {
+                  action: { label: 'Desfazer', onClick: () => updateFilters(anteriores) },
+                });
+              }
+            }}
             onDispensar={dispensarRecibo}
           />
         )}

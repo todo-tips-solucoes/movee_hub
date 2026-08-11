@@ -12,7 +12,7 @@
 // Ref: docs/specs/hub-motoristas/plan.md §Plano por fases item 7,
 // contracts/motoristas-api.md §GET /motoristas.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { AlertCircle, ChevronRight, Loader2, Plus, Truck } from 'lucide-react';
@@ -40,6 +40,7 @@ import { PaginationControls } from '@/components/pagination-controls';
 import { criarMotorista, listarAreasMotoristas, listarMotoristas, MotoristaApiError } from '@/lib/hub/motoristas-api';
 import { isUuidValido, type MotoristaListItem } from '@/lib/hub/motoristas-dto';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useFiltrosUrl } from '@/hooks/use-filtros-url';
 
 const PAGE_SIZE = 20;
 
@@ -54,8 +55,15 @@ const FILTROS_INICIAIS: MotoristasFiltros = { nome: '', ativo: '', area: '', com
 
 /** Lógica isolada do JSX (mesmo padrão de `useImportacoesHistorico`). */
 export function useMotoristasLista() {
-  const [filtros, setFiltrosState] = useState<MotoristasFiltros>(FILTROS_INICIAIS);
-  const [page, setPage] = useState(1);
+  // rodada 14 (h3): filtro e página passam a viver na URL — é o que faz
+  // "Voltar à lista" devolver a lista como estava (ver `use-filtros-url.ts`).
+  const {
+    filtros,
+    page,
+    setFiltros,
+    setPage,
+    limpar: resetFiltros,
+  } = useFiltrosUrl<MotoristasFiltros>(FILTROS_INICIAIS);
   const [items, setItems] = useState<MotoristaListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [carregando, setCarregando] = useState(true);
@@ -91,16 +99,6 @@ export function useMotoristasLista() {
   useEffect(() => {
     buscar();
   }, [buscar]);
-
-  const setFiltros = useCallback((partial: Partial<MotoristasFiltros>) => {
-    setFiltrosState((prev) => ({ ...prev, ...partial }));
-    setPage(1);
-  }, []);
-
-  const resetFiltros = useCallback(() => {
-    setFiltrosState(FILTROS_INICIAIS);
-    setPage(1);
-  }, []);
 
   const totalPaginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -257,7 +255,7 @@ function CriarMotoristaDialog({ open, onOpenChange, onCriado }: CriarMotoristaDi
   );
 }
 
-export default function MotoristasPage() {
+function MotoristasConteudo() {
   const { permissoes } = useHubAuth();
   const podeConsultar = permissoes.includes('motoristas.consultar');
   const podeEditar = permissoes.includes('motoristas.editar');
@@ -491,5 +489,17 @@ export default function MotoristasPage() {
         <CriarMotoristaDialog open={criarAberto} onOpenChange={setCriarAberto} onCriado={h.refetch} />
       )}
     </div>
+  );
+}
+
+// rodada 14: `useFiltrosUrl` usa `useSearchParams`, e o Next reprova o
+// prerender de página sem boundary ("should be wrapped in a suspense
+// boundary"). O fallback é o mesmo esqueleto que a tela já usa enquanto
+// carrega — nada novo aparece para quem olha.
+export default function MotoristasPage() {
+  return (
+    <Suspense>
+      <MotoristasConteudo />
+    </Suspense>
   );
 }
