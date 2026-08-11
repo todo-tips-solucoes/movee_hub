@@ -13,7 +13,7 @@
 import { useCallback, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertCircle, FileWarning, Loader2, UploadCloud } from 'lucide-react';
+import { AlertCircle, Download, FileSpreadsheet, FileWarning, Loader2, UploadCloud } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,12 +42,32 @@ import {
   validarArquivoImportacao,
   type TipoImportacao,
 } from '@/lib/hub/importacoes-dto';
+import {
+  COLUNAS_IMPORTACAO,
+  csvModelo,
+  nomeArquivoModelo,
+} from '@/lib/hub/importacoes-formato';
 
 const MENSAGENS_VALIDACAO_CLIENT: Record<string, string> = {
   extensao_invalida: 'Extensão não suportada. Envie um arquivo .csv ou .zip.',
   tamanho_excedido: 'O arquivo excede o tamanho máximo de 20 MB.',
   arquivo_vazio: 'O arquivo está vazio.',
 };
+
+/**
+ * Baixa o modelo do tipo escolhido. É um Blob montado no cliente a partir da
+ * mesma constante que a tela lista: nada a servir, nada a versionar como
+ * asset, e nenhuma chance de o arquivo de exemplo envelhecer em relação ao que
+ * a tela ensina. `revokeObjectURL` no fim — sem ele a URL vive até o reload.
+ */
+export function baixarModelo(tipo: TipoImportacao) {
+  const url = URL.createObjectURL(new Blob([csvModelo(tipo)], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nomeArquivoModelo(tipo);
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 /** Descrição de cada tipo nos radio-cards — copy de UI, vive no componente. */
 const TIPO_DESCRICOES: Record<TipoImportacao, string> = {
@@ -192,7 +212,12 @@ export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizar
         <UploadCloud className="size-4" aria-hidden="true" />
         Nova importação
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      {/* Medido a 1280x800 nesta rodada: com a lista de colunas aberta o
+          diálogo centrado subia 115px ACIMA da viewport (título fora da tela)
+          e, ao limitar só a altura total, o "Enviar" caía abaixo do scroll.
+          Quem rola é o CORPO — cabeçalho e rodapé ficam ancorados, então a
+          ação primária continua à vista por mais que o conteúdo cresça. */}
+      <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Nova importação</DialogTitle>
           <DialogDescription>
@@ -200,7 +225,7 @@ export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizar
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           {/* impeccable rodada 2 (P3): decisão binária merece as 2 opções à
               vista com descrição — radio-cards no lugar do <select> nativo
               (que ainda destoava do design system). Radios nativos preservam
@@ -234,6 +259,52 @@ export function ImportWizard({ onEnviado, podeCriar = true, state }: ImportWizar
               ))}
             </div>
           </fieldset>
+
+          {/* impeccable rodada 13 (h10=2): o formato do arquivo não estava
+              dito em lugar nenhum — nem as colunas, nem que a ORDEM importa,
+              nem o separador. Como o backend reprova o cabeçalho inteiro
+              (falha estrutural, zero linhas gravadas), quem monta a planilha
+              descobria isso por tentativa e erro. `<details>` nativo: a
+              instrução fica à mão sem empurrar o dropzone para fora da tela,
+              e não custa dependência nem estado. */}
+          <details className="rounded-md border border-input text-sm">
+            <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 font-medium sm:min-h-9">
+              <FileSpreadsheet className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              O que o arquivo precisa ter
+            </summary>
+            <div className="flex flex-col gap-2 border-t border-input px-3 py-2 text-muted-foreground">
+              <p>
+                CSV com os campos separados por ponto e vírgula (<code className="font-mono">;</code>
+                ), codificado em UTF-8. Um <code className="font-mono">.zip</code> é aceito se tiver
+                um único CSV dentro.
+              </p>
+              <p>
+                As {COLUNAS_IMPORTACAO[w.tipo].length} colunas de{' '}
+                {TIPO_LABELS[w.tipo].toLowerCase()} precisam estar{' '}
+                <strong className="font-medium text-foreground">nesta ordem exata</strong> — se
+                faltar uma, sobrar outra ou trocar a posição, a importação falha inteira e nenhuma
+                linha é gravada.
+              </p>
+              {/* A lista rola por dentro: medido a 1280x800, sem este limite
+                  o diálogo (centrado) cresce para os dois lados e o título
+                  sai 115px ACIMA da viewport — a ajuda nova empurrava para
+                  fora da tela o fluxo que ela veio ajudar. */}
+              <ol className="max-h-48 list-decimal space-y-0.5 overflow-y-auto pl-5 font-mono text-xs">
+                {COLUNAS_IMPORTACAO[w.tipo].map((coluna) => (
+                  <li key={coluna}>{coluna}</li>
+                ))}
+              </ol>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 self-start sm:min-h-8"
+                onClick={() => baixarModelo(w.tipo)}
+              >
+                <Download className="size-4" aria-hidden="true" />
+                Baixar modelo ({nomeArquivoModelo(w.tipo)})
+              </Button>
+            </div>
+          </details>
 
           <div
             role="button"

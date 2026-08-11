@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImportWizard } from './import-wizard';
 import { ImportacaoApiError } from '@/lib/hub/importacoes-api';
+import { COLUNAS_IMPORTACAO } from '@/lib/hub/importacoes-formato';
 
 const mockEnviarImportacao = vi.fn();
 
@@ -99,5 +100,46 @@ describe('ImportWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Enviar/ }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('nenhuma linha legível'));
+  });
+
+  // impeccable rodada 13 (h10=2) — o formato do arquivo dito na tela.
+  describe('o que o arquivo precisa ter', () => {
+    it('lista as colunas do tipo escolhido NA ORDEM e diz que a ordem importa', () => {
+      render(<ImportWizard />);
+      abrirDialog();
+
+      const itens = screen.getAllByRole('listitem').map((li) => li.textContent);
+      expect(itens).toEqual([...COLUNAS_IMPORTACAO.faturamento]);
+      // A ordem é a metade do requisito que o usuário não tem como adivinhar:
+      // o backend reprova o cabeçalho inteiro e não grava nada.
+      expect(screen.getByText(/nesta ordem exata/)).toBeInTheDocument();
+    });
+
+    it('troca a lista ao trocar o tipo (a de performance é outra)', () => {
+      render(<ImportWizard />);
+      abrirDialog();
+      fireEvent.click(screen.getByRole('radio', { name: /Performance/i }));
+
+      const itens = screen.getAllByRole('listitem').map((li) => li.textContent);
+      expect(itens).toEqual([...COLUNAS_IMPORTACAO.performance]);
+      expect(itens).not.toEqual([...COLUNAS_IMPORTACAO.faturamento]);
+    });
+
+    it('o modelo baixado tem o cabeçalho do tipo escolhido, com ; e quebra de linha', async () => {
+      const blobs: Blob[] = [];
+      const criar = vi.fn((b: Blob) => {
+        blobs.push(b);
+        return 'blob:modelo';
+      });
+      vi.stubGlobal('URL', { ...URL, createObjectURL: criar, revokeObjectURL: vi.fn() });
+
+      render(<ImportWizard />);
+      abrirDialog();
+      fireEvent.click(screen.getByRole('button', { name: /Baixar modelo/ }));
+
+      expect(criar).toHaveBeenCalledTimes(1);
+      expect(await blobs[0].text()).toBe(`${COLUNAS_IMPORTACAO.faturamento.join(';')}\n`);
+      vi.unstubAllGlobals();
+    });
   });
 });
