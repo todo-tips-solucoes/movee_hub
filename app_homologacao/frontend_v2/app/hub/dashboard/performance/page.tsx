@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { SelectFiltro } from '@/components/hub/select-filtro';
 import { KpiCard } from '@/components/hub/kpi-card';
 import { PaginationControls } from '@/components/pagination-controls';
 import { PeriodFilter } from '@/components/hub/period-filter';
@@ -410,20 +411,16 @@ export default function PerformancePage() {
             <label htmlFor="performance-filtro-subpraca" className="text-xs text-muted-foreground">
               Subpraça
             </label>
-            <select
+            <SelectFiltro
               id="performance-filtro-subpraca"
-              aria-label="Subpraça"
+              ariaLabel="Subpraça"
               value={h.filtros.subpraca}
-              onChange={(e) => h.setFiltros({ subpraca: e.target.value })}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
-              <option value="">Todas</option>
-              {areasOpcoes.map((area) => (
-                <option key={area} value={area}>
-                  {area}
-                </option>
-              ))}
-            </select>
+              onChange={(subpraca) => h.setFiltros({ subpraca })}
+              opcoes={[
+                { value: '', label: 'Todas' },
+                ...areasOpcoes.map((area) => ({ value: area, label: area })),
+              ]}
+            />
           </div>
 
           <div className="flex flex-col gap-1">

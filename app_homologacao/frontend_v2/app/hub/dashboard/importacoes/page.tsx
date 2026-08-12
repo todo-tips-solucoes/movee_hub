@@ -36,6 +36,7 @@ import { useHubAuth } from '@/contexts/hub-auth-context';
 import { ImportWizard, useImportWizard } from '@/components/hub/import-wizard';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { SelectFiltro } from '@/components/hub/select-filtro';
 import { PaginationControls } from '@/components/pagination-controls';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { PeriodFilter } from '@/components/hub/period-filter';
@@ -260,40 +261,32 @@ function ImportacoesConteudo() {
           <label htmlFor="importacoes-filtro-tipo" className="text-xs text-muted-foreground">
             Tipo
           </label>
-          <select
+          <SelectFiltro
             id="importacoes-filtro-tipo"
-            aria-label="Tipo"
+            ariaLabel="Tipo"
             value={h.filtros.tipo}
-            onChange={(e) => h.setFiltros({ tipo: e.target.value as TipoImportacao | '' })}
-            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-          >
-            <option value="">Todos</option>
-            {TIPOS_IMPORTACAO.map((t) => (
-              <option key={t} value={t}>
-                {TIPO_LABELS[t]}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => h.setFiltros({ tipo: v as TipoImportacao | '' })}
+            opcoes={[
+              { value: '', label: 'Todos' },
+              ...TIPOS_IMPORTACAO.map((t) => ({ value: t, label: TIPO_LABELS[t] })),
+            ]}
+          />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="importacoes-filtro-status" className="text-xs text-muted-foreground">
             Status
           </label>
-          <select
+          <SelectFiltro
             id="importacoes-filtro-status"
-            aria-label="Status"
+            ariaLabel="Status"
             value={h.filtros.status}
-            onChange={(e) => h.setFiltros({ status: e.target.value as StatusImportacao | '' })}
-            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-          >
-            <option value="">Todos</option>
-            {STATUS_OPCOES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => h.setFiltros({ status: v as StatusImportacao | '' })}
+            opcoes={[
+              { value: '', label: 'Todos' },
+              ...STATUS_OPCOES.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+            ]}
+          />
         </div>
 
         <div className="flex flex-col gap-1">

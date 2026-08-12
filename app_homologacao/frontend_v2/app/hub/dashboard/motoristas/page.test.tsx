@@ -3,9 +3,10 @@
 // permissão da ação de detalhe (motoristas.consultar) e modal de detalhe
 // rápido (uiux-hub pós-F4: "Detalhes" abre modal com os campos do legado).
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MotoristasPage from './page';
 import { MotoristaApiError } from '@/lib/hub/motoristas-api';
+import { escolherNoSelect } from '@/lib/test-helpers/select';
 
 // rodada 14: a lista lê e escreve filtro/página na URL (`useFiltrosUrl`), então
 // o teste precisa de um router montado. `useSearchParams` vazio = lista sem
@@ -66,6 +67,17 @@ function withPermissoes(permissoes: string[]) {
 }
 
 describe('MotoristasPage', () => {
+  afterEach(() => {
+    // O Base UI tranca o scroll no <html>/<body> ao abrir popup ou diálogo, e
+    // o atributo sobrevive ao unmount do Testing Library — o resíduo contamina
+    // o caso seguinte (medido: os testes de filtro passavam isolados com `-t`
+    // e falhavam na suíte inteira). Remover os PORTAIS aqui seria demais:
+    // `[role="presentation"]` é o portal do próprio Dialog e some com ele.
+    document.documentElement.removeAttribute('data-base-ui-scroll-locked');
+    document.documentElement.style.cssText = '';
+    document.body.style.cssText = '';
+  });
+
   beforeEach(() => {
     mockUseHubAuth.mockReset();
     mockListarMotoristas.mockReset();
@@ -184,12 +196,25 @@ describe('MotoristasPage', () => {
     render(<MotoristasPage />);
     await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalledTimes(1));
 
+    // Com o Select do design system (r19) as opções vivem num popup, não
+    // dentro do trigger: abrir é parte da verificação de que elas vieram do
+    // endpoint. Antes bastava ler o texto do `<select>`.
+    // As áreas chegam de um fetch: clicar antes disso abre o popup e o
+    // re-render seguinte o descarta — o teste via "nenhuma opção".
+    await waitFor(() => expect(mockListarAreasMotoristas).toHaveBeenCalled());
     const combo = screen.getByRole('combobox', { name: 'Área (subpraça)' });
-    await waitFor(() => expect(combo).toHaveTextContent('Zona Sul'));
-    expect(combo).toHaveTextContent('Todas');
-    expect(combo).toHaveTextContent('Centro');
-
-    fireEvent.change(combo, { target: { value: 'Zona Sul' } });
+    fireEvent.click(combo);
+    await waitFor(() =>
+      expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual([
+        'Todas',
+        'Centro',
+        'Zona Sul',
+      ])
+    );
+    // Escolhe com o popup JÁ aberto — fechar com Escape aqui deixava o
+    // portal meio-desmontado e o próximo caso encontrava lixo no body.
+    for (let i = 0; i < 2; i++) fireEvent.keyDown(document.activeElement ?? combo, { key: 'ArrowDown' });
+    fireEvent.keyDown(document.activeElement ?? combo, { key: 'Enter' });
     await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalledTimes(2));
     expect(mockListarMotoristas.mock.calls[1][0]).toMatchObject({ area: 'Zona Sul' });
   });
@@ -211,7 +236,7 @@ describe('MotoristasPage', () => {
     render(<MotoristasPage />);
     await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Situação' }), { target: { value: 'true' } });
+    await escolherNoSelect('Situação', 'Ativo');
     await waitFor(() => expect(mockListarMotoristas).toHaveBeenCalledTimes(2));
     expect(mockListarMotoristas.mock.calls[1][0]).toMatchObject({ ativo: true });
   });
