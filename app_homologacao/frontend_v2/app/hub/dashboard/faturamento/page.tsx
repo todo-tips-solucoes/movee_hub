@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { SelectFiltro } from '@/components/hub/select-filtro';
 import { KpiCard } from '@/components/hub/kpi-card';
 import { PaginationControls } from '@/components/pagination-controls';
 import { PeriodFilter } from '@/components/hub/period-filter';
@@ -415,20 +416,16 @@ export default function FaturamentoPage() {
             <label htmlFor="faturamento-filtro-subpraca" className="text-xs text-muted-foreground">
               Subpraça
             </label>
-            <select
+            <SelectFiltro
               id="faturamento-filtro-subpraca"
-              aria-label="Subpraça"
+              ariaLabel="Subpraça"
               value={h.filtros.subpraca}
-              onChange={(e) => h.setFiltros({ subpraca: e.target.value })}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
-              <option value="">Todas</option>
-              {areasOpcoes.map((area) => (
-                <option key={area} value={area}>
-                  {area}
-                </option>
-              ))}
-            </select>
+              onChange={(subpraca) => h.setFiltros({ subpraca })}
+              opcoes={[
+                { value: '', label: 'Todas' },
+                ...areasOpcoes.map((area) => ({ value: area, label: area })),
+              ]}
+            />
           </div>
 
           <div className="flex flex-col gap-1">
@@ -469,17 +466,17 @@ export default function FaturamentoPage() {
             <label htmlFor="faturamento-filtro-com-entregador" className="text-xs text-muted-foreground">
               Tipo de lançamento
             </label>
-            <select
+            <SelectFiltro
               id="faturamento-filtro-com-entregador"
-              aria-label="Tipo de lançamento"
+              ariaLabel="Tipo de lançamento"
               value={h.filtros.comEntregador}
-              onChange={(e) => h.setFiltros({ comEntregador: e.target.value as FaturamentoFiltrosUI['comEntregador'] })}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-            >
-              <option value="">Todos</option>
-              <option value="true">Só com entregador</option>
-              <option value="false">Só agregados/bônus</option>
-            </select>
+              onChange={(v) => h.setFiltros({ comEntregador: v as FaturamentoFiltrosUI['comEntregador'] })}
+              opcoes={[
+                { value: '', label: 'Todos' },
+                { value: 'true', label: 'Só com entregador' },
+                { value: 'false', label: 'Só agregados/bônus' },
+              ]}
+            />
           </div>
         </div>
 

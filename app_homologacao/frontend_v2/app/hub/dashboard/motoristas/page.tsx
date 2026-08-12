@@ -32,6 +32,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
+import { SelectFiltro } from '@/components/hub/select-filtro';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { AtivoBadge, VinculoBadge } from '@/components/hub/status-badge';
 import { CopyableUuid } from '@/components/hub/copyable-uuid';
@@ -347,54 +348,50 @@ function MotoristasConteudo() {
           <label htmlFor="motoristas-filtro-ativo" className="text-xs text-muted-foreground">
             Situação
           </label>
-          <select
+          <SelectFiltro
             id="motoristas-filtro-ativo"
-            aria-label="Situação"
+            ariaLabel="Situação"
             value={h.filtros.ativo}
-            onChange={(e) => h.setFiltros({ ativo: e.target.value as MotoristasFiltros['ativo'] })}
-            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-          >
-            <option value="">Todas</option>
-            <option value="true">Ativo</option>
-            <option value="false">Inativo</option>
-          </select>
+            onChange={(v) => h.setFiltros({ ativo: v as MotoristasFiltros['ativo'] })}
+            opcoes={[
+              { value: '', label: 'Todas' },
+              { value: 'true', label: 'Ativo' },
+              { value: 'false', label: 'Inativo' },
+            ]}
+          />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="motoristas-filtro-area" className="text-xs text-muted-foreground">
             Área (subpraça)
           </label>
-          <select
+          <SelectFiltro
             id="motoristas-filtro-area"
-            aria-label="Área (subpraça)"
+            ariaLabel="Área (subpraça)"
             value={h.filtros.area}
-            onChange={(e) => h.setFiltros({ area: e.target.value })}
-            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-          >
-            <option value="">Todas</option>
-            {areasOpcoes.map((area) => (
-              <option key={area} value={area}>
-                {area}
-              </option>
-            ))}
-          </select>
+            onChange={(area) => h.setFiltros({ area })}
+            opcoes={[
+              { value: '', label: 'Todas' },
+              ...areasOpcoes.map((area) => ({ value: area, label: area })),
+            ]}
+          />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="motoristas-filtro-vinculo" className="text-xs text-muted-foreground">
             Vínculo
           </label>
-          <select
+          <SelectFiltro
             id="motoristas-filtro-vinculo"
-            aria-label="Vínculo"
+            ariaLabel="Vínculo"
             value={h.filtros.comVinculo}
-            onChange={(e) => h.setFiltros({ comVinculo: e.target.value as MotoristasFiltros['comVinculo'] })}
-            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9"
-          >
-            <option value="">Todos</option>
-            <option value="true">Vinculado</option>
-            <option value="false">Sem vínculo</option>
-          </select>
+            onChange={(v) => h.setFiltros({ comVinculo: v as MotoristasFiltros['comVinculo'] })}
+            opcoes={[
+              { value: '', label: 'Todos' },
+              { value: 'true', label: 'Vinculado' },
+              { value: 'false', label: 'Sem vínculo' },
+            ]}
+          />
         </div>
       </FilterBar>
 

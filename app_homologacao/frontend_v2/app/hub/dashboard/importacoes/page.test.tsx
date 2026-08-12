@@ -5,6 +5,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ImportacoesPage from './page';
 import { ImportacaoApiError } from '@/lib/hub/importacoes-api';
+import { escolherNoSelect } from '@/lib/test-helpers/select';
 
 const mockUseHubAuth = vi.fn();
 const mockListarImportacoes = vi.fn();
@@ -110,7 +111,7 @@ describe('ImportacoesPage', () => {
     render(<ImportacoesPage />);
     await waitFor(() => expect(mockListarImportacoes).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Tipo' }), { target: { value: 'faturamento' } });
+    await escolherNoSelect('Tipo', 'Faturamento');
     await waitFor(() => expect(mockListarImportacoes).toHaveBeenCalledTimes(2));
     expect(mockListarImportacoes.mock.calls[1][0]).toMatchObject({ tipo: 'faturamento' });
   });
