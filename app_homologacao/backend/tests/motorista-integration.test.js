@@ -88,12 +88,17 @@ async function mockPostgrestRequest(path, method = 'GET', body = null) {
   }
 
   if (method === 'PATCH') {
-    // path: "Table?id=eq.123"
-    const idFilter = params['id'];
-    if (idFilter) {
-      const idVal = String(idFilter).replace(/^eq\./, '');
-      const idx = (DB[table] || []).findIndex((r) => String(r.id) === idVal);
-      if (idx >= 0) Object.assign(DB[table][idx], body);
+    // Filtro genérico por qualquer `campo=eq.valor` (não só id) — o
+    // /motorista/register ATIVA o pré-cadastro via
+    // `Motorista?cnpj_prestador=eq.<cnpj>` (cf8c840); com o filtro restrito a
+    // `id`, o UPDATE virava no-op e o subteste "já tem conta → 409" via a
+    // linha ainda sem senha (201 indevido).
+    for (const row of DB[table] || []) {
+      const match = Object.entries(params).every(([key, val]) => {
+        if (key.startsWith('order') || key === 'limit' || key === 'select') return true;
+        return String(row[key]) === String(val).replace(/^eq\./, '');
+      });
+      if (match) Object.assign(row, body);
     }
     return {};
   }
@@ -307,8 +312,16 @@ describe('2.2.5 POST /motorista/login', () => {
 describe('2.3.5 POST /motorista/register', () => {
   before(() => {
     resetDB();
-    // EnvioMassa contém o CNPJ elegível
-    DB.EnvioMassa.push({ id: 1, cnpj_prestador: '11222333000199' });
+    // Desde cf8c840 (cadastro-motorista-base-validada), a elegibilidade vem
+    // da base curada "Motorista" (pré-cadastro do upload, senha NULL), não
+    // mais da EnvioMassa — o /register ATIVA o pré-cadastro via UPDATE.
+    DB.Motorista.push({
+      id: 1,
+      cnpj_prestador: '11222333000199',
+      nome: 'Motorista Pré-cadastro',
+      senha: null,
+      ativo: true,
+    });
   });
 
   test('cadastro elegível → 201', async () => {
@@ -441,7 +454,11 @@ describe('3.2 / 3.3 POST /motorista/validar-nota', () => {
       cnpj_prestador: '11111111000100',
       mov_fechado: false,
       valor: 5000,
-      nota_ok: false,
+      // nota_ok é coluna TEXTO (URL do XML gravada pelo serviço de validação);
+      // "já aprovada" = nota_ok não-vazio E erro_validacao vazio. Seedar o
+      // boolean `false` fazia String(false)='false' passar no guard de reenvio
+      // e TODA validação devolvia 409 "Nota já aprovada" (4 falhas da suíte).
+      nota_ok: null,
       erro_validacao: null,
     });
   });
@@ -464,6 +481,18 @@ describe('3.2 / 3.3 POST /motorista/validar-nota', () => {
     _axiosMockResponse = {
       data: [{ valid: true, details: { valid_cnpj_prestador: true, valid_valor: true } }],
     };
+    // O serviço real grava nota_ok/erro_validacao DIRETO na EnvioMassa e o
+    // backend SÓ RELÊ ("Fonte de verdade" em routes/motorista.js) — sem
+    // simular esse efeito colateral, o reread encontra a linha intacta e a
+    // rota devolve 503 "sem resultado gravado" (mesma técnica da FASE 6).
+    axiosMock.post = async () => {
+      const row = DB.EnvioMassa.find((m) => m.id === 100);
+      if (row) {
+        row.nota_ok = 'https://fake-fastapi.local/nota-100.xml';
+        row.erro_validacao = '';
+      }
+      return _axiosMockResponse;
+    };
     const tok = makeToken({ cnpjPrestador: '11111111000100' });
     const mp = buildMultipart(XML_VALIDO);
     const r = await request('POST', '/motorista/validar-nota', {
@@ -483,9 +512,21 @@ describe('3.2 / 3.3 POST /motorista/validar-nota', () => {
       cnpj_prestador: '22222222000100',
       mov_fechado: false,
       valor: 1000,
-      nota_ok: false,
+      nota_ok: null,
       erro_validacao: null,
     });
+
+    // Efeito colateral do serviço: nota REPROVADA = nota_ok gravado (URL) +
+    // erro_validacao com os campos reprovados (é dele que a rota deriva
+    // camposInvalidos — não do JSON imediato da API).
+    axiosMock.post = async () => {
+      const row = DB.EnvioMassa.find((m) => m.id === 101);
+      if (row) {
+        row.nota_ok = 'https://fake-fastapi.local/nota-101.xml';
+        row.erro_validacao = 'valid_valor,valid_trib_nac';
+      }
+      return _axiosMockResponse;
+    };
 
     _axiosMockResponse = {
       data: [{
@@ -534,7 +575,7 @@ describe('3.2 / 3.3 POST /motorista/validar-nota', () => {
       id: 102,
       cnpj_prestador: '55555555000100',
       mov_fechado: false,
-      nota_ok: false,
+      nota_ok: null, // texto (URL), nunca boolean — ver seed do describe
       erro_validacao: null,
     });
 
