@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { EnvioMassa, FilterState, StatsData } from '@/types';
 import { api } from '@/lib/api-client';
+import type { MovimentoFechado } from '@/components/hub/fechamento-recibo';
 import {
   applyFilters,
   computeStats,
@@ -137,11 +138,33 @@ export function useEnvioMassa(empresaId?: number | null) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [empresaId]);
 
-  const closeMovement = useCallback(async () => {
+  /**
+   * impeccable rodada 20 (P1): guarda o retrato do movimento que está sendo
+   * fechado. Depois do `fetchData` a lista volta vazia — os números do ciclo
+   * que terminou deixam de existir na tela, e o único vestígio era um toast
+   * de 4 segundos.
+   *
+   * A linha é montada antes do POST por clareza, não por necessidade: medido,
+   * mover a captura para depois do `fetchData` NÃO quebra nada, porque `stats`
+   * aqui é a variável do closure e continua valendo o render em que a função
+   * foi criada. Fica antes porque assim a leitura do código não depende de
+   * quem lembre desse detalhe.
+   *
+   * `periodo` vem da tela porque é ela que o deriva das linhas (dt_inicial/
+   * dt_final), na mesma regra que o diálogo de confirmação já usa.
+   */
+  const [movimentoFechado, setMovimentoFechado] = useState<MovimentoFechado | null>(null);
+  const dispensarFechamento = useCallback(() => setMovimentoFechado(null), []);
+
+  const closeMovement = useCallback(async (periodo: string | null = null) => {
+    const retrato = { stats, periodo, fechadoEm: new Date().toISOString() };
     await api.post('/close-movimento', empresaId != null ? { empresa_id: empresaId } : undefined);
+    // Só registra depois do POST dar certo: um recibo de fechamento que não
+    // aconteceu seria pior que nenhum.
+    setMovimentoFechado(retrato);
     await fetchData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchData, empresaId]);
+  }, [fetchData, empresaId, stats]);
 
   // impeccable rodada 6: une/remove só os IDs da página atual. Antes o Set era
   // sobrescrito, então marcar "todos" na página 2 apagava em silêncio o que
@@ -205,6 +228,8 @@ export function useEnvioMassa(empresaId?: number | null) {
     exportCSV,
     downloadXML,
     closeMovement,
+    movimentoFechado,
+    dispensarFechamento,
     toggleSelectAll,
     toggleSelect,
     limparSelecao,

@@ -52,9 +52,18 @@ export function DisparoRecibo({ stats, escopo, onVerErros, onDispensar }: Dispar
   const temErro = stats.msgErro > 0;
 
   return (
+    // impeccable rodada 20: este recibo era `role="status" aria-live="polite"`
+    // desde a r6 — de quando ele era o ÚNICO feedback do fim do disparo. A r17
+    // criou a região de marcos que anuncia "Disparo concluído.", e as duas
+    // coisas juntas passaram a anunciar o mesmo evento DUAS vezes para quem usa
+    // leitor de tela. A r17 devia ter pego isso e não pegou.
+    //
+    // `role="status"` FICA (o bloco é um status, e serve de âncora ao navegar),
+    // mas com `aria-live="off"`, que sobrepõe o `polite` implícito do papel: o
+    // recibo é conteúdo para ler, não para interromper.
     <div
       role="status"
-      aria-live="polite"
+      aria-live="off"
       className="flex flex-wrap items-start gap-x-4 gap-y-2 rounded-lg border bg-card p-3"
     >
       <span

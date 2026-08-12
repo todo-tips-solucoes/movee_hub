@@ -62,6 +62,7 @@ import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
 import { PageHeader } from '@/components/hub/page-header';
 import { DisparoRecibo } from '@/components/hub/disparo-recibo';
+import { FechamentoRecibo } from '@/components/hub/fechamento-recibo';
 import { initialFilters, computeStats, formatDateBR, temFiltroAtivo } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
@@ -142,6 +143,8 @@ function EnvioMassaClient() {
     exportCSV,
     downloadXML,
     closeMovement,
+    movimentoFechado,
+    dispensarFechamento,
     toggleSelectAll,
     toggleSelect,
     limparSelecao,
@@ -328,6 +331,10 @@ function EnvioMassaClient() {
           {anuncio}
         </span>
 
+        {movimentoFechado && (
+          <FechamentoRecibo movimento={movimentoFechado} onDispensar={dispensarFechamento} />
+        )}
+
         {disparoConcluido && (
           <DisparoRecibo
             stats={statsDoRecibo}
@@ -364,7 +371,9 @@ function EnvioMassaClient() {
           onUpload={uploadFile}
           onExportCSV={exportCSV}
           onDownloadXML={downloadXML}
-          onCloseMovement={closeMovement}
+          // r20: o período vem da tela — é ela que o deriva das linhas, e
+          // depois do fechamento essa informação some junto com a lista.
+          onCloseMovement={() => closeMovement(periodo)}
           stats={stats}
           // impeccable rodada 7 (P1): o número do botão é o que SAI, não o que
           // está marcado — a r6 mandava `.length` aqui e `selecionadosPendentes`
