@@ -60,6 +60,7 @@ import {
 import { Filters } from '@/components/filters';
 import { DataTable } from '@/components/data-table';
 import { PaginationControls } from '@/components/pagination-controls';
+import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
 import { DisparoRecibo } from '@/components/hub/disparo-recibo';
 import { FechamentoRecibo } from '@/components/hub/fechamento-recibo';
@@ -226,7 +227,20 @@ function EnvioMassaClient() {
     [escopoDisparo, data, stats]
   );
 
+  // impeccable r22 (P1): as falhas DESTA tela eram as únicas efêmeras do hub —
+  // iniciar, parar, exportar, baixar XML e fechar movimento morriam num
+  // `toast.error` de 4s, enquanto as outras 8 telas usam bloco persistente.
+  // Falhava o disparo, a mensagem sumia e a pílula voltava a "Parado", estado
+  // indistinguível de "nunca iniciei": o operador reclicava e podia disparar
+  // duas vezes para gente real. Persistente e dispensável à mão, portanto.
+  //
+  // Sem "Tentar novamente" de propósito: o controle que falhou está a poucos
+  // pixels daqui, e um botão de repetir ao lado da mensagem convidaria
+  // exatamente ao segundo disparo que este bloco existe para evitar.
+  const [erroOperacao, setErroOperacao] = useState<string | null>(null);
+
   const handleStart = async () => {
+    setErroOperacao(null);
     try {
       const ids = selecionados.map((d) => d.id);
       // Sem seleção, `startProcess` recebe lista vazia e omite o campo: a rota
@@ -239,16 +253,19 @@ function EnvioMassaClient() {
       limparSelecao();
       toast.success('Processamento iniciado!');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao iniciar processamento');
+      setErroOperacao(
+        err instanceof Error ? err.message : 'Erro ao iniciar processamento'
+      );
     }
   };
 
   const handleStop = async () => {
+    setErroOperacao(null);
     try {
       await stopProcess();
       toast.info('Processamento parado.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao parar processamento');
+      setErroOperacao(err instanceof Error ? err.message : 'Erro ao parar processamento');
     }
   };
 
@@ -268,7 +285,7 @@ function EnvioMassaClient() {
       // impeccable rodada 8 (P3): esta era a única rota do hub sem container
       // nem padding — as outras aplicam `p-4 sm:p-6 lg:p-8`, e a largura
       // acompanha as demais telas de tabela larga.
-      className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4 sm:p-6 lg:p-8"
+      className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}
       // uiux-hub F4: respeita prefers-reduced-motion — sem fade quando o
       // usuário pediu menos movimento (conteúdo legível imediatamente).
       initial={reduzirMovimento ? false : { opacity: 0 }}
@@ -363,7 +380,29 @@ function EnvioMassaClient() {
 
         <StatsCards stats={stats} onFiltrar={updateFilters} indisponivel={erro !== null} />
 
+        {/* impeccable r22 (P1): a falha da operação fica na tela até ser
+            dispensada — mesmo idioma visual do bloco de erro da lista, logo
+            acima da barra que a produziu. */}
+        {erroOperacao && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3"
+          >
+            <AlertCircle className="size-4 shrink-0 text-destructive" aria-hidden="true" />
+            <p className="min-w-0 flex-1 text-sm font-medium text-destructive">{erroOperacao}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-11 sm:min-h-8"
+              onClick={() => setErroOperacao(null)}
+            >
+              Dispensar
+            </Button>
+          </div>
+        )}
+
         <ActionBar
+          onFalha={setErroOperacao}
           isActive={isActive}
           isProcessLoading={processLoading}
           onStart={() => setConfirmarDisparo(true)}
@@ -433,10 +472,6 @@ function EnvioMassaClient() {
           onRecordsPerPageChange={changeRecordsPerPage}
         />
       </div>
-
-      {/* hub-uiux-refresh (2026-08-05): a validação de XML em lote saiu
-          desta página e virou módulo próprio do menu —
-          /hub/dashboard/validacao_xml (migration 0045). */}
 
       <AlertDialog open={confirmarDisparo} onOpenChange={setConfirmarDisparo}>
         <AlertDialogContent>

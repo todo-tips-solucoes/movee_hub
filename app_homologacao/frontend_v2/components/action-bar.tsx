@@ -33,6 +33,10 @@ interface ActionBarProps {
   dadosIndisponiveis?: boolean;
   /** Limpa a seleção da tabela (rodada 8). */
   onLimparSelecao?: () => void;
+  /** impeccable r22 (P1): reporta a falha à tela, que a mantém visível até ser
+   *  dispensada. Opcional porque o painel legado (`app/dashboard`) monta esta
+   *  mesma barra e continua com o toast — o alvo desta rodada é o hub. */
+  onFalha?: (mensagem: string) => void;
 }
 
 export function ActionBar({
@@ -50,9 +54,16 @@ export function ActionBar({
   periodo,
   dadosIndisponiveis,
   onLimparSelecao,
+  onFalha,
 }: ActionBarProps) {
   const [csvLoading, setCsvLoading] = useState(false);
   const [xmlLoading, setXmlLoading] = useState(false);
+
+  const reportarFalha = (err: unknown, padrao: string) => {
+    const mensagem = err instanceof Error ? err.message : padrao;
+    if (onFalha) onFalha(mensagem);
+    else toast.error(mensagem);
+  };
 
   const handleExportCSV = async () => {
     try {
@@ -60,7 +71,7 @@ export function ActionBar({
       await onExportCSV();
       toast.success('CSV exportado com sucesso!');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao exportar CSV');
+      reportarFalha(err, 'Erro ao exportar CSV');
     } finally {
       setCsvLoading(false);
     }
@@ -72,7 +83,7 @@ export function ActionBar({
       await onDownloadXML();
       toast.success('XMLs baixados com sucesso!');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao baixar XMLs');
+      reportarFalha(err, 'Erro ao baixar XMLs');
     } finally {
       setXmlLoading(false);
     }
@@ -119,6 +130,7 @@ export function ActionBar({
           isActive={isActive}
           periodo={periodo}
           dadosIndisponiveis={dadosIndisponiveis}
+          onFalha={onFalha}
         />
       </div>
     </div>

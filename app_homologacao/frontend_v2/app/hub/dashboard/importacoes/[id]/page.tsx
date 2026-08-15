@@ -189,7 +189,19 @@ export default function ImportacaoDetalhePage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4 sm:p-6 lg:p-8">
-      <Button variant="ghost" size="sm" className="w-fit min-h-11 gap-1.5 sm:min-h-8" onClick={() => router.push('/hub/dashboard/importacoes')}>
+      {/* impeccable r22 (P1): ver o comentário gêmeo em motoristas/[id]. Aqui
+          dói mais: o histórico carrega período, tipo, status e responsável, e
+          cada volta custava remontar os quatro à mão. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-fit min-h-11 gap-1.5 sm:min-h-8"
+        onClick={() =>
+          window.history.length > 1
+            ? router.back()
+            : router.push('/hub/dashboard/importacoes')
+        }
+      >
         <ArrowLeft className="size-4" aria-hidden="true" />
         Voltar ao histórico
       </Button>

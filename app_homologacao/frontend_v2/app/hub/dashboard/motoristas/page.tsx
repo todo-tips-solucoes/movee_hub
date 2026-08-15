@@ -15,8 +15,8 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertCircle, ChevronRight, Loader2, Plus, Truck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertCircle, ChevronRight, Loader2, Plus, Truck, UploadCloud } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useHubAuth } from '@/contexts/hub-auth-context';
+import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { SelectFiltro } from '@/components/hub/select-filtro';
@@ -294,7 +295,16 @@ function MotoristasConteudo() {
   const { permissoes } = useHubAuth();
   const podeConsultar = permissoes.includes('motoristas.consultar');
   const podeEditar = permissoes.includes('motoristas.editar');
+  // impeccable r22 (P2): a saída oferecida no estado vazio depende do módulo
+  // que o papel realmente alcança — ver o `EmptyState` mais abaixo.
+  const podeImportar = permissoes.includes('importacoes.consultar');
   const h = useMotoristasLista();
+  // impeccable r22 (P2): decide a saída do estado vazio (ver `EmptyState`).
+  // Ordenação não é filtro: ordenar uma lista vazia não é o que a esvaziou, e
+  // oferecer "Limpar filtros" ali mandaria o operador limpar o que não existe.
+  const temFiltroAtivo = Object.entries(h.filtros).some(
+    ([chave, valor]) => chave !== 'ordenarPor' && chave !== 'direcao' && valor !== ''
+  );
   const [criarAberto, setCriarAberto] = useState(false);
   // uiux-hub pós-F4: o filtro "Área" deixou de ser texto livre — as opções
   // vêm de GET /motoristas/areas (subpraças distintas do escopo). Falha na
@@ -313,7 +323,7 @@ function MotoristasConteudo() {
   const detalheDialog = useMotoristaDetalheDialog();
 
   return (
-    <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader
         titulo="Motoristas"
         subtitulo="Pessoas entregadoras conhecidas pelas importações de faturamento e performance."
@@ -413,8 +423,36 @@ function MotoristasConteudo() {
         <EmptyState
           icone={Truck}
           titulo="Nenhum motorista encontrado"
-          dica="Ajuste os filtros ou aguarde uma nova importação."
-        />
+          dica={
+            temFiltroAtivo
+              ? 'Nenhum motorista corresponde aos filtros atuais.'
+              : 'Os motoristas aparecem aqui depois de uma importação de planilha.'
+          }
+        >
+          {temFiltroAtivo ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-11 sm:min-h-8"
+              onClick={h.resetFiltros}
+            >
+              Limpar filtros
+            </Button>
+          ) : (
+            podeImportar && (
+              <Link
+                href="/hub/dashboard/importacoes"
+                className={buttonVariants({
+                  size: 'sm',
+                  className: 'min-h-11 gap-1.5 sm:min-h-8',
+                })}
+              >
+                <UploadCloud className="size-4" aria-hidden="true" />
+                Ir para Importações
+              </Link>
+            )
+          )}
+        </EmptyState>
       ) : (
         <>
           {/* Mobile card layout */}

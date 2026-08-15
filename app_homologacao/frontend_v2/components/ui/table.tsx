@@ -4,14 +4,22 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & { containerClassName?: string }) {
   // overflow-x-auto no container (padrão shadcn): tabela larga rola DENTRO do
   // card em vez de vazar até a borda da viewport. Corrigido aqui, e não em cada
   // página — só 2 das 7 telas do hub tinham wrapper com scroll próprio.
+  //
+  // impeccable r22: `containerClassName` existe porque cabeçalho `sticky` só
+  // gruda no ancestral que ROLA — e este container é ele. Sem poder limitar a
+  // altura daqui, um `sticky top-0` no `<th>` não teria efeito nenhum.
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
     >
       <table
         data-slot="table"

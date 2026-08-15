@@ -31,6 +31,10 @@ interface CloseMovementDialogProps {
   /** A lista do movimento falhou ao carregar: `stats` está zerado por erro, não
    *  porque o movimento esteja vazio. Bloqueia a confirmação (rodada 7). */
   dadosIndisponiveis?: boolean;
+  /** impeccable r22 (P1): fechar movimento é irreversível — a falha não pode
+   *  sumir com o toast enquanto o diálogo se fecha. Opcional: sem ela, o
+   *  comportamento antigo (painel legado). */
+  onFalha?: (mensagem: string) => void;
 }
 
 export function CloseMovementDialog({
@@ -39,6 +43,7 @@ export function CloseMovementDialog({
   isActive = false,
   periodo = null,
   dadosIndisponiveis = false,
+  onFalha,
 }: CloseMovementDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,7 +54,9 @@ export function CloseMovementDialog({
       await onConfirm();
       toast.success('Movimento fechado com sucesso!');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao fechar o movimento');
+      const mensagem = err instanceof Error ? err.message : 'Erro ao fechar o movimento';
+      if (onFalha) onFalha(mensagem);
+      else toast.error(mensagem);
     } finally {
       setLoading(false);
       setOpen(false);

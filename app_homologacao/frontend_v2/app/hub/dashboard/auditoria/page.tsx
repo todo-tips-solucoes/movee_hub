@@ -22,7 +22,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Eye, ShieldCheck } from 'lucide-react';
+import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
+import { FilterBar } from '@/components/hub/filter-bar';
 import { EmptyState } from '@/components/hub/empty-state';
 import { PaginationControls } from '@/components/pagination-controls';
 import { EntidadeCombobox } from '@/components/hub/entidade-combobox';
@@ -234,15 +236,20 @@ export default function AuditoriaPage() {
   const [eventoSelecionado, setEventoSelecionado] = useState<AuditoriaEvento | null>(null);
 
   return (
-    <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader
         titulo="Auditoria"
         subtitulo={`Trilha imutável de ações relevantes ${podeVerTudo ? 'de toda a plataforma' : 'da sua entidade'}.`}
       />
 
-      {/* Filtros */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-6">
+      {/* impeccable r22 (P2): container artesanal → `FilterBar`, o mesmo das
+          outras listas. O "Limpar filtros" passa a desabilitar quando não há
+          o que limpar e a mostrar quantos estão ativos. */}
+      <FilterBar
+        gridClassName="grid-cols-1 xs:grid-cols-2 lg:grid-cols-6"
+        onClear={h.resetFiltros}
+        filtrosAtivos={Object.values(h.filtros).filter((v) => v !== '').length}
+      >
           <PeriodFilter
             className="xs:col-span-2"
             idPrefix="auditoria-filtro"
@@ -321,13 +328,7 @@ export default function AuditoriaPage() {
               />
             </div>
           )}
-        </div>
-        <div className="mt-2 flex justify-end">
-          <Button size="sm" variant="ghost" className="min-h-11 sm:min-h-8" onClick={h.resetFiltros}>
-            Limpar filtros
-          </Button>
-        </div>
-      </div>
+      </FilterBar>
 
       {/* Conteúdo */}
       {h.carregando ? (

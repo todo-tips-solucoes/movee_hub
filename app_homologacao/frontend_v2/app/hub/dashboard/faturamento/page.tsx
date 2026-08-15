@@ -15,7 +15,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
+import { FilterBar } from '@/components/hub/filter-bar';
 import { EmptyState } from '@/components/hub/empty-state';
 import { SelectFiltro } from '@/components/hub/select-filtro';
 import { KpiCard } from '@/components/hub/kpi-card';
@@ -31,7 +33,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -311,6 +313,8 @@ function DistribuicaoFaturamento({ filtrosApi }: { filtrosApi: () => Faturamento
             titulo={groupBy === 'categoria' ? 'Faturamento por categoria' : 'Faturamento por dia'}
             dados={dados}
             corVar="--chart-1"
+            // impeccable r22 (P3): mesma frase da lista logo abaixo.
+            mensagemVazia="Nenhum lançamento no período selecionado."
           />
         )}
       </CardContent>
@@ -321,8 +325,17 @@ function DistribuicaoFaturamento({ filtrosApi }: { filtrosApi: () => Faturamento
 export default function FaturamentoPage() {
   const { permissoes } = useHubAuth();
   const podeExportar = permissoes.includes('faturamento.exportar');
+  // impeccable r22 (P2): saída do estado vazio — ver o `EmptyState` abaixo.
+  const podeImportar = permissoes.includes('importacoes.consultar');
   const podeVerDetalheMotorista = permissoes.includes('motoristas.consultar');
   const h = useFaturamentoLista();
+  // impeccable r22 (P2): decide a saída do estado vazio — com filtro ativo a
+  // saída é limpar; sem filtro, é a importação que traz lançamento. Sem isso
+  // a tela parava na constatação, que é o primeiro que um cliente novo vê.
+  // `entregadorNome` acompanha `entregadorId`: contá-lo dobraria um filtro só.
+  const temFiltroAtivo = Object.entries(h.filtros).some(
+    ([chave, valor]) => chave !== 'entregadorNome' && valor !== ''
+  );
   const [exportando, setExportando] = useState(false);
   const [erroExport, setErroExport] = useState<string | null>(null);
   // WS-B (tasks.md 2.3.5, FR-010, D-B1): degradação sticky — uma vez que a
@@ -355,7 +368,7 @@ export default function FaturamentoPage() {
   }, [h]);
 
   return (
-    <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader titulo="Faturamento" subtitulo="Lançamentos de faturamento importados, por corrida/lote de entregador.">
         {podeExportar && (
           <Button
@@ -383,11 +396,28 @@ export default function FaturamentoPage() {
         <CardsResumo cards={h.cards} />
       )}
 
-      <DistribuicaoFaturamento filtrosApi={h.filtrosApi} />
-
-      {/* Filtros */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-6">
+      {/* impeccable r22 (P2): os filtros vinham DEPOIS do gráfico que eles
+          governam — o operador lia o resultado antes de encontrar o controle
+          que o produziu. E o container era artesanal: um `<div>` com borda
+          própria e um "Limpar filtros" que nunca desabilitava nem contava,
+          enquanto motoristas/importações/usuários já usavam o `FilterBar`. */}
+      <FilterBar
+        gridClassName="grid-cols-1 xs:grid-cols-2 lg:grid-cols-6"
+        onClear={h.resetFiltros}
+        // `entregadorNome` acompanha `entregadorId` — contar os dois faria um
+        // único filtro aparecer como dois.
+        filtrosAtivos={
+          Object.entries(h.filtros).filter(
+            ([chave, valor]) => chave !== 'entregadorNome' && valor !== ''
+          ).length
+        }
+        nota={
+          <>
+            Os filtros de período usam a <strong>data de competência</strong> do lançamento (não a
+            data de importação).
+          </>
+        }
+      >
           <PeriodFilter
             className="xs:col-span-2"
             idPrefix="faturamento-filtro"
@@ -408,8 +438,28 @@ export default function FaturamentoPage() {
               value={h.filtros.categoria}
               onChange={(e) => h.setFiltros({ categoria: e.target.value })}
               placeholder="Ex.: Corridas concluidas"
+              list="faturamento-categorias-na-pagina"
               className="h-11 sm:h-9"
             />
+            {/* impeccable r22 (P2): este filtro é igualdade exata — um acento
+                ou espaço a mais devolve zero, e a tela diz "Nenhum lançamento
+                no período selecionado". O usuário não distinguia "digitei
+                errado" de "não existe". Ao lado, "Subpraça" já oferecia a
+                lista pronta: recall exigido ao lado de reconhecimento
+                oferecido. Mesmo `<datalist>` nativo que a auditoria usa.
+                ponytail: as opções vêm dos lançamentos já carregados — sem
+                endpoint novo. Ceiling: só enxerga a página corrente; se o
+                catálogo de categorias virar requisito, expor
+                `/faturamento/categorias` como `/areas` já faz. */}
+            <datalist id="faturamento-categorias-na-pagina">
+              {Array.from(
+                new Set(h.items.map((i) => i.categoria).filter((c): c is string => !!c))
+              )
+                .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+                .map((c) => (
+                  <option key={c} value={c} />
+                ))}
+            </datalist>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -478,17 +528,9 @@ export default function FaturamentoPage() {
               ]}
             />
           </div>
-        </div>
+      </FilterBar>
 
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            Os filtros de período usam a <strong>data de competência</strong> do lançamento (não a data de importação).
-          </p>
-          <Button size="sm" variant="ghost" className="min-h-11 sm:min-h-8" onClick={h.resetFiltros}>
-            Limpar filtros
-          </Button>
-        </div>
-      </div>
+      <DistribuicaoFaturamento filtrosApi={h.filtrosApi} />
 
       {/* Conteúdo */}
       {h.carregando ? (
@@ -508,8 +550,27 @@ export default function FaturamentoPage() {
         <EmptyState
           icone={Receipt}
           titulo="Nenhum lançamento no período selecionado"
-          dica="Ajuste os filtros ou selecione outro período de competência."
-        />
+          dica={
+            temFiltroAtivo
+              ? 'Nenhum lançamento corresponde aos filtros atuais.'
+              : 'Os lançamentos aparecem aqui depois de uma importação de faturamento.'
+          }
+        >
+          {temFiltroAtivo ? (
+            <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={h.resetFiltros}>
+              Limpar filtros
+            </Button>
+          ) : (
+            podeImportar && (
+              <Link
+                href="/hub/dashboard/importacoes"
+                className={buttonVariants({ size: 'sm', className: 'min-h-11 sm:min-h-8' })}
+              >
+                Ir para Importações
+              </Link>
+            )
+          )}
+        </EmptyState>
       ) : (
         <>
           {/* Mobile card layout */}

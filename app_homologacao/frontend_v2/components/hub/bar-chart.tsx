@@ -9,6 +9,9 @@
 // LARGURA proporcional da barra (apresentação) — o valor exibido é sempre
 // a string formatada que veio do backend, nunca uma soma do cliente.
 
+'use client';
+
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface BarraDado {
@@ -28,6 +31,12 @@ interface HorizontalBarChartProps {
   corVar?: string;
   /** Limite de barras exibidas — o corte NUNCA é silencioso (nota "N de M"). */
   maxBarras?: number;
+  /** impeccable r22 (P3): o gráfico dizia "Sem dados para os filtros atuais."
+   * enquanto a lista logo abaixo, com a mesma base vazia, dizia "Nenhum
+   * lançamento no período selecionado" — duas frases para o mesmo fato, lado a
+   * lado na mesma tela. Quem monta a tela passa a frase dela; o padrão fica
+   * para quem não passar. */
+  mensagemVazia?: string;
   className?: string;
 }
 
@@ -36,17 +45,26 @@ export function HorizontalBarChart({
   dados,
   corVar = '--chart-1',
   maxBarras = 10,
+  mensagemVazia = 'Sem dados para os filtros atuais.',
   className,
 }: HorizontalBarChartProps) {
+  // Antes do early return: hook depois de `return` condicional muda a ordem
+  // dos hooks entre renders.
+  const [expandido, setExpandido] = useState(false);
+
   if (dados.length === 0) {
     return (
       <p role="status" className="py-6 text-center text-sm text-muted-foreground">
-        Sem dados para os filtros atuais.
+        {mensagemVazia}
       </p>
     );
   }
 
-  const visiveis = dados.slice(0, maxBarras);
+  // impeccable r22 (P3): o aviso de corte mandava "refine os filtros" e não
+  // oferecia nenhum controle ali — a única saída para ver o resto era sair da
+  // pergunta que a pessoa estava fazendo. Ver tudo é uma decisão da leitura,
+  // não do filtro, então mora aqui e não na URL.
+  const visiveis = expandido ? dados : dados.slice(0, maxBarras);
   const max = Math.max(...visiveis.map((d) => d.valor), 0);
 
   return (
@@ -73,10 +91,18 @@ export function HorizontalBarChart({
           );
         })}
       </ul>
-      {dados.length > visiveis.length && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Mostrando os {visiveis.length} maiores de {dados.length} grupos — refine os filtros para
-          detalhar o restante.
+      {dados.length > maxBarras && (
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          {expandido
+            ? `Mostrando os ${dados.length} grupos.`
+            : `Mostrando os ${visiveis.length} maiores de ${dados.length} grupos.`}
+          <button
+            type="button"
+            className="min-h-11 rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-0"
+            onClick={() => setExpandido((v) => !v)}
+          >
+            {expandido ? 'Mostrar só os maiores' : `Ver todos os ${dados.length}`}
+          </button>
         </p>
       )}
     </figure>
