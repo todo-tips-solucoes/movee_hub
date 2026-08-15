@@ -18,6 +18,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LARGURA_FORM } from '@/lib/hub/larguras';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useHubAuth } from '@/contexts/hub-auth-context';
@@ -48,7 +49,7 @@ export default function PerfilPage() {
   if (!usuario) return null;
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-lg flex-col justify-center gap-4 p-4">
+    <div className={`mx-auto flex min-h-svh ${LARGURA_FORM} flex-col justify-center gap-4 p-4`}>
       <Card>
         <CardHeader>
           <CardTitle as="h1">Meu perfil</CardTitle>

@@ -34,6 +34,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { ImportWizard, useImportWizard } from '@/components/hub/import-wizard';
+import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { SelectFiltro } from '@/components/hub/select-filtro';
@@ -246,7 +247,7 @@ function ImportacoesConteudo() {
   const router = useRouter();
 
   return (
-    <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader titulo="Importações" subtitulo="Histórico de importações de faturamento e performance.">
         <ImportWizard podeCriar={podeCriar} state={wizard} />
       </PageHeader>

@@ -233,7 +233,17 @@ export default function MotoristaDetalhePage() {
         variant="ghost"
         size="sm"
         className="w-fit min-h-11 gap-1.5 sm:min-h-8"
-        onClick={() => router.push('/hub/dashboard/motoristas')}
+        // impeccable r22 (P1): `push` do caminho nu descartava a query que o
+        // `useFiltrosUrl` da lista tinha acabado de escrever — o botão chamado
+        // "Voltar à lista" era o único caminho que NÃO devolvia a lista como
+        // estava. `back()` volta à entrada anterior do histórico, que é a lista
+        // com filtro, página e rolagem. O `push` fica como saída para quem
+        // abriu o detalhe direto (link colado, aba nova): aí não há a que voltar.
+        onClick={() =>
+          window.history.length > 1
+            ? router.back()
+            : router.push('/hub/dashboard/motoristas')
+        }
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
         Voltar à lista

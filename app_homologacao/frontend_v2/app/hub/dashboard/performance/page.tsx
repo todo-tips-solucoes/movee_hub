@@ -14,8 +14,11 @@
 // contracts/performance-api.md, quickstart.md Cenários 5/6/10/12/14.
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
+import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
+import { FilterBar } from '@/components/hub/filter-bar';
 import { EmptyState } from '@/components/hub/empty-state';
 import { SelectFiltro } from '@/components/hub/select-filtro';
 import { KpiCard } from '@/components/hub/kpi-card';
@@ -30,7 +33,7 @@ import {
   Percent,
   TrendingUp,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -309,6 +312,9 @@ function DistribuicaoPerformance({ filtrosApi }: { filtrosApi: () => Performance
             titulo={groupBy === 'dia' ? 'Corridas completadas por dia' : 'Corridas completadas por período'}
             dados={dados}
             corVar="--chart-2"
+            // impeccable r22 (P3): mesma frase da lista logo abaixo — antes
+            // gráfico e tabela diziam o mesmo vazio de dois jeitos.
+            mensagemVazia="Nenhum registro de turno no período selecionado."
           />
         )}
       </CardContent>
@@ -319,7 +325,13 @@ function DistribuicaoPerformance({ filtrosApi }: { filtrosApi: () => Performance
 export default function PerformancePage() {
   const { permissoes } = useHubAuth();
   const podeExportar = permissoes.includes('performance.exportar');
+  // impeccable r22 (P2): saída do estado vazio — ver o `EmptyState` abaixo.
+  const podeImportar = permissoes.includes('importacoes.consultar');
   const h = usePerformanceLista();
+  // impeccable r22 (P2): idem faturamento — ver o `EmptyState` mais abaixo.
+  const temFiltroAtivo = Object.entries(h.filtros).some(
+    ([chave, valor]) => chave !== 'entregadorNome' && valor !== ''
+  );
   const [exportando, setExportando] = useState(false);
   const [erroExport, setErroExport] = useState<string | null>(null);
   // WS-B (tasks.md 2.3.5, FR-010, D-B1): degradação sticky — espelho de
@@ -350,7 +362,7 @@ export default function PerformancePage() {
   }, [h]);
 
   return (
-    <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader titulo="Performance" subtitulo="Registros de turno importados: ofertas, aceites, conclusões e tempo disponível por entregador.">
         {podeExportar && (
           <Button
@@ -378,11 +390,23 @@ export default function PerformancePage() {
         <CardsResumo cards={h.cards} />
       )}
 
-      <DistribuicaoPerformance filtrosApi={h.filtrosApi} />
-
-      {/* Filtros */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-5">
+      {/* impeccable r22 (P2): mesma correção de faturamento — filtros antes do
+          gráfico que eles governam, e `FilterBar` no lugar do container
+          artesanal, para o "Limpar" desabilitar em zero e contar os ativos. */}
+      <FilterBar
+        gridClassName="grid-cols-1 xs:grid-cols-2 lg:grid-cols-5"
+        onClear={h.resetFiltros}
+        filtrosAtivos={
+          Object.entries(h.filtros).filter(
+            ([chave, valor]) => chave !== 'entregadorNome' && valor !== ''
+          ).length
+        }
+        nota={
+          <>
+            Os filtros de período usam a <strong>data do turno</strong> (não a data de importação).
+          </>
+        }
+      >
           <PeriodFilter
             className="xs:col-span-2"
             idPrefix="performance-filtro"
@@ -403,8 +427,23 @@ export default function PerformancePage() {
               value={h.filtros.periodo}
               onChange={(e) => h.setFiltros({ periodo: e.target.value })}
               placeholder="Ex.: ALMOCO 11H30-15H29"
+              list="performance-turnos-na-pagina"
               className="h-11 sm:h-9"
             />
+            {/* impeccable r22 (P2): idêntico ao filtro de categoria em
+                faturamento — igualdade exata em texto livre, ao lado de um
+                select populado. Aqui a string é ainda mais difícil de decorar
+                (`ALMOCO 11H30-15H29`). Opções tiradas dos registros já
+                carregados; ceiling e caminho de saída no comentário gêmeo. */}
+            <datalist id="performance-turnos-na-pagina">
+              {Array.from(
+                new Set(h.items.map((i) => i.periodo).filter((p): p is string => !!p))
+              )
+                .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+                .map((p) => (
+                  <option key={p} value={p} />
+                ))}
+            </datalist>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -455,17 +494,9 @@ export default function PerformancePage() {
               />
             )}
           </div>
-        </div>
+      </FilterBar>
 
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            Os filtros de período usam a <strong>data do turno</strong> (não a data de importação).
-          </p>
-          <Button size="sm" variant="ghost" className="min-h-11 sm:min-h-8" onClick={h.resetFiltros}>
-            Limpar filtros
-          </Button>
-        </div>
-      </div>
+      <DistribuicaoPerformance filtrosApi={h.filtrosApi} />
 
       {/* Conteúdo */}
       {h.carregando ? (
@@ -485,8 +516,27 @@ export default function PerformancePage() {
         <EmptyState
           icone={TrendingUp}
           titulo="Nenhum registro de turno no período selecionado"
-          dica="Ajuste os filtros ou selecione outro período."
-        />
+          dica={
+            temFiltroAtivo
+              ? 'Nenhum registro corresponde aos filtros atuais.'
+              : 'Os turnos aparecem aqui depois de uma importação de performance.'
+          }
+        >
+          {temFiltroAtivo ? (
+            <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={h.resetFiltros}>
+              Limpar filtros
+            </Button>
+          ) : (
+            podeImportar && (
+              <Link
+                href="/hub/dashboard/importacoes"
+                className={buttonVariants({ size: 'sm', className: 'min-h-11 sm:min-h-8' })}
+              >
+                Ir para Importações
+              </Link>
+            )
+          )}
+        </EmptyState>
       ) : (
         <>
           {/* Mobile card layout */}

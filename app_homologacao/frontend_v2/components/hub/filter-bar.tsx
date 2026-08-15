@@ -19,6 +19,11 @@ export interface FilterBarProps {
    * desabilita (não há o que limpar); com N>0 mostra a contagem no rótulo.
    * Omitido: comportamento antigo (botão sempre ativo). */
   filtrosAtivos?: number;
+  /** Nota de rodapé da barra (impeccable r22): faturamento e performance
+   * explicam ali qual data o período usa. Fica à esquerda, na mesma linha do
+   * "Limpar filtros" — era assim nos blocos artesanais que esta barra absorveu,
+   * e a explicação precisa continuar colada aos campos que ela descreve. */
+  nota?: ReactNode;
   className?: string;
 }
 
@@ -28,13 +33,16 @@ export function FilterBar({
   onClear,
   clearLabel = 'Limpar filtros',
   filtrosAtivos,
+  nota,
   className,
 }: FilterBarProps) {
   return (
     <div className={cn('rounded-lg bg-card p-3 shadow-sm', className)}>
       <div className={cn('grid gap-3', gridClassName)}>{children}</div>
-      {onClear && (
-        <div className="mt-2 flex justify-end">
+      {(onClear || nota) && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          {nota ? <p className="text-xs text-muted-foreground">{nota}</p> : <span />}
+          {onClear && (
           <Button
             size="sm"
             variant="ghost"
@@ -44,6 +52,7 @@ export function FilterBar({
           >
             {filtrosAtivos ? `${clearLabel} (${filtrosAtivos})` : clearLabel}
           </Button>
+          )}
         </div>
       )}
     </div>

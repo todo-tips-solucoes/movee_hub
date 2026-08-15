@@ -26,6 +26,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { labelPapel } from '@/components/hub/entity-switcher';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { AdminApiError, alternarPapelPermissao, listarPapeisMatriz } from '@/lib/hub/admin-api';
@@ -158,9 +168,19 @@ function agruparPorModulo(
   return ordenados;
 }
 
+/** Revogação de alto impacto aguardando confirmação (impeccable r22). */
+interface RevogacaoPendente {
+  papelId: number;
+  permissaoId: number;
+  rotuloPermissaoTexto: string;
+  codigo: string;
+  nomePapel: string;
+}
+
 export default function PapeisMatrizPage() {
   const h = usePapeisMatriz();
   const { modulos } = useHubAuth();
+  const [confirmarRevogacao, setConfirmarRevogacao] = useState<RevogacaoPendente | null>(null);
 
   const grupos = useMemo(
     () => agruparPorModulo(h.dados?.permissoes ?? [], modulos),
@@ -207,13 +227,22 @@ export default function PapeisMatrizPage() {
           </Button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
+        <div className="rounded-lg border">
+          {/* impeccable r22 (P2): a matriz tem 2054px de altura a 1440 e o
+              cabeçalho rolava para fora junto com ela — de "ADMIN" para baixo,
+              marcava-se caixa sem saber mais qual das quatro colunas é qual, a
+              ~600px do rótulo da linha. Agora o container tem altura máxima e o
+              cabeçalho gruda nele. O `overflow-x-auto` que estava neste `div`
+              era duplicado: o próprio `Table` já tem o dele. */}
+          <Table containerClassName="max-h-[calc(100vh-18rem)] overflow-auto">
             <TableHeader>
               <TableRow>
-                <TableHead>Permissão</TableHead>
+                {/* `sticky` no `<th>` e não no `<thead>`: com
+                    `border-collapse: collapse` (preflight do Tailwind) o
+                    thead grudado perde as bordas. */}
+                <TableHead className="sticky top-0 z-20 bg-card">Permissão</TableHead>
                 {h.dados.papeis.map((p) => (
-                  <TableHead key={p.id} className="text-center">
+                  <TableHead key={p.id} className="sticky top-0 z-20 bg-card text-center">
                     {labelPapel(p.nome)}
                   </TableHead>
                 ))}
@@ -268,10 +297,49 @@ export default function PapeisMatrizPage() {
                         <span className="inline-flex h-11 w-11 items-center justify-center md:h-6 md:w-6">
                           <Checkbox
                             className={CHECKBOX_ALVO_44}
-                            aria-label={`${permissao.codigo} para ${labelPapel(papel.nome)}`}
+                            // impeccable r22 (P2): o nome acessível era o
+                            // CÓDIGO enquanto quem enxerga lia o rótulo humano
+                            // — duas verdades sobre o mesmo controle, 132
+                            // vezes, e o leitor de tela ficava com a pior.
+                            // Agora vem o mesmo rótulo da célula; o código fica
+                            // no fim, para quem dá suporte, e "alto impacto"
+                            // entra no nome porque na tela ele é uma etiqueta
+                            // visível ao lado do rótulo.
+                            aria-label={[
+                              rotuloPermissao(permissao.codigo, modulosListaveis.has(grupo.codigo)),
+                              ehAltoImpacto(permissao.codigo) ? '(alto impacto)' : '',
+                              `para ${labelPapel(papel.nome)}`,
+                              `— ${permissao.codigo}`,
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
                             checked={marcado}
                             disabled={!h.dados!.podeEditar || salvando}
-                            onCheckedChange={(v) => h.alternar(papel.id, permissao.id, v === true)}
+                            onCheckedChange={(v) => {
+                              // impeccable r22 (P2): revogar permissão de alto
+                              // impacto tira acesso de gente — a mesma classe
+                              // de perda que `admin/page.tsx` já confirma antes
+                              // de desabilitar um módulo. A etiqueta "alto
+                              // impacto" sinalizava o risco e não mudava
+                              // comportamento nenhum: era um clique, e a
+                              // mitigação era um toast que passa. Conceder
+                              // segue direto — quem amplia acesso não precisa
+                              // ser interrompido.
+                              if (v !== true && ehAltoImpacto(permissao.codigo)) {
+                                setConfirmarRevogacao({
+                                  papelId: papel.id,
+                                  permissaoId: permissao.id,
+                                  rotuloPermissaoTexto: rotuloPermissao(
+                                    permissao.codigo,
+                                    modulosListaveis.has(grupo.codigo)
+                                  ),
+                                  codigo: permissao.codigo,
+                                  nomePapel: labelPapel(papel.nome),
+                                });
+                                return;
+                              }
+                              h.alternar(papel.id, permissao.id, v === true);
+                            }}
                           />
                         </span>
                       </TableCell>
@@ -285,6 +353,40 @@ export default function PapeisMatrizPage() {
           </Table>
         </div>
       )}
+
+      <AlertDialog
+        open={confirmarRevogacao !== null}
+        onOpenChange={(aberto) => !aberto && setConfirmarRevogacao(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Remover &quot;{confirmarRevogacao?.rotuloPermissaoTexto}&quot; do papel{' '}
+              {confirmarRevogacao?.nomePapel}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Todas as pessoas com o papel {confirmarRevogacao?.nomePapel} perdem essa permissão
+              imediatamente, em todas as entidades. A permissão{' '}
+              <span className="font-mono">{confirmarRevogacao?.codigo}</span> está marcada como de
+              alto impacto. Você pode conceder de volta a qualquer momento.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => {
+                if (confirmarRevogacao) {
+                  h.alternar(confirmarRevogacao.papelId, confirmarRevogacao.permissaoId, false);
+                }
+                setConfirmarRevogacao(null);
+              }}
+            >
+              Remover permissão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
