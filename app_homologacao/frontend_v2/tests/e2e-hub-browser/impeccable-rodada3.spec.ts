@@ -20,17 +20,28 @@ const MOBILE = { width: 390, height: 844 };
 
 // Os 4 módulos que ganharam o PeriodFilter, com o rótulo do campo "De" de cada
 // um — o rótulo distinto prova que a prop `rotuloDe` chegou em cada chamador.
+// `ecoSemPeriodo`: o que a tela AFIRMA quando nenhum período foi informado.
+// Até a r23 todas diziam "todo o período disponível" — e no faturamento isso
+// era falso: o backend aplica `JANELA_PADRAO_DIAS = 30`
+// (lib/hub-faturamento-dto.js), então a tela mostrava 30 dias enquanto
+// prometia tudo. Pego em tela real: base com R$ 21.159,34 e total lido
+// R$ 0,00. As demais rotas seguem com a frase antiga até que a janela real de
+// cada uma seja conferida — performance tem o mesmo default e é a próxima.
 const MODULOS_COM_PERIODO = [
-  { rota: '/hub/dashboard/auditoria', rotuloDe: 'De' },
-  { rota: '/hub/dashboard/importacoes', rotuloDe: 'De' },
-  { rota: '/hub/dashboard/performance', rotuloDe: 'De (data do turno)' },
-  { rota: '/hub/dashboard/faturamento', rotuloDe: 'De (data de competência)' },
+  { rota: '/hub/dashboard/auditoria', rotuloDe: 'De', ecoSemPeriodo: 'Exibindo todo o período disponível.' },
+  { rota: '/hub/dashboard/importacoes', rotuloDe: 'De', ecoSemPeriodo: 'Exibindo todo o período disponível.' },
+  { rota: '/hub/dashboard/performance', rotuloDe: 'De (data do turno)', ecoSemPeriodo: 'Exibindo todo o período disponível.' },
+  {
+    rota: '/hub/dashboard/faturamento',
+    rotuloDe: 'De (data de competência)',
+    ecoSemPeriodo: 'Exibindo os últimos 30 dias — informe um período para ver além disso.',
+  },
 ];
 
 test.describe('impeccable rodada 3 — A) filtro de período com presets', () => {
   test.use({ storageState: ADMIN_STATE, viewport: DESKTOP });
 
-  for (const { rota, rotuloDe } of MODULOS_COM_PERIODO) {
+  for (const { rota, rotuloDe, ecoSemPeriodo } of MODULOS_COM_PERIODO) {
     test(`${rota}: os 4 chips existem e "Este mês" preenche de/até`, async ({ page }) => {
       await page.goto(rota);
 
@@ -42,7 +53,7 @@ test.describe('impeccable rodada 3 — A) filtro de período com presets', () =>
       const campoAte = page.getByLabel(rotuloDe.replace('De', 'Até'), { exact: true });
       // Estado inicial: sem período, e o texto de apoio diz isso.
       await expect(campoDe).toHaveValue('');
-      await expect(page.getByText('Exibindo todo o período disponível.')).toBeVisible();
+      await expect(page.getByText(ecoSemPeriodo)).toBeVisible();
 
       const chipMes = page.getByRole('button', { name: 'Este mês', exact: true });
       await expect(chipMes).toHaveAttribute('aria-pressed', 'false');
