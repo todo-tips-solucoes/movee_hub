@@ -12,13 +12,14 @@
 // Ref: docs/specs/hub-faturamento/plan.md §Plano por fases item 6,
 // contracts/faturamento-api.md, quickstart.md Cenários 5/6/10/12/14.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { EmptyState } from '@/components/hub/empty-state';
+import { CoberturaPeriodo } from '@/components/hub/cobertura-periodo';
 import { SelectFiltro } from '@/components/hub/select-filtro';
 import { KpiCard } from '@/components/hub/kpi-card';
 import { PaginationControls } from '@/components/pagination-controls';
@@ -58,7 +59,6 @@ import {
 } from '@/lib/hub/faturamento-api';
 import { EntregadorCombobox } from '@/components/hub/entregador-combobox';
 import type {
-  FaturamentoGroupBy,
   FaturamentoListItem,
   FaturamentoResumoCards,
   FaturamentoResumoGrupo,
@@ -108,6 +108,7 @@ export function useFaturamentoLista() {
   const [items, setItems] = useState<FaturamentoListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [cards, setCards] = useState<FaturamentoResumoCards>(CARDS_INICIAIS);
+  const [agregados, setAgregados] = useState<FaturamentoResumoCards | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -131,18 +132,32 @@ export function useFaturamentoLista() {
     setCarregando(true);
     setErro(null);
     try {
-      const [respostaLista, respostaCards] = await Promise.all([
-        listarFaturamento({ ...filtrosApi(), page, pageSize: PAGE_SIZE }),
-        obterFaturamentoResumo(filtrosApi()),
+      // impeccable r23: a 3ª chamada traz SÓ os agregados/bônus, para o card
+      // dizer quanto do total não veio de corrida (o eixo de risco da
+      // conferência). Só é feita quando o operador ainda não filtrou por tipo
+      // — filtrado, o recorte seria o próprio total e a chamada, desperdício.
+      // Lido de `filtrosApi()` e não de `filtrosDebounced`: é a mesma
+      // informação, e assim o `useCallback` abaixo não ganha uma dependência
+      // nova que o lint teria de perseguir.
+      const f = filtrosApi();
+      const filtroDeTipoAtivo = f.comEntregador !== undefined;
+      const [respostaLista, respostaCards, respostaAgregados] = await Promise.all([
+        listarFaturamento({ ...f, page, pageSize: PAGE_SIZE }),
+        obterFaturamentoResumo(f),
+        filtroDeTipoAtivo
+          ? Promise.resolve(null)
+          : obterFaturamentoResumo({ ...f, comEntregador: false }),
       ]);
       setItems(respostaLista.items);
       setTotal(respostaLista.total);
       setCards(respostaCards);
+      setAgregados(respostaAgregados);
     } catch (e) {
       setErro(e instanceof FaturamentoApiError ? e.message : 'Não foi possível carregar o faturamento.');
       setItems([]);
       setTotal(0);
       setCards(CARDS_INICIAIS);
+      setAgregados(null);
     } finally {
       setCarregando(false);
     }
@@ -188,11 +203,40 @@ export function useFaturamentoLista() {
     items,
     total,
     cards,
+    agregados,
     carregando,
     erro,
     filtrosApi,
     refetch: buscar,
   };
+}
+
+/**
+ * As três datas de um lançamento (impeccable r23). Rótulo curto antes de cada
+ * uma porque "01/07 · 01/07 · 06/07" sem legenda é indistinguível de ruído — e
+ * a que interessa na hora de pagar (repasse) é a última, não a primeira.
+ *
+ * Lançamento e repasse são anuláveis no contrato; ausente vira "—" e não some,
+ * senão a linha muda de forma entre registros e o olho perde a referência.
+ */
+function CicloDatas({ item }: { item: FaturamentoListItem }) {
+  const linhas: [string, string | null][] = [
+    ['Competência', item.dataReferencia],
+    ['Lançamento', item.dataLancamento],
+    ['Repasse', item.dataRepasse],
+  ];
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-1.5 text-xs leading-relaxed">
+      {linhas.map(([rotulo, valor]) => (
+        <Fragment key={rotulo}>
+          <dt className="text-muted-foreground">{rotulo}</dt>
+          <dd className={rotulo === 'Repasse' ? 'font-medium tabular-nums' : 'tabular-nums'}>
+            {valor ? formatDateBR(valor) : '—'}
+          </dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
 }
 
 function EntregadorCelula({ item, podeVerDetalhe }: { item: FaturamentoListItem; podeVerDetalhe: boolean }) {
@@ -213,20 +257,42 @@ function EntregadorCelula({ item, podeVerDetalhe }: { item: FaturamentoListItem;
   return <span className="text-sm">{item.entregadorNome ?? `#${item.entregadorId}`}</span>;
 }
 
-function CardsResumo({ cards }: { cards: FaturamentoResumoCards }) {
+function CardsResumo({
+  cards,
+  agregados,
+  filtroDeTipoAtivo,
+}: {
+  cards: FaturamentoResumoCards;
+  /** Resumo só dos lançamentos SEM entregador (agregados/bônus). `null`
+   *  enquanto carrega ou quando não se aplica. */
+  agregados: FaturamentoResumoCards | null;
+  /** O operador já filtrou por tipo de lançamento — o recorte
+   *  corrida × agregados perde o sentido e sai da tela. */
+  filtroDeTipoAtivo: boolean;
+}) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <KpiCard label="Total geral" value={formatBRL(cards.totalGeral)} icon={Receipt} />
-      <KpiCard
-        label="Categoria de maior valor"
-        value={cards.categoriaMaiorValor ?? '—'}
-        icon={Tag}
-      />
-      <KpiCard
-        label="Entregadores distintos"
-        value={cards.entregadoresDistintos}
-        icon={Users}
-      />
+      {/* impeccable r23: "Categoria de maior valor" respondia uma curiosidade;
+          o que a conferência precisa saber é quanto do total NÃO veio de
+          corrida. Agregado/bônus é onde mora o valor que ninguém dirigiu para
+          receber — é ali que um erro de importação vira dinheiro pago a mais.
+          O número é do backend (mesma rota, `comEntregador=false`), não uma
+          subtração feita aqui: o contrato proíbe somar dinheiro no cliente. */}
+      {filtroDeTipoAtivo ? (
+        <KpiCard
+          label="Categoria de maior valor"
+          value={cards.categoriaMaiorValor ?? '—'}
+          icon={Tag}
+        />
+      ) : (
+        <KpiCard
+          label="Agregados/bônus"
+          value={agregados ? formatBRL(agregados.totalGeral) : '—'}
+          icon={Tag}
+        />
+      )}
+      <KpiCard label="Entregadores distintos" value={cards.entregadoresDistintos} icon={Users} />
     </div>
   );
 }
@@ -235,8 +301,15 @@ function CardsResumo({ cards }: { cards: FaturamentoResumoCards }) {
  * `GET /faturamento/resumo?groupBy=...` (agregação 100% no backend, mesmos
  * filtros da lista; endpoint já existia no contrato e estava sem consumidor). */
 function DistribuicaoFaturamento({ filtrosApi }: { filtrosApi: () => FaturamentoFiltros }) {
-  const [groupBy, setGroupBy] = useState<Extract<FaturamentoGroupBy, 'categoria' | 'dia'>>('categoria');
   const [grupos, setGrupos] = useState<FaturamentoResumoGrupo[]>([]);
+  // impeccable r23: o agrupamento por dia deixou de ser uma opção do gráfico e
+  // virou a faixa de cobertura, que é cronológica e mostra a lacuna. Os dois
+  // recortes respondem perguntas diferentes e agora convivem em vez de se
+  // excluírem num toggle: "o período está completo?" e "onde está o dinheiro?".
+  const [dias, setDias] = useState<FaturamentoResumoGrupo[]>([]);
+  const [intervalo, setIntervalo] = useState<{ de: string; ate: string; derivado: boolean } | null>(
+    null
+  );
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -244,16 +317,31 @@ function DistribuicaoFaturamento({ filtrosApi }: { filtrosApi: () => Faturamento
   const buscar = useCallback(async () => {
     setCarregando(true);
     setErro(null);
+    const f = filtrosApi();
     try {
-      const r = await obterFaturamentoResumoAgrupado(groupBy, filtrosApi());
-      setGrupos(r.grupos);
+      const [porCategoria, porDia] = await Promise.all([
+        obterFaturamentoResumoAgrupado('categoria', f),
+        obterFaturamentoResumoAgrupado('dia', f),
+      ]);
+      setGrupos(porCategoria.grupos);
+      setDias(porDia.grupos);
+      // Sem filtro de competência, o intervalo vem dos próprios dados — e aí
+      // as bordas não são afirmáveis: um dia faltante ANTES do primeiro
+      // lançamento é indistinguível de "o período começa aqui". A faixa diz
+      // isso em vez de fingir que sabe.
+      const chaves = porDia.grupos.map((g) => g.chave).sort();
+      const de = f.de ?? chaves[0];
+      const ate = f.ate ?? chaves[chaves.length - 1];
+      setIntervalo(de && ate ? { de, ate, derivado: !f.de || !f.ate } : null);
     } catch (e) {
       setGrupos([]);
+      setDias([]);
+      setIntervalo(null);
       setErro(e instanceof FaturamentoApiError ? e.message : 'Não foi possível carregar a distribuição.');
     } finally {
       setCarregando(false);
     }
-  }, [groupBy, filtrosApi]);
+  }, [filtrosApi]);
 
   useEffect(() => {
     buscar();
@@ -262,63 +350,76 @@ function DistribuicaoFaturamento({ filtrosApi }: { filtrosApi: () => Faturamento
   // Ordenação SÓ de apresentação (o valor exibido segue sendo a string do
   // backend): categoria = maiores primeiro; dia = cronológico pela chave.
   const dados = [...grupos]
-    .sort((a, b) =>
-      groupBy === 'dia' ? a.chave.localeCompare(b.chave) : parseFloat(b.total) - parseFloat(a.total)
-    )
+    .sort((a, b) => parseFloat(b.total) - parseFloat(a.total))
     .map((g) => ({
       chave: g.chave,
-      rotulo: groupBy === 'dia' ? formatDateBR(g.chave) || g.rotulo : g.rotulo,
+      rotulo: g.rotulo,
       valor: parseFloat(g.total) || 0,
       valorFormatado: formatBRL(g.total),
     }));
 
-  return (
-    <Card size="sm">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-        <CardTitle className="text-sm text-muted-foreground">Distribuição do faturamento</CardTitle>
-        <div className="flex gap-1" role="group" aria-label="Agrupar distribuição por">
-          <Button
-            size="sm"
-            variant={groupBy === 'categoria' ? 'default' : 'outline'}
-            className="min-h-11 sm:min-h-7"
-            aria-pressed={groupBy === 'categoria'}
-            onClick={() => setGroupBy('categoria')}
-          >
-            Por categoria
-          </Button>
-          <Button
-            size="sm"
-            variant={groupBy === 'dia' ? 'default' : 'outline'}
-            className="min-h-11 sm:min-h-7"
-            aria-pressed={groupBy === 'dia'}
-            onClick={() => setGroupBy('dia')}
-          >
-            Por dia
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {carregando ? (
-          <div role="status" className="flex flex-col gap-2 py-1" aria-label="Carregando distribuição...">
-            {Array.from({ length: 4 }, (_, i) => (
+  const diasCobertura = dias.map((g) => ({
+    chave: g.chave,
+    total: g.total,
+    totalFormatado: formatBRL(g.total),
+    quantidade: g.quantidade,
+  }));
+
+  if (carregando) {
+    return (
+      <Card size="sm">
+        <CardContent>
+          <div role="status" className="flex flex-col gap-2 py-1" aria-label="Carregando conferência...">
+            {Array.from({ length: 5 }, (_, i) => (
               <Skeleton key={i} className="h-4 w-full" />
             ))}
           </div>
-        ) : erro ? (
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (erro) {
+    return (
+      <Card size="sm">
+        <CardContent>
           <p role="alert" className="py-4 text-center text-sm text-destructive">
             {erro}
           </p>
-        ) : (
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Primeiro a pergunta de conferência ("o período está completo?"),
+          depois a de leitura ("onde está o dinheiro?"). Um dia faltando
+          invalida qualquer conclusão sobre a distribuição, então vem antes. */}
+      {intervalo && (
+        <CoberturaPeriodo
+          de={intervalo.de}
+          ate={intervalo.ate}
+          dias={diasCobertura}
+          intervaloDerivado={intervalo.derivado}
+        />
+      )}
+
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="text-sm text-muted-foreground">Faturamento por categoria</CardTitle>
+        </CardHeader>
+        <CardContent>
           <HorizontalBarChart
-            titulo={groupBy === 'categoria' ? 'Faturamento por categoria' : 'Faturamento por dia'}
+            titulo="Faturamento por categoria"
             dados={dados}
             corVar="--chart-1"
             // impeccable r22 (P3): mesma frase da lista logo abaixo.
             mensagemVazia="Nenhum lançamento no período selecionado."
           />
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -393,7 +494,11 @@ export default function FaturamentoPage() {
       {h.carregando ? (
         <KpiSkeleton label="Carregando indicadores de faturamento..." cards={3} />
       ) : (
-        <CardsResumo cards={h.cards} />
+        <CardsResumo
+          cards={h.cards}
+          agregados={h.agregados}
+          filtroDeTipoAtivo={h.filtros.comEntregador !== ''}
+        />
       )}
 
       {/* impeccable r22 (P2): os filtros vinham DEPOIS do gráfico que eles
@@ -427,6 +532,9 @@ export default function FaturamentoPage() {
             rotuloDe="De (data de competência)"
             rotuloAte="Até (data de competência)"
             legenda="de competência"
+            // O backend aplica 30 dias quando nenhum período é informado
+            // (`JANELA_PADRAO_DIAS`, lib/hub-faturamento-dto.js).
+            janelaPadraoDias={30}
           />
 
           <div className="flex flex-col gap-1">
@@ -581,7 +689,9 @@ export default function FaturamentoPage() {
                   <span className="font-medium">{item.categoria ?? '-'}</span>
                   <span className="font-mono text-sm">{formatBRL(item.valor)}</span>
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">{formatDateBR(item.dataReferencia)}</div>
+                <div className="mt-1">
+                  <CicloDatas item={item} />
+                </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <EntregadorCelula item={item} podeVerDetalhe={podeVerDetalheMotorista} />
                 </div>
@@ -599,7 +709,14 @@ export default function FaturamentoPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data referência</TableHead>
+                  {/* impeccable r23: a API entrega TRÊS datas (competência,
+                      lançamento, repasse) e a tela mostrava só a primeira — as
+                      outras duas chegavam no payload e eram descartadas. Quem
+                      confere antes de pagar precisa das três: quando o
+                      trabalho aconteceu, quando entrou no sistema e quando o
+                      dinheiro sai. Uma coluna só, três linhas rotuladas, em
+                      vez de três colunas competindo por largura. */}
+                  <TableHead>Ciclo do lançamento</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Entregador</TableHead>
@@ -611,7 +728,9 @@ export default function FaturamentoPage() {
               <TableBody>
                 {h.items.map((item) => (
                   <TableRow key={item.id} className="hover:bg-muted/50">
-                    <TableCell className="text-sm">{formatDateBR(item.dataReferencia)}</TableCell>
+                    <TableCell className="text-sm">
+                      <CicloDatas item={item} />
+                    </TableCell>
                     <TableCell className="max-w-[220px] truncate">{item.categoria ?? '-'}</TableCell>
                     <TableCell className="text-right font-mono">{formatBRL(item.valor)}</TableCell>
                     <TableCell>

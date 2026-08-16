@@ -38,6 +38,10 @@ export interface PeriodFilterProps {
   /** Descreve a qual data o intervalo se aplica (ex.: "de competência").
    * Vira o texto de apoio dos chips, para o operador não confundir a base. */
   legenda?: string;
+  /** Janela que o BACKEND aplica quando nenhum período é informado (em dias).
+   *  Omitida: a rota realmente devolve tudo. Ver o comentário do eco abaixo —
+   *  afirmar "todo o período" onde a API corta é mentir para quem confere. */
+  janelaPadraoDias?: number;
   className?: string;
 }
 
@@ -49,6 +53,7 @@ export function PeriodFilter({
   rotuloDe = 'De',
   rotuloAte = 'Até',
   legenda,
+  janelaPadraoDias,
   className,
 }: PeriodFilterProps) {
   // Último chip clicado — usado SÓ para desempatar quando dois presets geram o
@@ -156,6 +161,20 @@ export function PeriodFilter({
       ) : ateBR ? (
         <p className="text-xs text-muted-foreground">
           Exibindo até <strong className="font-medium text-foreground">{ateBR}</strong>.
+        </p>
+      ) : janelaPadraoDias ? (
+        // impeccable r23 — MENTIRA CORRIGIDA. Sem `de`/`ate`, o backend NÃO
+        // devolve tudo: aplica `JANELA_PADRAO_DIAS = 30`
+        // (lib/hub-faturamento-dto.js, idem performance). A tela dizia
+        // "Exibindo todo o período disponível" e mostrava 30 dias — pego na
+        // verificação em tela: a base de QA tem R$ 21.159,34 em 220
+        // lançamentos e o total aparecia como R$ 0,00, porque nada caía nos
+        // últimos 30 dias. Numa tela usada para conferir antes de pagar,
+        // acreditar que se está vendo tudo é o pior defeito possível.
+        <p className="text-xs text-muted-foreground">
+          Exibindo os últimos{' '}
+          <strong className="font-medium text-foreground">{janelaPadraoDias} dias</strong> — informe
+          um período para ver além disso.
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">Exibindo todo o período disponível.</p>
