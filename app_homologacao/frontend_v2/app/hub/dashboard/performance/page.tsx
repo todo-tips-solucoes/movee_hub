@@ -20,6 +20,7 @@ import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { EmptyState } from '@/components/hub/empty-state';
+import { FunilCorridas } from '@/components/hub/funil-corridas';
 import { SelectFiltro } from '@/components/hub/select-filtro';
 import { KpiCard } from '@/components/hub/kpi-card';
 import { PaginationControls } from '@/components/pagination-controls';
@@ -28,6 +29,7 @@ import { KpiSkeleton, ListSkeleton } from '@/components/hub/table-skeleton';
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronRight,
   Clock,
   Download,
   Percent,
@@ -204,6 +206,38 @@ export function usePerformanceLista() {
   };
 }
 
+/**
+ * Nome do entregador, navegável para a ficha (impeccable r24).
+ *
+ * Isto REVERTE a research Decision 11 desta feature ("NENHUM link para
+ * /hub/dashboard/motoristas/:id — o nome aqui é texto simples, nunca
+ * navegável"), por decisão explícita do operador em 2026-08-16: chegar à
+ * pessoa a partir do desempenho do turno passou a ser necessário. O gate de
+ * permissão é o mesmo do faturamento (`motoristas.consultar`) — sem ele, o
+ * nome volta a ser texto, e ninguém é mandado para um 403.
+ */
+function EntregadorNome({
+  item,
+  podeVerDetalhe,
+}: {
+  item: PerformanceListItem;
+  podeVerDetalhe: boolean;
+}) {
+  const rotulo = item.entregadorNome ?? `#${item.entregadorId}`;
+  if (!podeVerDetalhe || item.entregadorId === null) {
+    return <span className="text-sm">{rotulo}</span>;
+  }
+  return (
+    <Link
+      href={`/hub/dashboard/motoristas/${item.entregadorId}`}
+      className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+    >
+      {rotulo}
+      <ChevronRight className="size-3.5" aria-hidden="true" />
+    </Link>
+  );
+}
+
 function CardsResumo({ cards }: { cards: PerformanceResumoCards }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -327,6 +361,8 @@ export default function PerformancePage() {
   const podeExportar = permissoes.includes('performance.exportar');
   // impeccable r22 (P2): saída do estado vazio — ver o `EmptyState` abaixo.
   const podeImportar = permissoes.includes('importacoes.consultar');
+  // impeccable r24: mesmo gate do faturamento para chegar à ficha da pessoa.
+  const podeVerDetalheMotorista = permissoes.includes('motoristas.consultar');
   const h = usePerformanceLista();
   // impeccable r22 (P2): idem faturamento — ver o `EmptyState` mais abaixo.
   const temFiltroAtivo = Object.entries(h.filtros).some(
@@ -416,6 +452,10 @@ export default function PerformancePage() {
             rotuloDe="De (data do turno)"
             rotuloAte="Até (data do turno)"
             legenda="do turno"
+            // Mesma janela do faturamento: `JANELA_PADRAO_DIAS = 30` em
+            // lib/hub-performance-dto.js. A tela dizia "todo o período
+            // disponível" e mostrava 30 dias (impeccable r23/r24).
+            janelaPadraoDias={30}
           />
 
           <div className="flex flex-col gap-1">
@@ -544,7 +584,9 @@ export default function PerformancePage() {
             {h.items.map((item) => (
               <div key={item.id} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{item.entregadorNome ?? `#${item.entregadorId}`}</span>
+                  <span className="font-medium">
+                    <EntregadorNome item={item} podeVerDetalhe={podeVerDetalheMotorista} />
+                  </span>
                   <span className="font-mono text-sm">{formatBRL(item.taxas)}</span>
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
@@ -576,11 +618,12 @@ export default function PerformancePage() {
                   <TableHead>Entregador</TableHead>
                   <TableHead>Subpraça</TableHead>
                   <TableHead>Praça</TableHead>
-                  <TableHead className="text-right">Ofertadas</TableHead>
-                  <TableHead className="text-right">Aceitas</TableHead>
-                  <TableHead className="text-right">Rejeitadas</TableHead>
-                  <TableHead className="text-right">Completadas</TableHead>
-                  <TableHead className="text-right">Canceladas</TableHead>
+                  {/* impeccable r24: eram cinco colunas de contador solto —
+                      Ofertadas/Aceitas/Rejeitadas/Completadas/Canceladas —
+                      que na verdade são UM funil. Ler os cinco números e
+                      montar a história era trabalho empurrado para a pessoa,
+                      e a tabela tinha 13 colunas fixas sem controle nenhum. */}
+                  <TableHead>Funil de corridas</TableHead>
                   <TableHead className="text-right">Pedidos concl.</TableHead>
                   <TableHead className="text-right">Tempo disp.</TableHead>
                   <TableHead className="text-right">Taxas</TableHead>
@@ -593,14 +636,22 @@ export default function PerformancePage() {
                     <TableCell className="max-w-[180px] truncate text-sm text-muted-foreground">
                       {item.periodo ?? '-'}
                     </TableCell>
-                    <TableCell className="text-sm">{item.entregadorNome ?? `#${item.entregadorId}`}</TableCell>
+                    <TableCell className="text-sm">
+                      <EntregadorNome item={item} podeVerDetalhe={podeVerDetalheMotorista} />
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{item.subpraca ?? '-'}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{item.praca ?? '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{formatInt(item.corridasOfertadas)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatInt(item.corridasAceitas)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatInt(item.corridasRejeitadas)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatInt(item.corridasCompletadas)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatInt(item.corridasCanceladas)}</TableCell>
+                    <TableCell>
+                      <FunilCorridas
+                        dados={{
+                          ofertadas: item.corridasOfertadas,
+                          aceitas: item.corridasAceitas,
+                          rejeitadas: item.corridasRejeitadas,
+                          completadas: item.corridasCompletadas,
+                          canceladas: item.corridasCanceladas,
+                        }}
+                      />
+                    </TableCell>
                     <TableCell className="text-right font-mono">{formatInt(item.pedidosConcluidos)}</TableCell>
                     <TableCell className="text-right">{formatPontoPct(item.tempoDisponivelPct)}</TableCell>
                     <TableCell className="text-right font-mono">{formatBRL(item.taxas)}</TableCell>
