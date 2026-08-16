@@ -26,11 +26,17 @@ const MOBILE = { width: 390, height: 844 };
 // (lib/hub-faturamento-dto.js), então a tela mostrava 30 dias enquanto
 // prometia tudo. Pego em tela real: base com R$ 21.159,34 e total lido
 // R$ 0,00. As demais rotas seguem com a frase antiga até que a janela real de
-// cada uma seja conferida — performance tem o mesmo default e é a próxima.
+// cada uma seja conferida. Performance entrou na r24; auditoria e importações
+// seguem pendentes de conferir a janela real de cada rota.
 const MODULOS_COM_PERIODO = [
   { rota: '/hub/dashboard/auditoria', rotuloDe: 'De', ecoSemPeriodo: 'Exibindo todo o período disponível.' },
   { rota: '/hub/dashboard/importacoes', rotuloDe: 'De', ecoSemPeriodo: 'Exibindo todo o período disponível.' },
-  { rota: '/hub/dashboard/performance', rotuloDe: 'De (data do turno)', ecoSemPeriodo: 'Exibindo todo o período disponível.' },
+  {
+    rota: '/hub/dashboard/performance',
+    rotuloDe: 'De (data do turno)',
+    // r24: mesma janela real de 30 dias do faturamento (hub-performance-dto.js).
+    ecoSemPeriodo: 'Exibindo os últimos 30 dias — informe um período para ver além disso.',
+  },
   {
     rota: '/hub/dashboard/faturamento',
     rotuloDe: 'De (data de competência)',
