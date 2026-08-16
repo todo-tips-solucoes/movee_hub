@@ -21,6 +21,11 @@ const VERBOS: Record<string, string> = {
   gerenciar: 'Administrar tudo do módulo',
   credencial: 'Emitir credencial do app',
   validar: 'Validar arquivos XML',
+  // impeccable r24 parte 2 (migration 0048). Sem esta linha a permissão nova
+  // aparece como CÓDIGO CRU na matriz de papéis — foi o `impeccable-rodada10`
+  // que pegou, e é o gate funcionando: permissão nova sem rótulo é regressão
+  // de produto, não detalhe de tradução.
+  metas_gerenciar: 'Definir metas por praça e turno',
   // `consultar` fica fora do mapa de propósito: é o único que depende do
   // contexto do módulo. Ver `rotuloPermissao`.
 };

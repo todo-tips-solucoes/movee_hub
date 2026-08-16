@@ -13,7 +13,7 @@
 // Ref: docs/specs/hub-performance/plan.md "Plano por fases" passo 5,
 // contracts/performance-api.md, quickstart.md Cenários 5/6/10/12/14.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
@@ -21,6 +21,14 @@ import { PageHeader } from '@/components/hub/page-header';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { EmptyState } from '@/components/hub/empty-state';
 import { FunilCorridas } from '@/components/hub/funil-corridas';
+import { MetaBadge } from '@/components/hub/meta-badge';
+import {
+  INDICADORES_META,
+  chaveMeta,
+  leiturasDoRegistro,
+  listarMetas,
+  type MetaPerformance,
+} from '@/lib/hub/performance-metas-api';
 import { SelectFiltro } from '@/components/hub/select-filtro';
 import { KpiCard } from '@/components/hub/kpi-card';
 import { PaginationControls } from '@/components/pagination-controls';
@@ -33,6 +41,7 @@ import {
   Clock,
   Download,
   Percent,
+  Target,
   TrendingUp,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -238,6 +247,37 @@ function EntregadorNome({
   );
 }
 
+/**
+ * As marcas de meta de um registro (impeccable r24 parte 2). Fica ao lado do
+ * funil porque é o mesmo assunto: o funil diz o que aconteceu, a marca diz se
+ * aquilo cumpre o combinado. Silenciosa quando não há meta configurada ou
+ * quando falta leitura — ver `MetaBadge`.
+ */
+function MarcasDeMeta({
+  item,
+  metasPorChave,
+}: {
+  item: PerformanceListItem;
+  metasPorChave: Map<string, number>;
+}) {
+  const leituras = leiturasDoRegistro(item);
+  const marcas = INDICADORES_META.map((ind) => ({
+    id: ind.id,
+    rotulo: ind.rotulo,
+    valor: leituras[ind.id],
+    meta: metasPorChave.get(chaveMeta(item.praca ?? '', item.periodo ?? '', ind.id)),
+  })).filter((m) => m.valor !== null && m.meta !== undefined);
+
+  if (marcas.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      {marcas.map((m) => (
+        <MetaBadge key={m.id} valor={m.valor} meta={m.meta} rotulo={m.rotulo} />
+      ))}
+    </div>
+  );
+}
+
 function CardsResumo({ cards }: { cards: PerformanceResumoCards }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -363,6 +403,24 @@ export default function PerformancePage() {
   const podeImportar = permissoes.includes('importacoes.consultar');
   // impeccable r24: mesmo gate do faturamento para chegar à ficha da pessoa.
   const podeVerDetalheMotorista = permissoes.includes('motoristas.consultar');
+  const podeGerenciarMetas = permissoes.includes('performance.metas_gerenciar');
+
+  // impeccable r24 parte 2: as metas do cruzamento praça × turno. Carregadas
+  // uma vez (são poucas por entidade) e casadas por linha no render. Falha ao
+  // carregar NÃO quebra a tela nem inventa aprovação: sem meta, nenhum
+  // julgamento é emitido — que é exatamente o estado de quem nunca configurou.
+  const [metas, setMetas] = useState<MetaPerformance[]>([]);
+  useEffect(() => {
+    let ativo = true;
+    listarMetas()
+      .then((m) => { if (ativo) setMetas(m); })
+      .catch(() => { if (ativo) setMetas([]); });
+    return () => { ativo = false; };
+  }, []);
+  const metasPorChave = useMemo(
+    () => new Map(metas.map((m) => [chaveMeta(m.praca, m.periodo, m.indicador), m.valor])),
+    [metas]
+  );
   const h = usePerformanceLista();
   // impeccable r22 (P2): idem faturamento — ver o `EmptyState` mais abaixo.
   const temFiltroAtivo = Object.entries(h.filtros).some(
@@ -400,6 +458,19 @@ export default function PerformancePage() {
   return (
     <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader titulo="Performance" subtitulo="Registros de turno importados: ofertas, aceites, conclusões e tempo disponível por entregador.">
+        {podeGerenciarMetas && (
+          <Link
+            href="/hub/dashboard/performance/metas"
+            className={buttonVariants({
+              variant: 'outline',
+              size: 'sm',
+              className: 'min-h-11 gap-1.5 sm:min-h-8',
+            })}
+          >
+            <Target className="size-4" aria-hidden="true" />
+            Metas
+          </Link>
+        )}
         {podeExportar && (
           <Button
             size="sm"
@@ -651,6 +722,7 @@ export default function PerformancePage() {
                           canceladas: item.corridasCanceladas,
                         }}
                       />
+                      <MarcasDeMeta item={item} metasPorChave={metasPorChave} />
                     </TableCell>
                     <TableCell className="text-right font-mono">{formatInt(item.pedidosConcluidos)}</TableCell>
                     <TableCell className="text-right">{formatPontoPct(item.tempoDisponivelPct)}</TableCell>
