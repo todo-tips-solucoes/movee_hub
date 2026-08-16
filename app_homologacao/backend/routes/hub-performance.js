@@ -20,6 +20,7 @@ const { obterPermissoesEfetivas, obterPermissoesEfetivasPorEntidade } = require(
 const { requirePermission } = require('../middleware/hub-require-permission');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { escaparCelulaCsvInjection, quotarCelulaCsv } = require('../lib/hub-csv');
+const { validarMeta } = require('../lib/hub-performance-meta');
 const {
   parseFiltros,
   parsePaginacao,
@@ -430,6 +431,154 @@ router.get('/resumo', requirePermission('performance.consultar'), async (req, re
     });
   } catch (e) {
     console.error('[hub-performance] erro em GET /performance/resumo:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// Metas por praça × turno (impeccable r24 parte 2, migration 0048)
+//
+// Decisão do operador (2026-08-16): o patamar é contratual, varia por praça E
+// turno, e quem define é o ADMIN DA ENTIDADE — daí a permissão própria
+// `performance.metas_gerenciar`, separada de `performance.consultar` (ver a
+// meta na tela não é o mesmo que mudá-la).
+//
+// LER as metas exige só `performance.consultar`: a tela de performance precisa
+// delas para marcar quem está abaixo, e negar a leitura a quem já vê os
+// números tornaria a marcação impossível sem ganhar nenhuma proteção.
+// ---------------------------------------------------------------------------
+
+const COLUNAS_META = 'id,praca,periodo,indicador,valor,atualizado_em';
+
+router.get('/metas', requirePermission('performance.consultar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'performance.consultar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    // Sem barra inicial: o helper faz `${baseUrl}/${endpoint}` e uma barra
+    // aqui produz `//PerformanceMeta`, que o PostgREST rejeita com PGRST125
+    // ("Invalid path"). Todos os endpoints do repo são nomes de tabela nus.
+    const linhas = await hubPostgrestRequest(
+      `PerformanceMeta?id_empresa=eq.${entidadeAtiva}&select=${COLUNAS_META}&order=praca.asc,periodo.asc,indicador.asc`,
+      'GET',
+      null,
+      claims
+    );
+
+    return res.json({
+      metas: (Array.isArray(linhas) ? linhas : []).map((l) => ({
+        id: l.id,
+        praca: l.praca,
+        periodo: l.periodo,
+        indicador: l.indicador,
+        // `valor` é numeric no banco e chega como string do PostgREST. Sai
+        // como string pelo mesmo motivo do resto do hub: quem formata é a
+        // tela, e converter aqui abriria espaço para perda de precisão sem
+        // nenhum ganho.
+        valor: String(l.valor),
+        atualizadoEm: l.atualizado_em,
+      })),
+    });
+  } catch (e) {
+    console.error('[hub-performance] erro em GET /performance/metas:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+router.put('/metas', requirePermission('performance.metas_gerenciar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'performance.metas_gerenciar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims, payload } = ctx;
+
+    const v = validarMeta(req.body);
+    if (!v.ok) return res.status(400).json({ erro: v.erro });
+    const { praca, periodo, indicador, valor } = v.meta;
+
+    // Upsert pela unique (id_empresa, praca, periodo, indicador) da 0048:
+    // definir a meta duas vezes é a mesma operação, não um erro.
+    const linhas = await hubPostgrestRequest(
+      'PerformanceMeta?on_conflict=id_empresa,praca,periodo,indicador',
+      'POST',
+      { id_empresa: entidadeAtiva, praca, periodo, indicador, valor, atualizado_em: new Date().toISOString() },
+      claims,
+      // `resolution` e não um header cru: `hubPostgrestRequest` monta o
+      // `Prefer` internamente e IGNORA qualquer `opts.headers` — passar o
+      // header à mão seria silenciosamente descartado, e o upsert viraria um
+      // INSERT que estoura chave duplicada na segunda gravação.
+      { resolution: 'merge-duplicates' }
+    );
+
+    const salva = Array.isArray(linhas) ? linhas[0] : linhas;
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: payload && payload.sub ? Number(payload.sub) : null,
+      acao: 'performance_meta_definida',
+      recurso: 'PerformanceMeta',
+      recursoId: salva ? salva.id : null,
+      detalhes: { praca, periodo, indicador, valor },
+      ip: req.ip,
+      claims,
+    });
+
+    return res.json({
+      meta: {
+        id: salva ? salva.id : null,
+        praca,
+        periodo,
+        indicador,
+        valor: String(valor),
+        atualizadoEm: salva ? salva.atualizado_em : null,
+      },
+    });
+  } catch (e) {
+    console.error('[hub-performance] erro em PUT /performance/metas:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+router.delete('/metas/:id', requirePermission('performance.metas_gerenciar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'performance.metas_gerenciar');
+    if (!ctx) return;
+    const { entidadeAtiva, claims, payload } = ctx;
+
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'ID_INVALIDO' });
+
+    // `id_empresa` no filtro além do id: a RLS já barra fora do escopo, mas
+    // depender só dela faria um id de outra entidade responder 204 sem apagar
+    // nada — silêncio que o operador leria como sucesso.
+    const apagadas = await hubPostgrestRequest(
+      `PerformanceMeta?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=${COLUNAS_META}`,
+      'DELETE',
+      null,
+      claims
+      // `return=representation` já é o padrão do helper — é ele que faz o
+      // DELETE devolver a linha apagada, que é como se distingue "apagou" de
+      // "não existia".
+    );
+
+    const linha = Array.isArray(apagadas) ? apagadas[0] : null;
+    if (!linha) return res.status(404).json({ erro: 'META_NAO_ENCONTRADA' });
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: payload && payload.sub ? Number(payload.sub) : null,
+      acao: 'performance_meta_removida',
+      recurso: 'PerformanceMeta',
+      recursoId: id,
+      detalhes: { praca: linha.praca, periodo: linha.periodo, indicador: linha.indicador },
+      ip: req.ip,
+      claims,
+    });
+
+    return res.status(204).end();
+  } catch (e) {
+    console.error('[hub-performance] erro em DELETE /performance/metas/:id:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
