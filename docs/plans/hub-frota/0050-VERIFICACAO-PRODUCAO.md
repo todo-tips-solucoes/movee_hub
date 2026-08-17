@@ -40,6 +40,30 @@ fatos). Rollback: a migration é aditiva na tabela (`DROP COLUMN
 tempo_disponivel_periodo_pct` desfaz) e a MV/RPCs voltam reaplicando o corpo da
 0031.
 
+## 2.1 ORDEM DE APLICAÇÃO — inverter quebra a tela
+
+A imagem nova do backend pede a coluna `tempo_disponivel_periodo_pct` no
+`select=` do PostgREST. Enquanto o **cache de schema** do PostgREST não conhecer
+essa coluna, `GET /performance` e o export CSV respondem **400** — tela de
+Performance vazia para o cliente. A ordem não é preferência, é dependência:
+
+| # | passo | por quê |
+|---|-------|---------|
+| 1 | aplicar a **0050** no `chatmasterveloz` (5 gates, fora da janela de importação) | cria a coluna e recria a MV/RPCs |
+| 2 | `docker kill -s SIGUSR1 $(docker ps -qf name=pgadmin_postgrest)` | sem o reload, a coluna existe no banco e **não existe para a API** |
+| 3 | provar que a API enxerga a coluna (§3 abaixo, ou um `GET /performance` de smoke) | HTTP 200 do serviço não prova que o schema recarregou |
+| 4 | só então buildar/deployar a imagem do backend a partir da `main` mergeada | é o passo que passa a **exigir** a coluna |
+
+Entre os passos 1 e 4 existe uma inconsistência esperada e inofensiva: o **card**
+já mostra o número novo (vem da RPC) enquanto a **coluna da tabela** ainda mostra
+o `escalado` (vem da imagem antiga). Some no passo 4.
+
+**Rollback também tem ordem**: primeiro voltar a imagem do backend (a anterior
+lê a coluna antiga e funciona com a 0050 aplicada), e só depois, se for mesmo
+necessário, `ALTER TABLE "PerformanceTurno" DROP COLUMN
+tempo_disponivel_periodo_pct` + reaplicar o corpo da 0031 + SIGUSR1. Dropar a
+coluna com a imagem nova no ar é o mesmo 400 do parágrafo de cima.
+
 ## 3. Prova de que a conta ficou certa (rodar DEPOIS)
 
 O número da tela tem que bater com esta consulta — a mesma álgebra, escrita à
