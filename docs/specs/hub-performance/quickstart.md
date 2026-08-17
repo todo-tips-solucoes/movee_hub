@@ -35,23 +35,30 @@ introduzidas de uma vez, sem bucket "sem entregador").
    com (a) — confirma SC-002 (nenhuma taxa agregada é média de
    percentuais linha a linha).
 
-## Cenário 3 — Tempo disponível médio ponderado pela duração do turno (FR-003 / Clarifications Q1 / dec-011)
+## Cenário 3 — Tempo disponível médio: % do período, praças somadas (FR-003 / migration 0050)
+
+> Substitui a fórmula de dec-011 (média de `tempo_disponivel_pct` ponderada
+> por `duracao`). Motivo, medido no CSV real: `tempo_disponivel_pct` é o
+> `escalado` da origem — mede sobre o tempo que a pessoa SE ESCALOU, não sobre
+> o período — e a `duracao` vem repetida em cada linha de praça do mesmo turno,
+> o que contava o turno duas ou três vezes no denominador.
 
 1. Escolher um filtro com registros de pelo menos 2 turnos de duração
    diferente (ex.: `duracao` 2h29 e 3h59 — os 10 valores documentados no
    briefing).
-2. Calcular manualmente: Σ(`tempo_disponivel_pct` × `EXTRACT(EPOCH FROM
-   duracao)`) / Σ`EXTRACT(EPOCH FROM duracao)`, ignorando linhas com
-   `tempo_disponivel_pct IS NULL`.
-3. **Expected**: `tempoDisponivelMedio` bate exatamente com o cálculo
-   manual (formula C) — nunca com a média aritmética simples das mesmas
-   linhas (a menos que as durações do conjunto sejam idênticas, caso em
-   que as duas fórmulas convergem por construção).
-4. **Fallback**: simular (ambiente de teste) um registro do conjunto com
-   `duracao IS NULL` e `tempo_disponivel_pct` informado. **Expected**: o
-   cálculo cai para média aritmética simples dos `tempo_disponivel_pct`
-   informados do conjunto inteiro (não apenas ignora o peso daquele
-   registro) — confere com o Edge Case documentado em `spec.md`.
+2. Calcular manualmente: Σ`tempo_disponivel` / Σ`duracao`, com a `duracao`
+   contada UMA VEZ por turno (entregador × dia × período) e o
+   `tempo_disponivel` somado entre as praças daquele turno. Ignorar linhas sem
+   `tempo_disponivel` ou sem `duracao`.
+3. **Expected**: `tempoDisponivelMedio` bate exatamente com o cálculo manual —
+   e NÃO com a média dos percentuais das mesmas linhas.
+4. **Multi-praça** (o caso que a 0050 corrige): um entregador com 2 linhas no
+   MESMO turno, mesma `duracao` repetida, online 1h e 30min num turno de 4h.
+   **Expected**: 37,50% — não a média dos dois percentuais de linha.
+5. **Linhas gêmeas da origem**: 2 linhas do mesmo turno de 2h com 2h de online
+   cada (a origem emite isso; o dedupe por `hash_linha` não pega porque a
+   sub-praça difere). **Expected**: 100,00% — teto por turno, nunca 200%.
+6. **Ausência**: turno sem `tempo_disponivel`. **Expected**: `null`, nunca `0`.
 
 ## Cenário 4 — Agrupamentos por dia/período/entregador (US2 / FR-004)
 

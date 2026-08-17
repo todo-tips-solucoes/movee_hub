@@ -88,7 +88,10 @@ function avaliarRegistro(registro, metasPorChave) {
   const leituras = [
     ['aceitacao', razaoInteira(registro.corridas_aceitas, registro.corridas_ofertadas)],
     ['conclusao', razaoInteira(registro.corridas_completadas, registro.corridas_aceitas)],
-    ['tempo_disponivel', normalizarLeitura(registro.tempo_disponivel_pct, 'tempo_disponivel')],
+    // 0050: a leitura é a coluna GERADA (% do período), não o `escalado` cru
+    // da origem — a mesma que a tela e o card mostram. Julgar a meta por uma
+    // definição e exibir outra na linha ao lado é a pior das duas opções.
+    ['tempo_disponivel', normalizarLeitura(registro.tempo_disponivel_periodo_pct, 'tempo_disponivel')],
   ];
 
   const resultado = [];
