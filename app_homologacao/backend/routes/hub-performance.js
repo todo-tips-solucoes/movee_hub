@@ -21,7 +21,12 @@ const { requirePermission } = require('../middleware/hub-require-permission');
 const { requireModuloAtivo } = require('../middleware/hub-require-modulo');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { escaparCelulaCsvInjection, quotarCelulaCsv } = require('../lib/hub-csv');
-const { validarMeta } = require('../lib/hub-performance-meta');
+const {
+  validarMeta,
+  chaveMeta,
+  metaAplicavel,
+  avaliarRegistro,
+} = require('../lib/hub-performance-meta');
 const {
   parseFiltros,
   parsePaginacao,
@@ -42,11 +47,29 @@ const router = express.Router();
 // Export CSV (research.md Decision 5, reuso de hub-faturamento) — lote de
 // LEITURA paginada, não de escrita.
 const LOTE_EXPORT_CSV = 1000;
+// impeccable r24: as três últimas colunas levam o JULGAMENTO para dentro do
+// arquivo. O CSV é o artefato que vai para a conversa com o parceiro logístico,
+// e até aqui ele saía sem a informação de meta — a tela reprovava um turno e o
+// arquivo que embasava a cobrança não dizia nada disso.
+//
+// Metas em PERCENTUAL (0..100), não em fração: a coluna vizinha
+// `tempoDisponivelPct` já está nessa escala, e quem abre no Excel lê
+// porcentagem. Vazio = não há meta para aquele cruzamento (nem específica nem
+// padrão) — ausência, nunca zero.
 const CABECALHO_CSV = [
   'dataPeriodo', 'periodo', 'entregadorNome', 'subpraca', 'praca',
   'corridasOfertadas', 'corridasAceitas', 'corridasRejeitadas', 'corridasCompletadas',
   'corridasCanceladas', 'pedidosConcluidos', 'tempoDisponivelPct', 'taxas',
+  'metaAceitacaoPct', 'metaConclusaoPct', 'metaTempoDisponivelPct', 'abaixoDaMeta',
 ];
+
+/** Teto de metas lidas de uma vez — a tela carrega esta lista a cada abertura. */
+const LIMITE_METAS = 500;
+
+/** Fração 0..1 -> percentual com 2 casas, ou vazio quando não há meta. */
+function metaParaCsv(fracao) {
+  return fracao === undefined ? '' : (Math.round(fracao * 10000) / 100).toFixed(2);
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers de domínio (DUPLICADOS deliberadamente com routes/hub-faturamento.js:
@@ -152,6 +175,28 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="performance-${f.de}_${f.ate}.csv"`);
+  // Metas carregadas UMA vez, antes do streaming: são poucas por entidade, e
+  // buscá-las por lote multiplicaria a consulta pelo número de lotes.
+  // Falha aqui NÃO derruba o export — o arquivo sai sem julgamento, com as
+  // colunas de meta vazias, que é honesto (ausência, não aprovação).
+  let metasPorChave = new Map();
+  try {
+    const linhasMeta = await hubPostgrestRequest(
+      `PerformanceMeta?id_empresa=eq.${entidadeAtiva}&select=praca,periodo,indicador,valor&limit=${LIMITE_METAS}`,
+      'GET',
+      null,
+      claims
+    );
+    metasPorChave = new Map(
+      (Array.isArray(linhasMeta) ? linhasMeta : []).map((m) => [
+        chaveMeta(m.praca, m.periodo, m.indicador),
+        Number.parseFloat(m.valor),
+      ])
+    );
+  } catch (e) {
+    console.error('[hub-performance] metas indisponíveis no export CSV (colunas vazias):', e.message);
+  }
+
   res.write(`${CABECALHO_CSV.join(',')}\r\n`);
 
   let from = 0;
@@ -190,6 +235,18 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
         row.pedidos_concluidos === null || row.pedidos_concluidos === undefined ? '' : row.pedidos_concluidos,
         tempoDisponivelPct,
         formatarTaxasReais(row.taxas_centavos),
+        metaParaCsv(metaAplicavel(metasPorChave, row.praca, row.periodo, 'aceitacao')),
+        metaParaCsv(metaAplicavel(metasPorChave, row.praca, row.periodo, 'conclusao')),
+        metaParaCsv(metaAplicavel(metasPorChave, row.praca, row.periodo, 'tempo_disponivel')),
+        // Lista os indicadores abaixo da meta, separados por `;` — vírgula
+        // seria o separador do próprio CSV. Vazio = nada abaixo, e é
+        // distinguível de "sem meta" porque as colunas de meta ficam vazias.
+        celulaCsv(
+          avaliarRegistro(row, metasPorChave)
+            .filter((a) => a.abaixo)
+            .map((a) => a.indicador)
+            .join(';')
+        ),
       ].join(',') + '\r\n';
     }
     res.write(bloco);
@@ -458,7 +515,6 @@ router.get('/resumo', requireModuloAtivo('performance'), requirePermission('perf
 // ---------------------------------------------------------------------------
 
 const COLUNAS_META = 'id,praca,periodo,indicador,valor,atualizado_em';
-const LIMITE_METAS = 500;
 
 router.get('/metas', requireModuloAtivo('performance'), requirePermission('performance.consultar'), async (req, res) => {
   try {

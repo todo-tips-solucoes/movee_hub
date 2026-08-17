@@ -29,6 +29,89 @@ const INDICADORES = Object.freeze(['aceitacao', 'conclusao', 'tempo_disponivel']
 const TAMANHO_MAX_TEXTO = 120;
 
 /**
+ * Sentinela de "qualquer praça / qualquer turno" — a META PADRÃO da entidade.
+ *
+ * O operador definiu (2026-08-17) três patamares GLOBAIS (tempo online ≥90%,
+ * aceitas ≥90%, completadas ≥95%) e o cruzamento praça × turno como exceção.
+ * Guardar o padrão como uma linha com `praca='*'` e `periodo='*'` evita colunas
+ * anuláveis: no PG13 a unique trata NULLs como distintos, então duas linhas
+ * "padrão" caberiam na mesma tabela sem a unique reclamar — exatamente o tipo
+ * de duplicata silenciosa que a 0049 acabou de eliminar.
+ *
+ * `*` é canônico por construção (`canonizarTexto('*') === '*'`) e não colide
+ * com praça real: nenhuma planilha de origem produz uma praça chamada `*`.
+ */
+const META_PADRAO = '*';
+
+/** Indicadores cuja LEITURA vem em 0..100 e precisa virar fração. */
+const INDICADORES_EM_PERCENTUAL = Object.freeze(['tempo_disponivel']);
+
+/**
+ * Converte o valor que a API reporta para a MESMA unidade das metas (fração).
+ * `tempo_disponivel` vem em 0..100; os demais já são fração.
+ */
+function normalizarLeitura(valorApi, indicador) {
+  if (valorApi === null || valorApi === undefined || valorApi === '') return null;
+  const num = typeof valorApi === 'string' ? Number.parseFloat(valorApi) : valorApi;
+  if (!Number.isFinite(num)) return null;
+  return INDICADORES_EM_PERCENTUAL.includes(indicador) ? num / 100 : num;
+}
+
+/** Razão entre contadores inteiros; sem denominador não há razão (nunca 0). */
+function razaoInteira(parte, todo) {
+  if (parte === null || parte === undefined || todo === null || todo === undefined) return null;
+  if (!(todo > 0)) return null;
+  return parte / todo;
+}
+
+/**
+ * Avalia uma linha de turno contra as metas — agora COM CHAMADOR: o export CSV
+ * (`GET /performance?format=csv`).
+ *
+ * Estas três funções existiram mortas na primeira entrega desta feature, e a
+ * revisão adversarial apontou com razão: eram uma segunda implementação da
+ * regra que só rodava no frontend, com testes verdes protegendo código que
+ * ninguém executava. Foram removidas — e voltam agora porque o CSV precisa do
+ * julgamento DO LADO DO SERVIDOR: o arquivo é o que vai para a conversa com o
+ * parceiro, e ele não passa pela tela.
+ *
+ * A duplicação com `lib/hub/performance-metas-api.ts#leiturasDoRegistro` é
+ * inerente enquanto a tela avaliar no cliente e o CSV no servidor. As duas
+ * versões têm teste, e o invariante é este: MESMA unidade (fração), meta
+ * específica do cruzamento antes do padrão `*`, sem leitura não há julgamento.
+ *
+ * @param {object} registro - linha crua do PostgREST (snake_case)
+ * @param {Map<string, number>} metasPorChave
+ * @returns {{indicador: string, valor: number, meta: number, abaixo: boolean}[]}
+ */
+function avaliarRegistro(registro, metasPorChave) {
+  const leituras = [
+    ['aceitacao', razaoInteira(registro.corridas_aceitas, registro.corridas_ofertadas)],
+    ['conclusao', razaoInteira(registro.corridas_completadas, registro.corridas_aceitas)],
+    ['tempo_disponivel', normalizarLeitura(registro.tempo_disponivel_pct, 'tempo_disponivel')],
+  ];
+
+  const resultado = [];
+  for (const [indicador, valor] of leituras) {
+    if (valor === null) continue;
+    const meta = metaAplicavel(metasPorChave, registro.praca, registro.periodo, indicador);
+    if (meta === undefined) continue;
+    resultado.push({ indicador, valor, meta, abaixo: valor < meta });
+  }
+  return resultado;
+}
+
+/**
+ * Meta que vale para um cruzamento: a específica vence; não havendo, o padrão
+ * `*`/`*` da entidade. Espelha `metaAplicavel` do frontend.
+ */
+function metaAplicavel(metasPorChave, praca, periodo, indicador) {
+  const especifica = metasPorChave.get(chaveMeta(praca ?? '', periodo ?? '', indicador));
+  if (especifica !== undefined) return especifica;
+  return metasPorChave.get(chaveMeta(META_PADRAO, META_PADRAO, indicador));
+}
+
+/**
  * Forma canônica de `praca`/`periodo`.
  *
  * Existe porque a unique da migration 0048 é BYTE-EXATA e a chave de
@@ -96,4 +179,15 @@ function chaveMeta(praca, periodo, indicador) {
   return JSON.stringify([canonizarTexto(praca), canonizarTexto(periodo), indicador]);
 }
 
-module.exports = { INDICADORES, TAMANHO_MAX_TEXTO, canonizarTexto, validarMeta, chaveMeta };
+module.exports = {
+  INDICADORES,
+  TAMANHO_MAX_TEXTO,
+  META_PADRAO,
+  canonizarTexto,
+  validarMeta,
+  chaveMeta,
+  metaAplicavel,
+  avaliarRegistro,
+  normalizarLeitura,
+  razaoInteira,
+};

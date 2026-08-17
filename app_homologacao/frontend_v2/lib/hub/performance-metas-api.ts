@@ -27,6 +27,28 @@ export const INDICADORES_META: ReadonlyArray<{ id: IndicadorMeta; rotulo: string
   },
 ];
 
+/**
+ * Sentinela de "qualquer praça / qualquer turno" — a META PADRÃO da entidade,
+ * espelhando `META_PADRAO` de `backend/lib/hub-performance-meta.js`.
+ *
+ * O operador definiu três patamares globais (tempo online ≥90%, aceitas ≥90%,
+ * completadas ≥95%) com o cruzamento praça × turno como exceção. Guardar o
+ * padrão como linha `*`/`*` evita colunas anuláveis: no PG13 a unique trata
+ * NULLs como distintos, e duas linhas "padrão" caberiam sem a unique reclamar.
+ */
+export const META_PADRAO = '*';
+
+/**
+ * Os patamares que o operador informou como contrato vigente (2026-08-17).
+ * São SUGESTÃO de preenchimento, não gravação automática: nenhuma meta passa a
+ * valer sem alguém salvar — a tela não decide o contrato de ninguém sozinha.
+ */
+export const METAS_SUGERIDAS: Record<IndicadorMeta, number> = {
+  tempo_disponivel: 90,
+  aceitacao: 90,
+  conclusao: 95,
+};
+
 export interface MetaPerformance {
   id: number;
   praca: string;
@@ -191,6 +213,25 @@ export function canonizarTexto(bruto: string | null | undefined): string {
  */
 export function chaveMeta(praca: string, periodo: string, indicador: string): string {
   return JSON.stringify([canonizarTexto(praca), canonizarTexto(periodo), indicador]);
+}
+
+/**
+ * Resolve a meta que vale para um registro: a do CRUZAMENTO específico vence;
+ * não havendo, vale o PADRÃO da entidade (`*`/`*`); não havendo nenhum dos
+ * dois, não há meta — e sem meta não há julgamento.
+ *
+ * A ordem importa e é a única que faz sentido: um patamar acordado para uma
+ * praça específica existe justamente para se sobrepor ao geral.
+ */
+export function metaAplicavel(
+  metasPorChave: Map<string, number>,
+  praca: string | null,
+  periodo: string | null,
+  indicador: IndicadorMeta
+): number | undefined {
+  const especifica = metasPorChave.get(chaveMeta(praca ?? '', periodo ?? '', indicador));
+  if (especifica !== undefined) return especifica;
+  return metasPorChave.get(chaveMeta(META_PADRAO, META_PADRAO, indicador));
 }
 
 /**

@@ -25,6 +25,7 @@ import { AlertCircle, KeyRound, Loader2, MailCheck, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useHubAuth, HubApiError } from '@/contexts/hub-auth-context';
+import { MetasPadraoCard } from '@/components/hub/metas-padrao-card';
 
 /** Lógica isolada do JSX — testável sem depender do roteador (mesmo padrão de `usePerfilDialog`/`useMotoristaDetalheDialog`). */
 export function usePerfilCard() {
@@ -103,6 +104,14 @@ export function PerfilCard() {
           </>
         )}
       </div>
+
+      {/* impeccable r24: configuração de METAS da entidade, onde o operador
+          pediu (2026-08-17) — dentro de "Meu perfil". O card se identifica
+          como escopo de entidade e só aparece para quem tem a permissão; ver o
+          cabeçalho de `metas-padrao-card.tsx`. Como o `PerfilCard` é reusado
+          pela página /hub/dashboard/perfil e pelo modal, a seção aparece nos
+          dois lugares de uma vez. */}
+      <MetasPadraoCard />
     </div>
   );
 }

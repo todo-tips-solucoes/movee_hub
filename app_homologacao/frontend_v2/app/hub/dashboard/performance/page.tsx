@@ -26,6 +26,7 @@ import {
   INDICADORES_META,
   chaveMeta,
   leiturasDoRegistro,
+  metaAplicavel,
   listarMetas,
   type MetaPerformance,
 } from '@/lib/hub/performance-metas-api';
@@ -265,7 +266,8 @@ function MarcasDeMeta({
     id: ind.id,
     rotulo: ind.rotulo,
     valor: leituras[ind.id],
-    meta: metasPorChave.get(chaveMeta(item.praca ?? '', item.periodo ?? '', ind.id)),
+    // Específica do cruzamento vence; não havendo, o padrão da entidade.
+    meta: metaAplicavel(metasPorChave, item.praca, item.periodo, ind.id),
     // Filtra só por META: leitura ausente COM meta configurada agora tem badge
     // próprio ("sem leitura neste turno"), porque calar ali era indistinguível
     // de aprovação — ver `MetaBadge`.
