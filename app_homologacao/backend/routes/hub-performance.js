@@ -225,7 +225,7 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
 // task 4.1) — task 2.2
 // ────────────────────────────────────────────────────────────────────────────
 
-router.get('/', requirePermission('performance.listar'), async (req, res) => {
+router.get('/', requireModuloAtivo('performance'), requirePermission('performance.listar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'performance.listar');
     if (!ctx) return;
@@ -289,7 +289,7 @@ router.get('/', requirePermission('performance.listar'), async (req, res) => {
 // base já limita à empresa do escopo.
 // ────────────────────────────────────────────────────────────────────────────
 
-router.get('/areas', requirePermission('performance.listar'), async (req, res) => {
+router.get('/areas', requireModuloAtivo('performance'), requirePermission('performance.listar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'performance.listar');
     if (!ctx) return;
@@ -318,7 +318,7 @@ router.get('/areas', requirePermission('performance.listar'), async (req, res) =
 // mesma validação/parametrização/limite, gate `performance.listar`).
 // ────────────────────────────────────────────────────────────────────────────
 
-router.get('/entregadores', requirePermission('performance.listar'), async (req, res) => {
+router.get('/entregadores', requireModuloAtivo('performance'), requirePermission('performance.listar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'performance.listar');
     if (!ctx) return;
@@ -388,7 +388,7 @@ async function resolverNomesEntregadores(grupos, entidadeAtiva, claims) {
 // task 3.1
 // ────────────────────────────────────────────────────────────────────────────
 
-router.get('/resumo', requirePermission('performance.consultar'), async (req, res) => {
+router.get('/resumo', requireModuloAtivo('performance'), requirePermission('performance.consultar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'performance.consultar');
     if (!ctx) return;

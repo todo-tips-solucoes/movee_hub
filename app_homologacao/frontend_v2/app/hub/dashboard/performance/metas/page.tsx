@@ -200,16 +200,31 @@ export default function MetasPerformancePage() {
     [buscar]
   );
 
+  // A lista não pagina, e 10 praças × 7 turnos × 3 indicadores = 210 linhas é
+  // plausível. Sem busca, conferir uma meta antes de uma reunião vira rolagem
+  // manual. O campo só aparece quando há o que procurar.
+  const [busca, setBusca] = useState('');
+  const filtradas = useMemo(() => {
+    const alvo = busca.trim().toLowerCase();
+    if (!alvo) return metas;
+    return metas.filter(
+      (m) =>
+        m.praca.toLowerCase().includes(alvo) ||
+        m.periodo.toLowerCase().includes(alvo) ||
+        (ROTULO_INDICADOR.get(m.indicador) ?? '').toLowerCase().includes(alvo)
+    );
+  }, [metas, busca]);
+
   const agrupadas = useMemo(() => {
     const mapa = new Map<string, MetaPerformance[]>();
-    for (const m of metas) {
+    for (const m of filtradas) {
       const chave = `${m.praca} · ${m.periodo}`;
       const lista = mapa.get(chave);
       if (lista) lista.push(m);
       else mapa.set(chave, [m]);
     }
     return Array.from(mapa.entries());
-  }, [metas]);
+  }, [filtradas]);
 
   return (
     <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
@@ -229,13 +244,17 @@ export default function MetasPerformancePage() {
 
       <PageHeader
         titulo="Metas de performance"
-        subtitulo="Patamar contratual por praça e turno. O que ficar abaixo da meta é destacado na tela de Performance."
+        subtitulo="Patamar contratual por praça e turno. Cada turno da tela de Performance é comparado à meta do seu cruzamento — abaixo, na meta ou acima."
       />
 
       {!podeGerenciar && (
         <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong">
           <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-          <p>Modo somente leitura — só o administrador da entidade pode alterar as metas.</p>
+          {/* Afirma a PERMISSÃO, não o papel: o gate é
+              `performance.metas_gerenciar`, e a matriz de papéis pode conceder
+              essa permissão a outro papel a qualquer momento — a frase
+              anterior passaria a ser falsa sem ninguém tocar nesta tela. */}
+          <p>Modo somente leitura — você não tem permissão para alterar metas.</p>
         </div>
       )}
 
@@ -367,6 +386,31 @@ export default function MetasPerformancePage() {
           }
         />
       ) : (
+        <>
+        {metas.length > 12 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="metas-busca" className="text-xs text-muted-foreground">
+              Buscar
+            </label>
+            <Input
+              id="metas-busca"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Praça, turno ou indicador"
+              className="h-11 w-full max-w-xs sm:h-9"
+            />
+            <span className="text-xs text-muted-foreground">
+              {filtradas.length} de {metas.length}
+            </span>
+          </div>
+        )}
+        {filtradas.length === 0 ? (
+          <EmptyState
+            icone={Target}
+            titulo="Nenhuma meta corresponde à busca"
+            dica={`Nenhuma das ${metas.length} metas cadastradas casa com "${busca.trim()}".`}
+          />
+        ) : (
         <div className="rounded-lg border">
           <Table>
             <TableHeader>
@@ -374,7 +418,11 @@ export default function MetasPerformancePage() {
                 <TableHead>Praça e turno</TableHead>
                 <TableHead>Indicador</TableHead>
                 <TableHead className="text-right">Meta</TableHead>
-                {podeGerenciar && <TableHead className="w-px" />}
+                {podeGerenciar && (
+                  <TableHead className="w-px">
+                    <span className="sr-only">Ações</span>
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -384,7 +432,7 @@ export default function MetasPerformancePage() {
                     {/* O cruzamento aparece uma vez por grupo: repetir "SAO
                         PAULO · ALMOCO" em três linhas seguidas faz o olho
                         procurar diferença onde não há. */}
-                    <TableCell className="text-sm">
+                    <TableCell className="max-w-[220px] truncate text-sm" title={cruzamento}>
                       {i === 0 ? cruzamento : <span className="sr-only">{cruzamento}</span>}
                     </TableCell>
                     <TableCell className="text-sm">
@@ -413,6 +461,8 @@ export default function MetasPerformancePage() {
             </TableBody>
           </Table>
         </div>
+        )}
+        </>
       )}
     </div>
   );

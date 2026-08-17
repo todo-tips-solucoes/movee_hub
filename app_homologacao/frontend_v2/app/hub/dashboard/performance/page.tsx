@@ -266,15 +266,22 @@ function MarcasDeMeta({
     rotulo: ind.rotulo,
     valor: leituras[ind.id],
     meta: metasPorChave.get(chaveMeta(item.praca ?? '', item.periodo ?? '', ind.id)),
-  })).filter((m) => m.valor !== null && m.meta !== undefined);
+    // Filtra só por META: leitura ausente COM meta configurada agora tem badge
+    // próprio ("sem leitura neste turno"), porque calar ali era indistinguível
+    // de aprovação — ver `MetaBadge`.
+  })).filter((m) => m.meta !== undefined);
 
   if (marcas.length === 0) return null;
   return (
-    <div className="mt-1 flex flex-wrap gap-1">
+    // `<ul>`/`<li>`: três badges como spans irmãos eram lidos emendados
+    // ("…meta de 90% Taxa de conclusão: …"). A lista dá fronteira a cada item.
+    <ul className="mt-1 flex flex-wrap gap-1">
       {marcas.map((m) => (
-        <MetaBadge key={m.id} valor={m.valor} meta={m.meta} rotulo={m.rotulo} />
+        <li key={m.id}>
+          <MetaBadge valor={m.valor} meta={m.meta} rotulo={m.rotulo} />
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -521,7 +528,19 @@ export default function PerformancePage() {
       {h.carregando ? (
         <KpiSkeleton label="Carregando indicadores de performance..." cards={4} />
       ) : (
-        <CardsResumo cards={h.cards} />
+        <>
+          <CardsResumo cards={h.cards} />
+          {/* impeccable r24: "Taxa de aceitação" aparecia com o MESMO rótulo em
+              dois escopos diferentes na mesma tela — aqui é a razão agregada de
+              TODO o filtro (ponderada por volume), e no badge de cada linha é a
+              razão daquele turno, comparada à meta daquele cruzamento. Sem esta
+              frase, quem filtra uma praça e um turno lê o número de cima como
+              se fosse comparável à meta que acabou de configurar. */}
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Os indicadores acima somam <strong className="font-medium">todo o período filtrado</strong>.
+            As metas são comparadas por linha, no turno de cada registro.
+          </p>
+        </>
       )}
 
       {/* impeccable r22 (P2): mesma correção de faturamento — filtros antes do
@@ -726,7 +745,10 @@ export default function PerformancePage() {
                       que na verdade são UM funil. Ler os cinco números e
                       montar a história era trabalho empurrado para a pessoa,
                       e a tabela tinha 13 colunas fixas sem controle nenhum. */}
-                  <TableHead>Funil de corridas</TableHead>
+                  {/* "e metas" no rótulo: os badges vivem nesta célula, e numa
+                      navegação por célula o veredito de meta era anunciado sob
+                      um cabeçalho que só falava do funil. */}
+                  <TableHead>Funil de corridas e metas</TableHead>
                   <TableHead className="text-right">Pedidos concl.</TableHead>
                   <TableHead className="text-right">Tempo disp.</TableHead>
                   <TableHead className="text-right">Taxas</TableHead>
@@ -743,7 +765,9 @@ export default function PerformancePage() {
                       <EntregadorNome item={item} podeVerDetalhe={podeVerDetalheMotorista} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{item.subpraca ?? '-'}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{item.praca ?? '-'}</TableCell>
+                    <TableCell className="max-w-[160px] truncate text-sm text-muted-foreground">
+                      {item.praca ?? '-'}
+                    </TableCell>
                     <TableCell>
                       <FunilCorridas
                         dados={{

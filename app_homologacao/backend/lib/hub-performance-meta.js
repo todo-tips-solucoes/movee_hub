@@ -89,7 +89,11 @@ function validarMeta(bruto) {
  * deixou de distinguir é caixa, espaço interno e forma Unicode.
  */
 function chaveMeta(praca, periodo, indicador) {
-  return `${canonizarTexto(praca)}|${canonizarTexto(periodo)}|${indicador}`;
+  // `JSON.stringify` de um array em vez de juntar com `|`: o separador estava
+  // dentro do alfabeto possível do dado. `praca="SP|NOITE"` com `periodo="X"`
+  // produzia a MESMA chave que `praca="SP"` com `periodo="NOITE|X"` — colisão
+  // improvável, mas silenciosa, e o texto vem de planilha livre.
+  return JSON.stringify([canonizarTexto(praca), canonizarTexto(periodo), indicador]);
 }
 
 module.exports = { INDICADORES, TAMANHO_MAX_TEXTO, canonizarTexto, validarMeta, chaveMeta };

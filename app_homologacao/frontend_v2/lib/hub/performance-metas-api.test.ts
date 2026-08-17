@@ -80,6 +80,13 @@ describe('chaveMeta / canonizarTexto', () => {
     );
   });
 
+  // O separador estava dentro do alfabeto possível do dado: "SP|NOITE" + "X"
+  // colidia com "SP" + "NOITE|X". Improvável, silencioso, e o texto vem de
+  // planilha livre.
+  it('praça contendo o antigo separador não colide com outro cruzamento', () => {
+    expect(chaveMeta('SP|NOITE', 'X', 'aceitacao')).not.toBe(chaveMeta('SP', 'NOITE|X', 'aceitacao'));
+  });
+
   it('acento continua distinguindo praças de fato diferentes', () => {
     expect(chaveMeta('MOOCA', 'A', 'aceitacao')).not.toBe(chaveMeta('MOÓCA', 'A', 'aceitacao'));
   });

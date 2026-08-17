@@ -182,9 +182,15 @@ export function canonizarTexto(bruto: string | null | undefined): string {
   return bruto.normalize('NFC').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
-/** Chave do cruzamento praça × turno × indicador, sobre a forma canônica. */
+/**
+ * Chave do cruzamento praça × turno × indicador, sobre a forma canônica.
+ *
+ * `JSON.stringify` de um array em vez de juntar com `|`: o separador estava
+ * dentro do alfabeto possível do dado, e `["SP|NOITE","X"]` colidia com
+ * `["SP","NOITE|X"]`. Espelha `chaveMeta` do backend.
+ */
 export function chaveMeta(praca: string, periodo: string, indicador: string): string {
-  return `${canonizarTexto(praca)}|${canonizarTexto(periodo)}|${indicador}`;
+  return JSON.stringify([canonizarTexto(praca), canonizarTexto(periodo), indicador]);
 }
 
 /**

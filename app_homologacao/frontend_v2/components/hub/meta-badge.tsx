@@ -27,7 +27,31 @@ const arredondar = (v: number) => Math.round(v * 100 * 10 ** CASAS) / 10 ** CASA
 const pct = (v: number) => `${arredondar(v).toLocaleString('pt-BR')}%`;
 
 export function MetaBadge({ valor, meta, rotulo, className }: MetaBadgeProps) {
-  if (valor === null || meta === undefined) return null;
+  // Sem meta configurada: silêncio total, e é o correto — a tela não inventa
+  // patamar para quem nunca acordou nenhum.
+  if (meta === undefined) return null;
+
+  // Meta existe e leitura NÃO: dizer isso. Antes era silêncio, indistinguível
+  // de "sem meta" — e a revisão adversarial mostrou que a ausência correlaciona
+  // com o turno PIOR: um turno em que ninguém aceitou nada não tem taxa de
+  // conclusão (sem denominador), então quanto pior o turno em certos eixos,
+  // menos julgamento a tela emitia.
+  if (valor === null) {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center gap-1 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[0.6875rem] font-medium text-muted-foreground',
+          className
+        )}
+      >
+        <span aria-hidden="true">—</span>
+        <span>
+          {rotulo}: sem leitura neste turno
+          <span className="font-normal"> (meta de {pct(meta)})</span>
+        </span>
+      </span>
+    );
+  }
 
   // Comparar na MESMA precisão em que se exibe. Comparando em precisão total e
   // exibindo arredondado, o badge se contradizia na própria frase: leitura
