@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertCircle, ArrowLeft, Plus, Target, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Plus, ShieldAlert, Target, Trash2 } from 'lucide-react';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
@@ -93,8 +93,13 @@ export default function MetasPerformancePage() {
   }, []);
 
   useEffect(() => {
-    buscar();
-  }, [buscar]);
+    // Sem permissão não se busca nada: a lista de metas É a parametrização, e
+    // exibi-la em "modo leitura" para quem não pode alterá-la era dar acesso à
+    // configuração da entidade a qualquer um com o módulo. Decisão do operador
+    // (2026-08-17): a parametrização é só de quem administra a entidade.
+    if (podeGerenciar) buscar();
+    else setCarregando(false);
+  }, [podeGerenciar, buscar]);
 
   useEffect(() => {
     let ativo = true;
@@ -247,16 +252,28 @@ export default function MetasPerformancePage() {
         subtitulo="Patamar contratual por praça e turno. Cada turno da tela de Performance é comparado à meta do seu cruzamento — abaixo, na meta ou acima."
       />
 
+      {/* Sem permissão a tela PARA aqui: nada de lista, nada de formulário.
+          Afirma a PERMISSÃO e não o papel — o gate é
+          `performance.metas_gerenciar`, e a matriz de papéis pode movê-la de
+          papel a qualquer momento, o que tornaria falsa uma frase sobre "só o
+          administrador da entidade". */}
       {!podeGerenciar && (
-        <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong">
-          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-          {/* Afirma a PERMISSÃO, não o papel: o gate é
-              `performance.metas_gerenciar`, e a matriz de papéis pode conceder
-              essa permissão a outro papel a qualquer momento — a frase
-              anterior passaria a ser falsa sem ninguém tocar nesta tela. */}
-          <p>Modo somente leitura — você não tem permissão para alterar metas.</p>
-        </div>
+        <EmptyState
+          icone={ShieldAlert}
+          titulo="Você não tem acesso a esta configuração"
+          dica="As metas de performance são definidas por quem administra a entidade. Os patamares em vigor aparecem na tela de Performance, ao lado de cada turno."
+        >
+          <Link
+            href="/hub/dashboard/performance"
+            className={buttonVariants({ variant: 'outline', size: 'sm', className: 'min-h-11 sm:min-h-8' })}
+          >
+            Voltar para Performance
+          </Link>
+        </EmptyState>
       )}
+
+      {podeGerenciar && (
+        <>
 
       {podeGerenciar && (
         <form
@@ -462,6 +479,8 @@ export default function MetasPerformancePage() {
           </Table>
         </div>
         )}
+        </>
+      )}
         </>
       )}
     </div>
