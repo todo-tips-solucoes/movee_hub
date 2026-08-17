@@ -14,7 +14,7 @@ schema — apenas consulta.
 | `entregador_id` | int FK `Entregador` | **não** | sempre presente — sem bucket "sem entregador" (Decision 4) |
 | `data_periodo` | date | não | campo padrão do filtro de data (FR-002) |
 | `periodo` | text | não | turno do dia (16 valores documentados + qualquer texto livre — Edge Case) |
-| `duracao` | interval | sim | peso da média ponderada de FR-003 (Decision 2) — `NULL` dispara fallback |
+| `duracao` | interval | sim | DENOMINADOR do tempo disponível (0050), contado 1× por turno; `NULL` tira a linha das somas |
 | `min_entregadores_escala` | int | sim | atributo do turno, não exposto por esta fase (fora do escopo) |
 | `tag` | text | sim | não exposto por esta fase |
 | `praca` | text | sim | não exposto/filtrado por esta fase (só `subpraca`) |
@@ -46,7 +46,7 @@ Shape de `GET /performance/resumo` sem `groupBy` (cards, FR-003):
 | `corridasCompletadas` | `number` (int) | `SUM(corridas_completadas)` do filtro |
 | `taxaAceitacao` | `string` (fração `"0.xxxx"`) ou `null` | `Σaceitas/Σofertadas`; `null` se `Σofertadas = 0` |
 | `taxaConclusao` | `string` (fração `"0.xxxx"`) ou `null` | `Σcompletadas/Σaceitas`; `null` se `Σaceitas = 0` |
-| `tempoDisponivelMedio` | `string` (`"0.00"`..`"150.00"`) ou `null` | Decision 2/3 — ponderado por `duracao`, fallback média simples; `null` se nenhum registro com `tempo_disponivel_pct` |
+| `tempoDisponivelMedio` | `string` (`"0.00"`..`"100.00"`) ou `null` | 0050 — `Σ tempo_disponivel / Σ duracao` (duração 1× por turno, praças somadas, teto 100); `null` se nenhum turno com `tempo_disponivel` |
 | `taxasReais` | `string` (`"0.00"`) | `Σtaxas_centavos/100`, `NULL`→0 antes de somar (FR-005) |
 
 Shape com `groupBy` (agrupado, FR-004) — mesmos 5 campos + `chave`/`rotulo`/

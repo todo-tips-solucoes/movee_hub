@@ -81,9 +81,14 @@ check() { # check <descricao> <valor-obtido> <valor-esperado>
   fi
 }
 
-echo "rodando migrate.sh (0002..0031)…"
+echo "rodando migrate.sh (série completa)…"
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1
-grep -q "0031_mv_performance_dia.sql" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo (0031 ausente)"; cat "$TMP/migrate.log"; exit 1; }
+# Guarda na ÚLTIMA migration que esta suíte exercita (era 0031, e ficou para
+# trás em silêncio): se a série parar antes, o erro aparece aqui e não como um
+# `items` undefined 300 linhas adiante.
+for m in 0031_mv_performance_dia.sql 0050_performance_tempo_disponivel_periodo.sql; do
+  grep -q "$m" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo ($m ausente)"; tail -40 "$TMP/migrate.log"; exit 1; }
+done
 
 # --- Seed: 2 Usuarios (leitura com performance.listar; papel sintético SEM
 # a permissão, para o teste de 403) -----------------------------------------
@@ -135,6 +140,23 @@ INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ($UID_EXPORTADOR, $E_TESTE, $PAPEL_ADMIN_ENTIDADE, true);
 SQL
 
+# Módulo 'performance' ATIVO nas entidades sintéticas.
+#
+# Estava faltando desde que a S9 pôs `requireModuloAtivo('performance')` na
+# frente destas rotas: TODA chamada respondia 403 MODULO_DESABILITADO, o
+# primeiro `items[0]` estourava o script Node e a suíte morria antes de
+# imprimir um único assert — verde nunca, mas também sem dizer o porquê.
+# Mesmo seed de hub-performance-metas-integration.sh#MODULO_PERF.
+MODULO_PERF="$(psql_t -tAc "SELECT id FROM \"Modulo\" WHERE codigo='performance'" | tr -d '[:space:]')"
+[ -n "$MODULO_PERF" ] || { echo "FAIL: módulo 'performance' ausente (seed 0007)"; exit 1; }
+psql_t <<SQL >/dev/null
+INSERT INTO "ModuloEntidade" (modulo_id, empresa_id, ativo) VALUES
+  ($MODULO_PERF, $E_TESTE, true),
+  ($MODULO_PERF, $E_OUTRA, true),
+  ($MODULO_PERF, $E_SEM_PERM, true)
+ON CONFLICT DO NOTHING;
+SQL
+
 # --- Seed: Entregadores + ImportacaoArquivo-cabeçalho fake + fatos --------
 psql_t <<SQL >/dev/null
 INSERT INTO "Entregador" (id_empresa, id_externo, nome, ativo, motorista_id) VALUES
@@ -166,22 +188,61 @@ IMPORT_ID_OUTRA="$(psql_t -tAc "SELECT id FROM \"ImportacaoArquivo\" WHERE id_em
 
 # Fatos em E_TESTE: 2 entregadores, 2 subpraças, 1 periodo fora dos 16
 # documentados (Edge Case, Cenário 4 item 4), datas espalhadas em julho/2026.
+#
+# `tempo_disponivel` (o ABSOLUTO online) é o que alimenta a métrica desde a
+# 0050 — e é DELIBERADAMENTE incoerente com `tempo_disponivel_pct` (o
+# `escalado` da origem) nestas linhas: 80.00 de escalado com 2h online num
+# turno de 3h dá 66,67% de período. Se alguém reintroduzir a fórmula antiga,
+# os asserts de tempo abaixo quebram — que é o ponto.
 psql_t <<SQL >/dev/null
 INSERT INTO "PerformanceTurno"
   (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, praca,
-   tempo_disponivel_pct, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
+   tempo_disponivel_pct, tempo_disponivel, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
    corridas_completadas, corridas_canceladas, pedidos_concluidos, taxas_centavos, hash_linha)
 VALUES
   ($E_TESTE, $IMPORT_ID, $ENT_JOAO, '2026-07-01', 'ALMOCO 11H30-15H29', '03:00:00', 'Zona Sul', 'Sao Paulo',
-   80.00, 10, 8, 2, 7, 1, 7, 1000, md5('joao-1')),
+   80.00, '02:00:00', 10, 8, 2, 7, 1, 7, 1000, md5('joao-1')),
   ($E_TESTE, $IMPORT_ID, $ENT_JOAO, '2026-07-02', 'JANTAR 18H00-21H59', '03:00:00', 'Zona Sul', 'Sao Paulo',
-   90.00, 10, 9, 1, 9, 0, 9, 2000, md5('joao-2')),
+   90.00, '02:15:00', 10, 9, 1, 9, 0, 9, 2000, md5('joao-2')),
   ($E_TESTE, $IMPORT_ID, $ENT_MARIA, '2026-07-03', 'ALMOCO 11H30-15H29', '02:30:00', 'Centro', 'Sao Paulo',
-   70.00, 8, 6, 2, 6, 0, 6, NULL, md5('maria-1')),
+   70.00, '01:15:00', 8, 6, 2, 6, 0, 6, NULL, md5('maria-1')),
   ($E_TESTE, $IMPORT_ID, $ENT_MARIA, '2026-07-04', 'TURNO_INEXISTENTE_XYZ', '01:00:00', 'Centro', 'Sao Paulo',
-   60.00, 5, 4, 1, 4, 0, 4, 500, md5('maria-2')),
+   60.00, '00:30:00', 5, 4, 1, 4, 0, 4, 500, md5('maria-2')),
   ($E_OUTRA, $IMPORT_ID_OUTRA, $ENT_OUTRA, '2026-07-01', 'ALMOCO 11H30-15H29', '03:00:00', 'Zona Norte', 'Rio',
-   50.00, 10, 5, 5, 5, 0, 5, 999, md5('outra-1'));
+   50.00, '01:30:00', 10, 5, 5, 5, 0, 5, 999, md5('outra-1'));
+SQL
+
+# Turno do MESMO entregador em DUAS sub-praças (janela ISOLADA 2026-09-03) —
+# o defeito que a 0050 corrige. `duracao` vem repetida nas duas linhas, como
+# no CSV real: ponderar por ela contava o turno duas vezes e a média
+# ponderada degenerava em média simples dos percentuais (90 e 20 -> 55,00).
+# Correto: (1h + 30min) / 4h = 37,50%.
+psql_t <<SQL >/dev/null
+INSERT INTO "PerformanceTurno"
+  (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, praca,
+   tempo_disponivel_pct, tempo_disponivel, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
+   corridas_completadas, corridas_canceladas, pedidos_concluidos, taxas_centavos, hash_linha)
+VALUES
+  ($E_TESTE, $IMPORT_ID, $ENT_JOAO, '2026-09-03', 'ALMOCO 11H30-15H29', '04:00:00', 'Zona Sul', 'Sao Paulo',
+   90.00, '01:00:00', 6, 4, 2, 4, 0, 4, 100, md5('multipraca-a')),
+  ($E_TESTE, $IMPORT_ID, $ENT_JOAO, '2026-09-03', 'ALMOCO 11H30-15H29', '04:00:00', 'Centro', 'Sao Paulo',
+   20.00, '00:30:00', 4, 2, 2, 2, 0, 2, 100, md5('multipraca-b'));
+SQL
+
+# Linhas GÊMEAS da origem (janela ISOLADA 2026-09-04): o CSV real trouxe 3
+# pares com os MESMOS números, diferindo só por `sub_praca` — e o dedupe por
+# `hash_linha` não as pega. Somar o online dá 4h num turno de 2h (200%), que
+# é fisicamente impossível. O teto por TURNO da 0050 devolve 100,00.
+psql_t <<SQL >/dev/null
+INSERT INTO "PerformanceTurno"
+  (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, praca,
+   tempo_disponivel_pct, tempo_disponivel, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
+   corridas_completadas, corridas_canceladas, pedidos_concluidos, taxas_centavos, hash_linha)
+VALUES
+  ($E_TESTE, $IMPORT_ID, $ENT_MARIA, '2026-09-04', 'JANTAR 18H00-21H59', '02:00:00', NULL, 'Sao Paulo',
+   99.00, '02:00:00', 3, 3, 0, 3, 0, 3, 100, md5('gemea-a')),
+  ($E_TESTE, $IMPORT_ID, $ENT_MARIA, '2026-09-04', 'JANTAR 18H00-21H59', '02:00:00', 'Centro', 'Sao Paulo',
+   99.00, '02:00:00', 3, 3, 0, 3, 0, 3, 100, md5('gemea-b'));
 SQL
 
 # Fato dedicado a divisão por zero (Cenário 14, SC-009) — janela ISOLADA
@@ -207,11 +268,11 @@ SQL
 psql_t <<SQL >/dev/null
 INSERT INTO "PerformanceTurno"
   (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, praca,
-   tempo_disponivel_pct, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
+   tempo_disponivel_pct, tempo_disponivel, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
    corridas_completadas, corridas_canceladas, pedidos_concluidos, taxas_centavos, hash_linha)
 VALUES
   ($E_TESTE, $IMPORT_ID, $ENT_INJECAO, '2026-09-01', '=SOMA(A1:A10)', '02:00:00', 'Zona Sul', 'Sao Paulo',
-   85.00, 5, 5, 0, 5, 0, 5, 7700, md5('injecao-1'));
+   85.00, '01:42:00', 5, 5, 0, 5, 0, 5, 7700, md5('injecao-1'));
 SQL
 
 # Fato dedicado ao gap CHK031 (tasks.md 4.2.2) — janela ISOLADA (2026-09-02):
@@ -220,11 +281,11 @@ SQL
 psql_t <<SQL >/dev/null
 INSERT INTO "PerformanceTurno"
   (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, praca,
-   tempo_disponivel_pct, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
+   tempo_disponivel_pct, tempo_disponivel, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
    corridas_completadas, corridas_canceladas, pedidos_concluidos, taxas_centavos, hash_linha)
 VALUES
   ($E_TESTE, $IMPORT_ID, $ENT_JANEUTRO, '2026-09-02', 'ALMOCO 11H30-15H29', '02:00:00', 'Zona Sul', 'Sao Paulo',
-   85.00, 5, 5, 0, 5, 0, 5, 100, md5('ja-neutro-1'));
+   85.00, '01:42:00', 5, 5, 0, 5, 0, 5, 100, md5('ja-neutro-1'));
 SQL
 
 # mv_performance_dia — como os fatos acima entraram por SQL direto (não pelo
@@ -296,8 +357,14 @@ async function main() {
 
   // (c) filtro combinado periodo+subpraca+data (Cenário 1) — só joao-1 (2026-07-01)
   const rCombinado = await getJson(jarLeitura, '/performance?de=2026-07-01&ate=2026-07-01&periodo=ALMOCO%2011H30-15H29&subpraca=Zona%20Sul');
+  out.combinado_status = rCombinado.status;
+  out.combinado_erro = rCombinado.body && rCombinado.body.erro ? String(rCombinado.body.erro) : '';
   out.combinado_total = rCombinado.body && rCombinado.body.total;
-  out.combinado_taxas = rCombinado.body && rCombinado.body.items[0] && rCombinado.body.items[0].taxas;
+  // `items &&` antes do índice: sem isso, uma resposta de ERRO derruba o
+  // script inteiro com "cannot read properties of undefined" e nenhum dos ~90
+  // asserts chega a rodar — o diagnóstico some junto.
+  out.combinado_taxas = rCombinado.body && rCombinado.body.items && rCombinado.body.items[0]
+    ? rCombinado.body.items[0].taxas : null;
 
   // (d) paginação — pageSize=2, total já conhecido (4), page=2 tem 2 itens
   const rPag1 = await getJson(jarLeitura, '/performance?de=2026-07-01&ate=2026-07-04&pageSize=2&page=1');
@@ -357,7 +424,10 @@ async function main() {
   // (l) cards sem groupBy — janela 2026-07-01..04, 4 linhas conhecidas.
   // corridasCompletadas=7+9+6+4=26; taxaAceitacao=(8+9+6+4)/(10+10+8+5)=
   // 27/33=0.8182 (SC-002: != média simples 0.8125 das taxas individuais);
-  // taxaConclusao=26/27=0.9630; tempoDisponivelMedio ponderado=78.42;
+  // taxaConclusao=26/27=0.9630;
+  // tempoDisponivelMedio (0050) = Σ online / Σ duração do período =
+  // (2h + 2h15 + 1h15 + 30min) / (3h + 3h + 2h30 + 1h) = 21600/34200 =
+  // 63.16 — e NÃO 78.42, que era a média de `escalado` ponderada por duração;
   // taxasReais=(1000+2000+0+500)/100=35.00.
   const rCards = await getJson(jarLeitura, '/performance/resumo?de=2026-07-01&ate=2026-07-04');
   out.cards_status = rCards.status;
@@ -388,10 +458,39 @@ async function main() {
   const grupoJoao = gruposEnt.find((g) => g.chave === String(entJoao));
   out.entregadorGrp_rotuloJoao = grupoJoao ? grupoJoao.rotulo : null;
 
+  // agrupado por entregador — tempo de cada um pelas SUAS somas (0050):
+  // joao=(2h+2h15)/(3h+3h)=70.83; maria=(1h15+30min)/(2h30+1h)=50.00.
+  out.entregadorGrp_tempoJoao = grupoJoao ? grupoJoao.tempoDisponivelMedio : null;
+  const grupoMaria = gruposEnt.find((g) => g.chave !== String(entJoao));
+  out.entregadorGrp_tempoMaria = grupoMaria ? grupoMaria.tempoDisponivelMedio : null;
+
   // (n) divisão por zero (Cenário 14, SC-009) — janela isolada 2026-07-06
   const rZero = await getJson(jarLeitura, '/performance/resumo?de=2026-07-06&ate=2026-07-06');
   out.zero_taxaAceitacao = rZero.body ? String(rZero.body.taxaAceitacao) : null;
   out.zero_taxaConclusao = rZero.body ? String(rZero.body.taxaConclusao) : null;
+  // linha SEM `tempo_disponivel` -> ausência de leitura, nunca 0 (0050)
+  out.zero_tempoDisponivelMedio = rZero.body ? String(rZero.body.tempoDisponivelMedio) : null;
+
+  // (n2) 0050 — MESMO entregador, MESMO turno, DUAS sub-praças (2026-09-03).
+  // A duração vem repetida nas 2 linhas: a fórmula antiga (ponderada por
+  // duracao da LINHA) daria a média simples dos percentuais, 55.00. A soma
+  // dos onlines sobre a duração ÚNICA do turno dá (1h+30min)/4h = 37.50.
+  const rMulti = await getJson(jarLeitura, '/performance/resumo?de=2026-09-03&ate=2026-09-03');
+  out.multipraca_status = rMulti.status;
+  out.multipraca_tempoDisponivelMedio = rMulti.body && rMulti.body.tempoDisponivelMedio;
+  // corridas continuam somando as duas praças (6+4 ofertadas, 4+2 aceitas)
+  out.multipraca_taxaAceitacao = rMulti.body && rMulti.body.taxaAceitacao;
+  // com filtro de sub-praça (caminho tabela-base): só o online daquela praça
+  // sobre o período INTEIRO -> 1h/4h = 25.00
+  const rMultiSub = await getJson(
+    jarLeitura, '/performance/resumo?de=2026-09-03&ate=2026-09-03&subpraca=Zona%20Sul'
+  );
+  out.multipracaSub_tempoDisponivelMedio = rMultiSub.body && rMultiSub.body.tempoDisponivelMedio;
+
+  // (n3) 0050 — linhas GÊMEAS da origem (2026-09-04): 2h+2h online num turno
+  // de 2h. Teto por turno -> 100.00, nunca 200.
+  const rGemeas = await getJson(jarLeitura, '/performance/resumo?de=2026-09-04&ate=2026-09-04');
+  out.gemeas_tempoDisponivelMedio = rGemeas.body && rGemeas.body.tempoDisponivelMedio;
 
   // (o) período vazio no resumo — cards zerados / grupos:[] (FR-011)
   const rCardsVazio = await getJson(jarLeitura, '/performance/resumo?de=2020-01-01&ate=2020-01-31');
@@ -570,7 +669,7 @@ check "resumo cards -> 200" "$(jget cards_status)" "200"
 check "resumo cards -> corridasCompletadas=26 (7+9+6+4)" "$(jget cards_corridasCompletadas)" "26"
 check "resumo cards -> taxaAceitacao=0.8182 (razão de somas 27/33, SC-002: != média simples 0.8125)" "$(jget cards_taxaAceitacao)" "0.8182"
 check "resumo cards -> taxaConclusao=0.9630 (26/27)" "$(jget cards_taxaConclusao)" "0.9630"
-check "resumo cards -> tempoDisponivelMedio=78.42 (ponderado por duracao)" "$(jget cards_tempoDisponivelMedio)" "78.42"
+check "resumo cards -> tempoDisponivelMedio=63.16 (0050: Σ online / Σ duração do período, NÃO 78.42 da fórmula antiga)" "$(jget cards_tempoDisponivelMedio)" "63.16"
 check "resumo cards -> taxasReais=35.00 ((1000+2000+0+500)/100)" "$(jget cards_taxasReais)" "35.00"
 
 check "resumo agrupado por dia -> 200" "$(jget dia_status)" "200"
@@ -583,8 +682,19 @@ check "resumo agrupado por periodo -> 3 grupos (ALMOCO/JANTAR/TURNO_INEXISTENTE_
 check "resumo agrupado por entregador -> 2 grupos (joao+maria)" "$(jget entregadorGrp_qtd)" "2"
 check "resumo agrupado por entregador -> rótulo do joao = nome (join Entregador)" "$(jget entregadorGrp_rotuloJoao)" "Joao Performance"
 
+check "resumo agrupado por entregador -> tempo do joao=70.83 (somas do próprio entregador, 0050)" "$(jget entregadorGrp_tempoJoao)" "70.83"
+check "resumo agrupado por entregador -> tempo da maria=50.00" "$(jget entregadorGrp_tempoMaria)" "50.00"
+
 check "divisão por zero (Cenário 14/SC-009): taxaAceitacao=null (nunca 0/1/exceção)" "$(jget zero_taxaAceitacao)" "null"
 check "divisão por zero (Cenário 14/SC-009): taxaConclusao=null" "$(jget zero_taxaConclusao)" "null"
+check "0050: turno sem tempo_disponivel -> tempoDisponivelMedio=null (ausência, nunca 0)" "$(jget zero_tempoDisponivelMedio)" "null"
+
+# ── 0050: agregação por TURNO (praças somadas, duração contada uma vez) ─────
+check "0050: turno em 2 sub-praças -> 200" "$(jget multipraca_status)" "200"
+check "0050: turno em 2 sub-praças -> tempoDisponivelMedio=37.50 ((1h+30min)/4h; a fórmula antiga dava 55.00)" "$(jget multipraca_tempoDisponivelMedio)" "37.50"
+check "0050: turno em 2 sub-praças -> taxaAceitacao=0.6000 (6/10, corridas continuam somando as praças)" "$(jget multipraca_taxaAceitacao)" "0.6000"
+check "0050: filtro por sub-praça (tabela-base) -> 25.00 (1h daquela praça sobre o período inteiro)" "$(jget multipracaSub_tempoDisponivelMedio)" "25.00"
+check "0050: linhas gêmeas da origem (2h+2h num turno de 2h) -> teto 100.00, nunca 200" "$(jget gemeas_tempoDisponivelMedio)" "100.00"
 
 check "resumo cards período vazio -> 200 (FR-011, nunca erro)" "$(jget cardsVazio_status)" "200"
 check "resumo cards período vazio -> corridasCompletadas=0" "$(jget cardsVazio_corridasCompletadas)" "0"
@@ -611,14 +721,14 @@ check "resumo multi-tenant HTTP (caminho MV): E_OUTRA -> taxasReais=9.99" "$(jge
 check "export CSV -> 200" "$(jget csv_status)" "200"
 check "export CSV -> Content-Type text/csv; charset=utf-8" "$(jget csv_contentType)" "text/csv; charset=utf-8"
 check "export CSV -> Content-Disposition com nome de arquivo esperado" "$(jget csv_contentDisposition)" 'attachment; filename="performance-2026-07-01_2026-07-04.csv"'
-check "export CSV -> cabeçalho fixo do contrato" "$(jget csv_cabecalho)" "dataPeriodo,periodo,entregadorNome,subpraca,praca,corridasOfertadas,corridasAceitas,corridasRejeitadas,corridasCompletadas,corridasCanceladas,pedidosConcluidos,tempoDisponivelPct,taxas"
+check "export CSV -> cabeçalho fixo do contrato" "$(jget csv_cabecalho)" "dataPeriodo,periodo,entregadorNome,subpraca,praca,corridasOfertadas,corridasAceitas,corridasRejeitadas,corridasCompletadas,corridasCanceladas,pedidosConcluidos,tempoDisponivelPct,taxas,metaAceitacaoPct,metaConclusaoPct,metaTempoDisponivelPct,abaixoDaMeta"
 check "export CSV -> 4 linhas de dados (bate com a tela, mesma janela)" "$(jget csv_qtd_linhas_dados)" "4"
 
 check "export CSV injection -> periodo '=' e entregadorNome '@' neutralizados (prefixo único ')" \
-  "$(jget csvInjecao_linha_dados)" "2026-09-01,'=SOMA(A1:A10),'@Perigoso Nome,Zona Sul,Sao Paulo,5,5,0,5,0,5,85,77.00"
+  "$(jget csvInjecao_linha_dados)" "2026-09-01,'=SOMA(A1:A10),'@Perigoso Nome,Zona Sul,Sao Paulo,5,5,0,5,0,5,85,77.00,,,,"
 
 check "export CSV gap CHK031 -> entregadorNome já iniciado por apóstrofo permanece com prefixo ÚNICO (sem dupla neutralização)" \
-  "$(jget csvJaNeutro_linha_dados)" "2026-09-02,ALMOCO 11H30-15H29,'Ja Neutro Nome,Zona Sul,Sao Paulo,5,5,0,5,0,5,85,1.00"
+  "$(jget csvJaNeutro_linha_dados)" "2026-09-02,ALMOCO 11H30-15H29,'Ja Neutro Nome,Zona Sul,Sao Paulo,5,5,0,5,0,5,85,1.00,,,,"
 
 check "export CSV vazio -> 200 (tasks.md 4.1.6, nunca erro)" "$(jget csvVazio_status)" "200"
 check "export CSV vazio -> só a linha de cabeçalho" "$(jget csvVazio_qtd_linhas)" "1"
@@ -710,11 +820,11 @@ check "MV (w): controle positivo — própria empresa no escopo -> 26|0.8182|35.
 psql_t <<SQL >/dev/null
 INSERT INTO "PerformanceTurno"
   (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, praca,
-   tempo_disponivel_pct, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
+   tempo_disponivel_pct, tempo_disponivel, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
    corridas_completadas, corridas_canceladas, pedidos_concluidos, taxas_centavos, hash_linha)
 VALUES
   ($E_TESTE, $IMPORT_ID, $ENT_JOAO, '2026-10-01', 'ALMOCO 11H30-15H29', '02:00:00', 'Zona Sul', 'Sao Paulo',
-   50.00, 4, 4, 0, 4, 0, 4, 4000, md5('staleness-perf-1'));
+   50.00, '01:00:00', 4, 4, 0, 4, 0, 4, 4000, md5('staleness-perf-1'));
 SQL
 STALE_COMPLETADAS="$(rpc_como_authenticated "[$E_TESTE]" "SELECT corridas_completadas FROM hub_performance_totais($E_TESTE, '2026-10-01', '2026-10-01', NULL, NULL, NULL)")"
 check "MV (x): fato inserido por SQL ainda NÃO aparece no resumo (MV stale, comportamento documentado)" "$STALE_COMPLETADAS" "0"

@@ -58,18 +58,20 @@ resolvida do token (nunca de query/body); erros JSON no formato curto
   faturamento.
 - `taxas` é `string` (Decision 7) — `taxas_centavos` convertido para R$
   (`13254` → `"132.54"`); `NULL` na origem → `"0.00"`.
-- `tempoDisponivelPct` é `number` (o percentual bruto da linha,
-  `null` se ausente) — só o **agregado** (`/resumo`) usa `text` fixo; o
-  item de lista individual expõe o valor cru da linha (sem cálculo
-  próprio, sem ambiguidade de arredondamento a proteger).
+- `tempoDisponivelPct` é `number` (`null` se ausente) — % do PERÍODO em que
+  a pessoa esteve online NAQUELA linha/praça, da coluna gerada
+  `tempo_disponivel_periodo_pct` (migration 0050). Somável entre as praças do
+  mesmo turno. Só o **agregado** (`/resumo`) usa `text` fixo.
 - Ordenação: `order=data_periodo.desc,id.desc` (mais recente primeiro,
   desempate determinístico).
 
 **Resposta 200 (`?format=csv`)**: `Content-Type: text/csv`, streaming
 (Decision 5), cabeçalho:
 ```
-dataPeriodo,periodo,entregadorNome,subpraca,praca,corridasOfertadas,corridasAceitas,corridasRejeitadas,corridasCompletadas,corridasCanceladas,pedidosConcluidos,tempoDisponivelPct,taxas
+dataPeriodo,periodo,entregadorNome,subpraca,praca,corridasOfertadas,corridasAceitas,corridasRejeitadas,corridasCompletadas,corridasCanceladas,pedidosConcluidos,tempoDisponivelPct,taxas,metaAceitacaoPct,metaConclusaoPct,metaTempoDisponivelPct,abaixoDaMeta
 ```
+(as 4 últimas colunas entraram com as metas, PR #117 — o contrato tinha ficado
+para trás; metas em percentual 0..100, vazio = não há meta para o cruzamento.)
 Filtro sem correspondência → arquivo só com cabeçalho, `200` (nunca erro).
 Toda célula cujo conteúdo comece com `= + - @` é neutralizada (FR-007,
 `lib/hub-csv.js`, Decision 6).
@@ -112,6 +114,29 @@ null, "taxasReais": "0.00" }` — nunca erro, nunca corpo vazio.
 Quando um denominador de razão é zero (`Σofertadas = 0` ou `Σaceitas = 0`,
 SC-009): o campo correspondente é `null` — nunca `0`, nunca `1`, nunca uma
 exceção.
+
+**`tempoDisponivelMedio` (migration 0050, substitui a fórmula de dec-011)**:
+
+```
+tempoDisponivelMedio = 100 × Σ tempo_disponivel_absoluto / Σ duracao_do_periodo
+```
+
+com a duração contada **uma vez por turno** (entregador × dia × período) e o
+tempo online **somado entre as praças** do mesmo turno — a origem repete a
+`duracao_do_periodo` em cada linha de praça, e ponderar por ela contava o
+mesmo turno duas ou três vezes. Teto de 100% por turno (a origem emite linhas
+gêmeas que somariam mais que o próprio período). Turno sem
+`tempo_disponivel` fica fora das duas somas: `null`, nunca `0`.
+
+Era, até a 0050, a média de `tempo_disponivel_escalado` ponderada por
+`duracao` — mas `escalado` mede sobre o tempo que a pessoa **se escalou**, não
+sobre o período. Medido no CSV real: divergia em 11,5% das linhas (p95 36pp) e
+mudava de lado numa meta de 60%/70% para 7-8% dos entregadores.
+
+O mesmo vale para `tempoDisponivelPct` do item de lista (`GET /performance`) e
+para a coluna homônima do CSV: passam a vir da coluna gerada
+`tempo_disponivel_periodo_pct` (% do período **naquela linha/praça**, somável
+entre as praças do turno). O nome do campo não mudou.
 
 **Resposta 200 — com `groupBy` (FR-004)**:
 ```json

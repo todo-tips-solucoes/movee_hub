@@ -33,7 +33,7 @@ describe('mapPerformanceListItem', () => {
       entregador_id: 42, entregador: { nome: 'F*** S***' }, subpraca: 'PINHEIROS', praca: 'SAO PAULO',
       corridas_ofertadas: 18, corridas_aceitas: 15, corridas_rejeitadas: 3,
       corridas_completadas: 14, corridas_canceladas: 1, pedidos_concluidos: 20,
-      tempo_disponivel_pct: 92.5, taxas_centavos: 1234,
+      tempo_disponivel_periodo_pct: 92.5, taxas_centavos: 1234,
     };
     const item = mapPerformanceListItem(row);
     assert.deepEqual(item, {
@@ -51,7 +51,7 @@ describe('mapPerformanceListItem', () => {
       entregador: { nome: 'A' }, subpraca: null, praca: null,
       corridas_ofertadas: 0, corridas_aceitas: 0, corridas_rejeitadas: 0,
       corridas_completadas: 0, corridas_canceladas: 0, pedidos_concluidos: null,
-      tempo_disponivel_pct: null, taxas_centavos: null,
+      tempo_disponivel_periodo_pct: null, taxas_centavos: null,
     };
     const item = mapPerformanceListItem(row);
     assert.equal(item.tempoDisponivelPct, null);
@@ -64,7 +64,7 @@ describe('mapPerformanceListItem', () => {
       entregador: null, subpraca: null, praca: null,
       corridas_ofertadas: 1, corridas_aceitas: 1, corridas_rejeitadas: 0,
       corridas_completadas: 1, corridas_canceladas: 0, pedidos_concluidos: 1,
-      tempo_disponivel_pct: 50, taxas_centavos: 0,
+      tempo_disponivel_periodo_pct: 50, taxas_centavos: 0,
     };
     const item = mapPerformanceListItem(row);
     assert.equal(item.entregadorId, 7);

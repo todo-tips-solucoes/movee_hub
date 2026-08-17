@@ -112,8 +112,12 @@ function parsePaginacao(query) {
  * `null` — Decision 4: `entregador_id` é `NOT NULL` desde a origem, sem
  * bucket "sem entregador" equivalente ao "agregados/bônus" do faturamento).
  * `taxas` é `text` fixo (`NULL` -> `"0.00"`, Decision 7);
- * `tempoDisponivelPct` é `number|null` cru da linha (sem cálculo — só o
- * agregado usa `text` fixo).
+ * `tempoDisponivelPct` é `number|null` da coluna gerada
+ * `tempo_disponivel_periodo_pct` (0050): % do PERÍODO em que a pessoa esteve
+ * online nesta linha. Não é mais o `tempo_disponivel_pct` cru — aquele é o
+ * `escalado` da origem, que mede sobre o tempo escalado e não é somável entre
+ * as praças de um mesmo turno. O nome do campo do contrato não muda: a
+ * pergunta que ele responde é a mesma, a conta é que estava errada.
  * @param {object} row
  * @returns {object}
  */
@@ -132,9 +136,10 @@ function mapPerformanceListItem(row) {
     corridasCompletadas: row.corridas_completadas,
     corridasCanceladas: row.corridas_canceladas,
     pedidosConcluidos: row.pedidos_concluidos,
-    tempoDisponivelPct: row.tempo_disponivel_pct === null || row.tempo_disponivel_pct === undefined
+    tempoDisponivelPct: row.tempo_disponivel_periodo_pct === null
+      || row.tempo_disponivel_periodo_pct === undefined
       ? null
-      : Number(row.tempo_disponivel_pct),
+      : Number(row.tempo_disponivel_periodo_pct),
     taxas: formatarTaxasReais(row.taxas_centavos),
   };
 }

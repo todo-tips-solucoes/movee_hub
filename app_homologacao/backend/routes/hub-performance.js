@@ -170,7 +170,7 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
   filtrosBase.push(
     'select=data_periodo,periodo,subpraca,praca,corridas_ofertadas,corridas_aceitas,'
     + 'corridas_rejeitadas,corridas_completadas,corridas_canceladas,pedidos_concluidos,'
-    + 'tempo_disponivel_pct,taxas_centavos,entregador:Entregador(nome)'
+    + 'tempo_disponivel_periodo_pct,taxas_centavos,entregador:Entregador(nome)'
   );
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -218,9 +218,10 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
     let bloco = '';
     for (const row of linhas) {
       const entregadorNome = row.entregador ? row.entregador.nome : '';
-      const tempoDisponivelPct = row.tempo_disponivel_pct === null || row.tempo_disponivel_pct === undefined
+      const tempoDisponivelPct = row.tempo_disponivel_periodo_pct === null
+        || row.tempo_disponivel_periodo_pct === undefined
         ? ''
-        : row.tempo_disponivel_pct;
+        : row.tempo_disponivel_periodo_pct;
       bloco += [
         row.data_periodo,
         celulaCsv(row.periodo),
@@ -312,7 +313,7 @@ router.get('/', requireModuloAtivo('performance'), requirePermission('performanc
     filtros.push(
       'select=id,data_periodo,periodo,entregador_id,subpraca,praca,corridas_ofertadas,'
       + 'corridas_aceitas,corridas_rejeitadas,corridas_completadas,corridas_canceladas,'
-      + 'pedidos_concluidos,tempo_disponivel_pct,taxas_centavos,entregador:Entregador(nome)'
+      + 'pedidos_concluidos,tempo_disponivel_periodo_pct,taxas_centavos,entregador:Entregador(nome)'
     );
 
     // FR-011: período/filtro vazio NUNCA é erro — resposta 200 com
