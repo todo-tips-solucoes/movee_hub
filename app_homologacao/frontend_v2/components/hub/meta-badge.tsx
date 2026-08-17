@@ -21,12 +21,23 @@ interface MetaBadgeProps {
   className?: string;
 }
 
-const pct = (v: number) => `${(Math.round(v * 1000) / 10).toLocaleString('pt-BR')}%`;
+/** Uma casa decimal — a mesma que a comparação usa (ver abaixo). */
+const CASAS = 1;
+const arredondar = (v: number) => Math.round(v * 100 * 10 ** CASAS) / 10 ** CASAS;
+const pct = (v: number) => `${arredondar(v).toLocaleString('pt-BR')}%`;
 
 export function MetaBadge({ valor, meta, rotulo, className }: MetaBadgeProps) {
   if (valor === null || meta === undefined) return null;
 
-  const abaixo = valor < meta;
+  // Comparar na MESMA precisão em que se exibe. Comparando em precisão total e
+  // exibindo arredondado, o badge se contradizia na própria frase: leitura
+  // 89,96% contra meta de 90% imprimia "90% abaixo da meta de 90%" — achado
+  // adversarial, reproduzido em node. Alcançável com dado real, porque
+  // `tempo_disponivel_pct` chega com 2 casas.
+  const valorExibido = arredondar(valor);
+  const metaExibida = arredondar(meta);
+  const abaixo = valorExibido < metaExibida;
+  const acima = valorExibido > metaExibida;
   return (
     <span
       className={cn(
@@ -40,7 +51,14 @@ export function MetaBadge({ valor, meta, rotulo, className }: MetaBadgeProps) {
       <span aria-hidden="true">{abaixo ? '▼' : '▲'}</span>
       <span>
         {rotulo}: {pct(valor)}
-        <span className="font-normal"> {abaixo ? 'abaixo da' : 'na'} meta de {pct(meta)}</span>
+        {/* Três estados, não dois: "na meta" em português operacional quer
+            dizer EXATAMENTE no patamar. Dizer isso para quem entregou 95%
+            contra meta de 70% subdeclara o desempenho de quem foi bem — e a
+            cor verde já cobre os dois casos bons. */}
+        <span className="font-normal">
+          {' '}
+          {abaixo ? 'abaixo da' : acima ? 'acima da' : 'na'} meta de {pct(meta)}
+        </span>
       </span>
     </span>
   );

@@ -406,17 +406,28 @@ export default function PerformancePage() {
   const podeGerenciarMetas = permissoes.includes('performance.metas_gerenciar');
 
   // impeccable r24 parte 2: as metas do cruzamento praça × turno. Carregadas
-  // uma vez (são poucas por entidade) e casadas por linha no render. Falha ao
-  // carregar NÃO quebra a tela nem inventa aprovação: sem meta, nenhum
-  // julgamento é emitido — que é exatamente o estado de quem nunca configurou.
+  // uma vez (são poucas por entidade) e casadas por linha no render.
+  //
+  // A falha DEIXOU de ser silenciosa (revisão adversarial, 2026-08-16). Antes
+  // o catch caía em `[]`, produzindo exatamente a tela de quem nunca
+  // configurou meta — e o comentário anterior tratava isso como desejável. Não
+  // é: o estado de quem nunca configurou é VERDADEIRO; este é DESCONHECIDO
+  // apresentado como verdadeiro. Um turno reprovado deixava de ser reprovado e
+  // ninguém ficava sabendo, numa tela cujo número vira cobrança contratual.
   const [metas, setMetas] = useState<MetaPerformance[]>([]);
-  useEffect(() => {
-    let ativo = true;
+  const [metasIndisponiveis, setMetasIndisponiveis] = useState(false);
+  const carregarMetas = useCallback(() => {
+    setMetasIndisponiveis(false);
     listarMetas()
-      .then((m) => { if (ativo) setMetas(m); })
-      .catch(() => { if (ativo) setMetas([]); });
-    return () => { ativo = false; };
+      .then((m) => setMetas(m))
+      .catch(() => {
+        setMetas([]);
+        setMetasIndisponiveis(true);
+      });
   }, []);
+  useEffect(() => {
+    carregarMetas();
+  }, [carregarMetas]);
   const metasPorChave = useMemo(
     () => new Map(metas.map((m) => [chaveMeta(m.praca, m.periodo, m.indicador), m.valor])),
     [metas]
@@ -484,6 +495,22 @@ export default function PerformancePage() {
           </Button>
         )}
       </PageHeader>
+
+      {metasIndisponiveis && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong"
+        >
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">
+            Metas indisponíveis: <strong className="font-medium">nenhuma linha foi avaliada</strong>{' '}
+            nesta carga. Os números abaixo continuam corretos.
+          </p>
+          <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={carregarMetas}>
+            Tentar novamente
+          </Button>
+        </div>
+      )}
 
       {erroExport && (
         <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
@@ -675,6 +702,11 @@ export default function PerformancePage() {
                     {[item.subpraca, item.praca].filter(Boolean).join(' — ')}
                   </p>
                 )}
+                {/* impeccable r24: as marcas de meta existiam SÓ na tabela
+                    desktop — em 390px a feature simplesmente não existia,
+                    enquanto a tela de metas prometia por escrito que o que
+                    fica abaixo é destacado na Performance. Achado adversarial. */}
+                <MarcasDeMeta item={item} metasPorChave={metasPorChave} />
               </div>
             ))}
           </div>

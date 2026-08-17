@@ -36,6 +36,7 @@ import {
   percentualParaFracao,
   removerMeta,
   salvarMeta,
+  suspeitaDeUnidade,
   validarPercentual,
   type IndicadorMeta,
   type MetaPerformance,
@@ -68,7 +69,14 @@ export default function MetasPerformancePage() {
   const [periodo, setPeriodo] = useState('');
   const [indicador, setIndicador] = useState<IndicadorMeta>('aceitacao');
   const [valorPct, setValorPct] = useState('');
-  const [erroCampo, setErroCampo] = useState<string | null>(null);
+  // Erro COM o campo a que pertence: antes havia um `erroCampo` só, e o
+  // `aria-invalid`/`aria-describedby` ficavam sempre no input de porcentagem —
+  // então "Informe a praça." fazia o leitor de tela anunciar o campo ERRADO
+  // como inválido, e um "Erro no servidor" aparecia como erro de validação da
+  // porcentagem. Achado adversarial de acessibilidade.
+  const [erroCampo, setErroCampo] = useState<{ campo: 'praca' | 'periodo' | 'valor'; msg: string } | null>(null);
+  const [erroForm, setErroForm] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const buscar = useCallback(async () => {
     setCarregando(true);
@@ -108,26 +116,33 @@ export default function MetasPerformancePage() {
   }, []);
 
   const submeter = useCallback(async () => {
-    const problema = validarPercentual(valorPct);
-    if (problema) {
-      setErroCampo(problema);
-      document.getElementById('meta-valor')?.focus();
-      return;
-    }
+    // Na ORDEM VISUAL dos campos: validar o valor primeiro fazia um formulário
+    // vazio responder "Informe a meta." e jogar o foco no último campo.
     if (!praca.trim()) {
-      setErroCampo('Informe a praça.');
+      setErroCampo({ campo: 'praca', msg: 'Informe a praça.' });
       document.getElementById('meta-praca')?.focus();
       return;
     }
     if (!periodo.trim()) {
-      setErroCampo('Informe o turno.');
+      setErroCampo({ campo: 'periodo', msg: 'Informe o turno.' });
       document.getElementById('meta-periodo')?.focus();
       return;
     }
+    const problema = validarPercentual(valorPct);
+    if (problema) {
+      setErroCampo({ campo: 'valor', msg: problema });
+      document.getElementById('meta-valor')?.focus();
+      return;
+    }
     setErroCampo(null);
+    setErroForm(null);
     setSalvando(true);
     try {
       const numero = Number(valorPct.trim().replace(',', '.'));
+      // Aviso, não bloqueio: 0,9 querendo dizer 90% vira meta de 0,9% e deixa
+      // tudo verde para sempre — a falha silenciosa simétrica à que o produto
+      // combate no outro extremo. Quem confirmar, segue.
+      setAviso(suspeitaDeUnidade(numero));
       await salvarMeta({
         praca: praca.trim(),
         periodo: periodo.trim(),
@@ -146,7 +161,9 @@ export default function MetasPerformancePage() {
       setValorPct('');
       await buscar();
     } catch (e) {
-      setErroCampo(e instanceof MetasApiError ? e.message : 'Não foi possível salvar a meta.');
+      // Erro vindo da API é do FORMULÁRIO, não de um campo: pendurá-lo no
+      // input de porcentagem faria "Erro no servidor" parecer erro de digitação.
+      setErroForm(e instanceof MetasApiError ? e.message : 'Não foi possível salvar a meta.');
     } finally {
       setSalvando(false);
     }
@@ -241,6 +258,8 @@ export default function MetasPerformancePage() {
                 onChange={(e) => setPraca(e.target.value)}
                 list="metas-pracas"
                 placeholder="Ex.: SAO PAULO"
+                aria-invalid={erroCampo?.campo === 'praca'}
+                aria-describedby={erroCampo?.campo === 'praca' ? 'meta-erro' : undefined}
                 className="h-11 sm:h-9"
               />
               <datalist id="metas-pracas">
@@ -260,6 +279,8 @@ export default function MetasPerformancePage() {
                 onChange={(e) => setPeriodo(e.target.value)}
                 list="metas-turnos"
                 placeholder="Ex.: ALMOCO 11H30-15H29"
+                aria-invalid={erroCampo?.campo === 'periodo'}
+                aria-describedby={erroCampo?.campo === 'periodo' ? 'meta-erro' : undefined}
                 className="h-11 sm:h-9"
               />
               <datalist id="metas-turnos">
@@ -292,17 +313,21 @@ export default function MetasPerformancePage() {
                 onChange={(e) => setValorPct(e.target.value)}
                 inputMode="decimal"
                 placeholder="Ex.: 90"
-                aria-invalid={erroCampo !== null}
-                aria-describedby={erroCampo ? 'meta-erro' : 'meta-ajuda'}
+                aria-invalid={erroCampo?.campo === 'valor'}
+                aria-describedby={erroCampo?.campo === 'valor' ? 'meta-erro' : 'meta-ajuda'}
                 className="h-11 sm:h-9"
               />
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            {erroCampo ? (
+            {erroCampo || erroForm ? (
               <p id="meta-erro" role="alert" className="text-xs font-medium text-destructive">
-                {erroCampo}
+                {erroCampo?.msg ?? erroForm}
+              </p>
+            ) : aviso ? (
+              <p role="status" className="text-xs font-medium text-warning-strong">
+                {aviso}
               </p>
             ) : (
               <p id="meta-ajuda" className="text-xs text-muted-foreground">

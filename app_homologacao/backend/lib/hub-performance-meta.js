@@ -10,28 +10,48 @@
 // As metas são gravadas SEMPRE como fração 0..1 (migration 0048, com CHECK).
 // Comparar o `tempo_disponivel` sem dividir por 100 faria 87,42 parecer
 // 8742% e reprovaria — ou aprovaria — a operação inteira sem ninguém notar.
-// É por isso que a conversão está isolada numa função com teste, e não
-// espalhada nos chamadores.
+//
+// ⚠️ ONDE A COMPARAÇÃO ACONTECE: no FRONTEND
+// (`lib/hub/performance-metas-api.ts#leiturasDoRegistro`), porque é a tela que
+// casa meta com linha. Este arquivo tinha uma segunda implementação da mesma
+// regra (`avaliarRegistro`/`normalizarLeitura`/`razaoInteira`) que NINGUÉM
+// chamava — revisão adversarial de 2026-08-16 mostrou que a rota importava só
+// `validarMeta`. Duas implementações da mesma regra, uma delas morta e com 13
+// testes dando sensação de cobertura, é pior que uma só: a deriva passa em
+// todos os testes. As funções mortas foram removidas.
 
 const INDICADORES = Object.freeze(['aceitacao', 'conclusao', 'tempo_disponivel']);
 
-/** Indicadores cuja LEITURA vem em 0..100 e precisa virar fração. */
-const INDICADORES_EM_PERCENTUAL = Object.freeze(['tempo_disponivel']);
+/** Teto de `praca`/`periodo`. Sem ele, cada PUT despeja até o limite do
+ *  `express.json()` numa tabela de auditoria imutável e retida 12 meses — e a
+ *  unique aceita infinitas combinações novas. 120 caracteres cobre com folga o
+ *  que as planilhas de origem produzem ("SAO PAULO", "ALMOCO 11H30-15H29"). */
+const TAMANHO_MAX_TEXTO = 120;
 
 /**
- * Converte o valor que a API de performance reporta para a MESMA unidade das
- * metas (fração 0..1).
+ * Forma canônica de `praca`/`periodo`.
  *
- * @param {string|number|null} valorApi
- * @param {string} indicador
- * @returns {number|null} fração 0..1, ou null quando não há valor (o hub nunca
- *   transforma "não sei" em 0 — mesma gramática de `formatFracaoPct`).
+ * Existe porque a unique da migration 0048 é BYTE-EXATA e a chave de
+ * casamento normalizava caixa — divergência reproduzida contra o ambiente
+ * real: `"SAO PAULO"` e `"Sao Paulo"` viravam DUAS linhas no banco e UMA
+ * chave na tela, com a última vencendo em silêncio. O admin via duas metas
+ * listadas e só uma sendo aplicada, sem nada dizer qual.
+ *
+ * Guardando a forma canônica, as duas coisas voltam a concordar: a unique
+ * passa a barrar o duplicado, e a chave casa sempre.
+ *
+ * `NFC` antes de tudo: a mesma letra acentuada tem duas representações de
+ * bytes (planilha exportada em macOS costuma vir NFD), visualmente idênticas
+ * e diferentes para `===`. Sem isto, uma meta é gravada, aparece na lista e
+ * NUNCA marca nada — indistinguível de "sem meta", que é estado legítimo.
+ *
+ * Maiúsculas porque é a forma do dado de origem (as planilhas trazem
+ * "SAO PAULO", "ALMOCO 11H30-15H29") — canonizar para ela mantém o que a
+ * pessoa lê igual ao que a importação produz.
  */
-function normalizarLeitura(valorApi, indicador) {
-  if (valorApi === null || valorApi === undefined || valorApi === '') return null;
-  const num = typeof valorApi === 'string' ? Number.parseFloat(valorApi) : valorApi;
-  if (!Number.isFinite(num)) return null;
-  return INDICADORES_EM_PERCENTUAL.includes(indicador) ? num / 100 : num;
+function canonizarTexto(bruto) {
+  if (typeof bruto !== 'string') return '';
+  return bruto.normalize('NFC').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
 /**
@@ -42,12 +62,14 @@ function normalizarLeitura(valorApi, indicador) {
 function validarMeta(bruto) {
   if (!bruto || typeof bruto !== 'object') return { ok: false, erro: 'META_INVALIDA' };
 
-  const praca = typeof bruto.praca === 'string' ? bruto.praca.trim() : '';
-  const periodo = typeof bruto.periodo === 'string' ? bruto.periodo.trim() : '';
+  const praca = canonizarTexto(bruto.praca);
+  const periodo = canonizarTexto(bruto.periodo);
   const indicador = typeof bruto.indicador === 'string' ? bruto.indicador : '';
 
   if (!praca) return { ok: false, erro: 'PRACA_OBRIGATORIA' };
   if (!periodo) return { ok: false, erro: 'PERIODO_OBRIGATORIO' };
+  if (praca.length > TAMANHO_MAX_TEXTO) return { ok: false, erro: 'PRACA_MUITO_LONGA' };
+  if (periodo.length > TAMANHO_MAX_TEXTO) return { ok: false, erro: 'PERIODO_MUITO_LONGO' };
   if (!INDICADORES.includes(indicador)) return { ok: false, erro: 'INDICADOR_INVALIDO' };
 
   const valor = typeof bruto.valor === 'string' ? Number.parseFloat(bruto.valor) : bruto.valor;
@@ -60,56 +82,14 @@ function validarMeta(bruto) {
 }
 
 /**
- * Casa um registro de turno com a meta do seu cruzamento praça × turno.
+ * Chave do cruzamento — a MESMA canonização usada na gravação, para que a
+ * unique do banco e o casamento na tela nunca discordem.
  *
- * @param {object} registro - item de `GET /performance` (camelCase do DTO)
- * @param {Map<string, number>} metasPorChave - `chaveMeta()` -> valor (fração)
- * @returns {{indicador: string, valor: number, meta: number, abaixo: boolean}[]}
- *   Só os indicadores que TÊM meta definida e leitura disponível. Sem meta não
- *   há julgamento — a tela não inventa patamar.
- */
-function avaliarRegistro(registro, metasPorChave) {
-  const leituras = [
-    ['aceitacao', razaoInteira(registro.corridasAceitas, registro.corridasOfertadas)],
-    ['conclusao', razaoInteira(registro.corridasCompletadas, registro.corridasAceitas)],
-    ['tempo_disponivel', normalizarLeitura(registro.tempoDisponivelPct, 'tempo_disponivel')],
-  ];
-
-  const resultado = [];
-  for (const [indicador, valor] of leituras) {
-    if (valor === null) continue;
-    const meta = metasPorChave.get(chaveMeta(registro.praca, registro.periodo, indicador));
-    if (meta === undefined) continue;
-    resultado.push({ indicador, valor, meta, abaixo: valor < meta });
-  }
-  return resultado;
-}
-
-/** Razão entre contadores inteiros; sem denominador não há razão (nunca 0). */
-function razaoInteira(parte, todo) {
-  if (parte === null || parte === undefined || todo === null || todo === undefined) return null;
-  if (!(todo > 0)) return null;
-  return parte / todo;
-}
-
-/**
- * Chave do cruzamento. `praca`/`periodo` são texto livre vindo da planilha de
- * origem, então a comparação normaliza caixa e espaços nas pontas — "SAO
- * PAULO" e "Sao Paulo " são a mesma praça para efeito de meta. Acento NÃO é
- * removido: praças diferentes podem se distinguir por ele, e achatar isso
- * fundiria duas configurações legítimas numa só.
+ * Acento continua distinguindo (praças podem se distinguir por ele); o que
+ * deixou de distinguir é caixa, espaço interno e forma Unicode.
  */
 function chaveMeta(praca, periodo, indicador) {
-  const p = typeof praca === 'string' ? praca.trim().toLowerCase() : '';
-  const t = typeof periodo === 'string' ? periodo.trim().toLowerCase() : '';
-  return `${p}|${t}|${indicador}`;
+  return `${canonizarTexto(praca)}|${canonizarTexto(periodo)}|${indicador}`;
 }
 
-module.exports = {
-  INDICADORES,
-  normalizarLeitura,
-  validarMeta,
-  avaliarRegistro,
-  razaoInteira,
-  chaveMeta,
-};
+module.exports = { INDICADORES, TAMANHO_MAX_TEXTO, canonizarTexto, validarMeta, chaveMeta };

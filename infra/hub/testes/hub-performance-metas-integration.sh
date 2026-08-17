@@ -24,6 +24,14 @@
 #       ESCREVE (403). Ler é deliberado: a tela de performance precisa das
 #       metas para marcar quem está abaixo.
 #   (i) isolamento multi-tenant: meta da entidade B nunca aparece para A
+#   (j) canonização (r24, achado adversarial): caixa, espaço interno e forma
+#       Unicode (NFD vs NFC) do MESMO cruzamento são upsert, não linha nova —
+#       era assim que "SAO PAULO" e "Sao Paulo" viravam duas metas e uma chave,
+#       com a última vencendo em silêncio
+#   (k) teto de comprimento de praca/periodo
+#   (l) id não-numérico no DELETE -> 400 (parseInt permissivo apagava outra meta)
+#   (m) `id_empresa` no CORPO é ignorado — escopo vem do token (Princípio II)
+#   (n) DELETE de meta de OUTRA entidade -> 404, nunca 204 silencioso
 #
 # Uso: infra/hub/testes/hub-performance-metas-integration.sh
 # =============================================================================
@@ -165,6 +173,7 @@ cat >> "$TMP/teste.js" <<'JS'
 async function main() {
   const senha = process.argv[2];
   const empresaA = Number(process.argv[3]);
+  const idOutroTenant = Number(process.argv[4]);
   const out = {};
 
   const l = await login('metas-admin@example.test', senha);
@@ -208,11 +217,39 @@ async function main() {
   out.delDeNovoStatus = delDeNovo.status;
   out.delDeNovoErro = delDeNovo.corpo?.erro;
 
+  // (j) canonização: caixa/espaço/NFD do MESMO cruzamento é upsert, não linha nova.
+  const canon1 = await req(jar, '/performance/metas', 'PUT',
+    { praca: 'SAO PAULO', periodo: 'ALMOCO', indicador: 'conclusao', valor: 0.8 });
+  const canon2 = await req(jar, '/performance/metas', 'PUT',
+    { praca: ' sao  paulo ', periodo: 'Almoco', indicador: 'conclusao', valor: 0.6 });
+  out.canonMesmoId = canon1.corpo?.meta?.id === canon2.corpo?.meta?.id;
+  out.canonGravaMaiuscula = canon2.corpo?.meta?.praca;
+
+  const nfd = await req(jar, '/performance/metas', 'PUT',
+    { praca: 'MO\u00d3CA'.normalize('NFD'), periodo: 'ALMOCO', indicador: 'conclusao', valor: 0.5 });
+  const nfc = await req(jar, '/performance/metas', 'PUT',
+    { praca: 'MO\u00d3CA'.normalize('NFC'), periodo: 'ALMOCO', indicador: 'conclusao', valor: 0.4 });
+  out.nfdMesmoId = nfd.corpo?.meta?.id === nfc.corpo?.meta?.id;
+
+  // (k) teto de texto
+  out.textoLongoErro = (await req(jar, '/performance/metas', 'PUT',
+    { praca: 'X'.repeat(200), periodo: 'ALMOCO', indicador: 'conclusao', valor: 0.5 })).corpo?.erro;
+
+  // (l) id não-numérico no DELETE não pode virar parseInt permissivo
+  out.idLixoStatus = (await req(jar, '/performance/metas/7abc', 'DELETE')).status;
+
+  // (m) `id_empresa` no CORPO é ignorado — o escopo vem do token, nunca do corpo
+  const tentaOutroTenant = await req(jar, '/performance/metas', 'PUT',
+    { praca: 'INJETADA', periodo: 'X', indicador: 'aceitacao', valor: 0.5, id_empresa: 940002 });
+  out.injecaoStatus = tentaOutroTenant.status;
+
   const lo = await login('metas-operador@example.test', senha);
   const { jar: jarOper } = await trocaEntidade(lo.jar, empresaA);
   out.operLeStatus = (await req(jarOper, '/performance/metas')).status;
   out.operEscreveStatus = (await req(jarOper, '/performance/metas', 'PUT',
     { praca: 'SP', periodo: 'ALMOCO', indicador: 'aceitacao', valor: 0.5 })).status;
+  // (n) DELETE de meta de OUTRA entidade -> 404, nunca 204 silencioso
+  out.delOutroTenantStatus = (await req(jar, `/performance/metas/${idOutroTenant}`, 'DELETE')).status;
 
   process.stdout.write(JSON.stringify(out));
   process.exit(0);
@@ -220,7 +257,8 @@ async function main() {
 main();
 JS
 
-RES="$(run_node "$SENHA_OK" "$E_A" < "$TMP/teste.js")"
+ID_OUTRO_TENANT="$(psql_t -tAc "SELECT id FROM \"PerformanceMeta\" WHERE id_empresa=$E_B LIMIT 1" | tr -d '[:space:]')"
+RES="$(run_node "$SENHA_OK" "$E_A" "$ID_OUTRO_TENANT" < "$TMP/teste.js")"
 [ -n "$RES" ] || { echo "FAIL: corpo do teste não produziu saída"; exit 1; }
 
 ler() { printf '%s' "$RES" | node -e "
@@ -247,6 +285,13 @@ check "(g) DELETE de novo -> 404"                  "$(ler delDeNovoStatus)"    "
 check "(g) 404 traz META_NAO_ENCONTRADA"           "$(ler delDeNovoErro)"      "META_NAO_ENCONTRADA"
 check "(h) operador LÊ metas -> 200"               "$(ler operLeStatus)"       "200"
 check "(h) operador NÃO escreve -> 403"            "$(ler operEscreveStatus)"  "403"
+check "(j) caixa/espaço diferentes = MESMA meta"   "$(ler canonMesmoId)"        "true"
+check "(j) grava a forma canônica (maiúscula)"     "$(ler canonGravaMaiuscula)" "SAO PAULO"
+check "(j) NFD e NFC = MESMA meta"                 "$(ler nfdMesmoId)"          "true"
+check "(k) texto acima do teto -> erro próprio"    "$(ler textoLongoErro)"      "PRACA_MUITO_LONGA"
+check "(l) id não-numérico no DELETE -> 400"       "$(ler idLixoStatus)"        "400"
+check "(m) id_empresa no corpo é ignorado -> 200"  "$(ler injecaoStatus)"       "200"
+check "(n) DELETE de outra entidade -> 404"        "$(ler delOutroTenantStatus)" "404"
 
 echo
 if [ "$fails" -eq 0 ]; then

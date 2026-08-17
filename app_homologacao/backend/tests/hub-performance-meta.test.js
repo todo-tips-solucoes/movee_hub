@@ -6,30 +6,16 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   INDICADORES,
-  normalizarLeitura,
+  TAMANHO_MAX_TEXTO,
+  canonizarTexto,
   validarMeta,
-  avaliarRegistro,
-  razaoInteira,
   chaveMeta,
 } = require('../lib/hub-performance-meta');
 
-test('normalizarLeitura: tempo disponível vem em 0..100 e vira fração', () => {
-  assert.strictEqual(normalizarLeitura('87.42', 'tempo_disponivel'), 0.8742);
-  assert.strictEqual(normalizarLeitura(87.42, 'tempo_disponivel'), 0.8742);
-});
 
-test('normalizarLeitura: aceitação/conclusão já são fração e não são divididas', () => {
-  assert.strictEqual(normalizarLeitura('0.8333', 'aceitacao'), 0.8333);
-  assert.strictEqual(normalizarLeitura('0.9', 'conclusao'), 0.9);
-});
 
-test('normalizarLeitura: ausência vira null, nunca 0', () => {
-  for (const v of [null, undefined, '', 'abc', NaN]) {
-    assert.strictEqual(normalizarLeitura(v, 'aceitacao'), null, `valor ${String(v)}`);
-  }
-});
 
-test('validarMeta: aceita meta bem formada e apara espaços', () => {
+test('validarMeta: aceita meta bem formada e canoniza', () => {
   const r = validarMeta({ praca: '  SAO PAULO ', periodo: ' ALMOCO ', indicador: 'aceitacao', valor: 0.9 });
   assert.strictEqual(r.ok, true);
   assert.deepStrictEqual(r.meta, {
@@ -54,70 +40,45 @@ test('validarMeta: campos obrigatórios e indicador fora do enum', () => {
   assert.strictEqual(validarMeta(null).erro, 'META_INVALIDA');
 });
 
-test('razaoInteira: sem denominador não há razão', () => {
-  assert.strictEqual(razaoInteira(10, 0), null);
-  assert.strictEqual(razaoInteira(10, null), null);
-  assert.strictEqual(razaoInteira(null, 10), null);
-  assert.strictEqual(razaoInteira(25, 30), 25 / 30);
+
+test('chaveMeta: caixa, espaço interno e forma Unicode não criam cruzamentos distintos', () => {
+  assert.strictEqual(chaveMeta(' SAO PAULO ', 'Almoco', 'aceitacao'), chaveMeta('sao paulo', 'ALMOCO', 'aceitacao'));
+  assert.strictEqual(chaveMeta('SAO   PAULO', 'A', 'x'), chaveMeta('SAO PAULO', 'A', 'x'));
+  // O caso mudo: NFD (planilha do macOS) vs NFC, visualmente idênticos.
+  assert.strictEqual(chaveMeta('MOÓCA'.normalize('NFD'), 'A', 'x'), chaveMeta('MOÓCA'.normalize('NFC'), 'A', 'x'));
 });
 
-test('chaveMeta: caixa e espaços não criam cruzamentos distintos', () => {
-  assert.strictEqual(chaveMeta(' SAO PAULO ', 'Almoco', 'aceitacao'), chaveMeta('sao paulo', 'ALMOCO', 'aceitacao'));
+// A unique da 0048 é byte-exata; a chave normalizava caixa. Isso produzia DUAS
+// linhas para um cruzamento e UMA chave na tela, com a última vencendo em
+// silêncio — reproduzido contra o ambiente real. Gravar a forma canônica é o
+// que faz as duas coisas voltarem a concordar.
+test('validarMeta grava a forma CANÔNICA, a mesma que a chave usa', () => {
+  const r = validarMeta({ praca: ' Sao  Paulo ', periodo: 'Almoco', indicador: 'aceitacao', valor: 0.9 });
+  assert.strictEqual(r.meta.praca, 'SAO PAULO');
+  assert.strictEqual(r.meta.periodo, 'ALMOCO');
+  assert.strictEqual(
+    chaveMeta(r.meta.praca, r.meta.periodo, 'aceitacao'),
+    chaveMeta('SAO PAULO', 'ALMOCO', 'aceitacao')
+  );
+});
+
+test('validarMeta barra texto acima do teto (auditoria imutável, unique sem fim)', () => {
+  assert.strictEqual(validarMeta({ praca: 'x'.repeat(TAMANHO_MAX_TEXTO + 1), periodo: 'A', indicador: 'aceitacao', valor: 0.5 }).erro, 'PRACA_MUITO_LONGA');
+  assert.strictEqual(validarMeta({ praca: 'A', periodo: 'x'.repeat(TAMANHO_MAX_TEXTO + 1), indicador: 'aceitacao', valor: 0.5 }).erro, 'PERIODO_MUITO_LONGO');
+});
+
+test('canonizarTexto: entrada não-string vira vazio, nunca "undefined"', () => {
+  assert.strictEqual(canonizarTexto(undefined), '');
+  assert.strictEqual(canonizarTexto(null), '');
+  assert.strictEqual(canonizarTexto(42), '');
 });
 
 test('chaveMeta: acento distingue, porque praças podem se distinguir por ele', () => {
   assert.notStrictEqual(chaveMeta('MOOCA', 'A', 'aceitacao'), chaveMeta('MOÓCA', 'A', 'aceitacao'));
 });
 
-test('avaliarRegistro: compara tempo disponível na unidade certa', () => {
-  const registro = {
-    praca: 'SP',
-    periodo: 'ALMOCO',
-    corridasOfertadas: 30,
-    corridasAceitas: 25,
-    corridasCompletadas: 20,
-    tempoDisponivelPct: '80.00',
-  };
-  const metas = new Map([
-    [chaveMeta('SP', 'ALMOCO', 'aceitacao'), 0.9],
-    [chaveMeta('SP', 'ALMOCO', 'tempo_disponivel'), 0.75],
-  ]);
-  const r = avaliarRegistro(registro, metas);
 
-  const aceitacao = r.find((x) => x.indicador === 'aceitacao');
-  assert.ok(aceitacao.abaixo, '25/30 = 83% está abaixo da meta de 90%');
 
-  const tempo = r.find((x) => x.indicador === 'tempo_disponivel');
-  // 80,00 da API vira 0,80 e supera a meta 0,75. Sem a conversão, 80 > 0,75
-  // "passaria" por acidente — e um tempo de 10% também passaria.
-  assert.strictEqual(tempo.valor, 0.8);
-  assert.strictEqual(tempo.abaixo, false);
-});
-
-test('avaliarRegistro: sem meta definida, nenhum julgamento é emitido', () => {
-  const registro = {
-    praca: 'SP',
-    periodo: 'JANTAR',
-    corridasOfertadas: 10,
-    corridasAceitas: 1,
-    corridasCompletadas: 1,
-    tempoDisponivelPct: '5.00',
-  };
-  assert.deepStrictEqual(avaliarRegistro(registro, new Map()), []);
-});
-
-test('avaliarRegistro: meta existe mas leitura não — não inventa reprovação', () => {
-  const registro = {
-    praca: 'SP',
-    periodo: 'ALMOCO',
-    corridasOfertadas: 0,
-    corridasAceitas: 0,
-    corridasCompletadas: 0,
-    tempoDisponivelPct: null,
-  };
-  const metas = new Map([[chaveMeta('SP', 'ALMOCO', 'aceitacao'), 0.9]]);
-  assert.deepStrictEqual(avaliarRegistro(registro, metas), []);
-});
 
 test('INDICADORES é o contrato fechado da migration 0048', () => {
   assert.deepStrictEqual([...INDICADORES], ['aceitacao', 'conclusao', 'tempo_disponivel']);

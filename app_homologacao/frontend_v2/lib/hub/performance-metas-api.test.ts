@@ -4,27 +4,41 @@
 // simplesmente aprova tudo ou reprova tudo.
 import { describe, expect, it } from 'vitest';
 import {
+  canonizarTexto,
   chaveMeta,
   fracaoParaPercentual,
   leiturasDoRegistro,
   parseMeta,
   percentualParaFracao,
+  suspeitaDeUnidade,
   validarPercentual,
 } from './performance-metas-api';
 
 describe('conversão percentual ↔ fração', () => {
-  it('ida e volta preserva o valor em casos comuns', () => {
-    for (const pct of [0, 50, 75, 85, 90, 99.5, 100]) {
-      expect(fracaoParaPercentual(percentualParaFracao(pct))).toBe(pct);
+  // Antes esta suíte usava só valores de UMA casa decimal e assertava a
+  // própria perda (`fracaoParaPercentual(0.8742) === 87.4`) como se fosse
+  // correto — o teste passava por construção. A revisão adversarial mediu:
+  // 9000 de 10001 percentuais de duas casas não sobreviviam à ida e volta.
+  it('ida e volta preserva TODOS os percentuais de duas casas', () => {
+    let perdidos = 0;
+    for (let i = 0; i <= 10000; i++) {
+      const pct = Math.round(i) / 100;
+      if (fracaoParaPercentual(percentualParaFracao(pct)) !== pct) perdidos++;
     }
+    expect(perdidos).toBe(0);
+  });
+
+  it('99,95% não vira 100% — o caso que transformava meta em perfeição obrigatória', () => {
+    expect(percentualParaFracao(99.95)).toBe(0.9995);
+    expect(fracaoParaPercentual(0.9995)).toBe(99.95);
   });
 
   it('90 digitado vira 0.9, não 90', () => {
     expect(percentualParaFracao(90)).toBe(0.9);
   });
 
-  it('0.8742 exibe como 87,4 e não como 0,87', () => {
-    expect(fracaoParaPercentual(0.8742)).toBe(87.4);
+  it('0.8742 exibe as duas casas: 87,42', () => {
+    expect(fracaoParaPercentual(0.8742)).toBe(87.42);
   });
 });
 
@@ -46,15 +60,46 @@ describe('validarPercentual', () => {
   });
 });
 
-describe('chaveMeta', () => {
+describe('chaveMeta / canonizarTexto', () => {
   it('caixa e espaços não criam cruzamentos distintos', () => {
     expect(chaveMeta(' SAO PAULO ', 'Almoco', 'aceitacao')).toBe(
       chaveMeta('sao paulo', 'ALMOCO', 'aceitacao')
     );
   });
 
-  it('acento distingue, como no backend', () => {
+  it('espaço interno repetido também não', () => {
+    expect(chaveMeta('SAO   PAULO', 'A', 'aceitacao')).toBe(chaveMeta('SAO PAULO', 'A', 'aceitacao'));
+  });
+
+  // O caso mudo: a mesma letra acentuada em NFD (planilha exportada no macOS)
+  // e NFC é visualmente idêntica e diferente para `===`. Sem normalizar, a
+  // meta era gravada, aparecia na lista e NUNCA marcava nada.
+  it('NFC e NFD da mesma praça casam', () => {
+    expect(chaveMeta('MOÓCA'.normalize('NFD'), 'A', 'aceitacao')).toBe(
+      chaveMeta('MOÓCA'.normalize('NFC'), 'A', 'aceitacao')
+    );
+  });
+
+  it('acento continua distinguindo praças de fato diferentes', () => {
     expect(chaveMeta('MOOCA', 'A', 'aceitacao')).not.toBe(chaveMeta('MOÓCA', 'A', 'aceitacao'));
+  });
+
+  it('a forma canônica é a MESMA que o backend grava (maiúscula)', () => {
+    expect(canonizarTexto('  Sao   Paulo ')).toBe('SAO PAULO');
+  });
+});
+
+describe('suspeitaDeUnidade', () => {
+  it('0,9 (quem quis dizer 90%) levanta a pergunta', () => {
+    expect(suspeitaDeUnidade(0.9)).toMatch(/menos de um por cento.*90%/);
+  });
+
+  it('valores normais não levantam nada', () => {
+    for (const v of [1, 50, 90, 100]) expect(suspeitaDeUnidade(v)).toBeNull();
+  });
+
+  it('zero não é suspeito — é meta desligada, decisão legítima', () => {
+    expect(suspeitaDeUnidade(0)).toBeNull();
   });
 });
 

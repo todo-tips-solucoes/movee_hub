@@ -18,6 +18,7 @@ const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { obterPermissoesEfetivas, obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { requirePermission } = require('../middleware/hub-require-permission');
+const { requireModuloAtivo } = require('../middleware/hub-require-modulo');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { escaparCelulaCsvInjection, quotarCelulaCsv } = require('../lib/hub-csv');
 const { validarMeta } = require('../lib/hub-performance-meta');
@@ -447,11 +448,19 @@ router.get('/resumo', requirePermission('performance.consultar'), async (req, re
 // LER as metas exige só `performance.consultar`: a tela de performance precisa
 // delas para marcar quem está abaixo, e negar a leitura a quem já vê os
 // números tornaria a marcação impossível sem ganhar nenhuma proteção.
+//
+// `requireModuloAtivo('performance')` nas três: estas são as PRIMEIRAS rotas
+// de ESCRITA do módulo, e sem o gate desativar o módulo para uma entidade
+// deixaria de ter efeito justamente onde passa a haver escrita — apontado por
+// revisão adversarial em 2026-08-16. As rotas de LEITURA pré-existentes deste
+// módulo (e as de motoristas/faturamento) seguem sem o gate: é lacuna anterior
+// a esta feature, declarada e não corrigida aqui para não misturar escopo.
 // ---------------------------------------------------------------------------
 
 const COLUNAS_META = 'id,praca,periodo,indicador,valor,atualizado_em';
+const LIMITE_METAS = 500;
 
-router.get('/metas', requirePermission('performance.consultar'), async (req, res) => {
+router.get('/metas', requireModuloAtivo('performance'), requirePermission('performance.consultar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'performance.consultar');
     if (!ctx) return;
@@ -461,7 +470,14 @@ router.get('/metas', requirePermission('performance.consultar'), async (req, res
     // aqui produz `//PerformanceMeta`, que o PostgREST rejeita com PGRST125
     // ("Invalid path"). Todos os endpoints do repo são nomes de tabela nus.
     const linhas = await hubPostgrestRequest(
-      `PerformanceMeta?id_empresa=eq.${entidadeAtiva}&select=${COLUNAS_META}&order=praca.asc,periodo.asc,indicador.asc`,
+      `PerformanceMeta?id_empresa=eq.${entidadeAtiva}&select=${COLUNAS_META}`
+      + '&order=praca.asc,periodo.asc,indicador.asc'
+      // Teto explícito: a tela de Performance carrega esta lista a CADA
+      // abertura, para qualquer um com `performance.consultar`. Sem limite, um
+      // admin da própria entidade que cadastrasse metas em massa degradaria a
+      // tela para os colegas. 500 é folga larga sobre o teto plausível
+      // (10 praças × 7 turnos × 3 indicadores = 210).
+      + `&limit=${LIMITE_METAS}`,
       'GET',
       null,
       claims
@@ -487,7 +503,7 @@ router.get('/metas', requirePermission('performance.consultar'), async (req, res
   }
 });
 
-router.put('/metas', requirePermission('performance.metas_gerenciar'), async (req, res) => {
+router.put('/metas', requireModuloAtivo('performance'), requirePermission('performance.metas_gerenciar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'performance.metas_gerenciar');
     if (!ctx) return;
@@ -530,7 +546,10 @@ router.put('/metas', requirePermission('performance.metas_gerenciar'), async (re
         praca,
         periodo,
         indicador,
-        valor: String(valor),
+        // Do BANCO, não do request: a coluna é `numeric(5,4)` e coage a escala
+        // na gravação. Devolver o número que o cliente mandou faria a tela
+        // mostrar um valor logo após salvar e outro depois de recarregar.
+        valor: salva ? String(salva.valor) : String(valor),
         atualizadoEm: salva ? salva.atualizado_em : null,
       },
     });
@@ -540,12 +559,16 @@ router.put('/metas', requirePermission('performance.metas_gerenciar'), async (re
   }
 });
 
-router.delete('/metas/:id', requirePermission('performance.metas_gerenciar'), async (req, res) => {
+router.delete('/metas/:id', requireModuloAtivo('performance'), requirePermission('performance.metas_gerenciar'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'performance.metas_gerenciar');
     if (!ctx) return;
     const { entidadeAtiva, claims, payload } = ctx;
 
+    // `/^\d+$/` antes do parseInt: `parseInt('7abc')` devolve 7 e `parseInt('1e3')`
+    // devolve 1 — a rota apagaria uma meta que o cliente não pediu e a auditoria
+    // registraria o número normalizado, não o que veio na URL.
+    if (!/^\d+$/.test(req.params.id)) return res.status(400).json({ erro: 'ID_INVALIDO' });
     const id = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ erro: 'ID_INVALIDO' });
 

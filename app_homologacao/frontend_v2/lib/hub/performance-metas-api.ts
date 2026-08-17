@@ -64,14 +64,28 @@ const request = criarRequest(
 
 const INDICADORES_VALIDOS: IndicadorMeta[] = ['aceitacao', 'conclusao', 'tempo_disponivel'];
 
-/** `0.85` -> `85`. Para exibir e para preencher o campo. */
+/**
+ * Casas decimais de PERCENTUAL que sobrevivem à gravação.
+ *
+ * A coluna é `numeric(5,4)` (migration 0048) = 4 casas de fração = **2 casas
+ * de percentual**. O conversor original arredondava para 3 casas de fração e
+ * jogava a segunda casa fora: revisão adversarial mediu que **9000 de 10001**
+ * percentuais de duas casas não sobreviviam à ida e volta — e `99,95` virava
+ * `1`, ou seja, meta de **100%**, transformando o patamar contratual em
+ * perfeição obrigatória sem avisar ninguém. Como não há tela de edição (só
+ * adicionar e remover), a pessoa nunca via o valor antes de ele mudar.
+ */
+const CASAS_PERCENTUAL = 2;
+const FATOR = 10 ** CASAS_PERCENTUAL;
+
+/** `0.8542` -> `85.42`. Para exibir e para preencher o campo. */
 export function fracaoParaPercentual(fracao: number): number {
-  return Math.round(fracao * 1000) / 10;
+  return Math.round(fracao * 100 * FATOR) / FATOR;
 }
 
-/** `85` (o que a pessoa digitou) -> `0.85` (o que a API aceita). */
+/** `85.42` (o que a pessoa digitou) -> `0.8542` (o que a API aceita). */
 export function percentualParaFracao(percentual: number): number {
-  return Math.round(percentual * 10) / 1000;
+  return Math.round(percentual * FATOR) / (100 * FATOR);
 }
 
 /**
@@ -89,6 +103,24 @@ export function validarPercentual(bruto: string): string | null {
   if (!Number.isFinite(n)) return 'Use apenas números (ex.: 90 ou 90,5).';
   if (n < 0) return 'A meta não pode ser negativa.';
   if (n > 100) return 'A meta é uma porcentagem: no máximo 100.';
+  return null;
+}
+
+/**
+ * Suspeita de erro por fator 100 na direção OPOSTA — e ela existia sem guarda
+ * nenhuma. A validação barra `> 100` (quem digitou 9000 querendo 90%), mas
+ * `0,9` querendo dizer 90% passava direto e virava meta de **0,9%**: tudo
+ * fica verde para sempre naquele cruzamento, que é a falha silenciosa
+ * simétrica à que o produto diz combater.
+ *
+ * Aviso, não bloqueio: meta de 0,5% pode ser legítima em algum indicador, e
+ * recusar seria decidir pelo operador. Devolve a pergunta a fazer, ou `null`.
+ */
+export function suspeitaDeUnidade(percentual: number): string | null {
+  if (percentual > 0 && percentual < 1) {
+    const provavel = fracaoParaPercentual(percentual);
+    return `${percentual.toLocaleString('pt-BR')}% é menos de um por cento. Você quis dizer ${provavel.toLocaleString('pt-BR')}%?`;
+  }
   return null;
 }
 
@@ -134,14 +166,25 @@ export async function removerMeta(id: number): Promise<void> {
 }
 
 /**
- * Chave do cruzamento praça × turno × indicador — espelha `chaveMeta` de
- * `backend/lib/hub-performance-meta.js`, incluindo a regra de normalização:
- * caixa e espaços nas pontas não criam cruzamentos distintos, mas ACENTO sim
- * (praças podem se distinguir por ele, e achatar isso fundiria duas
- * configurações legítimas).
+ * Forma canônica de praça/turno — espelha `canonizarTexto` de
+ * `backend/lib/hub-performance-meta.js` e `hub_meta_canonica()` da migration
+ * 0049. As três TÊM de concordar: enquanto o banco guardava o texto cru e a
+ * chave normalizava caixa, `"SAO PAULO"` e `"Sao Paulo"` viravam duas linhas
+ * e uma chave, com a última vencendo em silêncio (reproduzido contra o
+ * ambiente real antes da correção).
+ *
+ * `normalize('NFC')` não é detalhe: a mesma letra acentuada tem duas
+ * representações de bytes, visualmente idênticas. Sem isso, uma meta é
+ * gravada, aparece na lista e nunca marca nada.
  */
+export function canonizarTexto(bruto: string | null | undefined): string {
+  if (typeof bruto !== 'string') return '';
+  return bruto.normalize('NFC').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+/** Chave do cruzamento praça × turno × indicador, sobre a forma canônica. */
 export function chaveMeta(praca: string, periodo: string, indicador: string): string {
-  return `${praca.trim().toLowerCase()}|${periodo.trim().toLowerCase()}|${indicador}`;
+  return `${canonizarTexto(praca)}|${canonizarTexto(periodo)}|${indicador}`;
 }
 
 /**
