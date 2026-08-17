@@ -13,7 +13,7 @@
 // Ref: docs/specs/hub-performance/plan.md "Plano por fases" passo 5,
 // contracts/performance-api.md, quickstart.md Cenários 5/6/10/12/14.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
@@ -21,6 +21,15 @@ import { PageHeader } from '@/components/hub/page-header';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { EmptyState } from '@/components/hub/empty-state';
 import { FunilCorridas } from '@/components/hub/funil-corridas';
+import { MetaBadge } from '@/components/hub/meta-badge';
+import {
+  INDICADORES_META,
+  chaveMeta,
+  leiturasDoRegistro,
+  metaAplicavel,
+  listarMetas,
+  type MetaPerformance,
+} from '@/lib/hub/performance-metas-api';
 import { SelectFiltro } from '@/components/hub/select-filtro';
 import { KpiCard } from '@/components/hub/kpi-card';
 import { PaginationControls } from '@/components/pagination-controls';
@@ -33,6 +42,7 @@ import {
   Clock,
   Download,
   Percent,
+  Target,
   TrendingUp,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -238,6 +248,45 @@ function EntregadorNome({
   );
 }
 
+/**
+ * As marcas de meta de um registro (impeccable r24 parte 2). Fica ao lado do
+ * funil porque é o mesmo assunto: o funil diz o que aconteceu, a marca diz se
+ * aquilo cumpre o combinado. Silenciosa quando não há meta configurada ou
+ * quando falta leitura — ver `MetaBadge`.
+ */
+function MarcasDeMeta({
+  item,
+  metasPorChave,
+}: {
+  item: PerformanceListItem;
+  metasPorChave: Map<string, number>;
+}) {
+  const leituras = leiturasDoRegistro(item);
+  const marcas = INDICADORES_META.map((ind) => ({
+    id: ind.id,
+    rotulo: ind.rotulo,
+    valor: leituras[ind.id],
+    // Específica do cruzamento vence; não havendo, o padrão da entidade.
+    meta: metaAplicavel(metasPorChave, item.praca, item.periodo, ind.id),
+    // Filtra só por META: leitura ausente COM meta configurada agora tem badge
+    // próprio ("sem leitura neste turno"), porque calar ali era indistinguível
+    // de aprovação — ver `MetaBadge`.
+  })).filter((m) => m.meta !== undefined);
+
+  if (marcas.length === 0) return null;
+  return (
+    // `<ul>`/`<li>`: três badges como spans irmãos eram lidos emendados
+    // ("…meta de 90% Taxa de conclusão: …"). A lista dá fronteira a cada item.
+    <ul className="mt-1 flex flex-wrap gap-1">
+      {marcas.map((m) => (
+        <li key={m.id}>
+          <MetaBadge valor={m.valor} meta={m.meta} rotulo={m.rotulo} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function CardsResumo({ cards }: { cards: PerformanceResumoCards }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -363,6 +412,35 @@ export default function PerformancePage() {
   const podeImportar = permissoes.includes('importacoes.consultar');
   // impeccable r24: mesmo gate do faturamento para chegar à ficha da pessoa.
   const podeVerDetalheMotorista = permissoes.includes('motoristas.consultar');
+  const podeGerenciarMetas = permissoes.includes('performance.metas_gerenciar');
+
+  // impeccable r24 parte 2: as metas do cruzamento praça × turno. Carregadas
+  // uma vez (são poucas por entidade) e casadas por linha no render.
+  //
+  // A falha DEIXOU de ser silenciosa (revisão adversarial, 2026-08-16). Antes
+  // o catch caía em `[]`, produzindo exatamente a tela de quem nunca
+  // configurou meta — e o comentário anterior tratava isso como desejável. Não
+  // é: o estado de quem nunca configurou é VERDADEIRO; este é DESCONHECIDO
+  // apresentado como verdadeiro. Um turno reprovado deixava de ser reprovado e
+  // ninguém ficava sabendo, numa tela cujo número vira cobrança contratual.
+  const [metas, setMetas] = useState<MetaPerformance[]>([]);
+  const [metasIndisponiveis, setMetasIndisponiveis] = useState(false);
+  const carregarMetas = useCallback(() => {
+    setMetasIndisponiveis(false);
+    listarMetas()
+      .then((m) => setMetas(m))
+      .catch(() => {
+        setMetas([]);
+        setMetasIndisponiveis(true);
+      });
+  }, []);
+  useEffect(() => {
+    carregarMetas();
+  }, [carregarMetas]);
+  const metasPorChave = useMemo(
+    () => new Map(metas.map((m) => [chaveMeta(m.praca, m.periodo, m.indicador), m.valor])),
+    [metas]
+  );
   const h = usePerformanceLista();
   // impeccable r22 (P2): idem faturamento — ver o `EmptyState` mais abaixo.
   const temFiltroAtivo = Object.entries(h.filtros).some(
@@ -400,6 +478,19 @@ export default function PerformancePage() {
   return (
     <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader titulo="Performance" subtitulo="Registros de turno importados: ofertas, aceites, conclusões e tempo disponível por entregador.">
+        {podeGerenciarMetas && (
+          <Link
+            href="/hub/dashboard/performance/metas"
+            className={buttonVariants({
+              variant: 'outline',
+              size: 'sm',
+              className: 'min-h-11 gap-1.5 sm:min-h-8',
+            })}
+          >
+            <Target className="size-4" aria-hidden="true" />
+            Metas
+          </Link>
+        )}
         {podeExportar && (
           <Button
             size="sm"
@@ -414,6 +505,22 @@ export default function PerformancePage() {
         )}
       </PageHeader>
 
+      {metasIndisponiveis && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong"
+        >
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">
+            Metas indisponíveis: <strong className="font-medium">nenhuma linha foi avaliada</strong>{' '}
+            nesta carga. Os números abaixo continuam corretos.
+          </p>
+          <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={carregarMetas}>
+            Tentar novamente
+          </Button>
+        </div>
+      )}
+
       {erroExport && (
         <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           {erroExport}
@@ -423,7 +530,19 @@ export default function PerformancePage() {
       {h.carregando ? (
         <KpiSkeleton label="Carregando indicadores de performance..." cards={4} />
       ) : (
-        <CardsResumo cards={h.cards} />
+        <>
+          <CardsResumo cards={h.cards} />
+          {/* impeccable r24: "Taxa de aceitação" aparecia com o MESMO rótulo em
+              dois escopos diferentes na mesma tela — aqui é a razão agregada de
+              TODO o filtro (ponderada por volume), e no badge de cada linha é a
+              razão daquele turno, comparada à meta daquele cruzamento. Sem esta
+              frase, quem filtra uma praça e um turno lê o número de cima como
+              se fosse comparável à meta que acabou de configurar. */}
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Os indicadores acima somam <strong className="font-medium">todo o período filtrado</strong>.
+            As metas são comparadas por linha, no turno de cada registro.
+          </p>
+        </>
       )}
 
       {/* impeccable r22 (P2): mesma correção de faturamento — filtros antes do
@@ -604,6 +723,11 @@ export default function PerformancePage() {
                     {[item.subpraca, item.praca].filter(Boolean).join(' — ')}
                   </p>
                 )}
+                {/* impeccable r24: as marcas de meta existiam SÓ na tabela
+                    desktop — em 390px a feature simplesmente não existia,
+                    enquanto a tela de metas prometia por escrito que o que
+                    fica abaixo é destacado na Performance. Achado adversarial. */}
+                <MarcasDeMeta item={item} metasPorChave={metasPorChave} />
               </div>
             ))}
           </div>
@@ -623,7 +747,10 @@ export default function PerformancePage() {
                       que na verdade são UM funil. Ler os cinco números e
                       montar a história era trabalho empurrado para a pessoa,
                       e a tabela tinha 13 colunas fixas sem controle nenhum. */}
-                  <TableHead>Funil de corridas</TableHead>
+                  {/* "e metas" no rótulo: os badges vivem nesta célula, e numa
+                      navegação por célula o veredito de meta era anunciado sob
+                      um cabeçalho que só falava do funil. */}
+                  <TableHead>Funil de corridas e metas</TableHead>
                   <TableHead className="text-right">Pedidos concl.</TableHead>
                   <TableHead className="text-right">Tempo disp.</TableHead>
                   <TableHead className="text-right">Taxas</TableHead>
@@ -640,7 +767,9 @@ export default function PerformancePage() {
                       <EntregadorNome item={item} podeVerDetalhe={podeVerDetalheMotorista} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{item.subpraca ?? '-'}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{item.praca ?? '-'}</TableCell>
+                    <TableCell className="max-w-[160px] truncate text-sm text-muted-foreground">
+                      {item.praca ?? '-'}
+                    </TableCell>
                     <TableCell>
                       <FunilCorridas
                         dados={{
@@ -651,6 +780,7 @@ export default function PerformancePage() {
                           canceladas: item.corridasCanceladas,
                         }}
                       />
+                      <MarcasDeMeta item={item} metasPorChave={metasPorChave} />
                     </TableCell>
                     <TableCell className="text-right font-mono">{formatInt(item.pedidosConcluidos)}</TableCell>
                     <TableCell className="text-right">{formatPontoPct(item.tempoDisponivelPct)}</TableCell>

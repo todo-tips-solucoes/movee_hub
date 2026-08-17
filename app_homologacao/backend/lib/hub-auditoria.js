@@ -110,6 +110,41 @@ function scrubDetalhes(detalhes) {
  *   `claims: { usuarioId, empresaAtiva: idEmpresa, escopo: [idEmpresa] }` —
  *   caso contrário o INSERT é negado pela policy (nega-por-padrão, FR-028).
  */
+/**
+ * Marcador estável para a perda de um evento. Existe para ser grepado e
+ * alertado: `docker logs ... | grep AUDITORIA_PERDIDA`. NÃO mudar o texto sem
+ * atualizar quem alerta em cima dele.
+ */
+const MARCADOR_PERDA = 'AUDITORIA_PERDIDA';
+
+/**
+ * Contagem de perdas desde que o processo subiu. Em memória de propósito:
+ * persistir isso exigiria... escrever no banco, que é justamente o que acabou
+ * de falhar. Serve para responder "está perdendo agora?" e "perdeu quanto?"
+ * sem depender de agregar log.
+ */
+const perdas = { total: 0, porAcao: new Map(), primeira: null, ultima: null };
+
+/** Fotografia das perdas — para diagnóstico e para o teste desta política. */
+function estatisticasAuditoria() {
+  return {
+    total: perdas.total,
+    porAcao: Object.fromEntries(perdas.porAcao),
+    primeira: perdas.primeira,
+    ultima: perdas.ultima,
+  };
+}
+
+/** Só para teste: zera o contador entre casos. */
+function _zerarEstatisticasAuditoria() {
+  perdas.total = 0;
+  perdas.porAcao = new Map();
+  perdas.primeira = null;
+  perdas.ultima = null;
+}
+
+const ESPERA_RETRY_MS = 120;
+
 async function registrarAuditoria(evento) {
   const {
     idEmpresa = null,
@@ -124,7 +159,7 @@ async function registrarAuditoria(evento) {
 
   if (!acao || !recurso) {
     console.error('[hub-auditoria] evento sem acao/recurso — ignorado:', { acao, recurso });
-    return;
+    return { ok: false, erro: 'EVENTO_INVALIDO' };
   }
 
   try {
@@ -144,7 +179,7 @@ async function registrarAuditoria(evento) {
     // do arquivo) — `returnMinimal` evita o RETURNING por completo, sem
     // qualquer mudança de postura de RLS/visibilidade (SELECT continua
     // negando evento global para quem não é admin_plataforma).
-    await hubPostgrestRequest('Auditoria', 'POST', {
+    await gravarComRetry({
       id_empresa: idEmpresa,
       usuario_id: usuarioId,
       acao,
@@ -152,11 +187,70 @@ async function registrarAuditoria(evento) {
       recurso_id: recursoId !== null && recursoId !== undefined ? String(recursoId) : null,
       detalhes: scrubDetalhes(detalhes),
       ip,
-    }, claims, { returnMinimal: true });
+    }, claims);
+    return { ok: true };
   } catch (e) {
-    // best-effort — nunca interrompe o fluxo chamador (ver cabeçalho)
-    console.error('[hub-auditoria] falha ao registrar evento (nao bloqueia o fluxo):', acao, e.message);
+    // SEGUE best-effort: 38 chamadores em 9 rotas, incluindo `login_falha` e
+    // `login_sucesso`. Falhar fechado faria uma indisponibilidade da auditoria
+    // derrubar o LOGIN do produto inteiro — trocar perda de trilha por perda de
+    // acesso é um negócio pior.
+    //
+    // O que mudou é que a perda deixou de ser SILENCIOSA. O `catch` anterior
+    // escondeu um defeito sistêmico real: desde a migration 0035, TODO evento
+    // global (login_sucesso/login_falha/logout/recuperacao_senha_solicitada/
+    // senha_redefinida) falhava com 42501 no RETURNING, e ninguém percebeu até
+    // um E2E tropeçar — está documentado algumas linhas acima, no comentário
+    // do `returnMinimal`. Um marcador grepável e um contador transformam meses
+    // de silêncio em uma linha de log e um número.
+    perdas.total += 1;
+    perdas.porAcao.set(acao, (perdas.porAcao.get(acao) || 0) + 1);
+    const agora = new Date().toISOString();
+    if (!perdas.primeira) perdas.primeira = agora;
+    perdas.ultima = agora;
+
+    console.error(
+      `[hub-auditoria] ${MARCADOR_PERDA} evento não registrado (fluxo NÃO bloqueado)`,
+      JSON.stringify({
+        marcador: MARCADOR_PERDA,
+        acao,
+        recurso,
+        recursoId: recursoId !== null && recursoId !== undefined ? String(recursoId) : null,
+        idEmpresa,
+        usuarioId,
+        erro: e.message,
+        perdasNoProcesso: perdas.total,
+      })
+    );
+    return { ok: false, erro: e.message };
   }
 }
 
-module.exports = { registrarAuditoria, scrubDetalhes, valorContemPadraoSensivel };
+/**
+ * Uma tentativa, e mais uma. A causa mais comum de perda é oscilação de rede
+ * ou do PostgREST — um retry curto recupera isso sem sustentar a requisição do
+ * usuário por muito tempo. Falha de POLÍTICA (RLS) não melhora com retry, e é
+ * por isso que ele é único: insistir mais seria só atrasar a resposta.
+ */
+async function gravarComRetry(linha, claims) {
+  try {
+    await hubPostgrestRequest('Auditoria', 'POST', linha, claims, { returnMinimal: true });
+  } catch (primeiraFalha) {
+    await new Promise((r) => setTimeout(r, ESPERA_RETRY_MS));
+    try {
+      await hubPostgrestRequest('Auditoria', 'POST', linha, claims, { returnMinimal: true });
+    } catch {
+      // Propaga a PRIMEIRA falha: é a que descreve a causa original. A segunda
+      // costuma ser a mesma coisa, e trocar uma pela outra confunde quem lê.
+      throw primeiraFalha;
+    }
+  }
+}
+
+module.exports = {
+  registrarAuditoria,
+  scrubDetalhes,
+  valorContemPadraoSensivel,
+  estatisticasAuditoria,
+  MARCADOR_PERDA,
+  _zerarEstatisticasAuditoria,
+};
