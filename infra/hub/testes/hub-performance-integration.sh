@@ -86,7 +86,8 @@ echo "rodando migrate.sh (série completa)…"
 # Guarda na ÚLTIMA migration que esta suíte exercita (era 0031, e ficou para
 # trás em silêncio): se a série parar antes, o erro aparece aqui e não como um
 # `items` undefined 300 linhas adiante.
-for m in 0031_mv_performance_dia.sql 0050_performance_tempo_disponivel_periodo.sql; do
+for m in 0031_mv_performance_dia.sql 0050_performance_tempo_disponivel_periodo.sql \
+         0051_performance_turnos_rpc.sql; do
   grep -q "$m" "$TMP/migrate.log" || { echo "FAIL: migrations não aplicadas por completo ($m ausente)"; tail -40 "$TMP/migrate.log"; exit 1; }
 done
 
@@ -480,17 +481,88 @@ async function main() {
   out.multipraca_tempoDisponivelMedio = rMulti.body && rMulti.body.tempoDisponivelMedio;
   // corridas continuam somando as duas praças (6+4 ofertadas, 4+2 aceitas)
   out.multipraca_taxaAceitacao = rMulti.body && rMulti.body.taxaAceitacao;
-  // com filtro de sub-praça (caminho tabela-base): só o online daquela praça
-  // sobre o período INTEIRO -> 1h/4h = 25.00
+  // 0051/D1 — com filtro de sub-praça o número NÃO muda: a sub-praça deixou de
+  // ser dimensão de agregação e virou critério de SELEÇÃO (semi-join). A
+  // pergunta passou a ser "os turnos em que a pessoa passou por Zona Sul",
+  // medidos por inteiro -> 37.50, o mesmo do turno sem filtro.
+  // Até 0050 isto respondia 25.00 (1h daquela praça sobre o período), e era
+  // justamente o que fazia o card discordar da lista, que agora é por turno.
   const rMultiSub = await getJson(
     jarLeitura, '/performance/resumo?de=2026-09-03&ate=2026-09-03&subpraca=Zona%20Sul'
   );
   out.multipracaSub_tempoDisponivelMedio = rMultiSub.body && rMultiSub.body.tempoDisponivelMedio;
+  // ...e o semi-join continua SELECIONANDO: sub-praça inexistente -> nenhum
+  // turno. Sem este controle negativo, um `EXISTS` que sempre casasse passaria
+  // no assert acima sem filtrar nada.
+  const rSubInexistente = await getJson(
+    jarLeitura, '/performance/resumo?de=2026-09-03&ate=2026-09-03&subpraca=Praca%20Que%20Nao%20Existe'
+  );
+  out.subInexistente_completadas = rSubInexistente.body && rSubInexistente.body.corridasCompletadas;
+  out.subInexistente_tempo = rSubInexistente.body ? String(rSubInexistente.body.tempoDisponivelMedio) : null;
 
   // (n3) 0050 — linhas GÊMEAS da origem (2026-09-04): 2h+2h online num turno
   // de 2h. Teto por turno -> 100.00, nunca 200.
   const rGemeas = await getJson(jarLeitura, '/performance/resumo?de=2026-09-04&ate=2026-09-04');
   out.gemeas_tempoDisponivelMedio = rGemeas.body && rGemeas.body.tempoDisponivelMedio;
+
+  // ── 0051 — a LISTA no grão do TURNO (o padrão de `GET /performance`) ─────
+  //
+  // O mesmo turno de 2026-09-03 que o resumo mede em 37.50: até 0050 a lista
+  // devolvia DUAS linhas (25.00 e 12.50 de tempo), o card dizia 37.50, e as
+  // três coisas eram apresentadas lado a lado na mesma tela.
+  const rTurno = await getJson(jarLeitura, '/performance?de=2026-09-03&ate=2026-09-03');
+  out.turno_status = rTurno.status;
+  out.turno_grao = rTurno.body && rTurno.body.grao;
+  out.turno_total = rTurno.body && rTurno.body.total;
+  const t0 = (rTurno.body && rTurno.body.items && rTurno.body.items[0]) || null;
+  out.turno_tempo = t0 ? String(t0.tempoDisponivelPct) : null;
+  out.turno_ofertadas = t0 ? t0.corridasOfertadas : null;
+  out.turno_rejeitadas = t0 ? t0.corridasRejeitadas : null;
+  out.turno_nPracas = t0 && Array.isArray(t0.pracas) ? t0.pracas.length : null;
+  out.turno_chave = t0 ? t0.chave : null;
+  // As fatias de praça SOMAM o tempo do turno — é o que permite mostrar um
+  // número só sem esconder de onde ele veio.
+  out.turno_somaPracas = t0 && Array.isArray(t0.pracas)
+    ? t0.pracas.reduce((acc, p) => acc + Number(p.tempoDisponivelPct || 0), 0).toFixed(2)
+    : null;
+
+  // D1 na LISTA: com a sub-praça filtrada, o turno continua inteiro (mesmo
+  // tempo, mesmas ofertadas) e as DUAS praças continuam listadas.
+  const rTurnoSub = await getJson(
+    jarLeitura, '/performance?de=2026-09-03&ate=2026-09-03&subpraca=Zona%20Sul'
+  );
+  const tSub = (rTurnoSub.body && rTurnoSub.body.items && rTurnoSub.body.items[0]) || null;
+  out.turnoSub_total = rTurnoSub.body && rTurnoSub.body.total;
+  out.turnoSub_tempo = tSub ? String(tSub.tempoDisponivelPct) : null;
+  out.turnoSub_nPracas = tSub && Array.isArray(tSub.pracas) ? tSub.pracas.length : null;
+
+  // D3 — o grão da LINHA importada continua acessível: o MESMO turno volta a
+  // ser 2 registros. O que mudou é o padrão da tela, não o que foi guardado.
+  const rLinha = await getJson(jarLeitura, '/performance?de=2026-09-03&ate=2026-09-03&grao=linha');
+  out.linha_grao = rLinha.body && rLinha.body.grao;
+  out.linha_total = rLinha.body && rLinha.body.total;
+
+  // grão desconhecido -> 400, nunca "cai no padrão" em silêncio
+  const rGraoRuim = await getJson(jarLeitura, '/performance?grao=praca');
+  out.graoRuim_status = rGraoRuim.status;
+  out.graoRuim_erro = rGraoRuim.body && rGraoRuim.body.erro;
+
+  // paginação por turno: `total` vem da janela `count(*) OVER ()` e tem de ser
+  // o MESMO nas duas páginas, sem nenhuma chave repetida entre elas (ordenação
+  // total — paginação instável é indistinguível de dado perdido).
+  const rTurnoPag1 = await getJson(jarLeitura, '/performance?de=2026-07-01&ate=2026-07-04&page=1&pageSize=2');
+  const rTurnoPag2 = await getJson(jarLeitura, '/performance?de=2026-07-01&ate=2026-07-04&page=2&pageSize=2');
+  out.pag_total1 = rTurnoPag1.body && rTurnoPag1.body.total;
+  out.pag_total2 = rTurnoPag2.body && rTurnoPag2.body.total;
+  const chaves1 = ((rTurnoPag1.body && rTurnoPag1.body.items) || []).map((i) => i.chave);
+  const chaves2 = ((rTurnoPag2.body && rTurnoPag2.body.items) || []).map((i) => i.chave);
+  out.pag_sem_repeticao = String(chaves1.every((c) => !chaves2.includes(c)));
+  out.pag_distintas = String(new Set(chaves1.concat(chaves2)).size);
+
+  // guard de escopo no grão de turno: E_OUTRA não vê o turno de E_TESTE
+  const rOutraTurno = await getJson(jarOutra, '/performance?de=2026-09-03&ate=2026-09-03');
+  out.outraTurno_status = rOutraTurno.status;
+  out.outraTurno_total = rOutraTurno.body && rOutraTurno.body.total;
 
   // (o) período vazio no resumo — cards zerados / grupos:[] (FR-011)
   const rCardsVazio = await getJson(jarLeitura, '/performance/resumo?de=2020-01-01&ate=2020-01-31');
@@ -560,6 +632,21 @@ async function main() {
   const rCsvJaNeutro = await getCsv(jarExportador, '/performance?format=csv&de=2026-09-02&ate=2026-09-02');
   const linhasJaNeutro = rCsvJaNeutro.text.split('\r\n').filter((l) => l.length > 0);
   out.csvJaNeutro_linha_dados = linhasJaNeutro[1] || null;
+
+  // (t2) 0051/D2 — o CSV diz o MESMO que a tela: o turno de 2 sub-praças sai
+  // como UMA linha, com as duas sub-praças no campo `subpracas`. Enquanto o
+  // arquivo saía por linha e a tela julgava por turno, o que embasava a
+  // cobrança discordava do que a tela mostrava.
+  const rCsvMulti = await getCsv(jarExportador, '/performance?format=csv&de=2026-09-03&ate=2026-09-03');
+  const linhasMulti = rCsvMulti.text.split('\r\n').filter((l) => l.length > 0);
+  out.csvMulti_qtd_linhas_dados = linhasMulti.length - 1;
+  out.csvMulti_linha = linhasMulti[1] || null;
+  // e o grão de linha continua exportável (D3): 2 linhas para o mesmo turno
+  const rCsvMultiLinha = await getCsv(
+    jarExportador, '/performance?format=csv&grao=linha&de=2026-09-03&ate=2026-09-03'
+  );
+  out.csvMultiLinha_qtd_linhas_dados =
+    rCsvMultiLinha.text.split('\r\n').filter((l) => l.length > 0).length - 1;
 
   // (u) export vazio — período sem nenhum turno -> só cabeçalho, 200 (4.1.6)
   const rCsvVazio = await getCsv(jarExportador, '/performance?format=csv&de=2019-01-01&ate=2019-01-02');
@@ -693,8 +780,35 @@ check "0050: turno sem tempo_disponivel -> tempoDisponivelMedio=null (ausência,
 check "0050: turno em 2 sub-praças -> 200" "$(jget multipraca_status)" "200"
 check "0050: turno em 2 sub-praças -> tempoDisponivelMedio=37.50 ((1h+30min)/4h; a fórmula antiga dava 55.00)" "$(jget multipraca_tempoDisponivelMedio)" "37.50"
 check "0050: turno em 2 sub-praças -> taxaAceitacao=0.6000 (6/10, corridas continuam somando as praças)" "$(jget multipraca_taxaAceitacao)" "0.6000"
-check "0050: filtro por sub-praça (tabela-base) -> 25.00 (1h daquela praça sobre o período inteiro)" "$(jget multipracaSub_tempoDisponivelMedio)" "25.00"
+# 0051/D1: a sub-praça virou SELEÇÃO (semi-join), não dimensão de agregação —
+# o turno é medido inteiro. Antes respondia 25.00 e era o que fazia o card
+# discordar da lista quando havia filtro.
+check "0051/D1: filtro por sub-praça -> 37.50 (o turno inteiro; o filtro escolhe QUAIS turnos, não recorta o turno)" "$(jget multipracaSub_tempoDisponivelMedio)" "37.50"
+check "0051/D1: controle negativo — sub-praça inexistente -> 0 corridas completadas" "$(jget subInexistente_completadas)" "0"
+check "0051/D1: controle negativo — sub-praça inexistente -> tempo null (nenhum turno selecionado)" "$(jget subInexistente_tempo)" "null"
 check "0050: linhas gêmeas da origem (2h+2h num turno de 2h) -> teto 100.00, nunca 200" "$(jget gemeas_tempoDisponivelMedio)" "100.00"
+
+# ── 0051: a lista no grão do TURNO ─────────────────────────────────────────
+check "0051: GET /performance -> 200" "$(jget turno_status)" "200"
+check "0051: grão padrão é o TURNO (não precisa pedir)" "$(jget turno_grao)" "turno"
+check "0051: turno em 2 sub-praças -> UMA linha na lista (antes eram duas)" "$(jget turno_total)" "1"
+check "0051: a lista diz o MESMO tempo que o card do resumo (37.50) — fim da discordância" "$(jget turno_tempo)" "37.5"
+check "0051: corridas somam as praças do turno (6+4 ofertadas)" "$(jget turno_ofertadas)" "10"
+check "0051: contador novo na MV chega à lista (rejeitadas 2+2)" "$(jget turno_rejeitadas)" "4"
+check "0051: as 2 praças do turno vêm como detalhe da linha" "$(jget turno_nPracas)" "2"
+check "0051: as fatias de praça SOMAM o tempo do turno" "$(jget turno_somaPracas)" "37.50"
+check "0051/D1: lista com sub-praça filtrada -> ainda 1 turno" "$(jget turnoSub_total)" "1"
+check "0051/D1: lista com sub-praça filtrada -> tempo do turno INTEIRO (37.5)" "$(jget turnoSub_tempo)" "37.5"
+check "0051/D1: lista com sub-praça filtrada -> as DUAS praças continuam listadas" "$(jget turnoSub_nPracas)" "2"
+check "0051/D3: ?grao=linha continua devolvendo as 2 linhas importadas" "$(jget linha_total)" "2"
+check "0051/D3: ?grao=linha é reportado na resposta" "$(jget linha_grao)" "linha"
+check "0051: ?grao desconhecido -> 400 (não cai no padrão em silêncio)" "$(jget graoRuim_status)" "400"
+check "0051: ?grao desconhecido -> erro=GRAO_INVALIDO" "$(jget graoRuim_erro)" "GRAO_INVALIDO"
+check "0051: paginação por turno -> total igual nas 2 páginas (count(*) OVER ())" "$(jget pag_total1)" "$(jget pag_total2)"
+check "0051: paginação por turno -> nenhuma chave repetida entre as páginas" "$(jget pag_sem_repeticao)" "true"
+check "0051: paginação por turno -> 4 turnos distintos em 2 páginas de 2" "$(jget pag_distintas)" "4"
+check "0051: guard de escopo no grão de turno -> outra entidade responde 200" "$(jget outraTurno_status)" "200"
+check "0051: guard de escopo no grão de turno -> outra entidade não vê o turno (total=0)" "$(jget outraTurno_total)" "0"
 
 check "resumo cards período vazio -> 200 (FR-011, nunca erro)" "$(jget cardsVazio_status)" "200"
 check "resumo cards período vazio -> corridasCompletadas=0" "$(jget cardsVazio_corridasCompletadas)" "0"
@@ -721,14 +835,21 @@ check "resumo multi-tenant HTTP (caminho MV): E_OUTRA -> taxasReais=9.99" "$(jge
 check "export CSV -> 200" "$(jget csv_status)" "200"
 check "export CSV -> Content-Type text/csv; charset=utf-8" "$(jget csv_contentType)" "text/csv; charset=utf-8"
 check "export CSV -> Content-Disposition com nome de arquivo esperado" "$(jget csv_contentDisposition)" 'attachment; filename="performance-2026-07-01_2026-07-04.csv"'
-check "export CSV -> cabeçalho fixo do contrato" "$(jget csv_cabecalho)" "dataPeriodo,periodo,entregadorNome,subpraca,praca,corridasOfertadas,corridasAceitas,corridasRejeitadas,corridasCompletadas,corridasCanceladas,pedidosConcluidos,tempoDisponivelPct,taxas,metaAceitacaoPct,metaConclusaoPct,metaTempoDisponivelPct,abaixoDaMeta"
+# 0051/D2: o CSV padrão passa a ser o do TURNO, para dizer o mesmo que a tela
+# — ele embasa a cobrança. `subpraca` (uma) vira `subpracas` (todas as do
+# turno, separadas por `;`) e `praca` é a PREDOMINANTE, que resolve a meta.
+check "export CSV -> cabeçalho do contrato no grão do turno (0051/D2)" "$(jget csv_cabecalho)" "dataPeriodo,periodo,entregadorNome,subpracas,praca,corridasOfertadas,corridasAceitas,corridasRejeitadas,corridasCompletadas,corridasCanceladas,pedidosConcluidos,tempoDisponivelPct,taxas,metaAceitacaoPct,metaConclusaoPct,metaTempoDisponivelPct,abaixoDaMeta"
 check "export CSV -> 4 linhas de dados (bate com a tela, mesma janela)" "$(jget csv_qtd_linhas_dados)" "4"
 
 check "export CSV injection -> periodo '=' e entregadorNome '@' neutralizados (prefixo único ')" \
-  "$(jget csvInjecao_linha_dados)" "2026-09-01,'=SOMA(A1:A10),'@Perigoso Nome,Zona Sul,Sao Paulo,5,5,0,5,0,5,85,77.00,,,,"
+  "$(jget csvInjecao_linha_dados)" "2026-09-01,'=SOMA(A1:A10),'@Perigoso Nome,Zona Sul,Sao Paulo,5,5,0,5,0,5,85.00,77.00,,,,"
 
 check "export CSV gap CHK031 -> entregadorNome já iniciado por apóstrofo permanece com prefixo ÚNICO (sem dupla neutralização)" \
-  "$(jget csvJaNeutro_linha_dados)" "2026-09-02,ALMOCO 11H30-15H29,'Ja Neutro Nome,Zona Sul,Sao Paulo,5,5,0,5,0,5,85,1.00,,,,"
+  "$(jget csvJaNeutro_linha_dados)" "2026-09-02,ALMOCO 11H30-15H29,'Ja Neutro Nome,Zona Sul,Sao Paulo,5,5,0,5,0,5,85.00,1.00,,,,"
+
+check "0051/D2: CSV do turno multi-praça -> UMA linha de dados (a mesma da tela)" "$(jget csvMulti_qtd_linhas_dados)" "1"
+check "0051/D2: CSV do turno multi-praça -> as 2 sub-praças no campo subpracas" "$(jget csvMulti_linha)" "2026-09-03,ALMOCO 11H30-15H29,Joao Performance,Zona Sul;Centro,Sao Paulo,10,6,4,6,0,6,37.50,2.00,,,,"
+check "0051/D3: CSV com ?grao=linha -> as 2 linhas importadas continuam exportáveis" "$(jget csvMultiLinha_qtd_linhas_dados)" "2"
 
 check "export CSV vazio -> 200 (tasks.md 4.1.6, nunca erro)" "$(jget csvVazio_status)" "200"
 check "export CSV vazio -> só a linha de cabeçalho" "$(jget csvVazio_qtd_linhas)" "1"
@@ -753,7 +874,10 @@ check "pós-termos-hostis: seed intacto, ainda 1 item p/ 'joa'" "$(jget entregad
 # ── Validação no banco: auditoria 'performance.csv_exportado' registrada
 # (4.1.5) só para os exports BEM-SUCEDIDOS (r/s/t/u = 4), NUNCA para o 403 (v)
 N_AUDITORIA_CSV="$(psql_t -tAc "SELECT count(*) FROM \"Auditoria\" WHERE acao='performance.csv_exportado' AND id_empresa=$E_TESTE" | tr -d '[:space:]')"
-check "DB: Auditoria 'performance.csv_exportado' registrada 4x (só nos exports bem-sucedidos)" "$N_AUDITORIA_CSV" "4"
+# 6 e não 4: 0051 acrescentou dois exports bem-sucedidos (o CSV do turno
+# multi-praça e o mesmo período em ?grao=linha). O invariante é o mesmo —
+# só export que TERMINOU vira evento; os 403 e o vazio não contam.
+check "DB: Auditoria 'performance.csv_exportado' registrada 6x (só nos exports bem-sucedidos)" "$N_AUDITORIA_CSV" "6"
 
 # ── mv_performance_dia (migration 0031, follow-up SC-004 da S7) ──────────────
 # Mesmos 4 ângulos do follow-up 0028 da S6 (hub-faturamento-integration.sh):

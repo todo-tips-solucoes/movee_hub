@@ -20,8 +20,7 @@ import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { PageHeader } from '@/components/hub/page-header';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { EmptyState } from '@/components/hub/empty-state';
-import { FunilCorridas } from '@/components/hub/funil-corridas';
-import { MetaBadge } from '@/components/hub/meta-badge';
+import { IndicadorMeta } from '@/components/hub/indicador-meta';
 import {
   INDICADORES_META,
   chaveMeta,
@@ -62,7 +61,7 @@ import {
   baixarPerformanceCsv,
   buscarEntregadoresPerformance,
   listarAreasPerformance,
-  listarPerformance,
+  listarPerformanceTurnos,
   obterPerformanceResumo,
   obterPerformanceResumoAgrupado,
   PerformanceApiError,
@@ -71,9 +70,9 @@ import {
 import { EntregadorCombobox } from '@/components/hub/entregador-combobox';
 import type {
   PerformanceGroupBy,
-  PerformanceListItem,
   PerformanceResumoCards,
   PerformanceResumoGrupo,
+  PerformanceTurnoItem,
 } from '@/lib/hub/performance-dto';
 import { HorizontalBarChart } from '@/components/hub/bar-chart';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -141,7 +140,7 @@ function formatInt(valor: number | null | undefined): string {
 export function usePerformanceLista() {
   const [filtros, setFiltrosState] = useState<PerformanceFiltrosUI>(FILTROS_INICIAIS);
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState<PerformanceListItem[]>([]);
+  const [items, setItems] = useState<PerformanceTurnoItem[]>([]);
   const [total, setTotal] = useState(0);
   const [cards, setCards] = useState<PerformanceResumoCards>(CARDS_INICIAIS);
   const [carregando, setCarregando] = useState(true);
@@ -167,7 +166,7 @@ export function usePerformanceLista() {
     setErro(null);
     try {
       const [respostaLista, respostaCards] = await Promise.all([
-        listarPerformance({ ...filtrosApi(), page, pageSize: PAGE_SIZE }),
+        listarPerformanceTurnos({ ...filtrosApi(), page, pageSize: PAGE_SIZE }),
         obterPerformanceResumo(filtrosApi()),
       ]);
       setItems(respostaLista.items);
@@ -230,7 +229,7 @@ function EntregadorNome({
   item,
   podeVerDetalhe,
 }: {
-  item: PerformanceListItem;
+  item: PerformanceTurnoItem;
   podeVerDetalhe: boolean;
 }) {
   const rotulo = item.entregadorNome ?? `#${item.entregadorId}`;
@@ -248,39 +247,89 @@ function EntregadorNome({
   );
 }
 
-/**
- * As marcas de meta de um registro (impeccable r24 parte 2). Fica ao lado do
- * funil porque é o mesmo assunto: o funil diz o que aconteceu, a marca diz se
- * aquilo cumpre o combinado. Silenciosa quando não há meta configurada ou
- * quando falta leitura — ver `MetaBadge`.
- */
-function MarcasDeMeta({
-  item,
-  metasPorChave,
-}: {
-  item: PerformanceListItem;
-  metasPorChave: Map<string, number>;
-}) {
-  const leituras = leiturasDoRegistro(item);
-  const marcas = INDICADORES_META.map((ind) => ({
-    id: ind.id,
-    rotulo: ind.rotulo,
-    valor: leituras[ind.id],
-    // Específica do cruzamento vence; não havendo, o padrão da entidade.
-    meta: metaAplicavel(metasPorChave, item.praca, item.periodo, ind.id),
-    // Filtra só por META: leitura ausente COM meta configurada agora tem badge
-    // próprio ("sem leitura neste turno"), porque calar ali era indistinguível
-    // de aprovação — ver `MetaBadge`.
-  })).filter((m) => m.meta !== undefined);
+/** Rótulo de um indicador, por id — para a frase acessível do `IndicadorMeta`. */
+const ROTULO_INDICADOR = Object.fromEntries(
+  INDICADORES_META.map((i) => [i.id, i.rotulo])
+) as Record<(typeof INDICADORES_META)[number]['id'], string>;
 
-  if (marcas.length === 0) return null;
+/**
+ * Os três indicadores do turno, já casados com a meta do cruzamento e com o
+ * detalhe que vai para o texto acessível.
+ *
+ * A meta é por praça × turno, e o turno é a unidade da lista — então o
+ * cruzamento é resolvido UMA vez, com a praça PREDOMINANTE do turno (a de
+ * maior tempo online, escolhida pela RPC). Antes, com a linha como unidade, o
+ * mesmo turno de quem roda em duas praças recebia dois vereditos, e nenhum dos
+ * dois números era o desempenho da pessoa naquele turno.
+ *
+ * `detalhe` carrega os contadores brutos que saíram da tabela junto com a
+ * coluna do funil (ofertadas/aceitas/rejeitadas/completadas/canceladas): eles
+ * deixaram de ocupar 510px de largura, mas continuam a um `title`/leitor de
+ * tela de distância — e inteiros no CSV.
+ */
+function indicadoresDoTurno(item: PerformanceTurnoItem, metasPorChave: Map<string, number>) {
+  const leituras = leiturasDoRegistro(item);
+  const meta = (id: (typeof INDICADORES_META)[number]['id']) =>
+    metaAplicavel(metasPorChave, item.praca, item.periodo, id);
+  return {
+    aceitacao: {
+      valor: leituras.aceitacao,
+      meta: meta('aceitacao'),
+      rotulo: ROTULO_INDICADOR.aceitacao,
+      detalhe: `${formatInt(item.corridasAceitas)} aceitas e ${formatInt(item.corridasRejeitadas)} rejeitadas de ${formatInt(item.corridasOfertadas)} ofertadas`,
+    },
+    conclusao: {
+      valor: leituras.conclusao,
+      meta: meta('conclusao'),
+      rotulo: ROTULO_INDICADOR.conclusao,
+      detalhe: `${formatInt(item.corridasCompletadas)} completadas e ${formatInt(item.corridasCanceladas)} canceladas de ${formatInt(item.corridasAceitas)} aceitas`,
+    },
+    tempo: {
+      valor: leituras.tempo_disponivel,
+      meta: meta('tempo_disponivel'),
+      rotulo: ROTULO_INDICADOR.tempo_disponivel,
+      detalhe:
+        item.pracas.length > 1
+          ? `somando as ${item.pracas.length} praças do turno`
+          : undefined,
+    },
+  };
+}
+
+/**
+ * As praças em que a pessoa trabalhou NAQUELE turno, com a fatia de tempo de
+ * cada uma (D1 do plano: a coluna lista TODAS, mesmo com filtro de sub-praça
+ * aplicado — o filtro escolhe quais turnos aparecem, não recorta o turno).
+ *
+ * As fatias somam o tempo disponível do turno; é isso que permite mostrar um
+ * número só na coluna "Tempo disp." sem esconder de onde ele veio.
+ */
+function PracasDoTurno({ item }: { item: PerformanceTurnoItem }) {
+  if (item.pracas.length === 0) {
+    return <span className="text-sm text-muted-foreground">-</span>;
+  }
+  // Uma praça só (a esmagadora maioria dos turnos): texto simples, sem o peso
+  // visual de um chip para uma informação que não tem alternativa.
+  if (item.pracas.length === 1) {
+    const unica = item.pracas[0];
+    return (
+      <span className="block max-w-[180px] truncate text-sm text-muted-foreground" title={unica.subpraca ?? ''}>
+        {unica.subpraca ?? '-'}
+      </span>
+    );
+  }
   return (
-    // `<ul>`/`<li>`: três badges como spans irmãos eram lidos emendados
-    // ("…meta de 90% Taxa de conclusão: …"). A lista dá fronteira a cada item.
-    <ul className="mt-1 flex flex-wrap gap-1">
-      {marcas.map((m) => (
-        <li key={m.id}>
-          <MetaBadge valor={m.valor} meta={m.meta} rotulo={m.rotulo} />
+    // `<ul>`/`<li>`: spans irmãos são lidos emendados por leitor de tela
+    // ("ZONA SUL 25,0% CENTRO 12,5%"); a lista dá fronteira a cada item.
+    <ul className="flex flex-wrap gap-1">
+      {item.pracas.map((p) => (
+        <li key={`${p.subpraca ?? ''}|${p.praca ?? ''}`}>
+          <span className="inline-flex max-w-[180px] items-baseline gap-1 rounded-full border bg-muted/50 px-1.5 py-0.5 text-[0.6875rem]">
+            <span className="truncate">{p.subpraca ?? '-'}</span>
+            <span className="font-mono text-muted-foreground">
+              {p.tempoDisponivelPct === null ? '—' : formatPontoPct(p.tempoDisponivelPct)}
+            </span>
+          </span>
         </li>
       ))}
     </ul>
@@ -540,8 +589,21 @@ export default function PerformancePage() {
               se fosse comparável à meta que acabou de configurar. */}
           <p className="-mt-2 text-xs text-muted-foreground">
             Os indicadores acima somam <strong className="font-medium">todo o período filtrado</strong>.
-            As metas são comparadas por linha, no turno de cada registro.
+            Na lista, cada linha é <strong className="font-medium">um turno</strong> e a meta é
+            comparada uma vez, no cruzamento praça × turno em que ela foi cadastrada.
           </p>
+          {/* D1 (operador, 2026-08-18): o filtro de sub-praça escolhe QUAIS
+              turnos entram; os indicadores continuam sendo os do turno
+              inteiro. Sem esta frase, quem filtra "ZONA SUL" leria os números
+              como se fossem só daquela sub-praça — e as praças listadas na
+              linha (que continuam sendo todas) pareceriam um defeito. */}
+          {h.filtros.subpraca !== '' && (
+            <p className="-mt-1 text-xs text-muted-foreground">
+              Com a sub-praça filtrada, aparecem os turnos em que a pessoa passou por{' '}
+              <strong className="font-medium">{h.filtros.subpraca}</strong> — medidos por inteiro,
+              incluindo o tempo e as corridas das outras praças do mesmo turno.
+            </p>
+          )}
         </>
       )}
 
@@ -698,95 +760,96 @@ export default function PerformancePage() {
         </EmptyState>
       ) : (
         <>
-          {/* Mobile card layout */}
+          {/* Mobile card layout — a MESMA informação do desktop (impeccable
+              r24: as marcas de meta existiam só na tabela, e em 390px a
+              feature simplesmente não existia). */}
           <div className="flex flex-col gap-2 md:hidden">
-            {h.items.map((item) => (
-              <div key={item.id} className="rounded-lg border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">
-                    <EntregadorNome item={item} podeVerDetalhe={podeVerDetalheMotorista} />
-                  </span>
-                  <span className="font-mono text-sm">{formatBRL(item.taxas)}</span>
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {formatDateBR(item.dataPeriodo)} {item.periodo ? `— ${item.periodo}` : ''}
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span>Ofertadas: {item.corridasOfertadas}</span>
-                  <span>Aceitas: {item.corridasAceitas}</span>
-                  <span>Completadas: {item.corridasCompletadas}</span>
-                  <span>Canceladas: {item.corridasCanceladas}</span>
-                  <span>Tempo disp.: {formatPontoPct(item.tempoDisponivelPct)}</span>
-                </div>
-                {(item.subpraca || item.praca) && (
-                  <p className="mt-2 truncate text-xs text-muted-foreground">
-                    {[item.subpraca, item.praca].filter(Boolean).join(' — ')}
+            {h.items.map((item) => {
+              const ind = indicadoresDoTurno(item, metasPorChave);
+              return (
+                <div key={item.chave} className="rounded-lg border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">
+                      <EntregadorNome item={item} podeVerDetalhe={podeVerDetalheMotorista} />
+                    </span>
+                    <span className="font-mono text-sm">{formatBRL(item.taxas)}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {formatDateBR(item.dataPeriodo)} {item.periodo ? `— ${item.periodo}` : ''}
+                  </div>
+                  <div className="mt-2">
+                    <PracasDoTurno item={item} />
+                  </div>
+                  <dl className="mt-2 grid grid-cols-3 gap-2">
+                    {[
+                      ['Aceitação', ind.aceitacao],
+                      ['Conclusão', ind.conclusao],
+                      ['Tempo disp.', ind.tempo],
+                    ].map(([rotuloCurto, props]) => (
+                      <div key={rotuloCurto as string} className="flex flex-col items-end">
+                        <dt className="text-[0.6875rem] text-muted-foreground">{rotuloCurto as string}</dt>
+                        <dd>
+                          <IndicadorMeta {...(props as ReturnType<typeof indicadoresDoTurno>['aceitacao'])} />
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Pedidos concluídos: {formatInt(item.pedidosConcluidos)}
                   </p>
-                )}
-                {/* impeccable r24: as marcas de meta existiam SÓ na tabela
-                    desktop — em 390px a feature simplesmente não existia,
-                    enquanto a tela de metas prometia por escrito que o que
-                    fica abaixo é destacado na Performance. Achado adversarial. */}
-                <MarcasDeMeta item={item} metasPorChave={metasPorChave} />
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Desktop table */}
+          {/* Desktop table — a linha é o TURNO. Cada indicador tem coluna
+              própria, com a distância até a meta em pontos percentuais; as
+              cinco colunas de contador viraram o `detalhe` acessível de cada
+              indicador, e o veredito é emitido UMA vez, no nível em que a meta
+              existe (praça × turno). */}
           <div className="hidden overflow-x-auto rounded-lg border md:block">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data do turno</TableHead>
-                  <TableHead>Período</TableHead>
                   <TableHead>Entregador</TableHead>
-                  <TableHead>Subpraça</TableHead>
-                  <TableHead>Praça</TableHead>
-                  {/* impeccable r24: eram cinco colunas de contador solto —
-                      Ofertadas/Aceitas/Rejeitadas/Completadas/Canceladas —
-                      que na verdade são UM funil. Ler os cinco números e
-                      montar a história era trabalho empurrado para a pessoa,
-                      e a tabela tinha 13 colunas fixas sem controle nenhum. */}
-                  {/* "e metas" no rótulo: os badges vivem nesta célula, e numa
-                      navegação por célula o veredito de meta era anunciado sob
-                      um cabeçalho que só falava do funil. */}
-                  <TableHead>Funil de corridas e metas</TableHead>
-                  <TableHead className="text-right">Pedidos concl.</TableHead>
+                  <TableHead>Turno</TableHead>
+                  <TableHead>Sub-praças</TableHead>
+                  <TableHead className="text-right">Aceitação</TableHead>
+                  <TableHead className="text-right">Conclusão</TableHead>
                   <TableHead className="text-right">Tempo disp.</TableHead>
+                  <TableHead className="text-right">Pedidos concl.</TableHead>
                   <TableHead className="text-right">Taxas</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {h.items.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/50">
-                    <TableCell className="text-sm">{formatDateBR(item.dataPeriodo)}</TableCell>
-                    <TableCell className="max-w-[180px] truncate text-sm text-muted-foreground">
-                      {item.periodo ?? '-'}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      <EntregadorNome item={item} podeVerDetalhe={podeVerDetalheMotorista} />
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{item.subpraca ?? '-'}</TableCell>
-                    <TableCell className="max-w-[160px] truncate text-sm text-muted-foreground">
-                      {item.praca ?? '-'}
-                    </TableCell>
-                    <TableCell>
-                      <FunilCorridas
-                        dados={{
-                          ofertadas: item.corridasOfertadas,
-                          aceitas: item.corridasAceitas,
-                          rejeitadas: item.corridasRejeitadas,
-                          completadas: item.corridasCompletadas,
-                          canceladas: item.corridasCanceladas,
-                        }}
-                      />
-                      <MarcasDeMeta item={item} metasPorChave={metasPorChave} />
-                    </TableCell>
-                    <TableCell className="text-right font-mono">{formatInt(item.pedidosConcluidos)}</TableCell>
-                    <TableCell className="text-right">{formatPontoPct(item.tempoDisponivelPct)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatBRL(item.taxas)}</TableCell>
-                  </TableRow>
-                ))}
+                {h.items.map((item) => {
+                  const ind = indicadoresDoTurno(item, metasPorChave);
+                  return (
+                    <TableRow key={item.chave} className="hover:bg-muted/50">
+                      <TableCell className="text-sm">
+                        <EntregadorNome item={item} podeVerDetalhe={podeVerDetalheMotorista} />
+                      </TableCell>
+                      <TableCell className="max-w-[220px] text-sm">
+                        <span className="whitespace-nowrap">{formatDateBR(item.dataPeriodo)}</span>{' '}
+                        <span className="text-muted-foreground">{item.periodo ?? '-'}</span>
+                      </TableCell>
+                      <TableCell>
+                        <PracasDoTurno item={item} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <IndicadorMeta {...ind.aceitacao} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <IndicadorMeta {...ind.conclusao} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <IndicadorMeta {...ind.tempo} />
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{formatInt(item.pedidosConcluidos)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatBRL(item.taxas)}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

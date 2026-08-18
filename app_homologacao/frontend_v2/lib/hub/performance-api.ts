@@ -13,8 +13,10 @@ import {
   parsePerformanceListResponse,
   parsePerformanceResumoAgrupado,
   parsePerformanceResumoCards,
+  parsePerformanceTurnoListResponse,
   type PerformanceGroupBy,
   type PerformanceListResponse,
+  type PerformanceTurnoListResponse,
   type PerformanceResumoAgrupado,
   type PerformanceResumoCards,
 } from './performance-dto';
@@ -55,9 +57,21 @@ export interface ListarPerformanceQuery extends PerformanceFiltros {
   pageSize?: number;
 }
 
+/** `GET /performance?grao=linha` — a lista no grão da LINHA importada.
+ *  Continua existindo (D3 do plano: o que foi importado fica integralmente
+ *  acessível), mas não é mais o padrão da tela. */
 export async function listarPerformance(filtros: ListarPerformanceQuery = {}): Promise<PerformanceListResponse> {
-  const raw = await request<unknown>(`/performance${query(filtros)}`);
+  const raw = await request<unknown>(`/performance${query({ ...filtros, grao: 'linha' })}`);
   return parsePerformanceListResponse(raw);
+}
+
+/** `GET /performance` (grão padrão: TURNO) — a lista da tela. Uma linha por
+ *  `(entregador, dia, período)`, com as praças como detalhe. */
+export async function listarPerformanceTurnos(
+  filtros: ListarPerformanceQuery = {}
+): Promise<PerformanceTurnoListResponse> {
+  const raw = await request<unknown>(`/performance${query(filtros)}`);
+  return parsePerformanceTurnoListResponse(raw);
 }
 
 /** Subpraças distintas visíveis à entidade ativa — opções do filtro "Subpraça". */

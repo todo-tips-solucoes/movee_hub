@@ -8,9 +8,17 @@ resolvida do token (nunca de query/body); erros JSON no formato curto
 `hub-importacoes.js`/`hub-faturamento.js`). Todos os campos de resposta em
 **camelCase**.
 
-## GET /performance — lista paginada de registros de turno
+## GET /performance — lista paginada de TURNOS
 
 **Permissão**: `performance.listar`.
+
+> **A unidade mudou (migration 0051).** A linha do arquivo importado é a fatia
+> de UMA praça dentro do turno, mas a meta é cadastrada por praça × TURNO
+> (0048/0049). Listar por linha fazia a tela emitir dois vereditos para o mesmo
+> turno de quem roda em duas praças — e o card, que sempre agregou por turno,
+> mostrava um terceiro número. O grão padrão passou a ser o turno
+> `(entregadorId, dataPeriodo, periodo)`; o grão da linha continua acessível em
+> `?grao=linha`. Plano: `docs/plans/performance-linha-por-turno.md`.
 
 **Query params**:
 
@@ -19,23 +27,23 @@ resolvida do token (nunca de query/body); erros JSON no formato curto
 | `de` | `YYYY-MM-DD` | hoje − 30 dias | filtra por `data_periodo` (FR-002) |
 | `ate` | `YYYY-MM-DD` | hoje | filtra por `data_periodo` |
 | `periodo` | `string` | — | igualdade exata com a coluna `periodo` (texto livre) |
-| `subpraca` | `string` | — | igualdade exata; usa índice `idx_performance_empresa_subpraca` (`0020`) |
+| `subpraca` | `string` | — | **SELEÇÃO, não agregação** (0051/D1): entram os turnos que têm ao menos uma linha nessa sub-praça, medidos por inteiro |
 | `entregadorId` | `int` | — | igualdade exata com `entregador_id` |
 | `page` | `int` | `1` | 1-indexed |
 | `pageSize` | `int` | `20` | máx. `100` |
+| `grao` | `turno` \| `linha` | `turno` | `turno` = uma linha por `(entregador, dia, período)`; `linha` = o registro importado. Valor desconhecido → `400 GRAO_INVALIDO` |
 | `format` | `csv` | — (JSON) | ver seção Export CSV abaixo |
 
-**Resposta 200 (JSON, sem `format`)**:
+**Resposta 200 (JSON, `grao=turno` — o padrão)**:
 ```json
 {
   "items": [
     {
-      "id": 12345,
+      "chave": "42|2026-06-15|ALMOCO 11H30-15H29",
       "dataPeriodo": "2026-06-15",
       "periodo": "ALMOCO 11H30-15H29",
       "entregadorId": 42,
       "entregadorNome": "F*** S***",
-      "subpraca": "PINHEIROS",
       "praca": "SAO PAULO",
       "corridasOfertadas": 18,
       "corridasAceitas": 15,
@@ -44,34 +52,86 @@ resolvida do token (nunca de query/body); erros JSON no formato curto
       "corridasCanceladas": 1,
       "pedidosConcluidos": 20,
       "tempoDisponivelPct": 92.5,
-      "taxas": "12.34"
+      "taxas": "12.34",
+      "pracas": [
+        {
+          "subpraca": "PINHEIROS",
+          "praca": "SAO PAULO",
+          "tempoDisponivelPct": 62.5,
+          "corridasOfertadas": 12,
+          "corridasAceitas": 10,
+          "corridasCompletadas": 9,
+          "taxas": "8.00"
+        },
+        {
+          "subpraca": "BUTANTA",
+          "praca": "SAO PAULO",
+          "tempoDisponivelPct": 30.0,
+          "corridasOfertadas": 6,
+          "corridasAceitas": 5,
+          "corridasCompletadas": 5,
+          "taxas": "4.34"
+        }
+      ]
     }
   ],
-  "total": 431,
+  "total": 260,
   "page": 1,
-  "pageSize": 20
+  "pageSize": 20,
+  "grao": "turno"
 }
 ```
+- **Não há `id`**: o turno é um agregado, não uma linha gravada. A identidade é
+  `chave` = `entregadorId|dataPeriodo|periodo` — o mesmo grão da unique
+  `uq_mv_performance_dia_grao`.
+- `praca` é a praça **PREDOMINANTE** do turno (a de maior tempo online;
+  desempate por ofertadas e depois pelo nome da sub-praça). É ela que resolve a
+  meta, porque a meta é por praça × turno e o veredito é **um só**. Com uma
+  praça só — a esmagadora maioria dos turnos — é a mesma praça de sempre.
+- `pracas[]` traz as fatias do turno, ordenadas por tempo online desc. Os
+  `tempoDisponivelPct` das fatias **somam** o do turno (teto de 100 por turno):
+  é o que permite mostrar um número só sem esconder de onde ele veio.
+- `total` é a contagem de TURNOS do filtro, vinda de `count(*) OVER ()` dentro
+  da própria RPC. Consequência conhecida: uma página além do fim devolve zero
+  itens e, com eles, `total: 0`.
+- Ordenação: `dataPeriodo desc, periodo desc, entregadorId desc` — é a
+  unique `uq_mv_performance_dia_grao` lida de trás para frente, então a
+  página sai do índice sem ordenação nenhuma. É total (sem empate possível),
+  o que a paginação exige: ordem parcial repete uma linha e omite outra.
+  A D4 do plano propunha ordenar por `entregadorNome asc`; o nome vive noutra
+  tabela e ordenar por ele obriga a juntar e ordenar o período INTEIRO antes
+  do LIMIT — 1,6s medidos sobre 270k turnos, contra os 0,8ms desta. Fica
+  registrado como decisão em aberto para o operador; achar uma pessoa já é
+  trabalho do filtro de entregador.
+
+Com `?grao=linha` a resposta volta ao formato anterior (uma linha por registro
+importado, com `id`, `subpraca` e `praca` próprios, sem `pracas`), e `grao`
+vem `"linha"` no corpo.
 - `entregadorId`/`entregadorNome` sempre presentes (nunca `null`) —
   `"PerformanceTurno".entregador_id` é `NOT NULL` desde a origem (Decision
   4 de `research.md`); não existe o equivalente ao "Agregados/bônus" do
   faturamento.
 - `taxas` é `string` (Decision 7) — `taxas_centavos` convertido para R$
   (`13254` → `"132.54"`); `NULL` na origem → `"0.00"`.
-- `tempoDisponivelPct` é `number` (`null` se ausente) — % do PERÍODO em que
-  a pessoa esteve online NAQUELA linha/praça, da coluna gerada
-  `tempo_disponivel_periodo_pct` (migration 0050). Somável entre as praças do
-  mesmo turno. Só o **agregado** (`/resumo`) usa `text` fixo.
-- Ordenação: `order=data_periodo.desc,id.desc` (mais recente primeiro,
-  desempate determinístico).
+- `tempoDisponivelPct` é `number` (`null` se ausente) — % do PERÍODO em que a
+  pessoa esteve online. No grão do turno, é o turno inteiro (praças somadas,
+  teto 100); no grão da linha, é a coluna gerada
+  `tempo_disponivel_periodo_pct` (migration 0050) daquela linha. `null` é
+  ausência de leitura, **nunca** `0`.
 
 **Resposta 200 (`?format=csv`)**: `Content-Type: text/csv`, streaming
 (Decision 5), cabeçalho:
 ```
-dataPeriodo,periodo,entregadorNome,subpraca,praca,corridasOfertadas,corridasAceitas,corridasRejeitadas,corridasCompletadas,corridasCanceladas,pedidosConcluidos,tempoDisponivelPct,taxas,metaAceitacaoPct,metaConclusaoPct,metaTempoDisponivelPct,abaixoDaMeta
+dataPeriodo,periodo,entregadorNome,subpracas,praca,corridasOfertadas,corridasAceitas,corridasRejeitadas,corridasCompletadas,corridasCanceladas,pedidosConcluidos,tempoDisponivelPct,taxas,metaAceitacaoPct,metaConclusaoPct,metaTempoDisponivelPct,abaixoDaMeta
 ```
 (as 4 últimas colunas entraram com as metas, PR #117 — o contrato tinha ficado
 para trás; metas em percentual 0..100, vazio = não há meta para o cruzamento.)
+
+O CSV segue o `grao` do pedido, e o padrão é o TURNO (D2): o arquivo embasa a
+cobrança e precisa dizer o mesmo que a tela. Por isso `subpraca` (uma) virou
+`subpracas` — todas as do turno, separadas por `;`, porque a vírgula é o
+separador do próprio arquivo — e `praca` é a predominante, a que resolve a
+meta. Com `?grao=linha` o cabeçalho volta a trazer `subpraca`.
 Filtro sem correspondência → arquivo só com cabeçalho, `200` (nunca erro).
 Toda célula cujo conteúdo comece com `= + - @` é neutralizada (FR-007,
 `lib/hub-csv.js`, Decision 6).
@@ -85,6 +145,9 @@ Toda célula cujo conteúdo comece com `= + - @` é neutralizada (FR-007,
 - `400 { "erro": "DATA_INVALIDA" }` — `de`/`ate` fora do formato ISO ou
   `de > ate`.
 - `400 { "erro": "ENTREGADOR_ID_INVALIDO" }` — `entregadorId` não numérico.
+- `400 { "erro": "GRAO_INVALIDO" }` — `grao` fora de `turno`/`linha`. Não
+  cai no padrão em silêncio: `?grao=praca` respondido como turno esconderia
+  um erro de quem chama.
 
 ## GET /performance/resumo — agregados do período
 
@@ -170,17 +233,25 @@ entre as praças do turno). O nome do campo não mudou.
 **Erros**: `401`/`400`/`403` (mesmo padrão); `400
 { "erro": "GROUP_BY_INVALIDO" }` — `groupBy` fora do enum.
 
-**Frescor dos dados (follow-up SC-004, migration `0031`)**: os agregados
-deste endpoint são servidos pela materialized view `mv_performance_dia`
-(exceto quando o filtro `subpraca` é usado — dimensão fora da MV, cai na
-tabela-base). O **contrato não muda** (mesmos shapes, taxas/valores como
-`text`), mas o resumo pode estar **defasado até o fim do processamento da
-importação em curso**: a MV é atualizada (`REFRESH ... CONCURRENTLY`)
-automaticamente ao final de toda importação de performance bem-sucedida —
-único caminho de escrita nos fatos — e manualmente via RPC
-`hub_performance_refresh_mv`. Casos residuais (falha best-effort do refresh;
-importação cancelada após inserir lotes) entram no resumo no próximo
-refresh. `GET /performance` (lista) lê a tabela-base e é sempre fresco.
+**Frescor dos dados (follow-up SC-004, migrations `0031`/`0051`)**: os
+agregados deste endpoint são servidos pela materialized view
+`mv_performance_dia` — desde a `0051`, **sempre**, inclusive com filtro de
+sub-praça: a sub-praça deixou de ser dimensão de agregação e virou um
+semi-join (`EXISTS`) sobre a tabela-base, então o caminho alternativo que
+recalculava tudo fora da MV deixou de existir (e com ele a segunda cópia da
+fórmula do tempo disponível). O **contrato não muda** (mesmos shapes,
+taxas/valores como `text`), mas o resumo pode estar **defasado até o fim do
+processamento da importação em curso**: a MV é atualizada
+(`REFRESH ... CONCURRENTLY`) automaticamente ao final de toda importação de
+performance bem-sucedida — único caminho de escrita nos fatos — e manualmente
+via RPC `hub_performance_refresh_mv`. Casos residuais (falha best-effort do
+refresh; importação cancelada após inserir lotes) entram no resumo no próximo
+refresh.
+
+⚠️ Desde a `0051` a LISTA também lê a MV (`grao=turno`, o padrão), então ela
+passou a compartilhar essa defasagem — antes lia a tabela-base e era sempre
+fresca. É o preço de a lista e os cards falarem do mesmo número; `?grao=linha`
+continua lendo a tabela-base direto.
 
 ## Acesso negado (FR-008)
 

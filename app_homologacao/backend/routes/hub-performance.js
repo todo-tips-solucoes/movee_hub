@@ -30,7 +30,9 @@ const {
 const {
   parseFiltros,
   parsePaginacao,
+  parseGrao,
   mapPerformanceListItem,
+  mapPerformanceTurnoItem,
   formatarTaxasReais,
   groupByValido,
   mapResumoCards,
@@ -56,8 +58,23 @@ const LOTE_EXPORT_CSV = 1000;
 // `tempoDisponivelPct` já está nessa escala, e quem abre no Excel lê
 // porcentagem. Vazio = não há meta para aquele cruzamento (nem específica nem
 // padrão) — ausência, nunca zero.
-const CABECALHO_CSV = [
+//
+// São DOIS cabeçalhos porque são dois grãos (0051 / D2 do plano). O CSV
+// padrão é o do TURNO, para dizer exatamente o que a tela diz — ele embasa a
+// cobrança, e um arquivo que reprova por linha enquanto a tela julga por turno
+// é uma discordância que aparece na conversa com o parceiro.
+//
+// No grão do turno `subpraca` (uma) vira `subpracas` (todas as do turno,
+// separadas por `;` — vírgula é o separador do próprio arquivo) e `praca` é a
+// PREDOMINANTE, que é a que resolve a meta.
+const CABECALHO_CSV_LINHA = [
   'dataPeriodo', 'periodo', 'entregadorNome', 'subpraca', 'praca',
+  'corridasOfertadas', 'corridasAceitas', 'corridasRejeitadas', 'corridasCompletadas',
+  'corridasCanceladas', 'pedidosConcluidos', 'tempoDisponivelPct', 'taxas',
+  'metaAceitacaoPct', 'metaConclusaoPct', 'metaTempoDisponivelPct', 'abaixoDaMeta',
+];
+const CABECALHO_CSV_TURNO = [
+  'dataPeriodo', 'periodo', 'entregadorNome', 'subpracas', 'praca',
   'corridasOfertadas', 'corridasAceitas', 'corridasRejeitadas', 'corridasCompletadas',
   'corridasCanceladas', 'pedidosConcluidos', 'tempoDisponivelPct', 'taxas',
   'metaAceitacaoPct', 'metaConclusaoPct', 'metaTempoDisponivelPct', 'abaixoDaMeta',
@@ -150,6 +167,79 @@ function celulaCsv(valor) {
   return quotarCelulaCsv(escaparCelulaCsvInjection(valor === null || valor === undefined ? '' : valor));
 }
 
+/** Número anulável -> célula: ausência vira VAZIO, nunca `0`. Zero é uma
+ *  afirmação sobre o desempenho; vazio é a ausência dela (SC-009). */
+function celulaNumero(valor) {
+  return valor === null || valor === undefined ? '' : valor;
+}
+
+/**
+ * As 4 colunas de julgamento, comuns aos dois grãos. `registro` precisa ter
+ * `praca`/`periodo` (o cruzamento da meta) e as leituras em snake_case — é o
+ * contrato de `avaliarRegistro`, e tanto a linha do PostgREST quanto a linha
+ * da RPC `hub_performance_turnos` o satisfazem.
+ */
+function colunasDeMeta(registro, metasPorChave) {
+  return [
+    metaParaCsv(metaAplicavel(metasPorChave, registro.praca, registro.periodo, 'aceitacao')),
+    metaParaCsv(metaAplicavel(metasPorChave, registro.praca, registro.periodo, 'conclusao')),
+    metaParaCsv(metaAplicavel(metasPorChave, registro.praca, registro.periodo, 'tempo_disponivel')),
+    // Lista os indicadores abaixo da meta, separados por `;` — vírgula
+    // seria o separador do próprio CSV. Vazio = nada abaixo, e é
+    // distinguível de "sem meta" porque as colunas de meta ficam vazias.
+    celulaCsv(
+      avaliarRegistro(registro, metasPorChave)
+        .filter((a) => a.abaixo)
+        .map((a) => a.indicador)
+        .join(';')
+    ),
+  ];
+}
+
+/** 1 linha CSV no grão da LINHA importada (`?grao=linha`). */
+function linhaCsvLinha(row, metasPorChave) {
+  return [
+    row.data_periodo,
+    celulaCsv(row.periodo),
+    celulaCsv(row.entregador ? row.entregador.nome : ''),
+    celulaCsv(row.subpraca),
+    celulaCsv(row.praca),
+    row.corridas_ofertadas,
+    row.corridas_aceitas,
+    row.corridas_rejeitadas,
+    row.corridas_completadas,
+    row.corridas_canceladas,
+    celulaNumero(row.pedidos_concluidos),
+    celulaNumero(row.tempo_disponivel_periodo_pct),
+    formatarTaxasReais(row.taxas_centavos),
+    ...colunasDeMeta(row, metasPorChave),
+  ].join(',') + '\r\n';
+}
+
+/** 1 linha CSV no grão do TURNO (padrão) — `hub_performance_turnos`. */
+function linhaCsvTurno(row, metasPorChave) {
+  const subpracas = (Array.isArray(row.pracas) ? row.pracas : [])
+    .map((p) => p && p.subpraca)
+    .filter((s) => typeof s === 'string' && s !== '')
+    .join(';');
+  return [
+    row.data_periodo,
+    celulaCsv(row.periodo),
+    celulaCsv(row.entregador_nome),
+    celulaCsv(subpracas),
+    celulaCsv(row.praca),
+    row.corridas_ofertadas,
+    row.corridas_aceitas,
+    row.corridas_rejeitadas,
+    row.corridas_completadas,
+    row.corridas_canceladas,
+    celulaNumero(row.pedidos_concluidos),
+    celulaNumero(row.tempo_disponivel_periodo_pct),
+    formatarTaxasReais(row.taxas_centavos),
+    ...colunasDeMeta(row, metasPorChave),
+  ].join(',') + '\r\n';
+}
+
 /**
  * `GET /performance?format=csv` — export streaming em lotes de
  * `LOTE_EXPORT_CSV` linhas (research.md Decision 5): busca 1 lote via
@@ -164,7 +254,8 @@ function celulaCsv(valor) {
  * @param {object} payload - do accessToken (`payload.sub` -> auditoria)
  * @param {ReturnType<import('../lib/hub-performance-dto').parseFiltros>} f
  */
-async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
+async function exportarCsv(req, res, entidadeAtiva, claims, payload, f, grao) {
+  const porTurno = grao === 'turno';
   const filtrosBase = montarFiltrosQuery(entidadeAtiva, f);
   filtrosBase.push('order=data_periodo.desc,id.desc');
   filtrosBase.push(
@@ -197,7 +288,7 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
     console.error('[hub-performance] metas indisponíveis no export CSV (colunas vazias):', e.message);
   }
 
-  res.write(`${CABECALHO_CSV.join(',')}\r\n`);
+  res.write(`${(porTurno ? CABECALHO_CSV_TURNO : CABECALHO_CSV_LINHA).join(',')}\r\n`);
 
   let from = 0;
   let totalLinhas = 0;
@@ -207,48 +298,23 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
     // intencional (Decision 5): 1 lote de cada vez, nunca em paralelo —
     // é exatamente isso que limita a memória a ~1 lote, não ao total do
     // período.
-    const lote = await hubPostgrestRequest(
-      `PerformanceTurno?${filtrosBase.join('&')}`,
-      'GET', null, claims,
-      { range: { from, to } }
-    );
+    const lote = porTurno
+      ? await hubPostgrestRequest(
+        'rpc/hub_performance_turnos', 'POST',
+        { ...montarParamsRpc(entidadeAtiva, f), p_limit: LOTE_EXPORT_CSV, p_offset: from },
+        claims
+      )
+      : await hubPostgrestRequest(
+        `PerformanceTurno?${filtrosBase.join('&')}`,
+        'GET', null, claims,
+        { range: { from, to } }
+      );
     const linhas = lote || [];
     if (linhas.length === 0) break;
 
     let bloco = '';
     for (const row of linhas) {
-      const entregadorNome = row.entregador ? row.entregador.nome : '';
-      const tempoDisponivelPct = row.tempo_disponivel_periodo_pct === null
-        || row.tempo_disponivel_periodo_pct === undefined
-        ? ''
-        : row.tempo_disponivel_periodo_pct;
-      bloco += [
-        row.data_periodo,
-        celulaCsv(row.periodo),
-        celulaCsv(entregadorNome),
-        celulaCsv(row.subpraca),
-        celulaCsv(row.praca),
-        row.corridas_ofertadas,
-        row.corridas_aceitas,
-        row.corridas_rejeitadas,
-        row.corridas_completadas,
-        row.corridas_canceladas,
-        row.pedidos_concluidos === null || row.pedidos_concluidos === undefined ? '' : row.pedidos_concluidos,
-        tempoDisponivelPct,
-        formatarTaxasReais(row.taxas_centavos),
-        metaParaCsv(metaAplicavel(metasPorChave, row.praca, row.periodo, 'aceitacao')),
-        metaParaCsv(metaAplicavel(metasPorChave, row.praca, row.periodo, 'conclusao')),
-        metaParaCsv(metaAplicavel(metasPorChave, row.praca, row.periodo, 'tempo_disponivel')),
-        // Lista os indicadores abaixo da meta, separados por `;` — vírgula
-        // seria o separador do próprio CSV. Vazio = nada abaixo, e é
-        // distinguível de "sem meta" porque as colunas de meta ficam vazias.
-        celulaCsv(
-          avaliarRegistro(row, metasPorChave)
-            .filter((a) => a.abaixo)
-            .map((a) => a.indicador)
-            .join(';')
-        ),
-      ].join(',') + '\r\n';
+      bloco += (porTurno ? linhaCsvTurno : linhaCsvLinha)(row, metasPorChave);
     }
     res.write(bloco);
     totalLinhas += linhas.length;
@@ -269,7 +335,7 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
     recursoId: null,
     detalhes: {
       de: f.de, ate: f.ate, periodo: f.periodo, subpraca: f.subpraca,
-      entregadorId: f.entregadorId, totalLinhas,
+      entregadorId: f.entregadorId, grao, totalLinhas,
     },
     ip: req.ip,
     claims,
@@ -294,6 +360,11 @@ router.get('/', requireModuloAtivo('performance'), requirePermission('performanc
       return res.status(400).json({ erro: f.erro });
     }
 
+    const grao = parseGrao(req.query);
+    if (grao === null) {
+      return res.status(400).json({ erro: 'GRAO_INVALIDO' });
+    }
+
     if (req.query.format === 'csv') {
       // Decision 9 — checagem INLINE e EXPLÍCITA de `performance.exportar`
       // (união flat, `req.hubUsuarioId` setado pelo `requirePermission` de
@@ -303,10 +374,30 @@ router.get('/', requireModuloAtivo('performance'), requirePermission('performanc
       if (!permissoesFlat.has('performance.exportar')) {
         return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
       }
-      return exportarCsv(req, res, entidadeAtiva, claims, payload, f);
+      return exportarCsv(req, res, entidadeAtiva, claims, payload, f, grao);
     }
 
     const { page, pageSize, from, to } = parsePaginacao(req.query);
+
+    if (grao === 'turno') {
+      // A lista AGREGA (turno = N linhas do arquivo) e PostgREST não agrega —
+      // daí a RPC. `total` vem de `total_turnos` (janela `count(*) OVER ()`
+      // dentro da própria consulta), e não de `Prefer: count=exact`: contagem
+      // em RPC é o tipo de detalhe que muda entre versões do PostgREST.
+      const linhasTurno = await hubPostgrestRequest(
+        'rpc/hub_performance_turnos', 'POST',
+        { ...montarParamsRpc(entidadeAtiva, f), p_limit: pageSize, p_offset: from },
+        claims
+      );
+      const turnos = linhasTurno || [];
+      return res.status(200).json({
+        items: turnos.map(mapPerformanceTurnoItem),
+        total: turnos.length > 0 ? Number(turnos[0].total_turnos) : 0,
+        page,
+        pageSize,
+        grao,
+      });
+    }
 
     const filtros = montarFiltrosQuery(entidadeAtiva, f);
     filtros.push('order=data_periodo.desc,id.desc');
@@ -331,6 +422,7 @@ router.get('/', requireModuloAtivo('performance'), requirePermission('performanc
       total: total || 0,
       page,
       pageSize,
+      grao,
     });
   } catch (e) {
     console.error('[hub-performance] erro em GET /performance:', e.message);

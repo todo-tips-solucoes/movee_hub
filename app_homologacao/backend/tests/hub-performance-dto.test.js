@@ -19,6 +19,9 @@ const {
   dataValida,
   parseFiltros,
   parsePaginacao,
+  parseGrao,
+  chaveTurno,
+  mapPerformanceTurnoItem,
   mapPerformanceListItem,
   formatarTaxasReais,
   groupByValido,
@@ -322,5 +325,129 @@ describe('mapResumoAgrupado (FR-004, Decision 4 — sem bucket agregados)', () =
     const r = mapResumoAgrupado(rows, 'entregador', new Map());
     const somaCompletadas = r.reduce((acc, g) => acc + g.corridasCompletadas, 0);
     assert.equal(somaCompletadas, 22);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Grão do TURNO (migration 0051, docs/plans/performance-linha-por-turno.md)
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('parseGrao', () => {
+  test('ausente/vazio -> turno (o padrão da tela)', () => {
+    assert.equal(parseGrao({}), 'turno');
+    assert.equal(parseGrao({ grao: '' }), 'turno');
+    assert.equal(parseGrao(undefined), 'turno');
+  });
+
+  test('valores aceitos passam intactos', () => {
+    assert.equal(parseGrao({ grao: 'turno' }), 'turno');
+    assert.equal(parseGrao({ grao: 'linha' }), 'linha');
+  });
+
+  test('valor desconhecido -> null (a rota devolve 400 GRAO_INVALIDO)', () => {
+    // Não cai no padrão silenciosamente: `?grao=Turno` respondido como se
+    // fosse `turno` esconde um erro de quem chama, e `?grao=praca` devolveria
+    // outro grão sem avisar.
+    assert.equal(parseGrao({ grao: 'praca' }), null);
+    assert.equal(parseGrao({ grao: 'Turno' }), null);
+    assert.equal(parseGrao({ grao: '1' }), null);
+  });
+});
+
+describe('chaveTurno', () => {
+  test('identifica o turno pela tupla (entregador, dia, período)', () => {
+    assert.equal(
+      chaveTurno({ entregador_id: 7, data_periodo: '2026-08-10', periodo: 'ALMOCO 11H30-15H29' }),
+      '7|2026-08-10|ALMOCO 11H30-15H29'
+    );
+  });
+
+  test('turnos diferentes do mesmo dia não colidem', () => {
+    const base = { entregador_id: 7, data_periodo: '2026-08-10' };
+    assert.notEqual(
+      chaveTurno({ ...base, periodo: 'ALMOCO' }),
+      chaveTurno({ ...base, periodo: 'JANTAR' })
+    );
+  });
+});
+
+describe('mapPerformanceTurnoItem', () => {
+  // Turno real do hub-homolog (seed `DEMO 0050 Duas Pracas`, 2026-08-10):
+  // duas praças, 25,00% + 12,50% de tempo de período -> 37,50% no turno.
+  const linhaRpc = {
+    entregador_id: 42,
+    entregador_nome: 'DEMO 0050 Duas Pracas',
+    data_periodo: '2026-08-10',
+    periodo: 'ALMOCO 11H30-15H29',
+    praca: 'SAO PAULO',
+    corridas_ofertadas: 12,
+    corridas_aceitas: 8,
+    corridas_rejeitadas: 4,
+    corridas_completadas: 7,
+    corridas_canceladas: 0,
+    pedidos_concluidos: 7,
+    taxas_centavos: 2000,
+    tempo_disponivel_periodo_pct: '37.50',
+    total_turnos: 4,
+    pracas: [
+      {
+        subpraca: 'ZONA SUL', praca: 'SAO PAULO', tempoDisponivelPct: 25,
+        corridasOfertadas: 8, corridasAceitas: 6, corridasCompletadas: 5, taxasCentavos: 1500,
+      },
+      {
+        subpraca: 'CENTRO', praca: 'SAO PAULO', tempoDisponivelPct: 12.5,
+        corridasOfertadas: 4, corridasAceitas: 2, corridasCompletadas: 2, taxasCentavos: 500,
+      },
+    ],
+  };
+
+  test('mapeia o turno inteiro, com as praças como detalhe', () => {
+    const item = mapPerformanceTurnoItem(linhaRpc);
+    assert.equal(item.chave, '42|2026-08-10|ALMOCO 11H30-15H29');
+    assert.equal(item.entregadorNome, 'DEMO 0050 Duas Pracas');
+    assert.equal(item.praca, 'SAO PAULO');
+    assert.equal(item.corridasOfertadas, 12);
+    assert.equal(item.corridasRejeitadas, 4);
+    assert.equal(item.pedidosConcluidos, 7);
+    assert.equal(item.tempoDisponivelPct, 37.5);
+    assert.equal(item.taxas, '20.00');
+    assert.equal(item.pracas.length, 2);
+    assert.equal(item.pracas[0].subpraca, 'ZONA SUL');
+    assert.equal(item.pracas[0].tempoDisponivelPct, 25);
+    assert.equal(item.pracas[1].taxas, '5.00');
+  });
+
+  test('as praças somam o tempo do turno — é o que torna o veredito único honesto', () => {
+    const item = mapPerformanceTurnoItem(linhaRpc);
+    const soma = item.pracas.reduce((acc, p) => acc + (p.tempoDisponivelPct ?? 0), 0);
+    assert.equal(soma, item.tempoDisponivelPct);
+  });
+
+  test('turno SEM leitura: tempo/pedidos ficam null, nunca 0 nem 100 (SC-009)', () => {
+    // A armadilha do `LEAST` que ignora NULL (0050/0051): ausência de leitura
+    // virando nota máxima é o pior resultado possível.
+    const item = mapPerformanceTurnoItem({
+      ...linhaRpc,
+      tempo_disponivel_periodo_pct: null,
+      pedidos_concluidos: null,
+      taxas_centavos: null,
+      pracas: [{ subpraca: 'ZONA SUL', praca: 'SAO PAULO', tempoDisponivelPct: null }],
+    });
+    assert.equal(item.tempoDisponivelPct, null);
+    assert.equal(item.pedidosConcluidos, null);
+    assert.equal(item.taxas, '0.00');
+    assert.equal(item.pracas[0].tempoDisponivelPct, null);
+    assert.equal(item.pracas[0].corridasOfertadas, 0);
+  });
+
+  test('`pracas` ausente/não-array vira lista vazia, não quebra a linha', () => {
+    assert.deepEqual(mapPerformanceTurnoItem({ ...linhaRpc, pracas: null }).pracas, []);
+    assert.deepEqual(mapPerformanceTurnoItem({ ...linhaRpc, pracas: undefined }).pracas, []);
+  });
+
+  test('contadores chegando como string (bigint serializado) viram número', () => {
+    const item = mapPerformanceTurnoItem({ ...linhaRpc, corridas_ofertadas: '12', taxas_centavos: '2000' });
+    assert.equal(item.corridasOfertadas, 12);
+    assert.equal(item.taxas, '20.00');
   });
 });
