@@ -38,7 +38,18 @@
   --popover: #ffffff;
   --popover-foreground: #0f1849;
 
-  --primary: #2c67ea;
+  /* 0051: era #2c67ea, que como TEXTO sobre o creme (--background #f9f2e8) dá
+     4,46:1 — logo abaixo do mínimo AA de 4,5:1 para texto normal. Atinge todo
+     link `text-primary` do hub (nome do entregador na Performance, motorista
+     na lista, link da importação). O gate de contraste só não pegava porque as
+     telas do E2E estavam VAZIAS: bastou o seed de um turno para as três
+     reprovarem de uma vez — defeito antigo, e que em produção existe desde que
+     há dado na tela. #2c66e9 é o menor escurecimento do mesmo tom que cruza a
+     barra: 4,52:1 sobre o creme e 5,02:1 sobre branco. A diferença é de um
+     ponto em dois canais — imperceptível, e a branding do tenant continua
+     sobrescrevendo em runtime. Mesmo raciocínio de --success (r5) e
+     --destructive (r8), logo abaixo. */
+  --primary: #2c66e9;
   --primary-foreground: #ffffff;
   --secondary: #b4e4ff;
   --secondary-foreground: #1b3fac;
@@ -51,9 +62,21 @@
   /* impeccable rodada 5 (P1): era #009b7f, que com texto branco dá 3,50:1 —
      abaixo do mínimo AA de 4,5:1 para texto normal. Atinge os dois botões
      `bg-success` do fluxo de disparo (o "Iniciar" da barra e o confirm).
-     #00806a é o menor escurecimento do mesmo tom que cruza a barra: 4,89:1.
+     Passou a #00806a, o menor escurecimento do mesmo tom que cruzava a barra
+     naquele uso (4,89:1 com texto branco).
+
+     0051: faltava um segundo uso — o BADGE `bg-success/10 text-success`, em
+     que o próprio verde é o TEXTO sobre 10% DELE MESMO diluído no creme:
+     3,87:1. A armadilha aqui é que escurecer o verde escurece TAMBÉM o fundo,
+     então a razão quase não se move — a primeira tentativa (#007460) foi de
+     3,87 para 4,46 e continuou reprovando. O valor tem de ser resolvido como
+     PONTO FIXO: #00715e dá 4,65:1 contra o próprio fundo diluído (#e0e5da),
+     5,96:1 com texto branco sobre o sólido e 5,36:1 sobre o creme puro —
+     cobre os três usos. Exposto pelo mesmo seed que revelou o --primary: o
+     gate passava porque a tela de motoristas do E2E não tinha nenhuma linha
+     com badge.
      Só o tema claro muda; o dark usa foreground escuro sobre verde claro. */
-  --success: #00806a;
+  --success: #00715e;
   --success-foreground: #ffffff;
   --warning: #ffb72a;
   --warning-foreground: #0f1849;
@@ -63,7 +86,7 @@
 
   --border: #e7ddcd;
   --input: #e7ddcd;
-  --ring: #2c67ea;
+  --ring: #2c66e9;
 
   /* gradiente assinatura EntreGô (frio): azul → menta → verde */
   --warm-1: #2c67ea;
@@ -82,12 +105,12 @@
   /* sidebar — superfície creme levemente distinta do card */
   --sidebar: #f3ece0;
   --sidebar-foreground: #0f1849;
-  --sidebar-primary: #2c67ea;
+  --sidebar-primary: #2c66e9;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #b4ffed;
   --sidebar-accent-foreground: #0f4938;
   --sidebar-border: #e7ddcd;
-  --sidebar-ring: #2c67ea;
+  --sidebar-ring: #2c66e9;
 }
 
 .dark {

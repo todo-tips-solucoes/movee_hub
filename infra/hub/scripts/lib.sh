@@ -31,5 +31,14 @@ PROD_NETWORKS="pgadmin app_homologacao_default fastapi_homologacao fastapi_homol
 # Redes que o projeto hub-homolog DEVE ter (conjunto exato; teste §4.11 #3)
 HUB_EXPECTED_NETWORKS="hub_homolog_net hub_homolog_edge"
 
-# Prefixos permitidos para bind mounts de containers hub_* (§4.11 #10)
-HUB_ALLOWED_BIND_PREFIXES="/var/lib/envioMassa_homologacao/infra/hub /var/lib/hub_secrets"
+# Prefixos permitidos para bind mounts de containers hub_* (§4.11 #10).
+#
+# A raiz vem do PRÓPRIO arquivo (`.../infra/hub/scripts/lib.sh` -> `.../infra/hub`)
+# em vez de um caminho fixo. O caminho fixo era o do checkout principal, então
+# rodar qualquer teste a partir de um git worktree — `.claude/worktrees/<x>/` —
+# abortava no preflight com "bind mount fora da allowlist", num guard que na
+# verdade estava vendo o `infra/hub` correto, só que de outra cópia do repo.
+# A intenção do guard é "binds sob o infra/hub DESTE repositório"; é isso que
+# ele passa a checar. Nada afrouxa: um bind para fora continua sendo abortado.
+HUB_HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+HUB_ALLOWED_BIND_PREFIXES="$HUB_HUB_DIR /var/lib/hub_secrets"

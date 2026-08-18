@@ -74,6 +74,16 @@ DELETE FROM "UsuarioEntidade"
   WHERE usuario_id IN (SELECT id FROM "Usuario" WHERE email LIKE 'e2e-teste-shell-browser-%');
 DELETE FROM "Usuario" WHERE email LIKE 'e2e-teste-shell-browser-%';
 DELETE FROM "ModuloEntidade" WHERE empresa_id IN (950101, 950102);
+-- Seed de performance (0051). A ordem importa: os fatos referenciam a
+-- importação e o entregador por FK.
+DELETE FROM "PerformanceTurno"
+  WHERE id_empresa IN (950101, 950102)
+    AND importacao_id IN (SELECT id FROM "ImportacaoArquivo"
+                          WHERE nome_arquivo = 'e2e-shell-browser-turno.csv');
+DELETE FROM "PerformanceMeta" WHERE id_empresa IN (950101, 950102);
+DELETE FROM "ImportacaoArquivo" WHERE nome_arquivo = 'e2e-shell-browser-turno.csv';
+DELETE FROM "Entregador" WHERE id_empresa IN (950101, 950102) AND nome = 'E2E Turno Duas Pracas';
+REFRESH MATERIALIZED VIEW mv_performance_dia;
 SQL
   echo "=== cleanup: concluído ==="
   echo "=== estado do host DEPOIS ==="
@@ -137,7 +147,43 @@ FROM "Modulo" m
 CROSS JOIN (VALUES ($E_A), ($E_B)) AS e(empresa_id)
 ON CONFLICT (modulo_id, empresa_id) DO UPDATE SET ativo = true;
 SQL
-echo "=== seeds OK: admin(2 vínculos)=$ADMIN_EMAIL operador(1 vínculo)=$OPERADOR_EMAIL — módulos ativados p/ $E_A/$E_B ==="
+# Seed de PERFORMANCE (0051): um turno do MESMO entregador em DUAS sub-praças,
+# que é o caso em que a tela mentia — a lista mostrava 25,00% e 12,50% em duas
+# linhas, o card mostrava 37,50% para o mesmo dia da mesma pessoa, e a meta
+# (cadastrada por praça × TURNO) era julgada duas vezes.
+#
+# (1h + 30min) / 4h = 37,50%; ofertadas 8+4=12; aceitas 6+2=8 -> 66,67% de
+# aceitação, contra a meta de 90% que o seed grava logo abaixo: a linha TEM de
+# sair marcada como abaixo da meta, uma vez só.
+psql_t <<SQL >/dev/null
+INSERT INTO "Entregador" (id_empresa, id_externo, nome, ativo, motorista_id)
+VALUES ($E_A, gen_random_uuid(), 'E2E Turno Duas Pracas', true, NULL)
+ON CONFLICT DO NOTHING;
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, nome_arquivo, hash_sha256, tamanho_bytes, status)
+VALUES ($E_A, 'performance', 'e2e-shell-browser-turno.csv', repeat('c', 64), 10, 'completed_with_errors')
+ON CONFLICT DO NOTHING;
+SQL
+ENT_TURNO="$(psql_t -tAc "SELECT id FROM \"Entregador\" WHERE id_empresa=$E_A AND nome='E2E Turno Duas Pracas'" | tr -d '[:space:]')"
+IMP_TURNO="$(psql_t -tAc "SELECT id FROM \"ImportacaoArquivo\" WHERE id_empresa=$E_A AND nome_arquivo='e2e-shell-browser-turno.csv'" | tr -d '[:space:]')"
+[ -n "$ENT_TURNO" ] && [ -n "$IMP_TURNO" ] || { echo "FAIL: seed de performance do E2E"; exit 1; }
+
+psql_t <<SQL >/dev/null
+INSERT INTO "PerformanceTurno"
+  (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, praca,
+   tempo_disponivel_pct, tempo_disponivel, corridas_ofertadas, corridas_aceitas, corridas_rejeitadas,
+   corridas_completadas, corridas_canceladas, pedidos_concluidos, taxas_centavos, hash_linha)
+VALUES
+  ($E_A, $IMP_TURNO, $ENT_TURNO, CURRENT_DATE - 1, 'ALMOCO 11H30-15H29', '04:00:00', 'E2E ZONA SUL', 'E2E SAO PAULO',
+   90.00, '01:00:00', 8, 6, 2, 5, 1, 5, 1500, md5('e2e-shell-browser-multipraca-a')),
+  ($E_A, $IMP_TURNO, $ENT_TURNO, CURRENT_DATE - 1, 'ALMOCO 11H30-15H29', '04:00:00', 'E2E CENTRO', 'E2E SAO PAULO',
+   20.00, '00:30:00', 4, 2, 2, 2, 0, 2, 500, md5('e2e-shell-browser-multipraca-b'))
+ON CONFLICT DO NOTHING;
+INSERT INTO "PerformanceMeta" (id_empresa, praca, periodo, indicador, valor)
+VALUES ($E_A, 'E2E SAO PAULO', 'ALMOCO 11H30-15H29', 'aceitacao', 0.9000)
+ON CONFLICT DO NOTHING;
+REFRESH MATERIALIZED VIEW mv_performance_dia;
+SQL
+echo "=== seeds OK: admin(2 vínculos)=$ADMIN_EMAIL operador(1 vínculo)=$OPERADOR_EMAIL — módulos ativados p/ $E_A/$E_B; turno multi-praça em $E_A ==="
 
 # ---- Playwright dentro da imagem oficial (zero apt/npx install no host) ------
 BASE_URL="https://$HUB_DOMAIN:$HUB_HTTPS_PORT"

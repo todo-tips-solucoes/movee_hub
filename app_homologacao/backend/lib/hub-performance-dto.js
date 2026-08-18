@@ -150,6 +150,105 @@ function formatarTaxasReais(taxasCentavos) {
   return (centavos / 100).toFixed(2);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Grão da lista — o TURNO (padrão) ou a LINHA importada.
+//
+// A linha do arquivo é a fatia de UMA praça dentro do turno; a meta é
+// cadastrada por praça × TURNO (0048/0049). Listar por linha fazia a tela
+// emitir dois vereditos para o mesmo turno de quem roda em duas praças, e
+// nenhum dos dois números era o desempenho da pessoa naquele turno — o card,
+// que sempre agregou por turno, dizia um terceiro. Ver
+// docs/plans/performance-linha-por-turno.md §2.
+//
+// `linha` continua acessível (D3 do plano): os registros importados ficam
+// integralmente na base e o grão original é consultável — o que muda é o
+// padrão da tela, não o que foi guardado.
+// ────────────────────────────────────────────────────────────────────────────
+
+const GRAOS_VALIDOS = ['turno', 'linha'];
+const GRAO_PADRAO = 'turno';
+
+/**
+ * `?grao=` -> `'turno'|'linha'`, ou `null` quando o valor é desconhecido
+ * (a rota traduz em `400 GRAO_INVALIDO`, mesmo padrão de `GROUP_BY_INVALIDO`).
+ * Ausente/vazio -> `'turno'`.
+ * @param {object} query - `req.query`
+ * @returns {'turno'|'linha'|null}
+ */
+function parseGrao(query) {
+  const bruto = query && typeof query === 'object' ? query.grao : undefined;
+  if (bruto === undefined || bruto === null || bruto === '') return GRAO_PADRAO;
+  return GRAOS_VALIDOS.includes(bruto) ? bruto : null;
+}
+
+/** `null`/`undefined` -> `null`; qualquer outra coisa -> `Number`.
+ *  PostgREST serializa `bigint` como número JSON, mas a coerção explícita
+ *  protege o contrato de uma mudança de versão que passe a mandar string. */
+function numeroOuNulo(valor) {
+  return valor === null || valor === undefined ? null : Number(valor);
+}
+
+/** Idem, mas ausência vira `0` — para os contadores `NOT NULL DEFAULT 0`. */
+function numeroOuZero(valor) {
+  return valor === null || valor === undefined ? 0 : Number(valor);
+}
+
+/**
+ * Identidade de um turno. Não há `id`: o turno é um agregado, não uma linha
+ * gravada. A tupla `(entregador, dia, período)` é exatamente o grão de
+ * `mv_performance_dia` e da unique `uq_mv_performance_dia_grao`.
+ */
+function chaveTurno(row) {
+  return `${row.entregador_id}|${row.data_periodo}|${row.periodo}`;
+}
+
+/** Uma fatia de praça dentro do turno (elemento de `pracas`, vindo do jsonb
+ *  da RPC — já em camelCase, montado por `jsonb_build_object`). */
+function mapPracaDoTurno(p) {
+  return {
+    subpraca: p.subpraca === undefined ? null : p.subpraca,
+    praca: p.praca === undefined ? null : p.praca,
+    tempoDisponivelPct: numeroOuNulo(p.tempoDisponivelPct),
+    corridasOfertadas: numeroOuZero(p.corridasOfertadas),
+    corridasAceitas: numeroOuZero(p.corridasAceitas),
+    corridasCompletadas: numeroOuZero(p.corridasCompletadas),
+    taxas: formatarTaxasReais(p.taxasCentavos),
+  };
+}
+
+/**
+ * Mapeia 1 linha de `hub_performance_turnos` (RPC, migration 0051) para o
+ * item de lista no grão do TURNO.
+ *
+ * `praca` é a PREDOMINANTE do turno (mais tempo online) — a que resolve a
+ * meta, porque a meta é por praça × turno e o veredito é um só. Com uma praça
+ * só, que é a esmagadora maioria, é a mesma praça de sempre.
+ *
+ * `pedidosConcluidos`/`tempoDisponivelPct` continuam podendo ser `null`:
+ * ausência de leitura NÃO é zero (SC-009).
+ * @param {object} row
+ * @returns {object}
+ */
+function mapPerformanceTurnoItem(row) {
+  return {
+    chave: chaveTurno(row),
+    dataPeriodo: row.data_periodo,
+    periodo: row.periodo,
+    entregadorId: row.entregador_id,
+    entregadorNome: row.entregador_nome === undefined ? null : row.entregador_nome,
+    praca: row.praca === undefined ? null : row.praca,
+    corridasOfertadas: numeroOuZero(row.corridas_ofertadas),
+    corridasAceitas: numeroOuZero(row.corridas_aceitas),
+    corridasRejeitadas: numeroOuZero(row.corridas_rejeitadas),
+    corridasCompletadas: numeroOuZero(row.corridas_completadas),
+    corridasCanceladas: numeroOuZero(row.corridas_canceladas),
+    pedidosConcluidos: numeroOuNulo(row.pedidos_concluidos),
+    tempoDisponivelPct: numeroOuNulo(row.tempo_disponivel_periodo_pct),
+    taxas: formatarTaxasReais(row.taxas_centavos),
+    pracas: Array.isArray(row.pracas) ? row.pracas.map(mapPracaDoTurno) : [],
+  };
+}
+
 const GROUP_BY_VALIDOS = ['dia', 'periodo', 'entregador'];
 
 /** `true` se `valor` é um dos 3 valores aceitos de `groupBy`
@@ -229,6 +328,11 @@ module.exports = {
   parseFiltros,
   parsePaginacao,
   mapPerformanceListItem,
+  GRAOS_VALIDOS,
+  GRAO_PADRAO,
+  parseGrao,
+  chaveTurno,
+  mapPerformanceTurnoItem,
   formatarTaxasReais,
   groupByValido,
   mapResumoCards,

@@ -107,6 +107,119 @@ export function parsePerformanceListResponse(raw: unknown): PerformanceListRespo
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// GET /performance?grao=turno — a lista PADRÃO (migration 0051)
+//
+// A linha do arquivo importado é a fatia de UMA praça dentro do turno, mas a
+// meta é cadastrada por praça × TURNO. Listar por linha fazia a tela emitir
+// dois vereditos para o mesmo turno de quem roda em duas praças — e o card,
+// que sempre agregou por turno, mostrava um terceiro número. Ver
+// docs/plans/performance-linha-por-turno.md §2.
+//
+// Não há `id`: o turno é um agregado, não uma linha gravada. A identidade é
+// `chave` = `entregadorId|dataPeriodo|periodo`.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Uma fatia de praça DENTRO do turno — o detalhe, não a unidade. */
+export interface PerformancePracaDoTurno {
+  subpraca: string | null;
+  praca: string | null;
+  /** % do PERÍODO nesta praça (0..100). Somável entre as praças do turno —
+   *  é isso que faz as fatias fecharem no total do turno. `null` = sem leitura. */
+  tempoDisponivelPct: number | null;
+  corridasOfertadas: number;
+  corridasAceitas: number;
+  corridasCompletadas: number;
+  /** String decimal — nunca somar/converter no cliente. */
+  taxas: string;
+}
+
+export interface PerformanceTurnoItem {
+  /** `entregadorId|dataPeriodo|periodo` — identidade do turno. */
+  chave: string;
+  dataPeriodo: string;
+  periodo: string | null;
+  entregadorId: number;
+  entregadorNome: string | null;
+  /** Praça PREDOMINANTE do turno (mais tempo online) — a que resolve a meta,
+   *  porque a meta é por praça × turno e o veredito é um só. */
+  praca: string | null;
+  corridasOfertadas: number;
+  corridasAceitas: number;
+  corridasRejeitadas: number;
+  corridasCompletadas: number;
+  corridasCanceladas: number;
+  pedidosConcluidos: number | null;
+  /** % do período no turno inteiro (praças somadas, teto 100). `null` = sem
+   *  leitura — NUNCA `0`, que seria uma afirmação sobre o desempenho. */
+  tempoDisponivelPct: number | null;
+  taxas: string;
+  pracas: PerformancePracaDoTurno[];
+}
+
+export interface PerformanceTurnoListResponse {
+  items: PerformanceTurnoItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+function parsePracaDoTurno(raw: unknown): PerformancePracaDoTurno {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    subpraca: isStringOrNull(r.subpraca) ? r.subpraca : null,
+    praca: isStringOrNull(r.praca) ? r.praca : null,
+    tempoDisponivelPct: isNumberOrNull(r.tempoDisponivelPct) ? r.tempoDisponivelPct : null,
+    corridasOfertadas: typeof r.corridasOfertadas === 'number' ? r.corridasOfertadas : 0,
+    corridasAceitas: typeof r.corridasAceitas === 'number' ? r.corridasAceitas : 0,
+    corridasCompletadas: typeof r.corridasCompletadas === 'number' ? r.corridasCompletadas : 0,
+    taxas: isString(r.taxas) ? r.taxas : '0.00',
+  };
+}
+
+export function parsePerformanceTurnoItem(raw: unknown): PerformanceTurnoItem {
+  if (!raw || typeof raw !== 'object') {
+    throw new TypeError('Turno de performance inválido: shape não é objeto');
+  }
+  const r = raw as Record<string, unknown>;
+  if (!isString(r.chave) || !isString(r.dataPeriodo)) {
+    throw new TypeError('Turno de performance inválido: chave/dataPeriodo ausentes');
+  }
+  return {
+    chave: r.chave,
+    dataPeriodo: r.dataPeriodo,
+    periodo: isStringOrNull(r.periodo) ? r.periodo : null,
+    entregadorId: typeof r.entregadorId === 'number' ? r.entregadorId : 0,
+    entregadorNome: isStringOrNull(r.entregadorNome) ? r.entregadorNome : null,
+    praca: isStringOrNull(r.praca) ? r.praca : null,
+    corridasOfertadas: typeof r.corridasOfertadas === 'number' ? r.corridasOfertadas : 0,
+    corridasAceitas: typeof r.corridasAceitas === 'number' ? r.corridasAceitas : 0,
+    corridasRejeitadas: typeof r.corridasRejeitadas === 'number' ? r.corridasRejeitadas : 0,
+    corridasCompletadas: typeof r.corridasCompletadas === 'number' ? r.corridasCompletadas : 0,
+    corridasCanceladas: typeof r.corridasCanceladas === 'number' ? r.corridasCanceladas : 0,
+    pedidosConcluidos: isNumberOrNull(r.pedidosConcluidos) ? r.pedidosConcluidos : null,
+    tempoDisponivelPct: isNumberOrNull(r.tempoDisponivelPct) ? r.tempoDisponivelPct : null,
+    taxas: isString(r.taxas) ? r.taxas : '0.00',
+    pracas: Array.isArray(r.pracas) ? r.pracas.map(parsePracaDoTurno) : [],
+  };
+}
+
+export function parsePerformanceTurnoListResponse(raw: unknown): PerformanceTurnoListResponse {
+  if (!raw || typeof raw !== 'object') {
+    throw new TypeError('Resposta de turnos de performance inválida: shape não é objeto');
+  }
+  const r = raw as Record<string, unknown>;
+  if (!Array.isArray(r.items)) {
+    throw new TypeError('Resposta de turnos de performance inválida: items não é array');
+  }
+  return {
+    items: r.items.map(parsePerformanceTurnoItem),
+    total: typeof r.total === 'number' ? r.total : 0,
+    page: typeof r.page === 'number' ? r.page : 1,
+    pageSize: typeof r.pageSize === 'number' ? r.pageSize : r.items.length,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // GET /performance/areas — subpraças distintas (opções do combobox de filtro)
 // ────────────────────────────────────────────────────────────────────────────
 
