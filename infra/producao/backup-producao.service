@@ -1,0 +1,19 @@
+[Unit]
+Description=Backup de produção (banco chatmasterveloz + volume de uploads)
+Documentation=file:///var/lib/envioMassa_homologacao/infra/producao/README.md
+# Sem Docker não há backup: o pg_dump roda dentro do container do banco.
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/var/lib/envioMassa_homologacao/infra/producao/backup-producao.sh
+
+# Este host já teve o Swarm derrubado por starvation (2026-06-11). O backup é
+# a tarefa menos urgente que roda aqui: cede CPU e, principalmente, disco para
+# quem está atendendo cliente.
+Nice=10
+IOSchedulingClass=idle
+
+# Falha fica registrada e visível em `systemctl status` / `list-timers`.
+# Não há alerta ativo — ver a seção de saúde no README.

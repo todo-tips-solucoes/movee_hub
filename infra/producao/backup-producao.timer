@@ -1,0 +1,19 @@
+[Unit]
+Description=Dispara o backup de produção uma vez por dia
+
+[Timer]
+# 03:30 UTC (00:30 local). O backup do hub-homolog já roda às 03:00 UTC —
+# meia hora de folga para os dois não disputarem disco.
+OnCalendar=*-*-* 03:30:00 UTC
+
+# A razão de ser um timer do systemd e não um container em laço: se o host
+# estiver desligado na hora marcada, `Persistent=true` executa assim que ele
+# volta. Um `sleep` dentro de container simplesmente perde o dia — e um backup
+# que pula dias sem avisar é pior que não ter backup, porque parece que tem.
+Persistent=true
+
+# Espalha o disparo para não bater exatamente junto com outras tarefas noturnas.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
