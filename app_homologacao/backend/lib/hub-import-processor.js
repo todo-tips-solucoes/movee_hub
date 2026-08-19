@@ -668,6 +668,16 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
             motivo: erro.motivo,
             campo: erro.campo || null,
             valor_mascarado: mascararValor(erro.valorBruto),
+            // D3c (migration 0052): a linha CRUA, para o expurgo do arquivo
+            // original (12 meses, D3b) não destruir a única cópia dela.
+            // Medido em produção antes de existir: 179 linhas de faturamento
+            // recusadas viviam só dentro do ZIP, porque `valor_mascarado`
+            // ('**') não permite nem saber de quem eram.
+            //
+            // Isto NÃO alarga o que a API devolve: a 0052 tirou esta coluna
+            // do SELECT de `authenticated`, e o `select=` desta rota continua
+            // pedindo só o mascarado. Gravar ≠ retornar.
+            linha_bruta: linha.bruta,
           });
         });
       } else {

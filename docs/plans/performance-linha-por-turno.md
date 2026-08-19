@@ -72,8 +72,8 @@ Medido em **produção** em 2026-08-18, antes de escrever qualquer linha:
 | É provadamente o mesmo arquivo | ✅ `sha256` dos dois arquivos guardados **bate exatamente** com `ImportacaoArquivo.hash_sha256` |
 | Download pela aplicação | ✅ `GET /importacoes/:id/original`, permissão `importacoes.exportar` |
 | Linhas aceitas na base | ✅ `PerformanceTurno` / `FaturamentoLancamento`, append-only, dedupe por `hash_linha` |
-| Linhas **rejeitadas** | ⚠️ `ImportacaoLinhaErro` guarda linha, motivo, campo e `valor_mascarado` — **nunca o conteúdo cru** (decisão explícita de LGPD, comentário na migration 0012). Para a importação de faturamento (`completed_with_errors`), essas linhas existem **só dentro do ZIP** |
-| Retenção / expurgo dos arquivos | ⚠️ **Não existe política** — há um `TODO` em `lib/hub-import-storage.js`. Hoje nada apaga, o que atende a D3, mas cresce sem limite |
+| Linhas **rejeitadas** | ✅ **RESOLVIDO em 2026-08-18** (D3c, migration 0052): passam a guardar `linha_bruta`, invisível para a API e legível como dono do banco. As 179 já existentes seguem só no ZIP até serem retroalimentadas — e o expurgo se recusa a apagar aquele arquivo por causa disso |
+| Retenção / expurgo dos arquivos | ✅ **RESOLVIDO em 2026-08-18** (D3b): 12 meses, expurgo diário depois do backup, com recusa automática enquanto houver linha rejeitada não recuperável. Ver `infra/producao/README.md` |
 | Backup do volume | ✅ **RESOLVIDO em 2026-08-18** (D3a). Era pior que o enunciado: não havia backup de **nada** em produção — nem do volume, nem do banco `chatmasterveloz`. Agora há timer diário do systemd cobrindo os dois, com verificação e restauração testadas. Ver `infra/producao/README.md` |
 
 **Decisões que D3 abre e que precisam do operador:**
@@ -93,11 +93,30 @@ Medido em **produção** em 2026-08-18, antes de escrever qualquer linha:
 
   **Continua aberto**: o destino é o mesmo disco (cobre perda lógica, não perda do
   host) e não há alerta de falha. Os dois estão declarados no README.
-- **D3b** — retenção: guardar para sempre, ou expurgar junto com a política de
-  12 meses já decidida para auditoria (D5 do hub-frota)?
-- **D3c** — linha rejeitada: mantém mascarada (LGPD) ou passa a guardar a linha
-  bruta? Manter é o padrão do projeto; mudar é decisão de privacidade, não de
-  engenharia.
+- **D3b** — ✅ **FECHADA em 2026-08-18: 12 meses**, alinhado à Auditoria (D5 do
+  hub-frota). O motivo não é disco — produção tem 1,35 MB de arquivos e cresce
+  ~1,4 MB por ciclo de importação — e sim LGPD: o ZIP contém CNPJ/UUID/nome, e
+  guardar dado pessoal sem prazo definido é o problema. Os *lançamentos* seguem
+  no banco para sempre; o que expira é o arquivo. Implementado no expurgo diário
+  de `infra/producao/backup-producao.sh`, que roda depois do backup do dia.
+- **D3c** — ✅ **FECHADA em 2026-08-18: passa a guardar a linha bruta** (era
+  pré-requisito da D3b — sem ela, expurgar destruiria as 179 linhas rejeitadas do
+  faturamento, que só existem dentro do ZIP). Migration 0052 acrescenta
+  `ImportacaoLinhaErro.linha_bruta`.
+
+  A mudança separa duas coisas que a decisão original tratava como uma:
+  **gravar** a linha bruta passa a acontecer; **retornar** pela API continua não
+  acontecendo. Isso não é detalhe — verificado que o PostgREST de produção é
+  alcançável em `postgrest.todo-tips.com` (a tabela responde 401 com token
+  ausente e uma tabela inexistente responde 404 — a sonda discrimina) e que
+  `authenticated` tinha SELECT em nível de TABELA. Sem o bloco de privilégios da
+  0052, qualquer usuário logado do tenant poderia pedir `select=linha_bruta` e
+  ler o que a tela mascara. Agora a tabela é deny-by-default: coluna nova nasce
+  inacessível pela API até ser liberada.
+
+  ⚠️ **As 179 linhas existentes não foram retroalimentadas** — foram gravadas
+  antes da 0052. Por isso o expurgo se recusa a apagar aquele arquivo, e avisa em
+  todo backup. Prazo real: 2027-07-25. Importações novas já nascem completas.
 
 ## 4.2 O que a D1 decidiu junto, e não estava escrito
 
