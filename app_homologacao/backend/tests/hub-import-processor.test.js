@@ -578,6 +578,37 @@ describe('executarPipeline — completed_with_errors', () => {
       }
     });
   });
+
+  // D3c (migration 0052) — a linha CRUA passa a ser gravada, para o expurgo do
+  // arquivo original (12 meses, D3b) não destruir a única cópia dela. Isto não
+  // afrouxa o mascaramento: `valor_mascarado` continua mascarado (asserção
+  // acima) e a 0052 tira `linha_bruta` do SELECT de `authenticated`, então ela
+  // não sai pela API. Sem este teste, um refactor que deixasse de gravar o
+  // campo passaria despercebido — e o defeito só apareceria daqui a 12 meses,
+  // quando o arquivo fosse expurgado e não houvesse nada para recuperar.
+  test('linha rejeitada guarda o conteúdo CRU da linha (D3c), além do mascarado', async () => {
+    const linhaRuim = linhaFaturamento({ recebedor: '', valor: 'abc', descricao: '' });
+    const csv = [
+      HEADER_ROW_FATURAMENTO,
+      linhaFaturamento({ descricao: 'ok 1' }),
+      linhaFaturamento({ descricao: 'ok 2' }),
+      linhaRuim,
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    await executarPipeline(jobFaturamento(), deps);
+
+    const chamadaErros = deps.chamadas.find((c) => c.endpoint.startsWith('ImportacaoLinhaErro'));
+    assert.ok(chamadaErros, 'esperava insert em ImportacaoLinhaErro');
+    chamadaErros.body.forEach((linhaErro) => {
+      assert.equal(
+        linhaErro.linha_bruta, linhaRuim,
+        'linha_bruta tem de ser a linha do arquivo, byte a byte — é ela que torna a linha recuperável depois do expurgo'
+      );
+    });
+  });
 });
 
 describe('executarPipeline — failed (>50% inválidas, rollback por construção)', () => {

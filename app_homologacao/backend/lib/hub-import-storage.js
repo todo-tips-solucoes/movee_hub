@@ -51,8 +51,12 @@ function caminhoArmazenamento(importacaoId, extensao) {
  * `022` -> diretório `0755`/arquivo `0644`, legível por qualquer processo
  * no mesmo host/container que tenha acesso ao volume).
  *
- * TODO (D5, futuro — fora do escopo desta correção): retenção/expurgo do
- * arquivo original após um prazo — hoje ele fica indefinidamente no volume.
+ * Retenção (D3b, decidida em 2026-08-18): o arquivo é apagado do volume 12
+ * meses depois da importação, prazo alinhado à Auditoria. Quem apaga é o
+ * expurgo diário de `infra/producao/backup-producao.sh`, que roda no host
+ * depois do backup do dia — não este módulo, que só grava. A marca fica em
+ * `ImportacaoArquivo.arquivo_expurgado_em` (migration 0052), para "expurgado
+ * por política" não ficar indistinguível de "sumiu".
  *
  * @param {number} importacaoId
  * @param {string} extensao - ex.: '.csv' ou '.zip'

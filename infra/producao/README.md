@@ -148,6 +148,60 @@ sudo systemctl daemon-reload
 Os backups já gravados em `/var/backups/envio-massa` **não** são apagados por
 isto — remover é decisão separada e consciente.
 
+## Retenção do arquivo importado (D3b) — 12 meses
+
+Além de copiar, a rotina **expurga**: o arquivo original de uma importação é
+apagado do volume 12 meses depois dela, prazo alinhado à Auditoria (D5 do
+hub-frota, migration 0041) — um número só para lembrar e justificar perante a
+LGPD. O motivo não é disco (produção tem 1,35 MB de arquivos), é que o ZIP
+contém CNPJ/UUID/nome e guardar dado pessoal sem prazo definido é o problema.
+
+Os **lançamentos** ficam no banco para sempre; o que expira é o arquivo.
+
+### A regra que impede perda irreversível
+
+O expurgo **se recusa** a apagar o arquivo de uma importação cujas linhas
+rejeitadas ainda não estejam recuperáveis do banco (`linha_bruta` nula —
+migration 0052). Não é uma promessa no README: é um `NOT EXISTS` na consulta.
+Essas importações aparecem no log como *adiadas*.
+
+Isso existe por um caso concreto: a importação de faturamento de produção
+recusou 179 linhas cujo conteúdo só existia dentro do ZIP. Expurgá-lo antes de
+extrair as linhas destruiria 179 lançamentos para sempre.
+
+⚠️ **As 179 linhas ainda não foram extraídas.** Elas foram gravadas antes da
+0052, então seguem com `linha_bruta` nula — e por isso aquele arquivo **nunca
+será expurgado** até que alguém as recupere do ZIP. O prazo só vence em
+2027-07-25, e a rotina avisa em todo backup. Importações novas já nascem com a
+linha bruta gravada.
+
+### Ordem e segurança
+
+O expurgo roda **por último**, depois de os dois artefatos do dia estarem
+gravados e verificados: o arquivo apagado acabou de entrar na cópia de hoje,
+então ainda há 14 dias de janela para recuperá-lo se tiver sido engano. E se a
+migration 0052 não estiver aplicada, o expurgo **avisa e se desliga** em vez de
+virar um no-op silencioso.
+
+Testado no caminho destrutivo (`infra/hub/testes/backup-producao-expurgo.sh`,
+contra o hub-homolog, nunca produção): vencida e limpa é apagada e marcada;
+vencida com pendência é preservada; dentro do prazo é preservada; e o controle
+positivo confirma que preencher `linha_bruta` libera o expurgo na rodada
+seguinte — sem ele o teste passaria até com um bug que não expurga nada.
+
+### Recuperar uma linha rejeitada
+
+`linha_bruta` **não é exposta pela API** — a 0052 tirou a coluna do alcance de
+`authenticated`, porque o PostgREST de produção é alcançável em
+`postgrest.todo-tips.com` e qualquer usuário logado do tenant poderia pedir
+`select=linha_bruta`. A tela continua mostrando só o valor mascarado. A leitura
+é feita como dono do banco:
+
+```bash
+docker exec "$CONT" sh -c 'psql -U "$POSTGRES_USER" -d chatmasterveloz -c \
+  "SELECT numero_linha, motivo, linha_bruta FROM \"ImportacaoLinhaErro\" WHERE importacao_id = 1 ORDER BY numero_linha"'
+```
+
 ## O que este backup NÃO cobre
 
 - **Perda do host ou do disco.** O destino é o mesmo `/dev/sda1` de tudo o mais.
@@ -167,4 +221,6 @@ Ajustáveis por env var no `.service`, com estes padrões:
 |---|---|---|
 | `BACKUP_DEST` | `/var/backups/envio-massa` | `chmod 700`, arquivos `600` — contêm dado de cliente |
 | `BACKUP_RETENCAO_DIAS` | `14` | mesmo valor do backup do hub-homolog; **~380 MB** no total, medido |
+| `EXPURGO_RETENCAO` | `12 months` | D3b — prazo do ARQUIVO original. Não confundir com `BACKUP_RETENCAO_DIAS`, que é a retenção destas cópias |
+| `EXPURGO_ATIVO` | `1` | `0` desliga o expurgo mantendo o backup |
 | `BACKUP_MIN_LIVRE_MB` | `3072` | abaixo disso o backup **aborta em vez de encher o disco** — este host já teve o Swarm derrubado por starvation |

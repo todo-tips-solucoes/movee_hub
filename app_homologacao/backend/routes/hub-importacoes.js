@@ -565,10 +565,24 @@ router.get('/:id/original', requirePermission('importacoes.exportar'), async (re
     const id = parseInt(req.params.id, 10);
 
     const linhas = await hubPostgrestRequest(
-      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,nome_arquivo`,
+      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+      + '&select=id,nome_arquivo,arquivo_expurgado_em',
       'GET', null, claims
     );
     if (!linhas || linhas.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+
+    // D3b (migration 0052) — expurgado por POLÍTICA é diferente de sumido.
+    // Os dois caíam no mesmo 410 genérico, e quem perguntasse daqui a dois
+    // anos por que o arquivo não está lá não teria como saber se foi a
+    // retenção fazendo o trabalho dela ou um incidente. Respondido antes de
+    // ir ao disco: não faz sentido procurar o que se sabe ter sido apagado.
+    if (linhas[0].arquivo_expurgado_em) {
+      return res.status(410).json({
+        erro: 'ARQUIVO_INDISPONIVEL',
+        motivo: 'expurgado_por_retencao',
+        expurgadoEm: linhas[0].arquivo_expurgado_em,
+      });
+    }
 
     const nomeArquivo = linhas[0].nome_arquivo || '';
     const extensao = extensaoDe(nomeArquivo);
