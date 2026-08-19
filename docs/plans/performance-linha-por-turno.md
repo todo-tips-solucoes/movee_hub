@@ -74,12 +74,25 @@ Medido em **produção** em 2026-08-18, antes de escrever qualquer linha:
 | Linhas aceitas na base | ✅ `PerformanceTurno` / `FaturamentoLancamento`, append-only, dedupe por `hash_linha` |
 | Linhas **rejeitadas** | ⚠️ `ImportacaoLinhaErro` guarda linha, motivo, campo e `valor_mascarado` — **nunca o conteúdo cru** (decisão explícita de LGPD, comentário na migration 0012). Para a importação de faturamento (`completed_with_errors`), essas linhas existem **só dentro do ZIP** |
 | Retenção / expurgo dos arquivos | ⚠️ **Não existe política** — há um `TODO` em `lib/hub-import-storage.js`. Hoje nada apaga, o que atende a D3, mas cresce sem limite |
-| Backup do volume | 🔴 **Não há backup.** Nenhum serviço de backup no Swarm e nenhum cron no host cobre `envio_massa_hub_uploads`. Se o volume se perder, a cópia do CSV se perde com ele |
+| Backup do volume | ✅ **RESOLVIDO em 2026-08-18** (D3a). Era pior que o enunciado: não havia backup de **nada** em produção — nem do volume, nem do banco `chatmasterveloz`. Agora há timer diário do systemd cobrindo os dois, com verificação e restauração testadas. Ver `infra/producao/README.md` |
 
 **Decisões que D3 abre e que precisam do operador:**
 
-- **D3a** — backup do volume de uploads: incluir num backup existente, ou criar
-  um? Hoje a “cópia do CSV” depende de um volume sem cópia.
+- **D3a** — ✅ **FECHADA em 2026-08-18.** Não havia backup existente onde
+  pendurar: produção não tinha cópia de nada, nem o volume nem o banco de 342 MB
+  com os dados de todos os clientes. Criado `infra/producao/` — timer do systemd,
+  diário às 03:30 UTC, retenção de 14 dias (~380 MB), instalado e ativo.
+  Verificado de ponta a ponta: `sha256` do round-trip do volume idêntico ao
+  original, e o dump restaurado num banco descartável bate com produção em todas
+  as tabelas (2.720 / 3.835 / 179 / 789), com a MV recalculando os mesmos 42,89%.
+
+  A pergunta do operador ("dá para cobrir só o banco?") foi **medida e respondida
+  com não**: a importação de faturamento rejeitou 179 linhas cujo conteúdo o banco
+  guarda apenas como `valor_mascarado = '**'`. Elas existem só dentro do ZIP —
+  backup só do banco as perderia para sempre. Custa 138 KB.
+
+  **Continua aberto**: o destino é o mesmo disco (cobre perda lógica, não perda do
+  host) e não há alerta de falha. Os dois estão declarados no README.
 - **D3b** — retenção: guardar para sempre, ou expurgar junto com a política de
   12 meses já decidida para auditoria (D5 do hub-frota)?
 - **D3c** — linha rejeitada: mantém mascarada (LGPD) ou passa a guardar a linha

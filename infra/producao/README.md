@@ -40,6 +40,19 @@ Não é script entregue no escuro — rodou contra produção antes de ser insta
 O banco descartável foi apagado por `trap`, então falha no meio do teste também
 não deixaria resíduo. Produção não foi tocada em nenhum momento.
 
+## Estado: INSTALADO e ativo desde 2026-08-18
+
+```
+NEXT                            LEFT  UNIT                  ACTIVATES
+Wed 2026-08-19 00:30:01 -03  2h 19min backup-producao.timer backup-producao.service
+```
+
+`systemctl is-active` → `active`; `is-enabled` → `enabled` (sobrevive a reboot).
+Primeira execução disparada **pelo systemd** (não pelo shell) concluiu sem
+falha, com o journal registrando dump de 27.454.865 bytes e tar de 140.645
+bytes. Os passos abaixo ficam para reinstalar noutro host ou depois de um
+`daemon-reload` perdido.
+
 ## Instalação (uma vez, no host)
 
 ```bash
@@ -123,6 +136,17 @@ tar -xzf /var/backups/envio-massa/uploads_AAAAMMDD_HHMMSS.tar.gz -C "$MOUNT"
 
 O `tar` não apaga o que já está lá — restaura por cima, o que é o
 comportamento desejado para arquivos append-only.
+
+## Desinstalar
+
+```bash
+sudo systemctl disable --now backup-producao.timer
+sudo rm /etc/systemd/system/backup-producao.{service,timer}
+sudo systemctl daemon-reload
+```
+
+Os backups já gravados em `/var/backups/envio-massa` **não** são apagados por
+isto — remover é decisão separada e consciente.
 
 ## O que este backup NÃO cobre
 
