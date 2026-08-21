@@ -63,15 +63,29 @@ function stripBom(entrada) {
   return entrada;
 }
 
-/** Split de uma linha CSV pelo delimitador `;` (2.1.1). Sem parsing de aspas
- * complexo: o plano técnico §7.1 confirma "sem aspas problemáticas" nos
- * arquivos reais da plataforma parceira. */
+/** Remove aspas ENVOLVENTES de 1 campo já splitado. O dialeto real da
+ * plataforma parceira representa campo vazio como `""` (aspas literais) —
+ * sem este passo, `""` chega ao normalizer como string de 2 chars e, no
+ * `id_da_pessoa_entregadora`, falha como "UUID inválido" quando o vazio
+ * legítimo (recebedor agregado, ex.: franquia) não é erro. Aspas internas
+ * escapadas RFC 4180 (`""` -> `"`) também são resolvidas. */
+function desasparCampo(campo) {
+  if (campo.length >= 2 && campo[0] === '"' && campo[campo.length - 1] === '"') {
+    return campo.slice(1, -1).replace(/""/g, '"');
+  }
+  return campo;
+}
+
+/** Split de uma linha CSV pelo delimitador `;` (2.1.1) + desaspagem por
+ * campo. Sem parsing de aspas complexo (delimitador DENTRO de aspas não
+ * existe no dialeto real — plano técnico §7.1); o que existe de fato são
+ * campos vazios quotados `""`, tratados por `desasparCampo`. */
 function splitLinhaCsv(linha, delimitador = DELIMITADOR) {
   if (linha === '' || linha === undefined || linha === null) return [];
   // Remove eventual \r residual (arquivos podem ter CRLF que o readline já
   // trata, mas defesa em profundidade contra CR solto no meio do buffer).
   const semCr = linha.endsWith('\r') ? linha.slice(0, -1) : linha;
-  return semCr.split(delimitador);
+  return semCr.split(delimitador).map(desasparCampo);
 }
 
 function ehZip(nomeArquivo) {
