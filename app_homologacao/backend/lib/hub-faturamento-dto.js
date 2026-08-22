@@ -128,7 +128,11 @@ function mapFaturamentoListItem(row) {
     categoria: row.descricao,
     valor: row.valor,
     entregadorId: comEntregador ? row.entregador_id : null,
-    entregadorNome: comEntregador && row.entregador ? row.entregador.nome : null,
+    // Sem entregador vinculado, o nome exibido é o recebedor agregado do
+    // arquivo importado (ex.: FRANQUIA_MOVEE_SP) — coluna criada para isso.
+    entregadorNome: comEntregador
+      ? (row.entregador ? row.entregador.nome : null)
+      : (row.recebedor_agregado ?? null),
     subpraca: row.subpraca,
     praca: row.praca,
     periodo: row.periodo,

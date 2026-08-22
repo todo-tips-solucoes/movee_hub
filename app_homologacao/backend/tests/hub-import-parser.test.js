@@ -173,6 +173,17 @@ describe('hub-import-parser — stripBom + splitLinhaCsv (2.1.1)', () => {
     assert.deepEqual(splitLinhaCsv('a;b;c\r'), ['a', 'b', 'c']);
     assert.deepEqual(splitLinhaCsv(''), []);
   });
+
+  test('splitLinhaCsv desaspa campos: `""` vazio (dialeto real) e quotados', () => {
+    // Linha real da plataforma parceira: campo vazio vem como `""` — sem
+    // desaspagem, o id_da_pessoa_entregadora vazio de franquia virava
+    // "UUID inválido" (179 linhas rejeitadas na importação de 2026-07-03).
+    assert.deepEqual(splitLinhaCsv('a;"";c'), ['a', '', 'c']);
+    assert.deepEqual(splitLinhaCsv('"a";b;""\r'), ['a', 'b', '']);
+    assert.deepEqual(splitLinhaCsv('"diz ""oi"" ali";b'), ['diz "oi" ali', 'b']);
+    // aspa solta / desbalanceada NÃO é desaspada (não é campo quotado)
+    assert.deepEqual(splitLinhaCsv('a";b;"'), ['a"', 'b', '"']);
+  });
 });
 
 describe('hub-import-parser — iterarLinhas (2.1.2, streaming)', () => {

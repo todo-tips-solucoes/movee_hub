@@ -147,7 +147,7 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
   const filtrosBase = montarFiltrosQuery(entidadeAtiva, f);
   filtrosBase.push('order=data_referencia.desc,id.desc');
   filtrosBase.push(
-    'select=data_referencia,descricao,valor::text,entregador_id,subpraca,praca,periodo,entregador:Entregador(nome)'
+    'select=data_referencia,descricao,valor::text,entregador_id,recebedor_agregado,subpraca,praca,periodo,entregador:Entregador(nome)'
   );
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -173,7 +173,9 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
     let bloco = '';
     for (const row of linhas) {
       const comEntregador = row.entregador_id !== null && row.entregador_id !== undefined;
-      const entregadorNome = comEntregador && row.entregador ? row.entregador.nome : '';
+      const entregadorNome = comEntregador
+        ? (row.entregador ? row.entregador.nome : '')
+        : (row.recebedor_agregado || '');
       bloco += [
         row.data_referencia,
         celulaCsv(row.descricao),
@@ -246,7 +248,7 @@ router.get('/', requirePermission('faturamento.listar'), async (req, res) => {
     filtros.push('order=data_referencia.desc,id.desc');
     filtros.push(
       'select=id,data_referencia,data_lancamento,data_repasse,descricao,valor::text,'
-      + 'entregador_id,subpraca,praca,periodo,entregador:Entregador(nome)'
+      + 'entregador_id,recebedor_agregado,subpraca,praca,periodo,entregador:Entregador(nome)'
     );
 
     // FR-012 (tratado de forma idêntica ao filtro vazio de importações/

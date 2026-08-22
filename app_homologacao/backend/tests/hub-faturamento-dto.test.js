@@ -55,6 +55,19 @@ describe('mapFaturamentoListItem', () => {
     assert.equal(item.entregadorNome, null);
   });
 
+  test('lançamento agregado COM recebedor_agregado: nome exibido é o recebedor (ex.: franquia)', () => {
+    const row = {
+      id: 4, data_referencia: '2026-07-02', data_lancamento: '2026-07-03', data_repasse: '2026-07-08',
+      descricao: 'Percentual atingido de hora online', valor: '2.88', entregador_id: null,
+      entregador: null, recebedor_agregado: 'FRANQUIA_MOVEE_SP',
+      subpraca: null, praca: 'SAO PAULO', periodo: 'JANTAR 18H30-22H29',
+    };
+    const item = mapFaturamentoListItem(row);
+    assert.equal(item.comEntregador, false);
+    assert.equal(item.entregadorId, null);
+    assert.equal(item.entregadorNome, 'FRANQUIA_MOVEE_SP');
+  });
+
   test('valor sempre trafega como veio da PostgREST (string) — nunca convertido a number', () => {
     const row = {
       id: 3, data_referencia: '2026-07-01', data_lancamento: '2026-07-01', data_repasse: null,

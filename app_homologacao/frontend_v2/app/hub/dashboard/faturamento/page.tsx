@@ -241,7 +241,9 @@ function CicloDatas({ item }: { item: FaturamentoListItem }) {
 
 function EntregadorCelula({ item, podeVerDetalhe }: { item: FaturamentoListItem; podeVerDetalhe: boolean }) {
   if (!item.comEntregador || item.entregadorId === null) {
-    return <Badge variant="secondary">Agregados/bônus</Badge>;
+    // Sem entregador vinculado, o backend devolve em entregadorNome o
+    // recebedor agregado do arquivo (ex.: FRANQUIA_MOVEE_SP), quando houver.
+    return <Badge variant="secondary">{item.entregadorNome ?? 'Agregados/bônus'}</Badge>;
   }
   if (podeVerDetalhe) {
     return (
