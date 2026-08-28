@@ -1,0 +1,7 @@
+# Saída da execução assistida: CSVs REAIS baixados do portal, com dados
+# pessoais de entregadores (CPF/CNPJ, nomes), e screenshots de diagnóstico que
+# podem conter a tela logada. Este repositório é PÚBLICO — nada disso entra.
+.execucao-assistida/
+
+# Sessão do portal, se algum dia for gravada aqui em vez de /var/lib/hub_secrets.
+entrego-session.json

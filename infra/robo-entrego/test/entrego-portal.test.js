@@ -46,11 +46,52 @@ describe('carregarStorageState / persistirStorageState', () => {
 
 // --- 4.1.2 — sonda de sessão -------------------------------------------------
 
-function mockPageEvaluate(retorno) {
-  return { evaluate: async (fn, args) => (typeof retorno === 'function' ? retorno(fn, args) : retorno) };
+// `urlAtual` default 'about:blank' reproduz o estado REAL de uma aba recém-criada
+// — foi esse estado que expôs o bug da sonda em 2026-08-28 (fetch com credenciais
+// de about:blank falha). `gotos` registra as navegações para os testes de regressão.
+function mockPageEvaluate(retorno, { urlAtual = 'https://franqueado.entregolog.com/' } = {}) {
+  const gotos = [];
+  return {
+    gotos,
+    url: () => urlAtual,
+    goto: async (u) => { gotos.push(u); urlAtual = u; },
+    evaluate: async (fn, args) => (typeof retorno === 'function' ? retorno(fn, args) : retorno),
+  };
 }
 
 describe('sondarSessaoValida', () => {
+  // REGRESSÃO (execução assistida 2026-08-28): a sonda faz fetch com
+  // credentials:'include' DENTRO da página. Numa aba recém-criada (about:blank)
+  // esse fetch falha na hora com "Failed to fetch", e a sonda estourava
+  // ErroPortalTransitorio em TODA primeira execução. O mock antigo escondia isso
+  // porque `evaluate` devolvia o status pedido sem passar por origem nenhuma.
+  test('about:blank -> navega para o portal ANTES de sondar', async () => {
+    const page = mockPageEvaluate({ status: 200 }, { urlAtual: 'about:blank' });
+    assert.deepEqual(await sondarSessaoValida(page), { valida: true });
+    assert.deepEqual(page.gotos, ['https://franqueado.entregolog.com'],
+      'deveria navegar para a origem do portal antes do evaluate');
+  });
+
+  test('já na origem do portal -> NÃO navega de novo', async () => {
+    const page = mockPageEvaluate({ status: 200 }, { urlAtual: 'https://franqueado.entregolog.com/supply/reports' });
+    assert.deepEqual(await sondarSessaoValida(page), { valida: true });
+    assert.deepEqual(page.gotos, [], 'navegação desnecessária custa tempo e gera sinal para o anti-bot');
+  });
+
+  // REGRESSÃO (execução assistida 2026-08-28): a sonda mandava só `Accept`. Sem
+  // `X-IFood-Logistics-Auth`/`x-cookie-login` o BFF responde 401 mesmo com a
+  // sessão VÁLIDA — o robô concluía "expirou" e refazia o login completo em toda
+  // execução, anulando a decisão do block-003 e pondo o login (etapa sujeita ao
+  // anti-bot) no caminho crítico diário.
+  test('sonda envia os headers que o BFF exige (senão 401 com sessão válida)', async () => {
+    let argsRecebidos;
+    const page = mockPageEvaluate((fn, args) => { argsRecebidos = args; return { status: 200 }; });
+    await sondarSessaoValida(page);
+    assert.ok(argsRecebidos.headers, 'a sonda deve receber headers');
+    assert.equal(argsRecebidos.headers['X-IFood-Logistics-Auth'], 'true');
+    assert.equal(argsRecebidos.headers['x-cookie-login'], 'true');
+  });
+
   test('200 -> valida true', async () => {
     const page = mockPageEvaluate({ status: 200 });
     assert.deepEqual(await sondarSessaoValida(page), { valida: true });

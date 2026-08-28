@@ -26,9 +26,38 @@ const REGEX_CODIGO_ESTRITO = /^\d{6}$/;
  * @param {string} texto
  * @returns {string|null} o código, ou null se não encontrado/inválido
  */
+/**
+ * Extrai o código de 6 dígitos do e-mail.
+ *
+ * ⚠️ O argumento costuma ser `msg.source`, que é o e-mail RAW INTEIRO — com
+ * cabeçalhos MIME. Message-ID, boundaries, DKIM e datas estão cheios de
+ * sequências de 6 dígitos, e a versão anterior (`/\b(\d{6})\b/` sobre o texto
+ * todo) devolvia a PRIMEIRA delas: um pedaço de cabeçalho, não o código.
+ * O portal então respondia 401 em `authentication/token` — sintoma observado
+ * na execução assistida de 2026-08-28.
+ *
+ * Ordem de tentativa:
+ *   1. descarta os cabeçalhos (tudo até a primeira linha em branco);
+ *   2. procura um 6-dígitos ANCORADO em contexto ("código", "code", "acesso");
+ *   3. só então cai no primeiro 6-dígitos do corpo.
+ */
 function extrairCodigo(texto) {
   if (typeof texto !== 'string') return null;
-  const match = REGEX_CODIGO_CANDIDATO.exec(texto);
+
+  // 1. corpo = tudo após a primeira linha em branco (fim dos cabeçalhos).
+  //    Se não houver separador, o texto já é o corpo.
+  const sep = texto.search(/\r?\n\r?\n/);
+  let corpo = sep >= 0 ? texto.slice(sep) : texto;
+  // tags HTML viram espaço para não colarem dígitos de atributos no texto
+  corpo = corpo.replace(/<[^>]*>/g, ' ');
+
+  // 2. ancorado em contexto — o mais confiável
+  const contextual = /(?:c[óo]digo|code|acesso|valida[çc][ãa]o)[^0-9]{0,40}(\d{6})\b/i.exec(corpo)
+    || /\b(\d{6})\b[^0-9]{0,40}(?:é o seu c[óo]digo|is your code)/i.exec(corpo);
+  if (contextual && REGEX_CODIGO_ESTRITO.test(contextual[1])) return contextual[1];
+
+  // 3. fallback: primeiro 6-dígitos do CORPO (nunca dos cabeçalhos)
+  const match = REGEX_CODIGO_CANDIDATO.exec(corpo);
   if (!match) return null;
   const candidato = match[1];
   return REGEX_CODIGO_ESTRITO.test(candidato) ? candidato : null;
@@ -47,10 +76,49 @@ function extrairCodigo(texto) {
  * @throws {Error} nenhuma mensagem válida encontrada após o timestamp, ou
  *   mensagem mais recente sem código no formato esperado
  */
-async function lerCodigoAcesso(client, aposTimestamp, { mailbox = 'INBOX', assunto = ASSUNTO_ESPERADO } = {}) {
+/**
+ * Lê o código esperando ele CHEGAR (execução assistida 2026-08-28).
+ *
+ * A versão anterior buscava UMA vez, imediatamente após o clique que dispara o
+ * e-mail — e falhava sempre, porque o envio pelo portal + a entrega no Gmail
+ * levam alguns segundos. O robô procurava antes de a mensagem existir.
+ * Agora repete a busca até `timeoutMs`, devolvendo o último erro se estourar.
+ *
+ * O lock do mailbox é adquirido e liberado A CADA tentativa de propósito:
+ * mantê-lo aberto pode congelar a visão da caixa e esconder mensagens novas.
+ */
+async function lerCodigoAcesso(
+  client,
+  aposTimestamp,
+  // timeoutMs = 5min: MEDIDO em 2026-08-28 — os códigos levaram entre 2 e 3
+  // minutos para chegar na caixa (envio do portal + entrega do Gmail). Com os
+  // 120s originais o robô desistia pouco antes de a mensagem chegar, e o
+  // sintoma ("nenhuma mensagem recebida") era idêntico ao de um portal que
+  // parou de enviar. Se o código expirar antes disso, o portal recusa em
+  // authentication/token e o erro fica explícito ali.
+  { mailbox = 'INBOX', assunto = ASSUNTO_ESPERADO, timeoutMs = 300000, intervaloMs = 5000, dormir, agora } = {}
+) {
   if (!(aposTimestamp instanceof Date) || Number.isNaN(aposTimestamp.getTime())) {
     throw new Error('imap-codigo: aposTimestamp inválido (esperado instância de Date)');
   }
+  const _dormir = dormir || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const _agora = agora || Date.now;
+  const limite = _agora() + timeoutMs;
+
+  for (;;) {
+    try {
+      return await _lerUmaVez(client, aposTimestamp, { mailbox, assunto });
+    } catch (e) {
+      // "ainda não chegou" é transitório e merece nova tentativa; formato de
+      // código inválido é definitivo — insistir não muda o conteúdo.
+      const definitivo = /não contém código no formato esperado/.test(String(e.message));
+      if (definitivo || _agora() >= limite) throw e;
+      await _dormir(intervaloMs);
+    }
+  }
+}
+
+async function _lerUmaVez(client, aposTimestamp, { mailbox, assunto }) {
 
   // Modo read-only (\Peek do protocolo) — hardening owasp-security: a
   // credencial dá acesso à caixa inteira; nunca marcar como lida, mover ou
