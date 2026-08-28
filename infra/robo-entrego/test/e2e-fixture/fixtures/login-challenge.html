@@ -1,0 +1,16 @@
+<!doctype html>
+<!--
+  login-challenge.html (tasks.md 6.3.1/6.3.2, quickstart.md Scenario 3) —
+  fixture de "desafio anti-bot": nenhum elemento de formulário do login
+  aparece (nem `input#email`). Reproduz o caso descrito em quickstart.md
+  Scenario 3 ("elemento de formulário não aparece dentro do timeout") —
+  src/entrego-portal.js#realizarLoginCompleto deve lançar
+  ErroAntibotSuspeito ao esgotar o timeout de `page.fill('input#email', ...)`,
+  sem NENHUMA tentativa de interpretar o conteúdo (FR-011/SC-003).
+-->
+<html>
+  <head><meta charset="utf-8" /><title>fixture: desafio anti-bot</title></head>
+  <body>
+    <h1>Verificando se você é humano...</h1>
+  </body>
+</html>

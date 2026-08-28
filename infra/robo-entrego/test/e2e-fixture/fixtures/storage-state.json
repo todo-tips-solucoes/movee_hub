@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "entrego_session_fixture",
+      "value": "fixture-token-nao-real",
+      "domain": "api.entregolog.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

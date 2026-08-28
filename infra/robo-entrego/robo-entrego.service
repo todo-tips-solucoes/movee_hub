@@ -1,0 +1,23 @@
+[Unit]
+Description=Robô de importação EntreGô (Performance + Financeiro) para o hub
+Documentation=file:///var/lib/envioMassa_homologacao/infra/robo-entrego/README.md
+# Sem Docker não há Playwright — a automação do portal roda inteira dentro
+# do container oficial (research.md Decision 2, "nunca instalar browsers no
+# host").
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/var/lib/envioMassa_homologacao/infra/robo-entrego/scripts/docker-run.sh
+
+# Mesmo padrão de infra/producao/backup-producao.service: a rotina não é
+# urgente o suficiente para competir com tráfego de cliente (incidente de
+# starvation 2026-06-11).
+Nice=10
+IOSchedulingClass=idle
+
+# Falha (falha_total/falha_parcial) já dispara e-mail + evento de auditoria
+# no hub (FR-013) — não depende de journalctl. `systemctl status` e o log
+# JSON Lines (/var/lib/hub_secrets/robo-entrego/log/execucoes.jsonl,
+# README.md) cobrem investigação manual.
