@@ -24,7 +24,7 @@
           app.innerHTML =
             '<label for="email">E-mail</label>' +
             '<input id="email" type="email" name="email" placeholder="Digite seu e-mail" />' +
-            '<button type="submit" disabled>Continuar</button>';
+            '<button disabled>Continuar</button>';
           var email = document.getElementById('email');
           var btn = app.querySelector('button');
           email.addEventListener('input', function () { btn.disabled = !email.value; });
@@ -34,7 +34,7 @@
         function passo2Senha() {
           app.innerHTML =
             '<input id="password" data-testid="password" type="password" placeholder="Digite sua senha" />' +
-            '<button type="submit" disabled>Continuar</button>';
+            '<button disabled>Continuar</button>';
           var senha = document.getElementById('password');
           var btn = app.querySelector('button');
           senha.addEventListener('input', function () { btn.disabled = !senha.value; });
@@ -44,7 +44,7 @@
         function passo3Modal() {
           app.innerHTML =
             '<p>Um código de validação foi enviado para o e-mail informado.</p>' +
-            '<button type="submit">OK, entendi</button>';
+            '<button>OK, entendi</button>';
           var btn = app.querySelector('button');
           btn.addEventListener('click', function (e) { e.preventDefault(); passo4Codigo(); });
         }
@@ -52,7 +52,7 @@
         function passo4Codigo() {
           app.innerHTML =
             '<input id="code" name="code" maxlength="6" inputmode="numeric" placeholder="Digite o código" />' +
-            '<button type="submit" disabled>Confirmar</button>';
+            '<button disabled>Confirmar</button>';
           var codigo = document.getElementById('code');
           var btn = app.querySelector('button');
           codigo.addEventListener('input', function () { btn.disabled = !(codigo.value && codigo.value.length === 6); });

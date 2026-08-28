@@ -33,6 +33,10 @@ const axios = require('axios');
 
 const BASE_URL = 'https://api.entregolog.com/logistics-web-bff';
 const LOGIN_URL_DEFAULT = 'https://franqueado.entregolog.com/login';
+// Origem do portal. A sonda de sessão precisa que a página esteja AQUI antes de
+// chamar a API por `page.evaluate` — de `about:blank` o fetch com credenciais
+// falha (ver sondarSessaoValida).
+const PORTAL_ORIGIN = 'https://franqueado.entregolog.com';
 const STORAGE_STATE_PATH_DEFAULT = '/var/lib/hub_secrets/robo-entrego/entrego-session.json';
 
 /** ACHADOS-PORTAL.md §5.4 — únicos 2 tipos suportados; tradução num único ponto (plan.md §Convenções de Borda). */
@@ -83,10 +87,28 @@ function persistirStorageState(storageState, caminho = STORAGE_STATE_PATH_DEFAUL
 }
 
 /** Avaliado dentro da página (contracts/entrego-portal.md: sonda reusa `GET .../authentication/me`). */
+// ⚠️ Os headers aqui devem ser OS MESMOS de _evalBuscarUrls. `X-IFood-Logistics-Auth`
+// e `x-cookie-login` não são decoração: sem eles o BFF responde
+// 401 {"message":"no jwt token"} MESMO com a sessão válida (ACHADOS-PORTAL.md §3).
+// A versão anterior mandava só `Accept` — a sonda dava 401 sempre, o robô concluía
+// "sessão expirada" e refazia o login completo em TODA execução. Isso anulava a
+// decisão do block-003 (reusar sessão, relogar só no 401 de verdade) e colocava o
+// login — a etapa sujeita ao anti-bot — no caminho crítico diário.
+// Diagnosticado na execução assistida de 2026-08-28: a sessão salva abria o painel
+// normalmente enquanto a sonda insistia em 401.
+const HEADERS_API = Object.freeze({
+  Accept: 'application/json, text/plain, */*',
+  'X-IFood-Logistics-Auth': 'true',
+  'x-cookie-login': 'true',
+  'X-Timezone': 'America/Sao_Paulo',
+  'Accept-Language': 'pt',
+  'x-country': 'BR',
+});
+
 async function _evalSondaSessao(args) {
   const resp = await fetch(`${args.baseURL}/operation/users/authentication/me`, {
     credentials: 'include',
-    headers: { Accept: 'application/json, text/plain, */*' },
+    headers: args.headers,
   });
   return { status: resp.status };
 }
@@ -98,10 +120,24 @@ async function _evalSondaSessao(args) {
  *   sinal `sessao_expirada_401` -> NAO_E_FALHA).
  * @throws {ErroPortalTransitorio} timeout/erro de rede/5xx — falha transitória
  */
-async function sondarSessaoValida(page, { baseURL = BASE_URL } = {}) {
+async function sondarSessaoValida(page, { baseURL = BASE_URL, portalOrigin = PORTAL_ORIGIN, timeoutMs = TIMEOUT_LOGIN_MS_DEFAULT } = {}) {
+  // O evaluate abaixo faz `fetch(..., {credentials:'include'})` DENTRO da página.
+  // Isso exige que a página esteja num contexto de origem real: em `about:blank`
+  // (estado de toda aba recém-criada) o fetch cross-origin falha na hora com
+  // "Failed to fetch", e a sonda virava ErroPortalTransitorio SEMPRE na primeira
+  // execução. Achado da execução assistida de 2026-08-28 — invisível nos testes,
+  // que injetam um `page` mockado cujo `evaluate` devolve o status desejado.
+  try {
+    if (!String((page.url && page.url()) || '').startsWith(portalOrigin)) {
+      await page.goto(portalOrigin, { timeout: timeoutMs });
+    }
+  } catch (e) {
+    throw new ErroPortalTransitorio(`entrego-portal: navegação para o portal falhou (${e.message})`, 'erro_conexao');
+  }
+
   let resultado;
   try {
-    resultado = await page.evaluate(_evalSondaSessao, { baseURL });
+    resultado = await page.evaluate(_evalSondaSessao, { baseURL, headers: HEADERS_API });
   } catch (e) {
     throw new ErroPortalTransitorio(`entrego-portal: sonda de sessão falhou (${e.message})`, 'erro_conexao');
   }
@@ -117,13 +153,21 @@ async function sondarSessaoValida(page, { baseURL = BASE_URL } = {}) {
 // 4.2 — Fluxo de login completo (4 passos, ACHADOS-PORTAL.md §7)
 // ---------------------------------------------------------------------------
 
+// ⚠️ NÃO use `button[type="submit"]`. O seletor CSS casa pelo ATRIBUTO, e o React
+// do portal renderiza `<button>` SEM o atributo `type` (o default do HTML já é
+// submit). O levantamento original registrou `type: "submit"` porque leu a
+// PROPRIEDADE DOM `e.type`, que devolve o default mesmo sem atributo — daí o
+// seletor entrou errado e nunca encontrou nada no portal real. Diagnosticado na
+// execução assistida de 2026-08-28: `document.querySelectorAll('button[type="submit"]')`
+// devolve [] na tela de login enquanto o botão "Continuar" está visível.
+// Localizar por TEXTO, como já era feito para o modal.
 const SELETORES = Object.freeze({
   email: 'input#email',
   senha: 'input[data-testid="password"]',
-  botaoContinuar: 'button[type="submit"]:not([disabled])',
+  botaoContinuar: 'button:has-text("Continuar"):not([disabled])',
   botaoModal: 'text=OK, entendi',
   codigo: 'input#code',
-  botaoConfirmar: 'button[type="submit"]:not([disabled])',
+  botaoConfirmar: 'button:has-text("Confirmar"):not([disabled])',
 });
 
 /** Avaliado dentro da página — sinal barato de "estou logado" (ACHADOS-PORTAL.md §7). */
