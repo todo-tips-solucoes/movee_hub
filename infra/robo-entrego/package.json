@@ -1,0 +1,19 @@
+{
+  "name": "robo-entrego",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rotina agendada que coleta os relatorios Performance e Financeiro do portal do franqueado EntreGo e os envia ao hub via POST /api/v1/importacoes.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "test:e2e-fixture": "node --test test/e2e-fixture/scenarios.test.js"
+  },
+  "dependencies": {
+    "axios": "^1.0.0",
+    "form-data": "^4.0.0",
+    "imapflow": "^1.0.0",
+    "nodemailer": "^6.9.0",
+    "playwright": "^1.45.0"
+  }
+}

@@ -1,0 +1,71 @@
+<!doctype html>
+<!--
+  login.html (tasks.md 6.3.1) — fixture do fluxo de login de 4 passos do
+  portal EntreGô franqueado. Reproduz SÓ os seletores que src/entrego-
+  portal.js#SELETORES realmente usa (fonte: ACHADOS-PORTAL.md §7, já
+  distilado no código de produção) — nunca o layout visual real do
+  franqueado, que não interessa ao robô. Cada passo troca o DOM inteiro
+  (nunca alterna `display:none`) para casar com a realidade descrita em
+  ACHADOS-PORTAL.md §7 ("cada tela com rota própria" — componentes
+  distintos, não o mesmo formulário escondido) e evitar ambiguidade de
+  seletor CSS (`button[type="submit"]:not([disabled])` reaparece nos
+  passos 1, 2 e 4; se todos ficassem no DOM ao mesmo tempo haveria mais de
+  um elemento batendo o mesmo seletor).
+-->
+<html>
+  <head><meta charset="utf-8" /><title>fixture: login EntreGô</title></head>
+  <body>
+    <div id="app"></div>
+    <script>
+      (function () {
+        var app = document.getElementById('app');
+
+        function passo1Email() {
+          app.innerHTML =
+            '<label for="email">E-mail</label>' +
+            '<input id="email" type="email" name="email" placeholder="Digite seu e-mail" />' +
+            '<button type="submit" disabled>Continuar</button>';
+          var email = document.getElementById('email');
+          var btn = app.querySelector('button');
+          email.addEventListener('input', function () { btn.disabled = !email.value; });
+          btn.addEventListener('click', function (e) { e.preventDefault(); passo2Senha(); });
+        }
+
+        function passo2Senha() {
+          app.innerHTML =
+            '<input id="password" data-testid="password" type="password" placeholder="Digite sua senha" />' +
+            '<button type="submit" disabled>Continuar</button>';
+          var senha = document.getElementById('password');
+          var btn = app.querySelector('button');
+          senha.addEventListener('input', function () { btn.disabled = !senha.value; });
+          btn.addEventListener('click', function (e) { e.preventDefault(); passo3Modal(); });
+        }
+
+        function passo3Modal() {
+          app.innerHTML =
+            '<p>Um código de validação foi enviado para o e-mail informado.</p>' +
+            '<button type="submit">OK, entendi</button>';
+          var btn = app.querySelector('button');
+          btn.addEventListener('click', function (e) { e.preventDefault(); passo4Codigo(); });
+        }
+
+        function passo4Codigo() {
+          app.innerHTML =
+            '<input id="code" name="code" maxlength="6" inputmode="numeric" placeholder="Digite o código" />' +
+            '<button type="submit" disabled>Confirmar</button>';
+          var codigo = document.getElementById('code');
+          var btn = app.querySelector('button');
+          codigo.addEventListener('input', function () { btn.disabled = !(codigo.value && codigo.value.length === 6); });
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            // ACHADOS-PORTAL.md §7: sinal barato de "estou logado" que
+            // src/entrego-portal.js#_evalTemUserData verifica via waitForFunction.
+            localStorage.setItem('redux', JSON.stringify({ authentication: { userData: { id: 'fixture-user' } } }));
+          });
+        }
+
+        passo1Email();
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+# GERADO por scripts/gerar-timer.sh a partir de config.json — não editar OnCalendar= à mão, mudar horário = editar config.json + re-rodar este script (FR-009).
+[Unit]
+Description=Dispara a rotina robo-entrego nos horários de config.json
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 America/Sao_Paulo
+Persistent=true
+# Espalha o disparo — mesmo motivo de infra/producao/backup-producao.timer.
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
