@@ -450,11 +450,51 @@ describe('valores fora de faixa entram como recebidos (bloqueante: false)', () =
     assert.equal(reg.valorBruto, '-1', 'o valor ORIGINAL vai para ImportacaoLinhaErro');
   });
 
-  test('performance: valor NÃO-numérico continua bloqueando', () => {
+  // ATUALIZADO em 2026-08-29: a decisão seguinte do operador foi que texto em
+  // campo numérico também não pode descartar a linha — vira 0. Nenhum valor
+  // numérico bloqueia mais; só campo obrigatório de TEXTO ausente (praça,
+  // período, UUID) continua bloqueando. Cobertura do novo comportamento no
+  // describe 'texto em campo numérico é gravado como 0'.
+  test('performance: texto em campo numérico NÃO bloqueia mais (vira 0)', () => {
     const naoNumerico = [...LINHA_REAL];
     naoNumerico[14] = 'N/A'; // numero_de_corridas_rejeitadas
-    const { erros } = normalizarLinhaPerformance(naoNumerico, IDX_PERFORMANCE);
+    const { erros, valores } = normalizarLinhaPerformance(naoNumerico, IDX_PERFORMANCE);
     const bloqueantes = erros.filter((e) => e.bloqueante !== false);
-    assert.ok(bloqueantes.length > 0, 'sem número não há o que gravar — segue bloqueante');
+    assert.equal(bloqueantes.length, 0);
+    assert.equal(valores.corridas_rejeitadas, 0);
+  });
+});
+
+// --- texto em campo numérico vira 0 (decisão do operador, 2026-08-29) -------
+describe('texto em campo numérico é gravado como 0, sem perder a linha', () => {
+  const BASE = '2026-08-28;JANTAR CPS 18H30-21H29;02:59:00;82;REGULAR;0ee830b0-389c-43ac-8f81-1e9f9128c5fc;Leonardo Victorino Quinto;SAO PAULO;PANAMBY E VILA SONIA - SP;"";53.06;00:02:23;0;1;-1;0;0;0;0'.split(';');
+
+  test('N/A em corridas_rejeitadas -> linha entra com 0', () => {
+    const l = [...BASE]; l[14] = 'N/A';
+    const { valores, erros } = normalizarLinhaPerformance(l, IDX_PERFORMANCE);
+    assert.equal(erros.filter((e) => e.bloqueante !== false).length, 0, 'a linha não pode ser descartada');
+    assert.equal(valores.corridas_rejeitadas, 0, 'texto vira 0');
+  });
+
+  test('o valor ORIGINAL fica registrado (só assim dá para perceber)', () => {
+    const l = [...BASE]; l[14] = 'N/A';
+    const { erros } = normalizarLinhaPerformance(l, IDX_PERFORMANCE);
+    const reg = erros.find((e) => e.campo === 'corridas_rejeitadas');
+    assert.ok(reg, 'precisa haver rastro');
+    assert.equal(reg.valorBruto, 'N/A', 'o texto original vai para ImportacaoLinhaErro');
+    assert.match(reg.motivo, /gravado como 0/);
+  });
+
+  test('-1 REAL continua -1 — o ?? 0 não atropela número válido', () => {
+    const { valores } = normalizarLinhaPerformance(BASE, IDX_PERFORMANCE);
+    assert.equal(valores.corridas_rejeitadas, -1, 'negativo real é preservado, não vira 0');
+  });
+
+  test('0 REAL continua 0 e não gera rastro falso', () => {
+    const l = [...BASE]; l[14] = '0';
+    const { valores, erros } = normalizarLinhaPerformance(l, IDX_PERFORMANCE);
+    assert.equal(valores.corridas_rejeitadas, 0);
+    assert.equal(erros.filter((e) => e.campo === 'corridas_rejeitadas').length, 0,
+      'zero legítimo não é anomalia — não deve poluir ImportacaoLinhaErro');
   });
 });
