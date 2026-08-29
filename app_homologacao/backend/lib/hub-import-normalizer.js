@@ -285,10 +285,15 @@ function normalizarLinhaFaturamento(campos, idx) {
     avisos.push({ campo: 'tipo', motivo: `valor de tipo desconhecido: ${tipo}` });
   }
 
-  const valor = normalizarDecimalVirgula(bruto.valor);
+  let valor = normalizarDecimalVirgula(bruto.valor);
   if (valor === null) {
-    // Não-numérico continua BLOQUEANTE: sem número não há o que gravar.
-    erros.push({ campo: 'valor', motivo: 'valor deve ser numérico', valorBruto: bruto.valor });
+    // Texto em campo numérico vira 0 (decisão do operador, 2026-08-29) para não
+    // perder a linha inteira. ⚠️ Aqui é DINHEIRO: um lançamento corrompido
+    // entra como 0 e o total do período fica subestimado sem parecer errado.
+    // O registro em ImportacaoLinhaErro com o valorBruto original é a única
+    // forma de perceber — não silenciar este aviso.
+    erros.push({ campo: 'valor', motivo: 'texto em campo numérico — gravado como 0', valorBruto: bruto.valor, bloqueante: false });
+    valor = 0;
   } else if (!(valor > 0)) {
     // Zero/negativo entra COM O VALOR ORIGINAL (decisão do operador em
     // 2026-08-29: "importar conforme recebemos, nenhum valor deve ser
@@ -378,8 +383,9 @@ function normalizarLinhaPerformance(campos, idx) {
   if (minEntregadoresEscala === null) {
     erros.push({
       campo: 'min_entregadores_escala',
-      motivo: 'inteiro obrigatório',
+      motivo: 'texto em campo numérico — gravado como 0',
       valorBruto: bruto.numero_minimo_de_entregadores_regulares_na_escala,
+      bloqueante: false,
     });
   } else if (minEntregadoresEscala < 0) {
     erros.push({
@@ -442,7 +448,8 @@ function normalizarLinhaPerformance(campos, idx) {
     ['corridas_canceladas', corridasCanceladas, bruto.numero_de_corridas_canceladas_pela_pessoa_entregadora],
   ].forEach(([campo, valor, valorBruto]) => {
     if (valor === null) {
-      erros.push({ campo, motivo: 'inteiro obrigatório', valorBruto });
+      // Texto em campo numérico vira 0 (decisão do operador, 2026-08-29).
+      erros.push({ campo, motivo: 'texto em campo numérico — gravado como 0', valorBruto, bloqueante: false });
     } else if (valor < 0) {
       // Negativo entra como recebido (ex.: numero_de_corridas_rejeitadas=-1,
       // observado no CSV real de 2026-08-28). Ver comentário em `valor` acima.
@@ -467,8 +474,9 @@ function normalizarLinhaPerformance(campos, idx) {
   if (taxasCentavos === null) {
     erros.push({
       campo: 'taxas_centavos',
-      motivo: 'inteiro obrigatório (centavos, sem divisão)',
+      motivo: 'texto em campo numérico — gravado como 0',
       valorBruto: bruto.soma_das_taxas_das_corridas_aceitas,
+      bloqueante: false,
     });
   } else if (taxasCentavos < 0) {
     erros.push({
@@ -483,7 +491,7 @@ function normalizarLinhaPerformance(campos, idx) {
     data_periodo: dataPeriodo,
     periodo,
     duracao: duracaoInfo.valor,
-    min_entregadores_escala: minEntregadoresEscala,
+    min_entregadores_escala: minEntregadoresEscala ?? 0,
     tag,
     id_externo: idExterno,
     pessoa_entregadora: pessoaEntregadora || null,
@@ -492,13 +500,15 @@ function normalizarLinhaPerformance(campos, idx) {
     origem,
     tempo_disponivel_pct: tempoDisponivelPct,
     tempo_disponivel: tempoDisponivelInfo.valor,
-    corridas_ofertadas: corridasOfertadas,
-    corridas_aceitas: corridasAceitas,
-    corridas_rejeitadas: corridasRejeitadas,
-    corridas_completadas: corridasCompletadas,
-    corridas_canceladas: corridasCanceladas,
-    pedidos_concluidos: pedidosConcluidos,
-    taxas_centavos: taxasCentavos,
+    corridas_ofertadas: corridasOfertadas ?? 0,
+    corridas_aceitas: corridasAceitas ?? 0,
+    // `?? 0`: texto em campo numérico vira 0 (decisão do operador 2026-08-29).
+    // Só age quando o parse falhou — negativo e zero REAIS passam intactos.
+    corridas_rejeitadas: corridasRejeitadas ?? 0,
+    corridas_completadas: corridasCompletadas ?? 0,
+    corridas_canceladas: corridasCanceladas ?? 0,
+    pedidos_concluidos: pedidosConcluidos ?? 0,
+    taxas_centavos: taxasCentavos ?? 0,
   };
 
   return { valores, erros, avisos };
