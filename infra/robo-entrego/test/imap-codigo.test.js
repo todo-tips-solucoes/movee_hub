@@ -168,3 +168,39 @@ describe('extrairCodigo — e-mail RAW com cabeçalhos', () => {
     assert.equal(extrairCodigo('seu código: 654321'), '654321');
   });
 });
+
+// --- REGRESSÃO: SINCE do IMAP é por DIA, no fuso do servidor (2026-08-29) ----
+describe('lerCodigoAcesso — janela do SEARCH', () => {
+  test('busca com since recuado 1 dia (senão perde mensagem na virada de dia)', async () => {
+    const T = new Date('2026-08-29T00:30:00Z');
+    let sinceUsado = null;
+    const msg = { date: new Date('2026-08-29T00:22:00Z'), corpo: 'seu código: 135790' };
+    const client = {
+      getMailboxLock: async () => ({ release: () => {} }),
+      search: async (q) => { sinceUsado = q.since; return [1]; },
+      fetchOne: async () => ({ envelope: { date: msg.date }, source: Buffer.from(msg.corpo) }),
+    };
+    // aposTimestamp DEPOIS da mensagem faria o filtro client-side descartar,
+    // então usamos um T0 anterior à mensagem para exercitar só a janela.
+    const T0 = new Date('2026-08-29T00:20:00Z');
+    const codigo = await lerCodigoAcesso(client, T0, { timeoutMs: 0, dormir: async () => {} });
+    assert.equal(codigo, '135790');
+    const diffHoras = (T0 - sinceUsado) / 3600000;
+    assert.equal(diffHoras, 24, 'o since deve ficar 24h antes do timestamp de disparo');
+    assert.ok(sinceUsado < T, 'janela precisa cobrir a véspera no fuso do servidor');
+  });
+
+  test('a margem NÃO deixa passar mensagem anterior ao disparo (filtro client-side)', async () => {
+    const T0 = new Date('2026-08-29T00:20:00Z');
+    const antiga = { date: new Date('2026-08-28T23:00:00Z'), corpo: 'código: 111111' };
+    const client = {
+      getMailboxLock: async () => ({ release: () => {} }),
+      search: async () => [1],
+      fetchOne: async () => ({ envelope: { date: antiga.date }, source: Buffer.from(antiga.corpo) }),
+    };
+    await assert.rejects(
+      () => lerCodigoAcesso(client, T0, { timeoutMs: 0, dormir: async () => {} }),
+      /nenhuma mensagem recebida após/
+    );
+  });
+});

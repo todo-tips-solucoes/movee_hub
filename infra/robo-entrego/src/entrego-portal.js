@@ -105,6 +105,13 @@ const HEADERS_API = Object.freeze({
   'x-country': 'BR',
 });
 
+/** Avaliado dentro da página — zera o storage da origem antes de relogar. */
+function _evalLimparStorage() {
+  try { localStorage.clear(); } catch (e) { /* storage bloqueado: segue */ }
+  try { sessionStorage.clear(); } catch (e) { /* idem */ }
+  return true;
+}
+
 async function _evalSondaSessao(args) {
   const resp = await fetch(`${args.baseURL}/operation/users/authentication/me`, {
     credentials: 'include',
@@ -203,6 +210,37 @@ function _evalTemUserData() {
 async function realizarLoginCompleto(page, { email, senha, obterCodigo, timeoutMs = TIMEOUT_LOGIN_MS_DEFAULT, loginUrl = LOGIN_URL_DEFAULT } = {}) {
   let timestampDisparo;
   try {
+    // Limpa a sessão residual ANTES de relogar. O portal tem DOIS níveis de
+    // sessão: o token do BFF (que a sonda testa) expira antes do cookie de
+    // navegação da SPA. Com o cookie ainda válido, `/login` REDIRECIONA para o
+    // painel e o campo de senha nunca aparece — o login fica impossível
+    // exatamente quando passa a ser necessário.
+    // Observado em 2026-08-28: `GET /authentication/me` devolvia 401 (sessão de
+    // API expirada) enquanto o painel carregava normalmente em
+    // /supply/driver-booking-import; o login travava em
+    // `waiting for locator('input[data-testid="password"]')`.
+    try {
+      if (page.context && typeof page.context === 'function') {
+        const ctx = page.context();
+        if (ctx && typeof ctx.clearCookies === 'function') await ctx.clearCookies();
+      }
+      // localStorage TAMBÉM. Limpar só os cookies não basta: o `storageState`
+      // do Playwright restaura cookies E localStorage, e a SPA usa
+      // `localStorage.redux.authentication.userData` como sinal de "estou
+      // logado" (ACHADOS-PORTAL.md §7). Com ele presente, o portal desvia do
+      // fluxo de login no meio — observado em 2026-08-28: o passo 1 completava
+      // (200 em validation/first-login) e a página ia para
+      // /supply/driver-booking-import em vez de /login/password.
+      // Precisa estar NA origem para tocar o storage dela.
+      if (typeof page.goto === 'function' && typeof page.evaluate === 'function') {
+        await page.goto(PORTAL_ORIGIN, { timeout: timeoutMs });
+        await page.evaluate(_evalLimparStorage);
+      }
+    } catch (_) {
+      // best-effort: se a limpeza falhar, o login ainda pode dar certo quando
+      // não houver sessão residual.
+    }
+
     // Passo 1
     await page.goto(loginUrl, { timeout: timeoutMs });
     await page.fill(SELETORES.email, email, { timeout: timeoutMs });

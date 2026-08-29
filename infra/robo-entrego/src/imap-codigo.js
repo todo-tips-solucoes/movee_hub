@@ -128,7 +128,16 @@ async function _lerUmaVez(client, aposTimestamp, { mailbox, assunto }) {
     // SINCE do protocolo IMAP só tem granularidade de DIA — o filtro fino
     // por timestamp exato (abaixo) é feito client-side por envelope.date,
     // nunca confiado só ao SEARCH do servidor.
-    const uids = await client.search({ subject: assunto, since: aposTimestamp }, { uid: true });
+    // `since` recuado 1 DIA de propósito. O SINCE do IMAP tem granularidade de
+    // DIA e o servidor o resolve no fuso DELE: com `since` = agora, perto da
+    // virada de dia a janela exclui mensagens recém-chegadas.
+    // MEDIDO em 2026-08-29T00:30Z: `since=agora` devolvia 0 mensagens enquanto
+    // `since=ontem` devolvia 6 — incluindo o código que chegara 8 min antes.
+    // Alargar aqui é seguro porque o recorte fino é feito CLIENT-SIDE logo
+    // abaixo, por `envelope.date > aposTimestamp` — nenhuma mensagem antiga
+    // passa por causa disto.
+    const sinceComMargem = new Date(aposTimestamp.getTime() - 24 * 60 * 60 * 1000);
+    const uids = await client.search({ subject: assunto, since: sinceComMargem }, { uid: true });
     if (!uids || uids.length === 0) {
       throw new Error(`imap-codigo: nenhuma mensagem encontrada com assunto "${assunto}"`);
     }

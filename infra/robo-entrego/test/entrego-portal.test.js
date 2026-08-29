@@ -151,7 +151,9 @@ describe('garantirSessaoValida', () => {
       storageStatePath: caminho,
     });
     assert.deepEqual(r, { relogou: true });
-    assert.equal(evalCount, 1); // só a sonda passou por page.evaluate; login usa fill/click/waitFor*
+    // 2 evaluates: a sonda + a limpeza de localStorage antes do relogin
+    // (regressão 2026-08-28 — sem a limpeza o portal desvia para o painel).
+    assert.equal(evalCount, 2);
     assert.deepEqual(carregarStorageState(caminho), { cookies: [{ name: 'sess', value: 'novo' }] });
   });
 });
@@ -172,11 +174,39 @@ function mockPageLogin({ falharEm = null } = {}) {
     click: metodo('click'),
     waitForSelector: metodo('waitForSelector'),
     waitForFunction: metodo('waitForFunction'),
-    context: () => ({ storageState: async () => ({ cookies: [{ name: 'sess', value: 'ok' }] }) }),
+    evaluate: metodo('evaluate'),
+    context: () => ({
+      storageState: async () => ({ cookies: [{ name: 'sess', value: 'ok' }] }),
+      // registrado em `chamadas` para o teste de regressão do redirect
+      clearCookies: metodo('clearCookies'),
+    }),
   };
 }
 
 describe('realizarLoginCompleto', () => {
+  // REGRESSÃO (importação assistida 2026-08-28): o portal tem DOIS níveis de
+  // sessão. O token do BFF expira antes do cookie de navegação da SPA. Com o
+  // cookie residual, `/login` redireciona para o painel e o campo de senha nunca
+  // aparece — o login ficava impossível justamente quando virava necessário.
+  // Sintoma: 401 em /authentication/me com o painel carregando normalmente, e
+  // timeout em `waiting for locator('input[data-testid="password"]')`.
+  test('limpa cookies ANTES de ir para /login (senão o redirect impede o login)', async () => {
+    const page = mockPageLogin();
+    await realizarLoginCompleto(page, {
+      email: 'a@b.c', senha: 'x', obterCodigo: async () => '123456',
+    });
+    const iClear = page.chamadas.indexOf('clearCookies');
+    const iEval = page.chamadas.indexOf('evaluate');
+    assert.notEqual(iClear, -1, 'deveria limpar cookies antes de relogar');
+    // localStorage TAMBÉM: a SPA usa localStorage.redux.authentication.userData
+    // como sinal de "logado". Só limpar cookie deixava o portal desviar do fluxo
+    // de login no meio (2026-08-28).
+    assert.notEqual(iEval, -1, 'deveria limpar o storage da origem também');
+    assert.ok(iClear < iEval, 'cookies primeiro, depois o storage');
+    // e tudo isso antes de preencher qualquer campo do formulário de login
+    assert.ok(iEval < page.chamadas.indexOf('fill'), 'limpeza tem que preceder o preenchimento');
+  });
+
   test('4 passos completam com dados de teste — obterCodigo recebe o timestamp do passo 2', async () => {
     const page = mockPageLogin();
     let timestampRecebido = null;
@@ -191,7 +221,10 @@ describe('realizarLoginCompleto', () => {
     assert.deepEqual(storageState, { cookies: [{ name: 'sess', value: 'ok' }] });
     assert.ok(timestampRecebido instanceof Date);
     // passos 1-3 antes de pedir o código; passo 4 depois
-    assert.deepEqual(page.chamadas, ['goto', 'fill', 'click', 'waitForSelector', 'fill', 'click', 'click', 'waitForSelector', 'fill', 'click', 'waitForFunction']);
+    // A sequência abre com a limpeza da sessão residual (regressão 2026-08-28):
+    // clearCookies -> goto na origem -> evaluate (limpa localStorage) -> goto /login.
+    // Sem ela, o portal desvia do fluxo de login para o painel.
+    assert.deepEqual(page.chamadas, ['clearCookies', 'goto', 'evaluate', 'goto', 'fill', 'click', 'waitForSelector', 'fill', 'click', 'click', 'waitForSelector', 'fill', 'click', 'waitForFunction']);
   });
 
   test('timeout no passo 1-3 (ex.: modal "OK, entendi" não aparece) -> ErroAntibotSuspeito, nunca trava', async () => {

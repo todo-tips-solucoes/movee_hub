@@ -74,6 +74,7 @@ function finalizarExecucao({
   tentativasTotais = 0,
   motivoFalha = null,
   caminhoLog = LOG_PATH_DEFAULT,
+  diagnostico = null,
 }) {
   if (!execucaoId) throw new Error('log-execucao: execucaoId obrigatório');
   if (!RESULTADOS_VALIDOS.includes(resultado)) {
@@ -88,6 +89,12 @@ function finalizarExecucao({
     tentativas_totais: tentativasTotais,
     motivo_falha: motivoFalha,
   };
+  // Anexado só em falha (src/diagnostico-falha.js): estado da página + rede.
+  // O `motivo_falha` sozinho já apontou para a conclusão ERRADA em 3 de 11
+  // casos (2026-08-28) — é este bloco que diz o que de fato estava na tela.
+  // Contém apenas ESTRUTURA: ids, textos de botão, status/path HTTP. Nunca
+  // valor de campo, corpo de requisição, cookie ou querystring assinada.
+  if (diagnostico) linha.diagnostico = diagnostico;
   escreverLinha(caminhoLog, linha);
   return linha;
 }
