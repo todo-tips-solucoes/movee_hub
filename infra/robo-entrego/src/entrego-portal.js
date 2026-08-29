@@ -57,6 +57,21 @@ class ErroAntibotSuspeito extends Error {
   }
 }
 
+/**
+ * O portal respondeu certo, mas o movimento do dia ainda não foi publicado.
+ * NÃO é falha: é "tente de novo mais tarde" (config.json aceita vários
+ * horários). Antes disto, uma lista vazia virava
+ * `TypeError: Cannot read properties of undefined (reading 'url')` e um CSV só
+ * com cabeçalho virava importação de 0 linhas marcada como sucesso.
+ */
+class ErroSemDados extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErroSemDados';
+    this.sinal = 'relatorio_sem_dados';
+  }
+}
+
 /** Falha transitória (research.md Decision 11) — o chamador (FASE 5/index.js) decide o retry (FR-012). */
 class ErroPortalTransitorio extends Error {
   constructor(message, sinal) {
@@ -322,6 +337,13 @@ const REGEX_DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
  * nunca tenta "interpretar" um formato diferente (tasks.md 4.3.3).
  */
 function validarItensUrls(corpo) {
+  // ATENÇÃO: array vazio NÃO é "sem dados" — é "relatório ainda GERANDO".
+  // O portal gera de forma assíncrona e `buscarUrlsRelatorio` faz polling
+  // esperando o item aparecer (timeout -> ErroPortalTransitorio, que o FR-012
+  // retenta). Tratar vazio como sem-dados aqui QUEBRA esse polling — tentado
+  // e revertido em 2026-08-29, pego pelos testes existentes.
+  // O caso real de "movimento não publicado" é o CSV que vem só com
+  // cabeçalho, detectado em index.js após o download.
   if (!Array.isArray(corpo)) {
     throw new ErroAntibotSuspeito('entrego-portal: /urls — resposta não é array (fora do shape medido em ACHADOS-PORTAL.md §3)');
   }
@@ -445,5 +467,6 @@ module.exports = {
   TRADUCAO_TIPO_HUB,
   STORAGE_STATE_PATH_DEFAULT,
   ErroAntibotSuspeito,
+  ErroSemDados,
   ErroPortalTransitorio,
 };

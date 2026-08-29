@@ -11,7 +11,10 @@ const crypto = require('node:crypto');
 /** Caminho padrão (data-model.md §Entity: Execução Agendada). */
 const LOG_PATH_DEFAULT = '/var/lib/hub_secrets/robo-entrego/log/execucoes.jsonl';
 
-const RESULTADOS_VALIDOS = ['sucesso', 'falha_parcial', 'falha_total', 'pulado_lock'];
+// `sem_dados`: o portal respondeu certo mas o movimento do dia ainda não foi
+// publicado. Distinto de falha (nada quebrou) e de sucesso (não há o que
+// importar) — a próxima janela do dia tenta de novo. Ver config.json.
+const RESULTADOS_VALIDOS = ['sucesso', 'falha_parcial', 'falha_total', 'pulado_lock', 'sem_dados'];
 
 // Allowlist (3.1.4) — nunca campos de credencial. `url_s3` é tratado como
 // sensível por design (data-model.md: URL pré-assinada = bearer token de

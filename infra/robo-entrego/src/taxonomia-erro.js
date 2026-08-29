@@ -11,6 +11,12 @@ const CLASSIFICACAO = Object.freeze({
   SUCESSO: 'sucesso',
   SUCESSO_IDEMPOTENTE: 'sucesso_idempotente',
   FALHA_HUB: 'falha_hub',
+  // O portal respondeu certo, mas o movimento do dia ainda não foi publicado.
+  // NÃO é falha (nada quebrou) e NÃO é sucesso (não há o que importar): é
+  // "tente de novo mais tarde". Antes disto, um relatório vazio virava
+  // `TypeError: Cannot read properties of undefined` — mensagem que não diz
+  // nada — ou, pior, uma importação de 0 linhas marcada como completed.
+  SEM_DADOS: 'sem_dados',
 });
 
 // Mapa 1:1 com as linhas de research.md Decision 11 — cada chave é um sinal
@@ -31,6 +37,9 @@ const TABELA_SINAIS = Object.freeze({
   // "409 CONFLITO do POST /api/v1/importacoes" -> Sucesso idempotente
   upload_409: CLASSIFICACAO.SUCESSO_IDEMPOTENTE,
   // "422 INVALIDO, ou status terminal failed/completed_with_errors" -> Falha do hub
+  // Relatório ainda não publicado pelo portal (lista de urls vazia, ou CSV só
+  // com cabeçalho). Retentável na próxima janela do dia — ver config.json.
+  relatorio_sem_dados: CLASSIFICACAO.SEM_DADOS,
   upload_422: CLASSIFICACAO.FALHA_HUB,
   polling_failed: CLASSIFICACAO.FALHA_HUB,
   polling_completed_with_errors: CLASSIFICACAO.FALHA_HUB,
