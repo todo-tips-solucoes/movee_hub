@@ -424,3 +424,37 @@ describe('normalizarLinhaPerformance (2.3)', () => {
     assert.equal(valores.subpraca, 'MINI BTU FD');
   });
 });
+
+// --- "importar conforme recebemos" (decisão do operador, 2026-08-29) ---------
+// Origem: o CSV real de 2026-08-28 trouxe `numero_de_corridas_rejeitadas=-1`,
+// e a linha inteira era descartada. O operador decidiu que nenhum valor deve
+// ser tratado — o dado entra como veio. O registro em ImportacaoLinhaErro
+// permanece (rastro), mas a linha NÃO conta como inválida.
+describe('valores fora de faixa entram como recebidos (bloqueante: false)', () => {
+  // A linha REAL que o operador colou, com -1 em corridas_rejeitadas.
+  const LINHA_REAL = '2026-08-28;JANTAR CPS 18H30-21H29;02:59:00;82;REGULAR;0ee830b0-389c-43ac-8f81-1e9f9128c5fc;Leonardo Victorino Quinto;SAO PAULO;PANAMBY E VILA SONIA - SP;"";53.06;00:02:23;0;1;-1;0;0;0;0'.split(';');
+
+
+  test('performance: -1 em corridas_rejeitadas NÃO bloqueia a linha', () => {
+    const { erros } = normalizarLinhaPerformance(LINHA_REAL, IDX_PERFORMANCE);
+    const bloqueantes = erros.filter((e) => e.bloqueante !== false);
+    assert.equal(bloqueantes.length, 0, 'a linha real de 2026-08-28 deve ser importada');
+  });
+
+  test('performance: o -1 continua REGISTRADO (rastro não se perde)', () => {
+    const { erros } = normalizarLinhaPerformance(LINHA_REAL, IDX_PERFORMANCE);
+    const reg = erros.find((e) => e.campo === 'corridas_rejeitadas');
+    assert.ok(reg, 'deve haver registro do valor negativo');
+    assert.equal(reg.bloqueante, false);
+    assert.match(reg.motivo, /negativo|importado como recebido/i);
+    assert.equal(reg.valorBruto, '-1', 'o valor ORIGINAL vai para ImportacaoLinhaErro');
+  });
+
+  test('performance: valor NÃO-numérico continua bloqueando', () => {
+    const naoNumerico = [...LINHA_REAL];
+    naoNumerico[14] = 'N/A'; // numero_de_corridas_rejeitadas
+    const { erros } = normalizarLinhaPerformance(naoNumerico, IDX_PERFORMANCE);
+    const bloqueantes = erros.filter((e) => e.bloqueante !== false);
+    assert.ok(bloqueantes.length > 0, 'sem número não há o que gravar — segue bloqueante');
+  });
+});
