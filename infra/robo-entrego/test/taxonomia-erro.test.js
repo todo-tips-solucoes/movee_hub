@@ -49,3 +49,20 @@ describe('ehFalhaDefinitiva — última linha de Decision 11', () => {
     assert.equal(ehFalhaDefinitiva(), false);
   });
 });
+
+// --- movimento ainda não publicado (2026-08-29) ------------------------------
+describe('relatorio_sem_dados', () => {
+  test('classifica como SEM_DADOS — nem falha, nem sucesso', () => {
+    assert.equal(classificarSinal('relatorio_sem_dados'), CLASSIFICACAO.SEM_DADOS);
+  });
+
+  test('SEM_DADOS é distinto de TRANSITORIO — não entra no retry de 1/5/15min', () => {
+    // Retentar em 1 minuto não faz o portal publicar o movimento; quem retenta
+    // é a próxima janela do dia (config.json).
+    assert.notEqual(CLASSIFICACAO.SEM_DADOS, CLASSIFICACAO.TRANSITORIO);
+  });
+
+  test('SEM_DADOS não é SUSPEITA_ANTIBOT — o portal respondeu certo', () => {
+    assert.notEqual(CLASSIFICACAO.SEM_DADOS, CLASSIFICACAO.SUSPEITA_ANTIBOT);
+  });
+});

@@ -29,6 +29,7 @@ const {
   TRADUCAO_TIPO_HUB,
   STORAGE_STATE_PATH_DEFAULT,
   ErroAntibotSuspeito,
+  ErroSemDados,
 } = require('./entrego-portal');
 
 // FR-012 — backoff crescente de 1, 5 e 15 minutos, até 3 tentativas.
@@ -128,6 +129,18 @@ function comSinal(erro, sinal) {
 async function tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance }) {
   const [item] = await buscarUrlsRelatorio(page, { tipo, dataInicial: dataAnterior, dataFinal: dataAnterior });
   const { buffer, sha256 } = await baixarCsv(item.url, { axiosInstance });
+
+  // CSV só com cabeçalho = movimento ainda não publicado. O hub NÃO pega este
+  // caso: `arquivo_vazio` lá testa apenas 0 bytes (routes/hub-importacoes.js),
+  // então um cabeçalho sozinho seria importado com 0 linhas e marcado
+  // `completed` — falso sucesso, sem alerta, com o dia faltando.
+  const linhasDeDados = buffer.toString('utf8').split('\n').filter((l) => l.trim()).length - 1;
+  if (linhasDeDados < 1) {
+    throw comSinal(
+      new ErroSemDados(`entrego-portal: CSV de ${tipo} veio só com cabeçalho — relatório ainda não publicado para ${item.date}`),
+      'relatorio_sem_dados'
+    );
+  }
   const nomeArquivo = `${TRADUCAO_TIPO_HUB[tipo]}_${item.date}.csv`;
   const upload = await clienteHub.enviarImportacao({ tipo: TRADUCAO_TIPO_HUB[tipo], nomeArquivo, bufferArquivo: buffer });
 
@@ -310,7 +323,18 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
   }
 
   const sucessos = relatorios.filter((r) => r.status_hub != null).length;
-  const resultado = sucessos === 2 ? 'sucesso' : sucessos === 1 ? 'falha_parcial' : 'falha_total';
+  // Quando NADA subiu e todas as falhas foram "ainda não publicado", o
+  // resultado é `sem_dados` — não `falha_total`. A diferença importa: o
+  // operador não deve receber alerta de falha por um relatório que o portal
+  // ainda não gerou; a próxima janela do dia tenta de novo.
+  const soSemDados = relatorios.length > 0
+    && relatorios.every((r) => r.status_hub == null)
+    && motivosFalha.length > 0
+    && motivosFalha.every((m) => /sem dados|só com cabeçalho|lista vazia|não publicado/i.test(m));
+  const resultado = sucessos === 2 ? 'sucesso'
+    : sucessos === 1 ? 'falha_parcial'
+    : soSemDados ? 'sem_dados'
+    : 'falha_total';
 
   // Só coleta quando algo deu errado: numa rodada de sucesso o estado da página
   // não acrescenta nada e o screenshot é peso morto.

@@ -3,7 +3,9 @@
 Description=Dispara a rotina robo-entrego nos horários de config.json
 
 [Timer]
-OnCalendar=*-*-* 06:00:00 America/Sao_Paulo
+OnCalendar=*-*-* 11:00:00 America/Sao_Paulo
+OnCalendar=*-*-* 13:00:00 America/Sao_Paulo
+OnCalendar=*-*-* 14:00:00 America/Sao_Paulo
 Persistent=true
 # Espalha o disparo — mesmo motivo de infra/producao/backup-producao.timer.
 RandomizedDelaySec=120
