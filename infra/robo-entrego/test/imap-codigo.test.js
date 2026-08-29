@@ -95,8 +95,11 @@ describe('lerCodigoAcesso', () => {
     assert.equal(chamadas, 1, 'erro definitivo não deve consumir o timeout inteiro');
   });
 
-  test('mensagem ANTES do timestamp é ignorada -> lança (nenhuma válida após)', async () => {
-    const client = mockClient([{ uid: 1, date: new Date('2026-08-27T09:59:00Z'), corpo: 'código: 111111' }]);
+  // 09:59 (1 min antes) passou a ser ACEITO pela margem de 2 min introduzida em
+  // 2026-08-29. O que o teste cobre — mensagem de uma rodada ANTERIOR não pode
+  // vazar — continua válido com uma distância realista entre janelas.
+  test('mensagem MUITO antes do timestamp é ignorada -> lança (nenhuma válida após)', async () => {
+    const client = mockClient([{ uid: 1, date: new Date('2026-08-27T08:30:00Z'), corpo: 'código: 111111' }]);
     await assert.rejects(() => lerCodigoAcesso(client, T0, SEM_ESPERA), /nenhuma mensagem recebida após/);
   });
 
@@ -185,8 +188,10 @@ describe('lerCodigoAcesso — janela do SEARCH', () => {
     const T0 = new Date('2026-08-29T00:20:00Z');
     const codigo = await lerCodigoAcesso(client, T0, { timeoutMs: 0, dormir: async () => {} });
     assert.equal(codigo, '135790');
+    // O `since` parte do corte COM margem (disparo - 2min), depois recua 24h.
     const diffHoras = (T0 - sinceUsado) / 3600000;
-    assert.equal(diffHoras, 24, 'o since deve ficar 24h antes do timestamp de disparo');
+    assert.ok(diffHoras >= 24 && diffHoras <= 24.1,
+      `o since deve ficar ~24h antes do disparo (obtido: ${diffHoras}h)`);
     assert.ok(sinceUsado < T, 'janela precisa cobrir a véspera no fuso do servidor');
   });
 
@@ -202,5 +207,63 @@ describe('lerCodigoAcesso — janela do SEARCH', () => {
       () => lerCodigoAcesso(client, T0, { timeoutMs: 0, dormir: async () => {} }),
       /nenhuma mensagem recebida após/
     );
+  });
+});
+
+// --- margem + instrumentação (falhas reais de 2026-08-29 13h e 14h) ---------
+// As rodadas falharam com "nenhuma mensagem recebida após o timestamp" ENQUANTO
+// o e-mail estava na caixa, chegado ~2 min antes de o polling começar. A causa
+// do descompasso não foi determinada — o log não registrava o timestamp de
+// disparo. Estes testes travam a margem (paliativo) e a instrumentação (que
+// permite fechar a causa na próxima ocorrência).
+describe('lerCodigoAcesso — margem e diagnóstico', () => {
+  const DISPARO = new Date('2026-08-29T16:04:00Z');
+  // exatamente o caso real: e-mail 2 min ANTES do timestamp de disparo
+  const MSG_ANTES = { date: new Date('2026-08-29T16:02:02Z'), corpo: 'seu código: 246813' };
+
+  function clientCom(msg) {
+    return {
+      getMailboxLock: async () => ({ release: () => {} }),
+      search: async () => [1],
+      fetchOne: async () => ({ envelope: { date: msg.date }, source: Buffer.from(msg.corpo) }),
+    };
+  }
+
+  test('e-mail chegado 2min ANTES do disparo é aceito pela margem', async () => {
+    const codigo = await lerCodigoAcesso(clientCom(MSG_ANTES), DISPARO, {
+      timeoutMs: 0, dormir: async () => {},
+    });
+    assert.equal(codigo, '246813', 'era o caso real de 13h/14h de 2026-08-29');
+  });
+
+  test('margem=0 reproduz a falha antiga (prova que era a margem)', async () => {
+    await assert.rejects(
+      () => lerCodigoAcesso(clientCom(MSG_ANTES), DISPARO, { timeoutMs: 0, margemMs: 0, dormir: async () => {} }),
+      /nenhuma mensagem recebida após/
+    );
+  });
+
+  test('mensagem MUITO antiga (1h) continua rejeitada — margem não é buraco', async () => {
+    const antiga = { date: new Date('2026-08-29T15:00:00Z'), corpo: 'código: 111111' };
+    await assert.rejects(
+      () => lerCodigoAcesso(clientCom(antiga), DISPARO, { timeoutMs: 0, dormir: async () => {} }),
+      /nenhuma mensagem recebida após/
+    );
+  });
+
+  test('o erro carrega os 3 dados que faltaram para diagnosticar', async () => {
+    const antiga = { date: new Date('2026-08-29T15:00:00Z'), corpo: 'código: 111111' };
+    try {
+      await lerCodigoAcesso(clientCom(antiga), DISPARO, { timeoutMs: 0, dormir: async () => {} });
+      assert.fail('deveria ter lançado');
+    } catch (e) {
+      assert.ok(e.diagnosticoImap, 'o erro deve carregar diagnóstico');
+      assert.equal(e.diagnosticoImap.disparo, DISPARO.toISOString());
+      assert.ok(e.diagnosticoImap.corte_com_margem, 'corte efetivamente usado');
+      assert.ok(e.diagnosticoImap.polling_iniciou, 'quando o polling começou');
+      assert.equal(e.diagnosticoImap.mais_recente, '2026-08-29T15:00:00.000Z',
+        'a mensagem mais recente que HAVIA na caixa — distingue "não enviou" de "não reconheci"');
+      assert.match(e.message, /disparo=.*msg_mais_recente=/, 'a própria mensagem já traz o essencial');
+    }
   });
 });

@@ -96,29 +96,59 @@ async function lerCodigoAcesso(
   // sintoma ("nenhuma mensagem recebida") era idêntico ao de um portal que
   // parou de enviar. Se o código expirar antes disso, o portal recusa em
   // authentication/token e o erro fica explícito ali.
-  { mailbox = 'INBOX', assunto = ASSUNTO_ESPERADO, timeoutMs = 300000, intervaloMs = 5000, dormir, agora } = {}
+  // `margemMs` (2 min): tolerância no recorte por data. Em 2026-08-29 as
+  // rodadas de 13h e 14h falharam com "nenhuma mensagem recebida após o
+  // timestamp" enquanto o e-mail ESTAVA na caixa, chegado ~2 min antes de o
+  // polling começar. A causa exata do descompasso não foi determinada (o log
+  // não registrava o timestamp de disparo — corrigido agora), então esta
+  // margem é um PALIATIVO FUNDAMENTADO, não a correção da causa raiz.
+  // Seguro: as janelas do robô são espaçadas em horas, então 2 min não alcança
+  // o código de uma rodada anterior.
+  { mailbox = 'INBOX', assunto = ASSUNTO_ESPERADO, timeoutMs = 300000, intervaloMs = 5000, margemMs = 120000, dormir, agora } = {}
 ) {
   if (!(aposTimestamp instanceof Date) || Number.isNaN(aposTimestamp.getTime())) {
     throw new Error('imap-codigo: aposTimestamp inválido (esperado instância de Date)');
   }
+  const corteComMargem = new Date(aposTimestamp.getTime() - margemMs);
   const _dormir = dormir || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const _agora = agora || Date.now;
   const limite = _agora() + timeoutMs;
+  const inicioPolling = new Date(_agora());
+  let ultimoDiag = null;
 
   for (;;) {
     try {
-      return await _lerUmaVez(client, aposTimestamp, { mailbox, assunto });
+      return await _lerUmaVez(client, corteComMargem, {
+        mailbox, assunto, diag: (d) => { ultimoDiag = d; },
+      });
     } catch (e) {
       // "ainda não chegou" é transitório e merece nova tentativa; formato de
       // código inválido é definitivo — insistir não muda o conteúdo.
       const definitivo = /não contém código no formato esperado/.test(String(e.message));
-      if (definitivo || _agora() >= limite) throw e;
+      if (definitivo || _agora() >= limite) {
+        // Os 3 dados cuja ausência impediu diagnosticar as falhas de 13h/14h
+        // em 2026-08-29: quando disparamos, qual corte foi usado, e o que
+        // HAVIA na caixa. Sem eles, "nenhuma recebida após" é indistinguível
+        // de "o portal não enviou".
+        e.diagnosticoImap = {
+          disparo: aposTimestamp.toISOString(),
+          corte_com_margem: corteComMargem.toISOString(),
+          polling_iniciou: inicioPolling.toISOString(),
+          polling_terminou: new Date(_agora()).toISOString(),
+          mensagens_com_assunto: ultimoDiag ? ultimoDiag.encontradas : null,
+          mais_recente: ultimoDiag ? ultimoDiag.maisRecente : null,
+        };
+        e.message += ultimoDiag && ultimoDiag.maisRecente
+          ? ` [disparo=${aposTimestamp.toISOString()} corte=${corteComMargem.toISOString()} msg_mais_recente=${ultimoDiag.maisRecente}]`
+          : ` [disparo=${aposTimestamp.toISOString()} nenhuma mensagem com o assunto na janela]`;
+        throw e;
+      }
       await _dormir(intervaloMs);
     }
   }
 }
 
-async function _lerUmaVez(client, aposTimestamp, { mailbox, assunto }) {
+async function _lerUmaVez(client, aposTimestamp, { mailbox, assunto, diag } = {}) {
 
   // Modo read-only (\Peek do protocolo) — hardening owasp-security: a
   // credencial dá acesso à caixa inteira; nunca marcar como lida, mover ou
@@ -155,6 +185,17 @@ async function _lerUmaVez(client, aposTimestamp, { mailbox, assunto }) {
     }
 
     if (candidatos.length === 0) {
+      // Reporta o que HAVIA na caixa — sem isto, "nenhuma recebida após" é
+      // indistinguível de "o portal não enviou" (confusão real de 2026-08-29).
+      if (typeof diag === 'function') {
+        let maisRecente = null;
+        for (const uid of uids) {
+          const m = await client.fetchOne(uid, { envelope: true }, { uid: true });
+          const d = m && m.envelope && m.envelope.date ? new Date(m.envelope.date) : null;
+          if (d && (!maisRecente || d > maisRecente)) maisRecente = d;
+        }
+        diag({ encontradas: uids.length, maisRecente: maisRecente ? maisRecente.toISOString() : null });
+      }
       throw new Error('imap-codigo: nenhuma mensagem recebida após o timestamp informado');
     }
 
