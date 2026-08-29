@@ -286,8 +286,16 @@ function normalizarLinhaFaturamento(campos, idx) {
   }
 
   const valor = normalizarDecimalVirgula(bruto.valor);
-  if (valor === null || !(valor > 0)) {
-    erros.push({ campo: 'valor', motivo: 'valor deve ser numérico e > 0', valorBruto: bruto.valor });
+  if (valor === null) {
+    // Não-numérico continua BLOQUEANTE: sem número não há o que gravar.
+    erros.push({ campo: 'valor', motivo: 'valor deve ser numérico', valorBruto: bruto.valor });
+  } else if (!(valor > 0)) {
+    // Zero/negativo entra COM O VALOR ORIGINAL (decisão do operador em
+    // 2026-08-29: "importar conforme recebemos, nenhum valor deve ser
+    // tratado"). `bloqueante: false` mantém o registro em ImportacaoLinhaErro
+    // — o rastro do dado estranho não se perde — sem contar a linha como
+    // inválida, então o status final não vira completed_with_errors.
+    erros.push({ campo: 'valor', motivo: 'valor <= 0 (importado como recebido)', valorBruto: bruto.valor, bloqueante: false });
   }
 
   const descricao = bruto.descricao || '';
@@ -367,11 +375,18 @@ function normalizarLinhaPerformance(campos, idx) {
   }
 
   const minEntregadoresEscala = parseIntCampo(bruto.numero_minimo_de_entregadores_regulares_na_escala);
-  if (minEntregadoresEscala === null || minEntregadoresEscala < 0) {
+  if (minEntregadoresEscala === null) {
     erros.push({
       campo: 'min_entregadores_escala',
-      motivo: 'inteiro >= 0 obrigatório',
+      motivo: 'inteiro obrigatório',
       valorBruto: bruto.numero_minimo_de_entregadores_regulares_na_escala,
+    });
+  } else if (minEntregadoresEscala < 0) {
+    erros.push({
+      campo: 'min_entregadores_escala',
+      motivo: 'inteiro negativo (importado como recebido)',
+      valorBruto: bruto.numero_minimo_de_entregadores_regulares_na_escala,
+      bloqueante: false,
     });
   }
 
@@ -426,8 +441,12 @@ function normalizarLinhaPerformance(campos, idx) {
     ['corridas_completadas', corridasCompletadas, bruto.numero_de_corridas_completadas],
     ['corridas_canceladas', corridasCanceladas, bruto.numero_de_corridas_canceladas_pela_pessoa_entregadora],
   ].forEach(([campo, valor, valorBruto]) => {
-    if (valor === null || valor < 0) {
-      erros.push({ campo, motivo: 'inteiro >= 0 obrigatório', valorBruto });
+    if (valor === null) {
+      erros.push({ campo, motivo: 'inteiro obrigatório', valorBruto });
+    } else if (valor < 0) {
+      // Negativo entra como recebido (ex.: numero_de_corridas_rejeitadas=-1,
+      // observado no CSV real de 2026-08-28). Ver comentário em `valor` acima.
+      erros.push({ campo, motivo: 'inteiro negativo (importado como recebido)', valorBruto, bloqueante: false });
     }
   });
 
@@ -445,11 +464,18 @@ function normalizarLinhaPerformance(campos, idx) {
 
   const pedidosConcluidos = parseIntCampo(bruto.numero_de_pedidos_aceitos_e_concluidos);
   const taxasCentavos = parseIntCampo(bruto.soma_das_taxas_das_corridas_aceitas);
-  if (taxasCentavos === null || taxasCentavos < 0) {
+  if (taxasCentavos === null) {
     erros.push({
       campo: 'taxas_centavos',
-      motivo: 'inteiro >= 0 obrigatório (centavos, sem divisão)',
+      motivo: 'inteiro obrigatório (centavos, sem divisão)',
       valorBruto: bruto.soma_das_taxas_das_corridas_aceitas,
+    });
+  } else if (taxasCentavos < 0) {
+    erros.push({
+      campo: 'taxas_centavos',
+      motivo: 'inteiro negativo (importado como recebido)',
+      valorBruto: bruto.soma_das_taxas_das_corridas_aceitas,
+      bloqueante: false,
     });
   }
 

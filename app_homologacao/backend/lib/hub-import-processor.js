@@ -658,8 +658,17 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
         break;
       }
       const { valores, erros } = normalizarLinha(linha.campos, idx);
-      if (erros.length > 0) {
+      // `bloqueante: false` (normalizer, 2026-08-29): a linha É importada com o
+      // valor original — decisão do operador de "importar conforme recebemos" —
+      // mas o registro continua indo para ImportacaoLinhaErro, então o rastro
+      // do dado estranho não se perde. Só erro BLOQUEANTE (não-numérico, campo
+      // obrigatório ausente) descarta a linha e conta em `linhas_invalidas`,
+      // que é o que decide completed_with_errors.
+      const errosBloqueantes = erros.filter((e) => e.bloqueante !== false);
+      if (errosBloqueantes.length > 0) {
         invalidasCount += 1;
+      }
+      if (erros.length > 0) {
         erros.forEach((erro) => {
           errosLinha.push({
             importacao_id: job.importacaoId,
@@ -680,7 +689,8 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
             linha_bruta: linha.bruta,
           });
         });
-      } else {
+      }
+      if (errosBloqueantes.length === 0) {
         linhasValidas.push({ valores, hash: hashLinha(valores, camposHash), numeroLinha: linha.numeroLinha });
       }
     }
