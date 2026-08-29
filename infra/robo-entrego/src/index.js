@@ -241,7 +241,12 @@ async function dispararReacoesFalha({ acao, execucaoId, motivoFalha, relatorio, 
  * @param {string} [opts.caminhoLog]
  * @returns {Promise<object>} a linha `fim` escrita em log-execucao.js
  */
-async function executarRodada({ page, config, clienteHub, obterCodigo, transportador, dormir, agora, caminhoLog, axiosInstance } = {}) {
+async function executarRodada({ page, config, clienteHub, obterCodigo, transportador, dormir, agora, caminhoLog, axiosInstance, rede, diagnostico } = {}) {
+  // Diagnóstico injetável (default: o módulo real). Anexa estado da página +
+  // rede ao log QUANDO a rodada falha — sem isso, quem lê o alerta das 6h tem
+  // só o `motivo_falha`, que em 3 de 11 casos de 2026-08-28 apontava para a
+  // conclusão errada. Ver src/diagnostico-falha.js.
+  const _diag = diagnostico || require('./diagnostico-falha');
   const { execucaoId } = iniciarExecucao({ caminhoLog });
   const dataAnterior = dataAnteriorISO(agora ? agora() : Date.now());
   const relatorios = [];
@@ -307,6 +312,19 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
   const sucessos = relatorios.filter((r) => r.status_hub != null).length;
   const resultado = sucessos === 2 ? 'sucesso' : sucessos === 1 ? 'falha_parcial' : 'falha_total';
 
+  // Só coleta quando algo deu errado: numa rodada de sucesso o estado da página
+  // não acrescenta nada e o screenshot é peso morto.
+  let diagnosticoFalha;
+  if (resultado !== 'sucesso' && page) {
+    try {
+      diagnosticoFalha = await _diag.coletar(page, rede, {
+        screenshotPath: config && config.screenshotFalhaPath,
+      });
+    } catch (_) {
+      // NUNCA deixar o diagnóstico mascarar a falha original.
+    }
+  }
+
   return finalizarExecucao({
     execucaoId,
     resultado,
@@ -314,6 +332,7 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
     tentativasTotais,
     motivoFalha: motivosFalha.length ? motivosFalha.join('; ') : null,
     caminhoLog,
+    diagnostico: diagnosticoFalha,
   });
 }
 
@@ -411,6 +430,11 @@ if (require.main === module) {
     const context = await browser.newContext(storageState ? { storageState } : {});
     const page = await context.newPage();
 
+    // Liga a captura de rede ANTES de qualquer navegação — em falha, é ela que
+    // distingue "a requisição nem saiu" de "saiu e o portal recusou". Guarda só
+    // método/status/path, nunca corpo nem querystring assinada.
+    const rede = require('./diagnostico-falha').instrumentarRede(page);
+
     async function obterCodigo(timestampDisparo) {
       const client = new ImapFlow({
         host: 'imap.gmail.com',
@@ -432,7 +456,7 @@ if (require.main === module) {
     const transportador = criarTransportador({ gmailEmail: config.gmailEmail, gmailAppPassword: config.gmailAppPassword });
 
     try {
-      await executarRodada({ page, config, clienteHub, obterCodigo, transportador });
+      await executarRodada({ page, config, clienteHub, obterCodigo, transportador, rede });
     } finally {
       await browser.close();
     }
