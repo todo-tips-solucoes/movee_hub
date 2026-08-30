@@ -2,7 +2,7 @@
 // SUBSTITUI os filtros precisa avisar. Errar para menos cala um aviso quando
 // havia trabalho a perder; errar para mais enche a tela de aviso sobre nada.
 import { describe, expect, it } from 'vitest';
-import { initialFilters, ordenarDados, proximaOrdenacao, temFiltroAtivo } from './utils';
+import { formatDateBR, initialFilters, ordenarDados, proximaOrdenacao, temFiltroAtivo } from './utils';
 import type { EnvioMassa } from '@/types';
 
 describe('temFiltroAtivo', () => {
@@ -102,5 +102,24 @@ describe('proximaOrdenacao', () => {
       coluna: 'nome',
       direcao: 'asc',
     });
+  });
+});
+
+// Evidência de 2026-08-30: filtro 28/08→29/08 na tela de performance trazia os
+// turnos certos e carimbava "27/08" em todos. `new Date('2026-08-28')` é
+// meia-noite UTC, e em UTC-3 o `toLocaleDateString` volta um dia.
+describe('formatDateBR', () => {
+  it('data pura não escorrega para o dia anterior', () => {
+    expect(formatDateBR('2026-08-28')).toBe('28/08/2026');
+    expect(formatDateBR('2026-01-01')).toBe('01/01/2026');
+  });
+
+  it('timestamp com hora continua formatado pelo fuso local', () => {
+    expect(formatDateBR('2026-08-28T15:30:00-03:00')).toBe('28/08/2026');
+  });
+
+  it('vazio e lixo devolvem string vazia', () => {
+    expect(formatDateBR(null)).toBe('');
+    expect(formatDateBR('nao-e-data')).toBe('');
   });
 });
