@@ -1,7 +1,10 @@
 # Runbook — migration 0055 + deploy: financeiro por data de lançamento
 
 Aplica a `0055` no `chatmasterveloz` (container `pgadmin_db`, host VPSTodo) e sobe
-backend + frontend_v2 da main `8ac8a1d` (PR #141).
+backend + frontend_v2 da main `65490d7` — o código do financeiro é o do PR #141
+(`8ac8a1d`); `65490d7` é o HEAD da main no momento do build, que avançou com o
+merge deste próprio runbook. `git diff --stat 8ac8a1d..65490d7` mostra 1 arquivo:
+este documento. A tag carrega o sha do que foi BUILDADO, como manda o rito.
 
 **O que muda para o cliente**: o filtro de período do módulo Financeiro passa a
 usar `data_lancamento` (o dia em que o lançamento foi emitido) no lugar de
@@ -84,8 +87,19 @@ tabela de fatos**, só recria MV/funções/índices.
 ## Gate 4 — aplicar
 
 **4.0 — 🤖 build das duas imagens ANTES da migration** (encurta a janela de
-discordância entre lista e cards). Tag `hub-fin-lancamento-8ac8a1d`, backend via
+discordância entre lista e cards). Tag `hub-fin-lancamento-65490d7`, backend via
 `Dockerfile.hub`, frontend via `Dockerfile`, ambos com `--memory=2g`.
+
+✅ **Já executado em 2026-08-30 15h05** — as duas imagens estão no registry:
+
+| imagem | digest |
+|---|---|
+| `envio-massa-backend:hub-fin-lancamento-65490d7` | `sha256:69091f63bcbd…64a` |
+| `envio-massa-frontend-v2:hub-fin-lancamento-65490d7` | `sha256:710850940e2e…8f9` |
+
+Conferido em ambas: `node v20.20.2`; no backend, a janela por `data_lancamento` e o
+CSV com as duas datas; no frontend, `BACKEND_URL` da API do cliente, o rótulo novo
+no bundle e **zero** ocorrências do banner "HOMOLOGAÇÃO".
 
 **4.1 — 👤 a migration:**
 
@@ -156,11 +170,11 @@ seguida (rótulos e ordem das datas):
 
 ```
 docker service update --with-registry-auth \
-  --image registry.todo-tips.com/envio-massa-backend:hub-fin-lancamento-8ac8a1d \
+  --image registry.todo-tips.com/envio-massa-backend:hub-fin-lancamento-65490d7 \
   envio-massa-homologacao_backend_homologacao
 
 docker service update --with-registry-auth \
-  --image registry.todo-tips.com/envio-massa-frontend-v2:hub-fin-lancamento-8ac8a1d \
+  --image registry.todo-tips.com/envio-massa-frontend-v2:hub-fin-lancamento-65490d7 \
   envio-massa-homologacao_frontend_v2_homologacao
 ```
 
