@@ -195,7 +195,32 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance }) {
     throw new ErroHub(`hub-client: registrarEvento — status inesperado ${resp.status}`, { motivo: resp.data && resp.data.erro });
   }
 
-  return { login, enviarImportacao, pollarImportacao, registrarEvento };
+  /**
+   * GET /api/v1/importacoes/:id/erros — os rastros de linha da importação.
+   *
+   * Existe para o AVISO DE VALOR SILENCIOSO: desde a migration 0054, um `valor`
+   * de faturamento que venha como texto é gravado como 0 e a importação termina
+   * `completed`. O total do período fica subestimado e NADA avisa — o único
+   * sinal é este registro. Sem consultá-lo, o dado errado passa despercebido.
+   *
+   * Best-effort por desenho: uma falha aqui NUNCA pode transformar uma
+   * importação bem-sucedida em falha. Devolve [] e segue.
+   */
+  async function consultarErrosImportacao(id, { limite = 200 } = {}) {
+    try {
+      garantirAutenticado();
+      const resp = await http.get(`/api/v1/importacoes/${id}/erros?limit=${limite}`, {
+        headers: { Cookie: cookieHeader },
+      });
+      if (resp.status !== 200) return [];
+      const corpo = resp.data;
+      return Array.isArray(corpo) ? corpo : (corpo && Array.isArray(corpo.items) ? corpo.items : []);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  return { login, enviarImportacao, pollarImportacao, registrarEvento, consultarErrosImportacao };
 }
 
 module.exports = {

@@ -125,6 +125,37 @@ function comSinal(erro, sinal) {
   return erro;
 }
 
+/**
+ * Rastros que mudam um NÚMERO sem mudar o status da importação.
+ *
+ * Um `valor` de faturamento gravado como 0 (porque veio texto) subestima o total
+ * do período, e a importação termina `completed` — nenhuma tela acusa. Aqui
+ * transformamos esse silêncio em aviso.
+ *
+ * Best-effort: nunca lança. Uma falha ao consultar não pode derrubar uma
+ * importação que deu certo.
+ */
+async function detectarValoresSilenciosos(clienteHub, importacaoId, tipo) {
+  try {
+    if (!clienteHub || typeof clienteHub.consultarErrosImportacao !== 'function') return [];
+    const erros = await clienteHub.consultarErrosImportacao(importacaoId);
+    const monetarios = erros.filter(
+      (e) => e && e.campo === 'valor' && /texto em campo num/i.test(String(e.motivo || ''))
+    );
+    if (monetarios.length === 0) return [];
+    return [{
+      tipo,
+      importacao_id: importacaoId,
+      campo: 'valor',
+      linhas_afetadas: monetarios.length,
+      numeros_de_linha: monetarios.slice(0, 20).map((e) => e.numeroLinha ?? e.numero_linha).filter((n) => n != null),
+      impacto: 'valor gravado como 0 — total do periodo subestimado',
+    }];
+  } catch (_) {
+    return [];
+  }
+}
+
 /** 1 tentativa completa: fetch da URL → download → upload → polling. */
 async function tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance }) {
   const [item] = await buscarUrlsRelatorio(page, { tipo, dataInicial: dataAnterior, dataFinal: dataAnterior });
@@ -157,7 +188,12 @@ async function tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInsta
   // upload_201 -> polling até status terminal (contracts/hub-api.md)
   const poll = await clienteHub.pollarImportacao(upload.id);
   if (poll.sinal === 'polling_completed') {
-    return { statusHub: poll.dados.status, importacaoId: upload.id, item, sha256 };
+    // Importação `completed` NÃO significa "todos os valores corretos". Desde a
+    // migration 0054, texto em campo numérico vira 0 e a linha entra. No campo
+    // `valor` do FATURAMENTO isso é dinheiro: o total do período fica
+    // subestimado e nada avisa. Este é o único ponto onde dá para perceber.
+    const alertas = await detectarValoresSilenciosos(clienteHub, upload.id, tipo);
+    return { statusHub: poll.dados.status, importacaoId: upload.id, item, sha256, alertas };
   }
   // polling_failed | polling_completed_with_errors — Falha do hub (research.md Decision 11)
   const erroResumo = poll.dados && poll.dados.erroResumo ? ` — ${poll.dados.erroResumo}` : '';
@@ -336,6 +372,33 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
     : soSemDados ? 'sem_dados'
     : 'falha_total';
 
+  // Avisos que NÃO mudam o resultado, mas mudam um NÚMERO. Hoje só o `valor`
+  // monetário gravado como 0. Vão para o log SEMPRE, e por e-mail mesmo quando a
+  // rodada foi 'sucesso' — é justamente no sucesso que passariam despercebidos.
+  const avisosValor = relatorios.flatMap((r) => r.alertas || []);
+  if (avisosValor.length > 0) {
+    const linhas = avisosValor.reduce((acc, a) => acc + a.linhas_afetadas, 0);
+    const detalhe = avisosValor
+      .map((a) => `${a.tipo} (importacao ${a.importacao_id}): ${a.linhas_afetadas} linha(s), nº ${a.numeros_de_linha.join(', ')}`)
+      .join(' | ');
+    try {
+      await enviarAlerta({
+        transportador,
+        remetente: config.gmailEmail,
+        destinatarios: config.alertaDestinatarios,
+        execucaoId,
+        resultado: `AVISO: ${linhas} valor(es) monetário(s) gravado(s) como 0`,
+        motivoFalha:
+          `A importação concluiu com sucesso, mas ${linhas} lançamento(s) vieram com texto no campo `
+          + `\`valor\` e foram gravados como 0 — o TOTAL DO PERÍODO está subestimado nesse montante. `
+          + `Confira em ImportacaoLinhaErro (valorBruto tem o original). Detalhe: ${detalhe}`,
+        relatorios: [],
+      });
+    } catch (_) {
+      // o aviso é best-effort; nunca pode derrubar uma rodada bem-sucedida
+    }
+  }
+
   // Só coleta quando algo deu errado: numa rodada de sucesso o estado da página
   // não acrescenta nada e o screenshot é peso morto.
   let diagnosticoFalha;
@@ -357,6 +420,7 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
     motivoFalha: motivosFalha.length ? motivosFalha.join('; ') : null,
     caminhoLog,
     diagnostico: diagnosticoFalha,
+    avisos: avisosValor.length ? avisosValor : null,
   });
 }
 
