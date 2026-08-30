@@ -20,7 +20,7 @@ checado inline quando `?format=csv` (research.md Decision 9).
 
 | Param | Tipo | Default | Nota |
 |---|---|---|---|
-| `de` | date `YYYY-MM-DD` | hoje − 30 dias | filtra por `data_referencia` (FR-002) |
+| `de` | date `YYYY-MM-DD` | hoje − 30 dias | filtra por **`data_lancamento`** (migration `0055`) |
 | `ate` | date `YYYY-MM-DD` | hoje | idem |
 | `categoria` | string | — | match exato em `descricao` |
 | `entregadorId` | int | — | match exato em `entregador_id`; combinado com `comEntregador=false` é 400 (contraditório) |
@@ -28,6 +28,21 @@ checado inline quando `?format=csv` (research.md Decision 9).
 | `comEntregador` | `true` \| `false` | — (ambos) | `true` = só com `entregador_id` NOT NULL; `false` = só agregados/bônus (`entregador_id IS NULL`); ausente = ambos |
 | `page` | int | 1 | 1-indexed |
 | `pageSize` | int | 20 | máx. 100 (mesma constante `PAGE_SIZE_MAX` de `importacoes`/`motoristas`) |
+
+> ⚠️ **A janela mudou de coluna em 2026-08-30 (migration `0055`).** Até então
+> `de`/`ate` filtravam `data_referencia` — a *competência*, o dia do turno a que
+> o lançamento se refere. Agora filtram `data_lancamento`, o dia em que o
+> lançamento foi emitido, por decisão do operador: assim "o dia 28" significa a
+> mesma coisa aqui e no módulo Performance (que filtra `data_periodo`).
+>
+> As duas colunas divergem de verdade — no arquivo real de 28/08/2026, 1.058 das
+> 4.786 linhas tinham competência 27/08 — então **todo total diário exibido ou
+> exportado antes dessa data não bate com o mesmo período consultado depois**.
+> Nenhum dado foi perdido: as duas colunas seguem gravadas, a lista mostra as
+> três datas do ciclo e o CSV traz as duas. `hub_faturamento_totais`,
+> `hub_faturamento_agrupado` (`groupBy=dia`) e `mv_faturamento_dia` usam a mesma
+> coluna — backend e MV nunca podem divergir aqui, sob pena de a lista e os
+> cards discordarem na mesma tela.
 | `format` | `csv` | — | ativa modo export (streaming, sem paginação — `page`/`pageSize` ignorados) |
 
 **Resposta 200 (JSON, sem `format`)**:
@@ -63,7 +78,9 @@ checado inline quando `?format=csv` (research.md Decision 9).
 
 **Resposta 200 (`?format=csv`)**: `Content-Type: text/csv; charset=utf-8`,
 `Content-Disposition: attachment; filename="faturamento-<de>_<ate>.csv"`.
-Cabeçalho: `dataReferencia,categoria,valor,entregadorNome,subpraca,praca,periodo`.
+Cabeçalho: `dataLancamento,dataReferencia,categoria,valor,entregadorNome,subpraca,praca,periodo`.
+As **duas** datas saem no CSV desde a `0055`: elas divergem em parte relevante
+das linhas, e quem exporta para conciliar precisa das duas.
 Streaming em lotes de 1.000 linhas (research.md Decision 5); célula
 neutralizada por `lib/hub-csv.js` quando começa com `= + - @` (FR-007/SC-005).
 Filtro vazio → arquivo só com cabeçalho (edge case explícito da spec, não é

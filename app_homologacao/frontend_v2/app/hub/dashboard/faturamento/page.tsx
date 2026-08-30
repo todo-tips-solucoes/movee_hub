@@ -220,9 +220,12 @@ export function useFaturamentoLista() {
  * senão a linha muda de forma entre registros e o olho perde a referência.
  */
 function CicloDatas({ item }: { item: FaturamentoListItem }) {
+  // 0055 (2026-08-30): `Lançamento` é a data que o filtro e os totais usam, por
+  // isso vem primeiro. `Competência` continua aqui — ela diverge do lançamento
+  // em ~25% das linhas, e some-la esconderia justamente a linha que não bate.
   const linhas: [string, string | null][] = [
-    ['Competência', item.dataReferencia],
     ['Lançamento', item.dataLancamento],
+    ['Competência', item.dataReferencia],
     ['Repasse', item.dataRepasse],
   ];
   return (
@@ -520,8 +523,9 @@ export default function FaturamentoPage() {
         }
         nota={
           <>
-            Os filtros de período usam a <strong>data de competência</strong> do lançamento (não a
-            data de importação).
+            Os filtros de período usam a <strong>data de lançamento</strong> (não a competência
+            nem a data de importação). Cada linha mostra as três datas em &quot;Ciclo do
+            lançamento&quot;.
           </>
         }
       >
@@ -531,9 +535,9 @@ export default function FaturamentoPage() {
             de={h.filtros.de}
             ate={h.filtros.ate}
             onChange={(intervalo) => h.setFiltros(intervalo)}
-            rotuloDe="De (data de competência)"
-            rotuloAte="Até (data de competência)"
-            legenda="de competência"
+            rotuloDe="De (data de lançamento)"
+            rotuloAte="Até (data de lançamento)"
+            legenda="de lançamento"
             // O backend aplica 30 dias quando nenhum período é informado
             // (`JANELA_PADRAO_DIAS`, lib/hub-faturamento-dto.js).
             janelaPadraoDias={30}
