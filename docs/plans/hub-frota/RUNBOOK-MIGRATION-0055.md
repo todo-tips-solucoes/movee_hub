@@ -123,8 +123,13 @@ INSERT INTO \"SchemaMigration\" (nome) VALUES ('"'"'0055_faturamento_por_data_la
 assinatura, mas o cache de schema é barato de recarregar):
 
 ```
-! docker kill -s SIGUSR1 $(docker ps -qf name=postgrest | head -1)
+! docker kill -s SIGUSR1 $(docker ps -qf name=pgadmin_postgrest | head -1)
 ```
+
+⚠️ O filtro é `name=pgadmin_postgrest`, **não** `name=postgrest`: há TRÊS PostgREST
+neste host (`pgadmin_postgrest` = produção, `hub_homolog_postgrest` = ambiente
+isolado, mais o do hub) e `| head -1` pode acertar o errado — o reload iria para o
+container errado e ninguém perceberia. Pego na execução de 2026-08-30.
 
 ⚠️ **Sonda HTTP em `/rpc/` NÃO prova o reload** (lição da 0051) — a prova é a
 contagem de funções no log do PostgREST, ou o passo 5.2 abaixo, que exercita a
@@ -205,3 +210,43 @@ do ciclo com **Lançamento** em primeiro.
 - Avisar quem recebeu relatórios diários do financeiro: os números do mesmo
   período mudaram, e a razão é a troca de coluna, não erro de dado.
 - Atualizar a memória do projeto com as imagens novas e o rollback.
+
+---
+
+## Execução — 2026-08-30, ~18h30 UTC ✅
+
+Executado integralmente. Desfecho:
+
+| Gate | Resultado |
+|---|---|
+| 2 · importação em curso | nenhuma (última janela do robô às 14h, dia 29 importado OK) |
+| 3 · rollback | 151 linhas em `~/faturamento-antes-0055.sql` |
+| 4.1 · migration | aplicou na ordem esperada; MV nasceu com **8.975 linhas** |
+| 4.2 · SchemaMigration | `INSERT 0 1` |
+| 4.3 · SIGUSR1 | entregue ao `pgadmin_postgrest` (`9b75ffe3e509`) |
+| 5.1 · colunas da MV | `data_lancamento` presente, `data_referencia` ausente |
+| 5.2 · RPCs | dia 28 = R$ 133.462,99 · 767 entregadores |
+| 5.3 · MV × tabela | **bate em 4 de 4 dias** |
+| 5.4 · fallback sub-praça | R$ 10.813,18 · 89 entregadores |
+| 6 · deploy | backend e frontend_v2 → `:hub-fin-lancamento-65490d7`, 1/1 |
+| 7 · prova | smoke 200; código conferido no container; **sha256 do bundle servido == o da imagem** |
+
+**Totais que mudaram** (o efeito esperado da troca de coluna):
+
+| Dia | Antes (competência) | Depois (lançamento) |
+|---|---|---|
+| 27/08 | R$ 110.913,63 | R$ 148.912,63 |
+| 28/08 | R$ 108.398,05 | R$ 133.462,99 |
+| 29/08 | — | R$ 141.392,49 |
+
+🟢 **Achado que só a execução revelou**: por data de LANÇAMENTO, cada arquivo do
+portal cobre exatamente **um** dia — as quantidades por dia (4.354 / 4.786 / 4.173)
+são o total de linhas de cada arquivo importado. Por competência, um arquivo se
+espalhava por 3–4 dias. É um mérito operacional da decisão que o levantamento
+prévio não tinha capturado.
+
+⚠️ **Incidente NÃO relacionado, no meio da janela**: o disco do host chegou a 100% e
+derrubou o `pgadmin_db` (crash loop, `No space left on device`). Causa: acúmulo de
+imagens + 5 builds no mesmo dia. Recuperado com `docker builder prune -f` +
+`docker image prune -f` (18 GB); nenhum dado perdido. O rito de build no
+`CLAUDE.md` passou a exigir `df -h /` por causa disso.

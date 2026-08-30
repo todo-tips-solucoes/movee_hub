@@ -142,11 +142,30 @@ docker compose -f infra/hub/compose.hub.homolog.yml -p hub-homolog --env-file /v
 infra/hub/scripts/migrate.sh -f infra/hub/compose.hub.homolog.yml -p hub-homolog -e /var/lib/hub_secrets/.env.hub.homolog
 ```
 
-Builds pesados no host (`next build`, `docker build`) seguem o rito anti-starvation:
-garantir swap ativa e limitar com `--memory=2g` (incidente de starvation 2026-06-11).
-Limpeza docker sempre com filtro `hub_*` — nunca prune genérico. Gotcha turbopack:
-comentário JSX `{/* */}` imediatamente após `return (` quebra o build — usar `//` na
-linha acima do `return`.
+Builds pesados no host (`next build`, `docker build`) exigem **duas** conferências
+antes, cada uma nascida de um incidente real:
+
+| Conferir | Como | Incidente de origem |
+|---|---|---|
+| **RAM/swap** | swap ativa; `docker build` sempre com `--memory=2g` | starvation 2026-06-11 (derrubou o Swarm inteiro) |
+| **Espaço em disco** | `df -h /` — **abortar se houver menos de ~20 GB livres** | disco cheio 2026-08-30 (derrubou o `chatmasterveloz`) |
+
+O check de disco é tão obrigatório quanto o de swap. Em 2026-08-30, cinco builds no
+mesmo dia (backend 700 MB cada, frontend 281 MB, mais cache) levaram `/` a 100% e o
+Postgres de produção entrou em crash loop: `could not write lock file
+"postmaster.pid": No space left on device`. Cada imagem de backend custa ~700 MB e
+o build cache cresce sozinho — 5 builds consomem vários GB.
+
+Limpeza docker: **nunca** por impulso, e nunca `docker system prune -a` (apagaria as
+imagens de rollback locais) nem `--volumes` (destruiria `envio_massa_hub_uploads`,
+que guarda os arquivos originais das importações). Para recursos do hub, filtro
+`hub_*`. Em emergência de disco, o que é seguro e reversível:
+`docker builder prune -f` (só cache de build) e `docker image prune -f` **sem `-a`**
+(só imagens sem tag) — foi o que recuperou 18 GB no incidente acima, sem tocar em
+nenhuma imagem tagueada, volume ou container em uso.
+
+Gotcha turbopack: comentário JSX `{/* */}` imediatamente após `return (` quebra o
+build — usar `//` na linha acima do `return`.
 
 ## Convenções de deploy
 
@@ -177,7 +196,7 @@ falha real, não de boas práticas genéricas — a justificativa está ao lado.
 | 3 | Commit | O quê, **por quê**, o que foi verificado, o que ficou de fora. Correção alheia ao escopo vai declarada no corpo, nunca escondida. Trailers de praxe (ver Governança). |
 | 4 | PR | O que muda, risco, verificação com números, o que ficou deliberadamente de fora, e os achados que mudaram o produto durante a verificação. |
 | 5 | **Merge** | Squash + branch deletada, depois `git checkout main && git pull --ff-only`. **Vem ANTES do deploy.** |
-| 6 | Build | A partir da **main já mergeada**. Tag `<rótulo>-<sha7>` (`git rev-parse --short HEAD`). Rito anti-starvation obrigatório. Conferir Dockerfile, `node --version` e `BACKEND_URL` antes de entregar. Anotar o digest. |
+| 6 | Build | A partir da **main já mergeada**. Tag `<rótulo>-<sha7>` (`git rev-parse --short HEAD`). **`df -h /` e swap conferidos ANTES** (ver [Comandos](#comandos) — disco cheio derruba o banco). Conferir Dockerfile, `node --version` e `BACKEND_URL` antes de entregar. Anotar o digest. |
 | 7 | Deploy | Os 5 gates do rito de produção, sem exceção. |
 | 8 | Prova | Depois do deploy, **provar** que o bundle servido é o novo: buscar no artefato servido por produção uma string que só existe naquela entrega. HTTP 200 prova que o serviço subiu, não que subiu o código certo. |
 
