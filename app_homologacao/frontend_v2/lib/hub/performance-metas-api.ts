@@ -22,8 +22,13 @@ export const INDICADORES_META: ReadonlyArray<{ id: IndicadorMeta; rotulo: string
   { id: 'conclusao', rotulo: 'Taxa de conclusão', ajuda: 'Corridas completadas sobre as aceitas no turno.' },
   {
     id: 'tempo_disponivel',
-    rotulo: 'Tempo disponível',
-    ajuda: 'Parte do turno em que a pessoa esteve disponível.',
+    rotulo: 'Tempo disponível do turno',
+    // O portal de origem informa OUTRO percentual no mesmo nome: tempo online
+    // sobre o tempo que a pessoa SE ESCALOU, que é sempre maior (migration
+    // 0050). Sem dizer sobre o que a conta é feita, os dois números parecem o
+    // mesmo indicador quebrado — foi o que aconteceu em 2026-08-30, com 53,06%
+    // no arquivo e 1,3% na tela para o mesmo turno.
+    ajuda: 'Tempo online dividido pela duração inteira do turno — não é o percentual sobre a escala que o portal de origem informa.',
   },
 ];
 

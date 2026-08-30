@@ -288,10 +288,13 @@ function indicadoresDoTurno(item: PerformanceTurnoItem, metasPorChave: Map<strin
       valor: leituras.tempo_disponivel,
       meta: meta('tempo_disponivel'),
       rotulo: ROTULO_INDICADOR.tempo_disponivel,
+      // A fórmula vai SEMPRE no detalhe: é a única coluna cujo número diverge
+      // do que o portal de origem mostra para o mesmo turno (ver a `ajuda` em
+      // performance-metas-api.ts), e sem ela a divergência parece defeito.
       detalhe:
         item.pracas.length > 1
-          ? `somando as ${item.pracas.length} praças do turno`
-          : undefined,
+          ? `tempo online sobre a duração do turno, somando as ${item.pracas.length} praças`
+          : 'tempo online sobre a duração do turno',
     },
   };
 }
@@ -355,7 +358,7 @@ function CardsResumo({ cards }: { cards: PerformanceResumoCards }) {
         icon={Percent}
       />
       <KpiCard
-        label="Tempo disponível médio"
+        label="Tempo disponível médio do turno"
         value={formatPontoPct(cards.tempoDisponivelMedio)}
         icon={Clock}
       />
@@ -784,7 +787,7 @@ export default function PerformancePage() {
                     {[
                       ['Aceitação', ind.aceitacao],
                       ['Conclusão', ind.conclusao],
-                      ['Tempo disp.', ind.tempo],
+                      ['Tempo disp. do turno', ind.tempo],
                     ].map(([rotuloCurto, props]) => (
                       <div key={rotuloCurto as string} className="flex flex-col items-end">
                         <dt className="text-[0.6875rem] text-muted-foreground">{rotuloCurto as string}</dt>
@@ -816,7 +819,7 @@ export default function PerformancePage() {
                   <TableHead>Sub-praças</TableHead>
                   <TableHead className="text-right">Aceitação</TableHead>
                   <TableHead className="text-right">Conclusão</TableHead>
-                  <TableHead className="text-right">Tempo disp.</TableHead>
+                  <TableHead className="text-right">Tempo disp. do turno</TableHead>
                   <TableHead className="text-right">Pedidos concl.</TableHead>
                   <TableHead className="text-right">Taxas</TableHead>
                 </TableRow>
