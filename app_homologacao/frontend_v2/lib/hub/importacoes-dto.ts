@@ -72,6 +72,9 @@ export interface ImportacaoListItem {
   linhasValidas: number | null;
   linhasInvalidas: number | null;
   dataReferencia: string | null;
+  /** Fim do intervalo de datas do arquivo (0056). `null` = arquivo de um dia
+   * só, ou importação anterior à migration. */
+  dataReferenciaFim: string | null;
   criadoPor: number | null;
   iniciadoEm: string | null;
   concluidoEm: string | null;
@@ -121,6 +124,7 @@ export function parseImportacaoListItem(raw: unknown): ImportacaoListItem {
     linhasValidas: isNumberOrNull(r.linhasValidas) ? r.linhasValidas : null,
     linhasInvalidas: isNumberOrNull(r.linhasInvalidas) ? r.linhasInvalidas : null,
     dataReferencia: isStringOrNull(r.dataReferencia) ? r.dataReferencia : null,
+    dataReferenciaFim: isStringOrNull(r.dataReferenciaFim) ? r.dataReferenciaFim : null,
     criadoPor: isNumberOrNull(r.criadoPor) ? r.criadoPor : null,
     iniciadoEm: isStringOrNull(r.iniciadoEm) ? r.iniciadoEm : null,
     concluidoEm: isStringOrNull(r.concluidoEm) ? r.concluidoEm : null,
@@ -159,6 +163,9 @@ export interface ImportacaoDetalhe {
     invalidas: number | null;
   };
   dataReferencia: string | null;
+  /** Fim do intervalo de datas do arquivo (0056). `null` = arquivo de um dia
+   * só, ou importação anterior à migration. */
+  dataReferenciaFim: string | null;
   iniciadoEm: string | null;
   concluidoEm: string | null;
   duracaoSegundos: number | null;
@@ -187,6 +194,7 @@ export function parseImportacaoDetalhe(raw: unknown): ImportacaoDetalhe {
       invalidas: isNumberOrNull(contadoresRaw.invalidas) ? contadoresRaw.invalidas : null,
     },
     dataReferencia: isStringOrNull(r.dataReferencia) ? r.dataReferencia : null,
+    dataReferenciaFim: isStringOrNull(r.dataReferenciaFim) ? r.dataReferenciaFim : null,
     iniciadoEm: isStringOrNull(r.iniciadoEm) ? r.iniciadoEm : null,
     concluidoEm: isStringOrNull(r.concluidoEm) ? r.concluidoEm : null,
     duracaoSegundos: isNumberOrNull(r.duracaoSegundos) ? r.duracaoSegundos : null,
@@ -271,4 +279,23 @@ export function validarArquivoImportacao(file: { name: string; size: number }): 
   const ext = extensaoDoArquivo(file.name);
   if (!EXTENSOES_PERMITIDAS.includes(ext)) return { valido: false, motivo: 'extensao_invalida' };
   return { valido: true };
+}
+
+/**
+ * Rótulo do intervalo de datas de uma importação (0056).
+ *
+ * Um arquivo do portal cobre um dia só na maioria das vezes, mas não sempre: o
+ * de faturamento de 28/08/2026 trazia competências de 25 a 28/08. Mostrar só a
+ * primeira data escondia isso — e foi o que fez a importação do dia 28 aparecer
+ * como "27/08". Quando as pontas coincidem (ou não há fim), sai uma data só;
+ * quando diferem, sai o intervalo.
+ */
+export function rotuloIntervaloImportacao(
+  de: string | null,
+  ate: string | null,
+  formatar: (d: string) => string,
+): string {
+  if (!de) return ate ? formatar(ate) : '';
+  if (!ate || ate === de) return formatar(de);
+  return `${formatar(de)} – ${formatar(ate)}`;
 }

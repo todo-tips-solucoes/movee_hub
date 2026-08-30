@@ -764,9 +764,25 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
       console.error('[hub-import-processor] falha ao gravar ImportacaoLinhaErro (não bloqueia a importação):', errErros.message);
     }
 
-    const dataReferencia = linhasValidas.length > 0
-      ? (job.tipo === 'faturamento' ? linhasValidas[0].valores.data_referencia : linhasValidas[0].valores.data_periodo)
-      : null;
+    // Intervalo REAL de datas do arquivo (2026-08-30). Antes era a data da
+    // PRIMEIRA linha válida, o que rotulava a importação com um dia que muitas
+    // vezes não é o dela: o arquivo de faturamento de 28/08 carregava 4.786
+    // linhas com competências espalhadas entre 25 e 28/08, e a importação
+    // aparecia como "27/08" só porque foi o que veio na linha 1.
+    //
+    // Cada REGISTRO continua gravando a data da própria linha — isso nunca
+    // dependeu daqui (conferido em 8 campos × 3.067 linhas, zero divergências).
+    // O que muda é só o rótulo da importação, que passa a dizer a verdade:
+    // `data_referencia` = menor, `data_referencia_fim` = maior (migration 0056).
+    //
+    // O campo por tipo é o que liga os dois módulos: performance usa
+    // `data_do_periodo` (a data do turno) e faturamento, a competência.
+    const campoData = job.tipo === 'faturamento' ? 'data_referencia' : 'data_periodo';
+    const datas = linhasValidas
+      .map((l) => l.valores[campoData])
+      .filter((d) => d);
+    const dataReferencia = datas.length > 0 ? datas.reduce((a, b) => (a < b ? a : b)) : null;
+    const dataReferenciaFim = datas.length > 0 ? datas.reduce((a, b) => (a > b ? a : b)) : null;
     const statusFinal = invalidasCount > 0 ? 'completed_with_errors' : 'completed';
 
     // F5 (pós-review PR #57) — transição terminal GUARDADA por
@@ -785,6 +801,7 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
         linhas_validas: validasCount,
         linhas_invalidas: invalidasCount,
         data_referencia: dataReferencia,
+        data_referencia_fim: dataReferenciaFim,
         concluido_em: deps.isoAgora(),
       },
       job.claims
