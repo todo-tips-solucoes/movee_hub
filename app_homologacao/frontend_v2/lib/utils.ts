@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { EnvioMassa, FilterState, StatsData } from "@/types"
+import { formatarISOparaBR } from "@/lib/hub/periodo"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -14,6 +15,12 @@ export function formatBRL(valor: number | string): string {
 
 export function formatDateBR(dateStr: string | null): string {
   if (!dateStr) return '';
+  // `new Date('2026-08-28')` é meia-noite UTC; em UTC-3 o `toLocaleDateString`
+  // devolve o dia ANTERIOR ("27/08/2026"). Toda data do hub trafega assim, sem
+  // hora — daí a tela mostrar o dia anterior ao filtrado (evidência 2026-08-30).
+  // Data pura é formatada da própria string; só o que tem hora vira `Date`.
+  const soData = formatarISOparaBR(dateStr);
+  if (soData) return soData;
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
   const formatted = date.toLocaleDateString('pt-BR');
