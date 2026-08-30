@@ -482,6 +482,50 @@ describe('executarPipeline — happy path (completed)', () => {
     assert.equal(resultado.status, 'completed', 'falha no refresh NÃO pode reverter a importação');
   });
 
+  // 2026-08-30: a falha do refresh era best-effort SILENCIOSA — só um
+  // console.error dentro do container. Desde a 0050/0051 a tela lê a MV, então
+  // MV velha = o dia existe no banco e SOME da tela, sem nada acusar. Foi
+  // exatamente o sintoma que motivou a investigação do dia 28/08.
+  test('falha no refresh: 1 retentativa e, se insistir, evento de auditoria (nunca silêncio)', async () => {
+    const csv = [HEADER_ROW_FATURAMENTO, linhaFaturamento({ descricao: 'linha 1' }), ''].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+    const eventosAuditoria = [];
+    deps.registrarAuditoria = async (evento) => { eventosAuditoria.push(evento); };
+    let tentativasRefresh = 0;
+    const mockOriginal = deps.hubPostgrestRequest;
+    deps.hubPostgrestRequest = async (endpoint, method, body, claims, opts) => {
+      if (endpoint === 'rpc/hub_faturamento_refresh_mv') {
+        tentativasRefresh += 1;
+        const err = new Error('PostgREST indisponível (simulado)');
+        err.status = 503; // transiente -> `executarComRetry` tenta de novo
+        throw err;
+      }
+      return mockOriginal(endpoint, method, body, claims, opts);
+    };
+
+    const resultado = await executarPipeline(jobFaturamento(), deps);
+
+    assert.equal(resultado.status, 'completed', 'falha no refresh NÃO pode reverter a importação');
+    assert.equal(tentativasRefresh, 2, 'erro transiente no refresh deve ser retentado exatamente 1x');
+    const alarme = eventosAuditoria.find((e) => e.acao === 'importacao.mv_desatualizada');
+    assert.ok(alarme, 'refresh que falhou de vez PRECISA virar evento de auditoria');
+    assert.equal(alarme.recursoId, 1);
+    assert.equal(alarme.detalhes.rpc, 'rpc/hub_faturamento_refresh_mv');
+  });
+
+  test('refresh bem-sucedido não gera alarme de MV desatualizada', async () => {
+    const csv = [HEADER_ROW_FATURAMENTO, linhaFaturamento({ descricao: 'linha 1' }), ''].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+    const eventosAuditoria = [];
+    deps.registrarAuditoria = async (evento) => { eventosAuditoria.push(evento); };
+
+    await executarPipeline(jobFaturamento(), deps);
+
+    assert.equal(eventosAuditoria.filter((e) => e.acao === 'importacao.mv_desatualizada').length, 0);
+  });
+
   // Follow-up SC-004 da S7 (migration 0031) — importação de PERFORMANCE
   // bem-sucedida dispara o refresh da mv_performance_dia (e NUNCA o da
   // mv_faturamento_dia), espelhando o comportamento da 0028 para faturamento.

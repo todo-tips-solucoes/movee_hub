@@ -820,11 +820,41 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
       faturamento: 'rpc/hub_faturamento_refresh_mv', // mv_faturamento_dia (0028)
       performance: 'rpc/hub_performance_refresh_mv', // mv_performance_dia (0031)
     }[job.tipo];
+    // A falha aqui NÃO reverte a importação (fatos já gravados), mas TAMPOUCO
+    // pode passar em silêncio: desde a 0050/0051 a tela de performance e os
+    // cards do financeiro leem a MV, não a tabela-base. MV velha = o dia existe
+    // no banco e SOME da tela, que foi exatamente o sintoma investigado em
+    // 2026-08-30. Duas camadas, nesta ordem:
+    //   1. retry do mesmo `executarComRetry` dos INSERTs — 5xx/429/rede são a
+    //      causa provável, e uma segunda tentativa resolve;
+    //   2. se ainda assim falhar, um evento de AUDITORIA, que aparece na tela
+    //      de Auditoria do hub. Antes disso o único rastro era um console.error
+    //      dentro do container.
+    let mvAtualizada = null;
     if (rpcRefreshMv) {
       try {
-        await deps.hubPostgrestRequest(rpcRefreshMv, 'POST', {}, job.claims);
+        await executarComRetry(() => deps.hubPostgrestRequest(rpcRefreshMv, 'POST', {}, job.claims));
+        mvAtualizada = true;
       } catch (errRefresh) {
-        console.error(`[hub-import-processor] falha ao atualizar a MV de resumo (${rpcRefreshMv}, best-effort, staleness até o próximo refresh):`, errRefresh && errRefresh.message);
+        mvAtualizada = false;
+        console.error(`[hub-import-processor] falha ao atualizar a MV de resumo (${rpcRefreshMv}, staleness até o próximo refresh):`, errRefresh && errRefresh.message);
+        try {
+          await deps.registrarAuditoria({
+            idEmpresa: job.idEmpresa,
+            acao: 'importacao.mv_desatualizada',
+            recurso: 'ImportacaoArquivo',
+            recursoId: job.importacaoId,
+            detalhes: {
+              rpc: rpcRefreshMv,
+              tipo: job.tipo,
+              motivo: errRefresh && errRefresh.message,
+              impacto: 'dados importados podem nao aparecer nas telas ate o proximo refresh',
+            },
+            claims: job.claims,
+          });
+        } catch (errAuditoriaMv) {
+          console.error('[hub-import-processor] falha ao auditar a MV desatualizada (best-effort):', errAuditoriaMv && errAuditoriaMv.message);
+        }
       }
     }
 
@@ -840,6 +870,8 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
       totalLinhas: total,
       linhasValidas: validasCount,
       linhasInvalidas: invalidasCount,
+      // `null` = tipo sem MV de resumo; `false` = o dia ficou fora das telas.
+      mvAtualizada,
       duracaoMs,
       linhasPorSegundo: duracaoMs > 0 ? Math.round((total / duracaoMs) * 1000) : total,
     }));
