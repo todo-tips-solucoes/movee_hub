@@ -125,7 +125,15 @@ const TRANSICOES_VALIDAS = {
   validating: ['processing', 'failed', 'cancelled'],
   processing: ['completed', 'completed_with_errors', 'failed', 'cancelled'],
   completed: [],
-  completed_with_errors: [],
+  // `completed_with_errors -> pending` (2026-08-30): antes era beco sem saída.
+  // Um dia que entrou torto porque a REGRA de validação mudou depois (o dia
+  // 28/08 perdeu 1 linha por `corridas_rejeitadas` negativa, aceita a partir do
+  // PR #132) não tinha como ser refeito: reenviar o mesmo arquivo esbarra em
+  // UNIQUE(id_empresa,tipo,hash_sha256) e o reprocessar recusava este estado.
+  // Reprocessar é idempotente — os fatos entram com
+  // `on_conflict=id_empresa,hash_linha` + `ignore-duplicates`, então a segunda
+  // passada só acrescenta o que faltava.
+  completed_with_errors: ['pending'],
   failed: ['pending'],
   cancelled: ['pending'],
 };

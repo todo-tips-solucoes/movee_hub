@@ -75,6 +75,7 @@ describe('filtrarRelatorio — allowlist (3.1.4, nunca credencial/url_s3)', () =
       sha256: 'deadbeef',
       importacao_id: 123,
       status_hub: 'completed',
+      reprocessado: false,
       tentativas: 1,
       // campos que NUNCA podem vazar para o log
       senha: 'super-secreto',

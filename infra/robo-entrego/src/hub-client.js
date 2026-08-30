@@ -147,6 +147,26 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance }) {
   }
 
   /**
+   * POST /api/v1/importacoes/:id/reprocessar — refaz uma importação que
+   * terminou torta (failed/cancelled/completed_with_errors) REUSANDO o mesmo
+   * id. É a única saída quando o arquivo já subiu: reenviá-lo bate em
+   * UNIQUE(id_empresa,tipo,hash_sha256) e volta 409 para sempre.
+   * 409 aqui = já não está refazível (outra passada ganhou a corrida, ou o
+   * estado virou `completed`) — não é erro, é "não há o que refazer".
+   */
+  async function reprocessarImportacao(id) {
+    garantirAutenticado();
+    const resp = await http.post(`/api/v1/importacoes/${id}/reprocessar`, null, {
+      headers: { Cookie: cookieHeader },
+    });
+    if (resp.status === 202) return { sinal: 'reprocessar_202', id: resp.data.id, status: resp.data.status };
+    if (resp.status === 409) return { sinal: 'reprocessar_409' };
+    if (resp.status === 404) return { sinal: 'reprocessar_404' };
+    if (resp.status >= 500) return { sinal: 'http_5xx_hub', status: resp.status };
+    throw new ErroHub(`hub-client: reprocessar — status inesperado ${resp.status}`, { motivo: resp.data && (resp.data.erro || resp.data.error) });
+  }
+
+  /**
    * GET /api/v1/importacoes/:id em loop até status terminal (contracts/hub-api.md).
    * `dormir`/`agora` injetáveis para teste (sem esperar tempo real nem
    * depender do relógio real para exercitar o timeout).
@@ -220,7 +240,7 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance }) {
     }
   }
 
-  return { login, enviarImportacao, pollarImportacao, registrarEvento, consultarErrosImportacao };
+  return { login, enviarImportacao, reprocessarImportacao, pollarImportacao, registrarEvento, consultarErrosImportacao };
 }
 
 module.exports = {

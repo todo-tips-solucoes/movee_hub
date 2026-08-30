@@ -30,8 +30,16 @@ export type StatusImportacao =
 /** Estados em que a UI faz polling (contract §GET /importacoes/:id). */
 export const STATUS_EM_ANDAMENTO = new Set<StatusImportacao>(['pending', 'validating', 'processing']);
 
-/** Estados a partir dos quais `POST /:id/reprocessar` é aceito (§contrato). */
-export const STATUS_REPROCESSAVEL = new Set<StatusImportacao>(['failed', 'cancelled']);
+/** Estados a partir dos quais `POST /:id/reprocessar` é aceito (§contrato).
+ * `completed_with_errors` entrou em 2026-08-30: quando a regra de validação é
+ * que mudou, o mesmo arquivo É a correção, e reenviá-lo esbarra no UNIQUE do
+ * hash — sem este estado na lista, um dia que entrou torto não tem saída nem
+ * pela tela nem pelo robô. */
+export const STATUS_REPROCESSAVEL = new Set<StatusImportacao>([
+  'failed',
+  'cancelled',
+  'completed_with_errors',
+]);
 
 /** Estados a partir dos quais `POST /:id/cancelar` é aceito (§contrato). */
 export const STATUS_CANCELAVEL = new Set<StatusImportacao>(['pending', 'validating', 'processing']);
