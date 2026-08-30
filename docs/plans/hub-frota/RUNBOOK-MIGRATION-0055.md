@@ -1,7 +1,10 @@
 # Runbook — migration 0055 + deploy: financeiro por data de lançamento
 
 Aplica a `0055` no `chatmasterveloz` (container `pgadmin_db`, host VPSTodo) e sobe
-backend + frontend_v2 da main `8ac8a1d` (PR #141).
+backend + frontend_v2 da main `65490d7` — o código do financeiro é o do PR #141
+(`8ac8a1d`); `65490d7` é o HEAD da main no momento do build, que avançou com o
+merge deste próprio runbook. `git diff --stat 8ac8a1d..65490d7` mostra 1 arquivo:
+este documento. A tag carrega o sha do que foi BUILDADO, como manda o rito.
 
 **O que muda para o cliente**: o filtro de período do módulo Financeiro passa a
 usar `data_lancamento` (o dia em que o lançamento foi emitido) no lugar de
@@ -84,8 +87,19 @@ tabela de fatos**, só recria MV/funções/índices.
 ## Gate 4 — aplicar
 
 **4.0 — 🤖 build das duas imagens ANTES da migration** (encurta a janela de
-discordância entre lista e cards). Tag `hub-fin-lancamento-8ac8a1d`, backend via
+discordância entre lista e cards). Tag `hub-fin-lancamento-65490d7`, backend via
 `Dockerfile.hub`, frontend via `Dockerfile`, ambos com `--memory=2g`.
+
+✅ **Já executado em 2026-08-30 15h05** — as duas imagens estão no registry:
+
+| imagem | digest |
+|---|---|
+| `envio-massa-backend:hub-fin-lancamento-65490d7` | `sha256:69091f63bcbd…64a` |
+| `envio-massa-frontend-v2:hub-fin-lancamento-65490d7` | `sha256:710850940e2e…8f9` |
+
+Conferido em ambas: `node v20.20.2`; no backend, a janela por `data_lancamento` e o
+CSV com as duas datas; no frontend, `BACKEND_URL` da API do cliente, o rótulo novo
+no bundle e **zero** ocorrências do banner "HOMOLOGAÇÃO".
 
 **4.1 — 👤 a migration:**
 
@@ -109,8 +123,13 @@ INSERT INTO \"SchemaMigration\" (nome) VALUES ('"'"'0055_faturamento_por_data_la
 assinatura, mas o cache de schema é barato de recarregar):
 
 ```
-! docker kill -s SIGUSR1 $(docker ps -qf name=postgrest | head -1)
+! docker kill -s SIGUSR1 $(docker ps -qf name=pgadmin_postgrest | head -1)
 ```
+
+⚠️ O filtro é `name=pgadmin_postgrest`, **não** `name=postgrest`: há TRÊS PostgREST
+neste host (`pgadmin_postgrest` = produção, `hub_homolog_postgrest` = ambiente
+isolado, mais o do hub) e `| head -1` pode acertar o errado — o reload iria para o
+container errado e ninguém perceberia. Pego na execução de 2026-08-30.
 
 ⚠️ **Sonda HTTP em `/rpc/` NÃO prova o reload** (lição da 0051) — a prova é a
 contagem de funções no log do PostgREST, ou o passo 5.2 abaixo, que exercita a
@@ -156,11 +175,11 @@ seguida (rótulos e ordem das datas):
 
 ```
 docker service update --with-registry-auth \
-  --image registry.todo-tips.com/envio-massa-backend:hub-fin-lancamento-8ac8a1d \
+  --image registry.todo-tips.com/envio-massa-backend:hub-fin-lancamento-65490d7 \
   envio-massa-homologacao_backend_homologacao
 
 docker service update --with-registry-auth \
-  --image registry.todo-tips.com/envio-massa-frontend-v2:hub-fin-lancamento-8ac8a1d \
+  --image registry.todo-tips.com/envio-massa-frontend-v2:hub-fin-lancamento-65490d7 \
   envio-massa-homologacao_frontend_v2_homologacao
 ```
 
@@ -191,3 +210,43 @@ do ciclo com **Lançamento** em primeiro.
 - Avisar quem recebeu relatórios diários do financeiro: os números do mesmo
   período mudaram, e a razão é a troca de coluna, não erro de dado.
 - Atualizar a memória do projeto com as imagens novas e o rollback.
+
+---
+
+## Execução — 2026-08-30, ~18h30 UTC ✅
+
+Executado integralmente. Desfecho:
+
+| Gate | Resultado |
+|---|---|
+| 2 · importação em curso | nenhuma (última janela do robô às 14h, dia 29 importado OK) |
+| 3 · rollback | 151 linhas em `~/faturamento-antes-0055.sql` |
+| 4.1 · migration | aplicou na ordem esperada; MV nasceu com **8.975 linhas** |
+| 4.2 · SchemaMigration | `INSERT 0 1` |
+| 4.3 · SIGUSR1 | entregue ao `pgadmin_postgrest` (`9b75ffe3e509`) |
+| 5.1 · colunas da MV | `data_lancamento` presente, `data_referencia` ausente |
+| 5.2 · RPCs | dia 28 = R$ 133.462,99 · 767 entregadores |
+| 5.3 · MV × tabela | **bate em 4 de 4 dias** |
+| 5.4 · fallback sub-praça | R$ 10.813,18 · 89 entregadores |
+| 6 · deploy | backend e frontend_v2 → `:hub-fin-lancamento-65490d7`, 1/1 |
+| 7 · prova | smoke 200; código conferido no container; **sha256 do bundle servido == o da imagem** |
+
+**Totais que mudaram** (o efeito esperado da troca de coluna):
+
+| Dia | Antes (competência) | Depois (lançamento) |
+|---|---|---|
+| 27/08 | R$ 110.913,63 | R$ 148.912,63 |
+| 28/08 | R$ 108.398,05 | R$ 133.462,99 |
+| 29/08 | — | R$ 141.392,49 |
+
+🟢 **Achado que só a execução revelou**: por data de LANÇAMENTO, cada arquivo do
+portal cobre exatamente **um** dia — as quantidades por dia (4.354 / 4.786 / 4.173)
+são o total de linhas de cada arquivo importado. Por competência, um arquivo se
+espalhava por 3–4 dias. É um mérito operacional da decisão que o levantamento
+prévio não tinha capturado.
+
+⚠️ **Incidente NÃO relacionado, no meio da janela**: o disco do host chegou a 100% e
+derrubou o `pgadmin_db` (crash loop, `No space left on device`). Causa: acúmulo de
+imagens + 5 builds no mesmo dia. Recuperado com `docker builder prune -f` +
+`docker image prune -f` (18 GB); nenhum dado perdido. O rito de build no
+`CLAUDE.md` passou a exigir `df -h /` por causa disso.
