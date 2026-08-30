@@ -43,7 +43,7 @@ const router = express.Router();
 // ESCRITA — 1.000 para leitura paginada é só um número maior de itens por
 // página do mesmo mecanismo Range, não um padrão novo).
 const LOTE_EXPORT_CSV = 1000;
-const CABECALHO_CSV = ['dataReferencia', 'categoria', 'valor', 'entregadorNome', 'subpraca', 'praca', 'periodo'];
+const CABECALHO_CSV = ['dataLancamento', 'dataReferencia', 'categoria', 'valor', 'entregadorNome', 'subpraca', 'praca', 'periodo'];
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers de domínio (DUPLICADOS deliberadamente com routes/hub-performance.js:
@@ -100,8 +100,12 @@ async function resolverContextoEntidade(req, res, permissao) {
 function montarFiltrosQuery(entidadeAtiva, f) {
   const filtros = [
     `id_empresa=eq.${entidadeAtiva}`,
-    `data_referencia=gte.${f.de}`,
-    `data_referencia=lte.${f.ate}`,
+    // 0055 (2026-08-30) — a janela do Financeiro passou a ser a data em que o
+    // lançamento foi EMITIDO, não a competência. Decisão do operador para o
+    // filtro significar o mesmo que no módulo Performance. `data_referencia`
+    // continua gravada, exposta na lista e no CSV — só deixou de ser o filtro.
+    `data_lancamento=gte.${f.de}`,
+    `data_lancamento=lte.${f.ate}`,
   ];
   if (f.categoria) filtros.push(`descricao=eq.${encodeURIComponent(f.categoria)}`);
   if (f.entregadorId !== null) filtros.push(`entregador_id=eq.${f.entregadorId}`);
@@ -145,9 +149,9 @@ function celulaCsv(valor) {
  */
 async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
   const filtrosBase = montarFiltrosQuery(entidadeAtiva, f);
-  filtrosBase.push('order=data_referencia.desc,id.desc');
+  filtrosBase.push('order=data_lancamento.desc,data_referencia.desc,id.desc');
   filtrosBase.push(
-    'select=data_referencia,descricao,valor::text,entregador_id,recebedor_agregado,subpraca,praca,periodo,entregador:Entregador(nome)'
+    'select=data_lancamento,data_referencia,descricao,valor::text,entregador_id,recebedor_agregado,subpraca,praca,periodo,entregador:Entregador(nome)'
   );
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -177,6 +181,7 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
         ? (row.entregador ? row.entregador.nome : '')
         : (row.recebedor_agregado || '');
       bloco += [
+        row.data_lancamento,
         row.data_referencia,
         celulaCsv(row.descricao),
         row.valor,
@@ -245,7 +250,7 @@ router.get('/', requirePermission('faturamento.listar'), async (req, res) => {
     const { page, pageSize, from, to } = parsePaginacao(req.query);
 
     const filtros = montarFiltrosQuery(entidadeAtiva, f);
-    filtros.push('order=data_referencia.desc,id.desc');
+    filtros.push('order=data_lancamento.desc,data_referencia.desc,id.desc');
     filtros.push(
       'select=id,data_referencia,data_lancamento,data_repasse,descricao,valor::text,'
       + 'entregador_id,recebedor_agregado,subpraca,praca,periodo,entregador:Entregador(nome)'
