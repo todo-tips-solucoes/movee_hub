@@ -78,6 +78,7 @@ function finalizarExecucao({
   motivoFalha = null,
   caminhoLog = LOG_PATH_DEFAULT,
   diagnostico = null,
+  avisos = null,
 }) {
   if (!execucaoId) throw new Error('log-execucao: execucaoId obrigatório');
   if (!RESULTADOS_VALIDOS.includes(resultado)) {
@@ -98,6 +99,10 @@ function finalizarExecucao({
   // Contém apenas ESTRUTURA: ids, textos de botão, status/path HTTP. Nunca
   // valor de campo, corpo de requisição, cookie ou querystring assinada.
   if (diagnostico) linha.diagnostico = diagnostico;
+  // Avisos que NÃO mudam o resultado mas mudam um NÚMERO (hoje: `valor`
+  // monetário gravado como 0). Ficam no log mesmo quando resultado='sucesso' —
+  // é no sucesso que passariam despercebidos. O e-mail pode se perder; o log não.
+  if (avisos && avisos.length) linha.avisos = avisos;
   escreverLinha(caminhoLog, linha);
   return linha;
 }
