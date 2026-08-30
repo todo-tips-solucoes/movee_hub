@@ -93,6 +93,9 @@ function mapImportacaoListItem(row, tiposAtivos = new Set()) {
     linhasValidas: row.linhas_validas,
     linhasInvalidas: row.linhas_invalidas,
     dataReferencia: row.data_referencia,
+    // Fim do intervalo de datas do arquivo (0056). `null` = importação antiga,
+    // ou arquivo de um dia só — a UI mostra uma data só nos dois casos.
+    dataReferenciaFim: row.data_referencia_fim ?? null,
     criadoPor: row.criado_por,
     iniciadoEm: row.iniciado_em,
     concluidoEm: row.concluido_em,
@@ -114,6 +117,7 @@ function mapImportacaoDetalhe(row) {
       invalidas: row.linhas_invalidas,
     },
     dataReferencia: row.data_referencia,
+    dataReferenciaFim: row.data_referencia_fim ?? null,
     iniciadoEm: row.iniciado_em,
     concluidoEm: row.concluido_em,
     duracaoSegundos: calcularDuracaoSegundos(row.iniciado_em, row.concluido_em),

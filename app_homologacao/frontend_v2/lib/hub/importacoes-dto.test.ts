@@ -13,6 +13,7 @@ import {
   STATUS_CANCELAVEL,
   STATUS_EM_ANDAMENTO,
   STATUS_REPROCESSAVEL,
+  rotuloIntervaloImportacao,
 } from './importacoes-dto';
 
 const ITEM_VALIDO = {
@@ -24,6 +25,7 @@ const ITEM_VALIDO = {
   linhasValidas: 95,
   linhasInvalidas: 5,
   dataReferencia: '2026-07-01',
+  dataReferenciaFim: '2026-07-03',
   criadoPor: 7,
   iniciadoEm: '2026-07-01T10:00:00Z',
   concluidoEm: '2026-07-01T10:05:00Z',
@@ -81,6 +83,7 @@ describe('parseImportacaoDetalhe', () => {
       status: 'processing',
       contadores: { total: 10, validas: 8, invalidas: 2 },
       dataReferencia: '2026-07-01',
+      dataReferenciaFim: null,
       iniciadoEm: '2026-07-01T10:00:00Z',
       concluidoEm: null,
       duracaoSegundos: null,
@@ -174,5 +177,28 @@ describe('validarArquivoImportacao (6.3.2 — espelha 3.1.1-3.1.3 do backend)', 
   it('extensaoDoArquivo é case-insensitive', () => {
     expect(extensaoDoArquivo('ARQUIVO.CSV')).toBe('.csv');
     expect(extensaoDoArquivo('sem-extensao')).toBe('');
+  });
+});
+
+// 0056: a importação passou a registrar o INTERVALO de datas do arquivo. Mostrar
+// só a primeira data escondia que o arquivo de faturamento de 28/08/2026 trazia
+// competências de 25 a 28/08 — e foi o que o rotulou como "27/08".
+describe('rotuloIntervaloImportacao', () => {
+  const fmt = (d: string) => d.split('-').reverse().join('/');
+
+  it('pontas diferentes viram intervalo', () => {
+    expect(rotuloIntervaloImportacao('2026-08-25', '2026-08-28', fmt)).toBe('25/08/2026 – 28/08/2026');
+  });
+
+  it('arquivo de um dia só mostra uma data', () => {
+    expect(rotuloIntervaloImportacao('2026-08-28', '2026-08-28', fmt)).toBe('28/08/2026');
+  });
+
+  it('importação anterior à migration (sem fim) mostra uma data', () => {
+    expect(rotuloIntervaloImportacao('2026-08-28', null, fmt)).toBe('28/08/2026');
+  });
+
+  it('sem data nenhuma devolve string vazia, nunca "null"', () => {
+    expect(rotuloIntervaloImportacao(null, null, fmt)).toBe('');
   });
 });

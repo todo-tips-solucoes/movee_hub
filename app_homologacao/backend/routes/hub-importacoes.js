@@ -420,7 +420,7 @@ router.get('/', requirePermission('importacoes.consultar'), async (req, res) => 
     ));
     filtros.push(
       'select=id,tipo,status,nome_arquivo,total_linhas,linhas_validas,linhas_invalidas,'
-      + 'data_referencia,criado_por,iniciado_em,concluido_em'
+      + 'data_referencia,data_referencia_fim,criado_por,iniciado_em,concluido_em'
     );
 
     const { data: linhas, total } = await hubPostgrestRequest(
@@ -477,7 +477,7 @@ router.get('/:id', requirePermission('importacoes.consultar'), async (req, res) 
     const linhas = await hubPostgrestRequest(
       `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
       + '&select=id,tipo,status,total_linhas,linhas_validas,linhas_invalidas,'
-      + 'data_referencia,iniciado_em,concluido_em,erro_resumo',
+      + 'data_referencia,data_referencia_fim,iniciado_em,concluido_em,erro_resumo',
       'GET', null, claims
     );
     if (!linhas || linhas.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });

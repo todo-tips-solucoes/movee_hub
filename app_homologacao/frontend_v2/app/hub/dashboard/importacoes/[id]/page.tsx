@@ -60,6 +60,7 @@ import {
   STATUS_REPROCESSAVEL,
   TIPO_LABELS,
   type ImportacaoErroItem,
+  rotuloIntervaloImportacao,
 } from '@/lib/hub/importacoes-dto';
 import { formatDateBR } from '@/lib/utils';
 
@@ -242,7 +243,7 @@ export default function ImportacaoDetalhePage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Data referência</p>
-                  <p>{formatDateBR(detalhe.dataReferencia) || '-'}</p>
+                  <p>{rotuloIntervaloImportacao(detalhe.dataReferencia, detalhe.dataReferenciaFim, formatDateBR) || '-'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Duração</p>

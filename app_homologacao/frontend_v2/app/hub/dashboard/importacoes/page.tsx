@@ -52,6 +52,7 @@ import {
   type ImportacaoListItem,
   type StatusImportacao,
   type TipoImportacao,
+  rotuloIntervaloImportacao,
 } from '@/lib/hub/importacoes-dto';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useFiltrosUrl } from '@/hooks/use-filtros-url';
@@ -375,7 +376,9 @@ function ImportacoesConteudo() {
                   <span>Total: {item.totalLinhas ?? '-'}</span>
                   <span>Válidas: {item.linhasValidas ?? '-'}</span>
                   <span>Inválidas: {item.linhasInvalidas ?? '-'}</span>
-                  {item.dataReferencia && <span>{formatDateBR(item.dataReferencia)}</span>}
+                  {item.dataReferencia && (
+                    <span>{rotuloIntervaloImportacao(item.dataReferencia, item.dataReferenciaFim, formatDateBR)}</span>
+                  )}
                 </div>
               </Link>
             ))}
@@ -412,7 +415,9 @@ function ImportacoesConteudo() {
                     <TableCell className="text-right font-mono">{item.totalLinhas ?? '-'}</TableCell>
                     <TableCell className="text-right font-mono">{item.linhasValidas ?? '-'}</TableCell>
                     <TableCell className="text-right font-mono">{item.linhasInvalidas ?? '-'}</TableCell>
-                    <TableCell className="text-sm">{formatDateBR(item.dataReferencia)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">
+                      {rotuloIntervaloImportacao(item.dataReferencia, item.dataReferenciaFim, formatDateBR)}
+                    </TableCell>
                     <TableCell className="text-sm">
                       {item.duracaoSegundos !== null ? `${item.duracaoSegundos}s` : '-'}
                     </TableCell>

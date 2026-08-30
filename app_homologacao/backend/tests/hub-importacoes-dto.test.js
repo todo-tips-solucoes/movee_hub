@@ -135,6 +135,7 @@ describe('mapImportacaoListItem — aguardandoLock (dec-032/CHK013)', () => {
       linhasValidas: 95,
       linhasInvalidas: 5,
       dataReferencia: '2026-06-01',
+      dataReferenciaFim: null,
       criadoPor: 7,
       iniciadoEm: '2026-06-01T00:00:00Z',
       concluidoEm: '2026-06-01T00:02:00Z',

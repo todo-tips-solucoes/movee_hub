@@ -461,6 +461,47 @@ describe('executarPipeline — happy path (completed)', () => {
     assert.equal(refreshPerformance, undefined, 'importação de faturamento NUNCA dispara o refresh da mv_performance_dia');
   });
 
+  // 0056: o rótulo da importação era a data da PRIMEIRA linha válida, o que
+  // mentia sobre o que o arquivo cobre — o de faturamento de 28/08/2026 trazia
+  // competências de 25 a 28/08 e a importação aparecia como "27/08". Agora é o
+  // intervalo real. Cada REGISTRO segue com a data da própria linha, o que nunca
+  // dependeu deste cálculo.
+  test('rótulo da importação é o INTERVALO do arquivo, não a primeira linha', async () => {
+    const csv = [
+      HEADER_ROW_FATURAMENTO,
+      // fora de ordem de propósito: a 1a linha não é nem a menor nem a maior data
+      linhaFaturamento({ data_do_periodo_de_referencia: '2026-01-27', descricao: 'l1' }),
+      linhaFaturamento({ data_do_periodo_de_referencia: '2026-01-25', descricao: 'l2' }),
+      linhaFaturamento({ data_do_periodo_de_referencia: '2026-01-28', descricao: 'l3' }),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    await executarPipeline(jobFaturamento(), deps);
+
+    const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
+    assert.equal(patchFinal.body.data_referencia, '2026-01-25', 'inicio = menor data do arquivo');
+    assert.equal(patchFinal.body.data_referencia_fim, '2026-01-28', 'fim = maior data do arquivo');
+  });
+
+  test('performance rotula pelo data_do_periodo (o campo que liga com faturamento)', async () => {
+    const csv = [
+      HEADER_ROW_PERFORMANCE,
+      linhaPerformance({ data_do_periodo: '2026-02-10' }),
+      linhaPerformance({ data_do_periodo: '2026-02-09' }),
+      '',
+    ].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'performance.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+
+    await executarPipeline(jobPerformance(), deps);
+
+    const patchFinal = deps.chamadas.filter((c) => c.method === 'PATCH').pop();
+    assert.equal(patchFinal.body.data_referencia, '2026-02-09');
+    assert.equal(patchFinal.body.data_referencia_fim, '2026-02-10');
+  });
+
   test('falha no refresh da mv_faturamento_dia é best-effort — importação segue completed', async () => {
     const csv = [
       HEADER_ROW_FATURAMENTO,
