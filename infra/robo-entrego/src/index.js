@@ -175,8 +175,33 @@ async function tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInsta
   const nomeArquivo = `${TRADUCAO_TIPO_HUB[tipo]}_${item.date}.csv`;
   const upload = await clienteHub.enviarImportacao({ tipo: TRADUCAO_TIPO_HUB[tipo], nomeArquivo, bufferArquivo: buffer });
 
+  // 409 = o arquivo já subiu antes. Duas situações MUITO diferentes vinham
+  // caindo aqui como uma só (corrigido 2026-08-30):
+  //  - a importação anterior terminou `completed`  -> nada a fazer, idempotente;
+  //  - ela terminou TORTA (failed/cancelled/completed_with_errors) -> o dia
+  //    está incompleto no hub e reenviar o arquivo nunca resolve, porque o
+  //    UNIQUE do hash devolve 409 de novo. Foi o beco sem saída do dia 28/08.
+  // O reprocessamento reusa o mesmo id e é idempotente nos fatos
+  // (`on_conflict=id_empresa,hash_linha`), então só acrescenta o que faltava.
   if (upload.sinal === 'upload_409') {
-    return { statusHub: 'duplicado', importacaoId: upload.importacaoOriginalId, item, sha256 };
+    const idOriginal = upload.importacaoOriginalId;
+    const anterior = await clienteHub.pollarImportacao(idOriginal);
+    if (anterior.sinal === 'polling_completed') {
+      return { statusHub: 'duplicado', importacaoId: idOriginal, item, sha256 };
+    }
+    const refeita = await clienteHub.reprocessarImportacao(idOriginal);
+    if (refeita.sinal === 'http_5xx_hub') {
+      throw comSinal(new Error(`hub: 5xx ao reprocessar a importação ${idOriginal} (status ${refeita.status})`), 'http_5xx_hub');
+    }
+    // 409/404 no reprocessar: não há o que refazer (ou a importação sumiu).
+    // Reporta o estado real da anterior em vez de inventar sucesso.
+    if (refeita.sinal !== 'reprocessar_202') {
+      throw comSinal(
+        new Error(`hub: importação ${idOriginal} terminou em '${anterior.dados && anterior.dados.status}' e não pôde ser reprocessada (${refeita.sinal})`),
+        anterior.sinal
+      );
+    }
+    return await aguardarDesfecho({ id: idOriginal, tipo, item, sha256, clienteHub, reprocessado: true });
   }
   if (upload.sinal === 'http_5xx_hub') {
     throw comSinal(new Error(`hub: 5xx no upload (status ${upload.status})`), 'http_5xx_hub');
@@ -186,18 +211,26 @@ async function tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInsta
   }
 
   // upload_201 -> polling até status terminal (contracts/hub-api.md)
-  const poll = await clienteHub.pollarImportacao(upload.id);
+  return await aguardarDesfecho({ id: upload.id, tipo, item, sha256, clienteHub });
+}
+
+/** Polling até o status terminal e tradução do desfecho. Compartilhada pelo
+ * upload novo (201) e pelo reprocessamento de uma importação torta (409), que
+ * a partir daqui são o mesmo fluxo. */
+async function aguardarDesfecho({ id, tipo, item, sha256, clienteHub, reprocessado = false }) {
+  const poll = await clienteHub.pollarImportacao(id);
   if (poll.sinal === 'polling_completed') {
     // Importação `completed` NÃO significa "todos os valores corretos". Desde a
     // migration 0054, texto em campo numérico vira 0 e a linha entra. No campo
     // `valor` do FATURAMENTO isso é dinheiro: o total do período fica
     // subestimado e nada avisa. Este é o único ponto onde dá para perceber.
-    const alertas = await detectarValoresSilenciosos(clienteHub, upload.id, tipo);
-    return { statusHub: poll.dados.status, importacaoId: upload.id, item, sha256, alertas };
+    const alertas = await detectarValoresSilenciosos(clienteHub, id, tipo);
+    return { statusHub: poll.dados.status, importacaoId: id, item, sha256, alertas, reprocessado };
   }
   // polling_failed | polling_completed_with_errors — Falha do hub (research.md Decision 11)
   const erroResumo = poll.dados && poll.dados.erroResumo ? ` — ${poll.dados.erroResumo}` : '';
-  throw comSinal(new Error(`hub: importação terminou em '${poll.dados.status}'${erroResumo}`), poll.sinal);
+  const prefixo = reprocessado ? `hub: importação ${id} REPROCESSADA terminou` : 'hub: importação terminou';
+  throw comSinal(new Error(`${prefixo} em '${poll.dados.status}'${erroResumo}`), poll.sinal);
 }
 
 /**
@@ -235,6 +268,10 @@ async function processarRelatorio({ tipo, dataAnterior, page, clienteHub, entreg
       sha256: valor.sha256,
       importacao_id: valor.importacaoId,
       status_hub: valor.statusHub,
+      // Rastro de que este dia entrou numa SEGUNDA passada sobre o mesmo
+      // arquivo — sem isso, um dia refeito fica indistinguível de um que
+      // entrou certo de primeira.
+      reprocessado: valor.reprocessado === true,
       tentativas,
     };
   } catch (e) {

@@ -104,10 +104,18 @@ para a pessoa (edge case explícito da spec). Qualquer outra falha de leitura
 ## POST /importacoes/:id/reprocessar
 
 **Permissão**: `importacoes.criar`.
-**Pré-condição**: `status ∈ {failed, cancelled}`.
+**Pré-condição**: `status ∈ {failed, cancelled, completed_with_errors}`.
 **Response**: `202` `{ id, status: "pending" }` — reusa arquivo armazenado, **reseta**
 o registro (limpa `ImportacaoLinhaErro`, zera contadores). `409 CONFLITO` se
-`status ∈ {completed, completed_with_errors, ...}` (correção = arquivo novo).
+`status = completed` ou se a importação ainda está em curso — não há o que refazer.
+
+`completed_with_errors` entrou na pré-condição em 2026-08-30. O contrato mandava
+que a correção "entrasse como arquivo novo", mas quando quem mudou foi a REGRA de
+validação — e não o arquivo — o MESMO arquivo é a correção, e ele esbarra em
+`UNIQUE(id_empresa, tipo, hash_sha256)`. Era beco sem saída: o dia 28/08/2026
+ficou com 1 linha a menos e o robô rebaixava o arquivo em toda janela só para
+levar 409. Reprocessar é idempotente nos fatos (`on_conflict=id_empresa,hash_linha`
++ `ignore-duplicates`), então a segunda passada só acrescenta o que faltava.
 
 ---
 
@@ -127,7 +135,7 @@ pending ──(lock livre)──▶ validating ──▶ processing ──▶ co
    │                          │              │        └▶ completed_with_errors
    │                          │              │        └▶ failed (>50% inválidas / estrutural; rollback)
    └────────── cancelar ──────┴──────────────┘──▶ cancelled
-failed | cancelled ──(reprocessar)──▶ pending (reset)
+failed | cancelled | completed_with_errors ──(reprocessar)──▶ pending (reset)
 ```
 Falha estrutural (cabeçalho/encoding/separador ou >50% inválidas) → `failed`,
 **nenhuma linha persiste**. Falha pontual → linha em `ImportacaoLinhaErro`, resto

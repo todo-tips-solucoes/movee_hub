@@ -44,12 +44,18 @@ function criarPageMock({ sonda = { status: 200 }, urls = {} } = {}) {
   };
 }
 
-function criarClienteHubMock({ upload = { sinal: 'upload_201', id: 1, status: 'pending' }, poll = { sinal: 'polling_completed', dados: { status: 'completed' } } } = {}) {
+function criarClienteHubMock({ upload = { sinal: 'upload_201', id: 1, status: 'pending' }, poll = { sinal: 'polling_completed', dados: { status: 'completed' } }, reprocessar = { sinal: 'reprocessar_202', id: 42, status: 'pending' } } = {}) {
   const eventos = [];
+  const reprocessados = [];
   return {
     eventos,
+    reprocessados,
     login: async () => ({ entidadeAtiva: 6 }),
     enviarImportacao: typeof upload === 'function' ? upload : async () => upload,
+    reprocessarImportacao: async (id) => {
+      reprocessados.push(id);
+      return typeof reprocessar === 'function' ? reprocessar(id) : reprocessar;
+    },
     pollarImportacao: typeof poll === 'function' ? poll : async () => poll,
     registrarEvento: async (args) => {
       eventos.push(args);
@@ -386,8 +392,71 @@ describe('executarRodada — Scenario 5: arquivo já importado (409) -> sucesso 
     });
     assert.equal(r.resultado, 'sucesso');
     assert.ok(r.relatorios.every((rel) => rel.status_hub === 'duplicado'));
-    assert.equal(pollChamado, false); // 409 não faz polling
+    // Mudou em 2026-08-30: o 409 CONSULTA o status da importação anterior antes
+    // de decidir. Anterior `completed` -> duplicado de verdade, nada a refazer.
+    assert.equal(pollChamado, true);
+    assert.deepEqual(clienteHub.reprocessados, []);
     assert.equal(transportador.enviados.length, 0);
+  });
+});
+
+describe('executarRodada — 409 sobre importação TORTA -> reprocessa o mesmo id', () => {
+  // O dia 28/08/2026 entrou com 1 linha a menos porque a regra de validação
+  // mudou DEPOIS (PR #132). Reenviar o arquivo batia no UNIQUE do hash e
+  // voltava 409, e o robô dava o dia por importado. Sem este caminho, um dia
+  // torto não tem como ser refeito por ninguém.
+  test('anterior completed_with_errors -> chama reprocessar e o dia entra', async () => {
+    const page = criarPageMock({ sonda: { status: 200 }, urls: { PERFORMANCE: URLS_OK('PERFORMANCE'), FINANCE: URLS_OK('FINANCE') } });
+    const statusPorChamada = [];
+    const clienteHub = criarClienteHubMock({
+      upload: { sinal: 'upload_409', importacaoOriginalId: 42 },
+      poll: async () => {
+        // Cada relatório faz 2 chamadas: a ímpar lê o estado da importação
+        // anterior (torta), a par lê o desfecho do reprocessamento (ok).
+        statusPorChamada.push(1);
+        return statusPorChamada.length % 2 === 1
+          ? { sinal: 'polling_completed_with_errors', dados: { status: 'completed_with_errors' } }
+          : { sinal: 'polling_completed', dados: { status: 'completed' } };
+      },
+    });
+    const transportador = criarTransportadorMock();
+    const r = await index.executarRodada({
+      page,
+      config: config(),
+      clienteHub,
+      obterCodigo: async () => '123456',
+      transportador,
+      dormir: dormirRapido,
+      axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+    });
+    assert.equal(r.resultado, 'sucesso');
+    assert.deepEqual(clienteHub.reprocessados, [42, 42]); // os 2 relatórios
+    assert.ok(r.relatorios.every((rel) => rel.status_hub === 'completed'));
+    assert.ok(r.relatorios.every((rel) => rel.reprocessado === true));
+    assert.equal(transportador.enviados.length, 0);
+  });
+
+  test('reprocessar recusado (409) -> falha com o estado real, nunca sucesso inventado', async () => {
+    const page = criarPageMock({ sonda: { status: 200 }, urls: { PERFORMANCE: URLS_OK('PERFORMANCE'), FINANCE: URLS_OK('FINANCE') } });
+    const clienteHub = criarClienteHubMock({
+      upload: { sinal: 'upload_409', importacaoOriginalId: 42 },
+      poll: { sinal: 'polling_failed', dados: { status: 'failed', erroResumo: 'cabeçalho inválido' } },
+      reprocessar: { sinal: 'reprocessar_409' },
+    });
+    const transportador = criarTransportadorMock();
+    const r = await index.executarRodada({
+      page,
+      config: config(),
+      clienteHub,
+      obterCodigo: async () => '123456',
+      transportador,
+      dormir: dormirRapido,
+      axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+    });
+    assert.equal(r.resultado, 'falha_total');
+    assert.match(r.motivo_falha, /não pôde ser reprocessada/);
   });
 });
 

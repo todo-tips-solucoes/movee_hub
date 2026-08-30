@@ -72,6 +72,16 @@ describe('transicaoValida (4.1.2/4.1.3 — máquina de estados)', () => {
     assert.equal(transicaoValida('cancelled', 'pending'), true);
   });
 
+  // 2026-08-30: era beco sem saída. Quando a REGRA de validação muda depois da
+  // importação (dia 28/08, 1 linha descartada por `corridas_rejeitadas`
+  // negativa que o PR #132 passou a aceitar), reenviar o mesmo arquivo esbarra
+  // em UNIQUE(id_empresa,tipo,hash_sha256) e não havia como refazer o dia.
+  test('reprocessar um dia que entrou torto: completed_with_errors -> pending', () => {
+    assert.equal(transicaoValida('completed_with_errors', 'pending'), true);
+    // `completed` continua sem volta: não há o que refazer.
+    assert.equal(transicaoValida('completed', 'pending'), false);
+  });
+
   test('transições INVÁLIDAS são rejeitadas', () => {
     assert.equal(transicaoValida('pending', 'processing'), false); // pula validating
     assert.equal(transicaoValida('pending', 'completed'), false);

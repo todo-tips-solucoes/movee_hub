@@ -130,8 +130,10 @@ describe('máquina de estados — conjuntos derivados do contrato', () => {
     expect([...STATUS_EM_ANDAMENTO].sort()).toEqual(['pending', 'processing', 'validating'].sort());
   });
 
-  it('STATUS_REPROCESSAVEL cobre failed/cancelled', () => {
-    expect([...STATUS_REPROCESSAVEL].sort()).toEqual(['cancelled', 'failed']);
+  it('STATUS_REPROCESSAVEL cobre failed/cancelled e o dia que entrou torto', () => {
+    expect([...STATUS_REPROCESSAVEL].sort()).toEqual(['cancelled', 'completed_with_errors', 'failed']);
+    // `completed` fica de fora: não há o que refazer.
+    expect(STATUS_REPROCESSAVEL.has('completed')).toBe(false);
   });
 
   it('STATUS_CANCELAVEL cobre pending/validating/processing', () => {

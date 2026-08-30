@@ -645,12 +645,20 @@ router.post('/:id/reprocessar', requirePermission('importacoes.criar'), async (r
 
     // 5.5.1/5.5.2 — reset atômico GUARDADO por status (mesmo espírito do
     // mutex de 4.2: um UPDATE condicional via PostgREST; `status=in.(...)`
-    // só casa se AINDA está failed/cancelled — corrida entre 2 cliques
+    // só casa se AINDA está num estado refazível — corrida entre 2 cliques
     // resolve para exatamente 1 vencedor). Reusa o MESMO
     // `ImportacaoArquivo.id` (dec-010/research.md Decision 6 — criar novo
     // colidiria com UNIQUE(id_empresa,tipo,hash_sha256)).
+    //
+    // `completed_with_errors` entrou na lista em 2026-08-30. O contrato
+    // original mandava a correção "entrar como arquivo novo", mas o MESMO
+    // arquivo — o caso real, quando a regra de validação é que mudou — bate no
+    // UNIQUE do hash e não tem por onde entrar. Era o beco sem saída do dia
+    // 28/08: 1 linha descartada por regra que o PR #132 depois afrouxou, e o
+    // robô rebaixando o arquivo em toda janela só para levar 409.
+    // `completed` continua fora: não há o que refazer.
     const patched = await hubPostgrestRequest(
-      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&status=in.(failed,cancelled)`,
+      `ImportacaoArquivo?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&status=in.(failed,cancelled,completed_with_errors)`,
       'PATCH',
       {
         status: 'pending',
@@ -671,8 +679,8 @@ router.post('/:id/reprocessar', requirePermission('importacoes.criar'), async (r
         'GET', null, claims
       );
       if (!existe || existe.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
-      // 5.5.1 — existe, mas não estava em failed/cancelled (ex.: completed*
-      // -> "correção entra como arquivo novo", contrato).
+      // 5.5.1 — existe, mas não estava num estado refazível (`completed`, ou
+      // uma passada ainda em curso) -> "correção entra como arquivo novo".
       return res.status(409).json({ error: 'CONFLITO' });
     }
 

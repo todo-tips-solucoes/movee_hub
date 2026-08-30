@@ -27,6 +27,7 @@ const CAMPOS_RELATORIO_PERMITIDOS = Object.freeze([
   'sha256',
   'importacao_id',
   'status_hub',
+  'reprocessado',
   'tentativas',
 ]);
 
