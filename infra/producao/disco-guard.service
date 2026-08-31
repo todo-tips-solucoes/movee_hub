@@ -1,0 +1,18 @@
+[Unit]
+Description=Alarme de disco do host (avisa antes de encher)
+Documentation=file:///var/lib/envioMassa_homologacao/infra/producao/README-disco-guard.md
+# Sem rede não há e-mail; sem rede o alerta cai no journal e a unidade fica
+# `failed`, que continua sendo rastro. Por isso NÃO exige docker nem network.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env node /var/lib/envioMassa_homologacao/infra/producao/disco-guard.js
+
+# Mesmo motivo do backup: este host já foi derrubado por starvation
+# (2026-06-11). Um alarme nunca pode ser o que atrapalha quem atende cliente.
+Nice=10
+IOSchedulingClass=idle
+
+# `exit 1` = disco abaixo do limiar. A unidade fica `failed` de propósito: é o
+# rastro que sobrevive mesmo se o e-mail não sair (SMTP fora, .env faltando).
+# `exit 2` = o próprio guard falhou — nunca confundir com "disco ok".

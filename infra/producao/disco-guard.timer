@@ -1,0 +1,17 @@
+[Unit]
+Description=Verifica o espaço em disco de hora em hora
+
+[Timer]
+# De hora em hora. O incidente de 2026-08-30 levou o disco de ~11 GB livres a
+# ZERO em poucas horas de builds — um check diário teria avisado tarde demais.
+OnCalendar=hourly
+
+# Se o host estiver desligado na hora marcada, roda assim que voltar: disco
+# cheio é justamente o tipo de problema que não se resolve sozinho esperando.
+Persistent=true
+
+# Espalha para não bater junto com backup/robô, que são os que consomem disco.
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
