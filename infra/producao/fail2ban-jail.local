@@ -1,0 +1,35 @@
+# fail2ban — configuração do VPSTodo.
+#
+# DESTINO NO HOST: /etc/fail2ban/jail.local
+# NUNCA edite jail.conf: ele é sobrescrito quando o pacote atualiza.
+#
+# Motivo (2026-08-30): 7.757 tentativas de login falhadas no auth.log, 1.823
+# delas contra `root`, com o servidor aceitando senha. Descoberto por acaso
+# investigando disco — `/var/log/btmp*` tinha 231 MB só de tentativas falhas.
+
+[DEFAULT]
+# 🔴 SUBSTITUA <IP_DO_OPERADOR> PELO IP REAL ANTES DE ATIVAR.
+#
+# O operador administra este host como root. Sem o IP dele aqui, cinco erros de
+# senha o trancariam para fora do próprio servidor — e o desbloqueio exigiria
+# console da VPS. O valor real NÃO é versionado (é dado pessoal); ele vive só no
+# arquivo instalado em /etc/fail2ban/jail.local.
+#
+# As faixas privadas cobrem Docker/Swarm, que falam com o host.
+ignoreip = 127.0.0.1/8 ::1 <IP_DO_OPERADOR> 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+# 5 falhas em 10 min -> 1 hora de banimento. Conservador de propósito: o custo de
+# banir o operador por engano é muito maior que o de um atacante voltar depois de
+# uma hora — ele sai de milhares de tentativas para cinco por hora.
+maxretry = 5
+findtime = 10m
+bantime  = 1h
+
+# Reincidente é punido progressivamente: cada novo ban dobra, até 1 semana.
+bantime.increment = true
+bantime.factor    = 2
+bantime.maxtime   = 1w
+
+[sshd]
+enabled = true
+port    = ssh
