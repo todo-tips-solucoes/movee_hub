@@ -13,10 +13,17 @@ const { filtrarRelatorio } = require('./log-execucao');
  */
 function criarTransportador({ gmailEmail, gmailAppPassword, transporterCustom } = {}) {
   if (transporterCustom) return transporterCustom;
+  // 🔴 587 + STARTTLS, NAO 465. O provedor da VPS filtra a saida nas portas
+  // 25 e 465 (medido 2026-09-03: connect em 465 e 25 = timeout de 8s; 587 e
+  // IMAP 993 conectam em 4ms). Com 465 o `sendMail` morria em ETIMEDOUT
+  // dentro do `Promise.allSettled` de index.js e NENHUM alerta de falha
+  // jamais saiu do host desde que a rotina entrou em operacao. Trocar de
+  // volta para 465 desliga o alerta de novo, em silencio.
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
     auth: { user: gmailEmail, pass: gmailAppPassword },
   });
 }

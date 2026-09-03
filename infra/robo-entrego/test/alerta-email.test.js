@@ -6,7 +6,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { montarCorpoAlerta, enviarAlerta } = require('../src/alerta-email');
+const { montarCorpoAlerta, enviarAlerta, criarTransportador } = require('../src/alerta-email');
 
 function mockTransportador() {
   const enviados = [];
@@ -94,5 +94,24 @@ describe('enviarAlerta — múltiplos destinatários (3.4.2)', () => {
       relatorios: [{ tipo_hub: 'faturamento', url_s3: 'https://segredo', tentativas: 1 }],
     });
     assert.doesNotMatch(transportador.enviados[0].text, /segredo/);
+  });
+});
+
+// O bug de 2026-09-03: toda a suíte usava transportador MOCK, então a porta
+// real nunca foi verificada por teste nenhum. A VPS filtra a saída em 25 e
+// 465 — com 465 o alerta morria em ETIMEDOUT e o operador não recebia nada,
+// sem rastro. Este teste é o que impede a regressão silenciosa.
+describe('criarTransportador — porta SMTP que a VPS deixa sair', () => {
+  test('usa 587 com STARTTLS (25 e 465 são filtradas na saída)', () => {
+    const t = criarTransportador({ gmailEmail: 'x@y.com', gmailAppPassword: 'senha' });
+    const opts = t.transporter.options;
+    assert.equal(opts.port, 587, 'porta 465/25 é bloqueada pelo provedor da VPS');
+    assert.equal(opts.secure, false, '587 abre em claro e sobe para TLS via STARTTLS');
+    assert.equal(opts.requireTLS, true, 'sem requireTLS o envio poderia cair para texto claro');
+  });
+
+  test('transporterCustom continua tendo precedência (injeção nos testes)', () => {
+    const mock = mockTransportador();
+    assert.equal(criarTransportador({ transporterCustom: mock }), mock);
   });
 });
