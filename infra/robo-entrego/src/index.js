@@ -294,7 +294,7 @@ async function processarRelatorio({ tipo, dataAnterior, page, clienteHub, entreg
  */
 async function dispararReacoesFalha({ acao, execucaoId, motivoFalha, relatorio, config, transportador, clienteHub }) {
   const relatorios = relatorio ? [relatorio] : [];
-  return Promise.allSettled([
+  const resultados = await Promise.allSettled([
     enviarAlerta({
       transportador,
       remetente: config.gmailEmail,
@@ -309,6 +309,18 @@ async function dispararReacoesFalha({ acao, execucaoId, motivoFalha, relatorio, 
       detalhes: { execucaoId, motivoFalha, relatorio: relatorio ? filtrarRelatorio(relatorio) : undefined },
     }),
   ]);
+  // O allSettled existe para que uma reacao nao derrube a outra — mas
+  // descartar o motivo torna a falha INVISIVEL. Foi assim que a porta 465
+  // bloqueada silenciou todo alerta por dias sem deixar rastro em lugar
+  // nenhum. O journal do systemd (`journalctl -u robo-entrego`) e onde o
+  // operador olha quando o e-mail nao chega.
+  const nomes = ['alerta por e-mail', 'evento de auditoria no hub'];
+  resultados.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.error(`[robo-entrego] ${nomes[i]} FALHOU (execucao ${execucaoId}):`, r.reason && r.reason.message);
+    }
+  });
+  return resultados;
 }
 
 // ---------------------------------------------------------------------------
@@ -431,8 +443,10 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
           + `Confira em ImportacaoLinhaErro (valorBruto tem o original). Detalhe: ${detalhe}`,
         relatorios: [],
       });
-    } catch (_) {
-      // o aviso é best-effort; nunca pode derrubar uma rodada bem-sucedida
+    } catch (e) {
+      // o aviso é best-effort; nunca pode derrubar uma rodada bem-sucedida —
+      // mas o motivo vai para o journal, senão some (mesma lição da porta 465).
+      console.error(`[robo-entrego] aviso de valor por e-mail FALHOU (execucao ${execucaoId}):`, e && e.message);
     }
   }
 
