@@ -29,28 +29,28 @@ implementação).
 Ref: `checklists/security.md` CHK004, CHK005, CHK010, CHK012, CHK013,
 CHK014; `spec.md` FR-013/FR-014
 
-- [ ] 1.1.1 Adicionar a `spec.md` um requisito (ou nota normativa em
+- [x] 1.1.1 Adicionar a `spec.md` um requisito (ou nota normativa em
       FR-013/FR-014) que classifica explicitamente nome completo, data de
       nascimento e telefone como NÃO sensíveis — hoje a exclusão só existe
       em `contracts/hub-motoristas-detalhe.md` (fecha CHK004)
-- [ ] 1.1.2 Levar ao operador se expor telefone e data de nascimento ao
+- [x] 1.1.2 Levar ao operador se expor telefone e data de nascimento ao
       perfil `leitura` está dentro do apetite de risco do produto; registrar
       a decisão em `spec.md` (CHK005, `{humano}`)
-- [ ] 1.1.3 Confirmar o código final da permissão `motoristas.dados_sensiveis`
+- [x] 1.1.3 Confirmar o código final da permissão `motoristas.dados_sensiveis`
       contra o padrão de nomenclatura da migration 0044 e substituir o
       `[PROPOSTA]` por valor definitivo em `spec.md`/`research.md`/
       `data-model.md` (CHK010)
-- [ ] 1.1.4 Adicionar a FR-013 a exigência de OMITIR a chave (nunca
+- [x] 1.1.4 Adicionar a FR-013 a exigência de OMITIR a chave (nunca
       `null`/máscara) quando a permissão falta — hoje essa regra só existe
       no contrato, uma implementação com `***.***.***-**` satisfaria FR-013
       ao pé da letra (CHK012)
-- [ ] 1.1.5 Adicionar requisito (ou nota em FR-013) proibindo qualquer
+- [x] 1.1.5 Adicionar requisito (ou nota em FR-013) proibindo qualquer
       endpoint futuro de expor `dados_entrego_json` bruto fora de
       `buscarDetalheMotorista()` (CHK013)
-- [ ] 1.1.6 Adicionar requisito (ou nota em `research.md` Decision 11)
+- [x] 1.1.6 Adicionar requisito (ou nota em `research.md` Decision 11)
       cobrindo as permissões do papel de serviço `robo_entrego_servico`
       sobre os dados sensíveis (CHK014)
-- [ ] 1.1.7 Re-rodar `requirement-coverage.sh` e `validate-sdd.sh` em
+- [x] 1.1.7 Re-rodar `requirement-coverage.sh` e `validate-sdd.sh` em
       `spec.md` após os ajustes desta tarefa
 
 ### 1.2 Retenção e ciclo de vida dos dados sensíveis `[C]`
@@ -58,32 +58,32 @@ CHK014; `spec.md` FR-013/FR-014
 Ref: `checklists/security.md` CHK016, CHK017, CHK018, CHK019, CHK020;
 `spec.md` FR-017
 
-- [ ] 1.2.1 Levar ao operador/DPO a decisão de prazo de retenção e base
+- [x] 1.2.1 Levar ao operador/DPO a decisão de prazo de retenção e base
       legal para os dados de terceiro (o motorista não é usuário do hub);
       substituir o `[PROPOSTA — confirmar antes de execute-task]` de FR-017
       por valor definitivo (CHK019, `{humano}`)
-- [ ] 1.2.2 Definir e documentar em FR-017 (ou novo FR) o que acontece com
+- [x] 1.2.2 Definir e documentar em FR-017 (ou novo FR) o que acontece com
       os dados sensíveis quando `Entregador.ativo = false` ou o vínculo é
       removido (CHK016)
-- [ ] 1.2.3 Definir se há mecanismo de atendimento a pedido de exclusão do
+- [x] 1.2.3 Definir se há mecanismo de atendimento a pedido de exclusão do
       titular (motorista) sobre os dados enriquecidos (CHK017)
-- [ ] 1.2.4 Definir o destino do payload anterior que a atualização
+- [x] 1.2.4 Definir o destino do payload anterior que a atualização
       semestral (FR-016) substitui — versionar, descartar, ou manter só o
       último (CHK018)
-- [ ] 1.2.5 Confirmar com o operador se os backups diários do hub entram no
+- [x] 1.2.5 Confirmar com o operador se os backups diários do hub entram no
       escopo da retenção decidida (CHK020, `{humano}`)
 
 ### 1.3 Auditoria — quantificação e escopo `[A]`
 
 Ref: `checklists/security.md` CHK022, CHK025; `spec.md` FR-014, FR-018
 
-- [ ] 1.3.1 Enumerar em FR-014 (ou nota) as ações e campos exatos gravados
+- [x] 1.3.1 Enumerar em FR-014 (ou nota) as ações e campos exatos gravados
       pela auditoria de escrita — hoje FR-014 delega a "mesmo padrão
       existente" sem lista fechada (CHK022)
-- [ ] 1.3.2 Definir se a proibição de logar dados sensíveis vale também para
+- [x] 1.3.2 Definir se a proibição de logar dados sensíveis vale também para
       stdout/stack trace do worker `infra/robo-entrego/` e adicionar essa
       exigência à spec (CHK025)
-- [ ] 1.3.3 Re-rodar `requirement-coverage.sh` e `validate-sdd.sh` em
+- [x] 1.3.3 Re-rodar `requirement-coverage.sh` e `validate-sdd.sh` em
       `spec.md` após os ajustes desta tarefa
 
 ### 1.4 Critérios de aceite e limites de frequência para a raspagem EntreGô `[A]`
@@ -91,16 +91,16 @@ Ref: `checklists/security.md` CHK022, CHK025; `spec.md` FR-014, FR-018
 Ref: `checklists/security.md` CHK030, CHK033, CHK035, CHK037; `spec.md`
 FR-005, FR-016
 
-- [ ] 1.4.1 Adicionar Success Criteria observável que falhe se uma tarefa
+- [x] 1.4.1 Adicionar Success Criteria observável que falhe se uma tarefa
       assumir a rota do BFF como existente sem confirmação em
       `ACHADOS-PORTAL.md` (CHK030)
-- [ ] 1.4.2 Quantificar o throttle entre motoristas de FR-016 com um número
+- [x] 1.4.2 Quantificar o throttle entre motoristas de FR-016 com um número
       concreto (ex.: intervalo mínimo em minutos — `research.md:150` traz
       "ex.: a cada 5 min" como `[PROPOSTA]`) (CHK033)
-- [ ] 1.4.3 Definir limite de frequência para a busca sob demanda (FR-005),
+- [x] 1.4.3 Definir limite de frequência para a busca sob demanda (FR-005),
       que compartilha a mesma sessão EntreGô da rotina semestral e da
       importação diária (CHK035)
-- [ ] 1.4.4 Confirmar com o operador se bloquear a sessão compartilhada (e
+- [x] 1.4.4 Confirmar com o operador se bloquear a sessão compartilhada (e
       com ela a importação diária das 06:00) é risco aceitável para uma
       ação disparada por gestor (CHK037, `{humano}`)
 

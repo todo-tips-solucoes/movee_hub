@@ -26,7 +26,7 @@ Tabela já existente. Campos atuais (não alterados):
 
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
-| dados_entrego_json | jsonb | NULL | payload enriquecido — shape interno controlado pelo hub (ver nota de shape abaixo), não é cópia literal do payload da EntreGô (que é `[PROPOSTA]`, Decision 9 de `research.md`). Contém dados pessoais sensíveis de terceiro sem prazo de retenção definido ainda — nenhum expurgo automático até a política existir (FR-017) |
+| dados_entrego_json | jsonb | NULL | payload enriquecido — shape interno controlado pelo hub (ver nota de shape abaixo), não é cópia literal do payload da EntreGô (que é `[PROPOSTA]`, Decision 9 de `research.md`). Contém dados pessoais sensíveis de terceiro sem prazo de retenção definido ainda — dívida explicitamente assumida (dec-038); nenhum expurgo automático até a política existir, inclusive quando `ativo=false` (FR-017, FR-020). Atualização semestral (FR-016) SOBRESCREVE este campo — sem versionamento/histórico do valor anterior (CHK018) |
 | dados_entrego_enriquecidos_em | timestamptz | NULL | último enriquecimento bem-sucedido; `NULL` = nunca enriquecido (User Story 2, cenário 3: "sistema informa que falta associar identificador" continua sendo o gate de `id_externo`, não este campo). Também é o seletor da rotina semestral (FR-016): `< now() - interval '6 months'` |
 | dados_entrego_solicitado_em | timestamptz | NULL | pedido pendente de busca sob demanda (FR-005); setado por `POST /motoristas/:id/entrego-enriquecimento`, limpo pelo worker de `infra/robo-entrego/` ao concluir (sucesso ou falha definitiva) |
 
@@ -110,7 +110,8 @@ Schema confirmado via `infra/hub/migrations/0044_seed_permissao_motoristas_crede
 (mesmas tabelas, sem alteração de schema — apenas INSERTs novos):
 
 - `Permissao(codigo, modulo_id)` — novo registro `codigo = 'motoristas.dados_sensiveis'`
-  `[PROPOSTA]` (research.md Decision 10), `modulo_id` = id do módulo `motoristas`.
+  (CONFIRMADO, execute-task FASE 1, CHK010 — research.md Decision 10, spec.md FR-013),
+  `modulo_id` = id do módulo `motoristas`.
 - `PapelPermissao(papel_id, permissao_id)` — concede a `admin_plataforma` e
   `admin_entidade` apenas (mesmo padrão do seed 0044).
 - Permissões novas para o papel de serviço `robo_entrego_servico`

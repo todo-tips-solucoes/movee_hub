@@ -157,7 +157,12 @@ timer+script em `infra/robo-entrego/` (`enriquecimento-entrego.timer`,
 intervalo curto — ex.: a cada 5 min, `[PROPOSTA — ajustar em create-tasks]`)
 consome os pedidos pendentes, um motorista por vez, com o mesmo
 backoff/antibot já usado pelo robô de importação, e grava o resultado de
-volta via `hub-client.js`.
+volta via `hub-client.js`. Intervalo do timer do worker de fila
+(`enriquecimento-entrego.timer`) segue `[PROPOSTA — ajustar em
+create-tasks]`; já o throttle MÍNIMO entre motoristas processados numa
+mesma execução foi quantificado em `spec.md` FR-016 (60s, CHK033,
+execute-task FASE 1) — os dois números são independentes (frequência do
+timer vs. espaçamento dentro de uma execução).
 
 **Rationale**: mesmo padrão de fila+poll já usado no projeto para o pipeline
 de importações (`lib/hub-import-processor.js`, "fire-and-forget... se o
@@ -212,17 +217,23 @@ nome de rota/campo (Constitution VI).
 **Rationale**: Princípio VI (Zero Fabricação) é INEGOCIÁVEL — inventar um
 endpoint que não foi visto seria fabricar dado factual de sistema externo.
 
+**Critério de aceite (CHK030, execute-task FASE 1)**: `spec.md` SC-006 torna
+esta restrição um critério observável — nenhuma tarefa MUST codificar um
+endpoint sem citar `ACHADOS-PORTAL.md` como evidência.
+
 **Alternatives considered**: assumir que o endpoint segue o padrão REST dos
 outros 2 documentados (ex.: `/operation/logistics-operator/drivers/{uuid}`)
 — rejeitado explicitamente; é uma hipótese razoável para a implementação
 testar primeiro, mas não pode ser afirmada como fato no plano.
 
-## Decision 10: RBAC — nova permissão `motoristas.dados_sensiveis` (nome proposto)
+## Decision 10: RBAC — nova permissão `motoristas.dados_sensiveis` (nome CONFIRMADO, execute-task FASE 1, CHK010)
 
 **Decision**: nova permissão granular `motoristas.dados_sensiveis`
-(`[PROPOSTA]` — nome segue a convenção `<módulo>.<capacidade>` já usada por
-`motoristas.credencial`/`motoristas.editar`/`motoristas.consultar`),
-concedida via seed SQL no mesmo padrão exato de
+(identificador confirmado contra o padrão real de
+`infra/hub/migrations/0044_seed_permissao_motoristas_credencial.sql` —
+`<módulo>.<capacidade>`, mesma convenção de
+`motoristas.credencial`/`motoristas.editar`/`motoristas.consultar` — ver
+`spec.md` FR-013), concedida via seed SQL no mesmo padrão exato de
 `infra/hub/migrations/0044_seed_permissao_motoristas_credencial.sql`
 (`INSERT INTO "Permissao"(codigo, modulo_id) ... INSERT INTO
 "PapelPermissao"` para os papéis `admin_plataforma`/`admin_entidade`
@@ -263,6 +274,11 @@ precisa"); a mesma disciplina se aplica às novas capacidades.
 **Alternatives considered**: reusar `importacoes.criar` para as novas rotas
 — rejeitado, mistura domínios (auditoria de importação vs. dados de
 motorista), quebra o princípio de permissão granular já em uso no projeto.
+
+**Cobertura de requisito (CHK014, execute-task FASE 1)**: `spec.md` FR-019
+promove esta decisão a requisito — least privilege para
+`robo_entrego_servico`, nunca a permissão de leitura humana
+`motoristas.dados_sensiveis`.
 
 ## Decision 12: correção — `Entregador` não tem coluna de CNPJ; casamento automático é por similaridade de nome (RPC nova, simétrica à 0023)
 

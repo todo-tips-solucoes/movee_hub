@@ -78,6 +78,29 @@ piso alto, nunca vínculo errado silencioso. Esta correção substitui, em
 FR-009, FR-012 e SC-005 abaixo, toda afirmação anterior de casamento
 `Entregador`↔`ContaMotorista` por CNPJ.
 
+### Sessão 2026-09-04 (execute-task FASE 1 — fechamento de gaps `{humano}` do checklist de segurança)
+
+- Q (CHK005): Expor telefone e data de nascimento do motorista ao perfil
+  `leitura` está dentro do apetite de risco do produto? → A: Sim, **visíveis**
+  ao perfil `leitura` (dec-040). Telefone é operacionalmente útil e data de
+  nascimento é pouco sensível isolada; CPF, RG, filiação, e-mail e contato de
+  emergência seguem restritos a `admin_entidade`/`admin_plataforma` (FR-013).
+- Q (CHK037): Bloquear a sessão compartilhada da EntreGô (e com ela a
+  importação diária) é risco aceitável para uma busca sob demanda disparada
+  por gestor? → A: **Fila serializada, robô prioritário** (dec-039): uma
+  raspagem por vez; nenhuma busca sob demanda inicia dentro das janelas do
+  timer do robô (`config.json`, hoje 11:00/13:00/14:00 America/Sao_Paulo). O
+  gestor espera alguns minutos no pior caso (ver FR-005).
+- Q (CHK019): Qual prazo de retenção e base legal se aplicam aos dados
+  pessoais de terceiro (o motorista não é usuário do hub)? → A: **Dívida
+  explicitamente assumida** (dec-038) — decisão adiada para tratativa com o
+  jurídico/DPO. Enquanto o prazo/base legal não forem definidos, permanece
+  proibido qualquer expurgo automático (FR-017 inalterado nesse ponto); esta
+  entrega **não** implementa expurgo, TTL, job de limpeza ou anonimização.
+- Q (CHK020): Os backups diários do hub entram no escopo da retenção
+  decidida? → A: **Não** (dec-041) — os backups seguem a própria retenção já
+  configurada (12 meses); o expurgo, quando existir, não os alcança.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Vínculo automático da credencial de acesso ao motorista do hub (Priority: P1)
@@ -187,6 +210,14 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   (FR-012, FR-016)
 - O que acontece quando a rotina semestral de atualização (FR-016) encontra falha
   antibot ou sessão expirada no meio do throttle entre motoristas?
+- Quais permissões o worker de `infra/robo-entrego/` (papel de serviço
+  `robo_entrego_servico`) tem sobre os dados sensíveis desta feature? (FR-019)
+- O que acontece com os dados sensíveis já enriquecidos quando o motorista é
+  desativado (`Entregador.ativo = false`) ou o vínculo de credencial é
+  removido, e como um pedido de exclusão do titular é tratado enquanto a
+  política de retenção não existe? (FR-020)
+- Os dados pessoais sensíveis podem aparecer em log de aplicação ou stack
+  trace do worker de raspagem? (FR-021)
 
 ## Requirements
 
@@ -208,7 +239,16 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   usado por essa busca sob demanda é o mesmo consumido pela rotina semestral
   (FR-016) e está sujeito à mesma restrição: MUST ser confirmado em
   `docs/plans/robo-entrego/ACHADOS-PORTAL.md` (ou levantado empiricamente e
-  documentado lá) antes da implementação — nunca suposto (Constitution VI).
+  documentado lá) antes da implementação — nunca suposto (Constitution VI). A
+  busca sob demanda MUST recusar (`429`/`JA_PENDENTE`) um segundo pedido para
+  o mesmo motorista enquanto o anterior estiver pendente, e MUST estar
+  sujeita a rate limiting por usuário/IP (CHK035) — a sessão EntreGô é
+  compartilhada por todas as empresas, e uma rajada de pedidos de um gestor
+  pode travar a busca para todos os tenants. A fila MUST ser processada de
+  forma serializada com a rotina/robô já agendado, nunca concorrente a ele:
+  nenhuma busca sob demanda é processada dentro das janelas horárias já
+  configuradas para o robô (hoje 11:00/13:00/14:00 America/Sao_Paulo); o
+  robô tem prioridade e o gestor aguarda a janela seguinte (CHK037, dec-039).
 - **FR-006**: Sistema MUST associar a cada motorista do hub um identificador da
   plataforma EntreGô, usado para localizar seus dados nessa busca. Esse
   identificador já é capturado hoje pelo pipeline de importação automática
@@ -258,14 +298,22 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   desta feature (CPF, RG, nome da mãe, nome do pai, e-mail, contato de
   emergência) a uma permissão nova e dedicada, concedida somente aos perfis
   `admin_entidade` e `admin_plataforma` — seguindo o padrão granular já
-  existente no hub para `motoristas.credencial` (migration 0044; o
-  identificador exato da nova permissão MUST ser confirmado na fase de plano
-  contra esse mesmo padrão, nunca suposto). O perfil `leitura` MUST continuar
-  vendo o cadastro do motorista, porém sem esses campos sensíveis.
+  existente no hub para `motoristas.credencial` (migration 0044). Identificador
+  confirmado nesta fase (CHK010): `motoristas.dados_sensiveis`, seguindo o
+  padrão `<módulo>.<capacidade>` do seed 0044. O perfil `leitura` MUST continuar
+  vendo o cadastro do motorista, porém sem esses campos sensíveis. Quando a
+  permissão estiver ausente, o sistema MUST OMITIR a chave do campo sensível no
+  payload de resposta — nunca devolver `null` ou um valor mascarado (ex.:
+  `***.***.***-**`), que ainda revelaria o formato do dado (CHK012).
 - **FR-014**: Sistema MUST tratar CPF, RG, nome dos pais, contato de emergência e
   e-mail como dados pessoais sensíveis, sujeitos ao controle de acesso resolvido em
   FR-013 e ao mesmo padrão de auditoria já aplicado hoje a ações sobre credencial de
-  motorista no hub.
+  motorista no hub. Nome completo, data de nascimento e telefone do motorista são
+  explicitamente NÃO sensíveis (CHK004) e permanecem sempre visíveis a qualquer
+  perfil autorizado a ver o cadastro, incluindo `leitura` (CHK005, dec-040).
+  Sistema MUST NOT expor, por qualquer endpoint presente ou futuro,
+  `dados_entrego_json` bruto (ou qualquer campo sensível listado acima) fora do
+  payload já filtrado por `buscarDetalheMotorista()` (CHK013).
 - **FR-015**: Sistema MUST exibir os valores de categorias vindas da EntreGô (ex.:
   grau de parentesco, modal, operador logístico) como recebidos da plataforma, sem
   exigir tradução/rotulagem amigável nesta entrega.
@@ -283,21 +331,64 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   entregadora MUST ser confirmado em `docs/plans/robo-entrego/ACHADOS-PORTAL.md`
   (ou levantado empiricamente e documentado lá) antes da implementação — nunca
   suposto (Constitution VI) — preferindo a via de API via `page.evaluate` sobre os
-  XPaths do briefing, que ficam como plano B declarado no plano técnico.
+  XPaths do briefing, que ficam como plano B declarado no plano técnico. O
+  throttle entre motoristas MUST ser de no mínimo 60 segundos (CHK033) —
+  reaproveita o primeiro degrau do backoff já existente do robô
+  (`BACKOFF_MS_SEQUENCIA[0] = 60_000` ms, `infra/robo-entrego/src/index.js:36`),
+  evitando introduzir uma nova constante de tempo desvinculada do padrão já
+  testado. A atualização semestral MUST sobrescrever apenas o último valor de
+  `dados_entrego_json` — sem versionamento nem histórico do payload anterior
+  (CHK018), consistente com o schema de coluna única de `data-model.md`.
 - **FR-017**: Sistema MUST ter uma política de retenção definida e documentada
   para os dados pessoais sensíveis desta feature (FR-014) — CPF, RG, nome dos
   pais, contato de emergência e e-mail, todos de um titular que não é usuário do
-  hub. O prazo exato e a base legal aplicável MUST ser confirmados com o
-  operador/DPO na fase de plano/tarefas (`[PROPOSTA — confirmar antes de
-  execute-task]`; Constitution VI — nenhum prazo é suposto nesta spec). Até essa
-  política existir, o sistema MUST NOT expurgar automaticamente os dados
-  enriquecidos, para não perder de forma irreversível um dado sem regra de
-  descarte definida.
+  hub. O prazo exato e a base legal aplicável ficam **dívida explicitamente
+  assumida** com o operador em `execute-task` (dec-038, CHK019): decisão adiada
+  para tratativa com o jurídico/DPO, sem prazo definido nesta entrega
+  (Constitution VI — nenhum prazo é suposto nesta spec). Até essa política
+  existir, o sistema MUST NOT expurgar automaticamente os dados enriquecidos,
+  para não perder de forma irreversível um dado sem regra de descarte definida
+  — nenhuma tarefa desta feature MUST implementar expurgo, TTL, job de limpeza
+  ou anonimização. Os backups diários do hub seguem a própria retenção já
+  configurada (12 meses) e não são alcançados por este requisito (CHK020,
+  dec-041).
 - **FR-018**: Sistema MUST registrar evento de auditoria, pelo mesmo mecanismo já
   usado para as ações de escrita (FR-014), toda vez que um usuário autorizado
   VISUALIZAR os campos pessoais sensíveis (`dadosPessoais`, `documentos.rg`,
   `contatoEmergencia`) de um motorista via `GET /motoristas/:id` — não somente as
   ações que os criam ou atualizam.
+- **FR-019**: Sistema MUST conceder ao papel de serviço `robo_entrego_servico`
+  apenas as permissões novas e dedicadas necessárias para consumir/atualizar a
+  fila de enriquecimento (`motoristas.enriquecimento.consultar` /
+  `motoristas.enriquecimento.atualizar`, `research.md` Decision 11) — nunca a
+  permissão de leitura humana `motoristas.dados_sensiveis` (FR-013) nem
+  permissões mais amplas já existentes (ex.: `importacoes.criar`), seguindo o
+  princípio de least privilege já estabelecido para esse papel (CHK014).
+- **FR-020**: Enquanto a política de retenção (FR-017) não existir, o sistema
+  MUST manter os dados pessoais sensíveis já enriquecidos intactos quando
+  `Entregador.ativo` passar a `false` ou o vínculo de credencial for removido
+  — nenhuma ação automática de expurgo/anonimização (CHK016, mesma dívida de
+  FR-017/dec-038). Não há, nesta entrega, mecanismo automatizado de
+  atendimento a pedido de exclusão do titular (motorista) sobre os dados
+  enriquecidos; um pedido desse tipo MUST ser tratado manualmente pelo
+  operador, fora do escopo desta feature, até a política de retenção existir
+  (CHK017).
+- **FR-021**: Sistema MUST NOT registrar os valores dos dados pessoais
+  sensíveis (FR-014) em log de aplicação, stdout, stderr ou stack trace de
+  exceção — inclusive no worker `infra/robo-entrego/`, que manipula o payload
+  completo antes de persistir. Mesma disciplina já exigida para o campo
+  `detalhes` da auditoria (`scrubDetalhes()`,
+  `contracts/entrego-enriquecimento.md`) se estende a qualquer superfície de
+  log (CHK025).
+
+> Auditoria (FR-014/FR-018) — ações e campos exatos registrados (CHK022):
+> `motorista.vinculado_automaticamente` (vínculo automático, FR-009) — recurso
+> `Entregador`, `recursoId`; `motorista.entrego_enriquecido` /
+> `motorista.entrego_enriquecimento_falhou` (busca EntreGô, FR-005/FR-016) —
+> recurso `Entregador`, `recursoId`, `detalhes: { modo }`;
+> `motorista.dados_sensiveis_visualizados` (leitura, FR-018) — recurso
+> `Entregador`, `recursoId`, `usuarioId`. Em nenhum caso `detalhes` inclui o
+> payload de dados sensíveis (`scrubDetalhes()`).
 
 > Decisões de infraestrutura: sem credencial nova nem política de rotação de
 > chaves nova — a busca de dados na EntreGô sob demanda (FR-005) e a rotina
@@ -337,6 +428,10 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   correspondência confiável (similaridade de nome >= 0.9, único candidato —
   FR-009) no hub passam a exibir o vínculo, incluindo cadastros já existentes
   antes desta entrega (ex.: o caso relatado).
+- **SC-006**: Zero tarefas de implementação da raspagem EntreGô (FR-005,
+  FR-016) codificam um endpoint sem citar a linha/seção correspondente em
+  `docs/plans/robo-entrego/ACHADOS-PORTAL.md` como evidência — 100% dos
+  endpoints efetivamente usados têm essa citação antes de codificar (CHK030).
 
 ## Delta Requirements
 
