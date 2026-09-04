@@ -7,6 +7,19 @@
 # reaproveita/edita os existentes). Cobre quickstart.md Scenarios 1, 2, 4, 5
 # (parcial — ver nota abaixo), 6, 7.
 #
+# ACRÉSCIMO (onda de fechamento, tasks.md 2.2.4/2.4.3 — deferidas na FASE 2
+# por falta de caller/rota real, ambas agora exercitáveis):
+#   - 2.2.4: chama a RPC hub_motoristas_candidatos_por_conta (migration
+#     0058) DIRETO no PostgREST (mesma técnica de
+#     hub-rls-integration.sh — bypass do Express, JWT sintético via
+#     lib/hub-postgrest-jwt.js), provando ordenação por similaridade DESC,
+#     piso de retorno 0.3 e escopo EmpresaGrupoMovee (JOIN da própria RPC,
+#     isolado da RLS ao incluir a empresa fora do grupo no escopo do JWT).
+#   - 2.4.3: reusa o login robo_entrego_servico já feito abaixo p/
+#     Scenario 5/6 e prova o perímetro do papel — alcança a fila
+#     (motoristas.enriquecimento.consultar) e NÃO alcança rotas que exigem
+#     motoristas.consultar/motoristas.editar.
+#
 # NÃO sobe stack nova (pedido explícito da onda) — usa o hub-homolog que já
 # está no ar (docker compose -p hub-homolog).
 #
@@ -92,17 +105,26 @@ if [ "$(hostname)" != "VPSTodo" ]; then
 fi
 
 EMPRESA=9001
+EMPRESA_FORA_GRUPO=777777 # NÃO está em EmpresaGrupoMovee (task 2.2.4) — id sintético, sem FK física em Entregador.id_empresa
 UUID_PREFIX="dddddddd-0000-0000-0000-00000000000"
 UUID_V1="${UUID_PREFIX}1"
 UUID_V2A="${UUID_PREFIX}2"
 UUID_V2B="${UUID_PREFIX}3"
 UUID_ENRIQ="${UUID_PREFIX}4"
+UUID_RPC_A="${UUID_PREFIX}5"
+UUID_RPC_B="${UUID_PREFIX}6"
+UUID_RPC_C="${UUID_PREFIX}7"
+UUID_RPC_D="${UUID_PREFIX}8"
 NOME_PREFIX="E2E360"
 TS="$(date +%s)"
 CNPJ1="$(printf '%014d' "$TS")"
 CNPJ2="$(printf '%014d' "$((TS + 1))")"
+CNPJ_RPC="$(printf '%014d' "$((TS + 2))")"
 NOME1="$NOME_PREFIX Fulano De Tal Um"
 NOME2="$NOME_PREFIX Beltrano De Souza Dois"
+NOME_ALVO_RPC="$NOME_PREFIX Rpc Quatro Alvo Teste"
+NOME_CAND_B_RPC="$NOME_PREFIX Rpc Quatro Outro Nome"
+NOME_CAND_C_RPC="Zebra Completamente Diferente Nada"
 
 cleanup_rows() {
   echo
@@ -110,12 +132,12 @@ cleanup_rows() {
   psql_t <<SQL >/dev/null
 SET session_replication_role = replica;
 DELETE FROM "Auditoria" WHERE recurso='Entregador' AND recurso_id IN (
-  SELECT id::text FROM "Entregador" WHERE id_empresa = $EMPRESA AND id_externo::text LIKE '$UUID_PREFIX%'
+  SELECT id::text FROM "Entregador" WHERE id_empresa IN ($EMPRESA, $EMPRESA_FORA_GRUPO) AND id_externo::text LIKE '$UUID_PREFIX%'
 );
-UPDATE "Entregador" SET motorista_id = NULL WHERE id_empresa = $EMPRESA AND id_externo::text LIKE '$UUID_PREFIX%';
-DELETE FROM "Entregador" WHERE id_empresa = $EMPRESA AND id_externo::text LIKE '$UUID_PREFIX%';
-DELETE FROM "ContaMotorista" WHERE cnpj_prestador IN ('$CNPJ1', '$CNPJ2');
-DELETE FROM "Motorista" WHERE cnpj_prestador IN ('$CNPJ1', '$CNPJ2');
+UPDATE "Entregador" SET motorista_id = NULL WHERE id_empresa IN ($EMPRESA, $EMPRESA_FORA_GRUPO) AND id_externo::text LIKE '$UUID_PREFIX%';
+DELETE FROM "Entregador" WHERE id_empresa IN ($EMPRESA, $EMPRESA_FORA_GRUPO) AND id_externo::text LIKE '$UUID_PREFIX%';
+DELETE FROM "ContaMotorista" WHERE cnpj_prestador IN ('$CNPJ1', '$CNPJ2', '$CNPJ_RPC');
+DELETE FROM "Motorista" WHERE cnpj_prestador IN ('$CNPJ1', '$CNPJ2', '$CNPJ_RPC');
 SQL
   echo "=== cleanup: concluído ==="
   rm -rf "$TMP"
@@ -198,6 +220,61 @@ check "ambos os candidatos ambíguos permanecem SEM vínculo (nunca vincula erra
 CONTA2_EXISTE="$(psql_val "SELECT count(*) FROM \"ContaMotorista\" WHERE cnpj_prestador='$CNPJ2';")"
 check "ContaMotorista foi criada mesmo sem vínculo (credencial do app funciona)" "$CONTA2_EXISTE" "1"
 
+# ── Task 2.2.4 — RPC hub_motoristas_candidatos_por_conta (migration 0058), ──
+# chamada DIRETO no PostgREST (bypass do Express, mesma técnica de
+# hub-rls-integration.sh): prova ordenação DESC por similaridade, piso 0.3 e
+# escopo EmpresaGrupoMovee. Candidato D mora em $EMPRESA_FORA_GRUPO mas o JWT
+# sintético inclui essa empresa no `escopo` — se ele ainda assim não aparece,
+# quem barrou foi o JOIN "EmpresaGrupoMovee" DENTRO da RPC (0058), não a RLS.
+echo
+echo "### Task 2.2.4 — RPC hub_motoristas_candidatos_por_conta direto no PostgREST ###"
+psql_t -c "INSERT INTO \"ContaMotorista\" (cnpj_prestador, nome, ativo) VALUES ('$CNPJ_RPC', '$NOME_ALVO_RPC', true);" >/dev/null
+CONTA_RPC_ID="$(psql_val "SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='$CNPJ_RPC';")"
+[ -n "$CONTA_RPC_ID" ] || { echo "FAIL: CONTA_RPC_ID vazio"; fails=$((fails+1)); }
+psql_t -c "INSERT INTO \"Entregador\" (id_empresa, id_externo, nome) VALUES ($EMPRESA, '$UUID_RPC_A', '$NOME_ALVO_RPC');" >/dev/null
+psql_t -c "INSERT INTO \"Entregador\" (id_empresa, id_externo, nome) VALUES ($EMPRESA, '$UUID_RPC_B', '$NOME_CAND_B_RPC');" >/dev/null
+psql_t -c "INSERT INTO \"Entregador\" (id_empresa, id_externo, nome) VALUES ($EMPRESA, '$UUID_RPC_C', '$NOME_CAND_C_RPC');" >/dev/null
+psql_t -c "INSERT INTO \"Entregador\" (id_empresa, id_externo, nome) VALUES ($EMPRESA_FORA_GRUPO, '$UUID_RPC_D', '$NOME_ALVO_RPC');" >/dev/null
+ENT_RPC_A_ID="$(psql_val "SELECT id FROM \"Entregador\" WHERE id_externo='$UUID_RPC_A';")"
+ENT_RPC_B_ID="$(psql_val "SELECT id FROM \"Entregador\" WHERE id_externo='$UUID_RPC_B';")"
+ENT_RPC_C_ID="$(psql_val "SELECT id FROM \"Entregador\" WHERE id_externo='$UUID_RPC_C';")"
+ENT_RPC_D_ID="$(psql_val "SELECT id FROM \"Entregador\" WHERE id_externo='$UUID_RPC_D';")"
+
+OUT_RPC="$(node_e "
+async function main(){
+  const { generateHubPostgrestJWT } = require('./lib/hub-postgrest-jwt');
+  const [contaId, entA, entB, entC, entD] = process.argv.slice(1).map(Number);
+  const jwt = generateHubPostgrestJWT({ usuarioId: 1, empresaAtiva: $EMPRESA, escopo: [$EMPRESA, $EMPRESA_FORA_GRUPO] });
+  const r = await fetch(process.env.POSTGREST_URL + '/rpc/hub_motoristas_candidatos_por_conta', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_conta_motorista_id: contaId }),
+  });
+  const out = { status: r.status };
+  const rows = await r.json().catch(() => null);
+  const ids = Array.isArray(rows) ? rows.map((x) => x.entregador_id) : [];
+  out.inclui_a = ids.includes(entA);
+  out.inclui_b = ids.includes(entB);
+  out.exclui_c_abaixo_piso = !ids.includes(entC);
+  out.exclui_d_fora_grupo = !ids.includes(entD);
+  const idxA = ids.indexOf(entA), idxB = ids.indexOf(entB);
+  out.ordem_desc_a_antes_b = idxA !== -1 && idxB !== -1 && idxA < idxB;
+  console.log('___RESULT_JSON___' + JSON.stringify(out));
+}
+main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
+" "$CONTA_RPC_ID" "$ENT_RPC_A_ID" "$ENT_RPC_B_ID" "$ENT_RPC_C_ID" "$ENT_RPC_D_ID")"
+echo "$OUT_RPC" | grep -v '___RESULT_JSON___' || true
+R_RPC="$(echo "$OUT_RPC" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+[ -n "$R_RPC" ] || { echo "FAIL: RPC 0058 — script Node não retornou resultado"; fails=$((fails+1)); }
+jval_rpc() { node_e "const d=JSON.parse(process.argv[1]); const v=d[process.argv[2]]; process.stdout.write(v===undefined||v===null?'':String(v));" "$R_RPC" "$1"; }
+
+check "RPC 0058: POST direto no PostgREST -> 200" "$(jval_rpc status)" "200"
+check "RPC 0058: candidato A (nome idêntico, sim=1.0) presente" "$(jval_rpc inclui_a)" "true"
+check "RPC 0058: candidato B (sim~0.46, acima do piso) presente" "$(jval_rpc inclui_b)" "true"
+check "RPC 0058: candidato C (sim~0.017, abaixo do piso 0.3) EXCLUÍDO" "$(jval_rpc exclui_c_abaixo_piso)" "true"
+check "RPC 0058: candidato D (fora de EmpresaGrupoMovee, mesmo com a empresa no escopo do JWT) EXCLUÍDO — prova o JOIN da própria RPC" "$(jval_rpc exclui_d_fora_grupo)" "true"
+check "RPC 0058: resultado ordenado por similaridade DESC (A antes de B)" "$(jval_rpc ordem_desc_a_antes_b)" "true"
+
 # ── Scenario 4/7: RBAC de campo (leitura vs admin_entidade) ────────────────
 echo
 echo "### Scenario 4/7 — GET /motoristas/:id — máscara de campo por RBAC ###"
@@ -217,7 +294,10 @@ st=$(shell_req GET "/api/v1/motoristas/$ENT1_ID" "$JAR_LEITURA")
 check "GET /motoristas/:id (leitura) -> 200" "$st" "200"
 check "leitura: cnpjPrestador AINDA presente (não é sensível por FR-013)" "$(jbody cnpjPrestador)" "$CNPJ1"
 check "leitura: has(entregoEnriquecimento.dadosPessoaisBasicos)=true (nunca sensível)" "$(jhas entregoEnriquecimento.dadosPessoaisBasicos)" "true"
-check "leitura: has(entregoEnriquecimento.documentos.cnh)=true (nunca sensível)" "$(jhas entregoEnriquecimento.documentos.cnh)" "true"
+# dec-087 (tasks.md 8.3, 2026-09-04): CNH passou a ser tratada como a RG —
+# sensível, chave ausente sem motoristas.dados_sensiveis. Assertion estava
+# desatualizada (escrita na FASE 8, antes da 8.3): corrigida aqui.
+check "leitura: has(entregoEnriquecimento.documentos.cnh)=false (sensível desde dec-087)" "$(jhas entregoEnriquecimento.documentos.cnh)" "false"
 check "leitura: has(entregoEnriquecimento.dadosPessoais)=false (CHAVE AUSENTE, não vazio/null)" "$(jhas entregoEnriquecimento.dadosPessoais)" "false"
 check "leitura: has(entregoEnriquecimento.contatoEmergencia)=false (CHAVE AUSENTE)" "$(jhas entregoEnriquecimento.contatoEmergencia)" "false"
 check "leitura: has(entregoEnriquecimento.documentos.rg)=false (CHAVE AUSENTE — RG sensível FR-013/FR-014)" "$(jhas entregoEnriquecimento.documentos.rg)" "false"
@@ -260,6 +340,24 @@ CPF_APOS_FALHA="$(psql_val "SELECT dados_entrego_json->'dadosPessoais'->>'cpf' F
 check "FR-007: dados_entrego_enriquecidos_em INALTERADO após falha (dado antigo preservado)" "$ENRIQ_EM_2" "$ENRIQ_EM_1"
 check "FR-007: dados_entrego_json INALTERADO após falha (cpf da busca anterior preservado)" "$CPF_APOS_FALHA" "SINTETICO-CPF-111.111.111-11"
 check "solicitado_em limpo após falha (pedido não fica preso)" "${SOLICITADO_APOS_FALHA:-VAZIO}" "VAZIO"
+
+# ── Task 2.4.3 — RBAC robo_entrego_servico (003-permissoes-enriquecimento- ──
+# robo-entrego.sql): alcança a fila (motoristas.enriquecimento.consultar) e
+# NÃO alcança rotas motoristas.consultar/motoristas.editar. `.atualizar` já
+# foi provado acima (PATCH .../entrego-enriquecimento -> 200, Scenario 5/6).
+echo
+echo "### Task 2.4.3 — perímetro RBAC do papel robo_entrego_servico ###"
+st=$(shell_req GET "/api/v1/robo-entrego/motoristas-para-enriquecer?modo=sob-demanda" "$JAR_ROBO")
+check "GET /robo-entrego/motoristas-para-enriquecer (robo, tem enriquecimento.consultar) -> 200 (alcança)" "$st" "200"
+
+st=$(shell_req GET "/api/v1/motoristas/$ENT1_ID" "$JAR_ROBO")
+check "GET /motoristas/:id (robo, SEM motoristas.consultar) -> 403 (não alcança)" "$st" "403"
+
+st=$(shell_req GET "/api/v1/motoristas/$ENT1_ID/sugestoes" "$JAR_ROBO")
+check "GET /motoristas/:id/sugestoes (robo, SEM motoristas.editar) -> 403 (não alcança)" "$st" "403"
+
+st=$(shell_req POST "/api/v1/motoristas" "$JAR_ROBO" '{"nome":"E2E360 Robo Sem Permissao","idExterno":"00000000-0000-0000-0000-000000000099"}')
+check "POST /motoristas (robo, SEM motoristas.editar) -> 403 (não alcança)" "$st" "403"
 
 echo
 echo "=========================================="

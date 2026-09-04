@@ -137,22 +137,29 @@ Ref: `research.md` Decision 12; `contracts/vinculo-automatico.md`;
 - [x] 2.2.3 Aplicar em `hub-homolog` isolado e validar via `SELECT` manual
       com um par `ContaMotorista`/`Entregador` de teste (nome quase-idêntico
       e nome muito diferente, confirmando o piso de retorno 0.3)
-- [ ] 2.2.4 Teste automatizado (`npm run test:hub:integration`): a RPC
+- [x] 2.2.4 Teste automatizado (`npm run test:hub:integration`): a RPC
       retorna candidatos ordenados por similaridade DESC, escopados a
       `EmpresaGrupoMovee`, mesmo padrão de teste já usado para a 0023
-      — **ADIADO para a FASE 3** (Decisão registrada, onda-010): esta RPC
-      ainda não tem NENHUM caller (o hook automático que a consome é FASE 3,
-      não implementada nesta onda). O padrão estabelecido no repo para
-      `npm run test:hub:integration` (ex.: `hub-rls-integration.test.js`,
-      `hub-motoristas-credencial.test.js`) é um wrapper fino em cima de um
-      driver `.sh` de ~900 linhas que sobe um projeto `hub-test-<runid>`
-      efêmero via Docker Compose — construir esse harness agora, para uma
-      função sem consumidor real, seria trabalho descartável: a FASE 3 vai
-      precisar testar o hook E a RPC juntos, e reescreveria este teste do
-      zero de qualquer forma. A RPC já foi validada empiricamente em
-      `hub-homolog` isolado (2.2.3, output literal no relatório da onda-010)
-      — cobre correção funcional; falta só a automação E2E, que faz mais
-      sentido nascer junto do primeiro caller real.
+      — **RETOMADO na onda-018** (o hook automático da FASE 3, task 3.1.2,
+      agora é o caller real). Padrão adotado: NÃO o wrapper efêmero
+      `hub-test-<runid>` de `hub-motoristas-integration.sh` (essa RPC não
+      tem endpoint HTTP passthrough como `/sugestoes`) — em vez disso,
+      chamada DIRETA ao PostgREST (mesma técnica de
+      `hub-rls-integration.sh`: bypass do Express, JWT sintético via
+      `lib/hub-postgrest-jwt.js`), acrescentada a
+      `infra/hub/testes/hub-motorista-360-integration-homolog.sh`
+      (já roda no `hub-homolog` persistente e já tinha os helpers
+      `psql_t`/`node_e`). Prova, com dados reais em `hub-homolog`: candidato
+      de nome idêntico (similaridade 1.0) antes de candidato parcialmente
+      similar (~0.46) no array de retorno — DESC confirmado; candidato de
+      nome muito diferente (~0.017) ausente — piso 0.3 confirmado; candidato
+      em empresa FORA de `EmpresaGrupoMovee` ausente MESMO com essa empresa
+      incluída no `escopo` do JWT (isola o `JOIN "EmpresaGrupoMovee"` da
+      própria RPC da RLS) — escopo confirmado. 5/5 asserts PASS, output
+      literal no relatório da onda-018. Consumido por
+      `tests/hub-motorista-360-integration.test.js` (`npm run
+      test:hub:integration`), sem novo arquivo — mesmo wrapper que já
+      cobria o driver.
 
 ### 2.3 Seed RBAC: permissão `motoristas.dados_sensiveis` `[A]`
 
@@ -180,14 +187,19 @@ Ref: `research.md` Decision 11; `infra/robo-entrego/sql/001-usuario-servico-robo
       `.atualizar` ao papel `robo_entrego_servico`
 - [x] 2.4.2 Documentar no runbook que o script é aplicado manualmente pelo
       operador (rito de produção, CLAUDE.md) — nunca por esta pipeline
-- [ ] 2.4.3 Teste: chamada autenticada como `robo_entrego_servico` às novas
+- [x] 2.4.3 Teste: chamada autenticada como `robo_entrego_servico` às novas
       rotas de fila retorna 200/202 após o grant aplicado em `hub-homolog`
-      — **ADIADO**: as rotas de fila de enriquecimento são FASE 4/5 (backend),
-      não implementadas nesta onda, então não há endpoint para chamar ainda.
-      O grant em si já foi aplicado e verificado em `hub-homolog` (script
-      003 idempotente, `\d`/`SELECT` confirmam exatamente as 4 permissões
-      esperadas no papel — output literal no relatório da onda-010); falta
-      só a chamada HTTP real, que esta tarefa retoma quando a rota existir.
+      — **RETOMADO na onda-018** (as rotas de fila, FASE 5, já existem desde
+      a FASE 8). Acrescentado a
+      `infra/hub/testes/hub-motorista-360-integration-homolog.sh`, reusando
+      o login `robo_entrego_servico` que o Scenario 5/6 já fazia: (a) o que
+      DEVE alcançar — `GET /robo-entrego/motoristas-para-enriquecer`
+      (`motoristas.enriquecimento.consultar`) -> 200 (novo assert; o `PATCH
+      .../entrego-enriquecimento`, `.atualizar`, já era 200 no Scenario
+      5/6); (b) o que NÃO deve alcançar — `GET /motoristas/:id` (sem
+      `motoristas.consultar`) -> 403, `GET /motoristas/:id/sugestoes` e
+      `POST /motoristas` (sem `motoristas.editar`) -> 403. 4/4 asserts
+      PASS, output literal no relatório da onda-018.
 
 ---
 
