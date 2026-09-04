@@ -241,6 +241,9 @@ describe('mapMotoristaDetalhe', () => {
         cnpjPrestadorMascarado: '12.***.***/0001-**',
         ativo: true,
       },
+      // FASE 7 (task 7.1.3) — default `false` quando o caller não informa
+      // (fail-closed, coberto isoladamente no describe abaixo).
+      vinculoCredencialAutomatico: false,
       // FASE 6 (task 6.4) — atividades ausente no chamador cai no default
       // (motorista sem atividades consultadas, task 6.4.4).
       atividades: { items: [], total: 0, offset: 0, limit: 0 },
@@ -315,6 +318,30 @@ describe('mapMotoristaDetalhe', () => {
     const row = { id: 4, nome: 'X', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
     const detalhe = mapMotoristaDetalhe(row, [], undefined);
     assert.deepEqual(detalhe.resumo, { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+  });
+
+  // hub-motorista-360 FASE 7 (task 7.1.1/7.1.3, SC-002) — o 6º parâmetro é
+  // derivado pelo CALLER (routes/hub-motoristas.js#vinculoAtualEhAutomatico)
+  // a partir da trilha de auditoria; aqui só cobrimos que o DTO repassa o
+  // valor tal-e-qual, com default fail-closed.
+  describe('vinculoCredencialAutomatico (task 7.1.3)', () => {
+    const row = { id: 1, nome: 'Fulano', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
+    const resumo = { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null };
+
+    test('não informado -> false (fail-closed)', () => {
+      const detalhe = mapMotoristaDetalhe(row, [], resumo);
+      assert.equal(detalhe.vinculoCredencialAutomatico, false);
+    });
+
+    test('caller informa true -> repassado tal-e-qual', () => {
+      const detalhe = mapMotoristaDetalhe(row, [], resumo, undefined, false, true);
+      assert.equal(detalhe.vinculoCredencialAutomatico, true);
+    });
+
+    test('caller informa false -> repassado tal-e-qual', () => {
+      const detalhe = mapMotoristaDetalhe(row, [], resumo, undefined, false, false);
+      assert.equal(detalhe.vinculoCredencialAutomatico, false);
+    });
   });
 });
 

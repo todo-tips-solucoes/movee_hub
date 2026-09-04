@@ -69,6 +69,27 @@ describe('parseMotoristaDetalhe', () => {
     nomeEditadoManualmente: false,
     // FASE 4 (task 4.1, FR-008) — CNPJ do legado, não mascarado.
     cnpjPrestador: '12345678000195',
+    // FASE 5/7 (task 7.1.1) — payload completo, COM permissão (dadosPessoais/
+    // contatoEmergencia/documentos.rg presentes). Fixture de
+    // CPF/RG em FORMATO, nunca dado real (CLAUDE.md §PII).
+    entregoEnriquecimento: {
+      enriquecidoEm: '2026-08-01T12:00:00.000Z',
+      dadosPessoaisBasicos: { nomeCompleto: 'Fulano da Silva', dataNascimento: '1990-01-01', telefone: '11999999999' },
+      documentos: { rg: '99.999.999-9', cnh: '99999999999' },
+      informacoesEntrega: { operadorLogistico: 'Movee', modal: 'moto' },
+      dadosPessoais: {
+        nomeCompleto: 'Fulano da Silva',
+        dataNascimento: '1990-01-01',
+        telefone: '11999999999',
+        email: 't@example.com',
+        cpf: '999.999.999-99',
+        nomeMae: '<mae>',
+        nomePai: '<pai>',
+      },
+      contatoEmergencia: { grauParentesco: 'Cônjuge', nome: '<nome>', telefone: '11988888888' },
+    },
+    // FASE 7 (task 7.1.3, SC-002)
+    vinculoCredencialAutomatico: true,
     areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
     resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
     vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
@@ -142,6 +163,83 @@ describe('parseMotoristaDetalhe', () => {
     });
     expect(parsed.atividades.items).toHaveLength(1);
     expect(parsed.atividades.items[0].tipo).toBe('faturamento');
+  });
+
+  // FASE 7 (task 7.1.1/7.1.2, FR-013, contracts/hub-motoristas-detalhe.md
+  // §RBAC de campo) — SEM `motoristas.dados_sensiveis`: `dadosPessoais`/
+  // `contatoEmergencia`/`documentos.rg` vêm OMITIDOS do payload (backend
+  // nunca manda `null`) — o parser MUST preservar a ausência da chave, não
+  // inventar `null`/string vazia (distinção "sem permissão" vs. "vazio").
+  describe('entregoEnriquecimento — RBAC de campo (task 7.1.1/7.1.2)', () => {
+    it('null quando nunca buscado (entregoEnriquecimento: null)', () => {
+      const parsed = parseMotoristaDetalhe({ id: 1, nome: 'X', entregoEnriquecimento: null });
+      expect(parsed.entregoEnriquecimento).toBeNull();
+    });
+
+    it('entregoEnriquecimento ausente no payload -> null, nunca lança', () => {
+      const parsed = parseMotoristaDetalhe({ id: 1, nome: 'X' });
+      expect(parsed.entregoEnriquecimento).toBeNull();
+    });
+
+    it('SEM motoristas.dados_sensiveis -> dadosPessoais/contatoEmergencia/documentos.rg AUSENTES (não null)', () => {
+      const parsed = parseMotoristaDetalhe({
+        id: 1,
+        nome: 'X',
+        entregoEnriquecimento: {
+          enriquecidoEm: '2026-08-01T12:00:00.000Z',
+          dadosPessoaisBasicos: { nomeCompleto: 'Fulano', dataNascimento: '1990-01-01', telefone: '11999999999' },
+          documentos: { cnh: '99999999999' },
+          informacoesEntrega: { operadorLogistico: 'Movee', modal: 'moto' },
+        },
+      });
+      expect(parsed.entregoEnriquecimento).not.toBeNull();
+      expect(Object.prototype.hasOwnProperty.call(parsed.entregoEnriquecimento, 'dadosPessoais')).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(parsed.entregoEnriquecimento, 'contatoEmergencia')).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(parsed.entregoEnriquecimento!.documentos, 'rg')).toBe(false);
+      // dec-040 — sempre visíveis, mesmo sem a permissão de dados sensíveis.
+      expect(parsed.entregoEnriquecimento!.dadosPessoaisBasicos.telefone).toBe('11999999999');
+      expect(parsed.entregoEnriquecimento!.documentos.cnh).toBe('99999999999');
+    });
+
+    // ACHADOS-PORTAL.md §9.5.3 — forma variável: `rg`/`cnh`/`nomePai` podem
+    // faltar mesmo COM a permissão (ciclista tende a ter RG, motociclista
+    // CNH) — a UI nunca pode quebrar nem exibir "undefined" por ausência.
+    it('COM motoristas.dados_sensiveis mas rg/nomePai ausentes na origem (ciclista) -> null, nunca undefined/erro', () => {
+      const parsed = parseMotoristaDetalhe({
+        id: 1,
+        nome: 'X',
+        entregoEnriquecimento: {
+          enriquecidoEm: '2026-08-01T12:00:00.000Z',
+          dadosPessoaisBasicos: { nomeCompleto: 'Fulano', dataNascimento: '1990-01-01', telefone: '11999999999' },
+          documentos: { rg: null, cnh: '99999999999' },
+          informacoesEntrega: { operadorLogistico: 'Movee', modal: 'bike' },
+          dadosPessoais: {
+            nomeCompleto: 'Fulano',
+            dataNascimento: '1990-01-01',
+            telefone: '11999999999',
+            email: 't@example.com',
+            cpf: '999.999.999-99',
+            nomeMae: '<mae>',
+            nomePai: null,
+          },
+          contatoEmergencia: { grauParentesco: 'Cônjuge', nome: '<nome>', telefone: '11988888888' },
+        },
+      });
+      expect(parsed.entregoEnriquecimento!.documentos.rg).toBeNull();
+      expect(parsed.entregoEnriquecimento!.dadosPessoais!.nomePai).toBeNull();
+    });
+  });
+
+  describe('vinculoCredencialAutomatico (task 7.1.3, SC-002)', () => {
+    it('ausente no payload -> false (fail-closed)', () => {
+      const parsed = parseMotoristaDetalhe({ id: 1, nome: 'X' });
+      expect(parsed.vinculoCredencialAutomatico).toBe(false);
+    });
+
+    it('true no payload -> repassado tal-e-qual', () => {
+      const parsed = parseMotoristaDetalhe({ id: 1, nome: 'X', vinculoCredencialAutomatico: true });
+      expect(parsed.vinculoCredencialAutomatico).toBe(true);
+    });
   });
 });
 

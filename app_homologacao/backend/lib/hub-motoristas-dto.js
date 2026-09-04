@@ -194,8 +194,15 @@ function mapEntregoEnriquecimento(row, temPermissaoDadosSensiveis) {
  *   (task 5.4) — `motoristas.dados_sensiveis` do usuário que fez a
  *   requisição (default `false`: fail-closed se o caller esquecer de
  *   passar, mesma disciplina de `requirePermission`).
+ * @param {boolean} [vinculoCredencialAutomatico] - hub-motorista-360 FASE 7
+ *   (task 7.1, contracts/hub-motoristas-detalhe.md) — `true` quando o
+ *   vínculo ATUAL foi criado pelo hook automático (FR-009) ou pelo backfill
+ *   (FR-012), `false` quando manual (`POST /:id/vinculo`) ou inexistente.
+ *   Derivado pelo CALLER a partir da trilha de auditoria (sem coluna
+ *   dedicada — ver routes/hub-motoristas.js#vinculoAtualEhAutomatico);
+ *   default `false` (fail-closed, mesma disciplina do parâmetro acima).
  */
-function mapMotoristaDetalhe(row, areas, resumo, atividades, temPermissaoDadosSensiveis = false) {
+function mapMotoristaDetalhe(row, areas, resumo, atividades, temPermissaoDadosSensiveis = false, vinculoCredencialAutomatico = false) {
   const contaMotorista = row.ContaMotorista || null;
   return {
     id: row.id,
@@ -232,6 +239,9 @@ function mapMotoristaDetalhe(row, areas, resumo, atividades, temPermissaoDadosSe
         ativo: !!contaMotorista.ativo,
       }
       : null,
+    // FASE 7 (task 7.1.3, SC-002) — necessário para a UI distinguir vínculo
+    // automático de manual sem re-derivar a regra no cliente.
+    vinculoCredencialAutomatico: !!vinculoCredencialAutomatico,
     // FASE 6 (task 6.4) — histórico read-only de atividades correlacionadas
     // por uuid (faturamento/performance/validação de NF), paginação técnica
     // offset/limit (dec-046). Sempre presente (mesmo shape) mesmo quando o

@@ -479,6 +479,28 @@ async function buscarAtividadesMotorista(id, idExterno, contaMotorista, entidade
   return montarAtividades(faturRows || [], perfRows || [], validRows || [], total, offset, limit);
 }
 
+// FASE 7 (task 7.1.3, contracts/hub-motoristas-detalhe.md) — deriva se o
+// vínculo ATUAL do Entregador foi criado pelo hook automático (FR-009,
+// lib/hub-motorista-vinculo-automatico.js) ou pelo backfill retroativo
+// (FR-012, scripts/backfill-vinculo-motorista.js) — ambos os callers gravam
+// a MESMA ação de auditoria `motorista.vinculado_automaticamente` (única
+// origem da lógica, ver cabeçalho daquele arquivo) — vs. vínculo manual via
+// `POST /:id/vinculo` (`motorista.vinculado`). Sem coluna dedicada: a
+// decisão foi derivar da trilha de auditoria, que já MUST existir para as
+// duas ações (FR-018/FR-024, Auditoria é imutável). O vínculo manual sempre
+// SUBSTITUI o automático em uma única ação (comentário acima do handler de
+// `POST /:id/vinculo`), então o evento mais recente entre as duas ações
+// reflete o vínculo atual.
+async function vinculoAtualEhAutomatico(entregadorId, claims) {
+  const linhas = await hubPostgrestRequest(
+    `Auditoria?recurso=eq.Entregador&recurso_id=eq.${entregadorId}`
+    + '&acao=in.(motorista.vinculado,motorista.vinculado_automaticamente)'
+    + '&select=acao&order=criado_em.desc&limit=1',
+    'GET', null, claims
+  );
+  return !!(linhas && linhas[0] && linhas[0].acao === 'motorista.vinculado_automaticamente');
+}
+
 async function buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts) {
   // 404 se fora do escopo do token: filtro explícito por id_empresa (defesa
   // em profundidade — RLS já nega a linha via escopo). Embed nativo do
@@ -564,7 +586,15 @@ async function buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts)
     ? (await obterPermissoesEfetivas(claims.usuarioId)).has('motoristas.dados_sensiveis')
     : false;
 
-  const detalhe = mapMotoristaDetalhe(row, areas, resumo, atividades, temPermissaoDadosSensiveis);
+  // FASE 7 (task 7.1.3) — só faz sentido consultar a trilha quando HÁ
+  // vínculo (sem ContaMotorista, é trivialmente "não automático").
+  const vinculoCredencialAutomatico = row.ContaMotorista
+    ? await vinculoAtualEhAutomatico(id, claims)
+    : false;
+
+  const detalhe = mapMotoristaDetalhe(
+    row, areas, resumo, atividades, temPermissaoDadosSensiveis, vinculoCredencialAutomatico
+  );
 
   // Auditoria de leitura (FR-018, task 5.5.1) — só quando a resposta de fato
   // INCLUI campo sensível (entregoEnriquecimento não-nulo E permissão

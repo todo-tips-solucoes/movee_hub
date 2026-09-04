@@ -30,6 +30,11 @@ let permissoesFlat = new Set(['motoristas.consultar', 'motoristas.editar']);
 let permissoesPorEntidade = new Set(['motoristas.consultar', 'motoristas.editar']);
 let registrosAuditoria = [];
 let entregadorFixture = null; // { id, id_empresa, id_externo, dados_entrego_solicitado_em, dados_entrego_json, dados_entrego_enriquecidos_em, ContaMotorista }
+// FASE 7 (task 7.1.3) — trilha de auditoria PRÉ-EXISTENTE consultada por
+// routes/hub-motoristas.js#vinculoAtualEhAutomatico ({ recurso, recursoId,
+// acao, criadoEm }[]); distinto de `registrosAuditoria` (o que a rota GRAVA
+// durante a própria requisição).
+let auditoriaHistoricoFixture = [];
 
 /** Emula PostgREST só para as tabelas que routes/hub-motoristas.js#GET /:id e
  * #POST /:id/entrego-enriquecimento de fato consultam. */
@@ -55,6 +60,14 @@ function fakeHubPostgrestRequest(endpoint, method, body, claims, opts) {
     return [];
   }
   if (tabela === 'EnvioMassa') return [];
+  if (tabela === 'Auditoria') {
+    const recursoIdMatch = endpoint.match(/[?&]recurso_id=eq\.(\d+)/);
+    const recursoId = recursoIdMatch ? recursoIdMatch[1] : null;
+    const linhas = auditoriaHistoricoFixture
+      .filter((r) => r.recurso === 'Entregador' && String(r.recursoId) === recursoId)
+      .sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1));
+    return linhas.slice(0, 1).map((r) => ({ acao: r.acao }));
+  }
   throw new Error(`mock não suporta tabela: ${tabela}`);
 }
 
@@ -197,6 +210,7 @@ describe('POST /api/v1/motoristas/:id/entrego-enriquecimento (task 5.1.5)', () =
 describe('GET /api/v1/motoristas/:id — RBAC de campo + auditoria (tasks 5.4.4/5.5.3)', () => {
   beforeEach(() => {
     registrosAuditoria = [];
+    auditoriaHistoricoFixture = [];
     entregadorFixture = {
       id: 1, id_empresa: 6, id_externo: 'uuid-1', nome: 'Fulano', ativo: true, nome_editado_manualmente: false,
       motorista_id: null,
@@ -247,5 +261,68 @@ describe('GET /api/v1/motoristas/:id — RBAC de campo + auditoria (tasks 5.4.4/
     assert.equal(r.status, 200);
     assert.equal(r.body.entregoEnriquecimento, null);
     assert.equal(registrosAuditoria.length, 0);
+  });
+});
+
+describe('GET /api/v1/motoristas/:id — vinculoCredencialAutomatico (task 7.1.3, SC-002)', () => {
+  beforeEach(() => {
+    registrosAuditoria = [];
+    auditoriaHistoricoFixture = [];
+    permissoesFlat = new Set(['motoristas.consultar']);
+    permissoesPorEntidade = new Set(['motoristas.consultar']);
+    entregadorFixture = {
+      id: 1, id_empresa: 6, id_externo: 'uuid-1', nome: 'Fulano', ativo: true, nome_editado_manualmente: false,
+      motorista_id: 7,
+      dados_entrego_solicitado_em: null,
+      dados_entrego_enriquecidos_em: null,
+      dados_entrego_json: null,
+      ContaMotorista: { id: 7, nome: 'Fulano', cnpj_prestador: '12345678000195', ativo: true },
+    };
+  });
+
+  test('sem vínculo (ContaMotorista null) -> false, SEM consultar Auditoria', async () => {
+    entregadorFixture.ContaMotorista = null;
+    // Nenhuma linha em auditoriaHistoricoFixture: se a rota consultasse
+    // Auditoria mesmo sem vínculo, o mock devolveria [] mesmo assim — o que
+    // este teste realmente prova é o resultado (false), a ausência de
+    // consulta é garantida pelo guard `row.ContaMotorista ? ... : false`
+    // em routes/hub-motoristas.js (revisão de código, não observável daqui).
+    const r = await request('GET', '/api/v1/motoristas/1', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.vinculoCredencialAutomatico, false);
+  });
+
+  test('último evento de auditoria = vinculado_automaticamente -> true', async () => {
+    auditoriaHistoricoFixture = [
+      { recurso: 'Entregador', recursoId: 1, acao: 'motorista.vinculado_automaticamente', criadoEm: '2026-08-01T10:00:00.000Z' },
+    ];
+    const r = await request('GET', '/api/v1/motoristas/1', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.vinculoCredencialAutomatico, true);
+  });
+
+  test('último evento de auditoria = vinculado (manual) -> false', async () => {
+    auditoriaHistoricoFixture = [
+      { recurso: 'Entregador', recursoId: 1, acao: 'motorista.vinculado', criadoEm: '2026-08-01T10:00:00.000Z' },
+    ];
+    const r = await request('GET', '/api/v1/motoristas/1', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.vinculoCredencialAutomatico, false);
+  });
+
+  test('automático seguido de manual (substituição, FR-013) -> false (o MAIS RECENTE vence)', async () => {
+    auditoriaHistoricoFixture = [
+      { recurso: 'Entregador', recursoId: 1, acao: 'motorista.vinculado_automaticamente', criadoEm: '2026-08-01T10:00:00.000Z' },
+      { recurso: 'Entregador', recursoId: 1, acao: 'motorista.vinculado', criadoEm: '2026-08-02T10:00:00.000Z' },
+    ];
+    const r = await request('GET', '/api/v1/motoristas/1', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.vinculoCredencialAutomatico, false);
+  });
+
+  test('sem NENHUM evento de auditoria (dado legado) -> false, nunca lança', async () => {
+    const r = await request('GET', '/api/v1/motoristas/1', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.vinculoCredencialAutomatico, false);
   });
 });

@@ -507,27 +507,38 @@ Ref: `spec.md` FR-016; `plan.md` §Project Structure
 
 Ref: `plan.md` §Project Structure; `contracts/hub-motoristas-detalhe.md`
 
-- [ ] 7.1.1 Tipar em TS os campos novos do DTO (`dadosPessoaisBasicos`,
+- [x] 7.1.1 Tipar em TS os campos novos do DTO (`dadosPessoaisBasicos`,
       `dadosPessoais`, `documentos`, `contatoEmergencia`,
       `informacoesEntrega`, `cnpjPrestador`, `vinculoCredencialAutomatico`)
-- [ ] 7.1.2 Renderizar campos ausentes (RBAC) sem erro/placeholder
+      — `vinculoCredencialAutomatico` era gap emergente: nenhuma
+      coluna/campo backend produzia esse dado (dec-080); implementado
+      derivando da trilha de auditoria (`routes/hub-motoristas.js
+      #vinculoAtualEhAutomatico`), 8 testes novos no backend (119/119
+      verde nos 2 arquivos tocados; 780/780 na suíte completa)
+- [x] 7.1.2 Renderizar campos ausentes (RBAC) sem erro/placeholder
       alarmante — distinguir "sem permissão" de "vazio/não informado"
-- [ ] 7.1.3 Exibir indicador para `vinculoCredencialAutomatico: true`
-      (necessário para SC-002 ser observável)
-- [ ] 7.1.4 Teste (vitest): componente renderiza corretamente com e sem os
-      campos sensíveis presentes no payload
+      — `CampoTexto`/`CampoRestrito` em page.tsx
+- [x] 7.1.3 Exibir indicador para `vinculoCredencialAutomatico: true`
+      (necessário para SC-002 ser observável) — badge "Vínculo automático"
+      no card "Conta de acesso vinculada"
+- [x] 7.1.4 Teste (vitest): componente renderiza corretamente com e sem os
+      campos sensíveis presentes no payload — 10 testes novos em
+      page.test.tsx (27/27 no arquivo; 538/538 na suíte completa)
 
 ### 7.2 Botão "Buscar dados EntreGô" `[M]`
 
 Ref: `spec.md` FR-005; `contracts/entrego-enriquecimento.md` §1
 
-- [ ] 7.2.1 Chamar `POST /api/motoristas/:id/entrego-enriquecimento` (proxy
-      httpOnly do frontend_v2) ao clicar
-- [ ] 7.2.2 Exibir estado de carregamento/pendente e mensagem de erro clara
-      nos casos 409/429
-- [ ] 7.2.3 Desabilitar o botão quando `Entregador.id_externo` está ausente
+- [x] 7.2.1 Chamar `POST /api/motoristas/:id/entrego-enriquecimento` (proxy
+      httpOnly do frontend_v2) ao clicar — `buscarEntregoEnriquecimento`
+      em `lib/hub/motoristas-api.ts`
+- [x] 7.2.2 Exibir estado de carregamento/pendente e mensagem de erro clara
+      nos casos 409/429 — `entregoPendenteLocal`/`erroEntrego` em page.tsx
+      (estado local; contrato não expõe `dados_entrego_solicitado_em` no
+      GET, então "pendente" não sobrevive a reload — aceito por design)
+- [x] 7.2.3 Desabilitar o botão quando `Entregador.id_externo` está ausente
       (mensagem "associe o identificador antes de buscar")
-- [ ] 7.2.4 Teste (vitest): os 3 estados (sucesso/pendente, sem
+- [x] 7.2.4 Teste (vitest): os 3 estados (sucesso/pendente, sem
       identificador, indisponibilidade da EntreGô)
 
 ---

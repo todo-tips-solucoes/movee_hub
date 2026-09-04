@@ -102,6 +102,128 @@ export interface MotoristaVinculo {
   ativo: boolean;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// entregoEnriquecimento — dados buscados na EntreGô (hub-motorista-360 FASE
+// 5/7, contracts/hub-motoristas-detalhe.md §RBAC de campo). `dadosPessoais`/
+// `contatoEmergencia`/`documentos.rg` são OMITIDOS (chave ausente, nunca
+// `null`) quando falta a permissão `motoristas.dados_sensiveis` (FR-013,
+// dec-017/dec-072) — daí serem opcionais aqui. `rg`/`cnh`/`nomePai` também
+// podem ser `null` mesmo COM a permissão — a EntreGô tem forma variável por
+// documento/modal (ciclista tende a ter RG, motociclista CNH — ACHADOS-
+// PORTAL.md §9.5.3) — nunca tratar como garantido.
+//
+// 🔴 dec-072: nenhuma URL de foto de documento é capturada pelo backend nem
+// exposta aqui — de propósito (instrução do operador: "apenas numeração").
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface EntregoDadosPessoaisBasicos {
+  nomeCompleto: string | null;
+  dataNascimento: string | null;
+  /** Visível ao perfil `leitura` (dec-040) — não é sensível por FR-014. */
+  telefone: string | null;
+}
+
+export interface EntregoDadosPessoais extends EntregoDadosPessoaisBasicos {
+  email: string | null;
+  cpf: string | null;
+  nomeMae: string | null;
+  nomePai: string | null;
+}
+
+export interface EntregoDocumentos {
+  /** Ausente (chave omitida) sem `motoristas.dados_sensiveis` — distinto de
+   * `null` (motorista sem RG cadastrado, ex.: motociclista com só CNH). */
+  rg?: string | null;
+  /** Não é sensível por FR-014 — sempre presente (pode ser `null`). */
+  cnh: string | null;
+}
+
+export interface EntregoContatoEmergencia {
+  grauParentesco: string | null;
+  nome: string | null;
+  telefone: string | null;
+}
+
+export interface EntregoInformacoesEntrega {
+  operadorLogistico: string | null;
+  modal: string | null;
+}
+
+export interface EntregoEnriquecimento {
+  enriquecidoEm: string;
+  dadosPessoaisBasicos: EntregoDadosPessoaisBasicos;
+  documentos: EntregoDocumentos;
+  informacoesEntrega: EntregoInformacoesEntrega;
+  /** Ausente (chave omitida) sem `motoristas.dados_sensiveis` (dec-017/dec-072). */
+  dadosPessoais?: EntregoDadosPessoais;
+  /** Ausente (chave omitida) sem `motoristas.dados_sensiveis`. */
+  contatoEmergencia?: EntregoContatoEmergencia;
+}
+
+function parseEntregoDocumentos(raw: unknown): EntregoDocumentos {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const out: EntregoDocumentos = { cnh: isStringOrNull(r.cnh) ? r.cnh : null };
+  if (Object.prototype.hasOwnProperty.call(r, 'rg')) {
+    out.rg = isStringOrNull(r.rg) ? r.rg : null;
+  }
+  return out;
+}
+
+function parseEntregoDadosPessoais(raw: unknown): EntregoDadosPessoais {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    nomeCompleto: isStringOrNull(r.nomeCompleto) ? r.nomeCompleto : null,
+    dataNascimento: isStringOrNull(r.dataNascimento) ? r.dataNascimento : null,
+    telefone: isStringOrNull(r.telefone) ? r.telefone : null,
+    email: isStringOrNull(r.email) ? r.email : null,
+    cpf: isStringOrNull(r.cpf) ? r.cpf : null,
+    nomeMae: isStringOrNull(r.nomeMae) ? r.nomeMae : null,
+    nomePai: isStringOrNull(r.nomePai) ? r.nomePai : null,
+  };
+}
+
+function parseEntregoContatoEmergencia(raw: unknown): EntregoContatoEmergencia {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    grauParentesco: isStringOrNull(r.grauParentesco) ? r.grauParentesco : null,
+    nome: isStringOrNull(r.nome) ? r.nome : null,
+    telefone: isStringOrNull(r.telefone) ? r.telefone : null,
+  };
+}
+
+export function parseEntregoEnriquecimento(raw: unknown): EntregoEnriquecimento | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (!isString(r.enriquecidoEm)) return null;
+  const basicosRaw = (r.dadosPessoaisBasicos && typeof r.dadosPessoaisBasicos === 'object'
+    ? r.dadosPessoaisBasicos
+    : {}) as Record<string, unknown>;
+  const infoRaw = (r.informacoesEntrega && typeof r.informacoesEntrega === 'object'
+    ? r.informacoesEntrega
+    : {}) as Record<string, unknown>;
+  const out: EntregoEnriquecimento = {
+    enriquecidoEm: r.enriquecidoEm,
+    dadosPessoaisBasicos: {
+      nomeCompleto: isStringOrNull(basicosRaw.nomeCompleto) ? basicosRaw.nomeCompleto : null,
+      dataNascimento: isStringOrNull(basicosRaw.dataNascimento) ? basicosRaw.dataNascimento : null,
+      telefone: isStringOrNull(basicosRaw.telefone) ? basicosRaw.telefone : null,
+    },
+    documentos: parseEntregoDocumentos(r.documentos),
+    informacoesEntrega: {
+      operadorLogistico: isStringOrNull(infoRaw.operadorLogistico) ? infoRaw.operadorLogistico : null,
+      modal: isStringOrNull(infoRaw.modal) ? infoRaw.modal : null,
+    },
+  };
+  // RBAC de campo (FR-013): só existem quando o backend incluiu a chave.
+  if (Object.prototype.hasOwnProperty.call(r, 'dadosPessoais')) {
+    out.dadosPessoais = parseEntregoDadosPessoais(r.dadosPessoais);
+  }
+  if (Object.prototype.hasOwnProperty.call(r, 'contatoEmergencia')) {
+    out.contatoEmergencia = parseEntregoContatoEmergencia(r.contatoEmergencia);
+  }
+  return out;
+}
+
 // FASE 6 (tasks.md 6.4/6.5) — histórico read-only de atividades
 // correlacionadas por uuid (faturamento/performance/validação de NF),
 // paginação técnica offset/limit (dec-046).
@@ -131,6 +253,12 @@ export interface MotoristaDetalhe {
   /** FASE 4 (task 4.1, FR-008) — CNPJ do cadastro legado (envio-massa),
    * NÃO mascarado. `null` quando não há vínculo (Acceptance Scenario 2). */
   cnpjPrestador: string | null;
+  /** FASE 5 (task 5.4) — `null` se nunca buscado na EntreGô (FR-001..FR-004). */
+  entregoEnriquecimento: EntregoEnriquecimento | null;
+  /** FASE 7 (task 7.1.3, SC-002) — `true` quando o vínculo ATUAL foi criado
+   * pelo hook automático (FR-009) ou pelo backfill (FR-012), `false`
+   * quando manual ou inexistente. */
+  vinculoCredencialAutomatico: boolean;
   areas: MotoristaArea[];
   resumo: MotoristaResumo;
   vinculo: MotoristaVinculo | null;
@@ -199,6 +327,8 @@ export function parseMotoristaDetalhe(raw: unknown): MotoristaDetalhe {
     ativo: r.ativo === true,
     nomeEditadoManualmente: r.nomeEditadoManualmente === true,
     cnpjPrestador: isStringOrNull(r.cnpjPrestador) ? r.cnpjPrestador : null,
+    entregoEnriquecimento: parseEntregoEnriquecimento(r.entregoEnriquecimento),
+    vinculoCredencialAutomatico: r.vinculoCredencialAutomatico === true,
     areas: Array.isArray(r.areas) ? r.areas.map(parseArea) : [],
     resumo: {
       totalFaturamento: isNumberOrNull(resumoRaw.totalFaturamento) ? (resumoRaw.totalFaturamento ?? 0) : 0,
