@@ -21,6 +21,7 @@ const {
   agruparAreasPorEntregador,
   mapMotoristaListItem,
   mapMotoristaDetalhe,
+  mapEntregoEnriquecimento,
   validarPatchMotorista,
   validarCriacaoMotorista,
   mascararCnpj,
@@ -229,6 +230,9 @@ describe('mapMotoristaDetalhe', () => {
       // hub-motorista-360 FASE 4 (task 4.1, FR-008) — CNPJ do legado, NÃO
       // mascarado (distinto de vinculo.cnpjPrestadorMascarado abaixo).
       cnpjPrestador: '12345678000195',
+      // hub-motorista-360 FASE 5 (task 5.4) — nunca enriquecido nesta
+      // fixture (sem dados_entrego_enriquecidos_em) -> null.
+      entregoEnriquecimento: null,
       areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
       resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
       vinculo: {
@@ -311,6 +315,75 @@ describe('mapMotoristaDetalhe', () => {
     const row = { id: 4, nome: 'X', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
     const detalhe = mapMotoristaDetalhe(row, [], undefined);
     assert.deepEqual(detalhe.resumo, { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// mapEntregoEnriquecimento — RBAC de campo (hub-motorista-360 FASE 5, task
+// 5.4.4, contracts/hub-motoristas-detalhe.md §RBAC de campo). Fixture de
+// dados_entrego_json com FORMATO de CPF/RG (999.999.999-99), nunca valor
+// real (CLAUDE.md §PII — regra dura desta sessão).
+// ────────────────────────────────────────────────────────────────────────────
+describe('mapEntregoEnriquecimento (RBAC de campo, task 5.4)', () => {
+  const rowNuncaEnriquecido = { dados_entrego_json: null, dados_entrego_enriquecidos_em: null };
+  const rowEnriquecido = {
+    dados_entrego_enriquecidos_em: '2026-08-01T12:00:00Z',
+    dados_entrego_json: {
+      dadosPessoais: {
+        nomeCompleto: '<nome de teste>',
+        dataNascimento: '1990-01-01',
+        email: 'teste@example.com',
+        cpf: '999.999.999-99',
+        nomeMae: '<nome da mae de teste>',
+        nomePai: '<nome do pai de teste>',
+        telefone: '11999999999',
+      },
+      documentos: { rg: '99.999.999-9', cnh: '99999999999' },
+      contatoEmergencia: { grauParentesco: 'Cônjuge', nome: '<nome de teste>', telefone: '11988888888' },
+      informacoesEntrega: { operadorLogistico: 'Movee', modal: 'moto' },
+    },
+  };
+
+  test('nunca enriquecido (dados_entrego_enriquecidos_em IS NULL) -> null inteiro, com ou sem permissão', () => {
+    assert.equal(mapEntregoEnriquecimento(rowNuncaEnriquecido, true), null);
+    assert.equal(mapEntregoEnriquecimento(rowNuncaEnriquecido, false), null);
+  });
+
+  test('COM motoristas.dados_sensiveis -> dadosPessoais/documentos.rg/contatoEmergencia presentes', () => {
+    const r = mapEntregoEnriquecimento(rowEnriquecido, true);
+    assert.equal(r.enriquecidoEm, '2026-08-01T12:00:00Z');
+    assert.ok(Object.prototype.hasOwnProperty.call(r, 'dadosPessoais'));
+    assert.equal(r.dadosPessoais.cpf, '999.999.999-99');
+    assert.equal(r.documentos.rg, '99.999.999-9');
+    assert.equal(r.documentos.cnh, '99999999999');
+    assert.ok(Object.prototype.hasOwnProperty.call(r, 'contatoEmergencia'));
+    assert.equal(r.contatoEmergencia.grauParentesco, 'Cônjuge');
+    assert.deepEqual(r.informacoesEntrega, { operadorLogistico: 'Movee', modal: 'moto' });
+    // Não-sensíveis (FR-014) continuam presentes mesmo com permissão.
+    assert.deepEqual(r.dadosPessoaisBasicos, {
+      nomeCompleto: '<nome de teste>', dataNascimento: '1990-01-01', telefone: '11999999999',
+    });
+  });
+
+  test('SEM motoristas.dados_sensiveis -> chaves sensíveis OMITIDAS (nunca null/mascarado)', () => {
+    const r = mapEntregoEnriquecimento(rowEnriquecido, false);
+    assert.equal(Object.prototype.hasOwnProperty.call(r, 'dadosPessoais'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(r, 'contatoEmergencia'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(r.documentos, 'rg'), false);
+    // Não-sensíveis seguem visíveis: dadosPessoaisBasicos, documentos.cnh, informacoesEntrega.
+    assert.deepEqual(r.dadosPessoaisBasicos, {
+      nomeCompleto: '<nome de teste>', dataNascimento: '1990-01-01', telefone: '11999999999',
+    });
+    assert.equal(r.documentos.cnh, '99999999999');
+    assert.deepEqual(r.informacoesEntrega, { operadorLogistico: 'Movee', modal: 'moto' });
+    assert.equal(r.enriquecidoEm, '2026-08-01T12:00:00Z');
+  });
+
+  test('dados_entrego_json ausente mas enriquecidoEm presente -> objeto com campos null, nunca lança', () => {
+    const r = mapEntregoEnriquecimento({ dados_entrego_enriquecidos_em: '2026-08-01T12:00:00Z', dados_entrego_json: null }, true);
+    assert.equal(r.dadosPessoas, undefined);
+    assert.deepEqual(r.dadosPessoaisBasicos, { nomeCompleto: null, dataNascimento: null, telefone: null });
+    assert.deepEqual(r.documentos, { rg: null, cnh: null });
   });
 });
 

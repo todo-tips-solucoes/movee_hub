@@ -305,37 +305,42 @@ Ref: `research.md` Decision 3; `contracts/hub-motoristas-detalhe.md`
 
 Ref: `contracts/entrego-enriquecimento.md` §1
 
-- [ ] 5.1.1 Criar a rota em `routes/hub-motoristas.js` com
+- [x] 5.1.1 Criar a rota em `routes/hub-motoristas.js` com
       `requirePermission('motoristas.editar')`
-- [ ] 5.1.2 Aplicar `express-rate-limit` dedicado (mesmo padrão de
+- [x] 5.1.2 Aplicar `express-rate-limit` dedicado (mesmo padrão de
       `registerRateLimiter`/`roboEntregoRateLimiter`) — protege a sessão
-      EntreGô compartilhada, limite definido na Task 1.4.3
-- [ ] 5.1.3 Responder 409 `SEM_IDENTIFICADOR_ENTREGO` quando
+      EntreGô compartilhada, limite definido na Task 1.4.3 (10/15min por
+      usuário — default de engenharia, CHK035 não fixa número)
+- [x] 5.1.3 Responder 409 `SEM_IDENTIFICADOR_ENTREGO` quando
       `Entregador.id_externo` está ausente
-- [ ] 5.1.4 Responder 429 `JA_PENDENTE` quando já existe
+- [x] 5.1.4 Responder 429 `JA_PENDENTE` quando já existe
       `dados_entrego_solicitado_em` setado
-- [ ] 5.1.5 Teste: os 3 casos (202 pendente, 409, 429) — quickstart
-      Scenario 5
+- [x] 5.1.5 Teste: os 3 casos (202 pendente, 409, 429) — quickstart
+      Scenario 5 (unit: `tests/hub-motoristas-entrego-enriquecimento-unit.test.js`,
+      express real + mocks, sem Docker)
 
 ### 5.2 Fila consumida pelo robô EntreGô (`GET`/`PATCH hub-robo-entrego`) `[A]`
 
 Ref: `contracts/entrego-enriquecimento.md` §2
 
-- [ ] 5.2.1 Estender `routes/hub-robo-entrego.js` com
+- [x] 5.2.1 Estender `routes/hub-robo-entrego.js` com
       `GET /hub-robo-entrego/motoristas-para-enriquecer`
       (`modo=sob-demanda|semestral`), autenticado pelo usuário de serviço
       `robo_entrego_servico`
-- [ ] 5.2.2 Implementar `PATCH /hub-robo-entrego/motoristas/:id/entrego-enriquecimento`
+- [x] 5.2.2 Implementar `PATCH /hub-robo-entrego/motoristas/:id/entrego-enriquecimento`
       com verificação de linhas afetadas (404 quando RLS retorna 0 linhas —
       nunca 200/204 silencioso)
-- [ ] 5.2.3 Garantir que a query passa por `hubPostgrestRequest()` com os
+- [x] 5.2.3 Garantir que a query passa por `hubPostgrestRequest()` com os
       `claims` do usuário de serviço autenticado — nunca bypass de RLS
       (`service_role`)
-- [ ] 5.2.4 Registrar auditoria `motorista.entrego_enriquecido` /
+- [x] 5.2.4 Registrar auditoria `motorista.entrego_enriquecido` /
       `motorista.entrego_enriquecimento_falhou`, sem incluir o payload
       sensível em `detalhes`
-- [ ] 5.2.5 Teste: RLS confina o resultado a `id_empresa` do token de
-      serviço; teste de 404 para `:id` fora do escopo do serviço
+- [x] 5.2.5 Teste: RLS confina o resultado a `id_empresa` do token de
+      serviço; teste de 404 para `:id` fora do escopo do serviço (unit:
+      `tests/hub-robo-entrego-enriquecimento-unit.test.js` — mock de
+      `hubPostgrestRequest` emula RLS via `claims.escopo`, sem Docker;
+      cobertura Docker real fica para `test:hub:integration` futuro)
 
 ### 5.3 Worker `infra/robo-entrego/`: busca de dados na EntreGô `[C]`
 
@@ -346,47 +351,79 @@ Ref: `contracts/entrego-enriquecimento.md` §3; `research.md` Decision 9;
       levantar empiricamente o endpoint do BFF (via `page.evaluate`) —
       documentar em `docs/plans/robo-entrego/ACHADOS-PORTAL.md` ANTES de
       codificar a via de API (Constitution VI — nunca supor nome de
-      rota/campo)
-- [ ] 5.3.2 Implementar a via de API preferencial se o endpoint for
+      rota/campo). **NÃO EXECUTADO nesta onda** — exige sessão
+      operador-supervisionada (Claude in Chrome, mesma metodologia de
+      ACHADOS-PORTAL.md §1-7) e é uma interação AO VIVO com o portal
+      EntreGô/sessão compartilhada com o robô real; documentado como gap
+      explícito em `ACHADOS-PORTAL.md` §8 em vez de executado sem supervisão
+      (risco de challenge antibot na sessão compartilhada, dec-039).
+- [~] 5.3.2 Implementar a via de API preferencial se o endpoint for
       confirmado; caso contrário implementar o fallback de UI com os 6
-      XPaths do briefing (`BRIEFING-INPUT.md`, não verificados)
-- [ ] 5.3.3 Reusar a sessão persistida
+      XPaths do briefing (`BRIEFING-INPUT.md`, não verificados). **Parcial**:
+      `src/busca-pessoa-entrego.js#buscarDadosPessoaPorUuid` implementa a
+      NAVEGAÇÃO dos 6 XPaths (fallback declarado, testada); a EXTRAÇÃO dos
+      campos da página de detalhe fica `extrairDadosPessoaPlaceholder`
+      (lança `ErroExtracaoNaoLevantada`) — nenhum seletor de campo foi
+      levantado (nem os 6 XPaths cobrem isso), inventar seria fabricar DOM
+      de sistema externo (Constitution VI). Função injetável
+      (`opts.extrairDadosPessoa`) para troca sem mudar o pipeline quando
+      5.3.1 acontecer.
+- [x] 5.3.3 Reusar a sessão persistida
       (`/var/lib/hub_secrets/robo-entrego/entrego-session.json`) e a
       taxonomia de erro já existente (`ErroAntibotSuspeito` →
-      `ehFalhaDefinitiva`) — nenhuma credencial nova
-- [ ] 5.3.4 Consumir a fila via `GET /hub-robo-entrego/motoristas-para-enriquecer`
-      e reportar o resultado via `PATCH` (Task 5.2)
-- [ ] 5.3.5 Teste: falha (antibot/sessão expirada) NÃO descarta
+      `ehFalhaDefinitiva`) — nenhuma credencial nova (`garantirSessaoValida`/
+      `ErroAntibotSuspeito` de `entrego-portal.js` reusados por import em
+      `enriquecimento.js`/`busca-pessoa-entrego.js`)
+- [x] 5.3.4 Consumir a fila via `GET /hub-robo-entrego/motoristas-para-enriquecer`
+      e reportar o resultado via `PATCH` (Task 5.2) — `src/enriquecimento.js`
+      (`executarRodadaEnriquecimento`) + `hub-client.js#buscarMotoristasParaEnriquecer`/
+      `#atualizarEnriquecimento`. Throttle mínimo de 60s entre motoristas
+      (FR-016, reaproveita `BACKOFF_MS_SEQUENCIA[0]` de `index.js`); suspeita
+      de anti-bot ou gap de extração PARA a rodada (não martela, FR-016) sem
+      marcar o item corrente como falha definitiva (fica pendente na fila).
+      Wrapper de processo (flock/systemd, serialização com a importação
+      diária — dec-039) fica para FASE 6.1, fora deste escopo.
+- [x] 5.3.5 Teste: falha (antibot/sessão expirada) NÃO descarta
       `dados_entrego_json` de uma busca anterior bem-sucedida (FR-007,
-      quickstart Scenario 6)
+      quickstart Scenario 6) — coberto no nível da rota (invariante real:
+      `tests/hub-robo-entrego-enriquecimento-unit.test.js`) + no nível do
+      worker (`tests/enriquecimento.test.js`, falha isolada segue sem
+      derrubar os demais; parada por antibot não reporta o item corrente)
 
 ### 5.4 RBAC de campo no DTO de resposta `[C]`
 
 Ref: `contracts/hub-motoristas-detalhe.md` §RBAC de campo; `spec.md`
 FR-013, FR-014
 
-- [ ] 5.4.1 Checar `obterPermissoesEfetivas(usuarioId).has('motoristas.dados_sensiveis')`
+- [x] 5.4.1 Checar `obterPermissoesEfetivas(usuarioId).has('motoristas.dados_sensiveis')`
       dentro de `buscarDetalheMotorista()`
-- [ ] 5.4.2 Omitir a chave (nunca `null`/máscara) de `dadosPessoais`,
+- [x] 5.4.2 Omitir a chave (nunca `null`/máscara) de `dadosPessoais`,
       `documentos.rg` e `contatoEmergencia` quando a permissão falta
-- [ ] 5.4.3 Manter `dadosPessoaisBasicos` (nome completo, data de
+- [x] 5.4.3 Manter `dadosPessoaisBasicos` (nome completo, data de
       nascimento, telefone) e `documentos.cnh` sempre presentes
-- [ ] 5.4.4 Teste: perfil `leitura` sem a permissão (chaves ausentes do
+- [x] 5.4.4 Teste: perfil `leitura` sem a permissão (chaves ausentes do
       JSON, `jq 'has("dadosPessoais")' → false`) vs. `admin_entidade` com a
-      permissão (todas presentes) — quickstart Scenario 4
+      permissão (todas presentes) — quickstart Scenario 4 (unit:
+      `tests/hub-motoristas-dto.test.js#mapEntregoEnriquecimento` +
+      `tests/hub-motoristas-entrego-enriquecimento-unit.test.js`)
 
 ### 5.5 Auditoria de leitura de dados sensíveis (FR-018) `[A]`
 
 Ref: `contracts/hub-motoristas-detalhe.md` §Auditoria de leitura
 
-- [ ] 5.5.1 Chamar `registrarAuditoria()` com
+- [x] 5.5.1 Chamar `registrarAuditoria()` com
       `acao: 'motorista.dados_sensiveis_visualizados'` quando a resposta
-      incluir os campos sensíveis
-- [ ] 5.5.2 Garantir que o payload sensível nunca entra em `detalhes`
-      (`scrubDetalhes()` como defesa adicional, não substituta)
-- [ ] 5.5.3 Teste: leitura por `admin_entidade` (com os campos) gera 1
+      incluir os campos sensíveis (gate: permissão presente E
+      `entregoEnriquecimento` não-nulo — motorista nunca enriquecido não
+      gera evento vazio mesmo com a permissão, nada sensível foi de fato
+      retornado)
+- [x] 5.5.2 Garantir que o payload sensível nunca entra em `detalhes`
+      (`scrubDetalhes()` como defesa adicional, não substituta) — nenhuma
+      chamada de auditoria desta FASE inclui `dados`/`dadosPessoais` em
+      `detalhes` (nem em `buscarDetalheMotorista`, nem no PATCH da fila)
+- [x] 5.5.3 Teste: leitura por `admin_entidade` (com os campos) gera 1
       evento de auditoria; leitura por `leitura` (sem os campos) NÃO gera
-      evento
+      evento (unit: `tests/hub-motoristas-entrego-enriquecimento-unit.test.js`)
 
 ---
 

@@ -126,14 +126,76 @@ function mapMotoristaListItem(row, areas = []) {
 }
 
 /**
+ * Monta o sub-objeto `entregoEnriquecimento` do detalhe (hub-motorista-360
+ * FASE 5, task 5.4, contracts/hub-motoristas-detalhe.md §RBAC de campo).
+ * `null` INTEIRO quando nunca enriquecido (`dados_entrego_enriquecidos_em
+ * IS NULL`) — distinto de "sem permissão", que só omite as CHAVES sensíveis
+ * dentro do objeto (nunca `null`/mascarado — evitaria vazar até o formato do
+ * dado, mesmo espírito de `mascararCnpj` mas por omissão de chave em vez de
+ * substituição de valor). `dadosPessoaisBasicos` (nome/data
+ * nascimento/telefone) e `documentos.cnh` NÃO são sensíveis por FR-014 e
+ * ficam sempre presentes — só `dadosPessoais` (objeto completo),
+ * `documentos.rg` e `contatoEmergencia` exigem `motoristas.dados_sensiveis`.
+ * @param {{dados_entrego_json: object|null, dados_entrego_enriquecidos_em: string|null}} row
+ * @param {boolean} temPermissaoDadosSensiveis
+ * @returns {object|null}
+ */
+function mapEntregoEnriquecimento(row, temPermissaoDadosSensiveis) {
+  if (!row || !row.dados_entrego_enriquecidos_em) return null;
+  const dados = row.dados_entrego_json || {};
+  const dp = dados.dadosPessoais || {};
+  const doc = dados.documentos || {};
+  const ce = dados.contatoEmergencia || {};
+  const ie = dados.informacoesEntrega || {};
+
+  const resultado = {
+    enriquecidoEm: row.dados_entrego_enriquecidos_em,
+    dadosPessoaisBasicos: {
+      nomeCompleto: dp.nomeCompleto ?? null,
+      dataNascimento: dp.dataNascimento ?? null,
+      telefone: dp.telefone ?? null,
+    },
+    documentos: temPermissaoDadosSensiveis
+      ? { rg: doc.rg ?? null, cnh: doc.cnh ?? null }
+      : { cnh: doc.cnh ?? null },
+    informacoesEntrega: {
+      operadorLogistico: ie.operadorLogistico ?? null,
+      modal: ie.modal ?? null,
+    },
+  };
+  if (temPermissaoDadosSensiveis) {
+    resultado.dadosPessoais = {
+      nomeCompleto: dp.nomeCompleto ?? null,
+      dataNascimento: dp.dataNascimento ?? null,
+      email: dp.email ?? null,
+      cpf: dp.cpf ?? null,
+      nomeMae: dp.nomeMae ?? null,
+      nomePai: dp.nomePai ?? null,
+      telefone: dp.telefone ?? null,
+    };
+    resultado.contatoEmergencia = {
+      grauParentesco: ce.grauParentesco ?? null,
+      nome: ce.nome ?? null,
+      telefone: ce.telefone ?? null,
+    };
+  }
+  return resultado;
+}
+
+/**
  * Mapeia o detalhe completo (`GET /motoristas/:id`) — combina a linha do
  * `Entregador` (com embed opcional de `ContaMotorista`), a lista de áreas já
  * ordenada e o resumo de indicadores all-time.
  * @param {object} row - linha do Entregador (+ embed `ContaMotorista`)
  * @param {Array<{subpraca:string, dataMaisRecente:string}>} areas
  * @param {{totalFaturamento:number, totalPerformance:number, dataMaisRecente:string|null}} resumo
+ * @param {object} [atividades]
+ * @param {boolean} [temPermissaoDadosSensiveis] - hub-motorista-360 FASE 5
+ *   (task 5.4) — `motoristas.dados_sensiveis` do usuário que fez a
+ *   requisição (default `false`: fail-closed se o caller esquecer de
+ *   passar, mesma disciplina de `requirePermission`).
  */
-function mapMotoristaDetalhe(row, areas, resumo, atividades) {
+function mapMotoristaDetalhe(row, areas, resumo, atividades, temPermissaoDadosSensiveis = false) {
   const contaMotorista = row.ContaMotorista || null;
   return {
     id: row.id,
@@ -148,6 +210,10 @@ function mapMotoristaDetalhe(row, areas, resumo, atividades) {
     // tela — FR-008 não lista este campo entre os sensíveis de FR-013/
     // FR-014, logo sem gate de RBAC). `null` sem vínculo — nunca erro.
     cnpjPrestador: contaMotorista ? contaMotorista.cnpj_prestador : null,
+    // hub-motorista-360 FASE 5 (task 5.4, FR-001..FR-004/FR-013/FR-014) —
+    // `null` se nunca enriquecido; RBAC de campo aplicado dentro de
+    // mapEntregoEnriquecimento (omite chave, nunca mascara/null por campo).
+    entregoEnriquecimento: mapEntregoEnriquecimento(row, temPermissaoDadosSensiveis),
     areas: areas || [],
     resumo: {
       totalFaturamento: (resumo && resumo.totalFaturamento) || 0,
@@ -555,6 +621,7 @@ module.exports = {
   agruparAreasPorEntregador,
   mapMotoristaListItem,
   mapMotoristaDetalhe,
+  mapEntregoEnriquecimento,
   validarPatchMotorista,
   validarCriacaoMotorista,
   mascararCnpj,

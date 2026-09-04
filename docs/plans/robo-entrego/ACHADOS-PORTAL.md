@@ -210,3 +210,39 @@ Detalhes que importam para o robô:
 - dedupe por `UNIQUE(id_empresa, tipo, hash_sha256)` — reenviar o mesmo arquivo não duplica
 - escopo pela **entidade ativa do token**, nunca pelo corpo — o robô precisa de um
   usuário de serviço com `importacoes.criar` na entidade certa
+
+## 8. "Dados da pessoa entregadora" (hub-motorista-360 FASE 5) — NÃO LEVANTADO
+
+⚠️ **Diferente de tudo acima.** As seções 1-7 cobrem o fluxo de RELATÓRIOS
+(Performance/Financeiro, já em produção desde 2026-08-28). A feature
+`hub-motorista-360` (FASE 5, FR-005/FR-016) precisa de um fluxo NOVO e
+DISTINTO: buscar o CADASTRO (CPF, RG, contato de emergência, ...) de UMA
+pessoa entregadora específica, por UUID.
+
+- **Endpoint do BFF: não levantado.** Nenhuma sessão de inspeção de Network
+  (mesma metodologia de §1-7, com o operador logado via Claude in Chrome) foi
+  feita para este fluxo. `src/busca-pessoa-entrego.js` implementa SÓ a
+  navegação de UI (os 6 XPaths ditados pelo operador,
+  `docs/plans/hub-motorista-360/BRIEFING-INPUT.md` linhas 41-48) — via de API
+  fica `[PROPOSTA]` até esta seção ser preenchida com um achado real.
+- **Seletores de campo da página de detalhe: não levantados.** Os 6 XPaths
+  só cobrem a navegação ATÉ a página "Dados da pessoa entregadora" — nenhuma
+  fonte documenta os seletores dos campos individuais (nome, CPF, RG, nome da
+  mãe/pai, contato de emergência, operador logístico, modal) DENTRO dela. Por
+  isso `busca-pessoa-entrego.js#extrairDadosPessoaPlaceholder` lança
+  `ErroExtracaoNaoLevantada` em vez de adivinhar — Constitution VI (Zero
+  Fabricação) proíbe supor DOM de sistema externo nunca inspecionado.
+- **Risco operacional de fazer esse levantamento**: a sessão EntreGô é
+  COMPARTILHADA com a importação diária (robô real, timers 11h/13h/14h) e
+  com a busca sob demanda — o mesmo §6 acima (PerimeterX pontuando interação
+  automatizada) se aplica aqui. O levantamento MUST seguir a MESMA
+  metodologia já usada nesta seção: sessão operador-supervisionada (Claude in
+  Chrome com o operador logado), FORA das janelas do robô, com o mesmo
+  cuidado de interromper se houver qualquer sinal de challenge.
+- **Próximo passo (task 5.3.1, ainda pendente)**: navegar os 6 passos com o
+  operador logado, inspecionar a aba Network à procura de uma chamada de API
+  equivalente a `.../operation/logistics-operator/...` para o cadastro da
+  pessoa, E inspecionar o DOM renderizado da página de detalhe para
+  documentar os seletores reais dos campos. Preencher esta seção com o
+  achado (endpoint OU seletores confirmados) ANTES de substituir
+  `extrairDadosPessoaPlaceholder` por uma implementação real.

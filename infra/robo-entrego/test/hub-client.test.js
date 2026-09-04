@@ -33,6 +33,11 @@ function mockAxios(handlers) {
       if (!h) throw new Error(`mockAxios: sem handler GET para ${url}`);
       return h(opts);
     },
+    async patch(url, body, opts) {
+      const h = handlers.patch && handlers.patch(url);
+      if (!h) throw new Error(`mockAxios: sem handler PATCH para ${url}`);
+      return h(body, opts);
+    },
   };
 }
 
@@ -144,6 +149,7 @@ async function clienteLogado({ idEmpresaEsperado = 6, handlers = {} } = {}) {
       ...handlers.post,
     },
     get: handlers.get,
+    patch: handlers.patch,
   });
   const client = criarClienteHub({ idEmpresaEsperado, axiosInstance });
   await client.login('robo@x.com', 'senha');
@@ -258,5 +264,89 @@ describe('registrarEvento (FASE 5, FR-013 auditoria)', () => {
     const axiosInstance = mockAxios({});
     const client = criarClienteHub({ idEmpresaEsperado: 6, axiosInstance });
     await assert.rejects(() => client.registrarEvento({ acao: 'robo_entrego.sucesso' }), ErroHub);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// hub-motorista-360 FASE 5 (tasks.md 5.3.4) — buscarMotoristasParaEnriquecer
+// + atualizarEnriquecimento (contracts/entrego-enriquecimento.md §2).
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('buscarMotoristasParaEnriquecer', () => {
+  test('200 -> devolve items (modo vai na querystring)', async () => {
+    let urlChamada = null;
+    const client = await clienteLogado({
+      handlers: {
+        get: (url) => { urlChamada = url; return async () => ({ status: 200, data: { items: [{ id: 1, idExterno: 'uuid-1' }] } }); },
+      },
+    });
+    const items = await client.buscarMotoristasParaEnriquecer('sob-demanda');
+    assert.deepEqual(items, [{ id: 1, idExterno: 'uuid-1' }]);
+    assert.match(urlChamada, /modo=sob-demanda/);
+  });
+
+  test('items ausente no corpo -> [] (nunca undefined)', async () => {
+    const client = await clienteLogado({ handlers: { get: () => async () => ({ status: 200, data: {} }) } });
+    assert.deepEqual(await client.buscarMotoristasParaEnriquecer('semestral'), []);
+  });
+
+  test('403 -> ErroHub', async () => {
+    const client = await clienteLogado({ handlers: { get: () => async () => ({ status: 403, data: { erro: 'PERMISSAO_NEGADA' } }) } });
+    await assert.rejects(() => client.buscarMotoristasParaEnriquecer('sob-demanda'), ErroHub);
+  });
+
+  test('sem login prévio -> ErroHub', async () => {
+    const axiosInstance = mockAxios({});
+    const client = criarClienteHub({ idEmpresaEsperado: 6, axiosInstance });
+    await assert.rejects(() => client.buscarMotoristasParaEnriquecer('sob-demanda'), ErroHub);
+  });
+});
+
+describe('atualizarEnriquecimento', () => {
+  test('sucesso=true -> PATCH inclui `dados`, nunca `motivoFalha`', async () => {
+    let corpoRecebido = null;
+    const client = await clienteLogado({
+      handlers: {
+        patch: () => async (body) => { corpoRecebido = body; return { status: 200, data: { ok: true } }; },
+      },
+    });
+    const r = await client.atualizarEnriquecimento(10, { sucesso: true, dados: { dadosPessoais: {} }, modo: 'sob-demanda' });
+    assert.deepEqual(r, { sinal: 'enriquecimento_200' });
+    assert.deepEqual(corpoRecebido, { sucesso: true, modo: 'sob-demanda', dados: { dadosPessoais: {} } });
+  });
+
+  test('sucesso=false -> PATCH inclui `motivoFalha`, NUNCA `dados` (FR-007/contract §2)', async () => {
+    let corpoRecebido = null;
+    const client = await clienteLogado({
+      handlers: {
+        patch: () => async (body) => { corpoRecebido = body; return { status: 200, data: { ok: true } }; },
+      },
+    });
+    await client.atualizarEnriquecimento(10, { sucesso: false, motivoFalha: 'antibot', modo: 'semestral' });
+    assert.deepEqual(corpoRecebido, { sucesso: false, modo: 'semestral', motivoFalha: 'antibot' });
+    assert.equal('dados' in corpoRecebido, false);
+  });
+
+  test('404 -> sinal enriquecimento_404 (id fora do escopo do serviço)', async () => {
+    const client = await clienteLogado({ handlers: { patch: () => async () => ({ status: 404, data: { erro: 'NAO_ENCONTRADO' } }) } });
+    const r = await client.atualizarEnriquecimento(999, { sucesso: true, dados: {} });
+    assert.deepEqual(r, { sinal: 'enriquecimento_404' });
+  });
+
+  test('5xx -> sinal http_5xx_hub', async () => {
+    const client = await clienteLogado({ handlers: { patch: () => async () => ({ status: 503, data: {} }) } });
+    const r = await client.atualizarEnriquecimento(10, { sucesso: true, dados: {} });
+    assert.deepEqual(r, { sinal: 'http_5xx_hub', status: 503 });
+  });
+
+  test('422 -> ErroHub', async () => {
+    const client = await clienteLogado({ handlers: { patch: () => async () => ({ status: 422, data: { erro: 'INVALIDO' } }) } });
+    await assert.rejects(() => client.atualizarEnriquecimento(10, { sucesso: true, dados: {} }), ErroHub);
+  });
+
+  test('sem login prévio -> ErroHub', async () => {
+    const axiosInstance = mockAxios({});
+    const client = criarClienteHub({ idEmpresaEsperado: 6, axiosInstance });
+    await assert.rejects(() => client.atualizarEnriquecimento(10, { sucesso: true }), ErroHub);
   });
 });
