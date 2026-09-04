@@ -568,6 +568,42 @@ Ref: CLAUDE.md §Comandos (`hub-shell-e2e-browser.sh`)
       conferir que `package-lock.json` não foi reescrito antes de commitar
       (gotcha já documentado em CLAUDE.md) <!-- onda-016: infra/hub/testes/hub-motorista-360-e2e-browser.sh (driver novo, mesmo molde enxuto de hub-auditoria-admin-a11y-smoke.sh -- SEM npm install dentro do container, evita o gotcha na origem) + playwright.config.hub-motorista-360.ts; roda dentro de mcr.microsoft.com/playwright:v1.61.1-jammy (nunca instalado no host); driver confere git diff -- package-lock.json no cleanup (trap) e reverte se alterado -- intacto nas 2 execucoes desta onda. ACHADO CORRIGIDO: hub_homolog_frontend estava com imagem de 2026-08-21 (2 semanas, sem NENHUMA UI da FASE 7) -- rebuild (docker compose build --memory=2g frontend) + recreate corrigiu, mesmo padrao do achado do backend em 8.1.1 -->
 
+### 8.3 CNH sensível — fechar a inconsistência de RBAC `[C]`
+
+Subtarefa EMERGENTE (dec-087, 2026-09-04), achada na auditoria da FASE 8.
+`FR-013`/`FR-014` enumeram "CPF, RG, nome da mãe, nome do pai, e-mail, contato
+de emergência" e **omitem a CNH** — por isso o perfil `leitura` a enxerga,
+enquanto o RG, mesmo tipo de documento e na mesma tela, é restrito. O teste
+8.2.2 codifica fielmente essa regra (`SINTETICO-CNH-...` com `toBeVisible()`):
+**a suíte verde não protege deste furo, porque o defeito está no requisito.**
+
+Origem: a pergunta de RBAC levada ao operador omitiu a CNH porque, no
+screenshot do briefing, o campo estava vazio; a CNH só passou a existir nos
+dados após o levantamento da EntreGô (dec-070/071), quando a regra já estava
+escrita. Agravante: para o motociclista a CNH é o **único** documento no
+payload (`rg` ausente — `ACHADOS-PORTAL.md` §9.5.3), logo mantê-la aberta
+expunha justamente quem não tem RG.
+
+Decisão do operador: **todo documento de identidade atrás de
+`motoristas.dados_sensiveis`**.
+
+- [ ] 8.3.1 Acrescentar `CNH` à enumeração de campos sensíveis em `FR-013` e
+      `FR-014` do `spec.md` e em `contracts/hub-motoristas-detalhe.md`
+- [ ] 8.3.2 Backend: `mapEntregoEnriquecimento` (`lib/hub-motoristas-dto.js`)
+      passa a **omitir a chave** `cnh` sem a permissão — chave ausente, nunca
+      `null` nem máscara (mesma regra do `rg`, FR-013)
+- [ ] 8.3.3 Frontend: a linha de CNH some para quem não tem a permissão, pelo
+      mesmo caminho já usado pelo RG na tela de detalhe
+- [ ] 8.3.4 Teste unit do DTO: com permissão a chave existe; sem permissão a
+      chave **não existe**, nos dois casos de payload (`BICYCLE` com RG /
+      `MOTORCYCLE` com CNH)
+- [ ] 8.3.5 Atualizar o E2E 8.2.2: `SINTETICO-CNH-...` passa de
+      `toBeVisible()` para `toHaveCount(0)`; confirmar que o 8.2.1 (gestor COM
+      permissão) continua vendo a CNH
+- [ ] 8.3.6 Rodar `npm test` (backend), vitest (frontend) e o driver de E2E;
+      relatar os números
+
+
 
 ---
 
