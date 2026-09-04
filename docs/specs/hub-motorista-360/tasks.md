@@ -198,27 +198,27 @@ Ref: `research.md` Decision 11; `infra/robo-entrego/sql/001-usuario-servico-robo
 Ref: `contracts/vinculo-automatico.md` §Extensão POST /motorista/register;
 `routes/motorista.js:372`; `spec.md` FR-009, FR-010, FR-011
 
-- [ ] 3.1.1 Extrair função compartilhada de localizar/criar `ContaMotorista`
+- [x] 3.1.1 Extrair função compartilhada de localizar/criar `ContaMotorista`
       por `cnpj_prestador` (reuso do padrão já existente em
       `routes/hub-motoristas.js:1024`) — passo 1 do vínculo, inalterado
-- [ ] 3.1.2 Implementar a chamada à RPC `hub_motoristas_candidatos_por_conta`
+- [x] 3.1.2 Implementar a chamada à RPC `hub_motoristas_candidatos_por_conta`
       (Task 2.2) e a regra de decisão: vincula automaticamente só com
       exatamente 1 candidato e similaridade >= 0.9 — passo 2 do vínculo
-- [ ] 3.1.3 Implementar idempotência: checar `Entregador.motorista_id` já
+- [x] 3.1.3 Implementar idempotência: checar `Entregador.motorista_id` já
       apontando para essa `ContaMotorista` antes de agir (FR-011)
-- [ ] 3.1.4 Encadear a chamada dentro do handler `POST /motorista/register`
+- [x] 3.1.4 Encadear a chamada dentro do handler `POST /motorista/register`
       em `try/catch` isolado, sem alterar a resposta 201/400/409/500 já
       existente (falha na etapa hub não bloqueia o cadastro)
-- [ ] 3.1.5 Registrar auditoria `motorista.vinculado_automaticamente`
+- [x] 3.1.5 Registrar auditoria `motorista.vinculado_automaticamente`
       (`contaMotoristaId`, `similaridade`), sem `usuarioId` humano
-- [ ] 3.1.6 Teste: happy path — exatamente 1 candidato >= 0.9 vincula
+- [x] 3.1.6 Teste: happy path — exatamente 1 candidato >= 0.9 vincula
       automaticamente sem ação do gestor (quickstart Scenario 1)
-- [ ] 3.1.7 **Teste: caso ambíguo — 2+ candidatos >= 0.9 (ou nenhum
+- [x] 3.1.7 **Teste: caso ambíguo — 2+ candidatos >= 0.9 (ou nenhum
       candidato acima do limiar) NÃO vincula automaticamente**, fica
       disponível para vínculo manual (`Vincular`/`Criar credencial`,
       quickstart Scenario 2) — garante Acceptance Scenario 3 da User Story 1
       ("não vincula silenciosamente a um motorista errado")
-- [ ] 3.1.8 Teste: idempotência — cadastro repetido no app do motorista para
+- [x] 3.1.8 Teste: idempotência — cadastro repetido no app do motorista para
       o mesmo motorista não cria segundo vínculo nem sobrescreve o
       existente (FR-011)
 
@@ -227,17 +227,17 @@ Ref: `contracts/vinculo-automatico.md` §Extensão POST /motorista/register;
 Ref: `contracts/vinculo-automatico.md` §Script; `quickstart.md` Scenario 3;
 `spec.md` FR-012
 
-- [ ] 3.2.1 Criar script standalone (localização exata — `infra/hub/scripts/`
+- [x] 3.2.1 Criar script standalone (localização exata — `infra/hub/scripts/`
       ou `app_homologacao/backend/scripts/` — a decidir nesta tarefa) que
       varre `Motorista WHERE senha IS NOT NULL` e reaplica a mesma função de
       3.1.1-3.1.3
-- [ ] 3.2.2 Gerar relatório final em stdout: `totalProcessados`,
+- [x] 3.2.2 Gerar relatório final em stdout: `totalProcessados`,
       `totalVinculados`, `totalAmbiguos`
-- [ ] 3.2.3 Documentar no runbook que a execução é manual pelo operador, uma
+- [x] 3.2.3 Documentar no runbook que a execução é manual pelo operador, uma
       única vez (rito de produção, CLAUDE.md)
-- [ ] 3.2.4 Teste: idempotência — reexecutar o script é no-op para
+- [x] 3.2.4 Teste: idempotência — reexecutar o script é no-op para
       motoristas já vinculados
-- [ ] 3.2.5 Teste: motorista com credencial ativa e candidato único >= 0.9
+- [x] 3.2.5 Teste: motorista com credencial ativa e candidato único >= 0.9
       aparece em `totalVinculados` (caso relatado do briefing, dado real
       identificado só pelo print em
       `arquivos_complementares/hub-motorista-360-evidencias/` — nunca
