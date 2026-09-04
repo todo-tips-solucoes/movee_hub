@@ -357,17 +357,31 @@ Ref: `contracts/entrego-enriquecimento.md` §3; `research.md` Decision 9;
       EntreGô/sessão compartilhada com o robô real; documentado como gap
       explícito em `ACHADOS-PORTAL.md` §8 em vez de executado sem supervisão
       (risco de challenge antibot na sessão compartilhada, dec-039).
-- [~] 5.3.2 Implementar a via de API preferencial se o endpoint for
+- [x] 5.3.2 Implementar a via de API preferencial se o endpoint for
       confirmado; caso contrário implementar o fallback de UI com os 6
-      XPaths do briefing (`BRIEFING-INPUT.md`, não verificados). **Parcial**:
-      `src/busca-pessoa-entrego.js#buscarDadosPessoaPorUuid` implementa a
-      NAVEGAÇÃO dos 6 XPaths (fallback declarado, testada); a EXTRAÇÃO dos
-      campos da página de detalhe fica `extrairDadosPessoaPlaceholder`
-      (lança `ErroExtracaoNaoLevantada`) — nenhum seletor de campo foi
-      levantado (nem os 6 XPaths cobrem isso), inventar seria fabricar DOM
-      de sistema externo (Constitution VI). Função injetável
-      (`opts.extrairDadosPessoa`) para troca sem mudar o pipeline quando
-      5.3.1 acontecer.
+      XPaths do briefing (`BRIEFING-INPUT.md`, não verificados). **Endpoint
+      confirmado em sessão supervisionada** (ACHADOS-PORTAL.md §9.3, 2026-09-04)
+      — `src/busca-pessoa-entrego.js#buscarDadosPessoaPorUuid` chama
+      `GET .../operation/logistics-operator/drivers/{uuid}` via
+      `page.evaluate` (mesmo padrão de `entrego-portal.js#buscarUrlsRelatorio`,
+      headers reusados via `HEADERS_API` exportado). Os 6 XPaths do fallback de
+      UI ficam declarados no plano técnico (`plan.md`), não implementados —
+      caminho feliz medido dispensa navegação (ladder rung 1). Mapeamento
+      `mapearParaShapeInterno()` usa ALLOWLIST para o shape fixo de
+      `data-model.md` — nunca spread do corpo bruto; `documentDriver.rg`/`.cnh`
+      e `personalData.fatherName` são opcionais (`?? null`, forma variável
+      confirmada com 2 motoristas, ACHADOS-PORTAL.md §9.5.3); as 4 URLs de
+      foto do payload (dec-072, instrução do operador) não têm destino no
+      shape interno — nunca baixadas/persistidas/logadas/trafegadas. Testado
+      com fixtures sintéticos dos 2 casos medidos (modal `BICYCLE`/
+      `MOTORCYCLE`) + prova de que nenhuma chave/URL de foto sobrevive ao
+      mapeamento (`test/busca-pessoa-entrego.test.js`). `enriquecimento.js`
+      atualizado: `ErroExtracaoNaoLevantada`/`extrairDadosPessoaPlaceholder`
+      removidos (gap fechado); `processarUmMotorista` ganhou retry
+      transitório via `comRetryTransitorio` reaproveitado de `index.js`
+      (6.1.3) e a rodada agora também para (não martela) em
+      `ErroPortalTransitorio`, não só `ErroAntibotSuspeito` — nenhuma culpa do
+      motorista corrente por sessão/rede instável.
 - [x] 5.3.3 Reusar a sessão persistida
       (`/var/lib/hub_secrets/robo-entrego/entrego-session.json`) e a
       taxonomia de erro já existente (`ErroAntibotSuspeito` →
@@ -433,15 +447,57 @@ Ref: `contracts/hub-motoristas-detalhe.md` §Auditoria de leitura
 
 Ref: `spec.md` FR-016; `plan.md` §Project Structure
 
-- [ ] 6.1.1 Gerar os 2 timers via `scripts/gerar-timer.sh` a partir de
-      `config.json` novo, com o throttle definido na Task 1.4.2
-- [ ] 6.1.2 Implementar a seleção semestral: `Entregador WHERE
-      dados_entrego_enriquecidos_em < now() - interval '6 months'`
-- [ ] 6.1.3 Reaproveitar `BACKOFF_MS_SEQUENCIA`
+- [x] 6.1.1 Gerar os 2 timers via `scripts/gerar-timer.sh` a partir de
+      `config.json` novo, com o throttle definido na Task 1.4.2.
+      `scripts/gerar-timer.sh` estendido (2 schemas no mesmo script,
+      detectados pelas chaves do config — `.horarios[]` original
+      100% preservado, regressão zero conferida por diff byte-a-byte contra
+      o `robo-entrego.timer` já em produção; `.timers[]` novo) gera
+      `entrego-enriquecimento-sob-demanda.timer` (`OnCalendar=*:0/5`, a cada
+      5 min — Decision 7) e `entrego-enriquecimento-semestral.timer`
+      (`OnCalendar=*-01,07-01 00:00:00 America/Sao_Paulo` — Decision 8) a
+      partir de `config-enriquecimento.json` novo; specs de calendário
+      validadas com `systemd-analyze calendar` neste host quando disponível
+      (ladder rung 4, nunca reimplementar o parser). Throttle de 60s ENTRE
+      motoristas (Task 1.4.2) já vive em `THROTTLE_MS_ENTRE_MOTORISTAS`
+      (`src/enriquecimento.js`) — não duplicado no config do timer (cadência
+      de disparo vs. espaçamento intra-execução são números independentes,
+      research.md:164). `scripts/docker-run-enriquecimento.sh` (novo)
+      reusa o MESMO `$LOCKFILE`/`flock -n` de `docker-run.sh` — "robô
+      prioritário" (dec-039) emerge do próprio non-blocking flock, sem
+      lógica de prioridade extra. `.service` files + runbook completo
+      (instalação/rollback/smoke test) em
+      `infra/robo-entrego/README.md` §"Enriquecimento EntreGô" — aplicação
+      real em produção fica com o operador (rito de produção, CLAUDE.md;
+      esta pipeline só entrega os artefatos).
+- [x] 6.1.2 Implementar a seleção semestral: `Entregador WHERE
+      dados_entrego_enriquecidos_em < now() - interval '6 months'`. Já
+      implementada no backend em FASE 5 (`routes/hub-robo-entrego.js`,
+      `SEIS_MESES_MS`, `GET /motoristas-para-enriquecer?modo=semestral` —
+      task 5.2.1); FASE 6 fecha o lado do agendamento: o
+      `entrego-enriquecimento-semestral.service` invoca `node
+      src/enriquecimento.js --modo=semestral`, que já passa `modo` por
+      `clienteHub.buscarMotoristasParaEnriquecer(modo)` até essa query
+      (task 5.3.4).
+- [x] 6.1.3 Reaproveitar `BACKOFF_MS_SEQUENCIA`
       (`infra/robo-entrego/src/index.js:35`) e a classificação
-      `ErroAntibotSuspeito` → `ehFalhaDefinitiva` já existentes
-- [ ] 6.1.4 Teste: a rotina para (não insiste) diante de bloqueio antibot,
-      mesmo comportamento já validado do robô de importação
+      `ErroAntibotSuspeito` → `ehFalhaDefinitiva` já existentes. O throttle
+      (`BACKOFF_MS_SEQUENCIA[0]`) já era reusado desde 5.3.4; esta task
+      fecha a lacuna que faltava — `enriquecimento.js#processarUmMotorista`
+      agora envolve a busca de 1 motorista com `comRetryTransitorio`
+      (`index.js`, MESMA função pura, sem duplicar backoff: até 3
+      tentativas, 1/5/15min) para erros TRANSITÓRIOS (rede/5xx); a rodada
+      inteira PARA (mesmo espírito de `ehFalhaDefinitiva` — antibot ou falha
+      persistente não é culpa do motorista corrente) em
+      `ErroAntibotSuspeito` OU `ErroPortalTransitorio` esgotado (401
+      mid-rodada/5xx que sobrou dos retries).
+- [x] 6.1.4 Teste: a rotina para (não insiste) diante de bloqueio antibot,
+      mesmo comportamento já validado do robô de importação — coberto desde
+      5.3.4/5.3.5 (`ErroAntibotSuspeito` no meio da rodada) e estendido
+      nesta FASE para `ErroPortalTransitorio`/retry transitório
+      (`test/enriquecimento.test.js`, 4 testes novos: para em
+      `ErroPortalTransitorio`, retenta erro transitório com o backoff do
+      robô, e o caminho "sem override" fim-a-fim contra a API real).
 
 ---
 

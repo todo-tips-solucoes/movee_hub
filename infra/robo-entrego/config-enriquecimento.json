@@ -1,0 +1,17 @@
+{
+  "_ref": "hub-motorista-360 FASE 6 (tasks.md 6.1.1, spec.md FR-016, research.md Decision 7/8) — throttle ENTRE motoristas dentro de uma rodada já quantificado na Task 1.4.2 (60s, THROTTLE_MS_ENTRE_MOTORISTAS em src/enriquecimento.js) e não repetido aqui: este arquivo só define a CADÊNCIA dos timers (frequência de disparo), não o espaçamento intra-execução.",
+  "timers": [
+    {
+      "unit": "entrego-enriquecimento-sob-demanda",
+      "description": "Consome a fila de enriquecimento EntreGô sob demanda (hub-motorista-360 FR-005) — node src/enriquecimento.js --modo=sob-demanda",
+      "onCalendar": ["*:0/5"],
+      "randomizedDelaySec": 30
+    },
+    {
+      "unit": "entrego-enriquecimento-semestral",
+      "description": "Atualiza semestralmente os dados EntreGô já enriquecidos (hub-motorista-360 FR-016) — node src/enriquecimento.js --modo=semestral",
+      "onCalendar": ["*-01,07-01 00:00:00 America/Sao_Paulo"],
+      "randomizedDelaySec": 300
+    }
+  ]
+}

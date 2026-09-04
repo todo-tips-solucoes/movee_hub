@@ -6,8 +6,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { ErroAntibotSuspeito } = require('../src/entrego-portal');
-const { ErroExtracaoNaoLevantada } = require('../src/busca-pessoa-entrego');
+const { ErroAntibotSuspeito, ErroPortalTransitorio } = require('../src/entrego-portal');
 const { executarRodadaEnriquecimento, THROTTLE_MS_ENTRE_MOTORISTAS } = require('../src/enriquecimento');
 
 function mockClienteHub({ itens = [], atualizarImpl = null } = {}) {
@@ -39,6 +38,21 @@ function pageComSessaoValida() {
   };
 }
 
+/** Mesma coisa, mas o `evaluate` sabe responder à chamada REAL de
+ * busca-pessoa-entrego.js (`args.uuid` presente) com um corpo de API —
+ * usado só pelo teste "sem buscarDadosPessoa customizado" abaixo. */
+function pageComSessaoEDados(corpoPessoa) {
+  return {
+    url: () => 'https://franqueado.entregolog.com/',
+    goto: async () => {},
+    evaluate: async (_fn, args) => (
+      args && args.uuid
+        ? { status: 200, contentType: 'application/json', corpo: corpoPessoa }
+        : { status: 200 }
+    ),
+  };
+}
+
 describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
   test('modo inválido -> lança sem chamar o hub', async () => {
     await assert.rejects(
@@ -65,7 +79,7 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
       clienteHub,
       config: configFake,
       dormir: async (ms) => { dormires.push(ms); },
-      extrairDadosPessoa: async () => ({ dadosPessoais: {} }),
+      buscarDadosPessoa: async () => ({ dadosPessoais: {} }),
     });
     assert.equal(r.resultado, 'sucesso');
     assert.equal(r.sucessos, 2);
@@ -86,7 +100,7 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
       clienteHub,
       config: configFake,
       dormir: async () => {},
-      extrairDadosPessoa: async () => {
+      buscarDadosPessoa: async () => {
         chamadas += 1;
         if (chamadas === 2) throw new ErroAntibotSuspeito('suspeita detectada');
         return {};
@@ -102,21 +116,88 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
     assert.equal(clienteHub.chamadasAtualizar[0].id, 1);
   });
 
-  test('ErroExtracaoNaoLevantada (gap de implementação, default sem extrairDadosPessoa) -> PARA a rodada, falha_total', async () => {
-    const itens = [{ id: 1, idExterno: 'uuid-1' }];
+  // 6.1.4: mesmo comportamento "para em vez de insistir" já validado do robô
+  // de importação — aqui estendido a ErroPortalTransitorio (401 mid-rodada/
+  // 5xx persistente após os retries de comRetryTransitorio): não é culpa do
+  // motorista corrente, então a rodada PARA em vez de queimar o resto da
+  // fila como "falha" de cada item.
+  test('ErroPortalTransitorio (401 mid-rodada) -> PARA igual antibot, item corrente NÃO é reportado', async () => {
+    const itens = [{ id: 1, idExterno: 'uuid-1' }, { id: 2, idExterno: 'uuid-2' }, { id: 3, idExterno: 'uuid-3' }];
     const clienteHub = mockClienteHub({ itens });
+    let chamadas = 0;
     const r = await executarRodadaEnriquecimento({
       modo: 'sob-demanda',
       page: pageComSessaoValida(),
       clienteHub,
       config: configFake,
       dormir: async () => {},
-      // extrairDadosPessoa OMITIDO -> usa o placeholder real (comportamento de produção hoje).
+      buscarDadosPessoa: async () => {
+        chamadas += 1;
+        // sessao_expirada_401 classifica NAO_E_FALHA (não TRANSITORIO) em
+        // taxonomia-erro.js -> comRetryTransitorio NÃO retenta, propaga na hora.
+        if (chamadas === 2) throw new ErroPortalTransitorio('sessão expirada no meio da rodada', 'sessao_expirada_401');
+        return {};
+      },
     });
-    assert.equal(r.resultado, 'falha_total');
+    assert.equal(chamadas, 2);
+    assert.equal(r.sucessos, 1);
+    assert.equal(r.falhas, 0);
     assert.equal(r.parouPorAntibotOuGap, true);
-    assert.match(r.motivoParada, /não foram levantados empiricamente/);
-    assert.equal(clienteHub.chamadasAtualizar.length, 0);
+    assert.equal(r.resultado, 'falha_parcial');
+    assert.equal(clienteHub.chamadasAtualizar.length, 1);
+    assert.equal(clienteHub.chamadasAtualizar[0].id, 1);
+  });
+
+  // 6.1.3: reaproveita comRetryTransitorio (index.js) — mesmo backoff
+  // 1/5/15min, até 3 tentativas — para erros TRANSITÓRIOS (rede/5xx) na
+  // busca de 1 motorista. Sucesso após retry não conta como falha do item
+  // nem para a rodada.
+  test('6.1.3: erro transitório (5xx) retenta com o backoff do robô e sucede sem contar como falha', async () => {
+    const itens = [{ id: 1, idExterno: 'uuid-1' }];
+    const clienteHub = mockClienteHub({ itens });
+    let chamadas = 0;
+    const dormires = [];
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda',
+      page: pageComSessaoValida(),
+      clienteHub,
+      config: configFake,
+      dormir: async (ms) => { dormires.push(ms); },
+      buscarDadosPessoa: async () => {
+        chamadas += 1;
+        if (chamadas < 2) throw new ErroPortalTransitorio('5xx transitório', 'http_5xx_portal');
+        return { dadosPessoais: {} };
+      },
+    });
+    assert.equal(chamadas, 2, 'deveria tentar de novo após o erro transitório');
+    assert.equal(r.sucessos, 1);
+    assert.equal(r.falhas, 0);
+    assert.equal(r.resultado, 'sucesso');
+    assert.deepEqual(dormires, [THROTTLE_MS_ENTRE_MOTORISTAS], 'sleep do retry usa o mesmo 1º degrau do backoff (60s)');
+  });
+
+  test('SEM buscarDadosPessoa customizado -> usa a implementação real (endpoint confirmado, ACHADOS-PORTAL.md §9) e reporta sucesso', async () => {
+    const itens = [{ id: 1, idExterno: 'uuid-real-1' }];
+    const clienteHub = mockClienteHub({ itens });
+    const corpoPessoa = {
+      personalData: { fullName: 'Fulano Teste', cpf: '00000000191' },
+      documentDriver: {},
+      emergencyContact: {},
+      lastDelivery: {},
+      currentModal: {},
+    };
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda',
+      page: pageComSessaoEDados(corpoPessoa),
+      clienteHub,
+      config: configFake,
+      dormir: async () => {},
+      // buscarDadosPessoa OMITIDO -> usa buscarDadosPessoaPorUuid real (busca-pessoa-entrego.js).
+    });
+    assert.equal(r.resultado, 'sucesso');
+    assert.equal(r.sucessos, 1);
+    assert.equal(clienteHub.chamadasAtualizar[0].resultado.dados.dadosPessoais.nomeCompleto, 'Fulano Teste');
+    assert.equal(clienteHub.chamadasAtualizar[0].resultado.dados.dadosPessoais.cpf, '00000000191');
   });
 
   test('FR-007 — falha ISOLADA de 1 motorista (não antibot) reporta sucesso=false e SEGUE pro próximo, sem dados no PATCH', async () => {
@@ -129,7 +210,7 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
       clienteHub,
       config: configFake,
       dormir: async () => {},
-      extrairDadosPessoa: async () => {
+      buscarDadosPessoa: async () => {
         chamadas += 1;
         if (chamadas === 1) throw new Error('falha pontual qualquer, ex.: campo ausente na página');
         return { dadosPessoais: {} };
@@ -155,7 +236,7 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
       clienteHub,
       config: configFake,
       dormir: async () => {},
-      extrairDadosPessoa: async () => { throw new Error('falha isolada'); },
+      buscarDadosPessoa: async () => { throw new Error('falha isolada'); },
     });
     assert.equal(r.resultado, 'falha_total');
     assert.equal(r.sucessos, 0);

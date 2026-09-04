@@ -139,3 +139,116 @@ Pré-requisito de dados, fora do código desta pipeline: aplicar
 `sql/001-usuario-servico-robo-entrego.sql` no banco (rito de produção —
 DDL/escrita no `chatmasterveloz`, mesmos 5 gates) e provisionar
 `/var/lib/hub_secrets/robo-entrego/.env` no host real.
+
+## Enriquecimento EntreGô — sob demanda + rotina semestral (hub-motorista-360 FASE 5/6)
+
+Segundo worker, módulo NOVO e SEPARADO (`src/enriquecimento.js`) — busca os
+dados de cadastro ("Dados da pessoa entregadora") de um motorista no portal
+EntreGô por UUID e grava em `Entregador.dados_entrego_json` (hub). Reusa a
+MESMA sessão persistida e o MESMO lockfile do robô de importação acima —
+nunca roda em paralelo com ele (dec-039, "uma raspagem por vez, robô
+prioritário"). Ver
+[docs/specs/hub-motorista-360/](../../docs/specs/hub-motorista-360/) para
+spec/plan/research/data-model/contracts completos e
+[docs/plans/robo-entrego/ACHADOS-PORTAL.md](../../docs/plans/robo-entrego/ACHADOS-PORTAL.md)
+§9 para o endpoint do BFF medido.
+
+**2 timers, 1 script, modos diferentes** (research.md Decision 7/8):
+
+| Timer | Cadência | O que processa |
+|---|---|---|
+| `entrego-enriquecimento-sob-demanda.timer` | a cada 5 min | fila de pedidos manuais (`dados_entrego_solicitado_em`, FR-005 — botão "Buscar dados EntreGô" no hub) |
+| `entrego-enriquecimento-semestral.timer` | 2x/ano (1º jan + 1º jul, 00:00 America/Sao_Paulo) | todo `Entregador` já enriquecido há mais de 6 meses (FR-016) |
+
+⚠️ **Nenhuma credencial nova** — os dois reusam a mesma sessão EntreGô
+(`entrego-session.json`) e o mesmo usuário de serviço do hub
+(`robo_entrego_servico`) já provisionados acima; a única permissão adicional
+é a de `sql/003-permissoes-enriquecimento-robo-entrego.sql` (task 2.4, já
+aplicada em `hub-homolog`).
+
+### Instalação dos 2 timers
+
+1. Segredos e usuário de serviço: mesmos pré-requisitos da seção
+   "Provisionamento do usuário de serviço" acima — **nada de novo** a
+   provisionar para este worker além do grant de
+   `sql/003-permissoes-enriquecimento-robo-entrego.sql`.
+2. Cadência em `config-enriquecimento.json` (`.timers[]` — unit, description,
+   `onCalendar` no formato `systemd.time(7)`, `randomizedDelaySec`) — editar
+   e rodar:
+   ```bash
+   ./scripts/gerar-timer.sh config-enriquecimento.json
+   ```
+   Regenera `entrego-enriquecimento-sob-demanda.timer` e
+   `entrego-enriquecimento-semestral.timer` localmente (no repo) — **não**
+   toca o host. Mesma regra do robô diário: nunca editar `OnCalendar=` à
+   mão, sempre reeditar o config + re-rodar o script (o cabeçalho gerado nos
+   2 arquivos já avisa). Este mesmo `gerar-timer.sh` continua servindo o
+   robô diário sem nenhuma mudança de comportamento quando chamado sem
+   argumento (schema `.horarios[]`) ou com `config.json` explícito.
+3. **Instalação em `/etc/systemd/system` é ato manual do operador** (rito de
+   produção — fora do escopo de execução desta pipeline SDD).
+   `gerar-timer.sh` já imprime os comandos exatos no final; resumo:
+   ```bash
+   sudo ln -sf /var/lib/envioMassa_homologacao/infra/robo-entrego/entrego-enriquecimento-sob-demanda.service \
+               /var/lib/envioMassa_homologacao/infra/robo-entrego/entrego-enriquecimento-sob-demanda.timer \
+               /etc/systemd/system/
+   sudo ln -sf /var/lib/envioMassa_homologacao/infra/robo-entrego/entrego-enriquecimento-semestral.service \
+               /var/lib/envioMassa_homologacao/infra/robo-entrego/entrego-enriquecimento-semestral.timer \
+               /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now entrego-enriquecimento-sob-demanda.timer
+   sudo systemctl enable --now entrego-enriquecimento-semestral.timer
+   ```
+
+### Rodar manualmente (sem esperar o timer)
+
+```bash
+sudo systemctl start entrego-enriquecimento-sob-demanda.service   # ou -semestral
+journalctl -u entrego-enriquecimento-sob-demanda.service -f
+```
+
+Sem instalar a unit (direto pelo wrapper, útil para depurar antes de
+instalar o timer):
+
+```bash
+./scripts/docker-run-enriquecimento.sh sob-demanda   # ou: semestral
+```
+
+### Observabilidade (diferente do robô diário — sem e-mail, sem log JSON próprio)
+
+Este worker **não** usa `alerta-email.js` nem `log-execucao.js` — cada item
+falho já vira evento de auditoria no HUB (`PATCH .../entrego-enriquecimento`,
+`sucesso:false` → `motorista.entrego_enriquecimento_falhou`,
+`GET /api/v1/auditoria` no hub); a rodada como um todo (contadores
+sucessos/falhas, `motivoParada` se parou por anti-bot/sessão) só aparece no
+stdout capturado pelo `journalctl` da unit correspondente. Suspeita de
+anti-bot ou falha transitória esgotada PARAM a rodada em vez de martelar
+(FR-016/FR-011, mesmo comportamento — não retry infinito — do robô diário);
+o item corrente fica pendente e é reprocessado no próximo tick do timer
+(auto-cura, sem relogin no meio da rodada — ver comentário de cabeçalho de
+`src/enriquecimento.js`).
+
+### Rito de aplicação em produção
+
+Mesmos 5 gates da seção "Rito de aplicação em produção" acima, aplicados aos
+2 timers novos:
+
+1. **Autorização explícita** do operador para instalar os 2 timers.
+2. **Janela combinada** — mesmo risco de anti-bot da primeira execução real.
+3. **Rollback**: `sudo systemctl disable --now
+   entrego-enriquecimento-sob-demanda.timer
+   entrego-enriquecimento-semestral.timer && sudo rm
+   /etc/systemd/system/entrego-enriquecimento-{sob-demanda,semestral}.{service,timer}
+   && sudo systemctl daemon-reload` — remove o agendamento sem afetar o
+   robô diário (lockfile compartilhado, mas units independentes) nem nenhum
+   serviço do Swarm.
+4. **Aplicar**: os 5 comandos de "Instalação dos 2 timers" acima.
+5. **Smoke test**: `sudo systemctl start
+   entrego-enriquecimento-sob-demanda.service` (roda com a fila vazia se
+   nenhum pedido pendente — resultado `sem_dados`, sem tocar o portal) +
+   conferir `journalctl -u entrego-enriquecimento-sob-demanda.service -n 20`.
+
+Pré-requisito de dados, fora do código desta pipeline: aplicar
+`sql/003-permissoes-enriquecimento-robo-entrego.sql` no banco (rito de
+produção — DDL/escrita no `chatmasterveloz`, mesmos 5 gates), se ainda não
+aplicado no ambiente alvo (já aplicado em `hub-homolog`, task 2.4).

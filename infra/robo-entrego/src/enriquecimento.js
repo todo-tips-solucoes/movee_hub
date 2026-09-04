@@ -10,12 +10,17 @@
 // no meio do fluxo crítico.
 //
 // Serialização com a rodada de importação (dec-039 — "uma raspagem por vez,
-// robô prioritário", FR-005): FICA A CARGO do wrapper de processo (mesmo
-// `flock -n` de scripts/docker-run.sh sobre o MESMO lockfile) — FORA do
-// escopo desta FASE (tasks.md FASE 6.1, gerar-timer.sh/wrapper novos). Este
-// módulo só implementa a lógica da rodada; oferece `--pulado-lock` (mesmo
-// padrão de index.js#executarPuladoLock) para o wrapper futuro registrar o
-// desfecho quando o lock estiver ocupado.
+// robô prioritário", FR-005): a cargo do wrapper de processo
+// (scripts/docker-run-enriquecimento.sh, tasks.md FASE 6.1) — mesmo `flock
+// -n` de scripts/docker-run.sh sobre o MESMO lockfile
+// (${SECRETS_DIR}/robo-entrego.lock). "Robô prioritário" emerge do próprio
+// `-n` (non-blocking): quem já está com o lock corre; o outro nunca espera,
+// só desiste desta execução e tenta de novo no próximo tick do seu timer —
+// como a rodada diária roda só 3x/dia e a de enriquecimento sob-demanda a
+// cada poucos minutos, a diária nunca fica esperando na fila. Este módulo só
+// implementa a lógica da rodada; `--pulado-lock` (mesmo padrão de
+// index.js#executarPuladoLock) é o que o wrapper invoca quando o lock está
+// ocupado.
 'use strict';
 
 const { criarClienteHub } = require('./hub-client');
@@ -23,9 +28,14 @@ const {
   carregarStorageState,
   garantirSessaoValida,
   ErroAntibotSuspeito,
+  ErroPortalTransitorio,
 } = require('./entrego-portal');
-const { buscarDadosPessoaPorUuid, ErroExtracaoNaoLevantada } = require('./busca-pessoa-entrego');
-const { BACKOFF_MS_SEQUENCIA, carregarEnv, lerConfiguracao, ENV_PATH_DEFAULT } = require('./index');
+const { buscarDadosPessoaPorUuid } = require('./busca-pessoa-entrego');
+// 6.1.3 — reaproveita o MESMO backoff/retry transitório (1/5/15min, até 3
+// tentativas, FR-012/FR-016) já usado pelo robô de importação, em vez de
+// duplicar a lógica: `comRetryTransitorio` é puro (fn, {dormir}) e agnóstico
+// ao que executa.
+const { BACKOFF_MS_SEQUENCIA, comRetryTransitorio, carregarEnv, lerConfiguracao, ENV_PATH_DEFAULT } = require('./index');
 
 // FR-016: "throttle entre motoristas MUST ser de no mínimo 60 segundos ...
 // reaproveita o primeiro degrau do backoff já existente do robô
@@ -40,14 +50,19 @@ async function dormirReal(ms) {
 }
 
 /**
- * Processa 1 motorista da fila: navega + extrai (busca-pessoa-entrego.js) e
- * reporta o resultado ao hub (PATCH, task 5.2.2).
- * @returns {Promise<{ok:true}|{ok:false, motivo:string, param?}>} nunca lança
- *   — a classificação do erro (segue vs. para a rodada) é decidida pelo
- *   chamador (`executarRodadaEnriquecimento`), que precisa do erro original.
+ * Processa 1 motorista da fila: busca (busca-pessoa-entrego.js, com retry
+ * transitório — 6.1.3) e reporta o resultado ao hub (PATCH, task 5.2.2).
+ * @param {Function} [opts.buscarDadosPessoa] override para teste (default:
+ *   a chamada real de API — busca-pessoa-entrego.js)
+ * @returns {Promise<{ok:true}>} nunca lança — a classificação do erro
+ *   (segue vs. para a rodada) é decidida pelo chamador
+ *   (`executarRodadaEnriquecimento`), que precisa do erro original.
  */
-async function processarUmMotorista({ item, page, clienteHub, modo, extrairDadosPessoa }) {
-  const dados = await buscarDadosPessoaPorUuid(page, { uuid: item.idExterno, extrairDadosPessoa });
+async function processarUmMotorista({ item, page, clienteHub, modo, dormir, buscarDadosPessoa = buscarDadosPessoaPorUuid }) {
+  const { valor: dados } = await comRetryTransitorio(
+    () => buscarDadosPessoa(page, { uuid: item.idExterno }),
+    { dormir }
+  );
   await clienteHub.atualizarEnriquecimento(item.id, { sucesso: true, dados, modo });
   return { ok: true };
 }
@@ -61,10 +76,10 @@ async function processarUmMotorista({ item, page, clienteHub, modo, extrairDados
  * @param {(timestamp: Date) => Promise<string>} opts.obterCodigo - para relogin, se a sessão expirou
  * @param {object} opts.config - ver `lerConfiguracao()` (index.js)
  * @param {Function} [opts.dormir] override para teste
- * @param {(page:object) => Promise<object>} [opts.extrairDadosPessoa] - ver busca-pessoa-entrego.js
+ * @param {Function} [opts.buscarDadosPessoa] override para teste - ver busca-pessoa-entrego.js
  * @returns {Promise<{resultado:string, total:number, sucessos:number, falhas:number, parouPorAntibotOuGap:boolean, motivoParada:string|null}>}
  */
-async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodigo, config, dormir = dormirReal, extrairDadosPessoa } = {}) {
+async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodigo, config, dormir = dormirReal, buscarDadosPessoa } = {}) {
   if (!MODOS_VALIDOS.includes(modo)) {
     throw new Error(`enriquecimento: modo inválido "${modo}" (válidos: ${MODOS_VALIDOS.join(', ')})`);
   }
@@ -98,16 +113,19 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
     if (i > 0) await dormir(THROTTLE_MS_ENTRE_MOTORISTAS);
 
     try {
-      await processarUmMotorista({ item, page, clienteHub, modo, extrairDadosPessoa });
+      await processarUmMotorista({ item, page, clienteHub, modo, dormir, buscarDadosPessoa });
       sucessos += 1;
     } catch (e) {
-      // FR-016/FR-011 — "parando em vez de insistir": suspeita de anti-bot
-      // OU gap de implementação (extração não levantada, Constitution VI)
+      // FR-016/FR-011 — "parando em vez de insistir": suspeita de anti-bot OU
+      // falha transitória/de sessão que sobrou dos 3 retries de
+      // comRetryTransitorio (rede/5xx/401 — nenhuma culpa DESTE motorista)
       // interrompem a RODADA inteira. O item CORRENTE fica sem PATCH — o
       // pedido (dados_entrego_solicitado_em) permanece pendente na fila,
-      // reprocessado numa janela futura (nunca marcado como falha
-      // definitiva por um problema que não é dele).
-      if (e instanceof ErroAntibotSuspeito || e instanceof ErroExtracaoNaoLevantada) {
+      // reprocessado na PRÓXIMA execução do timer (auto-cura: uma nova
+      // sessão é sondada/relogada do zero no passo 2 — ver header do módulo,
+      // "sob-demanda" roda a cada poucos minutos, não precisa de relogin
+      // NO MEIO da rodada corrente, ao contrário do robô diário de FASE 4).
+      if (e instanceof ErroAntibotSuspeito || e instanceof ErroPortalTransitorio) {
         motivoParada = e.message;
         // eslint-disable-next-line no-console
         console.error(`[enriquecimento] rodada interrompida (${e.name}): ${e.message}`);

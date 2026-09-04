@@ -1,0 +1,27 @@
+[Unit]
+Description=Fila de enriquecimento EntreGô sob demanda (hub-motorista-360 FR-005)
+Documentation=file:///var/lib/envioMassa_homologacao/infra/robo-entrego/README.md
+# Sem Docker não há Playwright — a automação do portal roda inteira dentro
+# do container oficial (research.md Decision 2, "nunca instalar browsers no
+# host"), mesmo padrão de robo-entrego.service.
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/var/lib/envioMassa_homologacao/infra/robo-entrego/scripts/docker-run-enriquecimento.sh sob-demanda
+
+# Mesmo padrão de robo-entrego.service/infra/producao/backup-producao.service:
+# a rotina não é urgente o suficiente para competir com tráfego de cliente
+# (incidente de starvation 2026-06-11).
+Nice=10
+IOSchedulingClass=idle
+
+# Diferente de robo-entrego.service: NENHUM alerta por e-mail aqui (este
+# worker não importa `alerta-email.js` — verificado em src/enriquecimento.js).
+# Cada item falho gera evento de auditoria no HUB via o próprio PATCH
+# (contracts/entrego-enriquecimento.md §2, `motorista.entrego_enriquecimento_falhou`);
+# a rodada como um todo só fica visível em `journalctl -u
+# entrego-enriquecimento-sob-demanda.service` (stdout/stderr do worker,
+# resultado em JSON de `executarRodadaEnriquecimento`). Sem log JSON Lines
+# persistente próprio (este worker não usa log-execucao.js).
