@@ -366,6 +366,20 @@ GET https://api.entregolog.com/logistics-web-bff/operation/logistics-operator/dr
 
 O collector do PerimeterX (`collector-pxm0w7hcdf.px-cloud.net/api/v2/collector`)
 registrou POSTs durante a navegação, como em §6. **Nenhum challenge** foi
-apresentado e nenhuma requisição foi bloqueada. O levantamento foi feito
-**fora das janelas do robô** (11h/13h/14h), com o mínimo de interação com a
-UI — a maior parte por chamada direta à API de dentro da página.
+apresentado e nenhuma requisição foi bloqueada, nem na navegação de UI nem nas
+duas chamadas diretas à API.
+
+**Horários medidos** (registrados porque a proximidade com o robô é o risco
+real desta seção, e no levantamento ela foi maior do que se pretendia):
+
+| Evento | Horário |
+|---|---|
+| Execução do robô (timer das 11h) | `11:02:01` → `11:07:22`, `status=0/SUCCESS` |
+| Levantamento no portal | entre `~11:10` e `11:45` |
+
+Ou seja: o levantamento ocorreu **depois** da janela das 11h ter concluído e
+**antes** da de 13h — não houve sobreposição, e a execução do robô daquela
+janela terminou com sucesso. Registrado com precisão porque a primeira
+redação desta seção afirmava genericamente "fora das janelas" partindo de um
+horário suposto, não medido. **Para o próximo levantamento: conferir
+`systemctl list-timers robo-entrego.timer` ANTES de começar**, não depois.
