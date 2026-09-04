@@ -1,0 +1,12 @@
+# GERADO por scripts/gerar-timer.sh a partir de config-enriquecimento.json — não editar OnCalendar= à mão, mudar cadência = editar config-enriquecimento.json + re-rodar este script (tasks.md 6.1.1).
+[Unit]
+Description=Atualiza semestralmente os dados EntreGô já enriquecidos (hub-motorista-360 FR-016) — node src/enriquecimento.js --modo=semestral
+
+[Timer]
+OnCalendar=*-01,07-01 00:00:00 America/Sao_Paulo
+Persistent=true
+# Espalha o disparo — mesmo motivo de infra/producao/backup-producao.timer.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

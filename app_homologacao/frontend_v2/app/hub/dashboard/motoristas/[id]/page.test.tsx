@@ -15,6 +15,7 @@ const mockDesvincularMotorista = vi.fn();
 const mockCriarCredencial = vi.fn();
 const mockResetSenhaCredencial = vi.fn();
 const mockAtualizarCredencial = vi.fn();
+const mockBuscarEntregoEnriquecimento = vi.fn();
 const mockPush = vi.fn();
 
 vi.mock('@/contexts/hub-auth-context', () => ({
@@ -37,6 +38,7 @@ vi.mock('@/lib/hub/motoristas-api', async () => {
     criarCredencial: (...args: unknown[]) => mockCriarCredencial(...args),
     resetSenhaCredencial: (...args: unknown[]) => mockResetSenhaCredencial(...args),
     atualizarCredencial: (...args: unknown[]) => mockAtualizarCredencial(...args),
+    buscarEntregoEnriquecimento: (...args: unknown[]) => mockBuscarEntregoEnriquecimento(...args),
   };
 });
 
@@ -55,12 +57,44 @@ const DETALHE_SEM_VINCULO = {
 
 const DETALHE_COM_VINCULO = {
   ...DETALHE_SEM_VINCULO,
+  // FASE 4 (task 4.1, FR-008) — CNPJ do legado, não mascarado.
+  cnpjPrestador: '12345678000195',
   vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
 };
 
 const DETALHE_COM_VINCULO_CREDENCIAL_DESATIVADA = {
   ...DETALHE_SEM_VINCULO,
   vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: false },
+};
+
+// FASE 7 (tasks 7.1/7.2) — fixtures de `entregoEnriquecimento`. CPF/RG em
+// FORMATO, nunca dado real (CLAUDE.md §PII).
+const ENTREGO_ENRIQUECIDO_COM_SENSIVEIS = {
+  enriquecidoEm: '2026-08-01T12:00:00.000Z',
+  dadosPessoaisBasicos: { nomeCompleto: 'Fulano da Silva', dataNascimento: '1990-01-01', telefone: '11999999999' },
+  documentos: { rg: '99.999.999-9', cnh: '99999999999' },
+  informacoesEntrega: { operadorLogistico: 'Movee', modal: 'moto' },
+  dadosPessoais: {
+    nomeCompleto: 'Fulano da Silva',
+    dataNascimento: '1990-01-01',
+    telefone: '11999999999',
+    email: 't@example.com',
+    cpf: '999.999.999-99',
+    nomeMae: '<mae>',
+    nomePai: '<pai>',
+  },
+  contatoEmergencia: { grauParentesco: 'Cônjuge', nome: '<nome>', telefone: '11988888888' },
+};
+
+// SEM `motoristas.dados_sensiveis` (RBAC de campo, FR-013): backend OMITE
+// as chaves — `documentos.rg`/`documentos.cnh` ausentes (dec-087: todo
+// documento de identidade), `dadosPessoais`/`contatoEmergencia` ausentes
+// por completo (não `null`).
+const ENTREGO_ENRIQUECIDO_SEM_SENSIVEIS = {
+  enriquecidoEm: '2026-08-01T12:00:00.000Z',
+  dadosPessoaisBasicos: { nomeCompleto: 'Fulano da Silva', dataNascimento: '1990-01-01', telefone: '11999999999' },
+  documentos: {},
+  informacoesEntrega: { operadorLogistico: 'Movee', modal: 'moto' },
 };
 
 function withPermissoes(permissoes: string[]) {
@@ -77,6 +111,7 @@ describe('MotoristaDetalhePage', () => {
     mockCriarCredencial.mockReset();
     mockResetSenhaCredencial.mockReset();
     mockAtualizarCredencial.mockReset();
+    mockBuscarEntregoEnriquecimento.mockReset();
     mockObterSugestoes.mockResolvedValue({ items: [], entidadeElegivel: true });
     withPermissoes(['motoristas.consultar', 'motoristas.editar']);
   });
@@ -99,6 +134,21 @@ describe('MotoristaDetalhePage', () => {
     expect(
       screen.getByRole('button', { name: `Copiar identificador de ${DETALHE_SEM_VINCULO.nome}` })
     ).toBeInTheDocument();
+  });
+
+  it('FASE 4 (task 4.1, FR-008): CNPJ do legado aparece não mascarado quando vinculado', async () => {
+    mockObterMotorista.mockResolvedValueOnce(DETALHE_COM_VINCULO);
+    render(<MotoristaDetalhePage />);
+
+    await waitFor(() => expect(screen.getByText(DETALHE_COM_VINCULO.cnpjPrestador)).toBeInTheDocument());
+  });
+
+  it('FASE 4 (task 4.1, FR-008 Acceptance Scenario 2): sem CNPJ mostra "não informado", sem erro', async () => {
+    mockObterMotorista.mockResolvedValueOnce(DETALHE_SEM_VINCULO);
+    render(<MotoristaDetalhePage />);
+
+    await waitFor(() => expect(screen.getByText('Fulano da Silva')).toBeInTheDocument());
+    expect(screen.getByText('não informado')).toBeInTheDocument();
   });
 
   it('sem vínculo: mostra estado vazio + botão Vincular (com permissão)', async () => {
@@ -296,6 +346,146 @@ describe('MotoristaDetalhePage', () => {
       await waitFor(() =>
         expect(screen.getByText('Este motorista (ou este CNPJ) já tem uma credencial de acesso vinculada.')).toBeInTheDocument()
       );
+    });
+  });
+
+  // hub-motorista-360 FASE 7 (task 7.1.4/7.2.4) — seção "Dados da EntreGô":
+  // RBAC de campo COM/SEM permissão de dados sensíveis (task 7.1.4), 3
+  // estados do botão "Buscar dados EntreGô" (task 7.2.4: sucesso/pendente,
+  // sem identificador, indisponibilidade 409/429), e 🔴 nenhuma URL de
+  // foto de documento renderizada (dec-072).
+  describe('Dados da EntreGô (FASE 7, tasks 7.1/7.2)', () => {
+    it('COM dados sensíveis no payload: mostra CPF/RG/CNH/e-mail/contato de emergência, sem "acesso restrito"', async () => {
+      mockObterMotorista.mockResolvedValueOnce({
+        ...DETALHE_COM_VINCULO,
+        entregoEnriquecimento: ENTREGO_ENRIQUECIDO_COM_SENSIVEIS,
+      });
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByText('999.999.999-99')).toBeInTheDocument()); // CPF
+      expect(screen.getByText('99.999.999-9')).toBeInTheDocument(); // RG
+      expect(screen.getByText('99999999999')).toBeInTheDocument(); // CNH (dec-087)
+      expect(screen.getByText('t@example.com')).toBeInTheDocument();
+      expect(screen.getByText('<mae>')).toBeInTheDocument();
+      expect(screen.getByText('<pai>')).toBeInTheDocument();
+      expect(screen.queryByText('acesso restrito')).not.toBeInTheDocument();
+    });
+
+    it('SEM dados sensíveis no payload (chaves omitidas): mostra "acesso restrito" p/ CNH e RG (dec-087), nunca "não informado"/erro', async () => {
+      mockObterMotorista.mockResolvedValueOnce({
+        ...DETALHE_COM_VINCULO,
+        entregoEnriquecimento: ENTREGO_ENRIQUECIDO_SEM_SENSIVEIS,
+      });
+      render(<MotoristaDetalhePage />);
+
+      // dec-040 — básicos continuam visíveis mesmo sem a permissão.
+      await waitFor(() => expect(screen.getByText('Movee')).toBeInTheDocument());
+      expect(screen.queryByText('99999999999')).not.toBeInTheDocument(); // CNH agora restrita (dec-087)
+
+      // cnh (1) + rg (1) + email/cpf/nomeMae/nomePai (4) + contatoEmergencia (1) = 7.
+      expect(screen.getAllByText('acesso restrito')).toHaveLength(7);
+    });
+
+    it('nunca renderiza URL/nome de campo de foto de documento (dec-072)', async () => {
+      mockObterMotorista.mockResolvedValueOnce({
+        ...DETALHE_COM_VINCULO,
+        entregoEnriquecimento: ENTREGO_ENRIQUECIDO_COM_SENSIVEIS,
+      });
+      const { container } = render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByText('999.999.999-99')).toBeInTheDocument());
+      expect(container.querySelectorAll('img')).toHaveLength(0);
+      expect(container.innerHTML).not.toMatch(
+        /identityDocumentFrontPhoto|identityDocumentBackPhoto|driverLicensePhoto|workerPhoto/
+      );
+    });
+
+    it('vínculo automático (task 7.1.3, SC-002): badge aparece quando true', async () => {
+      mockObterMotorista.mockResolvedValueOnce({ ...DETALHE_COM_VINCULO, vinculoCredencialAutomatico: true });
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByText('Vínculo automático')).toBeInTheDocument());
+    });
+
+    it('vínculo automático: badge NÃO aparece quando false/ausente (vínculo manual)', async () => {
+      mockObterMotorista.mockResolvedValueOnce({ ...DETALHE_COM_VINCULO, vinculoCredencialAutomatico: false });
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'Fulano da Silva' })).toBeInTheDocument());
+      expect(screen.queryByText('Vínculo automático')).not.toBeInTheDocument();
+    });
+
+    it('task 7.2.3: botão desabilitado quando idExterno está ausente', async () => {
+      mockObterMotorista.mockResolvedValueOnce({ ...DETALHE_COM_VINCULO, idExterno: '' });
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /Buscar dados EntreGô/ })).toBeInTheDocument());
+      expect(screen.getByRole('button', { name: /Buscar dados EntreGô/ })).toBeDisabled();
+    });
+
+    it('task 7.2.2/7.2.4: sucesso (202) mostra estado pendente após clicar', async () => {
+      mockObterMotorista.mockResolvedValue(DETALHE_COM_VINCULO);
+      mockBuscarEntregoEnriquecimento.mockResolvedValueOnce(undefined);
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /Buscar dados EntreGô/ })).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Buscar dados EntreGô/ }));
+
+      await waitFor(() => expect(mockBuscarEntregoEnriquecimento).toHaveBeenCalledWith(1));
+      await waitFor(() =>
+        expect(screen.getByText('Busca solicitada — aguardando o processamento.')).toBeInTheDocument()
+      );
+    });
+
+    it('task 7.2.2/7.2.4: 409 SEM_IDENTIFICADOR_ENTREGO mostra mensagem de erro clara', async () => {
+      mockObterMotorista.mockResolvedValue(DETALHE_COM_VINCULO);
+      mockBuscarEntregoEnriquecimento.mockRejectedValueOnce(
+        new MotoristaApiError(
+          409,
+          'Associe o identificador (uuid) da EntreGô antes de buscar os dados.',
+          'SEM_IDENTIFICADOR_ENTREGO'
+        )
+      );
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /Buscar dados EntreGô/ })).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Buscar dados EntreGô/ }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByText('Associe o identificador (uuid) da EntreGô antes de buscar os dados.')
+        ).toBeInTheDocument()
+      );
+    });
+
+    it('task 7.2.2/7.2.4: 429 JA_PENDENTE (indisponibilidade transitória) mostra mensagem de erro clara', async () => {
+      mockObterMotorista.mockResolvedValue(DETALHE_COM_VINCULO);
+      mockBuscarEntregoEnriquecimento.mockRejectedValueOnce(
+        new MotoristaApiError(
+          429,
+          'Já existe uma busca em andamento para este motorista. Aguarde a conclusão.',
+          'JA_PENDENTE'
+        )
+      );
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /Buscar dados EntreGô/ })).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Buscar dados EntreGô/ }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByText('Já existe uma busca em andamento para este motorista. Aguarde a conclusão.')
+        ).toBeInTheDocument()
+      );
+    });
+
+    it('sem motoristas.editar: botão "Buscar dados EntreGô" não aparece (backend exige a permissão)', async () => {
+      withPermissoes(['motoristas.consultar']);
+      mockObterMotorista.mockResolvedValueOnce(DETALHE_COM_VINCULO);
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'Dados da EntreGô' })).toBeInTheDocument());
+      expect(screen.queryByRole('button', { name: /Buscar dados EntreGô/ })).not.toBeInTheDocument();
     });
   });
 });

@@ -34,10 +34,11 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 
 const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
-const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
+const { obterPermissoesEfetivas, obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { requirePermission } = require('../middleware/hub-require-permission');
 const { parseOrdenacao } = require('../lib/hub-ordenacao');
 
@@ -96,6 +97,27 @@ const {
 } = require('../lib/hub-motoristas-similaridade');
 
 const router = express.Router();
+
+// hub-motorista-360 FASE 5 (tasks.md 5.1.2, contracts/entrego-enriquecimento.md
+// §1, gate owasp-security achado API4/A06): a sessão EntreGô é COMPARTILHADA
+// por todas as empresas — uma rajada de pedidos de UM gestor pode disparar o
+// antibot e travar a busca para TODOS os tenants. Mesmo padrão de
+// roboEntregoRateLimiter (routes/hub-robo-entrego.js): chave por usuário
+// autenticado, não por IP. Número não é fato de negócio (CHK035 exige "existe
+// rate limiting", sem valor fixado) — default de engenharia.
+const entregoEnriquecimentoRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const payload = decodificarAccessToken(lerAccessTokenDoRequest(req));
+    return payload && payload.sub ? String(payload.sub) : req.ip;
+  },
+  handler: (_req, res) => {
+    res.status(429).json({ erro: 'Muitas requisições. Tente novamente mais tarde.' });
+  },
+});
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers de domínio (DUPLICADOS deliberadamente — mesmo padrão de
@@ -457,6 +479,28 @@ async function buscarAtividadesMotorista(id, idExterno, contaMotorista, entidade
   return montarAtividades(faturRows || [], perfRows || [], validRows || [], total, offset, limit);
 }
 
+// FASE 7 (task 7.1.3, contracts/hub-motoristas-detalhe.md) — deriva se o
+// vínculo ATUAL do Entregador foi criado pelo hook automático (FR-009,
+// lib/hub-motorista-vinculo-automatico.js) ou pelo backfill retroativo
+// (FR-012, scripts/backfill-vinculo-motorista.js) — ambos os callers gravam
+// a MESMA ação de auditoria `motorista.vinculado_automaticamente` (única
+// origem da lógica, ver cabeçalho daquele arquivo) — vs. vínculo manual via
+// `POST /:id/vinculo` (`motorista.vinculado`). Sem coluna dedicada: a
+// decisão foi derivar da trilha de auditoria, que já MUST existir para as
+// duas ações (FR-018/FR-024, Auditoria é imutável). O vínculo manual sempre
+// SUBSTITUI o automático em uma única ação (comentário acima do handler de
+// `POST /:id/vinculo`), então o evento mais recente entre as duas ações
+// reflete o vínculo atual.
+async function vinculoAtualEhAutomatico(entregadorId, claims) {
+  const linhas = await hubPostgrestRequest(
+    `Auditoria?recurso=eq.Entregador&recurso_id=eq.${entregadorId}`
+    + '&acao=in.(motorista.vinculado,motorista.vinculado_automaticamente)'
+    + '&select=acao&order=criado_em.desc&limit=1',
+    'GET', null, claims
+  );
+  return !!(linhas && linhas[0] && linhas[0].acao === 'motorista.vinculado_automaticamente');
+}
+
 async function buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts) {
   // 404 se fora do escopo do token: filtro explícito por id_empresa (defesa
   // em profundidade — RLS já nega a linha via escopo). Embed nativo do
@@ -467,10 +511,15 @@ async function buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts)
   // embed — aditivo, campo já existente desde 0021_conta_motorista.sql —
   // para a UI de "Ativar/Desativar credencial" (routes/hub-motoristas.js
   // §PATCH /:id/credencial) refletir o estado REAL da credencial em vez de
-  // adivinhar/assumir um default no cliente.
+  // adivinhar/assumir um default no cliente. FASE 5 (task 5.4):
+  // `dados_entrego_json`/`dados_entrego_enriquecidos_em` (migration 0057)
+  // incluídos aqui — a filtragem RBAC de campo acontece DEPOIS, em
+  // mapEntregoEnriquecimento (lib/hub-motoristas-dto.js), nunca empurrada ao
+  // PostgREST (a linha inteira já está confinada por RLS/id_empresa).
   const linhas = await hubPostgrestRequest(
     `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
     + '&select=id,nome,ativo,nome_editado_manualmente,motorista_id,id_externo,'
+    + 'dados_entrego_json,dados_entrego_enriquecidos_em,'
     + 'ContaMotorista(id,nome,cnpj_prestador,ativo)',
     'GET', null, claims
   );
@@ -528,7 +577,42 @@ async function buscarDetalheMotorista(id, entidadeAtiva, claims, atividadesOpts)
     id, row.id_externo, row.ContaMotorista, entidadeAtiva, claims, atividadesOffset, atividadesLimit
   );
 
-  return mapMotoristaDetalhe(row, areas, resumo, atividades);
+  // hub-motorista-360 FASE 5 (task 5.4.1, contracts/hub-motoristas-detalhe.md
+  // §RBAC de campo) — união FLAT de permissões (mesmo helper usado por
+  // middleware/hub-require-permission.js, contrato explícito da tarefa),
+  // não a variante por-entidade: mantém paridade com o gate de rota
+  // (`motoristas.consultar`, também flat).
+  const temPermissaoDadosSensiveis = claims && claims.usuarioId
+    ? (await obterPermissoesEfetivas(claims.usuarioId)).has('motoristas.dados_sensiveis')
+    : false;
+
+  // FASE 7 (task 7.1.3) — só faz sentido consultar a trilha quando HÁ
+  // vínculo (sem ContaMotorista, é trivialmente "não automático").
+  const vinculoCredencialAutomatico = row.ContaMotorista
+    ? await vinculoAtualEhAutomatico(id, claims)
+    : false;
+
+  const detalhe = mapMotoristaDetalhe(
+    row, areas, resumo, atividades, temPermissaoDadosSensiveis, vinculoCredencialAutomatico
+  );
+
+  // Auditoria de leitura (FR-018, task 5.5.1) — só quando a resposta de fato
+  // INCLUI campo sensível (entregoEnriquecimento não-nulo E permissão
+  // presente); ver detalhe da regra em mapEntregoEnriquecimento. Um motorista
+  // nunca enriquecido não gera evento mesmo para quem tem a permissão — não
+  // há dado sensível nenhum na resposta para auditar.
+  if (temPermissaoDadosSensiveis && detalhe.entregoEnriquecimento) {
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva,
+      usuarioId: claims.usuarioId,
+      acao: 'motorista.dados_sensiveis_visualizados',
+      recurso: 'Entregador',
+      recursoId: id,
+      claims,
+    });
+  }
+
+  return detalhe;
 }
 
 router.get('/:id', requirePermission('motoristas.consultar'), async (req, res) => {
@@ -715,6 +799,62 @@ router.patch('/:id', requirePermission('motoristas.editar'), async (req, res) =>
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /motoristas/:id/entrego-enriquecimento — aciona a busca sob demanda na
+// EntreGô (hub-motorista-360 FASE 5, task 5.1, FR-005,
+// contracts/entrego-enriquecimento.md §1). Só GRAVA o pedido pendente
+// (`dados_entrego_solicitado_em`) e responde 202 — o processamento real é
+// assíncrono, feito pelo worker de infra/robo-entrego/ (task 5.3) via a fila
+// de routes/hub-robo-entrego.js (task 5.2, research.md Decision 7).
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post(
+  '/:id/entrego-enriquecimento',
+  entregoEnriquecimentoRateLimiter,
+  requirePermission('motoristas.editar'),
+  async (req, res) => {
+    try {
+      const ctx = await resolverContextoEntidade(req, res, 'motoristas.editar');
+      if (!ctx) return;
+      const { entidadeAtiva, claims } = ctx;
+
+      if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+      const id = parseInt(req.params.id, 10);
+
+      const linhas = await hubPostgrestRequest(
+        `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
+        + '&select=id,id_externo,dados_entrego_solicitado_em',
+        'GET', null, claims
+      );
+      if (!linhas || linhas.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+      const entregador = linhas[0];
+
+      // FR-006/Decision 9 — sem id_externo não há como localizar o motorista
+      // na EntreGô (User Story 2, cenário 3).
+      if (!entregador.id_externo) {
+        return res.status(409).json({ erro: 'SEM_IDENTIFICADOR_ENTREGO' });
+      }
+      // Dedup por motorista (FR-005) — distinto do rate limit acima (que
+      // limita RAJADA por gestor); este 429 impede um SEGUNDO pedido para o
+      // MESMO motorista enquanto o primeiro segue pendente.
+      if (entregador.dados_entrego_solicitado_em) {
+        return res.status(429).json({ erro: 'JA_PENDENTE' });
+      }
+
+      await hubPostgrestRequest(
+        `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`,
+        'PATCH', { dados_entrego_solicitado_em: new Date().toISOString() }, claims,
+        { returnMinimal: true }
+      );
+
+      return res.status(202).json({ status: 'pendente' });
+    } catch (e) {
+      console.error('[hub-motoristas] erro em POST /motoristas/:id/entrego-enriquecimento:', e.message);
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+  }
+);
 
 // ────────────────────────────────────────────────────────────────────────────
 // POST /motoristas/:id/vinculo — criar ou substituir vínculo (task 6.1)

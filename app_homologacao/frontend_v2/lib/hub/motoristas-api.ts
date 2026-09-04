@@ -58,6 +58,10 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   token_ausente: 'Informe o token de definição de senha.',
   token_invalido: 'Token inválido. Solicite uma nova redefinição de senha.',
   token_expirado: 'Este token expirou. Solicite uma nova redefinição de senha.',
+  // Busca de dados na EntreGô (FASE 5/7, task 7.2.2,
+  // contracts/entrego-enriquecimento.md §1 — 409/429).
+  SEM_IDENTIFICADOR_ENTREGO: 'Associe o identificador (uuid) da EntreGô antes de buscar os dados.',
+  JA_PENDENTE: 'Já existe uma busca em andamento para este motorista. Aguarde a conclusão.',
 };
 
 export class MotoristaApiError extends HubApiError {
@@ -266,4 +270,19 @@ export async function atualizarCredencial(
     body: JSON.stringify(body),
   });
   return parseAtualizarCredencialResponse(raw);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// FASE 7 (task 7.2.1) — busca sob demanda de dados na EntreGô. `202` sem
+// corpo relevante além de `{ status: 'pendente' }` (contracts/entrego-
+// enriquecimento.md §1); o processamento em si é assíncrono (worker de
+// infra/robo-entrego/). Erros esperados: 409 SEM_IDENTIFICADOR_ENTREGO,
+// 429 JA_PENDENTE (task 7.2.2/7.2.3) — ambos já mapeados em MENSAGENS_CODIGO.
+// ────────────────────────────────────────────────────────────────────────────
+
+export async function buscarEntregoEnriquecimento(entregadorId: number): Promise<void> {
+  await request<unknown>(`/motoristas/${entregadorId}/entrego-enriquecimento`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }

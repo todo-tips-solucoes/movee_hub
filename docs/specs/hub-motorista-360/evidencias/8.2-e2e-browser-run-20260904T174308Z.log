@@ -1,0 +1,86 @@
+
+Running 2 tests using 1 worker
+
+  ✘  1 [chromium] › tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts:63:7 › FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo › 8.2.1 — gestor aciona a busca EntreGô (pendente) e vê os campos de um motorista já enriquecido (3.5s)
+  ✘  2 [chromium] › tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts:95:7 › FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo › 8.2.2 — perfil leitura NÃO vê os campos sensíveis (ausência do elemento, nunca string vazia) (1.4s)
+
+
+  1) [chromium] › tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts:63:7 › FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo › 8.2.1 — gestor aciona a busca EntreGô (pendente) e vê os campos de um motorista já enriquecido 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('E2E360 Enriquecido Completo')
+    Expected: visible
+    Error: strict mode violation: getByText('E2E360 Enriquecido Completo') resolved to 2 elements:
+        1) <h1 data-slot="card-title" class="font-heading font-medium group-data-[size=sm]/card:text-sm text-lg">E2E360 Enriquecido Completo</h1> aka getByRole('heading', { name: 'E2E360 Enriquecido Completo' })
+        2) <p>E2E360 Enriquecido Completo</p> aka getByRole('paragraph').filter({ hasText: 'E2E360 Enriquecido Completo' })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('E2E360 Enriquecido Completo')
+
+
+      82 |
+      83 |     // admin_entidade tem motoristas.dados_sensiveis -> vê TUDO, valores reais.
+    > 84 |     await expect(page.getByText('E2E360 Enriquecido Completo')).toBeVisible(); // Nome completo
+         |                                                                 ^
+      85 |     await expect(page.getByText('SINTETICO-CNH-99999999999')).toBeVisible();
+      86 |     await expect(page.getByText('SINTETICO-RG-22.222.222-2')).toBeVisible();
+      87 |     await expect(page.getByText('sintetico360c@example.invalid')).toBeVisible();
+        at /work/tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts:84:65
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/detalhe-entrego-rbac-FASE--9dbd2-um-motorista-já-enriquecido-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/detalhe-entrego-rbac-FASE--9dbd2-um-motorista-já-enriquecido-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/detalhe-entrego-rbac-FASE--9dbd2-um-motorista-já-enriquecido-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/detalhe-entrego-rbac-FASE--9dbd2-um-motorista-já-enriquecido-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts:95:7 › FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo › 8.2.2 — perfil leitura NÃO vê os campos sensíveis (ausência do elemento, nunca string vazia) 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('E2E360 Enriquecido Completo')
+    Expected: visible
+    Error: strict mode violation: getByText('E2E360 Enriquecido Completo') resolved to 2 elements:
+        1) <h1 data-slot="card-title" class="font-heading font-medium group-data-[size=sm]/card:text-sm text-lg">E2E360 Enriquecido Completo</h1> aka getByRole('heading', { name: 'E2E360 Enriquecido Completo' })
+        2) <p>E2E360 Enriquecido Completo</p> aka getByRole('paragraph').filter({ hasText: 'E2E360 Enriquecido Completo' })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('E2E360 Enriquecido Completo')
+
+
+      103 |
+      104 |     // campos NUNCA sensíveis: continuam visíveis com o valor real.
+    > 105 |     await expect(page.getByText('E2E360 Enriquecido Completo')).toBeVisible();
+          |                                                                 ^
+      106 |     await expect(page.getByText('SINTETICO-CNH-99999999999')).toBeVisible();
+      107 |
+      108 |     // campos SENSÍVEIS: label continua visível, mas com "acesso restrito" —
+        at /work/tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts:105:65
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/detalhe-entrego-rbac-FASE--3eeac-lemento-nunca-string-vazia--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/detalhe-entrego-rbac-FASE--3eeac-lemento-nunca-string-vazia--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/detalhe-entrego-rbac-FASE--3eeac-lemento-nunca-string-vazia--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/detalhe-entrego-rbac-FASE--3eeac-lemento-nunca-string-vazia--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [chromium] › tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts:63:7 › FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo › 8.2.1 — gestor aciona a busca EntreGô (pendente) e vê os campos de um motorista já enriquecido 
+    [chromium] › tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts:95:7 › FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo › 8.2.2 — perfil leitura NÃO vê os campos sensíveis (ausência do elemento, nunca string vazia) 

@@ -1,0 +1,12 @@
+# GERADO por scripts/gerar-timer.sh a partir de config-enriquecimento.json — não editar OnCalendar= à mão, mudar cadência = editar config-enriquecimento.json + re-rodar este script (tasks.md 6.1.1).
+[Unit]
+Description=Consome a fila de enriquecimento EntreGô sob demanda (hub-motorista-360 FR-005) — node src/enriquecimento.js --modo=sob-demanda
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+# Espalha o disparo — mesmo motivo de infra/producao/backup-producao.timer.
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

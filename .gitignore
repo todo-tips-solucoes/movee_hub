@@ -58,3 +58,6 @@ docs/nota_entrego/
 # ---- Python ----
 __pycache__/
 *.pyc
+
+# PII: evidencias com dado pessoal visivel na imagem (feature hub-motorista-360)
+arquivos_complementares/hub-motorista-360-evidencias/

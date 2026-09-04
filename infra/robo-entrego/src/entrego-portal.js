@@ -466,6 +466,7 @@ module.exports = {
   // constantes/erros
   TRADUCAO_TIPO_HUB,
   STORAGE_STATE_PATH_DEFAULT,
+  HEADERS_API,
   ErroAntibotSuspeito,
   ErroSemDados,
   ErroPortalTransitorio,

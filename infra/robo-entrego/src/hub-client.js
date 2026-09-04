@@ -216,6 +216,55 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance }) {
   }
 
   /**
+   * GET /api/v1/robo-entrego/motoristas-para-enriquecer?modo=... —
+   * hub-motorista-360 FASE 5 (tasks.md 5.3.4,
+   * contracts/entrego-enriquecimento.md §2). Fila consumida pelo worker de
+   * enriquecimento EntreGô — o mesmo par sob-demanda/semestral de FR-005/
+   * FR-016, distinguido só pelo query param `modo`.
+   * @param {'sob-demanda'|'semestral'} modo
+   * @returns {Promise<{id:number, idExterno:string}[]>}
+   */
+  async function buscarMotoristasParaEnriquecer(modo) {
+    garantirAutenticado();
+    const resp = await http.get(
+      `/api/v1/robo-entrego/motoristas-para-enriquecer?modo=${encodeURIComponent(modo)}`,
+      { headers: { Cookie: cookieHeader } }
+    );
+    if (resp.status !== 200) {
+      throw new ErroHub(`hub-client: motoristas-para-enriquecer — status inesperado ${resp.status}`, {
+        motivo: resp.data && resp.data.erro,
+      });
+    }
+    return (resp.data && resp.data.items) || [];
+  }
+
+  /**
+   * PATCH /api/v1/robo-entrego/motoristas/:id/entrego-enriquecimento —
+   * grava o resultado do enriquecimento (tasks.md 5.3.4,
+   * contracts/entrego-enriquecimento.md §2). `sucesso=false` NUNCA envia
+   * `dados` (FR-007 — não há payload novo numa falha; o hub só limpa o
+   * pedido pendente e preserva o `dados_entrego_json` de uma busca anterior).
+   * @param {number} id - `Entregador.id`
+   * @param {{sucesso:boolean, dados?:object, motivoFalha?:string, modo?:string}} resultado
+   * @returns {Promise<{sinal:string, status?:number}>}
+   */
+  async function atualizarEnriquecimento(id, { sucesso, dados, motivoFalha, modo } = {}) {
+    garantirAutenticado();
+    const corpo = { sucesso, modo };
+    if (sucesso) corpo.dados = dados;
+    else corpo.motivoFalha = motivoFalha;
+    const resp = await http.patch(`/api/v1/robo-entrego/motoristas/${id}/entrego-enriquecimento`, corpo, {
+      headers: { Cookie: cookieHeader },
+    });
+    if (resp.status === 200) return { sinal: 'enriquecimento_200' };
+    if (resp.status === 404) return { sinal: 'enriquecimento_404' };
+    if (resp.status >= 500) return { sinal: 'http_5xx_hub', status: resp.status };
+    throw new ErroHub(`hub-client: atualizarEnriquecimento — status inesperado ${resp.status}`, {
+      motivo: resp.data && resp.data.erro,
+    });
+  }
+
+  /**
    * GET /api/v1/importacoes/:id/erros — os rastros de linha da importação.
    *
    * Existe para o AVISO DE VALOR SILENCIOSO: desde a migration 0054, um `valor`
@@ -240,7 +289,10 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance }) {
     }
   }
 
-  return { login, enviarImportacao, reprocessarImportacao, pollarImportacao, registrarEvento, consultarErrosImportacao };
+  return {
+    login, enviarImportacao, reprocessarImportacao, pollarImportacao, registrarEvento, consultarErrosImportacao,
+    buscarMotoristasParaEnriquecer, atualizarEnriquecimento,
+  };
 }
 
 module.exports = {

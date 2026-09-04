@@ -21,6 +21,7 @@ const {
   agruparAreasPorEntregador,
   mapMotoristaListItem,
   mapMotoristaDetalhe,
+  mapEntregoEnriquecimento,
   validarPatchMotorista,
   validarCriacaoMotorista,
   mascararCnpj,
@@ -226,6 +227,12 @@ describe('mapMotoristaDetalhe', () => {
       idExterno: '55555555-5555-5555-5555-555555555555',
       ativo: true,
       nomeEditadoManualmente: false,
+      // hub-motorista-360 FASE 4 (task 4.1, FR-008) — CNPJ do legado, NÃO
+      // mascarado (distinto de vinculo.cnpjPrestadorMascarado abaixo).
+      cnpjPrestador: '12345678000195',
+      // hub-motorista-360 FASE 5 (task 5.4) — nunca enriquecido nesta
+      // fixture (sem dados_entrego_enriquecidos_em) -> null.
+      entregoEnriquecimento: null,
       areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
       resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
       vinculo: {
@@ -234,6 +241,9 @@ describe('mapMotoristaDetalhe', () => {
         cnpjPrestadorMascarado: '12.***.***/0001-**',
         ativo: true,
       },
+      // FASE 7 (task 7.1.3) — default `false` quando o caller não informa
+      // (fail-closed, coberto isoladamente no describe abaixo).
+      vinculoCredencialAutomatico: false,
       // FASE 6 (task 6.4) — atividades ausente no chamador cai no default
       // (motorista sem atividades consultadas, task 6.4.4).
       atividades: { items: [], total: 0, offset: 0, limit: 0 },
@@ -273,6 +283,30 @@ describe('mapMotoristaDetalhe', () => {
     assert.equal(detalhe.nomeEditadoManualmente, true);
   });
 
+  // hub-motorista-360 FASE 4 (task 4.1.3, FR-008 Acceptance Scenario 2) —
+  // "motorista com e sem CNPJ vinculado": cobre os dois lados do campo
+  // TOP-LEVEL novo, não confundir com o `vinculo.cnpjPrestadorMascarado`
+  // (já coberto pelos testes acima).
+  describe('cnpjPrestador (task 4.1, FR-008 — CNPJ do legado, não mascarado)', () => {
+    test('motorista COM CNPJ vinculado -> cnpjPrestador = ContaMotorista.cnpj_prestador (sem máscara)', () => {
+      const row = {
+        id: 1,
+        nome: 'Fulano',
+        ativo: true,
+        nome_editado_manualmente: false,
+        ContaMotorista: { id: 7, nome: 'Fulano', cnpj_prestador: '98765432000110', ativo: true },
+      };
+      const detalhe = mapMotoristaDetalhe(row, [], { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+      assert.equal(detalhe.cnpjPrestador, '98765432000110');
+    });
+
+    test('motorista SEM CNPJ vinculado (Acceptance Scenario 2) -> cnpjPrestador = null, nunca erro', () => {
+      const row = { id: 2, nome: 'Ciclano', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
+      const detalhe = mapMotoristaDetalhe(row, [], { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+      assert.equal(detalhe.cnpjPrestador, null);
+    });
+  });
+
   test('sem histórico de importação -> resumo zerado, areas vazio, sem erro', () => {
     const row = { id: 3, nome: 'Sem Historico', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
     const detalhe = mapMotoristaDetalhe(row, [], { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
@@ -284,6 +318,146 @@ describe('mapMotoristaDetalhe', () => {
     const row = { id: 4, nome: 'X', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
     const detalhe = mapMotoristaDetalhe(row, [], undefined);
     assert.deepEqual(detalhe.resumo, { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+  });
+
+  // hub-motorista-360 FASE 7 (task 7.1.1/7.1.3, SC-002) — o 6º parâmetro é
+  // derivado pelo CALLER (routes/hub-motoristas.js#vinculoAtualEhAutomatico)
+  // a partir da trilha de auditoria; aqui só cobrimos que o DTO repassa o
+  // valor tal-e-qual, com default fail-closed.
+  describe('vinculoCredencialAutomatico (task 7.1.3)', () => {
+    const row = { id: 1, nome: 'Fulano', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
+    const resumo = { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null };
+
+    test('não informado -> false (fail-closed)', () => {
+      const detalhe = mapMotoristaDetalhe(row, [], resumo);
+      assert.equal(detalhe.vinculoCredencialAutomatico, false);
+    });
+
+    test('caller informa true -> repassado tal-e-qual', () => {
+      const detalhe = mapMotoristaDetalhe(row, [], resumo, undefined, false, true);
+      assert.equal(detalhe.vinculoCredencialAutomatico, true);
+    });
+
+    test('caller informa false -> repassado tal-e-qual', () => {
+      const detalhe = mapMotoristaDetalhe(row, [], resumo, undefined, false, false);
+      assert.equal(detalhe.vinculoCredencialAutomatico, false);
+    });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// mapEntregoEnriquecimento — RBAC de campo (hub-motorista-360 FASE 5, task
+// 5.4.4, contracts/hub-motoristas-detalhe.md §RBAC de campo). Fixture de
+// dados_entrego_json com FORMATO de CPF/RG (999.999.999-99), nunca valor
+// real (CLAUDE.md §PII — regra dura desta sessão).
+// ────────────────────────────────────────────────────────────────────────────
+describe('mapEntregoEnriquecimento (RBAC de campo, task 5.4)', () => {
+  const rowNuncaEnriquecido = { dados_entrego_json: null, dados_entrego_enriquecidos_em: null };
+  const rowEnriquecido = {
+    dados_entrego_enriquecidos_em: '2026-08-01T12:00:00Z',
+    dados_entrego_json: {
+      dadosPessoais: {
+        nomeCompleto: '<nome de teste>',
+        dataNascimento: '1990-01-01',
+        email: 'teste@example.com',
+        cpf: '999.999.999-99',
+        nomeMae: '<nome da mae de teste>',
+        nomePai: '<nome do pai de teste>',
+        telefone: '11999999999',
+      },
+      documentos: { rg: '99.999.999-9', cnh: '99999999999' },
+      contatoEmergencia: { grauParentesco: 'Cônjuge', nome: '<nome de teste>', telefone: '11988888888' },
+      informacoesEntrega: { operadorLogistico: 'Movee', modal: 'moto' },
+    },
+  };
+
+  test('nunca enriquecido (dados_entrego_enriquecidos_em IS NULL) -> null inteiro, com ou sem permissão', () => {
+    assert.equal(mapEntregoEnriquecimento(rowNuncaEnriquecido, true), null);
+    assert.equal(mapEntregoEnriquecimento(rowNuncaEnriquecido, false), null);
+  });
+
+  test('COM motoristas.dados_sensiveis -> dadosPessoais/documentos.rg/contatoEmergencia presentes', () => {
+    const r = mapEntregoEnriquecimento(rowEnriquecido, true);
+    assert.equal(r.enriquecidoEm, '2026-08-01T12:00:00Z');
+    assert.ok(Object.prototype.hasOwnProperty.call(r, 'dadosPessoais'));
+    assert.equal(r.dadosPessoais.cpf, '999.999.999-99');
+    assert.equal(r.documentos.rg, '99.999.999-9');
+    assert.equal(r.documentos.cnh, '99999999999');
+    assert.ok(Object.prototype.hasOwnProperty.call(r, 'contatoEmergencia'));
+    assert.equal(r.contatoEmergencia.grauParentesco, 'Cônjuge');
+    assert.deepEqual(r.informacoesEntrega, { operadorLogistico: 'Movee', modal: 'moto' });
+    // Não-sensíveis (FR-014) continuam presentes mesmo com permissão.
+    assert.deepEqual(r.dadosPessoaisBasicos, {
+      nomeCompleto: '<nome de teste>', dataNascimento: '1990-01-01', telefone: '11999999999',
+    });
+  });
+
+  test('SEM motoristas.dados_sensiveis -> chaves sensíveis OMITIDAS (nunca null/mascarado), CNH inclusive (dec-087)', () => {
+    const r = mapEntregoEnriquecimento(rowEnriquecido, false);
+    assert.equal(Object.prototype.hasOwnProperty.call(r, 'dadosPessoais'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(r, 'contatoEmergencia'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(r.documentos, 'rg'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(r.documentos, 'cnh'), false);
+    assert.deepEqual(r.documentos, {});
+    // Não-sensíveis seguem visíveis: dadosPessoaisBasicos, informacoesEntrega.
+    assert.deepEqual(r.dadosPessoaisBasicos, {
+      nomeCompleto: '<nome de teste>', dataNascimento: '1990-01-01', telefone: '11999999999',
+    });
+    assert.deepEqual(r.informacoesEntrega, { operadorLogistico: 'Movee', modal: 'moto' });
+    assert.equal(r.enriquecidoEm, '2026-08-01T12:00:00Z');
+  });
+
+  test('dados_entrego_json ausente mas enriquecidoEm presente -> objeto com campos null, nunca lança', () => {
+    const r = mapEntregoEnriquecimento({ dados_entrego_enriquecidos_em: '2026-08-01T12:00:00Z', dados_entrego_json: null }, true);
+    assert.equal(r.dadosPessoas, undefined);
+    assert.deepEqual(r.dadosPessoaisBasicos, { nomeCompleto: null, dataNascimento: null, telefone: null });
+    assert.deepEqual(r.documentos, { rg: null, cnh: null });
+  });
+
+  // dec-087 (task 8.3.4) — payload REAL tem forma variável por modal
+  // (ACHADOS-PORTAL.md §9.5.3): ciclista (BICYCLE) tende a ter só `rg`,
+  // motociclista (MOTORCYCLE) só `cnh`. A omissão de chave sem permissão
+  // MUST valer nos dois casos, não só quando ambas as chaves existem.
+  describe('forma variável por modal (BICYCLE só rg / MOTORCYCLE só cnh)', () => {
+    const rowBicycle = {
+      dados_entrego_enriquecidos_em: '2026-08-01T12:00:00Z',
+      dados_entrego_json: {
+        dadosPessoais: { nomeCompleto: '<nome de teste>' },
+        documentos: { rg: '99.999.999-9' }, // cnh ausente (ciclista)
+        informacoesEntrega: { operadorLogistico: 'Movee', modal: 'BICYCLE' },
+      },
+    };
+    const rowMotorcycle = {
+      dados_entrego_enriquecidos_em: '2026-08-01T12:00:00Z',
+      dados_entrego_json: {
+        dadosPessoais: { nomeCompleto: '<nome de teste>' },
+        documentos: { cnh: '99999999999' }, // rg ausente (motociclista)
+        informacoesEntrega: { operadorLogistico: 'Movee', modal: 'MOTORCYCLE' },
+      },
+    };
+
+    test('BICYCLE com permissão -> rg presente, cnh null (chave sempre presente com permissão)', () => {
+      const r = mapEntregoEnriquecimento(rowBicycle, true);
+      assert.equal(r.documentos.rg, '99.999.999-9');
+      assert.equal(r.documentos.cnh, null);
+    });
+
+    test('BICYCLE sem permissão -> documentos sem nenhuma chave sensível', () => {
+      const r = mapEntregoEnriquecimento(rowBicycle, false);
+      assert.deepEqual(r.documentos, {});
+    });
+
+    test('MOTORCYCLE com permissão -> cnh presente, rg null (chave sempre presente com permissão)', () => {
+      const r = mapEntregoEnriquecimento(rowMotorcycle, true);
+      assert.equal(r.documentos.cnh, '99999999999');
+      assert.equal(r.documentos.rg, null);
+    });
+
+    test('MOTORCYCLE sem permissão -> documentos sem nenhuma chave sensível (era o furo do dec-087)', () => {
+      const r = mapEntregoEnriquecimento(rowMotorcycle, false);
+      assert.deepEqual(r.documentos, {});
+      assert.equal(Object.prototype.hasOwnProperty.call(r.documentos, 'cnh'), false);
+    });
   });
 });
 

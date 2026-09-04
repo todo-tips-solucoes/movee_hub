@@ -30,6 +30,9 @@ const { mesmoGrupoQue } = require('./grupo');
 // produção hoje) — o require em si não tem efeito colateral.
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { hubMotoristaLoginHabilitado } = require('../lib/hub-motorista-app-login');
+// hub-motorista-360 (FASE 3) — vínculo automático de credencial (FR-009),
+// chamado dentro de POST /register em try/catch isolado (ver o handler).
+const { vincularAutomaticamente } = require('../lib/hub-motorista-vinculo-automatico');
 
 const router = express.Router();
 
@@ -420,6 +423,17 @@ router.post('/register', registerRateLimiter, async (req, res) => {
         ativo: true,
       }
     );
+
+    // hub-motorista-360 (FASE 3, tasks.md 3.1, contracts/vinculo-automatico.md,
+    // FR-009..FR-011) — efeito colateral best-effort, EM TRY/CATCH ISOLADO:
+    // uma falha aqui (rede, PostgREST do hub fora do ar, RLS, timeout) NUNCA
+    // pode impedir o motorista de se cadastrar — a resposta 201 abaixo é
+    // enviada de qualquer forma. Nunca é pré-requisito do cadastro.
+    try {
+      await vincularAutomaticamente({ cnpjPrestador: cnpjNorm, nome: String(nome).trim() });
+    } catch (errVinculo) {
+      console.error('[motorista/register] vínculo automático ao hub falhou (best-effort, não bloqueia o cadastro):', errVinculo.message);
+    }
 
     return res.status(201).json({ message: 'Conta criada com sucesso. Faça login para continuar.' });
   } catch (err) {

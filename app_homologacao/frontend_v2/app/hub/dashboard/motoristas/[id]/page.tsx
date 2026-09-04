@@ -26,6 +26,7 @@ import {
   Loader2,
   Pencil,
   RotateCw,
+  Search,
   X,
 } from 'lucide-react';
 import {
@@ -55,6 +56,7 @@ import {
 } from '@/components/hub/credencial-motorista-dialog';
 import { AtividadesMotoristaSection, useAtividadesMotorista } from '@/components/hub/atividades-motorista-section';
 import {
+  buscarEntregoEnriquecimento,
   desvincularMotorista,
   editarMotorista,
   obterMotorista,
@@ -63,6 +65,29 @@ import {
 } from '@/lib/hub/motoristas-api';
 import type { AtividadesPaginadas, MotoristaDetalhe } from '@/lib/hub/motoristas-dto';
 import { formatDateBR } from '@/lib/utils';
+
+/** FASE 7 (task 7.1.2) — campo de texto simples, "não informado" quando
+ * `null`/vazio. Distinto de `CampoRestrito` (RBAC — ver abaixo). */
+function CampoTexto({ label, valor }: { label: string; valor: string | null }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p>{valor || 'não informado'}</p>
+    </div>
+  );
+}
+
+/** FASE 7 (task 7.1.2, FR-013) — placeholder para campo OMITIDO por RBAC
+ * (`motoristas.dados_sensiveis` ausente) — nunca confundir com "não
+ * informado" (que é dado ausente na origem, não permissão ausente). */
+function CampoRestrito({ label }: { label: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="italic text-muted-foreground">acesso restrito</p>
+    </div>
+  );
+}
 
 const ATIVIDADES_VAZIAS: AtividadesPaginadas = { items: [], total: 0, offset: 0, limit: 20 };
 
@@ -217,6 +242,33 @@ export default function MotoristaDetalhePage() {
     }
   }, [id, refetch]);
 
+  // hub-motorista-360 FASE 7 (task 7.2) — busca sob demanda de dados na
+  // EntreGô. `entregoPendenteLocal` é estado só desta sessão (o contrato
+  // não expõe `dados_entrego_solicitado_em` no GET — contracts/hub-
+  // motoristas-detalhe.md): fica `true` do 202 até o detalhe trazer
+  // `entregoEnriquecimento` não-nulo (processamento assíncrono do worker).
+  const [buscandoEntrego, setBuscandoEntrego] = useState(false);
+  const [entregoPendenteLocal, setEntregoPendenteLocal] = useState(false);
+  const [erroEntrego, setErroEntrego] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (detalhe?.entregoEnriquecimento) setEntregoPendenteLocal(false);
+  }, [detalhe?.entregoEnriquecimento]);
+
+  const buscarEntrego = useCallback(async () => {
+    setBuscandoEntrego(true);
+    setErroEntrego(null);
+    try {
+      await buscarEntregoEnriquecimento(id);
+      setEntregoPendenteLocal(true);
+      toast.success('Busca solicitada. Os dados aparecem aqui quando o processamento terminar.');
+    } catch (e) {
+      setErroEntrego(e instanceof MotoristaApiError ? e.message : 'Falha ao solicitar a busca.');
+    } finally {
+      setBuscandoEntrego(false);
+    }
+  }, [id]);
+
   if (!Number.isFinite(id)) {
     return (
       <div className="mx-auto max-w-3xl p-4 sm:p-6">
@@ -297,6 +349,16 @@ export default function MotoristaDetalhePage() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>Identificador:</span>
                 <CopyableUuid value={detalhe.idExterno} label={`Copiar identificador de ${detalhe.nome}`} />
+              </div>
+
+              {/* hub-motorista-360 FASE 4 (task 4.1, FR-008) — CNPJ do
+                  cadastro legado (envio-massa), não mascarado. Distinto do
+                  cnpjPrestadorMascarado exibido no card "Conta de acesso
+                  vinculada" abaixo (aquele identifica a credencial
+                  vinculada; este é o dado cadastral do motorista). */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>CNPJ:</span>
+                <span className="font-mono">{detalhe.cnpjPrestador || 'não informado'}</span>
               </div>
 
               {editando && (
@@ -385,7 +447,14 @@ export default function MotoristaDetalhePage() {
               {detalhe.vinculo ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
                   <div>
-                    <p className="font-medium">{detalhe.vinculo.nome}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{detalhe.vinculo.nome}</p>
+                      {/* hub-motorista-360 FASE 7 (task 7.1.3, SC-002) —
+                          torna o vínculo automático (FR-009/FR-012)
+                          observável na UI, sem o que SC-002 não é
+                          verificável fora do banco. */}
+                      {detalhe.vinculoCredencialAutomatico && <Badge variant="secondary">Vínculo automático</Badge>}
+                    </div>
                     <p className="font-mono text-xs text-muted-foreground">{detalhe.vinculo.cnpjPrestadorMascarado}</p>
                   </div>
                   {podeEditar && (
@@ -423,6 +492,133 @@ export default function MotoristaDetalhePage() {
                   <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
                   {erroDesvinculo}
                 </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* hub-motorista-360 FASE 7 (tasks 7.1/7.2) — dados buscados sob
+              demanda na EntreGô. Visível a quem tem `motoristas.consultar`
+              (RBAC de CAMPO, não de seção — mesmo espírito do backend:
+              `dadosPessoaisBasicos`/`informacoesEntrega` sempre presentes,
+              `dadosPessoais`/`contatoEmergencia`/`documentos.rg`/
+              `documentos.cnh` só com `motoristas.dados_sensiveis` (dec-087:
+              todo documento de identidade), dec-040/dec-017/dec-072. 🔴
+              Nenhuma URL de foto de documento é exibida/linkada aqui — o
+              backend nunca as envia (dec-072). */}
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle as="h2" className="text-base">
+                Dados da EntreGô
+              </CardTitle>
+              {podeEditar && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="min-h-11 sm:min-h-8"
+                  disabled={buscandoEntrego || !detalhe.idExterno}
+                  title={!detalhe.idExterno ? 'Associe o identificador antes de buscar.' : undefined}
+                  onClick={buscarEntrego}
+                >
+                  {buscandoEntrego ? (
+                    <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Search className="size-4" aria-hidden="true" />
+                  )}
+                  Buscar dados EntreGô
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 px-4">
+              {podeEditar && !detalhe.idExterno && (
+                <p className="text-xs text-muted-foreground">
+                  Associe o identificador (uuid) da EntreGô antes de buscar os dados.
+                </p>
+              )}
+
+              {erroEntrego && (
+                <p role="alert" className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+                  <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+                  {erroEntrego}
+                </p>
+              )}
+
+              {entregoPendenteLocal && !detalhe.entregoEnriquecimento && (
+                <p className="flex items-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
+                  Busca solicitada — aguardando o processamento.
+                </p>
+              )}
+
+              {detalhe.entregoEnriquecimento ? (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Buscado em: {formatDateBR(detalhe.entregoEnriquecimento.enriquecidoEm) || '-'}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                    <CampoTexto
+                      label="Nome completo"
+                      valor={detalhe.entregoEnriquecimento.dadosPessoaisBasicos.nomeCompleto}
+                    />
+                    <CampoTexto
+                      label="Data de nascimento"
+                      valor={formatDateBR(detalhe.entregoEnriquecimento.dadosPessoaisBasicos.dataNascimento) || null}
+                    />
+                    <CampoTexto label="Telefone" valor={detalhe.entregoEnriquecimento.dadosPessoaisBasicos.telefone} />
+                    {Object.prototype.hasOwnProperty.call(detalhe.entregoEnriquecimento.documentos, 'cnh') ? (
+                      <CampoTexto label="CNH" valor={detalhe.entregoEnriquecimento.documentos.cnh ?? null} />
+                    ) : (
+                      <CampoRestrito label="CNH" />
+                    )}
+                    {Object.prototype.hasOwnProperty.call(detalhe.entregoEnriquecimento.documentos, 'rg') ? (
+                      <CampoTexto label="RG" valor={detalhe.entregoEnriquecimento.documentos.rg ?? null} />
+                    ) : (
+                      <CampoRestrito label="RG" />
+                    )}
+                    <CampoTexto
+                      label="Operador logístico"
+                      valor={detalhe.entregoEnriquecimento.informacoesEntrega.operadorLogistico}
+                    />
+                    <CampoTexto label="Modal" valor={detalhe.entregoEnriquecimento.informacoesEntrega.modal} />
+
+                    {detalhe.entregoEnriquecimento.dadosPessoais ? (
+                      <>
+                        <CampoTexto label="E-mail" valor={detalhe.entregoEnriquecimento.dadosPessoais.email} />
+                        <CampoTexto label="CPF" valor={detalhe.entregoEnriquecimento.dadosPessoais.cpf} />
+                        <CampoTexto label="Nome da mãe" valor={detalhe.entregoEnriquecimento.dadosPessoais.nomeMae} />
+                        <CampoTexto label="Nome do pai" valor={detalhe.entregoEnriquecimento.dadosPessoais.nomePai} />
+                      </>
+                    ) : (
+                      <>
+                        <CampoRestrito label="E-mail" />
+                        <CampoRestrito label="CPF" />
+                        <CampoRestrito label="Nome da mãe" />
+                        <CampoRestrito label="Nome do pai" />
+                      </>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-muted-foreground">Contato de emergência</p>
+                    {detalhe.entregoEnriquecimento.contatoEmergencia ? (
+                      <p className="text-sm">
+                        {detalhe.entregoEnriquecimento.contatoEmergencia.nome || 'não informado'}
+                        {detalhe.entregoEnriquecimento.contatoEmergencia.grauParentesco
+                          ? ` (${detalhe.entregoEnriquecimento.contatoEmergencia.grauParentesco})`
+                          : ''}
+                        {detalhe.entregoEnriquecimento.contatoEmergencia.telefone
+                          ? ` — ${detalhe.entregoEnriquecimento.contatoEmergencia.telefone}`
+                          : ''}
+                      </p>
+                    ) : (
+                      <p className="text-sm italic text-muted-foreground">acesso restrito</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                !entregoPendenteLocal && (
+                  <p className="text-sm text-muted-foreground">Nenhum dado buscado ainda.</p>
+                )
               )}
             </CardContent>
           </Card>

@@ -355,6 +355,37 @@ describe('2.3.5 POST /motorista/register', () => {
     });
     assert.equal(r.status, 400);
   });
+
+  // hub-motorista-360 (FASE 3, tasks.md 3.1.4, contracts/vinculo-automatico.md
+  // "falha não bloqueia o cadastro") — O GUARD MAIS IMPORTANTE desta feature:
+  // POST /register NUNCA pode falhar por causa do vínculo automático ao hub.
+  // Este arquivo de teste nunca define POSTGREST_URL/PGRST_JWT_SECRET (env do
+  // hub) — logo `vincularAutomaticamente` (routes/motorista.js) lança
+  // sincronamente ("PostgREST_URL ausente...") assim que é chamada. Isso É a
+  // falha simulada: equivalente real a "PostgREST do hub fora do ar" (mesmo
+  // comportamento documentado em server.js: "sem POSTGREST_URL não há hub
+  // neste deployment"). O try/catch isolado do handler MUST engolir isso sem
+  // afetar a resposta 201 nem a ativação da senha.
+  test('vínculo automático ao hub indisponível (PostgREST do hub não configurado) → /register AINDA 201, Motorista.senha ativada', async () => {
+    resetDB();
+    DB.Motorista.push({
+      id: 1,
+      cnpj_prestador: '11222333000199',
+      nome: 'Motorista Pré-cadastro',
+      senha: null,
+      ativo: true,
+    });
+    assert.equal(process.env.POSTGREST_URL, undefined, 'pré-condição do teste: env do hub deve estar ausente');
+
+    const r = await request('POST', '/motorista/register', {
+      body: { cnpjPrestador: '11222333000199', nome: 'Motorista Novo', senha: 'senha1234' },
+    });
+
+    assert.equal(r.status, 201);
+    const linha = DB.Motorista.find((m) => m.cnpj_prestador === '11222333000199');
+    assert.ok(linha.senha, 'Motorista.senha deveria estar preenchida (hash) mesmo com o vínculo automático falhando');
+    assert.equal(linha.ativo, true);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
