@@ -24,6 +24,25 @@
 - Q: A busca de dados na EntreGô (FR-005) fica mesmo restrita a sob demanda,
   um motorista por vez, sem execução em lote ou agendada nesta entrega? → A:
   Confirmado — mantém FR-005 como já assumido, sem novo scheduler.
+- Q: O vínculo automático de credencial (US1) e o enriquecimento via EntreGô
+  (US2) devem ser aplicados retroativamente a motoristas/credenciais já
+  cadastrados hoje, ou só aos cadastros feitos a partir desta entrega? → A:
+  Retroativo parcial — (a) o vínculo de credencial (US1) é retroativo: um
+  backfill único por `cnpj_prestador` (consulta local, sem chamada externa)
+  alcança todos os motoristas/credenciais já cadastrados, incluindo o caso
+  relatado (motorista com credencial ativa sem vínculo); (b) o enriquecimento
+  via EntreGô (US2) permanece exclusivamente sob demanda por motorista
+  (FR-005), sem varredura de massa sobre o passivo retroativo; (c) fica
+  adicionado requisito novo, fora do escopo original do briefing — rotina
+  semestral de atualização da base já enriquecida, com throttle entre
+  motoristas (FR-016).
+- Q: Quais perfis de usuário do hub podem visualizar os dados pessoais
+  sensíveis trazidos por esta feature (CPF, RG, nome dos pais, contato de
+  emergência, e-mail)? → A: Permissão nova e dedicada, concedida somente aos
+  perfis `admin_entidade` e `admin_plataforma` — seguindo o padrão granular
+  já existente no hub para `motoristas.credencial` (migration 0044); o
+  perfil `leitura` continua vendo o motorista, mas não os dados pessoais
+  sensíveis.
 
 ## User Scenarios & Testing
 
@@ -128,9 +147,12 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   motorista mais de uma vez? (FR-011)
 - O que acontece quando o cadastro no aplicativo do motorista não encontra
   correspondência confiável com nenhum motorista do hub? (FR-010)
-- Como o sistema trata motoristas e credenciais já existentes antes desta entrega —
-  o enriquecimento e o vínculo automático alcançam o passado ou só o que for
-  cadastrado a partir de agora? (FR-012)
+- Como o sistema trata motoristas e credenciais já existentes antes desta entrega?
+  O vínculo de credencial alcança o passado via backfill único; o enriquecimento
+  via EntreGô permanece só sob demanda, mantido em dia pela rotina semestral.
+  (FR-012, FR-016)
+- O que acontece quando a rotina semestral de atualização (FR-016) encontra falha
+  antibot ou sessão expirada no meio do throttle entre motoristas?
 
 ## Requirements
 
@@ -178,14 +200,21 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
 - **FR-011**: Sistema MUST NOT criar um segundo vínculo nem sobrescrever um vínculo
   de credencial já existente ao processar um novo cadastro no aplicativo do
   motorista para o mesmo motorista.
-- **FR-012**: [NEEDS CLARIFICATION: o enriquecimento de dados da EntreGô (User Story
-  2) e o vínculo automático de credencial (User Story 1) se aplicam
-  retroativamente a motoristas e credenciais já cadastrados hoje, ou somente aos
-  cadastros feitos a partir da entrega desta feature?]
-- **FR-013**: [NEEDS CLARIFICATION: quais perfis de usuário do hub podem visualizar
-  os dados pessoais sensíveis trazidos por esta feature (CPF, RG, nome dos pais,
-  contato de emergência, e-mail) — todos os perfis com acesso ao cadastro do
-  motorista, ou um subconjunto restrito por permissão dedicada?]
+- **FR-012**: Sistema MUST alcançar retroativamente, via backfill único por
+  `cnpj_prestador` (consulta local, sem chamada à plataforma EntreGô), todos os
+  motoristas e credenciais já cadastrados antes desta entrega para o vínculo
+  automático de credencial (User Story 1) — incluindo o caso já observado de
+  credencial ativa sem vínculo. O enriquecimento de dados da EntreGô (User
+  Story 2) permanece exclusivamente sob demanda por motorista (FR-005) e MUST
+  NOT ser disparado em varredura de massa sobre os cadastros retroativos.
+- **FR-013**: Sistema MUST restringir a visualização dos dados pessoais sensíveis
+  desta feature (CPF, RG, nome da mãe, nome do pai, e-mail, contato de
+  emergência) a uma permissão nova e dedicada, concedida somente aos perfis
+  `admin_entidade` e `admin_plataforma` — seguindo o padrão granular já
+  existente no hub para `motoristas.credencial` (migration 0044; o
+  identificador exato da nova permissão MUST ser confirmado na fase de plano
+  contra esse mesmo padrão, nunca suposto). O perfil `leitura` MUST continuar
+  vendo o cadastro do motorista, porém sem esses campos sensíveis.
 - **FR-014**: Sistema MUST tratar CPF, RG, nome dos pais, contato de emergência e
   e-mail como dados pessoais sensíveis, sujeitos ao controle de acesso resolvido em
   FR-013 e ao mesmo padrão de auditoria já aplicado hoje a ações sobre credencial de
@@ -193,12 +222,29 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
 - **FR-015**: Sistema MUST exibir os valores de categorias vindas da EntreGô (ex.:
   grau de parentesco, modal, operador logístico) como recebidos da plataforma, sem
   exigir tradução/rotulagem amigável nesta entrega.
+- **FR-016**: Sistema MUST manter uma rotina semestral que atualiza a base de dados
+  já enriquecida via EntreGô (User Story 2) para os motoristas com identificador
+  associado, com throttle entre motoristas para não disparar navegações
+  consecutivas contra o portal. A rotina MUST reusar o mecanismo de agendamento e
+  sessão já existente do robô EntreGô (timer systemd gerado por `gerar-timer.sh` a
+  partir de `config.json`; sessão persistida em
+  `/var/lib/hub_secrets/robo-entrego/entrego-session.json`, chmod 600), sem
+  introduzir credencial nova, e MUST reaproveitar o backoff já usado pelo robô
+  (1/5/15 min, até 3 tentativas) e a classificação de falha definitiva
+  (`ErroAntibotSuspeito` → `ehFalhaDefinitiva`), parando em vez de insistir diante
+  de bloqueio do antibot. O endpoint do BFF usado para obter o cadastro da pessoa
+  entregadora MUST ser confirmado em `docs/plans/robo-entrego/ACHADOS-PORTAL.md`
+  (ou levantado empiricamente e documentado lá) antes da implementação — nunca
+  suposto (Constitution VI) — preferindo a via de API via `page.evaluate` sobre os
+  XPaths do briefing, que ficam como plano B declarado no plano técnico.
 
-> Decisões de infraestrutura: sem novo scheduler nem nova política de rotação de
-> chaves — a busca de dados na EntreGô é sob demanda e por motorista (FR-005) e
-> reaproveita a sessão persistida já existente da EntreGô (FR-007), sem introduzir
-> refresh policy nova; idempotência do vínculo automático de credencial está coberta
-> por FR-011.
+> Decisões de infraestrutura: sem credencial nova nem política de rotação de
+> chaves nova — a busca de dados na EntreGô sob demanda (FR-005) e a rotina
+> semestral de atualização (FR-016) reaproveitam a sessão persistida já
+> existente da EntreGô (FR-007) e o mecanismo de agendamento/backoff já usado
+> pelo robô EntreGô; a rotina semestral é a única refresh policy periódica
+> desta entrega. Idempotência do vínculo automático de credencial está coberta
+> por FR-011; o backfill retroativo (FR-012) é execução única, não recorrente.
 
 ### Key Entities
 
@@ -226,6 +272,9 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
 - **SC-004**: Nenhum vínculo de credencial é perdido ou duplicado ao longo de
   cadastros repetidos do mesmo motorista no aplicativo do motorista (zero
   duplicações observadas em teste).
+- **SC-005**: Após o backfill único (FR-012), motoristas com credencial ativa e
+  correspondência confiável por CNPJ no hub passam a exibir o vínculo, incluindo
+  cadastros já existentes antes desta entrega (ex.: o caso relatado).
 
 ## Delta Requirements
 
