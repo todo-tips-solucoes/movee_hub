@@ -211,38 +211,137 @@ Detalhes que importam para o robô:
 - escopo pela **entidade ativa do token**, nunca pelo corpo — o robô precisa de um
   usuário de serviço com `importacoes.criar` na entidade certa
 
-## 9. "Dados da pessoa entregadora" (hub-motorista-360 FASE 5) — NÃO LEVANTADO
 
-⚠️ **Diferente de tudo acima.** As seções 1-7 cobrem o fluxo de RELATÓRIOS
-(Performance/Financeiro, já em produção desde 2026-08-28). A feature
-`hub-motorista-360` (FASE 5, FR-005/FR-016) precisa de um fluxo NOVO e
-DISTINTO: buscar o CADASTRO (CPF, RG, contato de emergência, ...) de UMA
-pessoa entregadora específica, por UUID.
+## 9. "Dados da pessoa entregadora" (hub-motorista-360 FASE 5) — MAPEADO 2026-09-04
 
-- **Endpoint do BFF: não levantado.** Nenhuma sessão de inspeção de Network
-  (mesma metodologia de §1-7, com o operador logado via Claude in Chrome) foi
-  feita para este fluxo. `src/busca-pessoa-entrego.js` implementa SÓ a
-  navegação de UI (os 6 XPaths ditados pelo operador,
-  `docs/plans/hub-motorista-360/BRIEFING-INPUT.md` linhas 41-48) — via de API
-  fica `[PROPOSTA]` até esta seção ser preenchida com um achado real.
-- **Seletores de campo da página de detalhe: não levantados.** Os 6 XPaths
-  só cobrem a navegação ATÉ a página "Dados da pessoa entregadora" — nenhuma
-  fonte documenta os seletores dos campos individuais (nome, CPF, RG, nome da
-  mãe/pai, contato de emergência, operador logístico, modal) DENTRO dela. Por
-  isso `busca-pessoa-entrego.js#extrairDadosPessoaPlaceholder` lança
-  `ErroExtracaoNaoLevantada` em vez de adivinhar — Constitution VI (Zero
-  Fabricação) proíbe supor DOM de sistema externo nunca inspecionado.
-- **Risco operacional de fazer esse levantamento**: a sessão EntreGô é
-  COMPARTILHADA com a importação diária (robô real, timers 11h/13h/14h) e
-  com a busca sob demanda — o mesmo §6 acima (PerimeterX pontuando interação
-  automatizada) se aplica aqui. O levantamento MUST seguir a MESMA
-  metodologia já usada nesta seção: sessão operador-supervisionada (Claude in
-  Chrome com o operador logado), FORA das janelas do robô, com o mesmo
-  cuidado de interromper se houver qualquer sinal de challenge.
-- **Próximo passo (task 5.3.1, ainda pendente)**: navegar os 6 passos com o
-  operador logado, inspecionar a aba Network à procura de uma chamada de API
-  equivalente a `.../operation/logistics-operator/...` para o cadastro da
-  pessoa, E inspecionar o DOM renderizado da página de detalhe para
-  documentar os seletores reais dos campos. Preencher esta seção com o
-  achado (endpoint OU seletores confirmados) ANTES de substituir
-  `extrairDadosPessoaPlaceholder` por uma implementação real.
+Levantado **no portal real**, com o operador logado, via Claude in Chrome —
+mesma metodologia de §1-7. Tudo abaixo foi **medido**. O que não foi medido
+está marcado **⚠️ NÃO VERIFICADO**.
+
+> **Nenhum valor de dado pessoal foi registrado neste documento.** O payload
+> foi inspecionado por uma função que classifica cada campo por FORMATO
+> (`string<email>`, `string<11-digitos>`, `enum<...>`) e nunca devolve o
+> conteúdo. Os enums são rótulos da plataforma, não PII, e por isso aparecem
+> literais.
+
+### 9.1 Rotas da SPA (dispensam a navegação por XPath)
+
+| Tela | Rota | Como se chega |
+|---|---|---|
+| Busca de Pessoas | `/supply/driver-list` | menu `Operador logístico` → `Busca de Pessoas` |
+| Detalhe da pessoa | **`/supply/driver-list/{uuid}`** | clique em `Ver detalhes`, **ou URL direta** |
+
+🟢 **A URL direta do detalhe funciona** — testada com `navigate` puro, sem
+passar por menu/filtro/tabela. Os 6 XPaths do briefing
+(`docs/plans/hub-motorista-360/BRIEFING-INPUT.md`) tornam-se **desnecessários**
+para o caminho feliz: basta `GET /supply/driver-list/{uuid}` (ou, melhor
+ainda, a API de §9.3).
+
+### 9.2 Seletores do filtro (quando a UI for necessária)
+
+O XPath do campo de UUID ditado no briefing **NÃO bate** com a página real.
+Os `id`/`name` abaixo foram medidos e são estáveis:
+
+| Campo | Seletor | placeholder |
+|---|---|---|
+| Nome completo | `#fullName` | `Digite o nome da pessoa` |
+| Email | `#email` | `Digite um email válido` |
+| Telefone | `#phone` | `Digite um telefone válido` |
+| UUid | **`#uuid`** | `Digite um UUid válido` |
+
+Botões por texto: `Filtros`, `Limpar filtros`, `Aplicar filtros`.
+O botão da linha da tabela: `Ver detalhes`.
+
+⚠️ O input é controlado por React — atribuir `.value` direto não sensibiliza o
+estado. Usar o setter nativo (`Object.getOwnPropertyDescriptor(
+HTMLInputElement.prototype,'value').set`) + `dispatchEvent(new Event('input',
+{bubbles:true}))`, como já feito no levantamento.
+
+### 9.3 A API do BFF (o caminho recomendado)
+
+```
+GET https://api.entregolog.com/logistics-web-bff/operation/logistics-operator/drivers/{uuid}
+```
+
+- Status medido: **200**. Preflight `OPTIONS` respondido **200**.
+- Busca (usada pelo filtro da listagem, não necessária se já se tem o uuid):
+  `POST .../operation/logistics-operator/drivers/search` → **201**.
+- Mesmos headers de §3 (`X-IFood-Logistics-Auth: true`, `x-cookie-login: true`,
+  `X-Timezone`, `Accept-Language`, `x-country`) + `credentials: 'include'`,
+  chamado **de dentro da página** (`page.evaluate`) — idêntico ao que
+  `entrego-portal.js` já faz para relatórios.
+- 🟢 **Uma única chamada alimenta a página de detalhe inteira.** Não há
+  endpoint secundário (verificado: nenhuma outra requisição a
+  `logistics-web-bff` durante o carregamento).
+
+### 9.4 Estrutura da resposta (chaves e formatos — sem valores)
+
+```
+{
+  uuid: string<uuid>,
+  personalData: {
+    fullName:   string,
+    birthdate:  string<YYYY-MM-DD>,     // a tela exibe dd/MM/yyyy — formatação é do front
+    email:      string<email>,
+    cpf:        string<11 dígitos>,     // SEM máscara; a máscara 999.999.999-99 é do front
+    motherName: string,
+    phone:      string                  // formato exibido "(99) 99999-9999"
+  },
+  documentDriver: {
+    rg:                         string,
+    identityDocumentFrontPhoto: string<url>,
+    identityDocumentBackPhoto:  string<url>,
+    workerPhoto:                string<url>
+  },
+  emergencyContact: {
+    name:         string,
+    phone:        string,
+    relationship: enum   // valor observado: SPOUSE
+  },
+  lastDelivery: {
+    logisticOperatorName: enum,      // valor observado: FRANQUIA_MOVEE_SP
+    possibleModals:       [enum],    // valor observado: [BICYCLE]
+    region:               string     // veio VAZIA no caso observado
+  },
+  currentModal: {
+    modalName: enum,                 // valor observado: BICYCLE
+    modalUuid: string<uuid>
+  },
+  quality: {
+    cashOnDeliveryEnabled: boolean,
+    reasonInactivation:    null
+  }
+}
+```
+
+### 9.5 Divergências vs. o briefing — registradas para não virarem requisito falso
+
+1. **`cpf` vem SEM máscara** (11 dígitos). O briefing descreve
+   `999.999.999-99` porque é o que a tela mostra; a formatação é do frontend.
+   A importação deve normalizar, não assumir a máscara.
+2. **`birthdate` vem em `YYYY-MM-DD`**, não `DD/MM/AAAA` (idem: a tela
+   formata).
+3. **⚠️ NÃO VERIFICADO — `Nome do pai` e `CNH` não apareceram no payload.**
+   A tela renderiza os dois rótulos, mas as chaves correspondentes **não
+   existem** na resposta do caso observado, no qual ambos estão vazios.
+   Hipótese (não confirmada): **a API omite chaves de valor nulo/vazio**.
+   Os nomes reais dessas chaves (`fatherName`? `cnh`?) **NÃO foram
+   observados** e **não devem ser supostos** — exigem um levantamento com um
+   motorista que tenha os dois campos preenchidos. Até lá, a importação deve
+   tratar ambos como ausentes e nunca falhar por isso.
+4. **Campos ADICIONAIS que o briefing não pediu** (o escopo da feature é o
+   operador quem decide — só o registro fica aqui): as 3 URLs de foto
+   (`identityDocumentFrontPhoto`, `identityDocumentBackPhoto`, `workerPhoto`),
+   `currentModal.modalUuid`, `lastDelivery.possibleModals`,
+   `lastDelivery.region` e a seção `quality` (`cashOnDeliveryEnabled`,
+   `reasonInactivation`).
+5. **A tela tem 2 seções além das 4 do briefing**: `Qualidade` e
+   `Cash on Delivery` (mapeadas em `quality`).
+
+### 9.6 Anti-bot durante este levantamento
+
+O collector do PerimeterX (`collector-pxm0w7hcdf.px-cloud.net/api/v2/collector`)
+registrou POSTs durante a navegação, como em §6. **Nenhum challenge** foi
+apresentado e nenhuma requisição foi bloqueada. O levantamento foi feito
+**fora das janelas do robô** (11h/13h/14h), com o mínimo de interação com a
+UI — a maior parte por chamada direta à API de dentro da página.

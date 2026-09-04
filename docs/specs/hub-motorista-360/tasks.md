@@ -347,7 +347,7 @@ Ref: `contracts/entrego-enriquecimento.md` §2
 Ref: `contracts/entrego-enriquecimento.md` §3; `research.md` Decision 9;
 `spec.md` FR-005 (mesma clausula "nunca suposto" de FR-016)
 
-- [ ] 5.3.1 Inspecionar a aba Network durante os 6 passos de navegação e
+- [x] 5.3.1 Inspecionar a aba Network durante os 6 passos de navegação e
       levantar empiricamente o endpoint do BFF (via `page.evaluate`) —
       documentar em `docs/plans/robo-entrego/ACHADOS-PORTAL.md` ANTES de
       codificar a via de API (Constitution VI — nunca supor nome de
