@@ -18,7 +18,7 @@ existente, inalterado).
 | entregoEnriquecimento | object \| null | sim | `null` se `Entregador.dados_entrego_enriquecidos_em IS NULL` (nunca buscado) |
 | entregoEnriquecimento.enriquecidoEm | string (ISO 8601) | se objeto presente | espelha `dados_entrego_enriquecidos_em` |
 | entregoEnriquecimento.dadosPessoais | object \| omitido | se permissão `motoristas.dados_sensiveis` presente | `{ nomeCompleto, dataNascimento, email, cpf, nomeMae, nomePai, telefone }` — omitido inteiro (não `null` por campo) quando a permissão falta, exceto `nomeCompleto`/`dataNascimento`/`telefone` que **não** são sensíveis por FR-014 e continuam presentes num sub-objeto `dadosPessoaisBasicos` sempre visível |
-| entregoEnriquecimento.documentos | object | sempre (RG/CNH não estão na lista de sensíveis de FR-014) | `{ rg, cnh }` |
+| entregoEnriquecimento.documentos | object | sempre, mas `rg` só se permissão `motoristas.dados_sensiveis` presente | `{ rg, cnh }` — **`rg` É sensível por FR-013/FR-014** (ambos o enumeram) e MUST ser omitido (chave ausente, não `null`) quando a permissão falta, mesmo tratamento de `dadosPessoais`/`contatoEmergencia`. `cnh` não consta das listas de FR-013/FR-014 e segue sempre presente |
 | entregoEnriquecimento.contatoEmergencia | object \| omitido | se permissão presente | `{ grauParentesco, nome, telefone }` — categoria inteira sensível (FR-014: "contato de emergência") |
 | entregoEnriquecimento.informacoesEntrega | object | sempre | `{ operadorLogistico, modal }` |
 | vinculoCredencialAutomatico | boolean | sim | `true` quando o vínculo atual foi criado pelo hook automático (FR-009) ou pelo backfill (FR-012), `false` quando manual — necessário para SC-002 ser observável em teste; fonte exata da flag (nova coluna vs. valor derivado) a decidir em `create-tasks` |
@@ -29,8 +29,8 @@ Dentro de `buscarDetalheMotorista()`: chamar
 `obterPermissoesEfetivas(usuarioId)` (já existe, `lib/hub-rbac-cache.js`,
 mesmo helper usado por `middleware/hub-require-permission.js` — cacheado,
 sem custo adicional relevante) e checar
-`.has('motoristas.dados_sensiveis')` antes de incluir `dadosPessoais` e
-`contatoEmergencia` no payload. **Omitir a chave**, não retornar
+`.has('motoristas.dados_sensiveis')` antes de incluir `dadosPessoais`,
+`documentos.rg` e `contatoEmergencia` no payload. **Omitir a chave**, não retornar
 `null`/string mascarada — evita vazar até o formato do dado (ex.: máscara
 `***.***.***-**` ainda revela que existe CPF).
 

@@ -49,10 +49,11 @@
 1. Um `Entregador` já enriquecido via EntreGô (`dados_entrego_json`
    preenchido) e com CNPJ vinculado.
 2. Usuário do papel `leitura` chama `GET /motoristas/:id`.
-3. **Expected**: 200 com `cnpjPrestador`, `documentos` (RG/CNH),
+3. **Expected**: 200 com `cnpjPrestador`, `documentos.cnh`,
    `informacoesEntrega`, `dadosPessoaisBasicos` (nome/nascimento/telefone)
-   presentes; `dadosPessoais` (CPF, nome da mãe, nome do pai, e-mail) e
-   `contatoEmergencia` **ausentes do JSON** (não `null` — chave omitida).
+   presentes; `dadosPessoais` (CPF, nome da mãe, nome do pai, e-mail),
+   `documentos.rg` e `contatoEmergencia` **ausentes do JSON** (não `null` —
+   chave omitida). RG é sensível por FR-013/FR-014.
 4. Mesma chamada por `admin_entidade`: **Expected**: 200 com TODOS os
    campos presentes, incluindo `dadosPessoais`/`contatoEmergencia`.
 
