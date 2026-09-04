@@ -561,12 +561,13 @@ Ref: CLAUDE.md §Comandos; `npm run test:hub:integration`
 
 Ref: CLAUDE.md §Comandos (`hub-shell-e2e-browser.sh`)
 
-- [ ] 8.2.1 Cenário E2E: gestor abre o detalhe do motorista, aciona a busca
-      EntreGô, vê os campos preenchidos
-- [ ] 8.2.2 Cenário E2E: perfil `leitura` não vê os campos sensíveis na UI
-- [ ] 8.2.3 Rodar via driver oficial (nunca instalar browsers no host) e
+- [x] 8.2.1 Cenário E2E: gestor abre o detalhe do motorista, aciona a busca
+      EntreGô, vê os campos preenchidos <!-- onda-016: tests/e2e-hub-motorista-360/detalhe-entrego-rbac.spec.ts::8.2.1 -- admin_entidade abre motorista SEM enriquecimento previo, clica "Buscar dados EntreGo" (botao habilitado, id_externo setado), UI mostra "Busca solicitada -- aguardando o processamento" (prova click->202->estado pendente); depois abre motorista JA enriquecido (worker simulado via seed direto) e VE todos os campos preenchidos (nome/CNH/RG/CPF/e-mail/pais/contato emergencia) com motoristas.dados_sensiveis, zero "acesso restrito". PASS via driver oficial -->
+- [x] 8.2.2 Cenário E2E: perfil `leitura` não vê os campos sensíveis na UI <!-- onda-016: mesmo spec, teste 8.2.2 -- leitura abre o MESMO motorista enriquecido: campos nao-sensiveis (nome/CNH) com valor real, botao "Buscar dados EntreGo" AUSENTE (motoristas.editar ausente), e os 5+ campos sensiveis (RG/CPF/e-mail/mae/pai/contato emergencia) verificados pela AUSENCIA do valor real (nao string vazia) + placeholder "acesso restrito" (>=5 ocorrencias) -- prova RBAC ponta a ponta na UI. PASS -->
+- [x] 8.2.3 Rodar via driver oficial (nunca instalar browsers no host) e
       conferir que `package-lock.json` não foi reescrito antes de commitar
-      (gotcha já documentado em CLAUDE.md)
+      (gotcha já documentado em CLAUDE.md) <!-- onda-016: infra/hub/testes/hub-motorista-360-e2e-browser.sh (driver novo, mesmo molde enxuto de hub-auditoria-admin-a11y-smoke.sh -- SEM npm install dentro do container, evita o gotcha na origem) + playwright.config.hub-motorista-360.ts; roda dentro de mcr.microsoft.com/playwright:v1.61.1-jammy (nunca instalado no host); driver confere git diff -- package-lock.json no cleanup (trap) e reverte se alterado -- intacto nas 2 execucoes desta onda. ACHADO CORRIGIDO: hub_homolog_frontend estava com imagem de 2026-08-21 (2 semanas, sem NENHUMA UI da FASE 7) -- rebuild (docker compose build --memory=2g frontend) + recreate corrigiu, mesmo padrao do achado do backend em 8.1.1 -->
+
 
 ---
 
