@@ -221,6 +221,28 @@ Ref: `contracts/vinculo-automatico.md` §Extensão POST /motorista/register;
 - [x] 3.1.8 Teste: idempotência — cadastro repetido no app do motorista para
       o mesmo motorista não cria segundo vínculo nem sobrescreve o
       existente (FR-011)
+- [ ] 3.1.9 **Deadline total de 5s no vínculo automático** — subtarefa
+      EMERGENTE (dec-060, 2026-09-04). `vincularAutomaticamente` faz **6**
+      chamadas HTTP sequenciais ao PostgREST sem timeout algum, dentro do
+      caminho do `POST /motorista/register`. O `try/catch` isolado da 3.1.4
+      protege contra **exceção**, não contra **hang**: um PostgREST no ar
+      porém lento/pendurado trava o cadastro do motorista e o `catch` nunca
+      dispara. Criar **um** `AbortSignal.timeout(5000)` no início da função
+      e repassá-lo como `opts.signal` nas 6 chamadas — deadline da
+      **operação inteira**, não por chamada. O cliente já suporta:
+      `hub-postgrest.js:53` recebe `opts` e `:82` faz
+      `...(opts && opts.signal ? { signal: opts.signal } : {})`. Node 20 na
+      imagem de produção (`Dockerfile.hub`) tem `AbortSignal.timeout()`.
+      Estouro do deadline = mesmo desfecho da falha: não vincula, `/register`
+      responde 201, motorista fica para o vínculo manual.
+- [ ] 3.1.10 **Teste: PostgREST LENTO (não apenas ausente)** — o teste atual
+      da guarda (`tests/motorista-integration.test.js:378`) simula
+      indisponibilidade com `assert.equal(process.env.POSTGREST_URL,
+      undefined)`, que falha **rápido e de forma síncrona** e por isso NÃO
+      cobre o caso real. Injetar um `hubPostgrestRequest` de teste que
+      demore mais que o deadline e provar: `/register` responde **201**,
+      `Motorista.senha` ativada, nenhum vínculo criado, dentro de um limite
+      de tempo aferido pelo próprio teste.
 
 ### 3.2 Backfill retroativo `[C]`
 
