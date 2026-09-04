@@ -88,19 +88,28 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
   //    contrato de index.js#executarRodada).
   await clienteHub.login(config.hubServicoEmail, config.hubServicoSenha);
 
-  // 2. sessão EntreGô (sonda + login completo se 401 — reusa Decision 3).
+  // 2. fila ANTES da sessão EntreGô (corrigido em 2026-09-04, antes de
+  //    instalar os timers). O modo `sob-demanda` roda a cada 5 min: com a
+  //    ordem anterior (sessão -> fila) toda execução com fila VAZIA — que é o
+  //    estado normal — sondava a EntreGô à toa, ~288x/dia, e podia disparar
+  //    login completo por token expirado. Isso na MESMA sessão compartilhada
+  //    com a importação diária (dec-039), com PerimeterX ativo
+  //    (ACHADOS-PORTAL.md §6). O robô nunca foi bloqueado porque quase não
+  //    toca a plataforma; sondagem ociosa é exatamente o padrão que atrai
+  //    bloqueio. Consultar a fila é uma chamada ao hub (barata, local).
+  const itens = await clienteHub.buscarMotoristasParaEnriquecer(modo);
+  if (itens.length === 0) {
+    return { resultado: 'sem_dados', total: 0, sucessos: 0, falhas: 0, parouPorAntibotOuGap: false, motivoParada: null };
+  }
+
+  // 3. sessão EntreGô (sonda + login completo se 401 — reusa Decision 3).
+  //    Só chega aqui se HÁ trabalho a fazer.
   await garantirSessaoValida(page, {
     email: config.entregoEmail,
     senha: config.entregoSenha,
     obterCodigo,
     storageStatePath: config.storageStatePath,
   });
-
-  // 3. fila (task 5.3.4 — GET .../motoristas-para-enriquecer).
-  const itens = await clienteHub.buscarMotoristasParaEnriquecer(modo);
-  if (itens.length === 0) {
-    return { resultado: 'sem_dados', total: 0, sucessos: 0, falhas: 0, parouPorAntibotOuGap: false, motivoParada: null };
-  }
 
   let sucessos = 0;
   let falhas = 0;
