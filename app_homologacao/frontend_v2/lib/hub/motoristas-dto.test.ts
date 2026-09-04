@@ -67,6 +67,8 @@ describe('parseMotoristaDetalhe', () => {
     idExterno: '22222222-2222-2222-2222-222222222222',
     ativo: true,
     nomeEditadoManualmente: false,
+    // FASE 4 (task 4.1, FR-008) — CNPJ do legado, não mascarado.
+    cnpjPrestador: '12345678000195',
     areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
     resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
     vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
@@ -97,6 +99,18 @@ describe('parseMotoristaDetalhe', () => {
     expect(parsed.resumo).toEqual({ totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
     expect(parsed.areas).toEqual([]);
     expect(parsed.idExterno).toBe('');
+  });
+
+  // FASE 4 (task 4.1, FR-008 Acceptance Scenario 1/2) — "motorista com e
+  // sem CNPJ vinculado", espelhando lib/hub-motoristas-dto.test.js do backend.
+  it('cnpjPrestador presente é repassado tal-e-qual (não mascarado)', () => {
+    const parsed = parseMotoristaDetalhe(DETALHE_VALIDO);
+    expect(parsed.cnpjPrestador).toBe('12345678000195');
+  });
+
+  it('cnpjPrestador ausente/null (sem vínculo) -> null, nunca lança (Acceptance Scenario 2)', () => {
+    const parsed = parseMotoristaDetalhe({ id: 1, nome: 'X' });
+    expect(parsed.cnpjPrestador).toBeNull();
   });
 
   // FASE 4 (task 4.1.4): idExterno (uuid) exposto no detalhe (FR-016)

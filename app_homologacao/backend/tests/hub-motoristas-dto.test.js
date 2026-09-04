@@ -226,6 +226,9 @@ describe('mapMotoristaDetalhe', () => {
       idExterno: '55555555-5555-5555-5555-555555555555',
       ativo: true,
       nomeEditadoManualmente: false,
+      // hub-motorista-360 FASE 4 (task 4.1, FR-008) — CNPJ do legado, NÃO
+      // mascarado (distinto de vinculo.cnpjPrestadorMascarado abaixo).
+      cnpjPrestador: '12345678000195',
       areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
       resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
       vinculo: {
@@ -271,6 +274,30 @@ describe('mapMotoristaDetalhe', () => {
     const detalhe = mapMotoristaDetalhe(row, [], { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
     assert.equal(detalhe.vinculo, null);
     assert.equal(detalhe.nomeEditadoManualmente, true);
+  });
+
+  // hub-motorista-360 FASE 4 (task 4.1.3, FR-008 Acceptance Scenario 2) —
+  // "motorista com e sem CNPJ vinculado": cobre os dois lados do campo
+  // TOP-LEVEL novo, não confundir com o `vinculo.cnpjPrestadorMascarado`
+  // (já coberto pelos testes acima).
+  describe('cnpjPrestador (task 4.1, FR-008 — CNPJ do legado, não mascarado)', () => {
+    test('motorista COM CNPJ vinculado -> cnpjPrestador = ContaMotorista.cnpj_prestador (sem máscara)', () => {
+      const row = {
+        id: 1,
+        nome: 'Fulano',
+        ativo: true,
+        nome_editado_manualmente: false,
+        ContaMotorista: { id: 7, nome: 'Fulano', cnpj_prestador: '98765432000110', ativo: true },
+      };
+      const detalhe = mapMotoristaDetalhe(row, [], { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+      assert.equal(detalhe.cnpjPrestador, '98765432000110');
+    });
+
+    test('motorista SEM CNPJ vinculado (Acceptance Scenario 2) -> cnpjPrestador = null, nunca erro', () => {
+      const row = { id: 2, nome: 'Ciclano', ativo: true, nome_editado_manualmente: false, ContaMotorista: null };
+      const detalhe = mapMotoristaDetalhe(row, [], { totalFaturamento: 0, totalPerformance: 0, dataMaisRecente: null });
+      assert.equal(detalhe.cnpjPrestador, null);
+    });
   });
 
   test('sem histórico de importação -> resumo zerado, areas vazio, sem erro', () => {

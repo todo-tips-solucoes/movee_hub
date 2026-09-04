@@ -128,6 +128,9 @@ export interface MotoristaDetalhe {
   idExterno: string;
   ativo: boolean;
   nomeEditadoManualmente: boolean;
+  /** FASE 4 (task 4.1, FR-008) — CNPJ do cadastro legado (envio-massa),
+   * NÃO mascarado. `null` quando não há vínculo (Acceptance Scenario 2). */
+  cnpjPrestador: string | null;
   areas: MotoristaArea[];
   resumo: MotoristaResumo;
   vinculo: MotoristaVinculo | null;
@@ -195,6 +198,7 @@ export function parseMotoristaDetalhe(raw: unknown): MotoristaDetalhe {
     idExterno: isString(r.idExterno) ? r.idExterno : '',
     ativo: r.ativo === true,
     nomeEditadoManualmente: r.nomeEditadoManualmente === true,
+    cnpjPrestador: isStringOrNull(r.cnpjPrestador) ? r.cnpjPrestador : null,
     areas: Array.isArray(r.areas) ? r.areas.map(parseArea) : [],
     resumo: {
       totalFaturamento: isNumberOrNull(resumoRaw.totalFaturamento) ? (resumoRaw.totalFaturamento ?? 0) : 0,

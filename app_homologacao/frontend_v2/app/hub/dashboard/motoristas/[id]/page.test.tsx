@@ -55,6 +55,8 @@ const DETALHE_SEM_VINCULO = {
 
 const DETALHE_COM_VINCULO = {
   ...DETALHE_SEM_VINCULO,
+  // FASE 4 (task 4.1, FR-008) — CNPJ do legado, não mascarado.
+  cnpjPrestador: '12345678000195',
   vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
 };
 
@@ -99,6 +101,21 @@ describe('MotoristaDetalhePage', () => {
     expect(
       screen.getByRole('button', { name: `Copiar identificador de ${DETALHE_SEM_VINCULO.nome}` })
     ).toBeInTheDocument();
+  });
+
+  it('FASE 4 (task 4.1, FR-008): CNPJ do legado aparece não mascarado quando vinculado', async () => {
+    mockObterMotorista.mockResolvedValueOnce(DETALHE_COM_VINCULO);
+    render(<MotoristaDetalhePage />);
+
+    await waitFor(() => expect(screen.getByText(DETALHE_COM_VINCULO.cnpjPrestador)).toBeInTheDocument());
+  });
+
+  it('FASE 4 (task 4.1, FR-008 Acceptance Scenario 2): sem CNPJ mostra "não informado", sem erro', async () => {
+    mockObterMotorista.mockResolvedValueOnce(DETALHE_SEM_VINCULO);
+    render(<MotoristaDetalhePage />);
+
+    await waitFor(() => expect(screen.getByText('Fulano da Silva')).toBeInTheDocument());
+    expect(screen.getByText('não informado')).toBeInTheDocument();
   });
 
   it('sem vínculo: mostra estado vazio + botão Vincular (com permissão)', async () => {

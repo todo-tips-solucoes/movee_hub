@@ -435,11 +435,16 @@ async function main() {
   out.detalhe_carlos_areas_ordem = dCarlos.areas ? JSON.stringify(dCarlos.areas.map((a) => a.subpraca)) : null;
   out.detalhe_carlos_vinculo_nome = dCarlos.vinculo && dCarlos.vinculo.nome;
   out.detalhe_carlos_vinculo_cnpj = dCarlos.vinculo && dCarlos.vinculo.cnpjPrestadorMascarado;
+  // hub-motorista-360 FASE 4 (task 4.1.3, quickstart Scenario 7) — campo
+  // TOP-LEVEL novo, NÃO mascarado (distinto de vinculo.cnpjPrestadorMascarado
+  // acima, que é uso interno de confirmação de vínculo).
+  out.detalhe_carlos_cnpj_prestador = dCarlos.cnpjPrestador;
 
   // (i) detalhe sem vínculo — José
   const rDetalheJose = await getJson(jar, `/motoristas/${entJose}`);
   out.detalhe_jose_status = rDetalheJose.status;
   out.detalhe_jose_vinculo = rDetalheJose.body ? rDetalheJose.body.vinculo : 'ERRO';
+  out.detalhe_jose_cnpj_prestador = rDetalheJose.body ? rDetalheJose.body.cnpjPrestador : 'ERRO';
 
   // (j) detalhe sem nenhum fato associado — Ana
   const rDetalheAna = await getJson(jar, `/motoristas/${entAna}`);
@@ -751,9 +756,11 @@ check "detalhe Carlos -> resumo.dataMaisRecente=2026-06-25 (max entre fatur/perf
 check "detalhe Carlos -> areas ordenadas DESC ([Zona Sul, Centro])" "$(jget detalhe_carlos_areas_ordem)" '["Zona Sul","Centro"]'
 check "detalhe Carlos -> vinculo.nome" "$(jget detalhe_carlos_vinculo_nome)" "Carlos Pereira"
 check "detalhe Carlos -> vinculo.cnpjPrestadorMascarado" "$(jget detalhe_carlos_vinculo_cnpj)" "12.***.***/0001-**"
+check "detalhe Carlos -> cnpjPrestador (FASE 4, task 4.1.3, NÃO mascarado)" "$(jget detalhe_carlos_cnpj_prestador)" "12345678000195"
 
 check "detalhe José (sem vínculo) -> 200" "$(jget detalhe_jose_status)" "200"
 check "detalhe José -> vinculo=null" "$(jget detalhe_jose_vinculo)" "null"
+check "detalhe José -> cnpjPrestador=null (FASE 4, task 4.1.3, sem vínculo, Acceptance Scenario 2)" "$(jget detalhe_jose_cnpj_prestador)" "null"
 
 check "detalhe Ana (sem nenhum fato) -> 200" "$(jget detalhe_ana_status)" "200"
 check "detalhe Ana -> resumo.totalFaturamento=0" "$(jget detalhe_ana_totalFaturamento)" "0"

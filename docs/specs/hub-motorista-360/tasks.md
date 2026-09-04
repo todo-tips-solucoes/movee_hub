@@ -221,7 +221,7 @@ Ref: `contracts/vinculo-automatico.md` §Extensão POST /motorista/register;
 - [x] 3.1.8 Teste: idempotência — cadastro repetido no app do motorista para
       o mesmo motorista não cria segundo vínculo nem sobrescreve o
       existente (FR-011)
-- [ ] 3.1.9 **Deadline total de 5s no vínculo automático** — subtarefa
+- [x] 3.1.9 **Deadline total de 5s no vínculo automático** — subtarefa
       EMERGENTE (dec-060, 2026-09-04). `vincularAutomaticamente` faz **6**
       chamadas HTTP sequenciais ao PostgREST sem timeout algum, dentro do
       caminho do `POST /motorista/register`. O `try/catch` isolado da 3.1.4
@@ -235,7 +235,7 @@ Ref: `contracts/vinculo-automatico.md` §Extensão POST /motorista/register;
       imagem de produção (`Dockerfile.hub`) tem `AbortSignal.timeout()`.
       Estouro do deadline = mesmo desfecho da falha: não vincula, `/register`
       responde 201, motorista fica para o vínculo manual.
-- [ ] 3.1.10 **Teste: PostgREST LENTO (não apenas ausente)** — o teste atual
+- [x] 3.1.10 **Teste: PostgREST LENTO (não apenas ausente)** — o teste atual
       da guarda (`tests/motorista-integration.test.js:378`) simula
       indisponibilidade com `assert.equal(process.env.POSTGREST_URL,
       undefined)`, que falha **rápido e de forma síncrona** e por isso NÃO
@@ -274,13 +274,28 @@ Ref: `contracts/vinculo-automatico.md` §Script; `quickstart.md` Scenario 3;
 
 Ref: `research.md` Decision 3; `contracts/hub-motoristas-detalhe.md`
 
-- [ ] 4.1.1 Estender `buscarDetalheMotorista()` (`routes/hub-motoristas.js:460`)
+- [x] 4.1.1 Estender `buscarDetalheMotorista()` (`routes/hub-motoristas.js:460`)
       para incluir `cnpjPrestador` a partir de `ContaMotorista.cnpj_prestador`
       quando `motorista_id` está setado
-- [ ] 4.1.2 Retornar o campo vazio — nunca erro — quando não houver vínculo
+- [x] 4.1.2 Retornar o campo vazio — nunca erro — quando não houver vínculo
       (Acceptance Scenario 2 da User Story 3)
-- [ ] 4.1.3 Teste: motorista com e sem CNPJ vinculado (quickstart Scenario 7
+- [x] 4.1.3 Teste: motorista com e sem CNPJ vinculado (quickstart Scenario 7
       — roundtrip `GET /motoristas/:id` real vs. contrato)
+- [x] 4.1.4 **Frontend: consumir `cnpjPrestador` na tela de detalhe** —
+      subtarefa EMERGENTE (gap-fill): a decomposição original de 4.1 era
+      só backend, mas FR-008/Acceptance Scenario 1-2 exigem o campo
+      visível na tela ("gestor abre o detalhe... **Then** o CNPJ aparece").
+      `lib/hub/motoristas-dto.ts` (`MotoristaDetalhe.cnpjPrestador` +
+      `parseMotoristaDetalhe`) e `app/hub/dashboard/motoristas/[id]/page.tsx`
+      (linha "CNPJ:" ao lado do Identificador, distinto do
+      `vinculo.cnpjPrestadorMascarado` já existente no card "Conta de
+      acesso vinculada", que segue mascarado — propósito diferente,
+      confirmação de credencial). O dialog rápido
+      `components/hub/motorista-detalhe-dialog.tsx` foi deixado
+      INALTERADO (mostra `cnpjPrestadorMascarado`) — mudá-lo quebrava
+      `app/hub/dashboard/motoristas/page.test.tsx` (dialog reusado na
+      lista) sem necessidade: a tela de detalhe dedicada já satisfaz
+      FR-008.
 
 ---
 

@@ -53,6 +53,13 @@ const { registrarAuditoria } = require('./hub-auditoria');
 // números nunca devem ser confundidos (ver cabeçalho da migration 0058).
 const LIMIAR_VINCULO_AUTOMATICO = 0.9;
 
+// Deadline da operação INTEIRA (não por chamada) — tasks.md 3.1.9, subtarefa
+// EMERGENTE dec-060 (2026-09-04): o try/catch da 3.1.4 protege contra
+// exceção, não contra hang. Sem timeout, um PostgREST no ar porém lento
+// trava o `POST /motorista/register` indefinidamente. Estouro = mesmo
+// desfecho de qualquer falha de negócio: não vincula, caller responde 201.
+const DEADLINE_VINCULO_AUTOMATICO_MS = 5000;
+
 /**
  * Regra de decisão do vínculo automático (FR-009, Acceptance Scenario 3 —
  * "não vincula silenciosamente a um motorista errado"): vincula SOMENTE
@@ -92,19 +99,22 @@ function mapCandidatoRpc(row) {
 async function vincularAutomaticamente({ cnpjPrestador, nome }, deps = {}) {
   const postgrest = deps.hubPostgrestRequest || hubPostgrestRequest;
   const auditar = deps.registrarAuditoria || registrarAuditoria;
+  // Deadline único para as 6 chamadas HTTP abaixo (tasks.md 3.1.9) — a
+  // OPERAÇÃO inteira tem 5s, não cada chamada individualmente.
+  const signal = AbortSignal.timeout(DEADLINE_VINCULO_AUTOMATICO_MS);
 
   // 1-2. localizar/criar ContaMotorista por cnpj_prestador (migration 0021
   // — sem RLS, GRANT direto a `authenticated`; claims vazias bastam).
   const existentes = await postgrest(
     `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjPrestador)}&select=id`,
-    'GET', null, {}
+    'GET', null, {}, { signal }
   );
   let contaMotoristaId = existentes && existentes[0] && existentes[0].id;
   if (!contaMotoristaId) {
     const criados = await postgrest(
       'ContaMotorista', 'POST',
       { cnpj_prestador: cnpjPrestador, nome: String(nome || '').trim(), ativo: true },
-      {}
+      {}, { signal }
     );
     contaMotoristaId = criados && criados[0] && criados[0].id;
   }
@@ -115,7 +125,7 @@ async function vincularAutomaticamente({ cnpjPrestador, nome }, deps = {}) {
   // Escopo = grupo Movee inteiro (allowlist sem RLS, migration 0022) — ver
   // cabeçalho do arquivo. Sem isto, a RLS de "Entregador" (migration 0015)
   // barra qualquer leitura/escrita adiante, mesmo com o JOIN da RPC.
-  const grupoMovee = await postgrest('EmpresaGrupoMovee?select=id_empresa', 'GET', null, {});
+  const grupoMovee = await postgrest('EmpresaGrupoMovee?select=id_empresa', 'GET', null, {}, { signal });
   const idsMovee = (grupoMovee || []).map((r) => r.id_empresa);
   if (idsMovee.length === 0) {
     return { status: 'sem_grupo_elegivel', contaMotoristaId };
@@ -126,7 +136,7 @@ async function vincularAutomaticamente({ cnpjPrestador, nome }, deps = {}) {
   // conta? Não faz nada (nem chama a RPC).
   const jaVinculados = await postgrest(
     `Entregador?motorista_id=eq.${contaMotoristaId}&select=id`,
-    'GET', null, claimsEscopo
+    'GET', null, claimsEscopo, { signal }
   );
   if (jaVinculados && jaVinculados.length > 0) {
     return { status: 'ja_vinculado', contaMotoristaId, entregadorId: jaVinculados[0].id };
@@ -136,7 +146,7 @@ async function vincularAutomaticamente({ cnpjPrestador, nome }, deps = {}) {
   // (Entregador não tem essa coluna).
   const linhasRpc = await postgrest(
     'rpc/hub_motoristas_candidatos_por_conta',
-    'POST', { p_conta_motorista_id: contaMotoristaId }, claimsEscopo
+    'POST', { p_conta_motorista_id: contaMotoristaId }, claimsEscopo, { signal }
   );
   const candidato = escolherCandidatoConfiavel((linhasRpc || []).map(mapCandidatoRpc));
   if (!candidato) {
@@ -149,7 +159,7 @@ async function vincularAutomaticamente({ cnpjPrestador, nome }, deps = {}) {
   await postgrest(
     `Entregador?id=eq.${candidato.entregadorId}&id_empresa=eq.${candidato.idEmpresa}`,
     'PATCH', { motorista_id: contaMotoristaId }, claimsEscopo,
-    { returnMinimal: true }
+    { returnMinimal: true, signal }
   );
   await auditar({
     idEmpresa: candidato.idEmpresa,
@@ -170,6 +180,7 @@ async function vincularAutomaticamente({ cnpjPrestador, nome }, deps = {}) {
 
 module.exports = {
   LIMIAR_VINCULO_AUTOMATICO,
+  DEADLINE_VINCULO_AUTOMATICO_MS,
   escolherCandidatoConfiavel,
   vincularAutomaticamente,
 };

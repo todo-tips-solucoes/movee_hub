@@ -21,6 +21,7 @@ const assert = require('node:assert/strict');
 
 const {
   LIMIAR_VINCULO_AUTOMATICO,
+  DEADLINE_VINCULO_AUTOMATICO_MS,
   escolherCandidatoConfiavel,
   vincularAutomaticamente,
 } = require('../lib/hub-motorista-vinculo-automatico');
@@ -273,6 +274,60 @@ describe('vincularAutomaticamente (orquestração, via deps injetados)', () => {
       () => vincularAutomaticamente({ cnpjPrestador: '11222333000199', nome: 'Fulano' }, depsComFalha),
       /PostgREST indisponível/
     );
+  });
+
+  // tasks.md 3.1.10 (subtarefa EMERGENTE, dec-060) — o teste de guarda em
+  // tests/motorista-integration.test.js:378 simula PostgREST AUSENTE
+  // (falha síncrona, imediata: `POSTGREST_URL` indefinido faz
+  // `hubPostgrestRequest` lançar antes de qualquer I/O). Isso não cobre o
+  // caso real que motivou a 3.1.9: PostgREST no ar porém LENTO/pendurado.
+  // Este teste injeta via `deps.hubPostgrestRequest` (não mexe em env) um
+  // mock que nunca resolveria sozinho (10s > deadline de 5s) e só se
+  // resolve quando o `AbortSignal` que `vincularAutomaticamente` cria
+  // internamente (3.1.9) dispara — provando que a função de fato REPASSA
+  // o signal (grep confirma as 6 chamadas a `postgrest(...)` recebendo
+  // `{ signal }`) e que a operação não fica pendurada pelos 10s do mock.
+  // Combinado com o teste de guarda acima (que já prova que QUALQUER
+  // rejeição de `vincularAutomaticamente` — síncrona ou não — é engolida
+  // pelo try/catch de `routes/motorista.js` sem afetar o 201/ativação de
+  // senha, que acontecem ANTES desse try/catch), fecha o caso "hub lento"
+  // sem duplicar o round-trip HTTP.
+  test('3.1.10 — PostgREST LENTO (hang, não apenas ausente): deadline de 5s aborta a operação, não espera o mock inteiro', async () => {
+    let signalRecebido = null;
+    const hubPostgrestRequestLento = (path, method, body, claims, opts) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve([]), 10_000); // nunca deveria chegar aqui
+      signalRecebido = opts && opts.signal;
+      if (!signalRecebido) {
+        clearTimeout(timer);
+        reject(new Error('mock: chamada sem opts.signal — 3.1.9 não repassou o AbortSignal'));
+        return;
+      }
+      signalRecebido.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(signalRecebido.reason || new Error('aborted'));
+      }, { once: true });
+    });
+
+    const inicio = Date.now();
+    await assert.rejects(
+      () => vincularAutomaticamente(
+        { cnpjPrestador: '11222333000199', nome: 'Fulano' },
+        { hubPostgrestRequest: hubPostgrestRequestLento, registrarAuditoria: fakeRegistrarAuditoria }
+      )
+    );
+    const decorrido = Date.now() - inicio;
+
+    assert.ok(signalRecebido instanceof AbortSignal, 'a chamada deveria ter recebido um AbortSignal em opts.signal');
+    // Folga generosa acima do deadline (jitter de CI) mas MUITO abaixo dos
+    // 10s do mock — é essa distância que prova que a operação não esperou
+    // o mock inteiro.
+    assert.ok(
+      decorrido < DEADLINE_VINCULO_AUTOMATICO_MS + 3000,
+      `deveria abortar perto do deadline de ${DEADLINE_VINCULO_AUTOMATICO_MS}ms, levou ${decorrido}ms`
+    );
+    assert.equal(DB.ContaMotorista.length, 0, 'nenhuma ContaMotorista deveria ter sido criada');
+    assert.equal(DB.Entregador.filter((e) => e.motorista_id).length, 0, 'nenhum vínculo deveria ter sido criado');
+    assert.equal(auditoriasRegistradas.length, 0, 'nenhuma auditoria deveria ter sido registrada');
   });
 });
 

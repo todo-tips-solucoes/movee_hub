@@ -141,6 +141,13 @@ function mapMotoristaDetalhe(row, areas, resumo, atividades) {
     idExterno: row.id_externo,
     ativo: row.ativo,
     nomeEditadoManualmente: !!row.nome_editado_manualmente,
+    // hub-motorista-360 FASE 4 (task 4.1, FR-008, contracts/hub-motoristas-
+    // detalhe.md) — CNPJ do cadastro legado (envio-massa), NÃO mascarado
+    // (diferente de vinculo.cnpjPrestadorMascarado acima: aquele é uso
+    // interno de confirmação de vínculo; este é o requisito explícito da
+    // tela — FR-008 não lista este campo entre os sensíveis de FR-013/
+    // FR-014, logo sem gate de RBAC). `null` sem vínculo — nunca erro.
+    cnpjPrestador: contaMotorista ? contaMotorista.cnpj_prestador : null,
     areas: areas || [],
     resumo: {
       totalFaturamento: (resumo && resumo.totalFaturamento) || 0,

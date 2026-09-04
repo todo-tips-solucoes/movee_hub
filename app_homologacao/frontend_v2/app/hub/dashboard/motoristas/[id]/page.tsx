@@ -299,6 +299,16 @@ export default function MotoristaDetalhePage() {
                 <CopyableUuid value={detalhe.idExterno} label={`Copiar identificador de ${detalhe.nome}`} />
               </div>
 
+              {/* hub-motorista-360 FASE 4 (task 4.1, FR-008) — CNPJ do
+                  cadastro legado (envio-massa), não mascarado. Distinto do
+                  cnpjPrestadorMascarado exibido no card "Conta de acesso
+                  vinculada" abaixo (aquele identifica a credencial
+                  vinculada; este é o dado cadastral do motorista). */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>CNPJ:</span>
+                <span className="font-mono">{detalhe.cnpjPrestador || 'não informado'}</span>
+              </div>
+
               {editando && (
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox checked={ativoEdicao} onCheckedChange={(v) => setAtivoEdicao(v === true)} disabled={salvando} />
