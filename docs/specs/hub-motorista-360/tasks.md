@@ -112,14 +112,14 @@ FR-005, FR-016
 
 Ref: `data-model.md` §Entregador; `spec.md` FR-001..FR-004, FR-016
 
-- [ ] 2.1.1 Criar `infra/hub/migrations/00NN_entregador_entrego_enriquecimento.sql`
+- [x] 2.1.1 Criar `infra/hub/migrations/00NN_entregador_entrego_enriquecimento.sql`
       com `dados_entrego_json` (jsonb NULL), `dados_entrego_enriquecidos_em`
       (timestamptz NULL), `dados_entrego_solicitado_em` (timestamptz NULL)
       — número exato resolvido contra o diretório real no momento da
       execução (hoje o próximo livre é `0057`, ver `research.md`)
-- [ ] 2.1.2 Validar a migration em `hub-homolog` isolado via
+- [x] 2.1.2 Validar a migration em `hub-homolog` isolado via
       `infra/hub/scripts/migrate.sh` — nunca em produção (rito, CLAUDE.md)
-- [ ] 2.1.3 Teste: aplicar a migration em ambiente isolado e confirmar as 3
+- [x] 2.1.3 Teste: aplicar a migration em ambiente isolado e confirmar as 3
       colunas via `\d "Entregador"`
 
 ### 2.2 Migration: RPC `hub_motoristas_candidatos_por_conta` (simétrica à 0023) `[C]`
@@ -127,43 +127,67 @@ Ref: `data-model.md` §Entregador; `spec.md` FR-001..FR-004, FR-016
 Ref: `research.md` Decision 12; `contracts/vinculo-automatico.md`;
 `data-model.md` §Function `hub_motoristas_candidatos_por_conta`
 
-- [ ] 2.2.1 Criar `infra/hub/migrations/00NN_rpc_motoristas_candidatos_por_conta.sql`
+- [x] 2.2.1 Criar `infra/hub/migrations/00NN_rpc_motoristas_candidatos_por_conta.sql`
       implementando a função SQL (`SECURITY INVOKER`, `hub_normaliza_nome`,
       `pg_trgm`, join `EmpresaGrupoMovee`) — mesmo padrão exato de
       `hub_motoristas_candidatos(p_entregador_id)` (migration 0023), com o
       lado fixo invertido (`p_conta_motorista_id`)
-- [ ] 2.2.2 Confirmar contra o schema real de 0023 que `hub_normaliza_nome`
+- [x] 2.2.2 Confirmar contra o schema real de 0023 que `hub_normaliza_nome`
       e a extensão `pg_trgm` já existem — não reintroduzir
-- [ ] 2.2.3 Aplicar em `hub-homolog` isolado e validar via `SELECT` manual
+- [x] 2.2.3 Aplicar em `hub-homolog` isolado e validar via `SELECT` manual
       com um par `ContaMotorista`/`Entregador` de teste (nome quase-idêntico
       e nome muito diferente, confirmando o piso de retorno 0.3)
 - [ ] 2.2.4 Teste automatizado (`npm run test:hub:integration`): a RPC
       retorna candidatos ordenados por similaridade DESC, escopados a
       `EmpresaGrupoMovee`, mesmo padrão de teste já usado para a 0023
+      — **ADIADO para a FASE 3** (Decisão registrada, onda-010): esta RPC
+      ainda não tem NENHUM caller (o hook automático que a consome é FASE 3,
+      não implementada nesta onda). O padrão estabelecido no repo para
+      `npm run test:hub:integration` (ex.: `hub-rls-integration.test.js`,
+      `hub-motoristas-credencial.test.js`) é um wrapper fino em cima de um
+      driver `.sh` de ~900 linhas que sobe um projeto `hub-test-<runid>`
+      efêmero via Docker Compose — construir esse harness agora, para uma
+      função sem consumidor real, seria trabalho descartável: a FASE 3 vai
+      precisar testar o hook E a RPC juntos, e reescreveria este teste do
+      zero de qualquer forma. A RPC já foi validada empiricamente em
+      `hub-homolog` isolado (2.2.3, output literal no relatório da onda-010)
+      — cobre correção funcional; falta só a automação E2E, que faz mais
+      sentido nascer junto do primeiro caller real.
 
 ### 2.3 Seed RBAC: permissão `motoristas.dados_sensiveis` `[A]`
 
 Ref: `research.md` Decision 10; `data-model.md` §Permissao; Task 1.1.3
 (código definitivo da permissão)
 
-- [ ] 2.3.1 Criar `infra/hub/migrations/00NN_seed_permissao_motoristas_dados_sensiveis.sql`
+- [x] 2.3.1 Criar `infra/hub/migrations/00NN_seed_permissao_motoristas_dados_sensiveis.sql`
       (mesmo padrão exato de `0044_seed_permissao_motoristas_credencial.sql`)
-- [ ] 2.3.2 Conceder a permissão somente a `admin_plataforma` e
+- [x] 2.3.2 Conceder a permissão somente a `admin_plataforma` e
       `admin_entidade` via `PapelPermissao`
-- [ ] 2.3.3 Teste de integração: usuário `leitura` sem a permissão vs.
+- [x] 2.3.3 Teste de integração: usuário `leitura` sem a permissão vs.
       `admin_entidade` com a permissão, após seed aplicado em `hub-homolog`
+      — validado no NÍVEL RBAC/banco (ainda não há rota HTTP que consuma
+      esta permissão — nasce só na FASE 4/5): query em `hub-homolog` confirma
+      que SOMENTE `admin_plataforma`/`admin_entidade` têm
+      `motoristas.dados_sensiveis` e que `leitura`/`operador` não têm
+      (output literal no relatório da onda-010).
 
 ### 2.4 Script SQL avulso: permissões `robo_entrego_servico` `[A]`
 
 Ref: `research.md` Decision 11; `infra/robo-entrego/sql/001-usuario-servico-robo-entrego.sql`
 
-- [ ] 2.4.1 Criar `infra/robo-entrego/sql/00N-permissoes-enriquecimento-robo-entrego.sql`
+- [x] 2.4.1 Criar `infra/robo-entrego/sql/00N-permissoes-enriquecimento-robo-entrego.sql`
       concedendo `motoristas.enriquecimento.consultar` /
       `.atualizar` ao papel `robo_entrego_servico`
-- [ ] 2.4.2 Documentar no runbook que o script é aplicado manualmente pelo
+- [x] 2.4.2 Documentar no runbook que o script é aplicado manualmente pelo
       operador (rito de produção, CLAUDE.md) — nunca por esta pipeline
 - [ ] 2.4.3 Teste: chamada autenticada como `robo_entrego_servico` às novas
       rotas de fila retorna 200/202 após o grant aplicado em `hub-homolog`
+      — **ADIADO**: as rotas de fila de enriquecimento são FASE 4/5 (backend),
+      não implementadas nesta onda, então não há endpoint para chamar ainda.
+      O grant em si já foi aplicado e verificado em `hub-homolog` (script
+      003 idempotente, `\d`/`SELECT` confirmam exatamente as 4 permissões
+      esperadas no papel — output literal no relatório da onda-010); falta
+      só a chamada HTTP real, que esta tarefa retoma quando a rota existir.
 
 ---
 
