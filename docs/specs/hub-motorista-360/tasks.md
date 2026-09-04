@@ -587,21 +587,41 @@ expunha justamente quem não tem RG.
 Decisão do operador: **todo documento de identidade atrás de
 `motoristas.dados_sensiveis`**.
 
-- [ ] 8.3.1 Acrescentar `CNH` à enumeração de campos sensíveis em `FR-013` e
+- [x] 8.3.1 Acrescentar `CNH` à enumeração de campos sensíveis em `FR-013` e
       `FR-014` do `spec.md` e em `contracts/hub-motoristas-detalhe.md`
-- [ ] 8.3.2 Backend: `mapEntregoEnriquecimento` (`lib/hub-motoristas-dto.js`)
+      <!-- onda-017: FR-013/FR-014 (spec.md) + tabela + §RBAC de campo +
+      §Auditoria de leitura (contracts/hub-motoristas-detalhe.md) atualizados;
+      sessão de clarificação registrada documentando dec-087 -->
+- [x] 8.3.2 Backend: `mapEntregoEnriquecimento` (`lib/hub-motoristas-dto.js`)
       passa a **omitir a chave** `cnh` sem a permissão — chave ausente, nunca
       `null` nem máscara (mesma regra do `rg`, FR-013)
-- [ ] 8.3.3 Frontend: a linha de CNH some para quem não tem a permissão, pelo
+      <!-- onda-017: documentos: temPermissaoDadosSensiveis ? {rg,cnh} : {} -->
+- [x] 8.3.3 Frontend: a linha de CNH some para quem não tem a permissão, pelo
       mesmo caminho já usado pelo RG na tela de detalhe
-- [ ] 8.3.4 Teste unit do DTO: com permissão a chave existe; sem permissão a
+      <!-- onda-017: page.tsx usa hasOwnProperty(documentos,'cnh') -> CampoTexto
+      | CampoRestrito, mesmo padrão do RG; motoristas-dto.ts (lib) com `cnh?`
+      opcional e parseEntregoDocumentos preservando ausência de chave -->
+- [x] 8.3.4 Teste unit do DTO: com permissão a chave existe; sem permissão a
       chave **não existe**, nos dois casos de payload (`BICYCLE` com RG /
       `MOTORCYCLE` com CNH)
-- [ ] 8.3.5 Atualizar o E2E 8.2.2: `SINTETICO-CNH-...` passa de
+      <!-- onda-017: hub-motoristas-dto.test.js — describe "forma variável por
+      modal" com 4 testes novos (BICYCLE/MOTORCYCLE × com/sem permissão) +
+      teste "SEM dados_sensiveis" atualizado p/ documentos:{} -->
+- [x] 8.3.5 Atualizar o E2E 8.2.2: `SINTETICO-CNH-...` passa de
       `toBeVisible()` para `toHaveCount(0)`; confirmar que o 8.2.1 (gestor COM
       permissão) continua vendo a CNH
-- [ ] 8.3.6 Rodar `npm test` (backend), vitest (frontend) e o driver de E2E;
-      relatar os números
+      <!-- onda-017: detalhe-entrego-rbac.spec.ts::8.2.2 — CNH movida para o
+      bloco de campos restritos (toHaveCount(0)), contador de "acesso
+      restrito" 5->6; 8.2.1 mantém CNH toBeVisible() inalterado -->
+- [x] 8.3.6 Rodar `npm test` (backend), vitest (frontend) e o driver de E2E;
+      relatar os números <!-- onda-017: backend node --test 784/784 pass (780
+      baseline + 4 novos, 0 fail; achado no meio do caminho: teste de
+      integração de rota hub-motoristas-entrego-enriquecimento-unit.test.js
+      também assumia cnh sempre visível — corrigido); frontend vitest 538/538
+      pass (62 arquivos) + tsc --noEmit limpo; E2E via driver oficial
+      (hub_homolog_backend/frontend rebuildados antes — estavam sem esta
+      mudança) 2/2 pass (8.2.1 continua vendo CNH com permissão; 8.2.2 agora
+      NÃO vê, "acesso restrito" 5->6); package-lock.json conferido intacto -->
 
 
 

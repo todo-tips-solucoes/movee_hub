@@ -392,16 +392,17 @@ describe('mapEntregoEnriquecimento (RBAC de campo, task 5.4)', () => {
     });
   });
 
-  test('SEM motoristas.dados_sensiveis -> chaves sensíveis OMITIDAS (nunca null/mascarado)', () => {
+  test('SEM motoristas.dados_sensiveis -> chaves sensíveis OMITIDAS (nunca null/mascarado), CNH inclusive (dec-087)', () => {
     const r = mapEntregoEnriquecimento(rowEnriquecido, false);
     assert.equal(Object.prototype.hasOwnProperty.call(r, 'dadosPessoais'), false);
     assert.equal(Object.prototype.hasOwnProperty.call(r, 'contatoEmergencia'), false);
     assert.equal(Object.prototype.hasOwnProperty.call(r.documentos, 'rg'), false);
-    // Não-sensíveis seguem visíveis: dadosPessoaisBasicos, documentos.cnh, informacoesEntrega.
+    assert.equal(Object.prototype.hasOwnProperty.call(r.documentos, 'cnh'), false);
+    assert.deepEqual(r.documentos, {});
+    // Não-sensíveis seguem visíveis: dadosPessoaisBasicos, informacoesEntrega.
     assert.deepEqual(r.dadosPessoaisBasicos, {
       nomeCompleto: '<nome de teste>', dataNascimento: '1990-01-01', telefone: '11999999999',
     });
-    assert.equal(r.documentos.cnh, '99999999999');
     assert.deepEqual(r.informacoesEntrega, { operadorLogistico: 'Movee', modal: 'moto' });
     assert.equal(r.enriquecidoEm, '2026-08-01T12:00:00Z');
   });
@@ -411,6 +412,52 @@ describe('mapEntregoEnriquecimento (RBAC de campo, task 5.4)', () => {
     assert.equal(r.dadosPessoas, undefined);
     assert.deepEqual(r.dadosPessoaisBasicos, { nomeCompleto: null, dataNascimento: null, telefone: null });
     assert.deepEqual(r.documentos, { rg: null, cnh: null });
+  });
+
+  // dec-087 (task 8.3.4) — payload REAL tem forma variável por modal
+  // (ACHADOS-PORTAL.md §9.5.3): ciclista (BICYCLE) tende a ter só `rg`,
+  // motociclista (MOTORCYCLE) só `cnh`. A omissão de chave sem permissão
+  // MUST valer nos dois casos, não só quando ambas as chaves existem.
+  describe('forma variável por modal (BICYCLE só rg / MOTORCYCLE só cnh)', () => {
+    const rowBicycle = {
+      dados_entrego_enriquecidos_em: '2026-08-01T12:00:00Z',
+      dados_entrego_json: {
+        dadosPessoais: { nomeCompleto: '<nome de teste>' },
+        documentos: { rg: '99.999.999-9' }, // cnh ausente (ciclista)
+        informacoesEntrega: { operadorLogistico: 'Movee', modal: 'BICYCLE' },
+      },
+    };
+    const rowMotorcycle = {
+      dados_entrego_enriquecidos_em: '2026-08-01T12:00:00Z',
+      dados_entrego_json: {
+        dadosPessoais: { nomeCompleto: '<nome de teste>' },
+        documentos: { cnh: '99999999999' }, // rg ausente (motociclista)
+        informacoesEntrega: { operadorLogistico: 'Movee', modal: 'MOTORCYCLE' },
+      },
+    };
+
+    test('BICYCLE com permissão -> rg presente, cnh null (chave sempre presente com permissão)', () => {
+      const r = mapEntregoEnriquecimento(rowBicycle, true);
+      assert.equal(r.documentos.rg, '99.999.999-9');
+      assert.equal(r.documentos.cnh, null);
+    });
+
+    test('BICYCLE sem permissão -> documentos sem nenhuma chave sensível', () => {
+      const r = mapEntregoEnriquecimento(rowBicycle, false);
+      assert.deepEqual(r.documentos, {});
+    });
+
+    test('MOTORCYCLE com permissão -> cnh presente, rg null (chave sempre presente com permissão)', () => {
+      const r = mapEntregoEnriquecimento(rowMotorcycle, true);
+      assert.equal(r.documentos.cnh, '99999999999');
+      assert.equal(r.documentos.rg, null);
+    });
+
+    test('MOTORCYCLE sem permissão -> documentos sem nenhuma chave sensível (era o furo do dec-087)', () => {
+      const r = mapEntregoEnriquecimento(rowMotorcycle, false);
+      assert.deepEqual(r.documentos, {});
+      assert.equal(Object.prototype.hasOwnProperty.call(r.documentos, 'cnh'), false);
+    });
   });
 });
 

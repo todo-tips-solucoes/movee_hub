@@ -105,12 +105,13 @@ export interface MotoristaVinculo {
 // ────────────────────────────────────────────────────────────────────────────
 // entregoEnriquecimento — dados buscados na EntreGô (hub-motorista-360 FASE
 // 5/7, contracts/hub-motoristas-detalhe.md §RBAC de campo). `dadosPessoais`/
-// `contatoEmergencia`/`documentos.rg` são OMITIDOS (chave ausente, nunca
-// `null`) quando falta a permissão `motoristas.dados_sensiveis` (FR-013,
-// dec-017/dec-072) — daí serem opcionais aqui. `rg`/`cnh`/`nomePai` também
-// podem ser `null` mesmo COM a permissão — a EntreGô tem forma variável por
-// documento/modal (ciclista tende a ter RG, motociclista CNH — ACHADOS-
-// PORTAL.md §9.5.3) — nunca tratar como garantido.
+// `contatoEmergencia`/`documentos.rg`/`documentos.cnh` são OMITIDOS (chave
+// ausente, nunca `null`) quando falta a permissão `motoristas.dados_sensiveis`
+// (FR-013, dec-017/dec-072/dec-087: todo documento de identidade) — daí
+// serem opcionais aqui. `rg`/`cnh`/`nomePai` também podem ser `null` mesmo
+// COM a permissão — a EntreGô tem forma variável por documento/modal
+// (ciclista tende a ter RG, motociclista CNH — ACHADOS-PORTAL.md §9.5.3) —
+// nunca tratar como garantido.
 //
 // 🔴 dec-072: nenhuma URL de foto de documento é capturada pelo backend nem
 // exposta aqui — de propósito (instrução do operador: "apenas numeração").
@@ -134,8 +135,9 @@ export interface EntregoDocumentos {
   /** Ausente (chave omitida) sem `motoristas.dados_sensiveis` — distinto de
    * `null` (motorista sem RG cadastrado, ex.: motociclista com só CNH). */
   rg?: string | null;
-  /** Não é sensível por FR-014 — sempre presente (pode ser `null`). */
-  cnh: string | null;
+  /** Ausente (chave omitida) sem `motoristas.dados_sensiveis` (dec-087) —
+   * distinto de `null` (motorista sem CNH cadastrada, ex.: ciclista com só RG). */
+  cnh?: string | null;
 }
 
 export interface EntregoContatoEmergencia {
@@ -162,9 +164,12 @@ export interface EntregoEnriquecimento {
 
 function parseEntregoDocumentos(raw: unknown): EntregoDocumentos {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const out: EntregoDocumentos = { cnh: isStringOrNull(r.cnh) ? r.cnh : null };
+  const out: EntregoDocumentos = {};
   if (Object.prototype.hasOwnProperty.call(r, 'rg')) {
     out.rg = isStringOrNull(r.rg) ? r.rg : null;
+  }
+  if (Object.prototype.hasOwnProperty.call(r, 'cnh')) {
+    out.cnh = isStringOrNull(r.cnh) ? r.cnh : null;
   }
   return out;
 }

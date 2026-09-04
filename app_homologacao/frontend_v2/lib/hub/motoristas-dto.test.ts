@@ -181,14 +181,14 @@ describe('parseMotoristaDetalhe', () => {
       expect(parsed.entregoEnriquecimento).toBeNull();
     });
 
-    it('SEM motoristas.dados_sensiveis -> dadosPessoais/contatoEmergencia/documentos.rg AUSENTES (não null)', () => {
+    it('SEM motoristas.dados_sensiveis -> dadosPessoais/contatoEmergencia/documentos.rg/documentos.cnh AUSENTES (não null, dec-087)', () => {
       const parsed = parseMotoristaDetalhe({
         id: 1,
         nome: 'X',
         entregoEnriquecimento: {
           enriquecidoEm: '2026-08-01T12:00:00.000Z',
           dadosPessoaisBasicos: { nomeCompleto: 'Fulano', dataNascimento: '1990-01-01', telefone: '11999999999' },
-          documentos: { cnh: '99999999999' },
+          documentos: {},
           informacoesEntrega: { operadorLogistico: 'Movee', modal: 'moto' },
         },
       });
@@ -196,9 +196,9 @@ describe('parseMotoristaDetalhe', () => {
       expect(Object.prototype.hasOwnProperty.call(parsed.entregoEnriquecimento, 'dadosPessoais')).toBe(false);
       expect(Object.prototype.hasOwnProperty.call(parsed.entregoEnriquecimento, 'contatoEmergencia')).toBe(false);
       expect(Object.prototype.hasOwnProperty.call(parsed.entregoEnriquecimento!.documentos, 'rg')).toBe(false);
-      // dec-040 — sempre visíveis, mesmo sem a permissão de dados sensíveis.
+      expect(Object.prototype.hasOwnProperty.call(parsed.entregoEnriquecimento!.documentos, 'cnh')).toBe(false);
+      // dec-040 — sempre visível, mesmo sem a permissão de dados sensíveis.
       expect(parsed.entregoEnriquecimento!.dadosPessoaisBasicos.telefone).toBe('11999999999');
-      expect(parsed.entregoEnriquecimento!.documentos.cnh).toBe('99999999999');
     });
 
     // ACHADOS-PORTAL.md §9.5.3 — forma variável: `rg`/`cnh`/`nomePai` podem

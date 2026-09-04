@@ -499,11 +499,12 @@ export default function MotoristaDetalhePage() {
           {/* hub-motorista-360 FASE 7 (tasks 7.1/7.2) — dados buscados sob
               demanda na EntreGô. Visível a quem tem `motoristas.consultar`
               (RBAC de CAMPO, não de seção — mesmo espírito do backend:
-              `dadosPessoaisBasicos`/`documentos.cnh`/`informacoesEntrega`
-              sempre presentes, `dadosPessoais`/`contatoEmergencia`/
-              `documentos.rg` só com `motoristas.dados_sensiveis`, dec-040/
-              dec-017/dec-072). 🔴 Nenhuma URL de foto de documento é
-              exibida/linkada aqui — o backend nunca as envia (dec-072). */}
+              `dadosPessoaisBasicos`/`informacoesEntrega` sempre presentes,
+              `dadosPessoais`/`contatoEmergencia`/`documentos.rg`/
+              `documentos.cnh` só com `motoristas.dados_sensiveis` (dec-087:
+              todo documento de identidade), dec-040/dec-017/dec-072. 🔴
+              Nenhuma URL de foto de documento é exibida/linkada aqui — o
+              backend nunca as envia (dec-072). */}
           <Card>
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle as="h2" className="text-base">
@@ -564,7 +565,11 @@ export default function MotoristaDetalhePage() {
                       valor={formatDateBR(detalhe.entregoEnriquecimento.dadosPessoaisBasicos.dataNascimento) || null}
                     />
                     <CampoTexto label="Telefone" valor={detalhe.entregoEnriquecimento.dadosPessoaisBasicos.telefone} />
-                    <CampoTexto label="CNH" valor={detalhe.entregoEnriquecimento.documentos.cnh} />
+                    {Object.prototype.hasOwnProperty.call(detalhe.entregoEnriquecimento.documentos, 'cnh') ? (
+                      <CampoTexto label="CNH" valor={detalhe.entregoEnriquecimento.documentos.cnh ?? null} />
+                    ) : (
+                      <CampoRestrito label="CNH" />
+                    )}
                     {Object.prototype.hasOwnProperty.call(detalhe.entregoEnriquecimento.documentos, 'rg') ? (
                       <CampoTexto label="RG" valor={detalhe.entregoEnriquecimento.documentos.rg ?? null} />
                     ) : (

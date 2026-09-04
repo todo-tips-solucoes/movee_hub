@@ -103,11 +103,13 @@ test.describe('FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo
 
     // campos NUNCA sensíveis: continuam visíveis com o valor real.
     await expect(page.getByText('E2E360 Nome EntreGo C')).toBeVisible();
-    await expect(page.getByText('SINTETICO-CNH-99999999999')).toBeVisible();
 
     // campos SENSÍVEIS: label continua visível, mas com "acesso restrito" —
     // NUNCA o valor real, e a asserção é pela ausência do VALOR (não por
     // string vazia — o backend omite a CHAVE inteira do JSON, FR-013).
+    // dec-087: CNH entrou na lista (mesmo tratamento do RG — mesmo tipo de
+    // documento, mesma tela).
+    await expect(page.getByText('SINTETICO-CNH-99999999999')).toHaveCount(0);
     await expect(page.getByText('SINTETICO-RG-22.222.222-2')).toHaveCount(0);
     await expect(page.getByText('sintetico360c@example.invalid')).toHaveCount(0);
     await expect(page.getByText('SINTETICO-CPF-222.222.222-22')).toHaveCount(0);
@@ -115,10 +117,10 @@ test.describe('FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo
     await expect(page.getByText('SINTETICO Pai C')).toHaveCount(0);
     await expect(page.getByText(/SINTETICO Contato C/)).toHaveCount(0);
 
-    // 5 campos de dadosPessoais (E-mail/CPF/mãe/pai) + RG + contato de
-    // emergência -> pelo menos 5 "acesso restrito" visíveis (CampoRestrito).
+    // CNH + RG + 4 campos de dadosPessoais (e-mail/CPF/mãe/pai) + contato de
+    // emergência -> pelo menos 6 "acesso restrito" visíveis (CampoRestrito).
     const restritos = page.getByText('acesso restrito');
     await expect(restritos.first()).toBeVisible();
-    expect(await restritos.count()).toBeGreaterThanOrEqual(5);
+    expect(await restritos.count()).toBeGreaterThanOrEqual(6);
   });
 });

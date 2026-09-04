@@ -87,12 +87,13 @@ const ENTREGO_ENRIQUECIDO_COM_SENSIVEIS = {
 };
 
 // SEM `motoristas.dados_sensiveis` (RBAC de campo, FR-013): backend OMITE
-// as chaves — `documentos.rg` ausente, `dadosPessoais`/`contatoEmergencia`
-// ausentes por completo (não `null`).
+// as chaves — `documentos.rg`/`documentos.cnh` ausentes (dec-087: todo
+// documento de identidade), `dadosPessoais`/`contatoEmergencia` ausentes
+// por completo (não `null`).
 const ENTREGO_ENRIQUECIDO_SEM_SENSIVEIS = {
   enriquecidoEm: '2026-08-01T12:00:00.000Z',
   dadosPessoaisBasicos: { nomeCompleto: 'Fulano da Silva', dataNascimento: '1990-01-01', telefone: '11999999999' },
-  documentos: { cnh: '99999999999' },
+  documentos: {},
   informacoesEntrega: { operadorLogistico: 'Movee', modal: 'moto' },
 };
 
@@ -354,7 +355,7 @@ describe('MotoristaDetalhePage', () => {
   // sem identificador, indisponibilidade 409/429), e 🔴 nenhuma URL de
   // foto de documento renderizada (dec-072).
   describe('Dados da EntreGô (FASE 7, tasks 7.1/7.2)', () => {
-    it('COM dados sensíveis no payload: mostra CPF/RG/e-mail/contato de emergência, sem "acesso restrito"', async () => {
+    it('COM dados sensíveis no payload: mostra CPF/RG/CNH/e-mail/contato de emergência, sem "acesso restrito"', async () => {
       mockObterMotorista.mockResolvedValueOnce({
         ...DETALHE_COM_VINCULO,
         entregoEnriquecimento: ENTREGO_ENRIQUECIDO_COM_SENSIVEIS,
@@ -363,13 +364,14 @@ describe('MotoristaDetalhePage', () => {
 
       await waitFor(() => expect(screen.getByText('999.999.999-99')).toBeInTheDocument()); // CPF
       expect(screen.getByText('99.999.999-9')).toBeInTheDocument(); // RG
+      expect(screen.getByText('99999999999')).toBeInTheDocument(); // CNH (dec-087)
       expect(screen.getByText('t@example.com')).toBeInTheDocument();
       expect(screen.getByText('<mae>')).toBeInTheDocument();
       expect(screen.getByText('<pai>')).toBeInTheDocument();
       expect(screen.queryByText('acesso restrito')).not.toBeInTheDocument();
     });
 
-    it('SEM dados sensíveis no payload (chaves omitidas): mostra "acesso restrito", nunca "não informado"/erro', async () => {
+    it('SEM dados sensíveis no payload (chaves omitidas): mostra "acesso restrito" p/ CNH e RG (dec-087), nunca "não informado"/erro', async () => {
       mockObterMotorista.mockResolvedValueOnce({
         ...DETALHE_COM_VINCULO,
         entregoEnriquecimento: ENTREGO_ENRIQUECIDO_SEM_SENSIVEIS,
@@ -378,10 +380,10 @@ describe('MotoristaDetalhePage', () => {
 
       // dec-040 — básicos continuam visíveis mesmo sem a permissão.
       await waitFor(() => expect(screen.getByText('Movee')).toBeInTheDocument());
-      expect(screen.getByText('99999999999')).toBeInTheDocument(); // CNH — não é sensível
+      expect(screen.queryByText('99999999999')).not.toBeInTheDocument(); // CNH agora restrita (dec-087)
 
-      // rg (1) + email/cpf/nomeMae/nomePai (4) + contatoEmergencia (1) = 6.
-      expect(screen.getAllByText('acesso restrito')).toHaveLength(6);
+      // cnh (1) + rg (1) + email/cpf/nomeMae/nomePai (4) + contatoEmergencia (1) = 7.
+      expect(screen.getAllByText('acesso restrito')).toHaveLength(7);
     });
 
     it('nunca renderiza URL/nome de campo de foto de documento (dec-072)', async () => {

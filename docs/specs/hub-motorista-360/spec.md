@@ -101,6 +101,20 @@ FR-009, FR-012 e SC-005 abaixo, toda afirmação anterior de casamento
   decidida? → A: **Não** (dec-041) — os backups seguem a própria retenção já
   configurada (12 meses); o expurgo, quando existir, não os alcança.
 
+### Sessão 2026-09-04 (execute-task FASE 8 — auditoria pós-implementação achou gap de RBAC)
+
+- Q: A CNH ficou fora da enumeração de FR-013/FR-014, tornando-a visível ao
+  perfil `leitura` enquanto o RG (mesmo tipo de documento, mesma tela) é
+  restrito — manter essa inconsistência ou fechar? → A: **Fechar** (dec-087)
+  — todo documento de identidade fica atrás de `motoristas.dados_sensiveis`,
+  CNH incluída. Origem do gap: no screenshot do briefing original o campo
+  CNH estava vazio, então a pergunta de RBAC levada ao operador a omitiu; a
+  CNH só passou a existir nos dados após o levantamento da EntreGô
+  (dec-070/071), quando FR-013/FR-014 já estavam escritas. Agravante: para o
+  motociclista a CNH é o único documento no payload (`rg` ausente —
+  `docs/plans/robo-entrego/ACHADOS-PORTAL.md` §9.5.3), logo mantê-la aberta
+  expunha justamente quem não tem RG.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Vínculo automático da credencial de acesso ao motorista do hub (Priority: P1)
@@ -295,7 +309,7 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   Story 2) permanece exclusivamente sob demanda por motorista (FR-005) e MUST
   NOT ser disparado em varredura de massa sobre os cadastros retroativos.
 - **FR-013**: Sistema MUST restringir a visualização dos dados pessoais sensíveis
-  desta feature (CPF, RG, nome da mãe, nome do pai, e-mail, contato de
+  desta feature (CPF, RG, CNH, nome da mãe, nome do pai, e-mail, contato de
   emergência) a uma permissão nova e dedicada, concedida somente aos perfis
   `admin_entidade` e `admin_plataforma` — seguindo o padrão granular já
   existente no hub para `motoristas.credencial` (migration 0044). Identificador
@@ -305,7 +319,7 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   permissão estiver ausente, o sistema MUST OMITIR a chave do campo sensível no
   payload de resposta — nunca devolver `null` ou um valor mascarado (ex.:
   `***.***.***-**`), que ainda revelaria o formato do dado (CHK012).
-- **FR-014**: Sistema MUST tratar CPF, RG, nome dos pais, contato de emergência e
+- **FR-014**: Sistema MUST tratar CPF, RG, CNH, nome dos pais, contato de emergência e
   e-mail como dados pessoais sensíveis, sujeitos ao controle de acesso resolvido em
   FR-013 e ao mesmo padrão de auditoria já aplicado hoje a ações sobre credencial de
   motorista no hub. Nome completo, data de nascimento e telefone do motorista são

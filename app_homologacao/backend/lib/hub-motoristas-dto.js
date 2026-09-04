@@ -133,9 +133,10 @@ function mapMotoristaListItem(row, areas = []) {
  * dentro do objeto (nunca `null`/mascarado — evitaria vazar até o formato do
  * dado, mesmo espírito de `mascararCnpj` mas por omissão de chave em vez de
  * substituição de valor). `dadosPessoaisBasicos` (nome/data
- * nascimento/telefone) e `documentos.cnh` NÃO são sensíveis por FR-014 e
- * ficam sempre presentes — só `dadosPessoais` (objeto completo),
- * `documentos.rg` e `contatoEmergencia` exigem `motoristas.dados_sensiveis`.
+ * nascimento/telefone) NÃO é sensível por FR-014 e fica sempre presente —
+ * `dadosPessoais` (objeto completo), `documentos.rg`, `documentos.cnh`
+ * (dec-087: todo documento de identidade, mesmo tratamento do `rg`) e
+ * `contatoEmergencia` exigem `motoristas.dados_sensiveis`.
  * @param {{dados_entrego_json: object|null, dados_entrego_enriquecidos_em: string|null}} row
  * @param {boolean} temPermissaoDadosSensiveis
  * @returns {object|null}
@@ -155,9 +156,12 @@ function mapEntregoEnriquecimento(row, temPermissaoDadosSensiveis) {
       dataNascimento: dp.dataNascimento ?? null,
       telefone: dp.telefone ?? null,
     },
+    // dec-087: CNH é documento de identidade tal qual o RG (motociclista às
+    // vezes só tem CNH, sem RG — mantê-la aberta expunha justamente quem não
+    // tem RG). Sem a permissão, `documentos` fica vazio: nenhuma chave.
     documentos: temPermissaoDadosSensiveis
       ? { rg: doc.rg ?? null, cnh: doc.cnh ?? null }
-      : { cnh: doc.cnh ?? null },
+      : {},
     informacoesEntrega: {
       operadorLogistico: ie.operadorLogistico ?? null,
       modal: ie.modal ?? null,

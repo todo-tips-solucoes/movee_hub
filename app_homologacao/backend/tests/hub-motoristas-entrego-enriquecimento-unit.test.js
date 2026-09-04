@@ -240,7 +240,7 @@ describe('GET /api/v1/motoristas/:id — RBAC de campo + auditoria (tasks 5.4.4/
     assert.equal(registrosAuditoria[0].recursoId, 1);
   });
 
-  test('SEM motoristas.dados_sensiveis (papel leitura) -> chaves ausentes, jq has(dadosPessoais)=false, SEM evento', async () => {
+  test('SEM motoristas.dados_sensiveis (papel leitura) -> chaves ausentes (RG e CNH, dec-087), jq has(dadosPessoais)=false, SEM evento', async () => {
     permissoesFlat = new Set(['motoristas.consultar']);
     permissoesPorEntidade = new Set(['motoristas.consultar']);
     const r = await request('GET', '/api/v1/motoristas/1', { cookie: tokenCookie() });
@@ -248,7 +248,7 @@ describe('GET /api/v1/motoristas/:id — RBAC de campo + auditoria (tasks 5.4.4/
     assert.equal(Object.prototype.hasOwnProperty.call(r.body.entregoEnriquecimento, 'dadosPessoais'), false);
     assert.equal(Object.prototype.hasOwnProperty.call(r.body.entregoEnriquecimento, 'contatoEmergencia'), false);
     assert.equal(Object.prototype.hasOwnProperty.call(r.body.entregoEnriquecimento.documentos, 'rg'), false);
-    assert.equal(r.body.entregoEnriquecimento.documentos.cnh, '99999999999');
+    assert.equal(Object.prototype.hasOwnProperty.call(r.body.entregoEnriquecimento.documentos, 'cnh'), false);
     assert.equal(registrosAuditoria.length, 0);
   });
 
