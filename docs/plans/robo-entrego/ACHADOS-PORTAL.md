@@ -211,7 +211,7 @@ Detalhes que importam para o robô:
 - escopo pela **entidade ativa do token**, nunca pelo corpo — o robô precisa de um
   usuário de serviço com `importacoes.criar` na entidade certa
 
-## 8. "Dados da pessoa entregadora" (hub-motorista-360 FASE 5) — NÃO LEVANTADO
+## 9. "Dados da pessoa entregadora" (hub-motorista-360 FASE 5) — NÃO LEVANTADO
 
 ⚠️ **Diferente de tudo acima.** As seções 1-7 cobrem o fluxo de RELATÓRIOS
 (Performance/Financeiro, já em produção desde 2026-08-28). A feature
