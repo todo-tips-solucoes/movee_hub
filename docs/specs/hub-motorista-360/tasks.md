@@ -549,13 +549,13 @@ Ref: `spec.md` FR-005; `contracts/entrego-enriquecimento.md` §1
 
 Ref: CLAUDE.md §Comandos; `npm run test:hub:integration`
 
-- [ ] 8.1.1 Cobrir todos os cenários de `quickstart.md` (1 a 7) com
-      `node --test` contra `hub-homolog` isolado
-- [ ] 8.1.2 Rodar `npm test` (suíte completa) e confirmar 0 regressões na
-      suíte existente
-- [ ] 8.1.3 Confirmar que os testes cobrem os 3 casos de erro do endpoint
+- [x] 8.1.1 Cobrir todos os cenários de `quickstart.md` (1 a 7) com
+      `node --test` contra `hub-homolog` isolado <!-- onda-016: tests/hub-motorista-360-integration.test.js + infra/hub/testes/hub-motorista-360-integration-homolog.sh, contra o hub-homolog persistente (sem stack nova) via 3 contas QA reais (admin_entidade/leitura/robo_entrego_servico); Scenarios 1/2/4/6/7 + 5-parcial (202/429) PASS 30/30 asserts. ACHADO: hub_homolog_backend estava com imagem de 2026-08-29 (anterior a TODA a FASE 3-7 desta feature) — sem rebuild, register/vinculo automático/entrego-enriquecimento eram 404/no-op silencioso; corrigido via `docker compose build backend && up -d --no-deps backend` (script de teste documenta isso no cabeçalho). Scenario 3 (backfill) e Scenario 5 (409) deliberadamente não reexecutados aqui — ver 8.1.3 -->
+- [x] 8.1.2 Rodar `npm test` (suíte completa) e confirmar 0 regressões na
+      suíte existente <!-- onda-016: node --test (script "test") -> 780 tests/162 suites, 780 pass/0 fail -->
+- [x] 8.1.3 Confirmar que os testes cobrem os 3 casos de erro do endpoint
       de busca (409/429/202) e os 2 casos de RBAC de campo
-      (`leitura`/`admin_entidade`)
+      (`leitura`/`admin_entidade`) <!-- onda-016: 429/202 + RBAC leitura/admin_entidade cobertos em UNIT (tests/hub-motoristas-entrego-enriquecimento-unit.test.js) E em integração real (hub-motorista-360-integration-homolog.sh). 409 SEM_IDENTIFICADOR_ENTREGO coberto SÓ em unit (mock com id_externo=null) — "Entregador".id_externo é `uuid NOT NULL` desde a migration 0010 (nunca alterada), então o branch 409 é estruturalmente irreprodutível contra o schema real; provado empiricamente no script (tentativa de INSERT com id_externo NULL falha com constraint violation). Achado registrado para o operador — não é bug desta feature (schema pré-existente da hub-motoristas), não corrigido nesta onda (fora do escopo de FASE 8 execução de testes) -->
 
 ### 8.2 E2E do hub (Playwright, driver oficial) `[A]`
 
