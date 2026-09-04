@@ -4,6 +4,27 @@
 **Created**: 2026-09-03
 **Status**: Draft
 
+## Clarifications
+
+### Session 2026-09-03
+
+- Q: Qual atributo é usado para vincular automaticamente a credencial criada
+  no aplicativo do motorista ao motorista já existente no hub (FR-009)? → A:
+  CNPJ (`cnpj_prestador`) — já é a chave de vínculo `ContaMotorista`↔
+  `Entregador` usada hoje no fluxo manual existente e é globalmente único; o
+  identificador EntreGô (`Entregador.id_externo`) só é único por empresa
+  (`UNIQUE (id_empresa, id_externo)`), o que geraria colisão entre empresas
+  se usado como chave global de vínculo automático.
+- Q: De onde vem o identificador (UUID) da EntreGô que cada motorista do hub
+  precisa ter associado para a busca funcionar (FR-006)? → A: Já existe hoje
+  em `Entregador.id_externo`, populado pelo pipeline de importação
+  automática (robô EntreGô) a partir da coluna `id_da_pessoa_entregadora` do
+  CSV — a feature reusa esse campo já existente, sem novo mecanismo de
+  captura ou cadastro manual.
+- Q: A busca de dados na EntreGô (FR-005) fica mesmo restrita a sob demanda,
+  um motorista por vez, sem execução em lote ou agendada nesta entrega? → A:
+  Confirmado — mantém FR-005 como já assumido, sem novo scheduler.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Vínculo automático da credencial de acesso ao motorista do hub (Priority: P1)
@@ -129,7 +150,12 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   a busca é por um motorista de cada vez — não há pedido de execução em lote ou
   agendada nesta entrega; ver nota de infraestrutura abaixo).
 - **FR-006**: Sistema MUST associar a cada motorista do hub um identificador da
-  plataforma EntreGô, usado para localizar seus dados nessa busca.
+  plataforma EntreGô, usado para localizar seus dados nessa busca. Esse
+  identificador já é capturado hoje pelo pipeline de importação automática
+  (robô EntreGô) em `Entregador.id_externo` — a feature MUST reusar esse
+  campo já existente, sem introduzir um novo mecanismo de captura ou
+  cadastro manual (a coluna/fonte exata MUST ser confirmada na fase de
+  plano contra o código real).
 - **FR-007**: Sistema MUST reaproveitar o mecanismo de sessão/autenticação já
   existente com a plataforma EntreGô (o mesmo já usado hoje em produção pela
   importação automática) em vez de implementar um novo, e informar claramente o
@@ -141,10 +167,11 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   plano contra o código real — nunca suposta).
 - **FR-009**: Sistema MUST vincular automaticamente, sem ação manual do gestor, a
   conta de acesso do aplicativo do motorista ao motorista correspondente do hub no
-  momento em que o cadastro/credencial é criado no aplicativo.
-  [NEEDS CLARIFICATION: qual atributo é usado para casar o cadastro feito no
-  aplicativo do motorista com o motorista já existente no hub — CPF, CNPJ,
-  identificador EntreGô ou outro?]
+  momento em que o cadastro/credencial é criado no aplicativo, casando os dois
+  cadastros pelo **CNPJ** (`cnpj_prestador`) — o mesmo atributo já usado hoje
+  como chave de vínculo `ContaMotorista`↔`Entregador` no fluxo manual
+  existente, e o único identificador globalmente único disponível (o
+  identificador EntreGô é único apenas por empresa).
 - **FR-010**: Sistema MUST manter disponíveis as ações manuais já existentes
   "Vincular" e "Criar credencial" como alternativa para os casos em que o vínculo
   automático (FR-009) não encontra correspondência confiável.
