@@ -36,7 +36,7 @@ satisfaz SC-002 ("sem qualquer ação manual do gestor").
   fila de mensagens); over-engineering para uma escrita adicional de ~3
   chamadas HTTP internas ao mesmo PostgREST.
 
-## Decision 2: Chave de vínculo é CNPJ (`cnpj_prestador`) — já ratificado
+## Decision 2: Chave de vínculo é CNPJ (`cnpj_prestador`) — já ratificado — escopo corrigido por Decision 12
 
 **Decision**: reusar a decisão já registrada no `clarify` (dec-009,
 spec FR-009): `cnpj_prestador` é a chave — global e única em
@@ -49,6 +49,13 @@ todos os outros designs deste plano dependem dela.
 de vínculo automático cross-tenant.
 
 **Alternatives considered**: nenhuma nova — ver dec-009.
+
+**Escopo corrigido (2026-09-04, block-004/Decision 12)**: esta Decision cobre
+apenas a chave de `ContaMotorista` — isso permanece verdadeiro. O que esta
+Decision **não** cobre, e a redação original não deixava claro, é como
+`ContaMotorista` se liga ao `Entregador`: `Entregador` não tem coluna de CNPJ,
+então esse segundo passo é por similaridade de nome, não por CNPJ. Ver
+Decision 12 para o mecanismo completo.
 
 ## Decision 3: FR-008 (CNPJ do legado) não exige coluna nova
 

@@ -26,7 +26,7 @@ Tabela já existente. Campos atuais (não alterados):
 
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
-| dados_entrego_json | jsonb | NULL | payload enriquecido — shape interno controlado pelo hub (ver nota de shape abaixo), não é cópia literal do payload da EntreGô (que é `[PROPOSTA]`, Decision 9 de `research.md`) |
+| dados_entrego_json | jsonb | NULL | payload enriquecido — shape interno controlado pelo hub (ver nota de shape abaixo), não é cópia literal do payload da EntreGô (que é `[PROPOSTA]`, Decision 9 de `research.md`). Contém dados pessoais sensíveis de terceiro sem prazo de retenção definido ainda — nenhum expurgo automático até a política existir (FR-017) |
 | dados_entrego_enriquecidos_em | timestamptz | NULL | último enriquecimento bem-sucedido; `NULL` = nunca enriquecido (User Story 2, cenário 3: "sistema informa que falta associar identificador" continua sendo o gate de `id_externo`, não este campo). Também é o seletor da rotina semestral (FR-016): `< now() - interval '6 months'` |
 | dados_entrego_solicitado_em | timestamptz | NULL | pedido pendente de busca sob demanda (FR-005); setado por `POST /motoristas/:id/entrego-enriquecimento`, limpo pelo worker de `infra/robo-entrego/` ao concluir (sucesso ou falha definitiva) |
 
@@ -52,7 +52,7 @@ hub — internos, não afirmam nome de campo da EntreGô, que segue
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
 | id | serial | PK | |
-| cnpj_prestador | text | NOT NULL UNIQUE | **chave de vínculo automático (FR-009)** e fonte do CNPJ exibido (FR-008 — Decision 3 de `research.md`) |
+| cnpj_prestador | text | NOT NULL UNIQUE | **chave de localização/criação de `ContaMotorista`, passo 1 do vínculo automático (FR-009)** — o passo 2 (achar o `Entregador`) é por similaridade de nome, não por esta coluna — e fonte do CNPJ exibido (FR-008 — Decision 3 de `research.md`) |
 | nome | text | NOT NULL | |
 | ativo | boolean | NOT NULL DEFAULT true | |
 | cadastro_completo | boolean | NOT NULL DEFAULT true | |

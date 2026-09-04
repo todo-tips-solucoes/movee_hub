@@ -10,11 +10,12 @@
 
 - Q: Qual atributo é usado para vincular automaticamente a credencial criada
   no aplicativo do motorista ao motorista já existente no hub (FR-009)? → A:
-  CNPJ (`cnpj_prestador`) — já é a chave de vínculo `ContaMotorista`↔
-  `Entregador` usada hoje no fluxo manual existente e é globalmente único; o
-  identificador EntreGô (`Entregador.id_externo`) só é único por empresa
-  (`UNIQUE (id_empresa, id_externo)`), o que geraria colisão entre empresas
-  se usado como chave global de vínculo automático.
+  **[CORRIGIDO — ver "Correção 2026-09-04" abaixo]** resposta original:
+  CNPJ (`cnpj_prestador`) seria a chave de vínculo `ContaMotorista`↔
+  `Entregador` — premissa refutada pelo schema real (`Entregador` não tem
+  coluna de CNPJ). O CNPJ segue sendo a chave de `ContaMotorista` (isso
+  estava certo); o que mudou é como `ContaMotorista` se liga ao
+  `Entregador`.
 - Q: De onde vem o identificador (UUID) da EntreGô que cada motorista do hub
   precisa ter associado para a busca funcionar (FR-006)? → A: Já existe hoje
   em `Entregador.id_externo`, populado pelo pipeline de importação
@@ -43,6 +44,39 @@
   já existente no hub para `motoristas.credencial` (migration 0044); o
   perfil `leitura` continua vendo o motorista, mas não os dados pessoais
   sensíveis.
+
+### Correção 2026-09-04 (pós block-004 / dec-031, dec-032)
+
+A resposta original da primeira pergunta acima estava errada sobre um fato do
+sistema: `Entregador` (migration 0010) **não tem coluna de CNPJ** — os campos
+são `id, id_empresa, id_externo, nome, motorista_id, ativo, criado_em,
+atualizado_em` (confirmado em 0010 e em todos os `ALTER TABLE` da série até
+0021). O casamento automático de FR-009/FR-012 é, na verdade, em **dois
+passos distintos**:
+
+1. A `ContaMotorista` continua sendo localizada/criada por **CNPJ**
+   (`cnpj_prestador`) — isso é verdade hoje e não muda (`POST
+   /motorista/register`, `routes/hub-motoristas.js:988`;
+   `ContaMotorista.cnpj_prestador NOT NULL UNIQUE`, migration 0021).
+2. Qual `Entregador` recebe `motorista_id` = essa conta **não se resolve por
+   CNPJ** (a coluna não existe) — é resolvido por **similaridade de nome**,
+   reusando o mesmo mecanismo já em produção da RPC
+   `hub_motoristas_candidatos` (migration 0023, piso 0.3 para sugestão
+   humana), com um limiar mais estrito para o caminho automático: vincula
+   somente quando há **exatamente 1** candidato com similaridade **>= 0.9**;
+   0 ou 2+ candidatos acima do piso não vinculam automaticamente e caem no
+   fluxo manual já existente (`Vincular`, sugestões a 0.3).
+
+Fontes descartadas antes de chegar nessa decisão (operador confirmou, ver
+`block-004`): o CSV do robô EntreGô traz `id_da_pessoa_entregadora` (uuid),
+sem CNPJ; `FaturamentoLancamento`/`PerformanceTurno` não têm CNPJ; a ponte
+`EnvioMassa.entregador_uuid` (migration 0046) existe **somente** no ambiente
+isolado de teste (a própria migration declara "nunca chatmasterveloz/
+produção") e por isso não é viável em produção; a plataforma EntreGô expõe
+CPF do prestador, não CNPJ. Decisão do operador: similaridade de nome com
+piso alto, nunca vínculo errado silencioso. Esta correção substitui, em
+FR-009, FR-012 e SC-005 abaixo, toda afirmação anterior de casamento
+`Entregador`↔`ContaMotorista` por CNPJ.
 
 ## User Scenarios & Testing
 
@@ -170,7 +204,11 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
 - **FR-005**: Sistema MUST permitir que um usuário autorizado do hub acione, sob
   demanda e por motorista, a busca desses dados na plataforma EntreGô (assumption:
   a busca é por um motorista de cada vez — não há pedido de execução em lote ou
-  agendada nesta entrega; ver nota de infraestrutura abaixo).
+  agendada nesta entrega; ver nota de infraestrutura abaixo). O endpoint/mecanismo
+  usado por essa busca sob demanda é o mesmo consumido pela rotina semestral
+  (FR-016) e está sujeito à mesma restrição: MUST ser confirmado em
+  `docs/plans/robo-entrego/ACHADOS-PORTAL.md` (ou levantado empiricamente e
+  documentado lá) antes da implementação — nunca suposto (Constitution VI).
 - **FR-006**: Sistema MUST associar a cada motorista do hub um identificador da
   plataforma EntreGô, usado para localizar seus dados nessa busca. Esse
   identificador já é capturado hoje pelo pipeline de importação automática
@@ -189,22 +227,31 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   plano contra o código real — nunca suposta).
 - **FR-009**: Sistema MUST vincular automaticamente, sem ação manual do gestor, a
   conta de acesso do aplicativo do motorista ao motorista correspondente do hub no
-  momento em que o cadastro/credencial é criado no aplicativo, casando os dois
-  cadastros pelo **CNPJ** (`cnpj_prestador`) — o mesmo atributo já usado hoje
-  como chave de vínculo `ContaMotorista`↔`Entregador` no fluxo manual
-  existente, e o único identificador globalmente único disponível (o
-  identificador EntreGô é único apenas por empresa).
+  momento em que o cadastro/credencial é criado no aplicativo, em dois passos: (1)
+  localizar/criar a `ContaMotorista` pelo **CNPJ** (`cnpj_prestador`) — mesmo
+  atributo já usado hoje como chave dessa conta no fluxo manual existente, e o
+  único identificador globalmente único disponível (o identificador EntreGô é
+  único apenas por empresa); (2) encontrar o `Entregador` correspondente a essa
+  `ContaMotorista` por **similaridade de nome** — `Entregador` não possui coluna
+  de CNPJ, então esse casamento nunca é feito por CNPJ. O vínculo só é criado
+  automaticamente quando há **exatamente 1 candidato com similaridade de nome
+  >= 0.9** ("correspondência confiável"); nos demais casos (0 candidatos, ou 2+
+  candidatos acima do limiar) o sistema MUST NOT vincular automaticamente (ver
+  FR-010).
 - **FR-010**: Sistema MUST manter disponíveis as ações manuais já existentes
   "Vincular" e "Criar credencial" como alternativa para os casos em que o vínculo
   automático (FR-009) não encontra correspondência confiável.
 - **FR-011**: Sistema MUST NOT criar um segundo vínculo nem sobrescrever um vínculo
   de credencial já existente ao processar um novo cadastro no aplicativo do
   motorista para o mesmo motorista.
-- **FR-012**: Sistema MUST alcançar retroativamente, via backfill único por
-  `cnpj_prestador` (consulta local, sem chamada à plataforma EntreGô), todos os
-  motoristas e credenciais já cadastrados antes desta entrega para o vínculo
-  automático de credencial (User Story 1) — incluindo o caso já observado de
-  credencial ativa sem vínculo. O enriquecimento de dados da EntreGô (User
+- **FR-012**: Sistema MUST alcançar retroativamente, via backfill único que reaplica
+  a mesma lógica de FR-009 (localizar/criar `ContaMotorista` por `cnpj_prestador`,
+  depois vincular ao `Entregador` por similaridade de nome com o mesmo critério de
+  correspondência confiável), todos os motoristas e credenciais já cadastrados
+  antes desta entrega para o vínculo automático de credencial (User Story 1) —
+  incluindo o caso já observado de credencial ativa sem vínculo. Casos sem
+  correspondência confiável ficam disponíveis para vínculo manual (FR-010), nunca
+  vinculados incorretamente em massa. O enriquecimento de dados da EntreGô (User
   Story 2) permanece exclusivamente sob demanda por motorista (FR-005) e MUST
   NOT ser disparado em varredura de massa sobre os cadastros retroativos.
 - **FR-013**: Sistema MUST restringir a visualização dos dados pessoais sensíveis
@@ -237,6 +284,20 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   (ou levantado empiricamente e documentado lá) antes da implementação — nunca
   suposto (Constitution VI) — preferindo a via de API via `page.evaluate` sobre os
   XPaths do briefing, que ficam como plano B declarado no plano técnico.
+- **FR-017**: Sistema MUST ter uma política de retenção definida e documentada
+  para os dados pessoais sensíveis desta feature (FR-014) — CPF, RG, nome dos
+  pais, contato de emergência e e-mail, todos de um titular que não é usuário do
+  hub. O prazo exato e a base legal aplicável MUST ser confirmados com o
+  operador/DPO na fase de plano/tarefas (`[PROPOSTA — confirmar antes de
+  execute-task]`; Constitution VI — nenhum prazo é suposto nesta spec). Até essa
+  política existir, o sistema MUST NOT expurgar automaticamente os dados
+  enriquecidos, para não perder de forma irreversível um dado sem regra de
+  descarte definida.
+- **FR-018**: Sistema MUST registrar evento de auditoria, pelo mesmo mecanismo já
+  usado para as ações de escrita (FR-014), toda vez que um usuário autorizado
+  VISUALIZAR os campos pessoais sensíveis (`dadosPessoais`, `documentos.rg`,
+  `contatoEmergencia`) de um motorista via `GET /motoristas/:id` — não somente as
+  ações que os criam ou atualizam.
 
 > Decisões de infraestrutura: sem credencial nova nem política de rotação de
 > chaves nova — a busca de dados na EntreGô sob demanda (FR-005) e a rotina
@@ -273,8 +334,9 @@ confirmar que o mesmo CNPJ aparece na tela de detalhe do motorista no hub.
   cadastros repetidos do mesmo motorista no aplicativo do motorista (zero
   duplicações observadas em teste).
 - **SC-005**: Após o backfill único (FR-012), motoristas com credencial ativa e
-  correspondência confiável por CNPJ no hub passam a exibir o vínculo, incluindo
-  cadastros já existentes antes desta entrega (ex.: o caso relatado).
+  correspondência confiável (similaridade de nome >= 0.9, único candidato —
+  FR-009) no hub passam a exibir o vínculo, incluindo cadastros já existentes
+  antes desta entrega (ex.: o caso relatado).
 
 ## Delta Requirements
 

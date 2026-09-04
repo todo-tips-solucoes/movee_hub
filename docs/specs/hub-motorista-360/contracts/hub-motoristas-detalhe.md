@@ -34,6 +34,21 @@ sem custo adicional relevante) e checar
 `null`/string mascarada — evita vazar até o formato do dado (ex.: máscara
 `***.***.***-**` ainda revela que existe CPF).
 
+### Auditoria de leitura (FR-018)
+
+Quando a resposta inclui `dadosPessoais`, `documentos.rg` ou
+`contatoEmergencia` (ou seja, `motoristas.dados_sensiveis` presente),
+`buscarDetalheMotorista()` MUST chamar `registrarAuditoria()`
+(`lib/hub-auditoria.js`, mesma função já usada pelas ações de escrita desta
+feature — `contracts/vinculo-automatico.md`,
+`contracts/entrego-enriquecimento.md`), com `acao:
+'motorista.dados_sensiveis_visualizados'`, `recurso: 'Entregador'`,
+`recursoId: id`, `usuarioId` do solicitante — **nunca** o payload sensível em
+`detalhes` (mesma disciplina de `scrubDetalhes()` já usada nos eventos de
+escrita). Requisição de `leitura` (sem a permissão, sem os campos no
+payload) MUST NOT gerar este evento — só a leitura efetiva do dado sensível
+é auditada.
+
 ### Defesa em profundidade (gate `owasp-security`, achado A01 — informativo)
 
 O mascaramento é só em camada de aplicação (DTO), consistente com o padrão
