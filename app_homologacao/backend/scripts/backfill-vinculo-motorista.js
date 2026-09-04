@@ -66,12 +66,31 @@ async function legadoGet(endpoint) {
  * @param {Function} [vincularFn]
  * @returns {Promise<{totalProcessados:number, totalVinculados:number, totalAmbiguos:number}>}
  */
-async function processarBackfill(motoristas, vincularFn = vincularAutomaticamente) {
+async function processarBackfill(
+  motoristas,
+  vincularFn = vincularAutomaticamente,
+  opts = {},
+) {
+  // Throttle entre motoristas (pedido do operador no deploy de 2026-09-04):
+  // o backfill percorre centenas de motoristas em sequência, cada um gerando
+  // consultas + RPC de similaridade contra o MESMO PostgREST que serve o
+  // painel e o app. `BACKFILL_INTERVALO_MS` espaça as chamadas; default 0
+  // preserva o comportamento anterior (e é o que os testes exercitam).
+  const intervaloMs = Number(
+    opts.intervaloMs ?? process.env.BACKFILL_INTERVALO_MS ?? 0,
+  );
+  const dormir = opts.dormir
+    || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  let primeiro = true;
   let totalProcessados = 0;
   let totalVinculados = 0;
   let totalAmbiguos = 0;
 
   for (const m of motoristas || []) {
+    // Espaça ANTES de cada chamada, menos a primeira — assim N motoristas
+    // custam (N-1) intervalos, e um backfill de 1 motorista não espera à toa.
+    if (!primeiro && intervaloMs > 0) await dormir(intervaloMs);
+    primeiro = false;
     totalProcessados += 1;
     const cnpjNorm = String(m.cnpj_prestador || '').replace(/\D/g, '');
     if (!cnpjNorm) continue;
