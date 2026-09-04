@@ -285,13 +285,16 @@ GET https://api.entregolog.com/logistics-web-bff/operation/logistics-operator/dr
     email:      string<email>,
     cpf:        string<11 dígitos>,     // SEM máscara; a máscara 999.999.999-99 é do front
     motherName: string,
+    fatherName: string,                 // ⚠️ OMITIDA quando vazia — ver 9.5.3
     phone:      string                  // formato exibido "(99) 99999-9999"
   },
-  documentDriver: {
-    rg:                         string,
-    identityDocumentFrontPhoto: string<url>,
-    identityDocumentBackPhoto:  string<url>,
-    workerPhoto:                string<url>
+  documentDriver: {                  // ⚠️ FORMA VARIÁVEL — ver 9.5.3
+    rg:                         string,        // caso RG
+    identityDocumentFrontPhoto: string<url>,   // caso RG
+    identityDocumentBackPhoto:  string<url>,   // caso RG
+    cnh:                        string<11 dígitos>,  // caso CNH
+    driverLicensePhoto:         string<url>,   // caso CNH
+    workerPhoto:                string<url>    // nos dois casos
   },
   emergencyContact: {
     name:         string,
@@ -321,20 +324,41 @@ GET https://api.entregolog.com/logistics-web-bff/operation/logistics-operator/dr
    A importação deve normalizar, não assumir a máscara.
 2. **`birthdate` vem em `YYYY-MM-DD`**, não `DD/MM/AAAA` (idem: a tela
    formata).
-3. **⚠️ NÃO VERIFICADO — `Nome do pai` e `CNH` não apareceram no payload.**
-   A tela renderiza os dois rótulos, mas as chaves correspondentes **não
-   existem** na resposta do caso observado, no qual ambos estão vazios.
-   Hipótese (não confirmada): **a API omite chaves de valor nulo/vazio**.
-   Os nomes reais dessas chaves (`fatherName`? `cnh`?) **NÃO foram
-   observados** e **não devem ser supostos** — exigem um levantamento com um
-   motorista que tenha os dois campos preenchidos. Até lá, a importação deve
-   tratar ambos como ausentes e nunca falhar por isso.
-4. **Campos ADICIONAIS que o briefing não pediu** (o escopo da feature é o
-   operador quem decide — só o registro fica aqui): as 3 URLs de foto
-   (`identityDocumentFrontPhoto`, `identityDocumentBackPhoto`, `workerPhoto`),
+3. 🔴 **O payload tem FORMA VARIÁVEL — confirmado com 2 motoristas em
+   2026-09-04.** Não é só "omite nulos": o conjunto de chaves muda conforme o
+   documento e o modal da pessoa.
+
+   | Chave | Caso A (modal `BICYCLE`) | Caso B (modal `MOTORCYCLE`) |
+   |---|---|---|
+   | `personalData.fatherName` | **ausente** | presente |
+   | `documentDriver.rg` | presente | **ausente** |
+   | `documentDriver.cnh` | **ausente** | presente (11 dígitos) |
+   | `documentDriver.identityDocumentFrontPhoto` / `...BackPhoto` | presentes | **ausentes** |
+   | `documentDriver.driverLicensePhoto` | **ausente** | presente |
+   | `documentDriver.workerPhoto` | presente | presente |
+
+   **Consequência obrigatória para a implementação**: NENHUM campo de
+   `documentDriver` nem `personalData.fatherName` pode ser tratado como
+   garantido. Ler com acesso opcional, gravar `null` quando ausente e
+   **nunca falhar a importação por ausência** — uma implementação que
+   assumisse `rg` e `cnh` sempre presentes quebraria em boa parte da base,
+   porque ciclista tende a ter RG e motociclista, CNH.
+
+   As chaves `fatherName`, `cnh` e `driverLicensePhoto` foram **medidas** no
+   Caso B; a tela renderiza os rótulos "Nome do pai" e "CNH" nos dois casos,
+   vazios quando a chave não vem.
+4. **Campos ADICIONAIS que o briefing não pediu** (o escopo da feature é
+   decisão do operador — aqui fica só o registro): as URLs de foto
+   (`identityDocumentFrontPhoto`, `identityDocumentBackPhoto` e
+   `driverLicensePhoto`, conforme o caso; `workerPhoto` sempre),
    `currentModal.modalUuid`, `lastDelivery.possibleModals`,
    `lastDelivery.region` e a seção `quality` (`cashOnDeliveryEnabled`,
    `reasonInactivation`).
+
+   ⚠️ As fotos são **imagens de documento de identidade** — dado pessoal de
+   sensibilidade ainda maior que os campos de texto. Se entrarem no escopo,
+   o RBAC de `motoristas.dados_sensiveis` (`dec-017`) e a auditoria de
+   leitura (FR-018) precisam cobri-las explicitamente.
 5. **A tela tem 2 seções além das 4 do briefing**: `Qualidade` e
    `Cash on Delivery` (mapeadas em `quality`).
 
