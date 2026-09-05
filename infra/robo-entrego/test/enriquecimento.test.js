@@ -167,7 +167,56 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
   // 5xx persistente após os retries de comRetryTransitorio): não é culpa do
   // motorista corrente, então a rodada PARA em vez de queimar o resto da
   // fila como "falha" de cada item.
-  test('ErroPortalTransitorio (401 mid-rodada) -> PARA igual antibot, item corrente NÃO é reportado', async () => {
+  // Medido 2026-09-05: token de acesso de 3 min x 60 s entre motoristas =
+  // toda rodada com 4+ motoristas cruza a expiração NO MEIO. Antes, o 4º
+  // motorista tomava 401 e a rodada parava; cada timer seguinte relogava
+  // (código) e fazia mais 3. Aqui: 401 no motorista 2 -> refresh (não login)
+  // -> retenta -> a rodada inteira conclui, sem nenhum passo de login.
+  test('401 mid-rodada -> renova pelo REFRESH (sem login), retenta o item e conclui a rodada inteira', async () => {
+    const itens = [{ id: 1, idExterno: 'uuid-1' }, { id: 2, idExterno: 'uuid-2' }, { id: 3, idExterno: 'uuid-3' }];
+    const clienteHub = mockClienteHub({ itens });
+    const evaluates = [];
+    let loginTocado = false;
+    const page = {
+      url: () => 'https://franqueado.entregolog.com/',
+      goto: async () => {},
+      evaluate: async (fn) => {
+        evaluates.push(fn.name);
+        // sonda inicial 200 (sessão reusada); no meio da rodada, 401 -> refresh 200
+        if (fn.name === '_evalSondaSessao') return { status: evaluates.filter((n) => n === '_evalSondaSessao').length === 1 ? 200 : 401 };
+        if (fn.name === '_evalRenovarSessao') return { status: 200 };
+        throw new Error(`evaluate inesperado: ${fn.name}`);
+      },
+      fill: async () => { loginTocado = true; },
+      click: async () => { loginTocado = true; },
+      context: () => ({ storageState: async () => ({ cookies: [] }) }),
+    };
+    let chamadas = 0;
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda',
+      page,
+      clienteHub,
+      config: { ...configFake, storageStatePath: `/tmp/sessao-teste-${process.pid}-${Date.now()}.json` },
+      dormir: async () => {},
+      buscarDadosPessoa: async () => {
+        chamadas += 1;
+        if (chamadas === 2) throw new ErroPortalTransitorio('sessão expirada no meio da rodada', 'sessao_expirada_401');
+        return {};
+      },
+    });
+    assert.equal(r.resultado, 'sucesso');
+    assert.equal(r.sucessos, 3);
+    assert.equal(r.renovacoesNaRodada, 1);
+    assert.equal(chamadas, 4); // 3 motoristas + 1 retentativa
+    assert.equal(loginTocado, false);
+    assert.deepEqual(evaluates, ['_evalSondaSessao', '_evalSondaSessao', '_evalRenovarSessao']);
+    assert.equal(clienteHub.chamadasAtualizar.length, 3);
+  });
+
+  // Um 401 no meio da rodada agora renova a sessão e retenta o item UMA vez
+  // (teste acima). Este cobre o 401 que PERSISTE depois de renovar: aí a
+  // rodada para, como antes — o item corrente fica pendente para o timer.
+  test('401 mid-rodada que PERSISTE após renovar -> PARA igual antibot, item corrente NÃO é reportado', async () => {
     const itens = [{ id: 1, idExterno: 'uuid-1' }, { id: 2, idExterno: 'uuid-2' }, { id: 3, idExterno: 'uuid-3' }];
     const clienteHub = mockClienteHub({ itens });
     let chamadas = 0;
@@ -181,11 +230,13 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
         chamadas += 1;
         // sessao_expirada_401 classifica NAO_E_FALHA (não TRANSITORIO) em
         // taxonomia-erro.js -> comRetryTransitorio NÃO retenta, propaga na hora.
-        if (chamadas === 2) throw new ErroPortalTransitorio('sessão expirada no meio da rodada', 'sessao_expirada_401');
+        // 2ª chamada = motorista 2; 3ª = a retentativa dele após renovar.
+        if (chamadas === 2 || chamadas === 3) throw new ErroPortalTransitorio('sessão expirada no meio da rodada', 'sessao_expirada_401');
         return {};
       },
     });
-    assert.equal(chamadas, 2);
+    assert.equal(chamadas, 3);
+    assert.equal(r.renovacoesNaRodada, 1);
     assert.equal(r.sucessos, 1);
     assert.equal(r.falhas, 0);
     assert.equal(r.parouPorAntibotOuGap, true);

@@ -22,11 +22,17 @@ function tmpPath(nome) {
 // ---------------------------------------------------------------------------
 
 /** `urls`: { PERFORMANCE: valorOuFn, FINANCE: valorOuFn } — cada um no shape `_evalBuscarUrls` retorna: {status, contentType, corpo}. */
-function criarPageMock({ sonda = { status: 200 }, urls = {} } = {}) {
-  return {
+// `renovar` default 401: o refresh falha e o fluxo cai no login completo —
+// preserva a semântica dos cenários escritos antes do §10.
+function criarPageMock({ sonda = { status: 200 }, urls = {}, renovar = { status: 401 } } = {}) {
+  const mock = {
+    chamadasLogin: 0,
     evaluate: async (fn, args) => {
       if (fn.name === '_evalSondaSessao') {
         return typeof sonda === 'function' ? sonda(args) : sonda;
+      }
+      if (fn.name === '_evalRenovarSessao') {
+        return typeof renovar === 'function' ? renovar(args) : renovar;
       }
       if (fn.name === '_evalBuscarUrls') {
         const h = urls[args.tipo];
@@ -36,12 +42,13 @@ function criarPageMock({ sonda = { status: 200 }, urls = {} } = {}) {
       throw new Error(`mock page.evaluate: fn desconhecida (${fn.name})`);
     },
     goto: async () => {},
-    fill: async () => {},
-    click: async () => {},
+    fill: async () => { mock.chamadasLogin += 1; },
+    click: async () => { mock.chamadasLogin += 1; },
     waitForSelector: async () => {},
     waitForFunction: async () => {},
     context: () => ({ storageState: async () => ({ cookies: [{ name: 'sess', value: 'novo' }] }) }),
   };
+  return mock;
 }
 
 function criarClienteHubMock({ upload = { sinal: 'upload_201', id: 1, status: 'pending' }, poll = { sinal: 'polling_completed', dados: { status: 'completed' } }, reprocessar = { sinal: 'reprocessar_202', id: 42, status: 'pending' } } = {}) {
@@ -302,6 +309,47 @@ describe('executarRodada — Scenario 2: sessão expirada (401 na sonda) -> logi
     });
     assert.equal(r.resultado, 'sucesso');
     assert.deepEqual(carregarStorageState(cfg.storageStatePath), { cookies: [{ name: 'sess', value: 'novo' }] });
+  });
+});
+
+// §10: a importação também passa a renovar pelo refresh antes de relogar —
+// tanto na sonda inicial quanto no 401 no meio da rodada (tentativaComRelogin),
+// que antes chamava o login completo direto.
+describe('executarRodada — Scenario 2b: sessão expirada -> refresh 200 -> segue SEM login completo', () => {
+  test('sonda 401 + refresh 200: nenhum passo de login, storageState persistido, rodada sucesso', async () => {
+    const page = criarPageMock({ sonda: { status: 401 }, renovar: { status: 200 }, urls: { PERFORMANCE: URLS_OK('PERFORMANCE'), FINANCE: URLS_OK('FINANCE') } });
+    const cfg = config();
+    const r = await index.executarRodada({
+      page, config: cfg, clienteHub: criarClienteHubMock(),
+      obterCodigo: async () => { throw new Error('login completo NÃO deveria ser acionado'); },
+      transportador: criarTransportadorMock(), dormir: dormirRapido, axiosInstance: csvAxios(), caminhoLog: tmpPath('execucoes.jsonl'),
+    });
+    assert.equal(r.resultado, 'sucesso');
+    assert.equal(page.chamadasLogin, 0);
+    assert.deepEqual(carregarStorageState(cfg.storageStatePath), { cookies: [{ name: 'sess', value: 'novo' }] });
+  });
+
+  test('401 no meio do relatório + refresh 200: retenta sem login completo', async () => {
+    let chamadasUrls = 0;
+    let sondas = 0;
+    const page = criarPageMock({
+      // 1ª sonda (início da rodada) 200; a do relogin no meio 401 -> força o refresh
+      sonda: () => { sondas += 1; return { status: sondas === 1 ? 200 : 401 }; },
+      renovar: { status: 200 },
+      urls: {
+        PERFORMANCE: () => { chamadasUrls += 1; return chamadasUrls === 1 ? { status: 401, contentType: 'application/json', corpo: {} } : URLS_OK('PERFORMANCE'); },
+        FINANCE: URLS_OK('FINANCE'),
+      },
+    });
+    const r = await index.executarRodada({
+      page, config: config(), clienteHub: criarClienteHubMock(),
+      obterCodigo: async () => { throw new Error('login completo NÃO deveria ser acionado'); },
+      transportador: criarTransportadorMock(), dormir: dormirRapido, axiosInstance: csvAxios(), caminhoLog: tmpPath('execucoes.jsonl'),
+    });
+    assert.equal(r.resultado, 'sucesso');
+    assert.equal(chamadasUrls, 2);
+    assert.equal(sondas, 2);
+    assert.equal(page.chamadasLogin, 0);
   });
 });
 

@@ -290,20 +290,68 @@ async function realizarLoginCompleto(page, { email, senha, obterCodigo, timeoutM
   return page.context().storageState();
 }
 
+/** Avaliado dentro da página — `POST .../authentication/token/refresh`, sem
+ * corpo, só cookies (ACHADOS-PORTAL.md §10, medido 2026-09-05). */
+async function _evalRenovarSessao(args) {
+  const resp = await fetch(`${args.baseURL}/operation/users/authentication/token/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: args.headers,
+  });
+  return { status: resp.status };
+}
+
+/**
+ * Renova a sessão pelo refresh token, SEM login completo (e portanto sem o
+ * código de validação por e-mail). Medido em 2026-09-05: o token de acesso
+ * vive 3 min e o refresh 60 min — antes disto o robô fazia login completo a
+ * cada rodada com trabalho, porque a sonda sempre achava o acesso vencido.
+ *
+ * Persiste o storageState em caso de sucesso: se o portal rotacionar o
+ * refresh token (não medido — ver §10), apresentar o refresh ANTIGO na
+ * rodada seguinte pode invalidar a família inteira. Persistir é obrigatório.
+ *
+ * ⚠️ O status devolvido com refresh VENCIDO não foi medido (só o 200). Por
+ * isso qualquer 4xx cai em `renovada: false` → o chamador segue para o login
+ * completo, que é exatamente o comportamento anterior. Só 5xx e erro de rede
+ * viram ErroPortalTransitorio — nunca ErroAntibotSuspeito a partir daqui, para
+ * não parar o robô com alarme falso por um status que ninguém mediu.
+ * @returns {Promise<{renovada: boolean, status: number}>}
+ */
+async function renovarSessao(page, { baseURL = BASE_URL, storageStatePath = STORAGE_STATE_PATH_DEFAULT } = {}) {
+  let resultado;
+  try {
+    resultado = await page.evaluate(_evalRenovarSessao, { baseURL, headers: HEADERS_API });
+  } catch (e) {
+    throw new ErroPortalTransitorio(`entrego-portal: renovação de sessão falhou (${e.message})`, 'erro_conexao');
+  }
+  if (resultado.status >= 500) {
+    throw new ErroPortalTransitorio(`entrego-portal: renovação de sessão — 5xx (${resultado.status})`, 'http_5xx_portal');
+  }
+  if (resultado.status >= 200 && resultado.status < 300) {
+    persistirStorageState(await page.context().storageState(), storageStatePath);
+    return { renovada: true, status: resultado.status };
+  }
+  return { renovada: false, status: resultado.status };
+}
+
 /**
  * Garante sessão válida antes de qualquer chamada ao portal — combina 4.1.2
- * (sonda) + 4.2 (login completo se necessário) + 4.1.3 (persiste após
- * relogar). O `browserContext` já deve ter sido criado com o storageState
+ * (sonda) + renovação pelo refresh token (§10) + 4.2 (login completo só se a
+ * renovação falhar) + 4.1.3 (persiste após renovar ou relogar). O `browserContext` já deve ter sido criado com o storageState
  * carregado por `carregarStorageState()` (Playwright exige isso na criação
  * do contexto, não depois) — isso é responsabilidade do chamador (FASE 5).
- * @returns {Promise<{relogou: boolean}>}
+ * @returns {Promise<{relogou: boolean, renovada: boolean}>} `reusada` = ambos
+ *   false; `renovada` = refresh bastou; `relogou` = login completo (gera código).
  */
 async function garantirSessaoValida(page, { email, senha, obterCodigo, baseURL = BASE_URL, storageStatePath = STORAGE_STATE_PATH_DEFAULT, timeoutMs, loginUrl } = {}) {
   const { valida } = await sondarSessaoValida(page, { baseURL });
-  if (valida) return { relogou: false };
+  if (valida) return { relogou: false, renovada: false };
+  const { renovada } = await renovarSessao(page, { baseURL, storageStatePath });
+  if (renovada) return { relogou: false, renovada: true };
   const storageState = await realizarLoginCompleto(page, { email, senha, obterCodigo, timeoutMs, loginUrl });
   persistirStorageState(storageState, storageStatePath);
-  return { relogou: true };
+  return { relogou: true, renovada: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -457,6 +505,7 @@ module.exports = {
   persistirStorageState,
   sondarSessaoValida,
   garantirSessaoValida,
+  renovarSessao,
   // 4.2
   realizarLoginCompleto,
   // 4.3

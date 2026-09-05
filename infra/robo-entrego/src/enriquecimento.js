@@ -110,19 +110,21 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
   // operador: era ele quem descobria, pela caixa de entrada, o que o log não
   // contava. Medido em 2026-09-05: o access token do portal vive 3 min e o
   // timer roda a cada 5, então TODA rodada com trabalho relogava.
-  const { relogou } = (await garantirSessaoValida(page, {
+  const opcoesSessao = {
     email: config.entregoEmail,
     senha: config.entregoSenha,
     obterCodigo,
     storageStatePath: config.storageStatePath,
-  })) || {};
-  const sessao = relogou ? 'relogou' : 'reusada';
+  };
+  const rotularSessao = ({ relogou, renovada } = {}) => (relogou ? 'relogou' : renovada ? 'renovada' : 'reusada');
+  const sessao = rotularSessao(await garantirSessaoValida(page, opcoesSessao));
   // eslint-disable-next-line no-console
-  console.log(`[enriquecimento] sessão EntreGô: ${sessao}${relogou ? ' (login completo — gerou código de validação)' : ''}`);
+  console.log(`[enriquecimento] sessão EntreGô: ${sessao}${sessao === 'relogou' ? ' (login completo — gerou código de validação)' : ''}`);
 
   let sucessos = 0;
   let falhas = 0;
   let motivoParada = null;
+  let renovacoesNaRodada = 0;
 
   for (let i = 0; i < itens.length; i += 1) {
     const item = itens[i];
@@ -131,18 +133,31 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
     if (i > 0) await dormir(THROTTLE_MS_ENTRE_MOTORISTAS);
 
     try {
-      await processarUmMotorista({ item, page, clienteHub, modo, dormir, buscarDadosPessoa });
+      try {
+        await processarUmMotorista({ item, page, clienteHub, modo, dormir, buscarDadosPessoa });
+      } catch (e) {
+        // O token de acesso vive 3 min e a rodada espera 60 s entre motoristas
+        // (medido 2026-09-05): toda rodada com 4+ motoristas cruza a expiração
+        // NO MEIO. Antes disto o 401 interrompia a rodada no 4º motorista e o
+        // resto do lote ficava para o timer seguinte — que relogava (código) e
+        // processava mais 3. Renova (refresh; login completo só se o refresh
+        // falhar) e retenta ESTE motorista uma vez. Um segundo 401 no mesmo
+        // item cai no tratamento abaixo e para a rodada, como antes.
+        if (e.sinal !== 'sessao_expirada_401') throw e;
+        const rotulo = rotularSessao(await garantirSessaoValida(page, opcoesSessao));
+        renovacoesNaRodada += 1;
+        // eslint-disable-next-line no-console
+        console.log(`[enriquecimento] sessão expirou no motorista ${i + 1}/${itens.length} — ${rotulo}, retentando`);
+        await processarUmMotorista({ item, page, clienteHub, modo, dormir, buscarDadosPessoa });
+      }
       sucessos += 1;
     } catch (e) {
       // FR-016/FR-011 — "parando em vez de insistir": suspeita de anti-bot OU
       // falha transitória/de sessão que sobrou dos 3 retries de
-      // comRetryTransitorio (rede/5xx/401 — nenhuma culpa DESTE motorista)
-      // interrompem a RODADA inteira. O item CORRENTE fica sem PATCH — o
-      // pedido (dados_entrego_solicitado_em) permanece pendente na fila,
-      // reprocessado na PRÓXIMA execução do timer (auto-cura: uma nova
-      // sessão é sondada/relogada do zero no passo 2 — ver header do módulo,
-      // "sob-demanda" roda a cada poucos minutos, não precisa de relogin
-      // NO MEIO da rodada corrente, ao contrário do robô diário de FASE 4).
+      // comRetryTransitorio (rede/5xx — nenhuma culpa DESTE motorista), ou um
+      // 401 que PERSISTIU depois de renovar, interrompem a RODADA inteira. O
+      // item CORRENTE fica sem PATCH — o pedido (dados_entrego_solicitado_em)
+      // permanece pendente na fila, reprocessado na PRÓXIMA execução do timer.
       if (e instanceof ErroAntibotSuspeito || e instanceof ErroPortalTransitorio) {
         motivoParada = e.message;
         // eslint-disable-next-line no-console
@@ -170,7 +185,7 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
       : sucessos === 0 ? 'falha_total'
         : 'falha_parcial';
 
-  return { resultado, total: itens.length, sucessos, falhas, parouPorAntibotOuGap: motivoParada !== null, motivoParada, sessao };
+  return { resultado, total: itens.length, sucessos, falhas, parouPorAntibotOuGap: motivoParada !== null, motivoParada, sessao, renovacoesNaRodada };
 }
 
 if (require.main === module) {

@@ -383,3 +383,80 @@ janela terminou com sucesso. Registrado com precisão porque a primeira
 redação desta seção afirmava genericamente "fora das janelas" partindo de um
 horário suposto, não medido. **Para o próximo levantamento: conferir
 `systemctl list-timers robo-entrego.timer` ANTES de começar**, não depois.
+
+## 10. Sessão: vida dos tokens e renovação (medido 2026-09-05)
+
+Levantado em sessão supervisionada (Claude in Chrome, operador logado), depois
+de o operador notar que **toda** busca de dados de motorista gerava um código
+de validação por e-mail.
+
+### 10.1 Vida real dos tokens — o cookie MENTE
+
+Lido do `exp`/`iat` dos JWTs no `storageState` persistido pelo robô (só
+carimbos de tempo; nenhum outro campo foi lido):
+
+| Cookie | Vida do TOKEN (JWT) | Validade do COOKIE (envelope) |
+|---|---|---|
+| `entregolog_jwt` (acesso) | **3 min** | 24 h |
+| `entregolog_refresh_jwt` | **60 min** | 24 h |
+
+🔴 **O prazo do cookie não é o prazo do token.** Olhar só `expires` do cookie
+leva a concluir que a sessão vale 24 h. Foi o que enganou a primeira leitura.
+
+Consequências medidas no robô (antes desta seção):
+
+- Timer sob-demanda a cada 5 min + acesso de 3 min ⇒ o acesso **sempre** está
+  vencido no início da rodada seguinte ⇒ sonda 401 ⇒ login completo ⇒ código.
+- 60 s de espera entre motoristas + acesso de 3 min ⇒ toda rodada com **4+
+  motoristas** cruza a expiração no meio; o 4º tomava 401 e a rodada parava.
+  Nunca apareceu porque toda rodada real até então teve `total: 1`.
+- O robô **nunca usava o refresh token**: só sabia fazer login do zero.
+
+### 10.2 Endpoint de renovação
+
+```text
+POST https://api.entregolog.com/logistics-web-bff/operation/users/authentication/token/refresh
+```
+
+- **Sem corpo.** `credentials: 'include'` + os mesmos headers de §3
+  (`X-IFood-Logistics-Auth: true`, `x-cookie-login: true`, …).
+- Constante no bundle do portal: `REFRESH_TOKEN_PATH` (também
+  `FETCH_REFRESH_TOKEN_PATH`, mesmo valor). Não aparece como literal de URL —
+  a primeira varredura por rotas contendo `refresh` **não achou nada**; só
+  apareceu buscando a palavra solta com contexto ao redor.
+- Prova com controle (15:47, na sessão do operador):
+
+  | Passo | Status |
+  |---|---|
+  | `GET …/authentication/me` antes | **401** |
+  | `POST …/token/refresh` | **200** |
+  | `GET …/authentication/me` depois | **200** |
+
+  **Nenhum código de validação foi gerado.**
+
+- O 401 observado antes do refresh foi expiração natural, não o robô: a
+  rodada das 15:45 registrou `sessao: "nao-tocou"` e o arquivo de sessão dele
+  estava intocado desde 14:30.
+
+### 10.3 O que NÃO foi medido (e como medir)
+
+- **Status do refresh com refresh token VENCIDO** — só o 200 foi observado. O
+  código trata qualquer 4xx como "não renovou → login completo" (o
+  comportamento anterior), nunca como suspeita de anti-bot.
+- **Rotação do refresh token** — se cada renovação emite um refresh novo
+  (janela deslizante) ou se são 60 min absolutos desde o login. Cookies são
+  `httpOnly`: não dá para ler no browser. Como medir: o robô persiste o
+  `storageState` após cada renovação; comparar o `exp` de
+  `entregolog_refresh_jwt` antes e depois (mesmo script de 10.1). Inferência de
+  custo zero: se o operador ficou logado no portal por mais de 60 min sem
+  digitar código, o app renovou sozinho ⇒ rotação.
+- **Sessão única por conta** — se o login do robô derruba a sessão do operador.
+  Perguntar ao operador; nenhuma evidência nos dois sentidos hoje.
+
+### 10.4 Como o robô usa isto
+
+`garantirSessaoValida`: sonda → 401 → **refresh** (persiste) → só se falhar,
+login completo. No meio da rodada, `sessao_expirada_401` renova e retenta o
+motorista **uma vez**; um segundo 401 no mesmo item para a rodada, como antes.
+O log da rodada carrega `sessao` ∈ {`reusada`, `renovada`, `relogou`,
+`nao-tocou`} e `renovacoesNaRodada`.
