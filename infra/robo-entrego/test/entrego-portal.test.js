@@ -125,7 +125,7 @@ describe('garantirSessaoValida', () => {
     const page = mockPageEvaluate({ status: 200 });
     let chamouObterCodigo = false;
     const r = await garantirSessaoValida(page, { email: 'a@x.com', senha: 's', obterCodigo: async () => { chamouObterCodigo = true; return '123456'; } });
-    assert.deepEqual(r, { relogou: false });
+    assert.deepEqual(r, { relogou: false, renovada: false });
     assert.equal(chamouObterCodigo, false);
   });
 
@@ -150,10 +150,64 @@ describe('garantirSessaoValida', () => {
       obterCodigo: async () => '654321',
       storageStatePath: caminho,
     });
-    assert.deepEqual(r, { relogou: true });
-    // 2 evaluates: a sonda + a limpeza de localStorage antes do relogin
-    // (regressão 2026-08-28 — sem a limpeza o portal desvia para o painel).
-    assert.equal(evalCount, 2);
+    assert.deepEqual(r, { relogou: true, renovada: false });
+    // 3 evaluates: a sonda + a tentativa de refresh (401 neste mock -> cai no
+    // login) + a limpeza de localStorage antes do relogin (regressão
+    // 2026-08-28 — sem a limpeza o portal desvia para o painel).
+    assert.equal(evalCount, 3);
+  });
+
+  // §10 (medido 2026-09-05): o token de acesso vive 3 min, o refresh 60 min.
+  // Antes o robô fazia login completo (código por e-mail) a cada 401; agora
+  // tenta o refresh primeiro. Este teste prende o caminho novo: 401 na sonda,
+  // 200 no refresh -> NENHUM passo do login executa, storageState persistido.
+  test('sessão 401 -> refresh 200 -> renovada SEM login completo, storageState persistido', async () => {
+    const caminho = tmpPath('sessao/entrego-session.json');
+    const chamadas = [];
+    const page = {
+      url: () => 'https://franqueado.entregolog.com/',
+      evaluate: async (fn) => {
+        chamadas.push(fn.name);
+        if (fn.name === '_evalSondaSessao') return { status: 401 };
+        if (fn.name === '_evalRenovarSessao') return { status: 200 };
+        throw new Error(`evaluate inesperado: ${fn.name}`);
+      },
+      goto: async () => {},
+      fill: async () => { chamadas.push('fill'); },
+      click: async () => { chamadas.push('click'); },
+      context: () => ({ storageState: async () => ({ cookies: [{ name: 'sess', value: 'renovado' }] }) }),
+    };
+    let codigoPedido = false;
+    const r = await garantirSessaoValida(page, {
+      email: 'a@x.com',
+      senha: 's',
+      obterCodigo: async () => { codigoPedido = true; return '000000'; },
+      storageStatePath: caminho,
+    });
+    assert.deepEqual(r, { relogou: false, renovada: true });
+    assert.deepEqual(chamadas, ['_evalSondaSessao', '_evalRenovarSessao']);
+    assert.equal(codigoPedido, false);
+    assert.deepEqual(carregarStorageState(caminho), { cookies: [{ name: 'sess', value: 'renovado' }] });
+  });
+
+  // Refresh vencido: o status real NÃO foi medido (só o 200). Qualquer 4xx tem
+  // que cair no login completo — o comportamento anterior — e nunca em
+  // ErroAntibotSuspeito, que pararia o robô por alarme falso.
+  test('sessão 401 -> refresh 4xx desconhecido -> login completo (nunca alarme antibot)', async () => {
+    const caminho = tmpPath('sessao/entrego-session.json');
+    const page = {
+      url: () => 'https://franqueado.entregolog.com/',
+      evaluate: async (fn) => (fn.name === '_evalRenovarSessao' ? { status: 403 } : { status: 401 }),
+      goto: async () => {},
+      fill: async () => {},
+      click: async () => {},
+      waitForSelector: async () => {},
+      waitForFunction: async () => {},
+      context: () => ({ storageState: async () => ({ cookies: [{ name: 'sess', value: 'novo' }] }) }),
+    };
+    const r = await garantirSessaoValida(page, { email: 'a@x.com', senha: 's', obterCodigo: async () => '654321', storageStatePath: caminho });
+    assert.deepEqual(r, { relogou: true, renovada: false });
+    // e o login persistiu o storageState novo (asserção herdada do cenário 401->login)
     assert.deepEqual(carregarStorageState(caminho), { cookies: [{ name: 'sess', value: 'novo' }] });
   });
 });

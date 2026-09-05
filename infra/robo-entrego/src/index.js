@@ -21,9 +21,7 @@ const { criarTransportador, enviarAlerta } = require('./alerta-email');
 const { criarClienteHub, ErroConfiguracaoHub } = require('./hub-client');
 const {
   carregarStorageState,
-  persistirStorageState,
   garantirSessaoValida,
-  realizarLoginCompleto,
   buscarUrlsRelatorio,
   baixarCsv,
   TRADUCAO_TIPO_HUB,
@@ -243,8 +241,13 @@ async function tentativaComRelogin({ tipo, dataAnterior, page, clienteHub, entre
     return await tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance });
   } catch (e) {
     if (e.sinal !== 'sessao_expirada_401') throw e;
-    const storageState = await realizarLoginCompleto(page, { email: entregoCredenciais.email, senha: entregoCredenciais.senha, obterCodigo });
-    persistirStorageState(storageState, storageStatePath);
+    // Mesmo caminho do início da rodada: refresh primeiro, login completo só
+    // se o refresh falhar (antes chamava o login direto — um código por 401).
+    const { relogou, renovada } = await garantirSessaoValida(page, {
+      email: entregoCredenciais.email, senha: entregoCredenciais.senha, obterCodigo, storageStatePath,
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[robo] sessão expirou no meio de ${tipo} — ${relogou ? 'relogou' : renovada ? 'renovada' : 'reusada'}, retentando`);
     return tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance });
   }
 }
@@ -360,14 +363,14 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
     // 2. sessão EntreGô (sonda + login completo se 401 — research.md Decision 3)
     // Ver a nota em enriquecimento.js: sem isto, um login completo (que gera
     // código de validação para o operador) é indistinguível de sessão reusada.
-    const { relogou } = (await garantirSessaoValida(page, {
+    const { relogou, renovada } = (await garantirSessaoValida(page, {
       email: config.entregoEmail,
       senha: config.entregoSenha,
       obterCodigo,
       storageStatePath: config.storageStatePath,
     })) || {};
     // eslint-disable-next-line no-console
-    console.log(`[robo] sessão EntreGô: ${relogou ? 'relogou (login completo — gerou código de validação)' : 'reusada'}`);
+    console.log(`[robo] sessão EntreGô: ${relogou ? 'relogou (login completo — gerou código de validação)' : renovada ? 'renovada' : 'reusada'}`);
 
     // 3. 1 relatório por tipo — antibot aborta a RODADA (FR-011); demais falhas seguem pro próximo tipo
     for (const tipo of ['PERFORMANCE', 'FINANCE']) {
