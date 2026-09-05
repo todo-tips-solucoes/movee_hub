@@ -252,3 +252,46 @@ Pré-requisito de dados, fora do código desta pipeline: aplicar
 `sql/003-permissoes-enriquecimento-robo-entrego.sql` no banco (rito de
 produção — DDL/escrita no `chatmasterveloz`, mesmos 5 gates), se ainda não
 aplicado no ambiente alvo (já aplicado em `hub-homolog`, task 2.4).
+
+### `Failed` seguido de sucesso é ESPERADO — não é incidente
+
+Observado na primeira execução real em produção (2026-09-05):
+
+```
+00:05:25  entrego-enriquecimento-sob-demanda.service: Failed with result 'exit-code'
+          ErroPortalTransitorio: sonda de sessão falhou
+          (page.evaluate: Execution context was destroyed, most likely because
+           of a navigation.) at sondarSessaoValida (entrego-portal.js:164)
+00:10:20  rodada concluída: {"resultado":"sucesso","total":1,"sucessos":1,"falhas":0}
+```
+
+`Execution context was destroyed` é um erro clássico e **transitório** do
+Playwright: a página navegou enquanto o `page.evaluate` da sonda de sessão
+executava. O código o classifica como `ErroPortalTransitorio` — **não** como
+`ErroAntibotSuspeito` —, sai com código 1, e **o próprio timer é o retry**: a
+rodada seguinte (5 min) processa o item normalmente. Foi o que aconteceu acima:
+o motorista que estava na fila às 00:05 foi enriquecido às 00:10, sem
+intervenção.
+
+**Como distinguir ruído de problema de verdade:**
+
+| Padrão no journal | Leitura |
+|---|---|
+| `Failed` isolado, seguido de `rodada concluída` na próxima janela | **Esperado.** Transitório do portal; o timer já resolveu. Nenhuma ação. |
+| `Failed` repetido em 3+ janelas seguidas, sem sucesso no meio | **Investigar.** Sessão inválida, credencial trocada, portal fora do ar. |
+| Qualquer menção a `ErroAntibotSuspeito` / `suspeita_antibot` | 🔴 **Parar e investigar antes de reexecutar.** Não é transitório: o código trata como falha definitiva de propósito, para não insistir e queimar a sessão compartilhada com a importação diária. |
+| `pulado_lock` | Normal. A rodada de importação estava em curso; o `flock` serializou (dec-039), o robô tem prioridade. |
+
+**Por que não há retry imediato da sonda de sessão** (a busca de dados por
+motorista *tem*, via `comRetryTransitorio`): repetir na hora significa mais
+tentativas de login em sequência, e é exatamente esse padrão que o PerimeterX
+observa (§6 de `docs/plans/robo-entrego/ACHADOS-PORTAL.md`). Falhar rápido e
+deixar o timer retentar em 5 min é um backoff mais seguro do que insistir. A
+consequência aceita é o `Failed` no status da unidade.
+
+Consulta rápida ao histórico:
+
+```bash
+journalctl -u entrego-enriquecimento-sob-demanda.service --since '2 hours ago' \
+  | grep -E 'rodada concluída|Failed|antibot'
+```
