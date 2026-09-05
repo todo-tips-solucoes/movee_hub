@@ -14,7 +14,7 @@
 // §GET /motoristas/:id/sugestoes, §DELETE /motoristas/:id/vinculo,
 // quickstart Cenários 1-9/12.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -97,18 +97,23 @@ export function useMotoristaDetalhe(id: number) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
-  const buscar = useCallback(async () => {
-    setCarregando(true);
+  // `silencioso` evita acender o estado de carregamento: usado pelo polling
+  // do enriquecimento EntreGô, que refaz a busca a cada poucos segundos e
+  // faria a tela inteira piscar a cada tentativa.
+  const buscar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCarregando(true);
     setErro(null);
     try {
       const resposta = await obterMotorista(id);
       setDetalhe(resposta);
       return resposta;
     } catch (e) {
-      setErro(e instanceof MotoristaApiError ? e.message : 'Não foi possível carregar o motorista.');
+      if (!silencioso) {
+        setErro(e instanceof MotoristaApiError ? e.message : 'Não foi possível carregar o motorista.');
+      }
       return null;
     } finally {
-      setCarregando(false);
+      if (!silencioso) setCarregando(false);
     }
   }, [id]);
 
@@ -249,25 +254,62 @@ export default function MotoristaDetalhePage() {
   // `entregoEnriquecimento` não-nulo (processamento assíncrono do worker).
   const [buscandoEntrego, setBuscandoEntrego] = useState(false);
   const [entregoPendenteLocal, setEntregoPendenteLocal] = useState(false);
+  const [pollingEsgotado, setPollingEsgotado] = useState(false);
   const [erroEntrego, setErroEntrego] = useState<string | null>(null);
+  // Carimbo do enriquecimento no instante do clique. O fim da espera é
+  // "chegou dado NOVO", não "existe dado": o botão continua habilitado para
+  // quem já tem enriquecimento, e comparar por existência deixaria toda
+  // re-busca sem espera visível e sem polling.
+  const carimboAoSolicitar = useRef<string | null>(null);
 
+  // Polling do enriquecimento EntreGô. O worker roda por timer a cada 5 min,
+  // então quem clica não tem como saber se são 10 s ou 5 min de espera — e,
+  // sem isto, precisaria adivinhar que deve recarregar a página. Enquanto
+  // houver solicitação pendente, refaz a busca em silêncio até o dado chegar.
+  //
+  // Teto de ~8 min (24 × 20 s): cobre com folga a janela de 5 min do timer
+  // mais o tempo da rodada. Estourou, para de consultar e diz isso na tela —
+  // deixar polling infinito numa aba esquecida seria consulta perpétua ao
+  // backend.
   useEffect(() => {
-    if (detalhe?.entregoEnriquecimento) setEntregoPendenteLocal(false);
-  }, [detalhe?.entregoEnriquecimento]);
+    if (!entregoPendenteLocal) return;
+    if ((detalhe?.entregoEnriquecimento?.enriquecidoEm ?? null) !== carimboAoSolicitar.current) {
+      setEntregoPendenteLocal(false);
+      return;
+    }
+    let tentativas = 0;
+    const MAX_TENTATIVAS = 24;
+    const INTERVALO_MS = 20_000;
+    const id = window.setInterval(() => {
+      tentativas += 1;
+      if (tentativas > MAX_TENTATIVAS) {
+        window.clearInterval(id);
+        setPollingEsgotado(true);
+        return;
+      }
+      refetch(true);
+    }, INTERVALO_MS);
+    return () => window.clearInterval(id);
+  }, [entregoPendenteLocal, detalhe?.entregoEnriquecimento?.enriquecidoEm, refetch]);
 
   const buscarEntrego = useCallback(async () => {
     setBuscandoEntrego(true);
     setErroEntrego(null);
     try {
       await buscarEntregoEnriquecimento(id);
+      carimboAoSolicitar.current = detalhe?.entregoEnriquecimento?.enriquecidoEm ?? null;
       setEntregoPendenteLocal(true);
-      toast.success('Busca solicitada. Os dados aparecem aqui quando o processamento terminar.');
+      setPollingEsgotado(false);
+      toast.success('Busca solicitada. O processamento roda em até 5 minutos — a página se atualiza sozinha.');
     } catch (e) {
       setErroEntrego(e instanceof MotoristaApiError ? e.message : 'Falha ao solicitar a busca.');
     } finally {
       setBuscandoEntrego(false);
     }
-  }, [id]);
+    // `enriquecidoEm` entra nas deps porque o carimbo lido acima precisa ser o
+    // ATUAL: com dep só de `id`, o closure guardaria o carimbo do primeiro
+    // render (nulo) e toda re-busca terminaria a espera no ato.
+  }, [id, detalhe?.entregoEnriquecimento?.enriquecidoEm]);
 
   if (!Number.isFinite(id)) {
     return (
@@ -542,10 +584,12 @@ export default function MotoristaDetalhePage() {
                 </p>
               )}
 
-              {entregoPendenteLocal && !detalhe.entregoEnriquecimento && (
+              {entregoPendenteLocal && (
                 <p className="flex items-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground">
                   <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
-                  Busca solicitada — aguardando o processamento.
+                  {pollingEsgotado
+                    ? 'A busca ainda não retornou. Ela continua na fila — recarregue a página em alguns minutos.'
+                    : 'Busca solicitada — o processamento roda em até 5 minutos. Esta página se atualiza sozinha.'}
                 </p>
               )}
 
