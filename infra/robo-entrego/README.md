@@ -158,6 +158,7 @@ spec/plan/research/data-model/contracts completos e
 | Timer | Cadência | O que processa |
 |---|---|---|
 | `entrego-enriquecimento-sob-demanda.timer` | a cada 5 min | fila de pedidos manuais (`dados_entrego_solicitado_em`, FR-005 — botão "Buscar dados EntreGô" no hub) |
+| (o mesmo timer, com fila vazia) | quando o refresh token vence em ≤ 20 min | **keep-alive** da sessão EntreGô: renova o refresh (rotacionado a cada renovação, ACHADOS-PORTAL.md §10) sem login; nunca faz login completo — refresh já vencido fica para o próximo trabalho real |
 | `entrego-enriquecimento-semestral.timer` | 2x/ano (1º jan + 1º jul, 00:00 America/Sao_Paulo) | todo `Entregador` já enriquecido há mais de 6 meses (FR-016) |
 
 ⚠️ **Nenhuma credencial nova** — os dois reusam a mesma sessão EntreGô

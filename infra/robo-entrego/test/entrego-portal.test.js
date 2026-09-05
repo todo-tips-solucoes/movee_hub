@@ -15,6 +15,7 @@ const {
   persistirStorageState,
   sondarSessaoValida,
   garantirSessaoValida,
+  lerExpiracaoRefresh,
   realizarLoginCompleto,
   buscarUrlsRelatorio,
   baixarCsv,
@@ -452,5 +453,30 @@ describe('baixarCsv', () => {
       () => baixarCsv('https://s3.amazonaws.com/x.csv', { axiosInstance }),
       (e) => e instanceof ErroPortalTransitorio && e.sinal === 'erro_conexao'
     );
+  });
+});
+
+// --- §10 — lerExpiracaoRefresh (decide o keep-alive) -----------------------
+describe('lerExpiracaoRefresh', () => {
+  const jwtFake = (exp) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ exp, iat: exp - 3600 })).toString('base64url')}.assinatura`;
+
+  test('lê o exp do refresh token persistido (só o carimbo)', () => {
+    const caminho = tmpPath('sessao/exp.json');
+    const exp = Math.floor(Date.now() / 1000) + 1800;
+    fs.mkdirSync(path.dirname(caminho), { recursive: true });
+    fs.writeFileSync(caminho, JSON.stringify({ cookies: [{ name: 'entregolog_refresh_jwt', value: jwtFake(exp) }], origins: [] }));
+    assert.equal(lerExpiracaoRefresh(caminho).getTime(), exp * 1000);
+  });
+
+  test('sem arquivo, sem cookie ou valor que não é JWT -> null (nunca lança)', () => {
+    assert.equal(lerExpiracaoRefresh(tmpPath('sessao/inexistente.json')), null);
+    const semCookie = tmpPath('sessao/sem-cookie.json');
+    fs.mkdirSync(path.dirname(semCookie), { recursive: true });
+    fs.writeFileSync(semCookie, JSON.stringify({ cookies: [{ name: 'outro', value: 'x' }] }));
+    assert.equal(lerExpiracaoRefresh(semCookie), null);
+    const naoJwt = tmpPath('sessao/nao-jwt.json');
+    fs.mkdirSync(path.dirname(naoJwt), { recursive: true });
+    fs.writeFileSync(naoJwt, JSON.stringify({ cookies: [{ name: 'entregolog_refresh_jwt', value: 'opaco-sem-pontos' }] }));
+    assert.equal(lerExpiracaoRefresh(naoJwt), null);
   });
 });

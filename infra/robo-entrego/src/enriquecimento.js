@@ -27,6 +27,8 @@ const { criarClienteHub } = require('./hub-client');
 const {
   carregarStorageState,
   garantirSessaoValida,
+  renovarSessao,
+  lerExpiracaoRefresh,
   ErroAntibotSuspeito,
   ErroPortalTransitorio,
 } = require('./entrego-portal');
@@ -67,6 +69,32 @@ async function processarUmMotorista({ item, page, clienteHub, modo, dormir, busc
   return { ok: true };
 }
 
+// Keep-alive (ACHADOS-PORTAL.md §10, medido 2026-09-05): o refresh token vive
+// 60 min e é ROTACIONADO a cada renovação — a sessão só morre se ficar mais de
+// uma hora sem renovar. Sem isto, uma fila parada por > 60 min custa um login
+// completo (código por e-mail) no próximo trabalho. Com fila vazia, se faltam
+// <= KEEPALIVE_MARGEM_MS para o refresh vencer, renova. Sobre o PerimeterX:
+// são ~36 toques leves/dia (goto na origem + 1 POST via page.evaluate, como
+// toda chamada do robô), decisão do operador em 2026-09-05.
+//
+// Regra dura: keep-alive NUNCA faz login completo. Refresh já vencido ou
+// ausente => não toca o portal; o próximo trabalho real reloga. Senão a fila
+// vazia viraria um código por hora.
+const KEEPALIVE_MARGEM_MS = 20 * 60_000;
+
+/** @returns {Promise<null|'renovada'|string>} null = não precisava/não podia; 'renovada'; ou 'falhou:<status>' */
+async function manterSessaoViva({ page, storageStatePath, agora = Date.now() }) {
+  const exp = lerExpiracaoRefresh(storageStatePath);
+  if (!exp) return null;
+  const restante = exp.getTime() - agora;
+  if (restante <= 0 || restante > KEEPALIVE_MARGEM_MS) return null;
+  const { renovada, status } = await renovarSessao(page, { storageStatePath });
+  const rotulo = renovada ? 'renovada' : `falhou:${status}`;
+  // eslint-disable-next-line no-console
+  console.log(`[enriquecimento] keep-alive: refresh vencia em ${Math.round(restante / 60_000)} min — ${rotulo}`);
+  return rotulo;
+}
+
 /**
  * Executa 1 rodada completa da fila de enriquecimento (task 5.3.4).
  * @param {object} opts
@@ -99,7 +127,8 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
   //    bloqueio. Consultar a fila é uma chamada ao hub (barata, local).
   const itens = await clienteHub.buscarMotoristasParaEnriquecer(modo);
   if (itens.length === 0) {
-    return { resultado: 'sem_dados', total: 0, sucessos: 0, falhas: 0, parouPorAntibotOuGap: false, motivoParada: null, sessao: 'nao-tocou' };
+    const keepAlive = await manterSessaoViva({ page, storageStatePath: config.storageStatePath });
+    return { resultado: 'sem_dados', total: 0, sucessos: 0, falhas: 0, parouPorAntibotOuGap: false, motivoParada: null, sessao: keepAlive === 'renovada' ? 'renovada' : 'nao-tocou', keepAlive };
   }
 
   // 3. sessão EntreGô (sonda + login completo se 401 — reusa Decision 3).
@@ -244,6 +273,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  manterSessaoViva,
+  KEEPALIVE_MARGEM_MS,
   executarRodadaEnriquecimento,
   processarUmMotorista,
   THROTTLE_MS_ENTRE_MOTORISTAS,

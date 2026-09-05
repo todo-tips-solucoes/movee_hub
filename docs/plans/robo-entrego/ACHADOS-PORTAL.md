@@ -460,3 +460,13 @@ login completo. No meio da rodada, `sessao_expirada_401` renova e retenta o
 motorista **uma vez**; um segundo 401 no mesmo item para a rodada, como antes.
 O log da rodada carrega `sessao` ∈ {`reusada`, `renovada`, `relogou`,
 `nao-tocou`} e `renovacoesNaRodada`.
+
+**Keep-alive (item 3, decisão do operador em 2026-09-05)**: com a fila
+VAZIA, se faltam ≤ 20 min para o refresh vencer, a rodada do timer de 5 min
+chama `renovarSessao` direto (sem sonda) e persiste — `keepAlive: 'renovada'`
+no log, ou `'falhou:<status>'`. Regra dura: **nunca faz login completo** —
+refresh vencido ou ausente ⇒ não toca o portal (senão fila vazia viraria um
+código por hora). Custo: ~36 toques leves/dia no portal (goto na origem + 1
+POST via `page.evaluate`). Resultado: a sessão do robô não morre mais por
+inatividade; o único login completo restante é o primeiro, ou após uma queda
+do timer por > 60 min.
