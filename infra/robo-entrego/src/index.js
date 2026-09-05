@@ -358,12 +358,16 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
     await clienteHub.login(config.hubServicoEmail, config.hubServicoSenha);
 
     // 2. sessão EntreGô (sonda + login completo se 401 — research.md Decision 3)
-    await garantirSessaoValida(page, {
+    // Ver a nota em enriquecimento.js: sem isto, um login completo (que gera
+    // código de validação para o operador) é indistinguível de sessão reusada.
+    const { relogou } = (await garantirSessaoValida(page, {
       email: config.entregoEmail,
       senha: config.entregoSenha,
       obterCodigo,
       storageStatePath: config.storageStatePath,
-    });
+    })) || {};
+    // eslint-disable-next-line no-console
+    console.log(`[robo] sessão EntreGô: ${relogou ? 'relogou (login completo — gerou código de validação)' : 'reusada'}`);
 
     // 3. 1 relatório por tipo — antibot aborta a RODADA (FR-011); demais falhas seguem pro próximo tipo
     for (const tipo of ['PERFORMANCE', 'FINANCE']) {
