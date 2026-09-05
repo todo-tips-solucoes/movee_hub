@@ -7,7 +7,10 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { ErroAntibotSuspeito, ErroPortalTransitorio } = require('../src/entrego-portal');
-const { executarRodadaEnriquecimento, THROTTLE_MS_ENTRE_MOTORISTAS } = require('../src/enriquecimento');
+const { executarRodadaEnriquecimento, THROTTLE_MS_ENTRE_MOTORISTAS, KEEPALIVE_MARGEM_MS } = require('../src/enriquecimento');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 function mockClienteHub({ itens = [], atualizarImpl = null } = {}) {
   const chamadasAtualizar = [];
@@ -338,5 +341,82 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
     assert.equal(r.resultado, 'falha_total');
     assert.equal(r.sucessos, 0);
     assert.equal(r.falhas, 1);
+  });
+});
+
+// --- item 3 (§10) — keep-alive com fila vazia --------------------------------
+// O refresh token vive 60 min e é rotacionado a cada renovação. Com a fila
+// parada por > 60 min ele morria e o próximo trabalho custava um login completo
+// (código). Com fila vazia e refresh perto de vencer, a rodada renova. Regra
+// dura: keep-alive NUNCA faz login — refresh vencido/ausente = não toca o portal.
+describe('keep-alive da sessão com fila vazia (item 3)', () => {
+  const jwtFake = (expMs) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ exp: Math.floor(expMs / 1000) })).toString('base64url')}.x`;
+  const sessaoComRefresh = (expMs) => {
+    const caminho = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'keepalive-')), 'entrego-session.json');
+    fs.writeFileSync(caminho, JSON.stringify({ cookies: [{ name: 'entregolog_refresh_jwt', value: jwtFake(expMs) }], origins: [] }));
+    return caminho;
+  };
+  const pageEspiao = ({ refreshStatus = 200 } = {}) => {
+    const chamadas = [];
+    return {
+      chamadas,
+      url: () => 'https://franqueado.entregolog.com/',
+      goto: async () => { chamadas.push('goto'); },
+      evaluate: async (fn) => { chamadas.push(fn.name); return fn.name === '_evalRenovarSessao' ? { status: refreshStatus } : { status: 200 }; },
+      fill: async () => { chamadas.push('fill'); },
+      click: async () => { chamadas.push('click'); },
+      context: () => ({ storageState: async () => ({ cookies: [{ name: 'entregolog_refresh_jwt', value: jwtFake(Date.now() + 3600_000) }] }) }),
+    };
+  };
+  const rodar = (page, storageStatePath) => executarRodadaEnriquecimento({
+    modo: 'sob-demanda', page, clienteHub: mockClienteHub({ itens: [] }),
+    config: { ...configFake, storageStatePath }, dormir: async () => {},
+  });
+
+  test('refresh vencendo em 10 min -> renova SEM login, persiste, sessao=renovada', async () => {
+    const caminho = sessaoComRefresh(Date.now() + 10 * 60_000);
+    const page = pageEspiao();
+    const r = await rodar(page, caminho);
+    assert.equal(r.resultado, 'sem_dados');
+    assert.equal(r.keepAlive, 'renovada');
+    assert.equal(r.sessao, 'renovada');
+    assert.deepEqual(page.chamadas, ['_evalRenovarSessao']); // nem sonda, nem login
+    // persistiu o storageState novo (refresh rotacionado)
+    const salvo = JSON.parse(fs.readFileSync(caminho, 'utf8'));
+    assert.equal(salvo.cookies[0].name, 'entregolog_refresh_jwt');
+  });
+
+  test('refresh com folga (vence em 50 min) -> não toca o portal', async () => {
+    const page = pageEspiao();
+    const r = await rodar(page, sessaoComRefresh(Date.now() + 50 * 60_000));
+    assert.equal(r.keepAlive, null);
+    assert.equal(r.sessao, 'nao-tocou');
+    assert.deepEqual(page.chamadas, []);
+  });
+
+  test('refresh JÁ VENCIDO -> não toca o portal e NUNCA faz login (o próximo trabalho reloga)', async () => {
+    const page = pageEspiao();
+    const r = await rodar(page, sessaoComRefresh(Date.now() - 60_000));
+    assert.equal(r.keepAlive, null);
+    assert.deepEqual(page.chamadas, []);
+  });
+
+  test('sem storageState -> não toca o portal', async () => {
+    const page = pageEspiao();
+    const r = await rodar(page, path.join(os.tmpdir(), `inexistente-${process.pid}.json`));
+    assert.equal(r.keepAlive, null);
+    assert.deepEqual(page.chamadas, []);
+  });
+
+  test('refresh recusado (4xx) -> keepAlive=falhou:<status>, sem login, sem alarme', async () => {
+    const page = pageEspiao({ refreshStatus: 401 });
+    const r = await rodar(page, sessaoComRefresh(Date.now() + 5 * 60_000));
+    assert.equal(r.keepAlive, 'falhou:401');
+    assert.equal(r.sessao, 'nao-tocou');
+    assert.deepEqual(page.chamadas, ['_evalRenovarSessao']);
+  });
+
+  test('a margem é de 20 min (4 chances de 5 min antes de vencer)', () => {
+    assert.equal(KEEPALIVE_MARGEM_MS, 20 * 60_000);
   });
 });

@@ -290,6 +290,28 @@ async function realizarLoginCompleto(page, { email, senha, obterCodigo, timeoutM
   return page.context().storageState();
 }
 
+/**
+ * Lê o `exp` do refresh token persistido (ACHADOS-PORTAL.md §10.1) — só o
+ * carimbo, sem verificar assinatura e sem expor o resto do payload. É o que
+ * decide o keep-alive: renovar ANTES de vencer, nunca depois.
+ * @returns {Date|null} null se não há storageState, cookie ou `exp` legível
+ */
+function lerExpiracaoRefresh(storageStatePath = STORAGE_STATE_PATH_DEFAULT) {
+  const estado = carregarStorageState(storageStatePath);
+  const cookie = estado && Array.isArray(estado.cookies)
+    ? estado.cookies.find((c) => c && c.name === 'entregolog_refresh_jwt')
+    : null;
+  if (!cookie || typeof cookie.value !== 'string') return null;
+  const partes = cookie.value.split('.');
+  if (partes.length < 2) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(partes[1], 'base64url').toString('utf8'));
+    return Number.isFinite(payload.exp) ? new Date(payload.exp * 1000) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Avaliado dentro da página — `POST .../authentication/token/refresh`, sem
  * corpo, só cookies (ACHADOS-PORTAL.md §10, medido 2026-09-05). */
 async function _evalRenovarSessao(args) {
@@ -318,7 +340,17 @@ async function _evalRenovarSessao(args) {
  * não parar o robô com alarme falso por um status que ninguém mediu.
  * @returns {Promise<{renovada: boolean, status: number}>}
  */
-async function renovarSessao(page, { baseURL = BASE_URL, storageStatePath = STORAGE_STATE_PATH_DEFAULT } = {}) {
+async function renovarSessao(page, { baseURL = BASE_URL, portalOrigin = PORTAL_ORIGIN, storageStatePath = STORAGE_STATE_PATH_DEFAULT, timeoutMs = TIMEOUT_LOGIN_MS_DEFAULT } = {}) {
+  // Mesma exigência da sonda: o fetch com credentials só funciona numa página
+  // da origem do portal (em about:blank falha na hora). O keep-alive chama
+  // esta função DIRETO, sem passar pela sonda — então a garantia mora aqui.
+  try {
+    if (!String((page.url && page.url()) || '').startsWith(portalOrigin)) {
+      await page.goto(portalOrigin, { timeout: timeoutMs });
+    }
+  } catch (e) {
+    throw new ErroPortalTransitorio(`entrego-portal: navegação para o portal falhou (${e.message})`, 'erro_conexao');
+  }
   let resultado;
   try {
     resultado = await page.evaluate(_evalRenovarSessao, { baseURL, headers: HEADERS_API });
@@ -506,6 +538,7 @@ module.exports = {
   sondarSessaoValida,
   garantirSessaoValida,
   renovarSessao,
+  lerExpiracaoRefresh,
   // 4.2
   realizarLoginCompleto,
   // 4.3
