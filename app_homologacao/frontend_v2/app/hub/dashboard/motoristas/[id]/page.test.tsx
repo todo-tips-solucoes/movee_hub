@@ -433,8 +433,121 @@ describe('MotoristaDetalhePage', () => {
 
       await waitFor(() => expect(mockBuscarEntregoEnriquecimento).toHaveBeenCalledWith(1));
       await waitFor(() =>
-        expect(screen.getByText('Busca solicitada — aguardando o processamento.')).toBeInTheDocument()
+        expect(
+          screen.getByText(/Busca solicitada — o processamento roda em até 5 minutos/)
+        ).toBeInTheDocument()
       );
+    });
+
+    // O worker de enriquecimento roda por timer (a cada 5 min), então entre o
+    // clique e o dado há uma espera que a tela não controla. Sem polling, o
+    // usuário fica no estado "aguardando" para sempre e só vê o resultado se
+    // adivinhar que precisa recarregar a página — foi exatamente o que
+    // aconteceu em produção em 2026-09-05 (dado JÁ estava salvo, tela não
+    // mostrava). O teste prova que a tela busca de novo sozinha e se atualiza.
+    it('enquanto a busca está pendente, refaz a consulta sozinha e mostra o dado quando ele chega', async () => {
+      vi.useFakeTimers();
+      try {
+        mockObterMotorista.mockResolvedValue(DETALHE_COM_VINCULO);
+        mockBuscarEntregoEnriquecimento.mockResolvedValueOnce(undefined);
+        render(<MotoristaDetalhePage />);
+
+        await vi.waitFor(() =>
+          expect(screen.getByRole('button', { name: /Buscar dados EntreGô/ })).toBeInTheDocument()
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Buscar dados EntreGô/ }));
+        await vi.waitFor(() => expect(mockBuscarEntregoEnriquecimento).toHaveBeenCalledWith(1));
+
+        const chamadasAteAqui = mockObterMotorista.mock.calls.length;
+
+        // O worker termina: a partir de agora a API devolve o dado enriquecido.
+        mockObterMotorista.mockResolvedValue({
+          ...DETALHE_COM_VINCULO,
+          entregoEnriquecimento: ENTREGO_ENRIQUECIDO_COM_SENSIVEIS,
+        });
+
+        await vi.advanceTimersByTimeAsync(21_000);
+
+        // consultou de novo por conta própria...
+        expect(mockObterMotorista.mock.calls.length).toBeGreaterThan(chamadasAteAqui);
+        // ...e o dado que chegou está na tela, sem o usuário recarregar nada.
+        await vi.waitFor(() => expect(screen.getByText('999.999.999-99')).toBeInTheDocument());
+        // o aviso de espera some um render depois de o dado entrar no estado
+        await vi.waitFor(() =>
+          expect(
+            screen.queryByText(/Busca solicitada — o processamento roda em até 5 minutos/)
+          ).not.toBeInTheDocument()
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // O botão continua habilitado para quem JÁ tem dados enriquecidos, então
+    // re-buscar é uso normal. O fim da espera aqui não pode ser "existe
+    // enriquecimento" (já existe desde o início) e sim "o carimbo mudou".
+    it('re-busca de motorista JÁ enriquecido: espera até o carimbo mudar, não termina no ato', async () => {
+      vi.useFakeTimers();
+      try {
+        const antigo = {
+          ...DETALHE_COM_VINCULO,
+          entregoEnriquecimento: ENTREGO_ENRIQUECIDO_COM_SENSIVEIS,
+        };
+        mockObterMotorista.mockResolvedValue(antigo);
+        mockBuscarEntregoEnriquecimento.mockResolvedValueOnce(undefined);
+        render(<MotoristaDetalhePage />);
+
+        await vi.waitFor(() =>
+          expect(screen.getByRole('button', { name: /Buscar dados EntreGô/ })).toBeInTheDocument()
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Buscar dados EntreGô/ }));
+        await vi.waitFor(() => expect(mockBuscarEntregoEnriquecimento).toHaveBeenCalledWith(1));
+
+        // Worker ainda não rodou: o dado devolvido é o MESMO de antes.
+        await vi.advanceTimersByTimeAsync(21_000);
+        expect(
+          screen.getByText(/Busca solicitada — o processamento roda em até 5 minutos/)
+        ).toBeInTheDocument();
+
+        // Worker terminou: carimbo novo.
+        mockObterMotorista.mockResolvedValue({
+          ...antigo,
+          entregoEnriquecimento: {
+            ...ENTREGO_ENRIQUECIDO_COM_SENSIVEIS,
+            enriquecidoEm: '2026-09-05T16:45:32.000Z',
+          },
+        });
+        await vi.advanceTimersByTimeAsync(21_000);
+
+        await vi.waitFor(() =>
+          expect(
+            screen.queryByText(/Busca solicitada — o processamento roda em até 5 minutos/)
+          ).not.toBeInTheDocument()
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    // Contraprova do teste acima: sem solicitação pendente, a tela NÃO fica
+    // consultando o backend em background.
+    it('sem busca pendente, não fica consultando o backend sozinha', async () => {
+      vi.useFakeTimers();
+      try {
+        mockObterMotorista.mockResolvedValue(DETALHE_COM_VINCULO);
+        render(<MotoristaDetalhePage />);
+
+        await vi.waitFor(() =>
+          expect(screen.getByRole('button', { name: /Buscar dados EntreGô/ })).toBeInTheDocument()
+        );
+        const chamadasAteAqui = mockObterMotorista.mock.calls.length;
+
+        await vi.advanceTimersByTimeAsync(120_000);
+
+        expect(mockObterMotorista.mock.calls.length).toBe(chamadasAteAqui);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('task 7.2.2/7.2.4: 409 SEM_IDENTIFICADOR_ENTREGO mostra mensagem de erro clara', async () => {
