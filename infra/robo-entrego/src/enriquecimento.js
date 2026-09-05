@@ -99,17 +99,26 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
   //    bloqueio. Consultar a fila é uma chamada ao hub (barata, local).
   const itens = await clienteHub.buscarMotoristasParaEnriquecer(modo);
   if (itens.length === 0) {
-    return { resultado: 'sem_dados', total: 0, sucessos: 0, falhas: 0, parouPorAntibotOuGap: false, motivoParada: null };
+    return { resultado: 'sem_dados', total: 0, sucessos: 0, falhas: 0, parouPorAntibotOuGap: false, motivoParada: null, sessao: 'nao-tocou' };
   }
 
   // 3. sessão EntreGô (sonda + login completo se 401 — reusa Decision 3).
   //    Só chega aqui se HÁ trabalho a fazer.
-  await garantirSessaoValida(page, {
+  // O retorno de `garantirSessaoValida` era DESCARTADO nos dois chamadores, e
+  // com ele a única informação que distingue "reusou a sessão" de "fez login
+  // completo". Login completo dispara código de validação por e-mail para o
+  // operador: era ele quem descobria, pela caixa de entrada, o que o log não
+  // contava. Medido em 2026-09-05: o access token do portal vive 3 min e o
+  // timer roda a cada 5, então TODA rodada com trabalho relogava.
+  const { relogou } = (await garantirSessaoValida(page, {
     email: config.entregoEmail,
     senha: config.entregoSenha,
     obterCodigo,
     storageStatePath: config.storageStatePath,
-  });
+  })) || {};
+  const sessao = relogou ? 'relogou' : 'reusada';
+  // eslint-disable-next-line no-console
+  console.log(`[enriquecimento] sessão EntreGô: ${sessao}${relogou ? ' (login completo — gerou código de validação)' : ''}`);
 
   let sucessos = 0;
   let falhas = 0;
@@ -161,7 +170,7 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
       : sucessos === 0 ? 'falha_total'
         : 'falha_parcial';
 
-  return { resultado, total: itens.length, sucessos, falhas, parouPorAntibotOuGap: motivoParada !== null, motivoParada };
+  return { resultado, total: itens.length, sucessos, falhas, parouPorAntibotOuGap: motivoParada !== null, motivoParada, sessao };
 }
 
 if (require.main === module) {

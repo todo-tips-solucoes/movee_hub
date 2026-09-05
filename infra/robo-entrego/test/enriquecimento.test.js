@@ -69,6 +69,52 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
     assert.equal(clienteHub.chamadasAtualizar.length, 0);
   });
 
+  // O retorno de `garantirSessaoValida` era descartado, então o log não
+  // distinguia "reusou a sessão" de "fez login completo" — e login completo
+  // dispara código de validação por e-mail para o operador. Ele só descobriu
+  // pela caixa de entrada. Estes 3 testes prendem a propagação do estado.
+  test('sessão reusada -> resultado carrega sessao=reusada', async () => {
+    const clienteHub = mockClienteHub({ itens: [{ id: 1, idExterno: 'u1' }] });
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda', page: pageComSessaoValida(), clienteHub, config: configFake,
+      dormir: async () => {}, buscarDadosPessoa: async () => ({ dadosPessoais: {} }),
+    });
+    assert.equal(r.sessao, 'reusada');
+  });
+
+  test('login completo (sonda 401) -> resultado carrega sessao=relogou', async () => {
+    // Mesma montagem de page do cenário de relogin em entrego-portal.test.js:
+    // a sonda devolve 401 e o fluxo de login é todo satisfeito por mocks.
+    const page = {
+      url: () => 'https://franqueado.entregolog.com/',
+      goto: async () => {},
+      evaluate: async (_fn, args) => (args && args.uuid
+        ? { status: 200, contentType: 'application/json', corpo: { personalData: {} } }
+        : { status: 401 }),
+      fill: async () => {},
+      click: async () => {},
+      waitForSelector: async () => {},
+      waitForFunction: async () => {},
+      context: () => ({ storageState: async () => ({ cookies: [] }) }),
+    };
+    const clienteHub = mockClienteHub({ itens: [{ id: 1, idExterno: 'u1' }] });
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda', page, clienteHub,
+      config: { ...configFake, storageStatePath: `/tmp/sessao-teste-${Date.now()}.json` },
+      dormir: async () => {}, obterCodigo: async () => '654321',
+      buscarDadosPessoa: async () => ({ dadosPessoais: {} }),
+    });
+    assert.equal(r.sessao, 'relogou');
+  });
+
+  test('fila vazia -> sessao=nao-tocou (o portal nem é aberto)', async () => {
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda', page: pageComSessaoValida(), clienteHub: mockClienteHub({ itens: [] }),
+      config: configFake, dormir: async () => {},
+    });
+    assert.equal(r.sessao, 'nao-tocou');
+  });
+
   test('2 motoristas, ambos com sucesso -> resultado sucesso, throttle de 60s ENTRE eles (não antes do 1º)', async () => {
     const itens = [{ id: 1, idExterno: 'uuid-1' }, { id: 2, idExterno: 'uuid-2' }];
     const clienteHub = mockClienteHub({ itens });
