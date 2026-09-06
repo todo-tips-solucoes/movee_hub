@@ -1,0 +1,9 @@
+04:06:40 login -> 200 (access cookie Max-Age abaixo)
+  cookie access col7 (Max-Age no header vem do Set-Cookie; o jar guarda expiry):
+04:06:40 /me ANTES de selecionar entidade -> entidade_ativa=null modulos=0 permissoes=34
+04:06:40 POST /me/entidade {9001} -> 200
+04:06:40 /me APÓS selecionar -> entidade_ativa=9001 modulos=9 permissoes=34
+04:06:40 aguardando o access (40 s) vencer... 55 s parado
+04:07:35 /me APÓS o access vencer (proxy renovou) -> entidade_ativa=9001 modulos=9 permissoes=34
+04:07:35 RESULTADO: entidade e módulos IDÊNTICOS antes/depois da renovação -> FIX OK
+04:07:35 FIM
