@@ -38,6 +38,11 @@ const auditoriaRouter = express.Router();
 
 const ACCESS_TOKEN_TTL = '15m';
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
+// hub-sessao-inatividade fix (2026-09-06): o COOKIE do access vive tanto quanto
+// o refresh (ver routes/hub-auth.js#setAuthCookies) para que o /refresh possa
+// reler a claim `entidade_ativa` do token expirado na renovação silenciosa. O
+// JWT continua expirando em 15 min. Mesma fórmula/override do refresh.
+const ACCESS_COOKIE_MAX_AGE_MS = Number(process.env.HUB_REFRESH_TTL_MS) || 6 * 60 * 60 * 1000;
 
 // hub-auditoria-admin (S9) FASE 3.1 — contracts/auditoria-api.md "Query params"
 const AUDITORIA_PAGE_SIZE_DEFAULT = 20;
@@ -58,7 +63,7 @@ function setAccessTokenCookie(res, accessToken) {
     httpOnly: true,
     sameSite: 'strict',
     secure: cookiesSaoSeguras(),
-    maxAge: ACCESS_TOKEN_TTL_MS,
+    maxAge: ACCESS_COOKIE_MAX_AGE_MS,
   });
 }
 

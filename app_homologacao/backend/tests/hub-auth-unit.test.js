@@ -363,3 +363,55 @@ describe('classificarSessaoRefresh — inatividade de 6 h e teto de 24 h', () =>
     assert.equal(real.classificarSessaoRefresh({ revogado_em: null, expira_em: em(30).toISOString() }, em(25)), 'valida');
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// hub-sessao-inatividade FIX (2026-09-06) — o refresh preserva a entidade ativa.
+// Regressão: reemitir o access token no /refresh descartava a claim
+// `entidade_ativa` (só o POST /me/entidade a gravava), então após uma
+// renovação silenciosa o /me devolvia modulos:[] e /motoristas/:id caía em
+// 400 ENTIDADE_NAO_SELECIONADA.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const jwtLib = require('jsonwebtoken');
+// Chave fixa para os blocos que assinam/verificam JWT (gerarAccessToken e
+// entidadeAtivaDeAccessAntigo leem process.env.JWT_SECRET em tempo de CHAMADA;
+// os testes rodam DEPOIS da coleta, então a chave precisa continuar setada).
+// Os demais testes deste arquivo são crypto puro e não dependem dela.
+process.env.JWT_SECRET = 'segredo-teste-unit';
+
+describe('gerarAccessToken — entidade ativa na claim', () => {
+  const dec = (t) => jwtLib.decode(t);
+  test('sem entidade (login): claim entidade_ativa ausente', () => {
+    assert.equal(dec(real.gerarAccessToken({ id: 7, email: 'a@b' })).entidade_ativa, undefined);
+  });
+  test('com entidade (refresh): claim presente e numérica', () => {
+    assert.equal(dec(real.gerarAccessToken({ id: 7, email: 'a@b' }, 42)).entidade_ativa, 42);
+    assert.equal(dec(real.gerarAccessToken({ id: 7, email: 'a@b' }, '42')).entidade_ativa, 42);
+  });
+  test('entidade 0/null/undefined NÃO vira claim (0 = "não selecionada")', () => {
+    for (const e of [0, null, undefined]) assert.equal(dec(real.gerarAccessToken({ id: 7, email: 'a@b' }, e)).entidade_ativa, undefined);
+  });
+});
+
+describe('entidadeAtivaDeAccessAntigo — recupera a claim do access token expirado', () => {
+  const tokExp = jwtLib.sign({ sub: 7, email: 'a@b', entidade_ativa: 42 }, 'segredo-teste-unit', { algorithm: 'HS256', expiresIn: '-10s' });
+  test('token EXPIRADO ainda entrega a entidade (ignoreExpiration; assinatura conferida)', () => {
+    assert.equal(real.entidadeAtivaDeAccessAntigo(tokExp, 7), 42);
+  });
+  test('sub do token != usuário autenticado pelo refresh -> null (não adota claim alheia)', () => {
+    assert.equal(real.entidadeAtivaDeAccessAntigo(tokExp, 9), null);
+  });
+  test('token assinado com OUTRA chave -> null', () => {
+    const outro = jwtLib.sign({ sub: 7, entidade_ativa: 42 }, 'chave-errada', { algorithm: 'HS256' });
+    assert.equal(real.entidadeAtivaDeAccessAntigo(outro, 7), null);
+  });
+  test('token sem entidade, ausente ou lixo -> null', () => {
+    assert.equal(real.entidadeAtivaDeAccessAntigo(jwtLib.sign({ sub: 7 }, 'segredo-teste-unit'), 7), null);
+    assert.equal(real.entidadeAtivaDeAccessAntigo(null, 7), null);
+    assert.equal(real.entidadeAtivaDeAccessAntigo('nao.e.jwt', 7), null);
+  });
+  test('round-trip: refresh de token expirado preserva a entidade no token novo', () => {
+    const recuperada = real.entidadeAtivaDeAccessAntigo(tokExp, 7);
+    assert.equal(jwtLib.decode(real.gerarAccessToken({ id: 7, email: 'a@b' }, recuperada)).entidade_ativa, 42);
+  });
+});

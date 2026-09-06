@@ -220,7 +220,15 @@ function setAuthCookies(res, accessToken, refreshTokenBruto) {
     httpOnly: true,
     sameSite: 'strict',
     secure,
-    maxAge: ACCESS_TOKEN_TTL_MS,
+    // hub-sessao-inatividade fix (2026-09-06): o COOKIE do access vive tanto
+    // quanto o refresh para que o /refresh consiga reler a claim
+    // `entidade_ativa` do access token (mesmo já expirado) na renovação
+    // silenciosa. O JWT continua expirando em ACCESS_TOKEN_TTL_S — todo
+    // jwt.verify (exceto a releitura só-de-entidade no /refresh, com
+    // ignoreExpiration) rejeita o token vencido. Sem isto, aos >15 min parado
+    // o cookie sumia e a entidade se perdia a cada refresh (/me sem módulos,
+    // /motoristas/:id -> 400 ENTIDADE_NAO_SELECIONADA).
+    maxAge: REFRESH_TOKEN_TTL_MS,
   });
   res.cookie(COOKIE_REFRESH, refreshTokenBruto, {
     httpOnly: true,
@@ -235,12 +243,37 @@ function clearAuthCookies(res) {
   res.clearCookie(COOKIE_REFRESH);
 }
 
-function gerarAccessToken(usuario) {
+function gerarAccessToken(usuario, entidadeAtiva) {
   // Decision 12: alg-pinning também na assinatura (não deixa a lib inferir).
-  return jwt.sign({ sub: usuario.id, email: usuario.email }, process.env.JWT_SECRET, {
+  // hub-sessao-inatividade fix (2026-09-06): a claim `entidade_ativa` é
+  // preservada na renovação (antes só o POST /me/entidade a gravava, então o
+  // refresh a descartava). Login segue SEM entidade — o fluxo de seleção
+  // pós-login (app/selecionar-entidade) é inalterado.
+  const payload = { sub: usuario.id, email: usuario.email };
+  if (entidadeAtiva) payload.entidade_ativa = Number(entidadeAtiva);
+  return jwt.sign(payload, process.env.JWT_SECRET, {
     algorithm: 'HS256',
     expiresIn: ACCESS_TOKEN_TTL_S,
   });
+}
+
+/**
+ * Recupera a entidade ativa do access token ANTIGO apresentado no /refresh,
+ * mesmo expirado. `ignoreExpiration` NÃO afrouxa a segurança: a assinatura
+ * HS256 continua verificada, e o /me revalida a entidade contra os vínculos
+ * ativos da pessoa. Só adota a claim se o `sub` do token bate com o usuário
+ * que o refresh token autenticou. Pura (sem I/O). Devolve number | null.
+ * @param {string|null} accessToken
+ * @param {number|string} usuarioId
+ * @returns {number|null}
+ */
+function entidadeAtivaDeAccessAntigo(accessToken, usuarioId) {
+  if (!accessToken) return null;
+  try {
+    const p = jwt.verify(accessToken, process.env.JWT_SECRET, { algorithms: ['HS256'], ignoreExpiration: true });
+    if (p && Number(p.sub) === Number(usuarioId) && p.entidade_ativa) return Number(p.entidade_ativa);
+  } catch (_e) { /* chave diferente/malformado: renova sem entidade */ }
+  return null;
 }
 
 function decodificarUsuarioIdDoAccessToken(accessToken) {
@@ -466,7 +499,8 @@ router.post('/refresh', async (req, res) => {
       ip,
     });
 
-    const novoAccessToken = gerarAccessToken(usuario);
+    const entidadeAtiva = entidadeAtivaDeAccessAntigo(lerAccessTokenDoRequest(req), usuario.id);
+    const novoAccessToken = gerarAccessToken(usuario, entidadeAtiva);
     setAuthCookies(res, novoAccessToken, novoRefreshBruto);
 
     return res.status(200).json({ ok: true });
@@ -647,6 +681,8 @@ module.exports = {
   entradaLoginValida,
   hashToken,
   gerarTokenBruto,
+  gerarAccessToken,
+  entidadeAtivaDeAccessAntigo,
   gerarRefreshToken,
   familiaCriadaEmDoToken,
   calcularBloqueioAposFalha,
