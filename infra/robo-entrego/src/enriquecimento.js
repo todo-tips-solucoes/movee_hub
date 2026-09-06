@@ -43,7 +43,23 @@ const { BACKOFF_MS_SEQUENCIA, comRetryTransitorio, carregarEnv, lerConfiguracao,
 // reaproveita o primeiro degrau do backoff já existente do robô
 // (BACKOFF_MS_SEQUENCIA[0] = 60_000 ms)" — reaproveitado por import, não
 // duplicado como número mágico novo.
-const THROTTLE_MS_ENTRE_MOTORISTAS = BACKOFF_MS_SEQUENCIA[0];
+/**
+ * Throttle entre motoristas. FR-016 fixa 60 s como MÍNIMO de projeto e segue
+ * sendo o default. O override por env existe para o backfill em massa
+ * (docs/plans/robo-entrego/PLANO-ENRIQUECIMENTO-MASSA.md): é TEMPORÁRIO, some
+ * sozinho quando a env some, e tem piso de 1 s para não virar 0 por engano.
+ * Reduzir isto aumenta a exposição ao antibot do portal — e um bloqueio
+ * derruba TAMBÉM a importação diária (mesma conta/sessão, dec-039). Pura.
+ * @param {object} [env]
+ * @returns {number} ms
+ */
+function resolverThrottleMs(env = process.env) {
+  const bruto = Number(env.ENRIQ_THROTTLE_MS);
+  if (!Number.isFinite(bruto) || bruto <= 0) return BACKOFF_MS_SEQUENCIA[0];
+  return Math.max(1000, bruto);
+}
+
+const THROTTLE_MS_ENTRE_MOTORISTAS = resolverThrottleMs();
 
 const MODOS_VALIDOS = Object.freeze(['sob-demanda', 'semestral']);
 
@@ -278,6 +294,7 @@ module.exports = {
   executarRodadaEnriquecimento,
   processarUmMotorista,
   THROTTLE_MS_ENTRE_MOTORISTAS,
+  resolverThrottleMs,
   MODOS_VALIDOS,
   ENV_PATH_DEFAULT,
 };
