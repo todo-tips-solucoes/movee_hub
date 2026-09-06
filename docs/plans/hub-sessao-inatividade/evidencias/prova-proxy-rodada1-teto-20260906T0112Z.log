@@ -1,0 +1,21 @@
+# Rodada 1 — teto de 240 s bateu aos +240 s (F/G/H invalidados pelo roteiro; o 401 aos 240 s com cookies limpos é o TETO agindo pelo proxy)
+01:12:29 TTLs: access 40 s | refresh 90 s | teto 240 s — tudo pelo PROXY (/api/v1/*), um único login
+01:12:30 login -> 200; refresh …cc5c89 access …kxiI6M 
+01:12:50 [E uso contínuo] +20 s GET /me -> 200 (esperado 200); access …_PHh2E refresh …eac765 
+01:13:10 [E uso contínuo] +40 s GET /me -> 200 (esperado 200); refresh …f220e3 access …B9KbnE 
+01:13:30 [E uso contínuo] +60 s GET /me -> 200 (esperado 200); access …2r_ztQ refresh …4d362f 
+01:13:50 [E uso contínuo] +80 s GET /me -> 200 (esperado 200); refresh …3862dc access …UO2lXo 
+01:14:10 [E uso contínuo] +100 s GET /me -> 200 (esperado 200); access …775qI4 refresh …2643f4 
+01:14:30 [E uso contínuo] +120 s GET /me -> 200 (esperado 200); refresh …076d9e access …TIoPMA 
+01:14:50 [E uso contínuo] +140 s GET /me -> 200 (esperado 200); access …U9QRYU refresh …fd4f79 
+01:15:10 [E uso contínuo] +160 s GET /me -> 200 (esperado 200); refresh …753b82 access …Hj_Ars 
+01:15:30 [E uso contínuo] +180 s GET /me -> 200 (esperado 200); access …dHi2Gk refresh …8ff8cc 
+01:16:30 [F parado 60 s] +240 s GET /me -> 401 (esperado 200: proxy renovou); 
+01:17:16 [G concorrente 2] GET /me -> 401
+01:17:16 [G concorrente 5] GET /me -> 401
+01:17:16 [G concorrente 4] GET /me -> 401
+01:17:16 [G concorrente 3] GET /me -> 401
+01:17:16 [G concorrente 1] GET /me -> 401
+01:17:16 [G] +286 s linhas em SessaoRefresh antes=268 depois=268 (esperado +1: uma única renovação para as 5)
+01:18:56 [H parado 100 s] +386 s GET /me -> 401 (esperado 401); Set-Cookie de limpeza: 0 (esperado 2)
+01:18:56 FIM

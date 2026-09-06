@@ -14,6 +14,8 @@
  *   - hashToken (determinístico, sha256) / gerarTokenBruto (entropia, unicidade)
  *   - calcularBloqueioAposFalha (FR-017: 5 falhas -> bloqueado_ate = +15min)
  *   - contaEstaBloqueada (janela de bloqueio)
+ *   - hub-sessao-inatividade (2026-09-06, bloco final, contra o MÓDULO REAL):
+ *     carimbo do login no refresh token, janela deslizante de 6 h, teto de 24 h.
  *
  * O caminho dummy-hash (bcrypt.compare contra BCRYPT_DUMMY_HASH) e o fluxo
  * completo de bloqueio contra o banco são exercidos no teste de integração
@@ -281,5 +283,83 @@ describe('patchRedefinicaoSenha (#3 — redefinir senha desbloqueia a conta)', (
     assert.equal(p.bloqueado_ate, null);
     assert.equal(p.token_recuperacao_hash, null);
     assert.equal(p.token_recuperacao_expira, null);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// hub-sessao-inatividade (2026-09-06) — contra o módulo REAL (bcrypt/express
+// estão instalados no host desde a suíte de 907; mesmo padrão de
+// tests/hub-usuarios-unit.test.js), não cópia local.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const real = require('../routes/hub-auth');
+
+describe('sessão do hub — janelas (defaults sem env)', () => {
+  test('access 15 min, refresh deslizante 6 h, vida máxima 24 h', () => {
+    assert.equal(real.ACCESS_TOKEN_TTL_MS, 15 * 60 * 1000);
+    assert.equal(real.REFRESH_TOKEN_TTL_MS, 6 * 60 * 60 * 1000);
+    assert.equal(real.SESSAO_VIDA_MAX_MS, 24 * 60 * 60 * 1000);
+  });
+});
+
+describe('gerarRefreshToken / familiaCriadaEmDoToken — carimbo do login no token', () => {
+  const login = new Date('2026-09-06T10:00:00Z');
+
+  test('formato <ms do login>.<64 hex> e o carimbo é recuperável', () => {
+    const t = real.gerarRefreshToken(login);
+    assert.match(t, /^\d+\.[0-9a-f]{64}$/);
+    assert.equal(real.familiaCriadaEmDoToken(t, {}).getTime(), login.getTime());
+  });
+
+  test('a rotação preserva o carimbo (a família continua nascendo no login)', () => {
+    const t1 = real.gerarRefreshToken(login);
+    const t2 = real.gerarRefreshToken(real.familiaCriadaEmDoToken(t1, {}));
+    assert.notEqual(t1, t2);
+    assert.equal(real.familiaCriadaEmDoToken(t2, {}).getTime(), login.getTime());
+  });
+
+  test('token anterior à entrega (sem carimbo) usa o criado_em da linha', () => {
+    const antigo = real.gerarTokenBruto();
+    const d = real.familiaCriadaEmDoToken(antigo, { criado_em: '2026-09-05T20:00:00Z' });
+    assert.equal(d.toISOString(), '2026-09-05T20:00:00.000Z');
+  });
+});
+
+describe('classificarSessaoRefresh — inatividade de 6 h e teto de 24 h', () => {
+  const H = 60 * 60 * 1000;
+  const login = new Date('2026-09-06T10:00:00Z');
+  const em = (horas) => new Date(login.getTime() + horas * H);
+  const sessao = (ultimoRefreshH) => ({
+    revogado_em: null,
+    expira_em: em(ultimoRefreshH + 6).toISOString(),
+    familia_criada_em: login,
+  });
+
+  test('renovação dentro da janela -> "valida"', () => {
+    assert.equal(real.classificarSessaoRefresh(sessao(0), em(5)), 'valida');
+  });
+
+  test('6 h sem renovar -> "expirada" (inatividade)', () => {
+    assert.equal(real.classificarSessaoRefresh(sessao(0), em(6.01)), 'expirada');
+  });
+
+  test('atividade contínua (renova a cada 5 h) é aceita até o teto e recusada depois', () => {
+    for (const h of [5, 10, 15, 20]) {
+      assert.equal(real.classificarSessaoRefresh(sessao(h - 5), em(h)), 'valida', `t=${h}h`);
+    }
+    // última renovação às 20 h deixou expira_em = 26 h, mas a família nasceu há 24 h
+    assert.equal(real.classificarSessaoRefresh(sessao(20), em(24)), 'expirada');
+  });
+
+  test('um segundo antes do teto ainda é "valida"', () => {
+    assert.equal(real.classificarSessaoRefresh(sessao(20), new Date(em(24).getTime() - 1000)), 'valida');
+  });
+
+  test('reuso continua tendo precedência (revoga a família)', () => {
+    assert.equal(real.classificarSessaoRefresh({ ...sessao(0), revogado_em: em(1).toISOString() }, em(2)), 'reuso');
+  });
+
+  test('sem carimbo (linha antiga sem familia_criada_em) só vale a inatividade', () => {
+    assert.equal(real.classificarSessaoRefresh({ revogado_em: null, expira_em: em(30).toISOString() }, em(25)), 'valida');
   });
 });

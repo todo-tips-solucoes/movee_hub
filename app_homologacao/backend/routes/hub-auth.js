@@ -38,9 +38,19 @@ const router = express.Router();
 // o e-mail não existe (FR-015, contracts/auth.md §login).
 const BCRYPT_DUMMY_HASH = '$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234';
 
-const ACCESS_TOKEN_TTL = '15m';
-const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
-const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias (Decision 9)
+// hub-sessao-inatividade (2026-09-06). As três janelas abaixo aceitam override
+// por env SOMENTE para prova com TTL reduzido no hub-homolog isolado; produção
+// não define nenhuma delas (defaults = regra de negócio).
+//   - access: 15 min, invisível ao usuário (o proxy do frontend_v2 renova).
+//   - refresh: desliza a cada renovação, e a renovação só acontece por
+//     requisição real (nunca por timer) — logo "6 h sem renovar" é 6 h de
+//     inatividade. Era 7 dias (Decision 9).
+//   - vida máxima: 24 h contadas do login que abriu a família, mesmo com
+//     atividade contínua (carimbo do login viaja no próprio refresh token).
+const ACCESS_TOKEN_TTL_S = Number(process.env.HUB_ACCESS_TTL_S) || 15 * 60;
+const ACCESS_TOKEN_TTL_MS = ACCESS_TOKEN_TTL_S * 1000;
+const REFRESH_TOKEN_TTL_MS = Number(process.env.HUB_REFRESH_TTL_MS) || 6 * 60 * 60 * 1000;
+const SESSAO_VIDA_MAX_MS = Number(process.env.HUB_SESSAO_VIDA_MAX_MS) || 24 * 60 * 60 * 1000;
 
 const BLOQUEIO_FALHAS_LIMITE = 5; // FR-017
 const BLOQUEIO_JANELA_MS = 15 * 60 * 1000; // FR-017
@@ -96,6 +106,31 @@ function gerarTokenBruto() {
 }
 
 /**
+ * Refresh token = `<ms do login>.<256 bits hex>`. O carimbo do login viaja no
+ * próprio token: o banco guarda o sha256 do token INTEIRO, então um carimbo
+ * adulterado simplesmente não encontra sessão — é autenticado pela busca, sem
+ * coluna nova nem migration. A rotação preserva o carimbo; é ele que impõe o
+ * teto de SESSAO_VIDA_MAX_MS. Pura.
+ * @param {Date} familiaCriadaEm - instante do login que abriu a família
+ */
+function gerarRefreshToken(familiaCriadaEm) {
+  return `${familiaCriadaEm.getTime()}.${gerarTokenBruto()}`;
+}
+
+/**
+ * Instante do login que abriu a família de um refresh token apresentado.
+ * Token emitido antes desta entrega (sem carimbo) usa o `criado_em` da própria
+ * linha — como nada renovava antes, a linha É o login. Pura.
+ * @param {string} tokenBruto
+ * @param {{criado_em: string}} sessao
+ * @returns {Date}
+ */
+function familiaCriadaEmDoToken(tokenBruto, sessao) {
+  const m = /^(\d+)\./.exec(tokenBruto);
+  return m ? new Date(Number(m[1])) : new Date(sessao.criado_em);
+}
+
+/**
  * Calcula o próximo estado de tentativas/bloqueio após uma falha de login
  * (FR-017). Pura — não acessa o banco.
  * @param {number} tentativasAtuais
@@ -136,16 +171,19 @@ function classificarCredencial(usuario, senhaValida) {
  * pós-review PR #55, achado #5). Pura — não acessa o banco.
  *   'reuso'    -> já revogada (rotacionada) e reapresentada: possível roubo,
  *                 revoga TODA a família (defesa em profundidade, Decision 9).
- *   'expirada' -> ainda não revogada, mas `expira_em` no passado: expiração
- *                 natural benigna de UM device, NÃO derruba os outros.
+ *   'expirada' -> ainda não revogada, mas `expira_em` no passado (inatividade)
+ *                 OU família mais velha que SESSAO_VIDA_MAX_MS (teto de 24 h,
+ *                 mesmo com atividade): expiração natural benigna de UM
+ *                 device, NÃO derruba os outros.
  *   'valida'   -> ativa e dentro da validade: segue a rotação normal.
- * @param {{revogado_em: string|null, expira_em: string}} sessao
+ * @param {{revogado_em: string|null, expira_em: string, familia_criada_em?: Date|string}} sessao
  * @param {Date} agora
  * @returns {'reuso'|'expirada'|'valida'}
  */
 function classificarSessaoRefresh(sessao, agora) {
   if (sessao.revogado_em) return 'reuso';
   if (new Date(sessao.expira_em) < agora) return 'expirada';
+  if (sessao.familia_criada_em && agora - new Date(sessao.familia_criada_em) >= SESSAO_VIDA_MAX_MS) return 'expirada';
   return 'valida';
 }
 
@@ -201,7 +239,7 @@ function gerarAccessToken(usuario) {
   // Decision 12: alg-pinning também na assinatura (não deixa a lib inferir).
   return jwt.sign({ sub: usuario.id, email: usuario.email }, process.env.JWT_SECRET, {
     algorithm: 'HS256',
-    expiresIn: ACCESS_TOKEN_TTL,
+    expiresIn: ACCESS_TOKEN_TTL_S,
   });
 }
 
@@ -319,7 +357,7 @@ router.post('/login', authRateLimiter, async (req, res) => {
     });
 
     const accessToken = gerarAccessToken(usuario);
-    const refreshTokenBruto = gerarTokenBruto();
+    const refreshTokenBruto = gerarRefreshToken(agora);
     await hubPostgrestRequest('SessaoRefresh', 'POST', {
       usuario_id: usuario.id,
       token_hash: hashToken(refreshTokenBruto),
@@ -359,7 +397,7 @@ router.post('/refresh', async (req, res) => {
 
     const tokenHash = hashToken(refreshTokenBruto);
     const sessoes = await hubPostgrestRequest(
-      `SessaoRefresh?token_hash=eq.${tokenHash}&select=id,usuario_id,expira_em,revogado_em`
+      `SessaoRefresh?token_hash=eq.${tokenHash}&select=id,usuario_id,expira_em,revogado_em,criado_em`
     );
 
     if (!sessoes || sessoes.length === 0) {
@@ -379,7 +417,8 @@ router.post('/refresh', async (req, res) => {
     //     no passado): evento benigno de um único device -> responde 401 e
     //     limpa só os cookies desta requisição, SEM derrubar as sessões
     //     ativas de outros devices do mesmo usuário.
-    const estadoSessao = classificarSessaoRefresh(sessao, agora);
+    const familiaCriadaEm = familiaCriadaEmDoToken(refreshTokenBruto, sessao);
+    const estadoSessao = classificarSessaoRefresh({ ...sessao, familia_criada_em: familiaCriadaEm }, agora);
     if (estadoSessao === 'reuso') {
       await hubPostgrestRequest(`SessaoRefresh?usuario_id=eq.${sessao.usuario_id}&revogado_em=is.null`, 'PATCH', {
         revogado_em: agora.toISOString(),
@@ -397,11 +436,13 @@ router.post('/refresh', async (req, res) => {
     }
 
     if (estadoSessao === 'expirada') {
-      // Expiração benigna: NÃO revoga a família. Marca só esta sessão como
-      // encerrada (idempotente) para higiene, limpa cookies e devolve 401.
-      await hubPostgrestRequest(`SessaoRefresh?id=eq.${sessao.id}&revogado_em=is.null`, 'PATCH', {
-        revogado_em: agora.toISOString(),
-      });
+      // Expiração benigna (inatividade ou teto de 24 h): NÃO revoga a família,
+      // limpa cookies e devolve 401. Até 2026-09-06 este ramo também carimbava
+      // `revogado_em` "por higiene" — mas isso transformava a SEGUNDA
+      // apresentação do mesmo token vencido em 'reuso' (derrubava todos os
+      // devices do usuário). Com o proxy renovando sozinho, reapresentar um
+      // token vencido (resposta perdida na rede, aba antiga) é rotina, não
+      // roubo; a linha vencida já é inerte por `expira_em`.
       clearAuthCookies(res);
       return res.status(401).json({ erro: 'Sessão inválida.' });
     }
@@ -416,7 +457,7 @@ router.post('/refresh', async (req, res) => {
     // Rotação (Decision 9): revoga o hash antigo, emite um novo.
     await hubPostgrestRequest(`SessaoRefresh?id=eq.${sessao.id}`, 'PATCH', { revogado_em: agora.toISOString() });
 
-    const novoRefreshBruto = gerarTokenBruto();
+    const novoRefreshBruto = gerarRefreshToken(familiaCriadaEm);
     await hubPostgrestRequest('SessaoRefresh', 'POST', {
       usuario_id: usuario.id,
       token_hash: hashToken(novoRefreshBruto),
@@ -606,6 +647,8 @@ module.exports = {
   entradaLoginValida,
   hashToken,
   gerarTokenBruto,
+  gerarRefreshToken,
+  familiaCriadaEmDoToken,
   calcularBloqueioAposFalha,
   contaEstaBloqueada,
   classificarCredencial,
@@ -613,4 +656,7 @@ module.exports = {
   BCRYPT_DUMMY_HASH,
   BLOQUEIO_FALHAS_LIMITE,
   RECUPERACAO_TOKEN_TTL_MS,
+  ACCESS_TOKEN_TTL_MS,
+  REFRESH_TOKEN_TTL_MS,
+  SESSAO_VIDA_MAX_MS,
 };

@@ -136,6 +136,12 @@ services:
       # mede esse tempo). Default (não setada) = comportamento ligado.
       HUB_RBAC_ENVIO: "${HUB_RBAC_ENVIO:-}"
       HUB_IMPORT_LOG_ENVIO: "${HUB_IMPORT_LOG_ENVIO:-}"
+      # hub-sessao-inatividade (2026-09-06): janelas da sessão SÓ para prova
+      # com TTL reduzido neste ambiente isolado (routes/hub-auth.js). Vazias =
+      # defaults de negócio (15 min / 6 h / 24 h). Produção nunca define.
+      HUB_ACCESS_TTL_S: "${HUB_ACCESS_TTL_S:-}"
+      HUB_REFRESH_TTL_MS: "${HUB_REFRESH_TTL_MS:-}"
+      HUB_SESSAO_VIDA_MAX_MS: "${HUB_SESSAO_VIDA_MAX_MS:-}"
       # hub-motorista-canonico (FASE 7, smoke E2E): gate NOVO, análogo ao
       # padrão ENVIO_* acima — lib/hub-motorista-app-login.js. Default "false"
       # em qualquer ambiente que não defina a var (produção NUNCA define =
