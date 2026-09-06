@@ -1,4 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  COOKIE_ACCESS,
+  COOKIE_REFRESH,
+  accessVenceEmBreve,
+  mesclarCookies,
+  renovarSessao,
+  rotaExigeSessao,
+} from '@/lib/hub/sessao-proxy';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 // hub-envio-massa (S8, bug real achado no smoke da FASE 5/6): no backend, as
@@ -48,6 +56,33 @@ async function proxyRequest(req: NextRequest) {
       headers.set('cookie', cookieHeader);
     }
 
+    // hub-sessao-inatividade (2026-09-06): renovação silenciosa da sessão do
+    // hub. (1) Preventiva: access ausente/vencendo e refresh presente -> renova
+    // ANTES de encaminhar (uma ida e volta; cobre o upload multipart, cujo
+    // corpo é stream e não pode ser reenviado). (2) Reativa: 401 com corpo
+    // reenviável -> renova e repete UMA vez. Os Set-Cookie da renovação vão
+    // sempre ao browser: tokens novos se deu certo, limpeza se não (evita
+    // reapresentar um refresh vencido). Detalhes em lib/hub/sessao-proxy.ts.
+    const refreshToken = req.cookies.get(COOKIE_REFRESH)?.value;
+    const renovar = refreshToken && rotaExigeSessao(path)
+      ? () => {
+          const cabecalhos: Record<string, string> = { cookie: headers.get('cookie') ?? '' };
+          for (const h of ['user-agent', 'x-forwarded-for', 'x-real-ip']) {
+            const v = headers.get(h);
+            if (v) cabecalhos[h] = v;
+          }
+          return renovarSessao(refreshToken, cabecalhos, `${HUB_BACKEND_URL}/v1/auth/refresh`);
+        }
+      : null;
+    let cookiesRenovacao: string[] = [];
+    let jaRenovou = false;
+    if (renovar && accessVenceEmBreve(req.cookies.get(COOKIE_ACCESS)?.value)) {
+      const r = await renovar();
+      jaRenovou = true;
+      cookiesRenovacao = r.setCookies;
+      if (r.ok) headers.set('cookie', mesclarCookies(headers.get('cookie') ?? '', r.setCookies));
+    }
+
     const init: RequestInit = {
       method: req.method,
       headers,
@@ -67,7 +102,17 @@ async function proxyRequest(req: NextRequest) {
       }
     }
 
-    const backendRes = await fetch(target, init);
+    let backendRes = await fetch(target, init);
+
+    const corpoReenviavel = init.body === undefined || typeof init.body === 'string';
+    if (backendRes.status === 401 && renovar && !jaRenovou && corpoReenviavel) {
+      const r = await renovar();
+      cookiesRenovacao = r.setCookies;
+      if (r.ok) {
+        headers.set('cookie', mesclarCookies(headers.get('cookie') ?? '', r.setCookies));
+        backendRes = await fetch(target, init);
+      }
+    }
 
     const responseHeaders = new Headers();
     backendRes.headers.forEach((value, key) => {
@@ -78,7 +123,7 @@ async function proxyRequest(req: NextRequest) {
 
     // Set-Cookie must be handled separately — Headers.forEach() merges multiple values with comma
     const setCookies = backendRes.headers.getSetCookie();
-    for (const cookie of setCookies) {
+    for (const cookie of [...setCookies, ...cookiesRenovacao]) {
       responseHeaders.append('set-cookie', cookie);
     }
 

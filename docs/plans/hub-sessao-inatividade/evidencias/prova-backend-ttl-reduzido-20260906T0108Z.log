@@ -1,0 +1,27 @@
+01:08:10 TTLs: access 40 s | refresh (inatividade) 90 s | teto 240 s
+01:08:10 login pj-A -> 200
+01:08:10 login pj-A2 -> 200
+01:08:10 login pj-B -> 200
+01:08:11 login pj-C1 -> 200
+01:08:11 login pj-C2 -> 200
+01:08:41 [B ativo] refresh aos 30 s -> 200 (esperado 200)
+01:08:41 [C2 ativo] refresh -> 200 (esperado 200)
+01:09:11 [A2 controle] refresh após 60 s parado -> 200 (esperado 200)
+01:09:11 [C2 ativo] refresh -> 200 (esperado 200)
+01:09:11 [B ativo] refresh aos 60 s -> 200 (esperado 200)
+01:09:41 [B ativo] refresh aos 90 s -> 200 (esperado 200)
+01:09:41 [C2 ativo] refresh -> 200 (esperado 200)
+01:09:51 [A] refresh após 100 s parado -> 401 (esperado 401: inatividade)
+01:09:51 [C1 parado 100 s] refresh 1ª vez -> 401 (esperado 401)
+01:09:51 [C1 parado 100 s] refresh 2ª vez, mesmo token -> 401 (esperado 401, sem virar reuso)
+01:09:51 [C2 ativo] refresh após as 2 reapresentações de C1 -> 200 (esperado 200: família intacta)
+01:10:11 [B ativo] refresh aos 120 s -> 200 (esperado 200)
+01:10:41 [B ativo] refresh aos 150 s -> 200 (esperado 200)
+01:11:11 [B ativo] refresh aos 180 s -> 200 (esperado 200)
+01:11:41 [B ativo] refresh aos 210 s -> 200 (esperado 200)
+01:12:21 [B ativo] refresh aos 250 s -> 401 (esperado 401: teto de 240 s)
+01:12:21 login pj-D -> 200
+01:12:21 [D] refresh -> 200 (esperado 200: rotacionou)
+01:12:21 [D] refresh com o token ANTIGO -> 401 (esperado 401: reuso)
+01:12:22 [D] refresh com o token NOVO -> 401 (esperado 401: família revogada pelo reuso)
+01:12:22 FIM

@@ -1,0 +1,21 @@
+00:27:16 [A] login -> 200
+00:27:16 [B] login -> 200
+00:28:16 [A ativo] min 1 GET /me -> 200
+00:29:16 [A ativo] min 2 GET /me -> 200
+00:30:16 [A ativo] min 3 GET /me -> 200
+00:31:16 [A ativo] min 4 GET /me -> 200
+00:32:17 [A ativo] min 5 GET /me -> 200
+00:33:17 [A ativo] min 6 GET /me -> 200
+00:34:17 [A ativo] min 7 GET /me -> 200
+00:35:17 [A ativo] min 8 GET /me -> 200
+00:36:17 [A ativo] min 9 GET /me -> 200
+00:37:17 [A ativo] min 10 GET /me -> 200
+00:38:18 [A ativo] min 11 GET /me -> 200
+00:39:18 [A ativo] min 12 GET /me -> 200
+00:40:18 [A ativo] min 13 GET /me -> 200
+00:41:18 [A ativo] min 14 GET /me -> 200
+00:42:18 [A ativo] min 15 GET /me -> 401
+00:43:16 [B parado] após 16 min GET /me -> 401
+00:43:18 [A ativo] min 16 GET /me -> 401
+00:44:18 [A ativo] min 17 GET /me -> 401
+00:44:18 FIM

@@ -1,0 +1,25 @@
+# Rodada 2 — teto 900 s; F/G/H válidos; H' = refresh vencido apresentado explicitamente
+01:22:50 TTLs: access 40 s | refresh 90 s | teto 900 s — tudo pelo PROXY (/api/v1/*), um único login
+01:22:50 login -> 200; refresh …0cb6b1 access …-OXF9Q 
+01:23:10 [E uso contínuo] +20 s GET /me -> 200 (esperado 200); access …47j_jM refresh …b25886 
+01:23:30 [E uso contínuo] +40 s GET /me -> 200 (esperado 200); refresh …c56e61 access …qPIrzI 
+01:23:51 [E uso contínuo] +60 s GET /me -> 200 (esperado 200); access …Vk86AM refresh …938fff 
+01:24:11 [E uso contínuo] +81 s GET /me -> 200 (esperado 200); refresh …e073dd access …4RJ1eQ 
+01:24:31 [E uso contínuo] +101 s GET /me -> 200 (esperado 200); access …sunnz8 refresh …e3bd3e 
+01:24:51 [E uso contínuo] +121 s GET /me -> 200 (esperado 200); refresh …dec07a access …-CKc00 
+01:25:11 [E uso contínuo] +141 s GET /me -> 200 (esperado 200); access …Pq9IYI refresh …ca3f83 
+01:25:31 [E uso contínuo] +161 s GET /me -> 200 (esperado 200); refresh …907b6e access …XpYNxs 
+01:25:51 [E uso contínuo] +181 s GET /me -> 200 (esperado 200); access …bSblN0 refresh …61a810 
+01:26:51 [F parado 60 s] +241 s GET /me -> 200 (esperado 200: proxy renovou); access …2TH0Vk refresh …2e5ff8 
+01:27:36 [G concorrente 1] GET /me -> 200
+01:27:36 [G concorrente 3] GET /me -> 200
+01:27:36 [G concorrente 5] GET /me -> 200
+01:27:36 [G concorrente 2] GET /me -> 200
+01:27:36 [G concorrente 4] GET /me -> 200
+01:27:37 [G sincroniza o jar] GET /me -> 200 (dentro dos 60 s de cache: mesmo resultado, jar atualizado)
+01:27:37 [G] +287 s linhas em SessaoRefresh antes=279 depois=280 (esperado +1: uma única renovação para as 5)
+01:29:17 [H parado 100 s] +387 s GET /me -> 401 (esperado 401); Set-Cookie de limpeza: 0 (esperado 2)
+01:29:17 FIM
+01:30:34 [H' refresh vencido APRESENTADO explicitamente, sem access] GET /me -> 401 (esperado 401); Set-Cookie de limpeza: 2 (esperado 2)
+01:30:34 [H' 2ª apresentação do MESMO token vencido] GET /me -> 401 (esperado 401, benigno)
+nota: no H original o curl NÃO enviou cookies (jar respeita Max-Age=90, como o browser) — log do proxy: parsedCookieCount: 0; por isso 401 seco sem Set-Cookie, correto.
