@@ -92,7 +92,22 @@ docs/                     # constitution.md, RITO-PRODUCAO.md, plans/ (planos ve
   `scripts/gen-secrets.sh`).
 - **Auth (constitution §I–III)**: JWT em cookies httpOnly (`accessToken` 15 min +
   `refreshToken`), nunca em localStorage/query/header exposto; escopo multi-tenant é
-  resolvido server-side a partir do token, nunca do corpo da requisição.
+  resolvido server-side a partir do token, nunca do corpo da requisição. A sessão do hub
+  renova sozinha: o proxy `app/api/[...path]` renova por `POST /api/v1/auth/refresh` ao ver
+  o `accessToken` vencido/ausente (sem timer — timer no cliente derrota a inatividade). O
+  refresh **desliza 6 h** (inatividade) e a família tem **teto absoluto de 24 h** desde o
+  login (carimbado no próprio refresh token `<ms>.<hex>`, sem coluna nova).
+  ⚠️ **Estado de sessão que só vive numa claim do `accessToken` (efêmero) e que só o
+  `/refresh` recarrega é uma bomba armada:** a `entidade_ativa` (gravada pelo
+  `POST /me/entidade`) morava só na claim, e o `/refresh` a descartava ao reemitir o token.
+  Enquanto ninguém chamava o refresh isso ficou latente; ligar a renovação silenciosa o
+  detonou — a cada refresh a entidade sumia e o hub caía em "sem módulos" (`/me` com
+  `modulos:[]`) + 400 `ENTIDADE_NAO_SELECIONADA` (`hub-motoristas.js`). Correção (PR #161):
+  o `/refresh` relê a claim do `accessToken` antigo **mesmo expirado** (`jwt.verify` com
+  `ignoreExpiration` — assinatura HS256 ainda conferida, `sub` conferido, `/me` revalida
+  contra os vínculos), e o **cookie** do access vive tanto quanto o refresh (o JWT segue
+  expirando em 15 min). **Ao reemitir um token, preserve TODA claim de estado de sessão que
+  o `/refresh` não recalcula do banco** — não só `sub`/`email`.
 
 ## Comandos
 
