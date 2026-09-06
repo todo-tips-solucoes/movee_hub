@@ -40,6 +40,7 @@ run_container() {
   docker run --rm \
     -v "${SCRIPT_DIR}:/work" \
     -v "${SECRETS_DIR}:${SECRETS_DIR}" \
+    -e ENRIQ_THROTTLE_MS \
     -w /work \
     "$PLAYWRIGHT_IMAGE" \
     "$@"
@@ -50,6 +51,7 @@ flock -n -E "$CONFLICT_EXIT_CODE" "$LOCKFILE" \
   docker run --rm \
     -v "${SCRIPT_DIR}:/work" \
     -v "${SECRETS_DIR}:${SECRETS_DIR}" \
+    -e ENRIQ_THROTTLE_MS \
     -w /work \
     "$PLAYWRIGHT_IMAGE" \
     node src/enriquecimento.js "--modo=${MODO}"

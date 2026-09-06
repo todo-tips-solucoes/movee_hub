@@ -7,7 +7,7 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { ErroAntibotSuspeito, ErroPortalTransitorio } = require('../src/entrego-portal');
-const { executarRodadaEnriquecimento, THROTTLE_MS_ENTRE_MOTORISTAS, KEEPALIVE_MARGEM_MS } = require('../src/enriquecimento');
+const { executarRodadaEnriquecimento, THROTTLE_MS_ENTRE_MOTORISTAS, KEEPALIVE_MARGEM_MS, resolverThrottleMs } = require('../src/enriquecimento');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -418,5 +418,33 @@ describe('keep-alive da sessão com fila vazia (item 3)', () => {
 
   test('a margem é de 20 min (4 chances de 5 min antes de vencer)', () => {
     assert.equal(KEEPALIVE_MARGEM_MS, 20 * 60_000);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// resolverThrottleMs — override temporário do throttle para o backfill em massa
+// (docs/plans/robo-entrego/PLANO-ENRIQUECIMENTO-MASSA.md). O default de 60 s
+// (FR-016) NÃO muda quando a env está ausente.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('resolverThrottleMs', () => {
+  test('sem env -> 60 s (FR-016, comportamento inalterado)', () => {
+    assert.equal(resolverThrottleMs({}), 60_000);
+    assert.equal(THROTTLE_MS_ENTRE_MOTORISTAS, 60_000, 'o processo de teste roda sem a env');
+  });
+
+  test('env válida -> usa o valor (ex.: 30 s no backfill)', () => {
+    assert.equal(resolverThrottleMs({ ENRIQ_THROTTLE_MS: '30000' }), 30_000);
+    assert.equal(resolverThrottleMs({ ENRIQ_THROTTLE_MS: 15_000 }), 15_000);
+  });
+
+  test('valor inválido, zero ou negativo -> cai no default de 60 s (nunca acelera por engano)', () => {
+    for (const v of ['abc', '', '0', '-1', 'NaN', undefined]) {
+      assert.equal(resolverThrottleMs({ ENRIQ_THROTTLE_MS: v }), 60_000, `valor: ${v}`);
+    }
+  });
+
+  test('piso de 1 s (um 5 ms perdido no env não vira enxurrada no portal)', () => {
+    assert.equal(resolverThrottleMs({ ENRIQ_THROTTLE_MS: '5' }), 1000);
   });
 });
