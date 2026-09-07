@@ -61,6 +61,24 @@ function resolverThrottleMs(env = process.env) {
 
 const THROTTLE_MS_ENTRE_MOTORISTAS = resolverThrottleMs();
 
+/**
+ * Quantas anomalias de formato CONSECUTIVAS (ErroAntibotSuspeito) são
+ * necessárias para abortar a rodada.
+ *
+ * Antes disto, UMA só anomalia abortava a rodada inteira e o item corrente
+ * ficava sem PATCH — logo continuava na fila e voltava como cabeça do lote
+ * seguinte. Com uso sob demanda (1 item por rodada) isso é inofensivo; no
+ * backfill em massa de 2026-09-06 virou bloqueio de cabeça de fila: o
+ * Entregador id=450 respondia 200 com content-type vazio e congelou os 1274
+ * pendentes por 57 rodadas seguidas, com 0 progresso.
+ *
+ * A leitura correta: uma resposta estranha para UM motorista é problema
+ * DAQUELE registro; só um padrão REPETIDO é sinal de bloqueio do portal. O
+ * "para, não martela" (FR-016/FR-011) continua valendo — só passa a exigir
+ * evidência de padrão em vez de um caso isolado.
+ */
+const LIMIAR_ANOMALIAS_CONSECUTIVAS = 3;
+
 const MODOS_VALIDOS = Object.freeze(['sob-demanda', 'semestral']);
 
 async function dormirReal(ms) {
@@ -170,6 +188,7 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
   let falhas = 0;
   let motivoParada = null;
   let renovacoesNaRodada = 0;
+  let anomaliasConsecutivas = 0;
 
   for (let i = 0; i < itens.length; i += 1) {
     const item = itens[i];
@@ -196,6 +215,7 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
         await processarUmMotorista({ item, page, clienteHub, modo, dormir, buscarDadosPessoa });
       }
       sucessos += 1;
+      anomaliasConsecutivas = 0;
     } catch (e) {
       // FR-016/FR-011 — "parando em vez de insistir": suspeita de anti-bot OU
       // falha transitória/de sessão que sobrou dos 3 retries de
@@ -203,11 +223,27 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
       // 401 que PERSISTIU depois de renovar, interrompem a RODADA inteira. O
       // item CORRENTE fica sem PATCH — o pedido (dados_entrego_solicitado_em)
       // permanece pendente na fila, reprocessado na PRÓXIMA execução do timer.
-      if (e instanceof ErroAntibotSuspeito || e instanceof ErroPortalTransitorio) {
+      // ErroPortalTransitorio (rede/5xx/401 persistente) NÃO é culpa deste
+      // motorista: aborta a rodada e deixa o item na fila, como antes.
+      if (e instanceof ErroPortalTransitorio) {
         motivoParada = e.message;
         // eslint-disable-next-line no-console
         console.error(`[enriquecimento] rodada interrompida (${e.name}): ${e.message}`);
         break;
+      }
+
+      // Anomalia de formato: isolada = registro ruim (segue); repetida =
+      // bloqueio de verdade (aborta). Ver LIMIAR_ANOMALIAS_CONSECUTIVAS.
+      if (e instanceof ErroAntibotSuspeito) {
+        anomaliasConsecutivas += 1;
+        if (anomaliasConsecutivas >= LIMIAR_ANOMALIAS_CONSECUTIVAS) {
+          motivoParada = `${e.message} (${anomaliasConsecutivas} anomalias consecutivas — tratado como bloqueio)`;
+          // eslint-disable-next-line no-console
+          console.error(`[enriquecimento] rodada interrompida (${e.name}, ${anomaliasConsecutivas} consecutivas): ${e.message}`);
+          break;
+        }
+        // eslint-disable-next-line no-console
+        console.warn(`[enriquecimento] anomalia isolada no motorista ${item.id} (${anomaliasConsecutivas}/${LIMIAR_ANOMALIAS_CONSECUTIVAS}) — marca falha e segue: ${e.message}`);
       }
       // Falha específica DESTE motorista (ex.: dados incompletos, timeout
       // isolado) — reporta e segue para o próximo (mesma disciplina do
@@ -294,6 +330,7 @@ module.exports = {
   executarRodadaEnriquecimento,
   processarUmMotorista,
   THROTTLE_MS_ENTRE_MOTORISTAS,
+  LIMIAR_ANOMALIAS_CONSECUTIVAS,
   resolverThrottleMs,
   MODOS_VALIDOS,
   ENV_PATH_DEFAULT,
