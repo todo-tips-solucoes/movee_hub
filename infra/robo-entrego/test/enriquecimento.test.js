@@ -7,7 +7,7 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { ErroAntibotSuspeito, ErroPortalTransitorio } = require('../src/entrego-portal');
-const { executarRodadaEnriquecimento, THROTTLE_MS_ENTRE_MOTORISTAS, KEEPALIVE_MARGEM_MS, resolverThrottleMs } = require('../src/enriquecimento');
+const { executarRodadaEnriquecimento, THROTTLE_MS_ENTRE_MOTORISTAS, KEEPALIVE_MARGEM_MS, resolverThrottleMs, LIMIAR_ANOMALIAS_CONSECUTIVAS } = require('../src/enriquecimento');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -139,7 +139,14 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
     assert.equal(clienteHub.chamadasAtualizar[0].resultado.dados.dadosPessoais !== undefined, true);
   });
 
-  test('ErroAntibotSuspeito no meio da rodada -> PARA (não processa os seguintes), item corrente NÃO é reportado (fica pendente pra próxima janela)', async () => {
+  // ATUALIZADO em 2026-09-06 (backfill em massa). Contrato ANTIGO: UMA
+  // anomalia de formato abortava a rodada e o item ficava sem PATCH — logo
+  // voltava como cabeça do lote seguinte. Com 1 item por rodada (sob demanda)
+  // isso é inofensivo; com fila de 1274 virou bloqueio de cabeça de fila: o
+  // Entregador id=450 respondia 200 com content-type vazio e travou tudo por
+  // 57 rodadas, 0 progresso. Contrato NOVO: anomalia ISOLADA é falha DAQUELE
+  // motorista (reportada, sai da fila) e a rodada SEGUE.
+  test('ErroAntibotSuspeito ISOLADO -> reporta falha DAQUELE motorista e SEGUE a rodada', async () => {
     const itens = [{ id: 1, idExterno: 'uuid-1' }, { id: 2, idExterno: 'uuid-2' }, { id: 3, idExterno: 'uuid-3' }];
     const clienteHub = mockClienteHub({ itens });
     let chamadas = 0;
@@ -151,18 +158,64 @@ describe('executarRodadaEnriquecimento (task 5.3.4)', () => {
       dormir: async () => {},
       buscarDadosPessoa: async () => {
         chamadas += 1;
-        if (chamadas === 2) throw new ErroAntibotSuspeito('suspeita detectada');
+        if (chamadas === 2) throw new ErroAntibotSuspeito('registro estranho');
         return {};
       },
     });
-    assert.equal(chamadas, 2, 'só deveria tentar até o item que disparou o antibot');
-    assert.equal(r.sucessos, 1);
-    assert.equal(r.falhas, 0);
-    assert.equal(r.parouPorAntibotOuGap, true);
+    assert.equal(chamadas, 3, 'a rodada NÃO pode parar numa anomalia isolada');
+    assert.equal(r.sucessos, 2);
+    assert.equal(r.falhas, 1);
+    assert.equal(r.parouPorAntibotOuGap, false, 'não houve parada');
     assert.equal(r.resultado, 'falha_parcial');
-    // item 2 (o que falhou) e item 3 (nunca tentado) NÃO foram reportados ao hub.
-    assert.equal(clienteHub.chamadasAtualizar.length, 1);
-    assert.equal(clienteHub.chamadasAtualizar[0].id, 1);
+    // os 3 foram reportados; o item 2 como falha -> o hub limpa solicitado_em
+    // e ele SAI da fila (não volta como cabeça do lote seguinte).
+    assert.equal(clienteHub.chamadasAtualizar.length, 3);
+    const item2 = clienteHub.chamadasAtualizar.find((c) => c.id === 2);
+    assert.equal(item2.resultado.sucesso, false);
+    assert.match(item2.resultado.motivoFalha, /registro estranho/);
+  });
+
+  test('3 anomalias CONSECUTIVAS -> aborta a rodada (bloqueio de verdade, "para, não martela")', async () => {
+    const itens = [1, 2, 3, 4, 5].map((id) => ({ id, idExterno: `uuid-${id}` }));
+    const clienteHub = mockClienteHub({ itens });
+    let chamadas = 0;
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda',
+      page: pageComSessaoValida(),
+      clienteHub,
+      config: configFake,
+      dormir: async () => {},
+      buscarDadosPessoa: async () => { chamadas += 1; throw new ErroAntibotSuspeito('bloqueado'); },
+    });
+    assert.equal(chamadas, LIMIAR_ANOMALIAS_CONSECUTIVAS, 'para exatamente no limiar, não varre a fila inteira');
+    assert.equal(r.sucessos, 0);
+    assert.equal(r.parouPorAntibotOuGap, true);
+    assert.match(r.motivoParada, /anomalias consecutivas/);
+    // as 2 primeiras foram reportadas como falha; a 3ª (a que abortou) NÃO.
+    assert.equal(clienteHub.chamadasAtualizar.length, LIMIAR_ANOMALIAS_CONSECUTIVAS - 1);
+  });
+
+  test('um sucesso ZERA o contador — anomalias alternadas nunca abortam', async () => {
+    const itens = [1, 2, 3, 4].map((id) => ({ id, idExterno: `uuid-${id}` }));
+    const clienteHub = mockClienteHub({ itens });
+    let chamadas = 0;
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda',
+      page: pageComSessaoValida(),
+      clienteHub,
+      config: configFake,
+      dormir: async () => {},
+      buscarDadosPessoa: async () => {
+        chamadas += 1;
+        // anomalia, sucesso, anomalia, anomalia -> contador nunca chega a 3
+        if (chamadas === 1 || chamadas === 3 || chamadas === 4) throw new ErroAntibotSuspeito('estranho');
+        return {};
+      },
+    });
+    assert.equal(chamadas, 4, 'processou a fila inteira');
+    assert.equal(r.sucessos, 1);
+    assert.equal(r.falhas, 3);
+    assert.equal(r.parouPorAntibotOuGap, false);
   });
 
   // 6.1.4: mesmo comportamento "para em vez de insistir" já validado do robô
