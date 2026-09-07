@@ -23,6 +23,37 @@ const POLL_INTERVAL_MS_DEFAULT = 5000;
 const POLL_TIMEOUT_MS_DEFAULT = 5 * 60 * 1000; // 5min — não especificado pela spec/plan; default de engenharia (não fato de negócio), ajustável via opts.
 
 /** Erro de CONFIGURAÇÃO (contracts/hub-api.md: entidade_ativa ≠ HUB_ID_EMPRESA) — nunca retry. */
+/**
+ * Quanto esperar antes de retentar um 429 do hub.
+ *
+ * O limitador do backend (routes/hub-robo-entrego.js: 30 req / 15 min por
+ * usuário) cobre TODAS as rotas do robô, inclusive o PATCH que grava o
+ * resultado de cada motorista. Uma rodada custa 1 GET + até 20 PATCH = 21
+ * requisições; com o throttle em 30 s as rodadas vêm a cada ~10 min, ou seja
+ * ~31,5 req / 15 min — acima do teto. Medido na drenagem de 2026-09-06/07:
+ * o reporte levava 429 e o motorista era contabilizado como falha mesmo tendo
+ * sido buscado no portal, ficando na fila (retrabalho) ou saindo dela sem dado
+ * (perda). Como `standardHeaders: true` está ligado, a resposta diz QUANDO
+ * tentar de novo — usamos isso em vez de adivinhar. Pura.
+ * @param {object} headers - headers da resposta 429
+ * @returns {number} ms a esperar (mín. 1 s, máx. 5 min)
+ */
+function esperaRetry429(headers = {}) {
+  // Normaliza as CHAVES (axios já entrega minúsculas, mas um mock/proxy pode
+  // não entregar) — normalizar só o nome procurado não resolveria nada.
+  const baixo = {};
+  for (const [k, v] of Object.entries(headers || {})) baixo[String(k).toLowerCase()] = v;
+  const h = (nome) => {
+    const v = baixo[nome];
+    if (v === undefined || v === null || String(v).trim() === '') return null;
+    const num = Number(v);
+    return Number.isFinite(num) && num >= 0 ? num : null;
+  };
+  const segundos = h('retry-after') !== null ? h('retry-after') : h('ratelimit-reset');
+  const ms = segundos !== null ? segundos * 1000 : 60_000;
+  return Math.min(Math.max(ms, 1000), 5 * 60_000);
+}
+
 class ErroConfiguracaoHub extends Error {}
 
 /** Erro de resposta do hub (upload 422, status inesperado, timeout de polling). */
@@ -68,7 +99,8 @@ function decodificarPayloadJwt(token) {
  * @param {number|string} opts.idEmpresaEsperado - HUB_ID_EMPRESA
  * @param {object} [opts.axiosInstance] - override para testes
  */
-function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance }) {
+function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) {
+  const esperar = dormir || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const http = axiosInstance || axios.create({ baseURL, timeout: 30000, validateStatus: () => true });
   let cookieHeader = null;
 
@@ -248,20 +280,32 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance }) {
    * @param {{sucesso:boolean, dados?:object, motivoFalha?:string, modo?:string}} resultado
    * @returns {Promise<{sinal:string, status?:number}>}
    */
-  async function atualizarEnriquecimento(id, { sucesso, dados, motivoFalha, modo } = {}) {
+  async function atualizarEnriquecimento(id, { sucesso, dados, motivoFalha, modo } = {}, { tentativas = 3 } = {}) {
     garantirAutenticado();
     const corpo = { sucesso, modo };
     if (sucesso) corpo.dados = dados;
     else corpo.motivoFalha = motivoFalha;
-    const resp = await http.patch(`/api/v1/robo-entrego/motoristas/${id}/entrego-enriquecimento`, corpo, {
-      headers: { Cookie: cookieHeader },
-    });
-    if (resp.status === 200) return { sinal: 'enriquecimento_200' };
-    if (resp.status === 404) return { sinal: 'enriquecimento_404' };
-    if (resp.status >= 500) return { sinal: 'http_5xx_hub', status: resp.status };
-    throw new ErroHub(`hub-client: atualizarEnriquecimento — status inesperado ${resp.status}`, {
-      motivo: resp.data && resp.data.erro,
-    });
+    for (let tentativa = 1; ; tentativa += 1) {
+      const resp = await http.patch(`/api/v1/robo-entrego/motoristas/${id}/entrego-enriquecimento`, corpo, {
+        headers: { Cookie: cookieHeader },
+      });
+      if (resp.status === 200) return { sinal: 'enriquecimento_200' };
+      if (resp.status === 404) return { sinal: 'enriquecimento_404' };
+      if (resp.status >= 500) return { sinal: 'http_5xx_hub', status: resp.status };
+      // 429 é do NOSSO limitador, não do portal: esperar e retentar preserva o
+      // resultado (ver esperaRetry429). Perder este PATCH é perder o trabalho
+      // que já foi feito no portal.
+      if (resp.status === 429 && tentativa < tentativas) {
+        const espera = esperaRetry429(resp.headers || {});
+        // eslint-disable-next-line no-console
+        console.warn(`[hub-client] 429 ao reportar item ${id} (tentativa ${tentativa}/${tentativas}) — aguardando ${Math.round(espera / 1000)}s`);
+        await esperar(espera);
+        continue;
+      }
+      throw new ErroHub(`hub-client: atualizarEnriquecimento — status inesperado ${resp.status}`, {
+        motivo: resp.data && resp.data.erro,
+      });
+    }
   }
 
   /**
@@ -297,6 +341,7 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance }) {
 
 module.exports = {
   criarClienteHub,
+  esperaRetry429,
   ErroConfiguracaoHub,
   ErroHub,
   POLL_INTERVAL_MS_DEFAULT,
