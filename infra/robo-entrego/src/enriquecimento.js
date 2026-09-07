@@ -249,6 +249,12 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
       // isolado) — reporta e segue para o próximo (mesma disciplina do
       // PATCH sucesso=false, FR-007: nunca descarta enriquecimento anterior).
       falhas += 1;
+      // Observabilidade (lacuna achada em 2026-09-07): até aqui SÓ a anomalia
+      // isolada e a falha-ao-reportar logavam. O caminho genérico era mudo,
+      // então ~26 falhas da drenagem ficaram sem causa atribuível. Toda falha
+      // passa a dizer QUEM e POR QUÊ.
+      // eslint-disable-next-line no-console
+      console.warn(`[enriquecimento] motorista ${item.id} falhou (${e.name}): ${e.message}`);
       try {
         await clienteHub.atualizarEnriquecimento(item.id, { sucesso: false, motivoFalha: e.message, modo });
       } catch (patchErr) {

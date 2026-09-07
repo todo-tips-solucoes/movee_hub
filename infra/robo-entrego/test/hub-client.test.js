@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 
 const {
   criarClienteHub,
+  esperaRetry429,
   ErroConfiguracaoHub,
   ErroHub,
   extrairCookieHeader,
@@ -348,5 +349,75 @@ describe('atualizarEnriquecimento', () => {
     const axiosInstance = mockAxios({});
     const client = criarClienteHub({ idEmpresaEsperado: 6, axiosInstance });
     await assert.rejects(() => client.atualizarEnriquecimento(10, { sucesso: true }), ErroHub);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 429 no reporte de enriquecimento (achado da drenagem de 2026-09-06/07).
+// O limitador do backend (30 req / 15 min por usuário) cobre o PATCH de
+// resultado; a rodada custa 21 requisições e, com throttle de 30 s, estourava.
+// Perder este PATCH é perder trabalho JÁ FEITO no portal.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('esperaRetry429', () => {
+  test('usa retry-after (s) e, na falta dele, ratelimit-reset', () => {
+    assert.equal(esperaRetry429({ 'retry-after': '20' }), 20_000);
+    assert.equal(esperaRetry429({ 'ratelimit-reset': '90' }), 90_000);
+    assert.equal(esperaRetry429({ 'Retry-After': '5' }), 5_000, 'header case-insensitive');
+  });
+  test('sem cabeçalho -> 60 s; piso de 1 s; teto de 5 min', () => {
+    assert.equal(esperaRetry429({}), 60_000);
+    assert.equal(esperaRetry429({ 'retry-after': '0' }), 1000);
+    assert.equal(esperaRetry429({ 'retry-after': '9999' }), 300_000);
+    assert.equal(esperaRetry429({ 'retry-after': 'abc' }), 60_000, 'lixo cai no default');
+  });
+});
+
+describe('atualizarEnriquecimento — retry no 429', () => {
+  function clienteCom(respostas, esperas) {
+    let i = 0;
+    const axiosInstance = mockAxios({
+      post: {
+        '/api/v1/auth/login': loginHandlerPadrao(),
+        '/api/v1/me/entidade': entidadeHandlerPadrao(),
+      },
+      patch: () => async () => respostas[i++],
+    });
+    return criarClienteHub({ idEmpresaEsperado: 6, axiosInstance, dormir: async (ms) => { esperas.push(ms); } });
+  }
+
+  test('429 seguido de 200 -> retenta, espera o tempo do header e NÃO perde o resultado', async () => {
+    const esperas = [];
+    const c = clienteCom([
+      { status: 429, data: { erro: 'Muitas requisições.' }, headers: { 'retry-after': '30' } },
+      { status: 200, data: {}, headers: {} },
+    ], esperas);
+    await c.login('a@b', 's');
+    const r = await c.atualizarEnriquecimento(7, { sucesso: true, dados: { x: 1 }, modo: 'sob-demanda' });
+    assert.equal(r.sinal, 'enriquecimento_200');
+    assert.deepEqual(esperas, [30_000], 'esperou exatamente o que o header pediu');
+  });
+
+  test('429 persistente -> lança ErroHub após esgotar as tentativas', async () => {
+    const esperas = [];
+    const c = clienteCom([
+      { status: 429, data: {}, headers: { 'retry-after': '2' } },
+      { status: 429, data: {}, headers: { 'retry-after': '2' } },
+      { status: 429, data: {}, headers: { 'retry-after': '2' } },
+    ], esperas);
+    await c.login('a@b', 's');
+    await assert.rejects(
+      () => c.atualizarEnriquecimento(9, { sucesso: false, motivoFalha: 'x', modo: 'sob-demanda' }),
+      (e) => e instanceof ErroHub && /429/.test(e.message)
+    );
+    assert.equal(esperas.length, 2, '3 tentativas => 2 esperas');
+  });
+
+  test('200 de primeira -> nenhuma espera (caminho normal intocado)', async () => {
+    const esperas = [];
+    const c = clienteCom([{ status: 200, data: {}, headers: {} }], esperas);
+    await c.login('a@b', 's');
+    assert.equal((await c.atualizarEnriquecimento(1, { sucesso: true, dados: {}, modo: 'semestral' })).sinal, 'enriquecimento_200');
+    assert.deepEqual(esperas, []);
   });
 });
