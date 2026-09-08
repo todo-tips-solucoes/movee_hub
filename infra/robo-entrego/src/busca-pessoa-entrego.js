@@ -17,7 +17,7 @@
 // chaves de foto simplesmente não têm destino no shape interno.
 'use strict';
 
-const { ErroAntibotSuspeito, ErroPortalTransitorio, HEADERS_API } = require('./entrego-portal');
+const { ErroAntibotSuspeito, ErroPessoaNaoEncontradaNoPortal, ErroPortalTransitorio, HEADERS_API } = require('./entrego-portal');
 
 const BASE_URL = 'https://api.entregolog.com/logistics-web-bff';
 const PORTAL_ORIGIN = 'https://franqueado.entregolog.com';
@@ -125,6 +125,20 @@ async function buscarDadosPessoaPorUuid(
   if (resultado.status >= 500) {
     throw new ErroPortalTransitorio(`busca-pessoa-entrego: /drivers/{uuid} — 5xx (${resultado.status})`, 'http_5xx_portal');
   }
+  // 200 com corpo E content-type vazios = uuid que o portal não reconhece mais
+  // (ele responde vazio em vez de 404). NÃO é antibot: exige AMBOS vazios, de
+  // modo que um corpo estranho COM content-type (desafio/HTML) continua caindo
+  // no ramo de antibot abaixo. Ver ErroPessoaNaoEncontradaNoPortal.
+  const contentTypeVazio = !resultado.contentType || String(resultado.contentType).trim() === '';
+  const corpoVazio = resultado.corpo === null || resultado.corpo === undefined
+    || (typeof resultado.corpo === 'string' && resultado.corpo.trim() === '');
+  if (resultado.status === 200 && contentTypeVazio && corpoVazio) {
+    throw new ErroPessoaNaoEncontradaNoPortal(
+      'busca-pessoa-entrego: /drivers/{uuid} — portal respondeu 200 sem corpo; '
+      + 'uuid desconhecido no portal (falha DESTE motorista, não sinal de bloqueio)'
+    );
+  }
+
   if (
     resultado.status !== 200
     || !resultado.contentType.includes('application/json')

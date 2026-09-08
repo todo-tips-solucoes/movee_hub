@@ -9,7 +9,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { ErroAntibotSuspeito, ErroPortalTransitorio, HEADERS_API } = require('../src/entrego-portal');
+const { ErroAntibotSuspeito, ErroPessoaNaoEncontradaNoPortal, ErroPortalTransitorio, HEADERS_API } = require('../src/entrego-portal');
 const { buscarDadosPessoaPorUuid, mapearParaShapeInterno } = require('../src/busca-pessoa-entrego');
 
 // Mesmo padrão de test/entrego-portal.test.js#mockPageEvaluate.
@@ -217,6 +217,25 @@ describe('buscarDadosPessoaPorUuid — ACHADOS-PORTAL.md §9.3 (endpoint confirm
       () => buscarDadosPessoaPorUuid(page, { uuid: 'x' }),
       (e) => e instanceof ErroPortalTransitorio && e.sinal === 'erro_conexao'
     );
+  });
+
+  // MEDIDO em 2026-09-07/08: 38 de 38 falhas do reprocessamento eram
+  // `status=200, content-type=` (ambos vazios), estáveis POR REGISTRO, enquanto
+  // 1214 outros motoristas eram buscados na MESMA sessão. Como antibot, 3
+  // seguidos abortavam a rodada (16 rodadas abortadas em 85 min).
+  test('200 com corpo E content-type vazios -> ErroPessoaNaoEncontradaNoPortal (NÃO antibot)', async () => {
+    const page = mockPageEvaluate({ status: 200, contentType: '', corpo: '' });
+    await assert.rejects(() => buscarDadosPessoaPorUuid(page, { uuid: 'x' }), (e) => {
+      assert.ok(e instanceof ErroPessoaNaoEncontradaNoPortal, 'classe própria');
+      assert.ok(!(e instanceof ErroAntibotSuspeito), 'NÃO pode contar como antibot');
+      assert.equal(e.sinal, 'pessoa_nao_encontrada');
+      return true;
+    });
+  });
+
+  test('200 com content-type vazio mas corpo NÃO vazio -> segue sendo ErroAntibotSuspeito', async () => {
+    const page = mockPageEvaluate({ status: 200, contentType: '', corpo: '<html>challenge</html>' });
+    await assert.rejects(() => buscarDadosPessoaPorUuid(page, { uuid: 'x' }), ErroAntibotSuspeito);
   });
 
   test('resposta é HTML (não JSON) -> ErroAntibotSuspeito, nunca retry transitório', async () => {
