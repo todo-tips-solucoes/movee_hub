@@ -255,6 +255,36 @@ terá; o critério de grupo deixa o sistema correto quando elas existirem). Deco
   real) de **infra** (timeout/5xx/sem resposta → 502 "indisponível"). Não mascarar regra de
   negócio como indisponibilidade.
 
+## Robô EntreGô — acoplamentos que não se veem no código
+
+Os dois timers de `infra/robo-entrego/` parecem independentes. **Não são.**
+
+- ⚠️ **O import diário depende do timer de ENRIQUECIMENTO estar ligado.** O
+  `entrego-enriquecimento-sob-demanda.timer` roda a cada 5 min e, com a fila vazia, faz
+  *keep-alive* da sessão do portal (PR #159). É só isso que mantém a sessão viva: o
+  **refresh token da EntreGô vive 60 min** (o cookie diz 24 h, mas o token não — decodificar
+  o JWT, nunca ler `expires`). Desligue o timer de enriquecimento e, ~1 h depois, a sessão
+  morre; o próximo import é forçado a **login completo**, que exige o **código de 6 dígitos
+  por e-mail** (lido por IMAP em `src/imap-codigo.js`, janela de 5 min). Isso transforma uma
+  rotina autônoma numa que depende de e-mail chegar a tempo — e um atraso de entrega já
+  derrubou o import das 11h de 2026-09-07 (`falha_definitiva`, "nenhuma mensagem encontrada
+  com assunto Código de Acesso"), enquanto o mesmo código era lido sem problema às 13h.
+  **Antes de parar/desabilitar o timer de enriquecimento, saiba que está apostando o import
+  do dia seguinte no e-mail do portal.**
+- ⚠️ **Os dois compartilham a MESMA trava** (`flock -n`, `robo-entrego.lock`) e o
+  **mesmo par conta/sessão** do portal (dec-039). Uma rodada de enriquecimento segurando a
+  trava na hora do import (11h/13h/14h) faz o import daquele tick ser **pulado** — e não há
+  novo tick até o dia seguinte, ou seja, o D-1 daquele dia não entra. Drenagem em massa
+  precisa terminar (ou ser parada por timer agendado) **antes** da janela do import.
+- ⚠️ **O limitador do backend cobre o robô inteiro**, inclusive o PATCH que grava o resultado
+  de cada motorista (`routes/hub-robo-entrego.js`: 30 req / 15 min por usuário). Uma rodada
+  custa 1 GET + até 20 PATCH = **21 requisições**: com o throttle padrão de 60 s dá ~16 por
+  janela e passa; a 30 s dá ~31,5 e **estoura**. O worker hoje espera e retenta no 429
+  (PR #166), mas o teto continua dimensionado para uso sob demanda, não para drenagem.
+- Mudança de **fluxo** em `infra/robo-entrego/` se faz em **worktree**: o `ExecStart` aponta
+  para o diretório vivo do repo, então `git checkout` muda o que roda e **merge = deploy**.
+  Provar com a suíte **no diretório vivo**.
+
 ## Governança
 
 - Commit/push/merge/deploy **somente com autorização explícita** do operador, **uma por
