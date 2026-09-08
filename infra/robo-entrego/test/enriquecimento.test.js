@@ -6,7 +6,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { ErroAntibotSuspeito, ErroPortalTransitorio } = require('../src/entrego-portal');
+const { ErroAntibotSuspeito, ErroPessoaNaoEncontradaNoPortal, ErroPortalTransitorio } = require('../src/entrego-portal');
 const { executarRodadaEnriquecimento, THROTTLE_MS_ENTRE_MOTORISTAS, KEEPALIVE_MARGEM_MS, resolverThrottleMs, LIMIAR_ANOMALIAS_CONSECUTIVAS } = require('../src/enriquecimento');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -499,5 +499,55 @@ describe('resolverThrottleMs', () => {
 
   test('piso de 1 s (um 5 ms perdido no env não vira enxurrada no portal)', () => {
     assert.equal(resolverThrottleMs({ ENRIQ_THROTTLE_MS: '5' }), 1000);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// "Não encontrado no portal" NÃO é antibot (2026-09-08). A fila de
+// reprocessamento era feita justamente desses registros, então as anomalias
+// vinham em sequência, o limiar de 3 disparava e a rodada abortava — 3
+// motoristas escoados por rodada em vez de 20.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('ErroPessoaNaoEncontradaNoPortal na rodada', () => {
+  test('MUITOS seguidos NÃO abortam a rodada e todos são reportados como falha', async () => {
+    const itens = [1, 2, 3, 4, 5, 6].map((id) => ({ id, idExterno: `uuid-${id}` }));
+    const clienteHub = mockClienteHub({ itens });
+    let chamadas = 0;
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda',
+      page: pageComSessaoValida(),
+      clienteHub,
+      config: configFake,
+      dormir: async () => {},
+      buscarDadosPessoa: async () => { chamadas += 1; throw new ErroPessoaNaoEncontradaNoPortal('uuid desconhecido'); },
+    });
+    assert.equal(chamadas, 6, 'processa a fila INTEIRA, mesmo com 6 seguidos');
+    assert.equal(r.sucessos, 0);
+    assert.equal(r.falhas, 6);
+    assert.equal(r.parouPorAntibotOuGap, false, 'não pode contar como bloqueio');
+    assert.equal(clienteHub.chamadasAtualizar.length, 6, 'todos saem da fila (solicitado_em limpo)');
+    clienteHub.chamadasAtualizar.forEach((c) => assert.equal(c.resultado.sucesso, false));
+  });
+
+  test('não-encontrado NÃO zera nem alimenta o contador de antibot', async () => {
+    // 2 antibot, 1 não-encontrado no meio, 1 antibot => o 3º antibot ainda aborta
+    const itens = [1, 2, 3, 4, 5].map((id) => ({ id, idExterno: `uuid-${id}` }));
+    const clienteHub = mockClienteHub({ itens });
+    let n = 0;
+    const r = await executarRodadaEnriquecimento({
+      modo: 'sob-demanda',
+      page: pageComSessaoValida(),
+      clienteHub,
+      config: configFake,
+      dormir: async () => {},
+      buscarDadosPessoa: async () => {
+        n += 1;
+        if (n === 3) throw new ErroPessoaNaoEncontradaNoPortal('uuid desconhecido');
+        throw new ErroAntibotSuspeito('bloqueado');
+      },
+    });
+    assert.equal(n, 4, 'aborta no 3º ANTIBOT (o não-encontrado não conta, mas também não zera)');
+    assert.equal(r.parouPorAntibotOuGap, true);
   });
 });

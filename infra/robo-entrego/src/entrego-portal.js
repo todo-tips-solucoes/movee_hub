@@ -64,6 +64,27 @@ class ErroAntibotSuspeito extends Error {
  * `TypeError: Cannot read properties of undefined (reading 'url')` e um CSV só
  * com cabeçalho virava importação de 0 linhas marcada como sucesso.
  */
+/**
+ * O portal respondeu 200 com corpo E content-type VAZIOS para um uuid — na
+ * prática, "esse entregador não existe (mais) aqui". Assinatura MEDIDA em
+ * 2026-09-07/08: 38 de 38 falhas do reprocessamento tinham exatamente isso,
+ * de forma estável POR REGISTRO, enquanto 1214 outros motoristas eram buscados
+ * normalmente na mesma sessão.
+ *
+ * Existe como classe PRÓPRIA para NÃO ser confundida com antibot: como
+ * `ErroAntibotSuspeito`, 3 desses seguidos abortavam a rodada inteira
+ * (16 rodadas abortadas em 85 min, 3 motoristas escoados por rodada em vez de
+ * 20). Um bloqueio de verdade tem outra assinatura — desafio, HTML, 4xx/5xx —
+ * e continua abortando. Isto aqui é falha DAQUELE motorista e segue a fila.
+ */
+class ErroPessoaNaoEncontradaNoPortal extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErroPessoaNaoEncontradaNoPortal';
+    this.sinal = 'pessoa_nao_encontrada';
+  }
+}
+
 class ErroSemDados extends Error {
   constructor(message) {
     super(message);
@@ -550,6 +571,7 @@ module.exports = {
   STORAGE_STATE_PATH_DEFAULT,
   HEADERS_API,
   ErroAntibotSuspeito,
+  ErroPessoaNaoEncontradaNoPortal,
   ErroSemDados,
   ErroPortalTransitorio,
 };
