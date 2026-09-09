@@ -32,6 +32,7 @@ const existem = fs.readdirSync(path.join(RAIZ, 'tests'))
 const EXIGEM_AMBIENTE = new Set([
   'tests/hub-admin.test.js',
   'tests/hub-auditoria-integration.test.js',
+  'tests/hub-enriquecimento-automatico-integration.test.js',
   'tests/hub-faturamento.test.js',
   'tests/hub-import-processor-integration.test.js',
   'tests/hub-importacoes-integration.test.js',

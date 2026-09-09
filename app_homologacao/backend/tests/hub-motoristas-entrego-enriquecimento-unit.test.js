@@ -194,6 +194,14 @@ describe('POST /api/v1/motoristas/:id/entrego-enriquecimento (task 5.1.5)', () =
     assert.ok(entregadorFixture.dados_entrego_solicitado_em);
   });
 
+  // task 3.4.3 — contracts/entrego-desfecho.md §Prioridade do pedido manual:
+  // o POST manual marca dados_entrego_solicitado_manual=true no mesmo PATCH.
+  test('caso feliz -> grava dados_entrego_solicitado_manual: true', async () => {
+    const r = await request('POST', '/api/v1/motoristas/1/entrego-enriquecimento', { cookie: tokenCookie() });
+    assert.equal(r.status, 202);
+    assert.equal(entregadorFixture.dados_entrego_solicitado_manual, true);
+  });
+
   test('fora do escopo da entidade ativa -> 404 NAO_ENCONTRADO', async () => {
     const r = await request('POST', '/api/v1/motoristas/1/entrego-enriquecimento', { cookie: tokenCookie({ entidadeAtiva: 7 }) });
     assert.equal(r.status, 404);
