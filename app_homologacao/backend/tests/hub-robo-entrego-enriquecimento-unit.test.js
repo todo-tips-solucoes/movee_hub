@@ -56,6 +56,24 @@ function fakeHubPostgrestRequest(endpoint, method, body, claims) {
   }
 
   if (method === 'GET') {
+    // Emula ORDER BY multi-coluna do PostgREST (contracts/entrego-desfecho.md
+    // §2) — necessário para provar a prioridade do pedido manual (task 3.4.4).
+    if (params.has('order')) {
+      const specs = params.get('order').split(',').map((s) => {
+        const [campo, dir] = s.split('.');
+        return { campo, desc: dir === 'desc' };
+      });
+      linhas = [...linhas].sort((a, b) => {
+        for (const { campo, desc } of specs) {
+          const av = a[campo];
+          const bv = b[campo];
+          if (av === bv) continue;
+          const cmp = av == null ? 1 : bv == null ? -1 : av < bv ? -1 : 1;
+          return desc ? -cmp : cmp;
+        }
+        return 0;
+      });
+    }
     const limite = params.get('limit');
     if (limite) linhas = linhas.slice(0, Number(limite));
     return linhas.map((e) => ({ id: e.id, id_externo: e.id_externo }));
@@ -197,6 +215,21 @@ describe('GET /api/v1/robo-entrego/motoristas-para-enriquecer', () => {
     assert.equal(r.status, 200);
     assert.deepEqual(r.body.items, [{ id: 4, idExterno: 'uuid-4' }]);
   });
+
+  // task 3.4.4 — contracts/entrego-desfecho.md §2: pedido manual primeiro
+  // (dados_entrego_solicitado_manual.desc), FIFO por solicitado_em dentro de
+  // cada grupo.
+  test('modo=sob-demanda ordena pedido manual primeiro, FIFO dentro de cada grupo', async () => {
+    entregadores = [
+      { id: 1, id_empresa: 6, id_externo: 'uuid-1', dados_entrego_solicitado_em: '2026-08-01T10:00:00.000Z', dados_entrego_solicitado_manual: false },
+      { id: 2, id_empresa: 6, id_externo: 'uuid-2', dados_entrego_solicitado_em: '2026-08-01T09:00:00.000Z', dados_entrego_solicitado_manual: true },
+      { id: 3, id_empresa: 6, id_externo: 'uuid-3', dados_entrego_solicitado_em: '2026-08-01T11:00:00.000Z', dados_entrego_solicitado_manual: true },
+      { id: 4, id_empresa: 6, id_externo: 'uuid-4', dados_entrego_solicitado_em: '2026-08-01T08:00:00.000Z', dados_entrego_solicitado_manual: false },
+    ];
+    const r = await request('GET', '/api/v1/robo-entrego/motoristas-para-enriquecer?modo=sob-demanda', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.items.map((i) => i.id), [2, 3, 4, 1]);
+  });
 });
 
 describe('PATCH /api/v1/robo-entrego/motoristas/:id/entrego-enriquecimento', () => {
@@ -273,5 +306,61 @@ describe('PATCH /api/v1/robo-entrego/motoristas/:id/entrego-enriquecimento', () 
       cookie: tokenCookie(),
     });
     assert.equal(r.status, 403);
+  });
+
+  // task 3.4.1 — contracts/entrego-desfecho.md §1 (mapeamento total, 4
+  // desfechos) + invariante "mesmo PATCH" (dec-010).
+  test('sucesso=true -> dados_entrego_desfecho=sucesso no MESMO PATCH que enriquecidos_em/solicitado_manual (dec-010)', async () => {
+    const r = await request('PATCH', '/api/v1/robo-entrego/motoristas/10/entrego-enriquecimento', {
+      body: { sucesso: true, dados: {} },
+      cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 200);
+    const linha = entregadores.find((e) => e.id === 10);
+    assert.equal(linha.dados_entrego_desfecho, 'sucesso');
+    assert.ok(linha.dados_entrego_enriquecidos_em);
+    assert.equal(linha.dados_entrego_solicitado_manual, false);
+  });
+
+  test('sucesso=false + sinalFalha=pessoa_nao_encontrada -> dados_entrego_desfecho=pessoa-nao-encontrada', async () => {
+    const r = await request('PATCH', '/api/v1/robo-entrego/motoristas/11/entrego-enriquecimento', {
+      body: { sucesso: false, sinalFalha: 'pessoa_nao_encontrada' },
+      cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(entregadores.find((e) => e.id === 11).dados_entrego_desfecho, 'pessoa-nao-encontrada');
+  });
+
+  test('sucesso=false + sinalFalha desconhecido -> dados_entrego_desfecho=outra-falha', async () => {
+    const r = await request('PATCH', '/api/v1/robo-entrego/motoristas/11/entrego-enriquecimento', {
+      body: { sucesso: false, sinalFalha: 'algo_nunca_visto' },
+      cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(entregadores.find((e) => e.id === 11).dados_entrego_desfecho, 'outra-falha');
+  });
+
+  test('sucesso=false + sinalFalha ausente -> dados_entrego_desfecho=outra-falha', async () => {
+    const r = await request('PATCH', '/api/v1/robo-entrego/motoristas/11/entrego-enriquecimento', {
+      body: { sucesso: false },
+      cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(entregadores.find((e) => e.id === 11).dados_entrego_desfecho, 'outra-falha');
+  });
+
+  // task 3.4.2 — achado M4: truncamento de motivoFalha + sinalFalha bruto
+  // NUNCA chega à auditoria (só o valor já mapeado, `desfecho`).
+  test('motivoFalha truncado a 500 chars na auditoria; sinalFalha bruto NUNCA aparece em detalhes', async () => {
+    const motivoLongo = 'x'.repeat(600);
+    const r = await request('PATCH', '/api/v1/robo-entrego/motoristas/10/entrego-enriquecimento', {
+      body: { sucesso: false, motivoFalha: motivoLongo, sinalFalha: 'pessoa_nao_encontrada' },
+      cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(registrosAuditoria[0].detalhes.motivoFalha.length, 500);
+    assert.equal(registrosAuditoria[0].detalhes.desfecho, 'pessoa-nao-encontrada');
+    assert.equal(registrosAuditoria[0].detalhes.sinalFalha, undefined);
+    assert.ok(!JSON.stringify(registrosAuditoria[0].detalhes).includes('pessoa_nao_encontrada'));
   });
 });

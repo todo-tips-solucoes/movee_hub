@@ -36,6 +36,14 @@ function idValido(raw) {
   return typeof raw === 'string' && /^\d+$/.test(raw);
 }
 
+// contracts/entrego-desfecho.md §1 — mapeamento TOTAL e fechado: todo input
+// produz um dos 4 valores válidos da coluna dados_entrego_desfecho (CHECK
+// constraint da migration 0060). sinalFalha bruto NUNCA é gravado/auditado.
+function mapearDesfecho(sucesso, sinalFalha) {
+  if (sucesso) return 'sucesso';
+  return sinalFalha === 'pessoa_nao_encontrada' ? 'pessoa-nao-encontrada' : 'outra-falha';
+}
+
 // Tamanho do lote por chamada — não é fato de negócio nem foi fixado por
 // spec/research (research.md Decision 7 deixa só o throttle ENTRE motoristas
 // como `[PROPOSTA]` quantificada, 60s, spec.md FR-016); default de
@@ -163,8 +171,11 @@ router.get(
       // hub — nenhum filtro id_empresa explícito na querystring abaixo.
       const claims = { usuarioId: payload.sub, empresaAtiva: entidadeAtiva, escopo: [entidadeAtiva] };
 
+      // contracts/entrego-desfecho.md §2 — pedido manual (dados_entrego_solicitado_manual
+      // = true) vem primeiro (desc num booleano NOT NULL traz true antes);
+      // dentro de cada grupo o desempate segue FIFO por solicitado_em.
       const filtro = modo === 'sob-demanda'
-        ? 'dados_entrego_solicitado_em=not.is.null&order=dados_entrego_solicitado_em.asc'
+        ? 'dados_entrego_solicitado_em=not.is.null&order=dados_entrego_solicitado_manual.desc,dados_entrego_solicitado_em.asc'
         : `dados_entrego_enriquecidos_em=lt.${encodeURIComponent(new Date(Date.now() - SEIS_MESES_MS).toISOString())}&order=dados_entrego_enriquecidos_em.asc`;
 
       const linhas = await hubPostgrestRequest(
@@ -203,10 +214,20 @@ router.patch(
     }
     const id = parseInt(req.params.id, 10);
 
-    const { sucesso, dados, motivoFalha, modo } = req.body || {};
+    const { sucesso, dados, motivoFalha, modo, sinalFalha: sinalFalhaBruto } = req.body || {};
     if (typeof sucesso !== 'boolean') {
       return res.status(422).json({ erro: 'INVALIDO', motivo: 'sucesso (boolean) é obrigatório' });
     }
+    // contracts/entrego-desfecho.md §1 — só considerado quando string curta;
+    // qualquer outro caso (ausente/null/não-string/longo demais) é tratado
+    // como ausente e cai em 'outra-falha' pelo mapeamento total abaixo.
+    const sinalFalha = typeof sinalFalhaBruto === 'string' && sinalFalhaBruto.length <= 64
+      ? sinalFalhaBruto
+      : null;
+    const desfecho = mapearDesfecho(sucesso, sinalFalha);
+    // achado M4 (gate owasp-security) — motivoFalha é e.message livre do
+    // Playwright, sem limite; trunca antes de ir para auditoria.
+    const motivoFalhaTruncado = typeof motivoFalha === 'string' ? motivoFalha.slice(0, 500) : undefined;
 
     try {
       const permsEntidade = await obterPermissoesEfetivasPorEntidade(payload.sub, entidadeAtiva);
@@ -219,13 +240,23 @@ router.patch(
       // FR-007 (quickstart Scenario 6): falha NUNCA descarta um
       // dados_entrego_json de uma busca anterior bem-sucedida — só limpa o
       // pedido pendente. Sucesso sobrescreve (FR-016 — sem versionamento).
+      // dec-010: dados_entrego_desfecho sai no MESMO PATCH que
+      // dados_entrego_enriquecidos_em (ramo sucesso) — nenhuma janela de
+      // divergência. dados_entrego_solicitado_manual volta a false nos DOIS
+      // ramos: um pedido manual atendido nunca fica marcado "manual" (3.3.3).
       const patchBody = sucesso
         ? {
           dados_entrego_json: dados && typeof dados === 'object' ? dados : null,
           dados_entrego_enriquecidos_em: new Date().toISOString(),
           dados_entrego_solicitado_em: null,
+          dados_entrego_solicitado_manual: false,
+          dados_entrego_desfecho: desfecho,
         }
-        : { dados_entrego_solicitado_em: null };
+        : {
+          dados_entrego_solicitado_em: null,
+          dados_entrego_solicitado_manual: false,
+          dados_entrego_desfecho: desfecho,
+        };
 
       // Verificação de linhas afetadas (contract §2 — "0 linhas afetadas
       // MUST responder 404, nunca 200/204 silencioso"): sem filtro
@@ -250,9 +281,12 @@ router.patch(
         acao: sucesso ? 'motorista.entrego_enriquecido' : 'motorista.entrego_enriquecimento_falhou',
         recurso: 'Entregador',
         recursoId: id,
+        // desfecho (valor já mapeado, um dos 4 tokens) substitui o
+        // sinalFalha bruto — nunca o valor atacante-controlado (achado M4).
         detalhes: {
           modo: typeof modo === 'string' ? modo : undefined,
-          motivoFalha: !sucesso && typeof motivoFalha === 'string' ? motivoFalha : undefined,
+          motivoFalha: !sucesso && motivoFalhaTruncado ? motivoFalhaTruncado : undefined,
+          desfecho,
         },
         claims,
       });

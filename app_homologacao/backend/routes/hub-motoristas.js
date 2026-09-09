@@ -842,9 +842,18 @@ router.post(
         return res.status(429).json({ erro: 'JA_PENDENTE' });
       }
 
+      // contracts/entrego-desfecho.md §Prioridade do pedido manual — marca a
+      // origem manual para o GET /motoristas-para-enriquecer priorizar este
+      // pedido; escopo multi-tenant continua 100% via entidadeAtiva/claims
+      // (resolverContextoEntidade acima), nenhuma mudança de auth. O PATCH do
+      // robô (hub-robo-entrego.js) zera esta flag nos dois ramos ao atender
+      // o pedido, então nunca fica marcado "manual" indefinidamente.
       await hubPostgrestRequest(
         `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`,
-        'PATCH', { dados_entrego_solicitado_em: new Date().toISOString() }, claims,
+        'PATCH', {
+          dados_entrego_solicitado_em: new Date().toISOString(),
+          dados_entrego_solicitado_manual: true,
+        }, claims,
         { returnMinimal: true }
       );
 
