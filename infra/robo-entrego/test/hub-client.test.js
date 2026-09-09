@@ -328,6 +328,29 @@ describe('atualizarEnriquecimento', () => {
     assert.equal('dados' in corpoRecebido, false);
   });
 
+  test('sucesso=false + sinalFalha presente -> PATCH inclui `sinalFalha`, NUNCA `dados` (contract §3, task 4.2.1)', async () => {
+    let corpoRecebido = null;
+    const client = await clienteLogado({
+      handlers: {
+        patch: () => async (body) => { corpoRecebido = body; return { status: 200, data: { ok: true } }; },
+      },
+    });
+    await client.atualizarEnriquecimento(10, { sucesso: false, motivoFalha: 'pessoa não encontrada', sinalFalha: 'pessoa_nao_encontrada', modo: 'sob-demanda' });
+    assert.deepEqual(corpoRecebido, { sucesso: false, modo: 'sob-demanda', motivoFalha: 'pessoa não encontrada', sinalFalha: 'pessoa_nao_encontrada' });
+    assert.equal('dados' in corpoRecebido, false);
+  });
+
+  test('sucesso=false + sinalFalha ausente (undefined) -> PATCH NÃO inclui `sinalFalha`', async () => {
+    let corpoRecebido = null;
+    const client = await clienteLogado({
+      handlers: {
+        patch: () => async (body) => { corpoRecebido = body; return { status: 200, data: { ok: true } }; },
+      },
+    });
+    await client.atualizarEnriquecimento(10, { sucesso: false, motivoFalha: 'erro genérico sem sinal', sinalFalha: undefined, modo: 'sob-demanda' });
+    assert.equal('sinalFalha' in corpoRecebido, false);
+  });
+
   test('404 -> sinal enriquecimento_404 (id fora do escopo do serviço)', async () => {
     const client = await clienteLogado({ handlers: { patch: () => async () => ({ status: 404, data: { erro: 'NAO_ENCONTRADO' } }) } });
     const r = await client.atualizarEnriquecimento(999, { sucesso: true, dados: {} });
