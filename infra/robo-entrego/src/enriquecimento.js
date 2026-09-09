@@ -256,7 +256,7 @@ async function executarRodadaEnriquecimento({ modo, page, clienteHub, obterCodig
       // eslint-disable-next-line no-console
       console.warn(`[enriquecimento] motorista ${item.id} falhou (${e.name}): ${e.message}`);
       try {
-        await clienteHub.atualizarEnriquecimento(item.id, { sucesso: false, motivoFalha: e.message, modo });
+        await clienteHub.atualizarEnriquecimento(item.id, { sucesso: false, motivoFalha: e.message, sinalFalha: e.sinal, modo });
       } catch (patchErr) {
         // Falha ao REPORTAR a falha — nunca silenciosa (mesma disciplina de
         // index.js#dispararReacoesFalha).

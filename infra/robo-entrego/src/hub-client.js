@@ -277,14 +277,18 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
    * `dados` (FR-007 — não há payload novo numa falha; o hub só limpa o
    * pedido pendente e preserva o `dados_entrego_json` de uma busca anterior).
    * @param {number} id - `Entregador.id`
-   * @param {{sucesso:boolean, dados?:object, motivoFalha?:string, modo?:string}} resultado
+   * @param {{sucesso:boolean, dados?:object, motivoFalha?:string, sinalFalha?:string, modo?:string}} resultado
    * @returns {Promise<{sinal:string, status?:number}>}
    */
-  async function atualizarEnriquecimento(id, { sucesso, dados, motivoFalha, modo } = {}, { tentativas = 3 } = {}) {
+  async function atualizarEnriquecimento(id, { sucesso, dados, motivoFalha, sinalFalha, modo } = {}, { tentativas = 3 } = {}) {
     garantirAutenticado();
     const corpo = { sucesso, modo };
-    if (sucesso) corpo.dados = dados;
-    else corpo.motivoFalha = motivoFalha;
+    if (sucesso) {
+      corpo.dados = dados;
+    } else {
+      corpo.motivoFalha = motivoFalha;
+      if (sinalFalha) corpo.sinalFalha = sinalFalha;
+    }
     for (let tentativa = 1; ; tentativa += 1) {
       const resp = await http.patch(`/api/v1/robo-entrego/motoristas/${id}/entrego-enriquecimento`, corpo, {
         headers: { Cookie: cookieHeader },
