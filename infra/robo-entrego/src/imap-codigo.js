@@ -9,8 +9,18 @@
 // `fetchOne(uid, query, {uid:true}) -> FetchMessageObject|false`.
 'use strict';
 
-/** Assunto exato observado no portal (ACHADOS-PORTAL.md §3, passo 3). */
+/** Assunto observado no portal (ACHADOS-PORTAL.md §3, passo 3). */
 const ASSUNTO_ESPERADO = 'Código de Acesso';
+
+// Comparação de assunto: minúsculas, sem acento e sem espaço redundante.
+// O portal MUDOU a caixa do assunto sem aviso — medido 2026-09-10: passou a
+// enviar "Código de acesso" (minúsculo) onde o levantamento registrava
+// "Código de Acesso". Comparar literalmente é frágil por construção.
+function normalizarAssunto(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+}
 
 // Extração (localizar candidato) e validação (aceitar/rejeitar) são
 // deliberadamente 2 regex distintas (research.md Decision 4, hardening):
@@ -167,15 +177,29 @@ async function _lerUmaVez(client, aposTimestamp, { mailbox, assunto, diag } = {}
     // abaixo, por `envelope.date > aposTimestamp` — nenhuma mensagem antiga
     // passa por causa disto.
     const sinceComMargem = new Date(aposTimestamp.getTime() - 24 * 60 * 60 * 1000);
-    const uids = await client.search({ subject: assunto, since: sinceComMargem }, { uid: true });
+    // NÃO filtrar por `subject` no SEARCH (regressão de 2026-09-09/10): o
+    // servidor devolveu 0 para `{subject, since}` durante os 5 min de polling
+    // enquanto a mensagem JÁ estava entregue — provado depois com a MESMA
+    // busca devolvendo 2 uids. Duas explicações sobrevivem à medição (índice
+    // de busca do Gmail defasado; ou o casamento de assunto acentuado do
+    // servidor) e NÃO foi possível distinguir uma da outra a posteriori.
+    // Em vez de apostar numa delas, a dependência é removida: `since` sozinho
+    // é servido pelos metadados da caixa, não pelo índice de busca, e o
+    // assunto passa a ser conferido AQUI, de forma tolerante.
+    const uids = await client.search({ since: sinceComMargem }, { uid: true });
     if (!uids || uids.length === 0) {
-      throw new Error(`imap-codigo: nenhuma mensagem encontrada com assunto "${assunto}"`);
+      throw new Error(`imap-codigo: nenhuma mensagem na janela (since=${sinceComMargem.toISOString()})`);
     }
 
+    const assuntoAlvo = normalizarAssunto(assunto);
+    const comAssunto = [];
     const candidatos = [];
     for (const uid of uids) {
       const msg = await client.fetchOne(uid, { envelope: true, source: true }, { uid: true });
       if (!msg) continue;
+      const assuntoMsg = normalizarAssunto(msg.envelope && msg.envelope.subject);
+      if (!assuntoMsg.includes(assuntoAlvo)) continue;
+      comAssunto.push(uid);
       const dataRecebimento = msg.envelope && msg.envelope.date ? new Date(msg.envelope.date) : null;
       if (!dataRecebimento || Number.isNaN(dataRecebimento.getTime()) || dataRecebimento <= aposTimestamp) {
         continue; // mensagem ANTES (ou sem data) do timestamp — ignorada (edge case da spec)
@@ -189,12 +213,18 @@ async function _lerUmaVez(client, aposTimestamp, { mailbox, assunto, diag } = {}
       // indistinguível de "o portal não enviou" (confusão real de 2026-08-29).
       if (typeof diag === 'function') {
         let maisRecente = null;
-        for (const uid of uids) {
+        for (const uid of comAssunto) {
           const m = await client.fetchOne(uid, { envelope: true }, { uid: true });
           const d = m && m.envelope && m.envelope.date ? new Date(m.envelope.date) : null;
           if (d && (!maisRecente || d > maisRecente)) maisRecente = d;
         }
-        diag({ encontradas: uids.length, maisRecente: maisRecente ? maisRecente.toISOString() : null });
+        diag({ encontradas: comAssunto.length, maisRecente: maisRecente ? maisRecente.toISOString() : null });
+      }
+      // Distinguir os dois vazios é o que permitiu diagnosticar 2026-09-09:
+      // "o portal não enviou" e "enviou, mas fora da janela" exigem ações
+      // diferentes do operador.
+      if (comAssunto.length === 0) {
+        throw new Error(`imap-codigo: nenhuma mensagem encontrada com assunto "${assunto}"`);
       }
       throw new Error('imap-codigo: nenhuma mensagem recebida após o timestamp informado');
     }
@@ -212,4 +242,4 @@ async function _lerUmaVez(client, aposTimestamp, { mailbox, assunto, diag } = {}
   }
 }
 
-module.exports = { lerCodigoAcesso, extrairCodigo, ASSUNTO_ESPERADO };
+module.exports = { lerCodigoAcesso, extrairCodigo, normalizarAssunto, ASSUNTO_ESPERADO };
