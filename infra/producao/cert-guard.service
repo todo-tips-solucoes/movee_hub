@@ -1,0 +1,21 @@
+[Unit]
+Description=Alarme de certificados TLS do host (avisa antes de expirar)
+Documentation=file:///var/lib/envioMassa_homologacao/infra/producao/README-cert-guard.md
+# Precisa do Docker: descobre os domínios pelas labels dos serviços do Swarm e
+# mede o TLS em 127.0.0.1:443, que é o próprio Traefik.
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env node /var/lib/envioMassa_homologacao/infra/producao/cert-guard.js
+
+# Mesmo motivo do disco-guard e do backup: este host já foi derrubado por
+# starvation (2026-06-11). Um alarme nunca pode ser o que atrapalha o cliente.
+Nice=10
+IOSchedulingClass=idle
+
+# `exit 1` = algum certificado abaixo do limiar. A unidade fica `failed` de
+# propósito: é o rastro que sobrevive mesmo se o e-mail não sair (o VPSTodo tem
+# as portas 25 e 465 filtradas na saída — canal de e-mail aqui já falhou calado).
+# `exit 2` = o próprio guard falhou — nunca confundir com "certificados ok".

@@ -1,0 +1,17 @@
+[Unit]
+Description=Verifica a validade dos certificados TLS uma vez por dia
+
+[Timer]
+# Diário às 09:00 (America/Sao_Paulo): certificado não expira de surpresa, tem
+# 90 dias de vida e o Traefik tenta renovar 30 dias antes. Um check por dia dá
+# 21 dias de margem no limiar padrão — tempo de sobra para agir num dia útil.
+# De manhã de propósito: alarme que chega de madrugada é alarme lido tarde.
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+
+# Longe das 12:11 UTC, que é quando o Traefik roda a rotina de renovação: medir
+# no meio dela leria um estado transitório.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
