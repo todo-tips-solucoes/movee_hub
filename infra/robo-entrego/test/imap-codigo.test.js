@@ -22,13 +22,17 @@ function mockClient(mensagens, { releaseCalls } = {}) {
       };
     },
     async search(query) {
-      assert.equal(query.subject, 'Código de Acesso');
+      // Contrato NOVO (2026-09-10): o assunto NÃO vai mais ao servidor — a
+      // busca é só por janela e o assunto é conferido no cliente.
+      assert.equal(query.subject, undefined, 'subject não deve ir ao SEARCH');
+      assert.ok(query.since instanceof Date, 'since é obrigatório no SEARCH');
       return mensagens.map((m) => m.uid);
     },
     async fetchOne(uid) {
       const m = mensagens.find((x) => x.uid === uid);
       if (!m) return false;
-      return { envelope: { date: m.date }, source: Buffer.from(m.corpo, 'utf8') };
+      const subject = m.assunto === undefined ? 'Código de Acesso' : m.assunto;
+      return { envelope: { date: m.date, subject }, source: Buffer.from(m.corpo, 'utf8') };
     },
   };
 }
@@ -70,7 +74,7 @@ describe('lerCodigoAcesso', () => {
       getMailboxLock: async () => ({ release: () => {} }),
       // 1ª busca: caixa ainda sem a mensagem. 2ª: já chegou.
       search: async () => (++chamadas === 1 ? [] : [msg.uid]),
-      fetchOne: async () => ({ envelope: { date: msg.date }, source: Buffer.from(msg.corpo) }),
+      fetchOne: async () => ({ envelope: { date: msg.date, subject: 'Código de Acesso' }, source: Buffer.from(msg.corpo) }),
     };
     const dormidas = [];
     const codigo = await lerCodigoAcesso(client, T0, {
@@ -86,7 +90,7 @@ describe('lerCodigoAcesso', () => {
     const client = {
       getMailboxLock: async () => ({ release: () => {} }),
       search: async () => { chamadas++; return [1]; },
-      fetchOne: async () => ({ envelope: { date: new Date('2026-08-27T10:00:30Z') }, source: Buffer.from('sem digitos aqui') }),
+      fetchOne: async () => ({ envelope: { date: new Date('2026-08-27T10:00:30Z'), subject: 'Código de Acesso' }, source: Buffer.from('sem digitos aqui') }),
     };
     await assert.rejects(
       () => lerCodigoAcesso(client, T0, { timeoutMs: 60000, dormir: async () => {} }),
@@ -126,9 +130,48 @@ describe('lerCodigoAcesso', () => {
     assert.equal(releaseCalls.length, 1, 'lock.release() MUST ser chamado (nunca vazar lock)');
   });
 
-  test('nenhuma mensagem com o assunto -> lança', async () => {
+  // 2026-09-10: a busca deixou de filtrar por assunto no SERVIDOR, então
+  // "caixa vazia na janela" e "há mensagens, nenhuma com o assunto" passaram
+  // a ser casos DISTINTOS — o teste antigo os confundia num só. Distinguir
+  // importa para o operador: um diz "o portal não enviou", o outro diz
+  // "chegou coisa, mas não o código".
+  test('caixa vazia na janela -> lança "nenhuma mensagem na janela"', async () => {
     const client = mockClient([]);
-    await assert.rejects(() => lerCodigoAcesso(client, T0, SEM_ESPERA), /nenhuma mensagem encontrada/);
+    await assert.rejects(() => lerCodigoAcesso(client, T0, SEM_ESPERA), /nenhuma mensagem na janela/);
+  });
+
+  test('há mensagens, nenhuma com o assunto -> lança "nenhuma mensagem encontrada com assunto"', async () => {
+    const client = mockClient([
+      { uid: 1, date: new Date('2026-08-27T10:01:00Z'), corpo: 'código: 111111', assunto: 'Promoção imperdível' },
+    ]);
+    await assert.rejects(
+      () => lerCodigoAcesso(client, T0, SEM_ESPERA),
+      /nenhuma mensagem encontrada com assunto/
+    );
+  });
+
+  // REGRESSÃO 2026-09-10: o portal passou a enviar "Código de acesso"
+  // (minúsculo) onde o levantamento registrava "Código de Acesso". Comparar
+  // literalmente descartaria o código do próprio login em curso.
+  test('assunto com caixa diferente é ACEITO (portal mudou sem aviso)', async () => {
+    const client = mockClient([
+      { uid: 1, date: new Date('2026-08-27T10:01:00Z'), corpo: 'seu código: 482913', assunto: 'Código de acesso' },
+    ]);
+    assert.equal(await lerCodigoAcesso(client, T0, SEM_ESPERA), '482913');
+  });
+
+  test('assunto sem acento também é ACEITO', async () => {
+    const client = mockClient([
+      { uid: 1, date: new Date('2026-08-27T10:01:00Z'), corpo: 'seu código: 482913', assunto: 'CODIGO DE ACESSO' },
+    ]);
+    assert.equal(await lerCodigoAcesso(client, T0, SEM_ESPERA), '482913');
+  });
+
+  test('assunto com prefixo do cliente de e-mail (ENC:/RE:) é ACEITO', async () => {
+    const client = mockClient([
+      { uid: 1, date: new Date('2026-08-27T10:01:00Z'), corpo: 'seu código: 482913', assunto: 'ENC: Código de Acesso' },
+    ]);
+    assert.equal(await lerCodigoAcesso(client, T0, SEM_ESPERA), '482913');
   });
 
   test('lock é liberado mesmo em caso de erro (finally)', async () => {
@@ -181,7 +224,7 @@ describe('lerCodigoAcesso — janela do SEARCH', () => {
     const client = {
       getMailboxLock: async () => ({ release: () => {} }),
       search: async (q) => { sinceUsado = q.since; return [1]; },
-      fetchOne: async () => ({ envelope: { date: msg.date }, source: Buffer.from(msg.corpo) }),
+      fetchOne: async () => ({ envelope: { date: msg.date, subject: 'Código de Acesso' }, source: Buffer.from(msg.corpo) }),
     };
     // aposTimestamp DEPOIS da mensagem faria o filtro client-side descartar,
     // então usamos um T0 anterior à mensagem para exercitar só a janela.
@@ -201,7 +244,7 @@ describe('lerCodigoAcesso — janela do SEARCH', () => {
     const client = {
       getMailboxLock: async () => ({ release: () => {} }),
       search: async () => [1],
-      fetchOne: async () => ({ envelope: { date: antiga.date }, source: Buffer.from(antiga.corpo) }),
+      fetchOne: async () => ({ envelope: { date: antiga.date, subject: 'Código de Acesso' }, source: Buffer.from(antiga.corpo) }),
     };
     await assert.rejects(
       () => lerCodigoAcesso(client, T0, { timeoutMs: 0, dormir: async () => {} }),
@@ -225,7 +268,7 @@ describe('lerCodigoAcesso — margem e diagnóstico', () => {
     return {
       getMailboxLock: async () => ({ release: () => {} }),
       search: async () => [1],
-      fetchOne: async () => ({ envelope: { date: msg.date }, source: Buffer.from(msg.corpo) }),
+      fetchOne: async () => ({ envelope: { date: msg.date, subject: 'Código de Acesso' }, source: Buffer.from(msg.corpo) }),
     };
   }
 
