@@ -195,6 +195,44 @@ build — usar `//` na linha acima do `return`.
 - ⚠️ O `ENV BACKEND_URL` do Dockerfile do `frontend_v2` aponta para a API do ambiente; conferir
   antes de buildar para outro destino.
 
+## Certificados TLS / Traefik — o que engana no diagnóstico
+
+O Traefik (`traefik_traefik`, v3.5.3) termina o TLS de **tudo** no host e guarda os
+certificados no `acme.json` (volume `volume_swarm_certificates`), que tem as **chaves
+privadas** de todos os domínios, inclusive `registry.todo-tips.com` (de onde saem os
+deploys). Nunca imprimir o conteúdo; editar só por programa
+(`infra/producao/acme-podar.py`) e **com o Traefik parado** — no ar ele reescreve o
+arquivo e a edição se perde. Alarme de validade: `infra/producao/cert-guard.js`
+(timer diário 09:00; detalhe em `README-cert-guard.md`).
+
+Os quatro enganos do incidente de 2026-09-09, cada um custou tempo:
+
+- ⚠️ **Certificado multi-SAN com um nome já removido do DNS não renova — nunca.** Foi a
+  causa: os certs do produto cobriam também o nome antigo do rebrand (`envmassv2`,
+  `appmotorista`), apagado do DNS. A renovação pede **todos os nomes do certificado
+  atual**, bate em NXDOMAIN no nome morto e a ordem **inteira** falha. Reemitir por cima
+  não resolve; a correção é tirar o nome morto. Ao aposentar um domínio, conferir se ele
+  é SAN de algum certificado vivo — `openssl x509 -ext subjectAltName`.
+- ⚠️ **`CN` diferente do domínio roteado é falso alarme**: o `CN` é só o primeiro nome do
+  certificado e o navegador valida pelo **SAN**. Julgar pelo `CN` inventa um problema que
+  não existe e esconde o que existe.
+- ⚠️ **O log do Traefik vive DENTRO do container** (`--log.filePath`, sem volume):
+  `docker logs` não mostra nada de ACME, e **cada restart começa um arquivo novo**. Depois
+  de reiniciar, `grep` no `traefik.log` não acha o que aconteceu antes — o que *parece*
+  "não tentou" e é "o histórico foi embora". Copiar o log **antes** de reiniciar.
+  Ler assim: `docker exec <tid> grep -i "Error renewing" /var/log/traefik/traefik.log`.
+- ⚠️ **A Let's Encrypt deduplica ordens**: retentativas caem na mesma URL de `finalize`. Com
+  `authorization already valid` no log, a validação **já passou** e retentar **não custa
+  cota** — o limite de 5 falhas/hora é de *validação*, não de `finalize`. Antes de culpar
+  rate limit, medir a conectividade com `acme-v02.api.letsencrypt.org`.
+
+E duas armadilhas de ambiente: há **dois** Traefik no host (`traefik_traefik` é produção,
+`hub_homolog_traefik` é o do hub isolado) — filtrar por `name=traefik_traefik`, nunca
+`name=traefik | head -1`; e `curl` devolvendo `000` **não** é queda da aplicação, é o
+próprio curl recusando o certificado — confirmar com `-k` antes de concluir qualquer coisa.
+
+Incidente completo em [`docs/plans/infra-certificados/RUNBOOK-CORRECAO.md`](docs/plans/infra-certificados/RUNBOOK-CORRECAO.md).
+
 ## Rito do ciclo git — CLÁUSULA PÉTREA
 
 Acordado com o operador em 2026-08-07. Vale para **toda** entrega neste repositório e
