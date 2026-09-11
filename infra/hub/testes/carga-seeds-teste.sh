@@ -24,7 +24,7 @@ PROJECT="hub-test-$RUNID"
 DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"; DB_NAME="$(get_var HUB_DB_NAME "$ENV_FILE")"
 
 dc() { docker compose -f "$COMPOSE" -p "$PROJECT" --env-file "$ENV_FILE" "$@"; }
-cleanup() { dc down -v --remove-orphans >/dev/null 2>&1 || true; }
+cleanup() { dc down -v --rmi local --remove-orphans >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 "$HUB_DIR/scripts/preflight.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE"

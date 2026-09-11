@@ -37,7 +37,7 @@ DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"; DB_NAME="$(get_var HUB_DB_NAME "$E
 [ -n "$DB_USER" ] && [ -n "$DB_NAME" ] || { echo "HUB_DB_USER/HUB_DB_NAME ausentes em $ENV_FILE" >&2; exit 2; }
 
 dc() { docker compose -f "$COMPOSE" -p "$PROJECT" --env-file "$ENV_FILE" "$@"; }
-cleanup() { dc down -v --remove-orphans >/dev/null 2>&1 || true; }
+cleanup() { dc down -v --rmi local --remove-orphans >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 psql_t() { dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@"; }
 

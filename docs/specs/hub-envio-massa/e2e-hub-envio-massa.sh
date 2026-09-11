@@ -84,7 +84,7 @@ export POSTGREST_API_KEY="$(get_var PGRST_JWT_SECRET "$ENV_FILE")"
 [ -n "$POSTGREST_API_KEY" ] || { echo "PGRST_JWT_SECRET ausente em $ENV_FILE" >&2; exit 2; }
 
 dc() { docker compose -f "$COMPOSE" -p "$PROJECT" --env-file "$ENV_FILE" "$@"; }
-cleanup() { dc down -v --remove-orphans >/dev/null 2>&1 || true; rm -rf "$TMP"; }
+cleanup() { dc down -v --rmi local --remove-orphans >/dev/null 2>&1 || true; rm -rf "$TMP"; }
 trap cleanup EXIT
 
 # Tudo abaixo é escrito em $RUN_LOG também (evidência 6.3.3), via `tee`.
