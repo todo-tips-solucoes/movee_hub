@@ -323,6 +323,34 @@ Os dois timers de `infra/robo-entrego/` parecem independentes. **Não são.**
   para o diretório vivo do repo, então `git checkout` muda o que roda e **merge = deploy**.
   Provar com a suíte **no diretório vivo**.
 
+## Abrir outra frente de trabalho
+
+`/clear` é **comando embutido** do Claude Code, não uma skill. Ele apaga a conversa da
+sessão corrente e nada mais: sobrevivem a memória do projeto, o git, os arquivos em
+disco e o estado das pipelines `*-00c`. Serve para começar uma frente **em seguida**,
+nunca **em paralelo** — para isso, abra uma segunda sessão em outro terminal.
+
+Antes de limpar ou abrir a frente nova, **versione um briefing** em `docs/plans/<tema>/`
+e aponte a sessão nova para ele. Uma sessão limpa só sabe o que está na memória e neste
+arquivo; tudo que foi medido e ainda não virou documento se perde. Briefings que
+funcionaram como modelo: `docs/plans/robo-entrego/BRIEFING-LIMITADOR-CONTA-SERVICO.md` e
+`docs/plans/infra-certificados/BRIEFING-CERTIFICADOS-EXPIRADOS.md` — ambos trazem o
+problema **medido** (não suposto), o que já foi feito e não deve ser refeito, as
+restrições, os entregáveis e os enganos que custaram tempo.
+
+⚠️ **Duas sessões no mesmo repositório colidem.** Em 2026-09-09 havia 21 arquivos
+`infra/hub/testes/*.sh` modificados por outra sessão durante uma entrega inteira — a
+disciplina que salvou foi `git add` por caminho explícito e **nunca** reverter o que não
+é seu. Se a frente nova tocar os mesmos diretórios, isole-a num **git worktree**
+(`.claude/worktrees/<nome>`, convenção já usada no repo; `node_modules` por symlink).
+Mantenha o worktree sob a raiz do projeto — as guardas e o servidor de estado das
+pipelines só operam ali.
+
+⚠️ **O diretório de trabalho da tool Bash PERSISTE entre chamadas.** Um `cd` de
+conveniência numa chamada vira a "raiz" da retomada seguinte e faz a guarda
+`session-scope` recusar com `verdict=diverged`. Ancore cada comando com `cd` explícito;
+a saída não é `--allow-outside`, é voltar para a raiz.
+
 ## Governança
 
 - Commit/push/merge/deploy **somente com autorização explícita** do operador, **uma por
