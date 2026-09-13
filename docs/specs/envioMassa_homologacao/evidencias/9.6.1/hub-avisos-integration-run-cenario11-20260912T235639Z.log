@@ -1,0 +1,105 @@
+df -h / e swap antes do build:
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1       150G  123G   21G  86% /
+NAME      TYPE SIZE USED PRIO
+/swapfile file   8G 4.8G   -2
+PREFLIGHT: ok — projeto 'hub-test-1789257293' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1789257293, APP_ENV=test)
+subindo db+postgrest+push-mock efêmeros (hub-test-1789257293, tmpfs)…
+ Network hub-test-1789257293_default Creating 
+ Network hub-test-1789257293_default Created 
+ Container hub-test-1789257293-db-1 Creating 
+ Container hub-test-1789257293-db-1 Created 
+ Container hub-test-1789257293-db-1 Starting 
+ Container hub-test-1789257293-db-1 Started 
+ Container hub-test-1789257293-db-1 Waiting 
+ Container hub-test-1789257293-db-1 Healthy 
+ Container hub-test-1789257293-db-1 Running 
+ Container hub-test-1789257293-postgrest-1 Creating 
+ Container hub-test-1789257293-postgrest-1 Created 
+ Container hub-test-1789257293-db-1 Waiting 
+ Container hub-test-1789257293-db-1 Healthy 
+ Container hub-test-1789257293-postgrest-1 Starting 
+ Container hub-test-1789257293-postgrest-1 Started 
+ Container hub-test-1789257293-postgrest-1 Waiting 
+ Container hub-test-1789257293-db-1 Waiting 
+ Container hub-test-1789257293-postgrest-1 Healthy 
+ Container hub-test-1789257293-db-1 Healthy 
+ Container hub-test-1789257293-push-mock-1 Creating 
+ Container hub-test-1789257293-push-mock-1 Created 
+ Container hub-test-1789257293-push-mock-1 Starting 
+ Container hub-test-1789257293-push-mock-1 Started 
+ Container hub-test-1789257293-push-mock-1 Waiting 
+ Container hub-test-1789257293-push-mock-1 Healthy 
+rodando migrate.sh (série completa, inclusive 0061/0062)…
+df -h / antes do build do backend:
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1       150G  123G   21G  86% /
+ Container hub-test-1789257293-db-1 Running 
+ Container hub-test-1789257293-postgrest-1 Running 
+ Container hub-test-1789257293-backend-1 Creating 
+ Container hub-test-1789257293-backend-1 Created 
+ Container hub-test-1789257293-db-1 Waiting 
+ Container hub-test-1789257293-db-1 Healthy 
+ Container hub-test-1789257293-db-1 Waiting 
+ Container hub-test-1789257293-db-1 Healthy 
+ Container hub-test-1789257293-backend-1 Starting 
+ Container hub-test-1789257293-backend-1 Started 
+ Container hub-test-1789257293-backend-1 Waiting 
+ Container hub-test-1789257293-db-1 Waiting 
+ Container hub-test-1789257293-postgrest-1 Waiting 
+ Container hub-test-1789257293-postgrest-1 Healthy 
+ Container hub-test-1789257293-db-1 Healthy 
+ Container hub-test-1789257293-backend-1 Healthy 
+--- boot log (linhas 'push:'/'boot') ---
+backend-1  | [boot] push: allowlist efetiva = push-mock
+PASS: push-mock programado (6 cenários: 201/404/410/429/retry-ok/retry-esgotado)
+disparo: {"status":201,"body":{"id":1,"status":"na_fila","visados":7}}
+PASS: POST /avisos (toda_base) -> 201
+aguardando o worker processar as 7 entregas (6 + cenário 11) contra o push-mock…
+PASS: worker esgotou as 7 entregas (nenhuma pendente/processando após espera)
+PASS: Aviso finalizado no caso de lote único (0064): status='concluido'
+PASS: push-mock 500,500,201 -> aceita na 3ª tentativa
+PASS: push-mock 429 -> falha/rejeitada (sem retry, tentativa única)
+PASS: push-mock 404 -> entrega morta (sem retry, 1 tentativa)
+PASS: push-mock 201 -> entrega aceita
+PASS: push-mock 410 -> entrega morta (sem retry, 1 tentativa)
+PASS: push-mock 500,500,500 -> falha/transitoria_esgotada (3 tentativas)
+PASS: cenário 11: push-mock 201 (default) -> entrega aceita
+cenário 11 — payload decifrado (evidência, sem PII): {"chaves":["avisoId","corpo","titulo"],"avisoIdBate":true,"semQuatorzeDigitos":true,"semNomeMotorista":true,"payload":{"avisoId":1,"titulo":"Aviso integração 9.2","corpo":"corpo de teste hub-avisos-integration"}}
+PASS: cenário 11: payload decifrado tem exatamente as chaves avisoId/corpo/titulo
+PASS: cenário 11: avisoId do payload decifrado bate com o Aviso disparado
+PASS: cenário 11: payload decifrado NÃO contém sequência de 14 dígitos
+PASS: cenário 11: payload decifrado NÃO contém nome do motorista
+PASS: PushInscricao apagada após 404 (morta)
+PASS: PushInscricao apagada após 410 (morta)
+PASS: PushInscricao dos demais cenários permanece
+PASS: Auditoria: aviso_disparado registrado pelo disparo real
+PASS: RLS Aviso: escopo=[6] vê o aviso (200, 1 linha)
+PASS: RLS Aviso: escopo=[outra empresa] NÃO vê o aviso (0 linhas)
+PASS: RLS AvisoEntrega: SELECT direto negado (sem GRANT — só via função)
+PASS: RLS PushInscricao: SELECT direto negado (sem GRANT — só via função)
+PASS: RLS PushEstadoAtivacao: SELECT direto negado (sem GRANT — só via função)
+PASS: RLS PushChaveVapid: sem claim hub_push_worker -> 0 linhas
+PASS: RLS PushChaveVapid: com claim hub_push_worker -> vê a chave ativa
+PASS: SKIP LOCKED: 2 chamadas concorrentes, 0 sobreposição
+PASS: SKIP LOCKED: união das 2 chamadas reivindica as 20 entregas pendentes
+PASS: SKIP LOCKED: as 20 entregas ficaram 'processando' no banco
+PASS: reinício: entrega 'processando' com lease vencido vira falha/interrompida (nunca reenviada)
+PASS: corrida na finalização: Aviso conclui mesmo com as 2 últimas entregas resolvidas em transações sobrepostas (0065)
+PASS: corrida na finalização: as 2 entregas ficaram resolvidas (0 pendente/processando)
+PASS: expurgo: remove exatamente 1 aviso (só o de 91 dias)
+PASS: expurgo: aviso de 91 dias removido de fato
+PASS: expurgo: aviso de 89 dias mantido
+PASS: expurgo: Auditoria do aviso expurgado NÃO é removida (política de 12 meses)
+-----------------------------------------------------------------
+HUB-AVISOS-INTEGRATION: OK — todos os asserts passaram (tasks.md 9.2: RLS/SKIP LOCKED/reinício/404-410-429-retry/expurgo/auditoria)

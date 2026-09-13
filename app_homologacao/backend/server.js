@@ -51,6 +51,21 @@ const hubImportacoesRoutes = require('./routes/hub-importacoes');
 // hub-importacoes (pós-review PR #57, F1.3) — recuperarImportacoesOrfas,
 // chamada 1x no boot (ver bloco perto de app.listen abaixo).
 const hubImportProcessor = require('./lib/hub-import-processor');
+// push-motorista (tasks.md FASE 2.2.2) — allowlist anti-SSRF de hosts de
+// push, logada no boot (mitigação S6, ver bloco perto de app.listen abaixo).
+const { carregarAllowlist } = require('./lib/hub-push-endpoint');
+// push-motorista (tasks.md FASE 2.3/5.2) — carga da chave VAPID no boot;
+// registrarFn real (grava PushChaveVapid + auditoria, emite hub_push_worker)
+// vive em lib/hub-push-worker.js (tasks 5.2.2 — token de worker só ali).
+const hubPushVapid = require('./lib/hub-push-vapid');
+// push-motorista (tasks.md FASE 5) — worker de envio: retomada no boot
+// (5.2.1) e expurgo automático de 90 dias (5.3.1), ambos best-effort (ver
+// bloco perto de app.listen abaixo).
+const hubPushWorker = require('./lib/hub-push-worker');
+// push-motorista (tasks.md FASE 3.1) — rotas /motorista/push/* e
+// /motorista/avisos/:id, montadas com authenticateMotorista (ver bloco perto
+// de app.use('/motorista', ...) abaixo, mesmo padrão de brandingTomadorRouter).
+const motoristaPushRoutes = require('./routes/motorista-push');
 
 // robo-entrego (tasks.md FASE 2) — POST /api/v1/robo-entrego/eventos
 // (auditoria de execução do robô agendado), requirePermission interno.
@@ -67,6 +82,12 @@ const hubMotoristasRoutes = require('./routes/hub-motoristas');
 // agregados), requirePermission interno. Arquivo 100% novo
 // (routes/hub-faturamento.js). Somente leitura (FR-011).
 const hubFaturamentoRoutes = require('./routes/hub-faturamento');
+
+// push-motorista (FASE 4, tasks.md 4.1/4.2/4.3) — módulo Avisos do hub
+// (contracts/hub-avisos.md): leitura (lista/detalhe/alcance/destinatários/
+// cobertura) e criação/disparo de push. Arquivo 100% novo
+// (routes/hub-avisos.js).
+const hubAvisosRoutes = require('./routes/hub-avisos');
 
 // hub-performance (S7 do hub de frota, FASE 2) — GET /api/v1/performance
 // (lista paginada + export CSV) e GET /api/v1/performance/resumo (cards/
@@ -2819,6 +2840,12 @@ app.use('/empresa/branding', authenticateToken, brandingRoutes.router);
 // 401 mesmo com sessão válida (fix: branding-tomador 401 no app motorista).
 motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, brandingRoutes.brandingTomadorRouter);
 
+// push-motorista (tasks.md FASE 3.1) — GET /push/chave-publica, PUT
+// /push/inscricao, POST /push/inscricao/revogar, PUT /push/estado,
+// GET /avisos/:id. Mesmo padrão acima: authenticateMotorista explícito,
+// senão req.motorista nunca é setado dentro do sub-router.
+motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, motoristaPushRoutes.router);
+
 // hub-fundacoes (FASE 3) — /api/v1/auth/* (login/refresh/logout/recuperar-senha/
 // redefinir-senha). Sem authenticateToken aqui — o próprio router aplica
 // rate-limit (Decision 8) e cada rota decide sua própria exigência de auth
@@ -2880,6 +2907,12 @@ app.use('/api/v1/papeis', hubPapeisRoutes.router);
 // bloco /api/v1/papeis acima).
 app.use('/api/v1/admin', hubAdminRoutes.router);
 
+// push-motorista (FASE 4, tasks.md 4.1/4.2/4.3) — /api/v1/avisos (módulo
+// Avisos do hub: leitura + criação/disparo de push). requireModuloAtivo/
+// requirePermission aplicados dentro do próprio router (mesmo padrão do
+// bloco /api/v1/papeis acima).
+app.use('/api/v1/avisos', hubAvisosRoutes.router);
+
 // hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
 // boot: um restart no meio de uma importação (deploy) deixa o registro
 // preso em validating/processing, e o índice único parcial (migration
@@ -2898,6 +2931,40 @@ if (process.env.POSTGREST_URL) {
   }).catch((err) => {
     console.error('[boot] hub-importacoes: falha ao recuperar importações órfãs (não bloqueia o boot):', err && err.message);
   });
+}
+
+// push-motorista (tasks.md 2.2.2, mitigação S6) — allowlist efetiva logada
+// no boot (nunca a chave/segredo, só os hostnames aceitos). Best-effort:
+// uma allowlist malformada não pode derrubar o boot do backend inteiro.
+try {
+  console.log(`[boot] push: allowlist efetiva = ${carregarAllowlist().join(', ')}`);
+} catch (err) {
+  console.error('[boot] push: falha ao resolver allowlist (não bloqueia o boot):', err && err.message);
+}
+
+// push-motorista (tasks.md 2.3/5.2, research.md Decision 2/4) — carga da
+// chave VAPID (fail-closed: arquivo ausente/inválido só deixa
+// getKeyAtual()/o worker sem chave — quem lança 503 PUSH_INDISPONIVEL é a
+// própria rota) + retomada de avisos na_fila/em_andamento após reinício
+// (FR-018) + expurgo automático de 90 dias (FR-030, 24h). ADITIVA,
+// best-effort, fire-and-forget — mesmo padrão do bloco hub-importacoes
+// acima. Guardada por POSTGREST_URL (sem hub configurado neste deployment,
+// nem VAPID_KEYS_FILE faz sentido).
+if (process.env.POSTGREST_URL) {
+  hubPushVapid.inicializar({
+    caminhoArquivo: process.env.VAPID_KEYS_FILE,
+    registrarFn: hubPushWorker.registrarChaveVapid,
+  }).then((resultado) => {
+    if (!resultado.ok) {
+      console.error(`[boot] push: chave VAPID indisponível (${resultado.erro}) — disparo/envio respondem 503 PUSH_INDISPONIVEL até corrigir.`);
+      return;
+    }
+    return hubPushWorker.retomarAvisosPendentes();
+  }).catch((err) => {
+    console.error('[boot] push: falha ao inicializar chave/retomar avisos (não bloqueia o boot):', err && err.message);
+  });
+
+  hubPushWorker.iniciarExpurgoPeriodico();
 }
 
 // Iniciar o servidor

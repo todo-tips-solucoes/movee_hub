@@ -1,0 +1,13 @@
+
+Running 5 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:91:7 › FASE 7.2 — cobertura por plataforma (FR-023/SC-011) › 7.2.4 — cobertura mostra os números do fixture (3 categorias ativos + 3 impedidos) (1.2s)
+  ✓  2 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:107:7 › FASE 7.3 — diálogo "Novo aviso" › 7.3.5 — 3 modos, alcance atualiza, 0 inscrições bloqueia disparo, duplo-clique = 1 requisição (7.1s)
+  ✓  3 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:186:7 › FASE 7.4 — detalhe do aviso (polling) › 7.4.2 — polling para exatamente ao atingir concluido (10.0s)
+TECLADO_RESULT alcancados=Cancelar,Toda a base,Motoristas específicos,Empresa / filial,Disparar total=5/5
+  ✓  4 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:213:7 › FASE 8.2 — acessibilidade (teclado + axe) › 8.2.3 — teclado apenas: título, mensagem, 3 radio-cards e Disparar/Cancelar alcançáveis por Tab (1.6s)
+AXE_RESULT tela="avisos-lista" violacoes=1 criticas_graves=0
+AXE_RESULT tela="avisos-dialog" violacoes=0 criticas_graves=0
+  ✓  5 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:241:7 › FASE 8.2 — acessibilidade (teclado + axe) › 8.2.4 — axe: lista de avisos e diálogo "Novo aviso" sem violação crítica/grave (2.2s)
+
+  5 passed (23.1s)

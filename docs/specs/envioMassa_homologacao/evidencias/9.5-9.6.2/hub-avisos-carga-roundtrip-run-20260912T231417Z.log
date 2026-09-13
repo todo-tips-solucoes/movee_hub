@@ -1,0 +1,89 @@
+df -h / e swap antes do build:
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1       150G  123G   21G  86% /
+NAME      TYPE SIZE USED PRIO
+/swapfile file   8G 4.6G   -2
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       9.1Gi       614Mi       384Mi       6.3Gi       6.2Gi
+Swap:          8.0Gi       4.6Gi       3.4Gi
+PREFLIGHT: ok — projeto 'hub-test-1789254789' dentro do escopo hub-*
+PREFLIGHT: ok — APP_ENV=test
+PREFLIGHT: ok — docker compose config válido
+PREFLIGHT: ok — todas as imagens com tag explícita ≠ latest (3 imagens)
+PREFLIGHT: ok — todos os volumes/redes/projeto nomeados começam com hub
+PREFLIGHT: ok — todos os bind mounts dentro de infra/hub | /var/lib/hub_secrets
+PREFLIGHT: ok — nenhuma referência a banco/PostgREST de produção (env + compose)
+PREFLIGHT: ok — nenhum domínio de produção
+PREFLIGHT: ok — segredos distintos dos fingerprints de produção (7 registrados)
+PREFLIGHT: ok — nenhum volume/bind/rede de produção no compose (blocklist)
+PREFLIGHT: PASSOU — /var/lib/envioMassa_homologacao/infra/hub/compose.hub.test.yml (projeto hub-test-1789254789, APP_ENV=test)
+subindo db+postgrest+push-mock efêmeros (hub-test-1789254789, tmpfs)…
+ Network hub-test-1789254789_default Creating 
+ Network hub-test-1789254789_default Created 
+ Container hub-test-1789254789-db-1 Creating 
+ Container hub-test-1789254789-db-1 Created 
+ Container hub-test-1789254789-db-1 Starting 
+ Container hub-test-1789254789-db-1 Started 
+ Container hub-test-1789254789-db-1 Waiting 
+ Container hub-test-1789254789-db-1 Healthy 
+ Container hub-test-1789254789-db-1 Running 
+ Container hub-test-1789254789-postgrest-1 Creating 
+ Container hub-test-1789254789-postgrest-1 Created 
+ Container hub-test-1789254789-db-1 Waiting 
+ Container hub-test-1789254789-db-1 Healthy 
+ Container hub-test-1789254789-postgrest-1 Starting 
+ Container hub-test-1789254789-postgrest-1 Started 
+ Container hub-test-1789254789-db-1 Waiting 
+ Container hub-test-1789254789-postgrest-1 Waiting 
+ Container hub-test-1789254789-postgrest-1 Healthy 
+ Container hub-test-1789254789-db-1 Healthy 
+ Container hub-test-1789254789-push-mock-1 Creating 
+ Container hub-test-1789254789-push-mock-1 Created 
+ Container hub-test-1789254789-push-mock-1 Starting 
+ Container hub-test-1789254789-push-mock-1 Started 
+ Container hub-test-1789254789-push-mock-1 Waiting 
+ Container hub-test-1789254789-push-mock-1 Healthy 
+rodando migrate.sh (série completa)…
+df -h / antes do build do backend:
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1       150G  123G   21G  86% /
+ Container hub-test-1789254789-db-1 Running 
+ Container hub-test-1789254789-postgrest-1 Running 
+ Container hub-test-1789254789-backend-1 Creating 
+ Container hub-test-1789254789-backend-1 Created 
+ Container hub-test-1789254789-db-1 Waiting 
+ Container hub-test-1789254789-db-1 Healthy 
+ Container hub-test-1789254789-db-1 Waiting 
+ Container hub-test-1789254789-db-1 Healthy 
+ Container hub-test-1789254789-backend-1 Starting 
+ Container hub-test-1789254789-backend-1 Started 
+ Container hub-test-1789254789-db-1 Waiting 
+ Container hub-test-1789254789-postgrest-1 Waiting 
+ Container hub-test-1789254789-backend-1 Waiting 
+ Container hub-test-1789254789-backend-1 Healthy 
+ Container hub-test-1789254789-db-1 Healthy 
+ Container hub-test-1789254789-postgrest-1 Healthy 
+PASS: 9.5.1: fixture com >=100 inscrições ativas seguidas (grupo Movee, ramo legado)
+DEBUG put_inscricao_body: 
+PASS: motorista credencial: login legado real -> 200
+PASS: PUT /motorista/push/inscricao (self-registro real) -> 204
+PASS: GET /avisos/alcance ANTES do disparo -> 200
+PASS: POST /avisos (toda_base, >=100 inscrições) -> 201
+PASS: GET /avisos/cobertura -> 200
+PASS: GET /motorista/avisos/:id (o próprio motorista lê seu aviso) -> 200
+PASS: GET /motorista/push/chave-publica -> 200
+=== 9.5.3 — tempos medidos (ms) por fase ===
+antes: GET /api/v1/motoristas n=5 min=5 mediana=6 max=9 | GET /motorista/push/chave-publica n=5 min=2 mediana=2 max=40
+antes: erros(status!=200) motoristas=0 chave=0
+durante: GET /api/v1/motoristas n=82 min=3 mediana=4 max=181 | GET /motorista/push/chave-publica n=82 min=1 mediana=2 max=107
+durante: erros(status!=200) motoristas=0 chave=0
+depois: GET /api/v1/motoristas n=5 min=3 mediana=4 max=39 | GET /motorista/push/chave-publica n=5 min=1 mediana=2 max=80
+depois: erros(status!=200) motoristas=0 chave=0
+total_deliveries_via_toda_base_inscricoes: 101
+___STATS_ERROS___{"antes":0,"durante":0,"depois":0}
+PASS: 9.5.3: zero erro (status!=200) atribuível ao envio em qualquer fase
+shape OK: camelCase + number nos 4 corpos do hub
+PASS: 9.6.2: shape dos 4 corpos do hub bate com o contrato (camelCase, number)
+roundtrip bodies salvos em /var/lib/envioMassa_homologacao/docs/specs/envioMassa_homologacao/evidencias/9.5-9.6.2/roundtrip-cenario20-bodies.json
+-----------------------------------------------------------------
+HUB-AVISOS-CARGA-ROUNDTRIP: OK — todos os asserts passaram (tasks.md 9.5 + 9.6.2)

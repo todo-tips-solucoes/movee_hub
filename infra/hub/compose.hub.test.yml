@@ -101,6 +101,29 @@ services:
     tmpfs:
       - /data
 
+  push-mock:
+    <<: *hub-common
+    image: node:20-alpine
+    mem_limit: 128m
+    cpus: 0.25
+    command: ["node", "/app/server.js"]
+    environment:
+      APP_ENV: "${APP_ENV}"
+      MOCK_PORT: "8443"
+      # Caminhos FIXOS dentro do próprio bind ro de ./mocks/push-mock (abaixo)
+      # — nunca variáveis de host, para não quebrar `up` de suítes que não
+      # usam push (a maioria) e não têm por que definir estas vars no seu
+      # .env.hub.test. O driver da suíte hub-avisos (tasks.md 9.2/9.4) gera
+      # cert/key com `openssl` em mocks/push-mock/tls/ antes do `up`; sem
+      # eles, este container só falha ao iniciar (nada depende dele — não
+      # derruba o `up -d` das demais suítes; *.pem já é gitignored na raiz).
+      MOCK_TLS_CERT_FILE: "/app/tls/cert.pem"
+      MOCK_TLS_KEY_FILE: "/app/tls/key.pem"
+    volumes:
+      - ./mocks/push-mock:/app:ro
+    tmpfs:
+      - /data
+
   backend:
     <<: *hub-common
     build:
@@ -149,6 +172,29 @@ services:
       # compose.hub.dev.yml/compose.hub.homolog.yml nesta fase (rollout real
       # para hub-homolog fica para além da FASE 5, smoke manual pendente).
       HUB_MOTORISTA_LOGIN_CONTA_ATIVA: "${HUB_MOTORISTA_LOGIN_CONTA_ATIVA:-}"
+      # hub-avisos (FASE 1, tasks.md 1.4): Web Push — caminho do arquivo de
+      # chave VAPID (gen-vapid.sh) e override de allowlist de hosts do
+      # endpoint de inscrição (research.md Decision 10/14, lib/hub-push-
+      # endpoint.js — FASE 2). Ambos opcionais aqui: ausência de
+      # VAPID_KEYS_FILE é tolerada em runtime (503 PUSH_INDISPONIVEL), nunca
+      # falha de boot; PUSH_HOSTS_PERMITIDOS só é considerado com
+      # ENVIO_ALLOWLIST também definida (mesmo gate acima).
+      VAPID_KEYS_FILE: "${VAPID_KEYS_FILE:-}"
+      PUSH_HOSTS_PERMITIDOS: "${PUSH_HOSTS_PERMITIDOS:-}"
+      # tasks.md 9.1.2/plan.md §Project Structure — confia no certificado
+      # autoassinado do push-mock (research.md Decision 21: "web-push só fala
+      # https.request"). Path FIXO em container (não var de host, mesmo
+      # motivo do push-mock acima); sem o cert gerado pelo driver da suíte
+      # hub-avisos, Node só emite warning e ignora (não derruba o boot nem
+      # afeta as demais suítes que não usam push).
+      NODE_EXTRA_CA_CERTS: "/etc/push-mock-ca/cert.pem"
+    volumes:
+      # Bind read-only da chave VAPID — mesmo path host/container (o valor
+      # de VAPID_KEYS_FILE vale nos dois lados, sem tradução). Se a var
+      # estiver vazia o bind mount falha alto e cedo no `up` (preferível a
+      # um 503 silencioso a cada boot).
+      - "${VAPID_KEYS_FILE}:${VAPID_KEYS_FILE}:ro"
+      - ./mocks/push-mock/tls:/etc/push-mock-ca:ro
     depends_on:
       db:
         condition: service_healthy

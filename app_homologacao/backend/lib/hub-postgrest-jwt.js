@@ -57,6 +57,21 @@ const jwt = require('jsonwebtoken');
  *   (`UsuarioEntidade.ativo=true`) com o papel `admin_plataforma`
  *   (`lib/hub-rbac-cache.js#usuarioEhAdminPlataforma`) — NUNCA aceita valor
  *   vindo de input do cliente (menor privilégio, gate owasp).
+ * @param {boolean} [claims.hubPushWorker] - vira `hub_push_worker` (push-motorista,
+ *   FASE 5, data-model.md §Claims) — claim booleana INTERNA emitida SÓ por
+ *   `lib/hub-push-worker.js` (reivindicação/registro de resultado/expurgo/
+ *   retomada no boot e registro de `PushChaveVapid`), NUNCA a partir de dado
+ *   de requisição (mitigação S10, `hub_jwt_push_worker()` com
+ *   `COALESCE(…, false)`, migration 0061).
+ * @param {string} [claims.motoristaCnpj] - vira `motorista_cnpj` (push-motorista,
+ *   tasks.md 3.2.1, data-model.md §Claims) — lida por
+ *   `hub_jwt_motorista_cnpj()` (migration 0061) nas RPCs
+ *   `hub_push_inscricao_registrar/revogar`, `hub_push_estado_reportar` e
+ *   `hub_aviso_para_motorista`. Emitida SOMENTE por
+ *   `routes/motorista-push.js`, a partir de `req.motorista.cnpjPrestador`
+ *   (identidade do token, nunca do corpo — FR-003, mitigação S10 no lado do
+ *   emissor: a função no banco também recusa claim fora do formato de
+ *   14 dígitos, defesa em profundidade).
  * @returns {string} JWT assinado (HS256)
  */
 function generateHubPostgrestJWT(claims = {}) {
@@ -78,6 +93,12 @@ function generateHubPostgrestJWT(claims = {}) {
   }
   if (claims.adminPlataforma === true) {
     payload.admin_plataforma = true;
+  }
+  if (claims.hubPushWorker === true) {
+    payload.hub_push_worker = true;
+  }
+  if (typeof claims.motoristaCnpj === 'string' && claims.motoristaCnpj !== '') {
+    payload.motorista_cnpj = claims.motoristaCnpj;
   }
 
   const secret = process.env.PGRST_JWT_SECRET;

@@ -13,6 +13,7 @@
 // reconhecido cai num ícone padrão, nunca quebra a renderização.
 
 import {
+  Bell,
   FileCheck,
   FileUp,
   Gauge,
@@ -57,6 +58,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   filecheck: FileCheck,
   usuarios: Users,
   users: Users,
+  avisos: Bell,
+  bell: Bell,
   auditoria: ScrollText,
   shieldcheck: ShieldCheck,
   admin: Settings2,

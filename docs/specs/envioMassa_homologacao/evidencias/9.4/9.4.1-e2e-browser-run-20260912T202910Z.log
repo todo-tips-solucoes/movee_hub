@@ -1,0 +1,44 @@
+
+Running 5 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:91:7 › FASE 7.2 — cobertura por plataforma (FR-023/SC-011) › 7.2.4 — cobertura mostra os números do fixture (3 categorias ativos + 3 impedidos) (1.1s)
+  ✓  2 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:107:7 › FASE 7.3 — diálogo "Novo aviso" › 7.3.5 — 3 modos, alcance atualiza, 0 inscrições bloqueia disparo, duplo-clique = 1 requisição (7.1s)
+  ✘  3 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:186:7 › FASE 7.4 — detalhe do aviso (polling) › 7.4.2 — polling para exatamente ao atingir concluido (10.1s)
+  -  4 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:207:7 › FASE 8.2 — acessibilidade (teclado + axe) › 8.2.3 — teclado apenas: título, mensagem, 3 radio-cards e Disparar/Cancelar alcançáveis por Tab
+  -  5 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:235:7 › FASE 8.2 — acessibilidade (teclado + axe) › 8.2.4 — axe: lista de avisos e diálogo "Novo aviso" sem violação crítica/grave
+
+
+  1) [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:186:7 › FASE 7.4 — detalhe do aviso (polling) › 7.4.2 — polling para exatamente ao atingir concluido 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 3
+
+      200 |     // parado, a contagem teria subido; ela deve permanecer EXATAMENTE igual.
+      201 |     await page.waitForTimeout(9_000);
+    > 202 |     expect(requisicoesGet).toBe(contagemAoConcluir);
+          |                            ^
+      203 |   });
+      204 | });
+      205 |
+        at /work/tests/e2e-hub-avisos/hub-avisos.spec.ts:202:28
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/hub-avisos-FASE-7-4-—-deta-1747d-amente-ao-atingir-concluido-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/hub-avisos-FASE-7-4-—-deta-1747d-amente-ao-atingir-concluido-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/hub-avisos-FASE-7-4-—-deta-1747d-amente-ao-atingir-concluido-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/hub-avisos-FASE-7-4-—-deta-1747d-amente-ao-atingir-concluido-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:186:7 › FASE 7.4 — detalhe do aviso (polling) › 7.4.2 — polling para exatamente ao atingir concluido 
+  2 did not run
+  2 passed (19.7s)
