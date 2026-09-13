@@ -1575,21 +1575,33 @@ Ref: SC-009, quickstart Scenario 19
 
 Ref: `CLAUDE.md §Rito do ciclo git`
 
-- [ ] 11.1.1 Criar branch `feat/avisos-push-motorista` a partir da `main` atualizada
-- [ ] 11.1.2 `git status` lido arquivo a arquivo; `git add` só por caminho explícito
-  (nunca `-A`/`.`)
-- [ ] 11.1.3 Conferir e reverter `package-lock.json` se reescrito pelo container do
-  Playwright durante os E2E da FASE 9
+- [x] 11.1.1 Criar branch `feat/avisos-push-motorista` a partir da `main` atualizada —
+  onda-030: `git status -sb` confirma `## feat/avisos-push-motorista`; `git log --oneline
+  -1` confirma HEAD `69adf80 feat(push-motorista): avisos por Web Push para o app do
+  motorista`, criado a partir da main local `649a44b` (feito pela sessão pai sob
+  block-011)
+- [x] 11.1.2 `git status` lido arquivo a arquivo; `git add` só por caminho explícito
+  (nunca `-A`/`.`) — onda-030: sessão pai usou `git --literal-pathspecs add
+  --pathspec-from-file` com 102 caminhos explícitos, stage conferido == lista antes do
+  commit; `git show --shortstat --format= HEAD` confirma `102 files changed, 20310
+  insertions(+), 2512 deletions(-)`
+- [x] 11.1.3 Conferir e reverter `package-lock.json` se reescrito pelo container do
+  Playwright durante os E2E da FASE 9 — onda-030: conferido pela sessão pai —
+  `lockfileVersion 3` nos dois lados, 0 versões alteradas e 0 removidas nos 225 pacotes
+  pré-existentes do backend, só 11 novos (árvore do `web-push`); locks do `frontend_v2` e
+  do app motorista intactos
 
 ### 11.2 Gates humanos da entrega (commit, PR, merge, deploy) `[C]`
 
 Ref: `CLAUDE.md §Rito do ciclo git`, `§Rito de produção` — autorização por etapa, nenhuma
 concedida à pipeline autônoma
 
-- [ ] 11.2.1 **GATE**: autorização explícita do operador **para o commit** (não implícita,
+- [x] 11.2.1 **GATE**: autorização explícita do operador **para o commit** (não implícita,
   não genérica, não antiga); com autorização, commitar com corpo descrevendo o quê / por
   quê / o que foi verificado (números das FASES 9-10) / o que ficou de fora; trailer
-  `Co-Authored-By`
+  `Co-Authored-By` — onda-030: operador autorizou via block-011 (`resume_after_block`);
+  commit `69adf80` já criado pela sessão pai com trailer `Co-Authored-By`; confirmado por
+  `git log --oneline -1` acima
 - [ ] 11.2.2 **GATE**: autorização explícita do operador **para o PR** (distinta da
   autorização de commit); com autorização, abrir PR com o que muda, risco, verificação
   com números, o que ficou deliberadamente de fora
