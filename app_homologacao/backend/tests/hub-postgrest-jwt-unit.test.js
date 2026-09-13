@@ -149,6 +149,66 @@ describe('lib/hub-postgrest-jwt — claims por request (FASE 3 -> FASE 5)', () =
       assert.equal('admin_plataforma' in claimFalsa, false, 'adminPlataforma:false não deve virar claim (só true habilita)');
     });
   });
+
+  // push-motorista (tasks.md 3.2.1/3.2.2) — claim motorista_cnpj, emitida só
+  // por routes/motorista-push.js a partir de req.motorista.cnpjPrestador
+  // (identidade do token). hub_jwt_motorista_cnpj() (migration 0061) lê essa
+  // claim nas RPCs hub_push_inscricao_registrar/revogar,
+  // hub_push_estado_reportar e hub_aviso_para_motorista.
+  test('motoristaCnpj presente -> payload.motorista_cnpj; ausente -> claim NUNCA aparece (chamadas do hub)', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      const comClaim = jwt.decode(generateHubPostgrestJWT({ motoristaCnpj: '22222222000199' }));
+      assert.equal(comClaim.motorista_cnpj, '22222222000199');
+      assert.equal('sub' in comClaim, false, 'claim de motorista não deve carregar sub de usuário do hub');
+
+      // Chamada originada do hub (usuarioId/empresaAtiva/escopo, sem motoristaCnpj)
+      const semClaim = jwt.decode(generateHubPostgrestJWT({ usuarioId: 9, empresaAtiva: 6, escopo: [6] }));
+      assert.equal('motorista_cnpj' in semClaim, false, 'chamadas originadas do hub nunca devem carregar motorista_cnpj');
+
+      const claimVazia = jwt.decode(generateHubPostgrestJWT({ motoristaCnpj: '' }));
+      assert.equal('motorista_cnpj' in claimVazia, false, 'motoristaCnpj vazio não deve virar claim');
+    });
+  });
+
+  // push-motorista (tasks.md 3.2.3/5.2.2, mitigação S10 no lado do emissor;
+  // plan.md §Project Structure "hub-postgrest-jwt.js (alterar) ...
+  // hubPushWorker → hub_push_worker") — hub_push_worker segue o MESMO molde
+  // já estabelecido por hubBootRecovery/origemImportacao/adminPlataforma
+  // acima: o parâmetro existe na função compartilhada, mas só é setado
+  // `true` por código interno confiável (aqui, lib/hub-push-worker.js) —
+  // NUNCA a partir de dado de requisição HTTP. A ATUALIZAÇÃO 2026-09-11
+  // (FASE 5) corrige a suposição anterior desta suíte (2.3/3.2, escrita
+  // antes da FASE 5 ser alcançada) de que a função "não aceitaria o
+  // parâmetro" — o desenho real, como os demais claims internos, é aceitar
+  // e confiar no chamador ser só lib/hub-push-worker.js (auditável por grep).
+  test('hubPushWorker=true -> payload.hub_push_worker=true; ausente/false -> claim NUNCA aparece', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      const comClaim = jwt.decode(generateHubPostgrestJWT({ hubPushWorker: true }));
+      assert.equal(comClaim.hub_push_worker, true);
+      assert.equal('sub' in comClaim, false, 'claim de worker não deve carregar sub de usuário');
+
+      const semClaim = jwt.decode(generateHubPostgrestJWT());
+      assert.equal('hub_push_worker' in semClaim, false);
+
+      const claimFalsa = jwt.decode(generateHubPostgrestJWT({ hubPushWorker: false }));
+      assert.equal('hub_push_worker' in claimFalsa, false, 'hubPushWorker:false não deve virar claim (só true habilita)');
+    });
+  });
+
+  test('nenhuma chamada com claims de rota HTTP (sem hubPushWorker explícito) produz a claim hub_push_worker', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      const chamadas = [
+        generateHubPostgrestJWT({ motoristaCnpj: '22222222000199' }),
+        generateHubPostgrestJWT({ usuarioId: 9, empresaAtiva: 6, escopo: [6], adminPlataforma: true }),
+        generateHubPostgrestJWT({ usuarioId: 1, origemImportacao: true }),
+        generateHubPostgrestJWT(),
+      ];
+      for (const token of chamadas) {
+        const payload = jwt.decode(token);
+        assert.equal('hub_push_worker' in payload, false, 'hub_push_worker só pode ser emitida por lib/hub-push-worker.js (FASE 5), nunca por uma rota HTTP');
+      }
+    });
+  });
 });
 
 describe('lib/hub-postgrest-jwt — alg-pinning (research.md Decision 12, owasp-security)', () => {

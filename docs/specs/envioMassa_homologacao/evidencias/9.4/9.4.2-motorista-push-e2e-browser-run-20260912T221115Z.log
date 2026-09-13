@@ -1,0 +1,686 @@
+
+Running 19 tests using 1 worker
+
+  ✘   1 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: origem diferente (protocol-relative //evil.example) (16.6s)
+  ✘   2 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: barra invertida (/\evil.example) (16.4s)
+  ✘   3 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: TAB antes do host (/\t/evil.example) (16.4s)
+  ✘   4 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: LF antes do host (/\n/evil.example) (16.4s)
+  ✘   5 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: esquema javascript: (javascript:alert(1)) (16.4s)
+  ✘   6 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: caminho válido mesma origem (/avisos/123) (16.4s)
+  ✘   7 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:225:5 › 6.2.4 Scenario 1: nenhum pedido automático de permissão ao montar (15.3s)
+  ✘   8 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:234:5 › 6.2.4 Scenario 2: ativar com gesto explícito do usuário (1.0m)
+  ✘   9 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:244:5 › 6.2.4 Scenario 4: iOS sem instalação (fora do PWA) (15.4s)
+  ✘  10 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:254:5 › 6.2.4 Scenario 5: permissão já bloqueada pelo navegador (15.4s)
+  ✘  11 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:261:5 › 6.2.4 Scenario 6: navegador sem suporte a push (15.3s)
+  ✘  12 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:268:5 › 6.2.4 Scenario 7: ponto de entrada compacto após dispensar (persiste no reload) (1.0m)
+  ✘  13 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:281:5 › 6.5.3 Cenário 1: sessão válida exibe o conteúdo do aviso (15.4s)
+  ✘  14 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:296:5 › 6.5.3 Cenário 2: sessão expirada vai ao login e retorna ao destino após autenticar (15.4s)
+  ✘  15 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:315:5 › 6.5.3 Cenário 3: aviso expurgado/inexistente/fora-de-escopo mostram a MESMA mensagem, sem distinção (15.4s)
+  ✘  16 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:330:5 › 8.1.3 teclado: "Ativar notificações" alcançável por Tab e operável por Enter (15.3s)
+  ✘  17 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:348:5 › 8.1.3 teclado: "Agora não" alcançável por Tab e operável por Espaço (15.4s)
+  ✘  18 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:366:5 › 8.1.3 teclado: formulário de login operável via Tab + Enter (sem mouse) (16.5s)
+AXE /login: color-contrast (serious) — Elements must meet minimum color contrast ratio thresholds
+8.1.4: achados por tela = {"/movimento":0,"/avisos/999":0,"/login":1}
+  ✘  19 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:387:5 › 8.1.4 axe-core: 0 violações críticas/sérias em movimento, avisos/[id] e login (2.2s)
+
+
+  1) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: origem diferente (protocol-relative //evil.example) 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+      213 |     await page.goto(`${BASE}/login?next=${encodeURIComponent(caso.next)}`);
+      214 |     await fazerLogin(page);
+    > 215 |     await page.waitForURL((url) => url.pathname === caso.esperado, { timeout: 15_000 });
+          |                ^
+      216 |     expect(new URL(page.url()).pathname).toBe(caso.esperado);
+      217 |     expect(external, `requests externos inesperados: ${external.join(', ')}`).toEqual([]);
+      218 |   });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:215:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-6cf47-ocol-relative-evil-example--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-3-3-3-redir-6cf47-ocol-relative-evil-example--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-6cf47-ocol-relative-evil-example--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-3-3-3-redir-6cf47-ocol-relative-evil-example--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: barra invertida (/\evil.example) 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+      213 |     await page.goto(`${BASE}/login?next=${encodeURIComponent(caso.next)}`);
+      214 |     await fazerLogin(page);
+    > 215 |     await page.waitForURL((url) => url.pathname === caso.esperado, { timeout: 15_000 });
+          |                ^
+      216 |     expect(new URL(page.url()).pathname).toBe(caso.esperado);
+      217 |     expect(external, `requests externos inesperados: ${external.join(', ')}`).toEqual([]);
+      218 |   });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:215:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-d1f91-rra-invertida-evil-example--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-3-3-3-redir-d1f91-rra-invertida-evil-example--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-d1f91-rra-invertida-evil-example--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-3-3-3-redir-d1f91-rra-invertida-evil-example--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: TAB antes do host (/\t/evil.example) 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+      213 |     await page.goto(`${BASE}/login?next=${encodeURIComponent(caso.next)}`);
+      214 |     await fazerLogin(page);
+    > 215 |     await page.waitForURL((url) => url.pathname === caso.esperado, { timeout: 15_000 });
+          |                ^
+      216 |     expect(new URL(page.url()).pathname).toBe(caso.esperado);
+      217 |     expect(external, `requests externos inesperados: ${external.join(', ')}`).toEqual([]);
+      218 |   });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:215:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-c4c71-tes-do-host-t-evil-example--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-3-3-3-redir-c4c71-tes-do-host-t-evil-example--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-c4c71-tes-do-host-t-evil-example--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-3-3-3-redir-c4c71-tes-do-host-t-evil-example--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: LF antes do host (/\n/evil.example) 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+      213 |     await page.goto(`${BASE}/login?next=${encodeURIComponent(caso.next)}`);
+      214 |     await fazerLogin(page);
+    > 215 |     await page.waitForURL((url) => url.pathname === caso.esperado, { timeout: 15_000 });
+          |                ^
+      216 |     expect(new URL(page.url()).pathname).toBe(caso.esperado);
+      217 |     expect(external, `requests externos inesperados: ${external.join(', ')}`).toEqual([]);
+      218 |   });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:215:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-9d9ae-tes-do-host-n-evil-example--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-3-3-3-redir-9d9ae-tes-do-host-n-evil-example--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-9d9ae-tes-do-host-n-evil-example--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-3-3-3-redir-9d9ae-tes-do-host-n-evil-example--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: esquema javascript: (javascript:alert(1)) 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+      213 |     await page.goto(`${BASE}/login?next=${encodeURIComponent(caso.next)}`);
+      214 |     await fazerLogin(page);
+    > 215 |     await page.waitForURL((url) => url.pathname === caso.esperado, { timeout: 15_000 });
+          |                ^
+      216 |     expect(new URL(page.url()).pathname).toBe(caso.esperado);
+      217 |     expect(external, `requests externos inesperados: ${external.join(', ')}`).toEqual([]);
+      218 |   });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:215:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-40998-ascript-javascript-alert-1--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-3-3-3-redir-40998-ascript-javascript-alert-1--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-40998-ascript-javascript-alert-1--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-3-3-3-redir-40998-ascript-javascript-alert-1--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: caminho válido mesma origem (/avisos/123) 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+      213 |     await page.goto(`${BASE}/login?next=${encodeURIComponent(caso.next)}`);
+      214 |     await fazerLogin(page);
+    > 215 |     await page.waitForURL((url) => url.pathname === caso.esperado, { timeout: 15_000 });
+          |                ^
+      216 |     expect(new URL(page.url()).pathname).toBe(caso.esperado);
+      217 |     expect(external, `requests externos inesperados: ${external.join(', ')}`).toEqual([]);
+      218 |   });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:215:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-b7bdc-do-mesma-origem-avisos-123--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-3-3-3-redir-b7bdc-do-mesma-origem-avisos-123--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-3-3-3-redir-b7bdc-do-mesma-origem-avisos-123--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-3-3-3-redir-b7bdc-do-mesma-origem-avisos-123--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:225:5 › 6.2.4 Scenario 1: nenhum pedido automático de permissão ao montar 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Ativar notificações' })
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByRole('button', { name: 'Ativar notificações' })
+
+
+      226 |   const external = await setup(page, defaultState(), { initialPermission: 'default' });
+      227 |   await page.goto(`${BASE}/movimento`);
+    > 228 |   await expect(page.getByRole('button', { name: 'Ativar notificações' })).toBeVisible();
+          |                                                                           ^
+      229 |   const chamadas = await page.evaluate(() => (window as unknown as { __requestPermissionCalls: number }).__requestPermissionCalls);
+      230 |   expect(chamadas, 'Notification.requestPermission não pode ser chamado sem gesto do usuário').toBe(0);
+      231 |   expect(external).toEqual([]);
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:228:75
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-ada1d-tico-de-permissão-ao-montar-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-2-4-Scena-ada1d-tico-de-permissão-ao-montar-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-ada1d-tico-de-permissão-ao-montar-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-2-4-Scena-ada1d-tico-de-permissão-ao-montar-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:234:5 › 6.2.4 Scenario 2: ativar com gesto explícito do usuário 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Ativar notificações' })
+
+
+      235 |   const external = await setup(page, defaultState(), { initialPermission: 'default', requestPermissionResult: 'granted' });
+      236 |   await page.goto(`${BASE}/movimento`);
+    > 237 |   await page.getByRole('button', { name: 'Ativar notificações' }).click();
+          |                                                                   ^
+      238 |   await expect(page.getByText('Notificações ativas neste aparelho.')).toBeVisible();
+      239 |   const chamadas = await page.evaluate(() => (window as unknown as { __requestPermissionCalls: number }).__requestPermissionCalls);
+      240 |   expect(chamadas).toBe(1);
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:237:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-3be78--gesto-explícito-do-usuário-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-2-4-Scena-3be78--gesto-explícito-do-usuário-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-3be78--gesto-explícito-do-usuário-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-2-4-Scena-3be78--gesto-explícito-do-usuário-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:244:5 › 6.2.4 Scenario 4: iOS sem instalação (fora do PWA) 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Instale o app para receber avisos')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Instale o app para receber avisos')
+
+
+      248 |   });
+      249 |   await page.goto(`${BASE}/movimento`);
+    > 250 |   await expect(page.getByText('Instale o app para receber avisos')).toBeVisible();
+          |                                                                     ^
+      251 |   expect(external).toEqual([]);
+      252 | });
+      253 |
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:250:69
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-756a6-sem-instalação-fora-do-PWA--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-2-4-Scena-756a6-sem-instalação-fora-do-PWA--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-756a6-sem-instalação-fora-do-PWA--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-2-4-Scena-756a6-sem-instalação-fora-do-PWA--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:254:5 › 6.2.4 Scenario 5: permissão já bloqueada pelo navegador 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Notificações bloqueadas')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Notificações bloqueadas')
+
+
+      255 |   const external = await setup(page, defaultState(), { initialPermission: 'denied' });
+      256 |   await page.goto(`${BASE}/movimento`);
+    > 257 |   await expect(page.getByText('Notificações bloqueadas')).toBeVisible();
+          |                                                           ^
+      258 |   expect(external).toEqual([]);
+      259 | });
+      260 |
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:257:59
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-fc1e2-já-bloqueada-pelo-navegador-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-2-4-Scena-fc1e2-já-bloqueada-pelo-navegador-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-fc1e2-já-bloqueada-pelo-navegador-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-2-4-Scena-fc1e2-já-bloqueada-pelo-navegador-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:261:5 › 6.2.4 Scenario 6: navegador sem suporte a push 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Este navegador não recebe notificações.')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Este navegador não recebe notificações.')
+
+
+      262 |   const external = await setup(page, defaultState(), { removeNotification: true });
+      263 |   await page.goto(`${BASE}/movimento`);
+    > 264 |   await expect(page.getByText('Este navegador não recebe notificações.')).toBeVisible();
+          |                                                                           ^
+      265 |   expect(external).toEqual([]);
+      266 | });
+      267 |
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:264:75
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scenario-6-navegador-sem-suporte-a-push-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-2-4-Scenario-6-navegador-sem-suporte-a-push-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scenario-6-navegador-sem-suporte-a-push-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-2-4-Scenario-6-navegador-sem-suporte-a-push-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:268:5 › 6.2.4 Scenario 7: ponto de entrada compacto após dispensar (persiste no reload) 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Agora não' })
+
+
+      269 |   const external = await setup(page, defaultState(), { initialPermission: 'default' });
+      270 |   await page.goto(`${BASE}/movimento`);
+    > 271 |   await page.getByRole('button', { name: 'Agora não' }).click();
+          |                                                         ^
+      272 |   await expect(page.getByRole('button', { name: 'Ativar notificações de avisos' })).toBeVisible();
+      273 |   await page.reload();
+      274 |   await expect(page.getByRole('button', { name: 'Ativar notificações de avisos' })).toBeVisible();
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:271:57
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-77e8e-spensar-persiste-no-reload--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-2-4-Scena-77e8e-spensar-persiste-no-reload--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-2-4-Scena-77e8e-spensar-persiste-no-reload--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-2-4-Scena-77e8e-spensar-persiste-no-reload--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:281:5 › 6.5.3 Cenário 1: sessão válida exibe o conteúdo do aviso 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Manutenção programada')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Manutenção programada')
+
+
+      289 |   const external = await setup(page, state);
+      290 |   await page.goto(`${BASE}/avisos/501`);
+    > 291 |   await expect(page.getByText('Manutenção programada')).toBeVisible();
+          |                                                         ^
+      292 |   await expect(page.getByText('Sistema indisponível às 22h de hoje.')).toBeVisible();
+      293 |   expect(external).toEqual([]);
+      294 | });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:291:57
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-5-3-Cenár-7ac69-a-exibe-o-conteúdo-do-aviso-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-5-3-Cenár-7ac69-a-exibe-o-conteúdo-do-aviso-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-5-3-Cenár-7ac69-a-exibe-o-conteúdo-do-aviso-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-5-3-Cenár-7ac69-a-exibe-o-conteúdo-do-aviso-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:296:5 › 6.5.3 Cenário 2: sessão expirada vai ao login e retorna ao destino após autenticar 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+      305 |   const external = await setup(page, state);
+      306 |   await page.goto(`${BASE}/avisos/777`);
+    > 307 |   await page.waitForURL((url) => url.pathname === '/login', { timeout: 15_000 });
+          |              ^
+      308 |   expect(new URL(page.url()).searchParams.get('next')).toBe('/avisos/777');
+      309 |   await fazerLogin(page);
+      310 |   await page.waitForURL((url) => url.pathname === '/avisos/777', { timeout: 15_000 });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:307:14
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-5-3-Cenár-f2de8--ao-destino-após-autenticar-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-5-3-Cenár-f2de8--ao-destino-após-autenticar-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-5-3-Cenár-f2de8--ao-destino-após-autenticar-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-5-3-Cenár-f2de8--ao-destino-após-autenticar-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:315:5 › 6.5.3 Cenário 3: aviso expurgado/inexistente/fora-de-escopo mostram a MESMA mensagem, sem distinção 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Aviso não disponível')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Aviso não disponível')
+
+
+      320 |   for (const id of ['888', '889', '890']) {
+      321 |     await page.goto(`${BASE}/avisos/${id}`);
+    > 322 |     await expect(page.getByText('Aviso não disponível')).toBeVisible();
+          |                                                          ^
+      323 |   }
+      324 |   expect(external).toEqual([]);
+      325 | });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:322:58
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-6-5-3-Cenár-8df1b-ESMA-mensagem-sem-distinção-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-6-5-3-Cenár-8df1b-ESMA-mensagem-sem-distinção-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-6-5-3-Cenár-8df1b-ESMA-mensagem-sem-distinção-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-6-5-3-Cenár-8df1b-ESMA-mensagem-sem-distinção-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:330:5 › 8.1.3 teclado: "Ativar notificações" alcançável por Tab e operável por Enter 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Ativar notificações' })
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByRole('button', { name: 'Ativar notificações' })
+
+
+      332 |   await page.goto(`${BASE}/movimento`);
+      333 |   const botaoAtivar = page.getByRole('button', { name: 'Ativar notificações' });
+    > 334 |   await expect(botaoAtivar).toBeVisible();
+          |                             ^
+      335 |
+      336 |   let alcancado = false;
+      337 |   for (let i = 0; i < 30 && !alcancado; i += 1) {
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:334:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-8-1-3-tecla-19440-or-Tab-e-operável-por-Enter-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-8-1-3-tecla-19440-or-Tab-e-operável-por-Enter-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-8-1-3-tecla-19440-or-Tab-e-operável-por-Enter-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-8-1-3-tecla-19440-or-Tab-e-operável-por-Enter-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:348:5 › 8.1.3 teclado: "Agora não" alcançável por Tab e operável por Espaço 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Agora não' })
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByRole('button', { name: 'Agora não' })
+
+
+      350 |   await page.goto(`${BASE}/movimento`);
+      351 |   const botaoDispensar = page.getByRole('button', { name: 'Agora não' });
+    > 352 |   await expect(botaoDispensar).toBeVisible();
+          |                                ^
+      353 |
+      354 |   let alcancado = false;
+      355 |   for (let i = 0; i < 30 && !alcancado; i += 1) {
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:352:32
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-8-1-3-tecla-a3995-r-Tab-e-operável-por-Espaço-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-8-1-3-tecla-a3995-r-Tab-e-operável-por-Espaço-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-8-1-3-tecla-a3995-r-Tab-e-operável-por-Espaço-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-8-1-3-tecla-a3995-r-Tab-e-operável-por-Espaço-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:366:5 › 8.1.3 teclado: formulário de login operável via Tab + Enter (sem mouse) 
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+      navigated to "http://127.0.0.1:3006/login?"
+    ============================================================
+
+      377 |   expect(focoNoBotao, 'Tab a partir do campo Senha deveria alcançar o botão Entrar').toBe(true);
+      378 |   await page.keyboard.press('Enter');
+    > 379 |   await page.waitForURL((url) => url.pathname === '/movimento', { timeout: 15_000 });
+          |              ^
+      380 |   console.log('8.1.3: controle 3/3 (form de login, Tab+Enter) — operável via teclado');
+      381 |   expect(external).toEqual([]);
+      382 | });
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:379:14
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-8-1-3-tecla-5da01-el-via-Tab-Enter-sem-mouse--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-8-1-3-tecla-5da01-el-via-Tab-Enter-sem-mouse--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-8-1-3-tecla-5da01-el-via-Tab-Enter-sem-mouse--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-8-1-3-tecla-5da01-el-via-Tab-Enter-sem-mouse--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:387:5 › 8.1.4 axe-core: 0 violações críticas/sérias em movimento, avisos/[id] e login 
+
+    Error: {"/movimento":0,"/avisos/999":0,"/login":1}
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "/avisos/999": 0,
+    -   "/login": 0,
+    +   "/login": 1,
+        "/movimento": 0,
+      }
+
+      417 |
+      418 |   console.log(`8.1.4: achados por tela = ${JSON.stringify(achados)}`);
+    > 419 |   expect(achados, JSON.stringify(achados)).toEqual({ '/movimento': 0, '/avisos/999': 0, '/login': 0 });
+          |                                            ^
+      420 |   expect(external).toEqual([]);
+      421 | });
+      422 |
+        at /work/tests/e2e-motorista-push/motorista-push.spec.ts:419:44
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/motorista-push-8-1-4-axe-c-50ead-movimento-avisos-id-e-login-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/motorista-push-8-1-4-axe-c-50ead-movimento-avisos-id-e-login-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/motorista-push-8-1-4-axe-c-50ead-movimento-avisos-id-e-login-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/motorista-push-8-1-4-axe-c-50ead-movimento-avisos-id-e-login-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19 failed
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: origem diferente (protocol-relative //evil.example) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: barra invertida (/\evil.example) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: TAB antes do host (/\t/evil.example) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: LF antes do host (/\n/evil.example) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: esquema javascript: (javascript:alert(1)) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:207:7 › 3.3.3 redirecionamento seguro de next: caminho válido mesma origem (/avisos/123) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:225:5 › 6.2.4 Scenario 1: nenhum pedido automático de permissão ao montar 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:234:5 › 6.2.4 Scenario 2: ativar com gesto explícito do usuário 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:244:5 › 6.2.4 Scenario 4: iOS sem instalação (fora do PWA) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:254:5 › 6.2.4 Scenario 5: permissão já bloqueada pelo navegador 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:261:5 › 6.2.4 Scenario 6: navegador sem suporte a push 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:268:5 › 6.2.4 Scenario 7: ponto de entrada compacto após dispensar (persiste no reload) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:281:5 › 6.5.3 Cenário 1: sessão válida exibe o conteúdo do aviso 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:296:5 › 6.5.3 Cenário 2: sessão expirada vai ao login e retorna ao destino após autenticar 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:315:5 › 6.5.3 Cenário 3: aviso expurgado/inexistente/fora-de-escopo mostram a MESMA mensagem, sem distinção 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:330:5 › 8.1.3 teclado: "Ativar notificações" alcançável por Tab e operável por Enter 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:348:5 › 8.1.3 teclado: "Agora não" alcançável por Tab e operável por Espaço 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:366:5 › 8.1.3 teclado: formulário de login operável via Tab + Enter (sem mouse) 
+    [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:387:5 › 8.1.4 axe-core: 0 violações críticas/sérias em movimento, avisos/[id] e login 

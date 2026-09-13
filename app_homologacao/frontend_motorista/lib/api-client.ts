@@ -26,21 +26,40 @@ async function fetchWithTimeout(
   }
 }
 
+// push-motorista (tasks.md 6.1) — `status` no erro permite ao chamador
+// distinguir, por exemplo, `409 CHAVE_DESATUALIZADA` de qualquer outra
+// falha sem parsear a mensagem (lib/push.ts#sincronizar).
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function handleResponse(res: Response): Promise<void> {
   if (res.status === 401) {
-    throw new Error('Não autorizado');
+    throw new ApiError('Não autorizado', 401);
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: 'Erro desconhecido' }));
-    throw new Error(body.message || body.error || `Erro ${res.status}`);
+    throw new ApiError(body.message || body.error || `Erro ${res.status}`, res.status);
   }
+}
+
+// push-motorista (tasks.md 6.1) — PUT /motorista/push/{inscricao,estado}
+// respondem 204 sem corpo; `res.json()` incondicional quebraria nesse caso.
+async function parseBody<T>(res: Response): Promise<T> {
+  if (res.status === 204) return undefined as T;
+  return res.json();
 }
 
 export const api = {
   async get<T = unknown>(path: string): Promise<T> {
     const res = await fetchWithTimeout(`${BASE}${path}`, { credentials: 'include' });
     await handleResponse(res);
-    return res.json();
+    return parseBody<T>(res);
   },
 
   async post<T = unknown>(path: string, body?: Record<string, unknown>): Promise<T> {
@@ -51,7 +70,18 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     });
     await handleResponse(res);
-    return res.json();
+    return parseBody<T>(res);
+  },
+
+  async put<T = unknown>(path: string, body?: Record<string, unknown>): Promise<T> {
+    const res = await fetchWithTimeout(`${BASE}${path}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    await handleResponse(res);
+    return parseBody<T>(res);
   },
 
   /** Upload de arquivo XML — multipart/form-data */

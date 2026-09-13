@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { api } from '@/lib/api-client';
 import { formatCNPJ, unformatCNPJ } from '@/lib/utils';
+import { resolveNextSeguro } from '@/lib/next-seguro';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,8 +31,13 @@ export default function LoginPage() {
 
   // Redirect de usuário já autenticado em efeito (não durante o render) —
   // evita "update durante render". O return null abaixo só impede o flash.
+  // `next` (S3 — link de um aviso) só é seguido quando resolve para a MESMA
+  // origem do app; ver lib/next-seguro.ts.
   useEffect(() => {
-    if (user) router.replace('/movimento');
+    if (user) {
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.replace(resolveNextSeguro(next));
+    }
   }, [user, router]);
 
   // Empresas proprietárias do app (grupo deste tenant/container) — exibidas no login.
@@ -63,7 +69,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(unformatCNPJ(cnpj), senha);
-      router.replace('/movimento');
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.replace(resolveNextSeguro(next));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao fazer login.';
       let geral = 'Erro ao conectar. Tente novamente.';

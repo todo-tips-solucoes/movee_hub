@@ -143,13 +143,27 @@ services:
       # no compose do hub-homolog (recurso hub-*), para exercitar o login via
       # ContaMotorista nos Scenarios 6 do quickstart.md sem tocar produção.
       HUB_MOTORISTA_LOGIN_CONTA_ATIVA: "${HUB_MOTORISTA_LOGIN_CONTA_ATIVA:-true}"
+      # hub-avisos (FASE 1, tasks.md 1.4): Web Push — caminho do arquivo de
+      # chave VAPID (gen-vapid.sh) e override de allowlist de hosts do
+      # endpoint de inscrição (research.md Decision 10/14, lib/hub-push-
+      # endpoint.js — FASE 2). Ambos opcionais aqui: ausência de
+      # VAPID_KEYS_FILE é tolerada em runtime (503 PUSH_INDISPONIVEL), nunca
+      # falha de boot; PUSH_HOSTS_PERMITIDOS só é considerado com
+      # ENVIO_ALLOWLIST também definida (mesmo gate acima).
+      VAPID_KEYS_FILE: "${VAPID_KEYS_FILE:-}"
+      PUSH_HOSTS_PERMITIDOS: "${PUSH_HOSTS_PERMITIDOS:-}"
     # hub-importacoes (S4, FASE 3): volume privado para os originais de
     # upload (routes/hub-importacoes.js grava em uploads/importacoes/<id>)
     # — sem isto o filesystem do container é efêmero e o arquivo some a
     # cada redeploy/restart (research.md Decision 8, LGPD: nunca em bind
     # mount alcançável por git/log).
+    # hub-avisos (FASE 1, tasks.md 1.4): bind read-only da chave VAPID —
+    # mesmo path host/container (o valor de VAPID_KEYS_FILE vale nos dois
+    # lados, sem tradução). Se a var estiver vazia o bind mount falha alto
+    # e cedo no `up` (preferível a um 503 silencioso a cada boot).
     volumes:
       - hub_homolog_uploads:/var/lib/envioMassa_homologacao/app_homologacao/uploads
+      - "${VAPID_KEYS_FILE}:${VAPID_KEYS_FILE}:ro"
     depends_on:
       db:
         condition: service_healthy

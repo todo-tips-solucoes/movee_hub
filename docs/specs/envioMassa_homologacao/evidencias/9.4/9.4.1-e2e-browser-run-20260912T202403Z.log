@@ -1,0 +1,47 @@
+
+Running 5 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:82:7 › FASE 7.2 — cobertura por plataforma (FR-023/SC-011) › 7.2.4 — cobertura mostra os números do fixture (3 categorias ativos + 3 impedidos) (1.4s)
+  ✘  2 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:98:7 › FASE 7.3 — diálogo "Novo aviso" › 7.3.5 — 3 modos, alcance atualiza, 0 inscrições bloqueia disparo, duplo-clique = 1 requisição (867ms)
+  -  3 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:168:7 › FASE 7.4 — detalhe do aviso (polling) › 7.4.2 — polling para exatamente ao atingir concluido
+  -  4 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:189:7 › FASE 8.2 — acessibilidade (teclado + axe) › 8.2.3 — teclado apenas: título, mensagem, 3 radio-cards e Disparar/Cancelar alcançáveis por Tab
+  -  5 [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:217:7 › FASE 8.2 — acessibilidade (teclado + axe) › 8.2.4 — axe: lista de avisos e diálogo "Novo aviso" sem violação crítica/grave
+
+
+  1) [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:98:7 › FASE 7.3 — diálogo "Novo aviso" › 7.3.5 — 3 modos, alcance atualiza, 0 inscrições bloqueia disparo, duplo-clique = 1 requisição 
+
+    Error: locator.click: Error: strict mode violation: getByRole('button', { name: 'Novo aviso' }) resolved to 2 elements:
+        1) <button tabindex="0" type="button" id="base-ui-_r_d_" data-slot="dialog-trigger" data-base-ui-click-trigger="" class="group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px active:not-aria-[haspopup]:scale-[0.98] motion-reduce:active:scale-100 disabled…>…</button> aka locator('#base-ui-_r_d_')
+        2) <button tabindex="0" type="button" data-slot="button" class="group/button inline-flex shrink-0 items-center justify-center border border-transparent bg-clip-padding font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px active:not-aria-[haspopup]:scale-[0.98] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive ari…>…</button> aka getByRole('status').getByRole('button', { name: 'Novo aviso' })
+
+    Call log:
+      - waiting for getByRole('button', { name: 'Novo aviso' })
+
+
+      100 |     await page.goto('/hub/dashboard/avisos');
+      101 |
+    > 102 |     await page.getByRole('button', { name: 'Novo aviso' }).click();
+          |                                                            ^
+      103 |     await expect(page.getByRole('dialog').getByText('Novo aviso')).toBeVisible();
+      104 |
+      105 |     // ── 3 modos renderizados ──────────────────────────────────────────────
+        at /work/tests/e2e-hub-avisos/hub-avisos.spec.ts:102:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/hub-avisos-FASE-7-3-—-diál-2248f-o-duplo-clique-1-requisição-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/hub-avisos-FASE-7-3-—-diál-2248f-o-duplo-clique-1-requisição-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/hub-avisos-FASE-7-3-—-diál-2248f-o-duplo-clique-1-requisição-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/hub-avisos-FASE-7-3-—-diál-2248f-o-duplo-clique-1-requisição-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e-hub-avisos/hub-avisos.spec.ts:98:7 › FASE 7.3 — diálogo "Novo aviso" › 7.3.5 — 3 modos, alcance atualiza, 0 inscrições bloqueia disparo, duplo-clique = 1 requisição 
+  3 did not run
+  1 passed (3.7s)

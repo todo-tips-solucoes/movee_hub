@@ -1,0 +1,54 @@
+{
+  "disparo_body": {
+    "id": 1,
+    "status": "na_fila",
+    "visados": 101
+  },
+  "aviso_detalhe": {
+    "id": 1,
+    "titulo": "Carga 9.5-9.6.2",
+    "corpo": "corpo de teste carga concorrente",
+    "status": "concluido",
+    "modoDestinatarios": "toda_base",
+    "destinatarios": {},
+    "criadoEm": "2026-09-12T23:13:51.832843+00:00",
+    "iniciadoEm": "2026-09-12T23:13:51.85819+00:00",
+    "concluidoEm": "2026-09-12T23:13:56.048657+00:00",
+    "contagens": {
+      "visados": 101,
+      "pendentes": 0,
+      "processando": 0,
+      "aceitos": 100,
+      "falhas": 1,
+      "mortas": 0
+    }
+  },
+  "alcance_body": {
+    "motoristas": 101,
+    "inscricoes": 101
+  },
+  "cobertura_body": {
+    "ativos": {
+      "android": 1,
+      "ios": 0,
+      "desktopOutros": 0
+    },
+    "impedidos": {
+      "iosSemInstalacao": 0,
+      "bloqueadas": 0,
+      "semSuporte": 0
+    },
+    "naoAtivadas": 0
+  },
+  "chave_publica_body": {
+    "chavePublica": "BEXrWcTFYtLyAJrqjQ0D_neEViX12RHfW9RI6ZbDKxL7INL_SaMqCyuUb6rkB1-5gbE72L7_yBpUO8WovuUU_ko",
+    "keyId": "1a199df3523d211f"
+  },
+  "motorista_aviso_body": {
+    "id": 1,
+    "titulo": "Carga 9.5-9.6.2",
+    "corpo": "corpo de teste carga concorrente",
+    "enviadoEm": "2026-09-12T23:13:51.832843+00:00"
+  },
+  "put_inscricao_status": 204
+}

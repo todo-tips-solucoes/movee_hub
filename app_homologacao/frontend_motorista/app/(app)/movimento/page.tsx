@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CountUp } from '@/components/ui/count-up';
 import { CopyButton } from '@/components/ui/copy-button';
+import { NotificacoesCard } from '@/components/notificacoes';
 import { Wordmark } from '@/components/brand/wordmark';
 import { Aurora } from '@/components/brand/aurora';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -160,6 +161,10 @@ export default function MovimentoPage() {
             <p className="truncate font-display text-lg font-bold leading-tight">{nome}</p>
           </div>
         </div>
+
+        {/* push-motorista (tasks.md 6.2.3, CHK003) — ponto de entrada fixo,
+            independente do carregamento do movimento abaixo (FR-007). */}
+        <NotificacoesCard />
 
         {loading ? (
           /* Skeletons no formato do conteúdo real */

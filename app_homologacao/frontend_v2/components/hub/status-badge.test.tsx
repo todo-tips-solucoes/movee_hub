@@ -3,9 +3,10 @@
 // status desconhecido.
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AtivoBadge, ImportacaoStatusBadge, TipoAtividadeBadge, VinculoBadge } from './status-badge';
+import { AtivoBadge, AvisoStatusBadge, ImportacaoStatusBadge, TipoAtividadeBadge, VinculoBadge } from './status-badge';
 import type { StatusImportacao } from '@/lib/hub/importacoes-dto';
 import type { TipoAtividade } from '@/lib/hub/motoristas-dto';
+import type { StatusAviso } from '@/lib/hub/avisos-dto';
 
 function iconeDentroDoBadge(container: HTMLElement): SVGElement | null {
   return container.querySelector('svg[aria-hidden="true"]');
@@ -32,6 +33,26 @@ describe('ImportacaoStatusBadge', () => {
     const { container } = render(
       <ImportacaoStatusBadge status={'status-novo-2027' as StatusImportacao} />
     );
+    expect(screen.getByText('status-novo-2027')).toBeInTheDocument();
+    expect(iconeDentroDoBadge(container)).not.toBeNull();
+  });
+});
+
+describe('AvisoStatusBadge', () => {
+  const casos: Array<[StatusAviso, string]> = [
+    ['na_fila', 'Na fila'],
+    ['em_andamento', 'Em andamento'],
+    ['concluido', 'Concluído'],
+  ];
+
+  it.each(casos)('status %s: renderiza rótulo + ícone decorativo (nunca só cor)', (status, rotulo) => {
+    const { container } = render(<AvisoStatusBadge status={status} />);
+    expect(screen.getByText(rotulo)).toBeInTheDocument();
+    expect(iconeDentroDoBadge(container)).not.toBeNull();
+  });
+
+  it('fail-safe: status desconhecido não lança e mostra o próprio código', () => {
+    const { container } = render(<AvisoStatusBadge status={'status-novo-2027' as StatusAviso} />);
     expect(screen.getByText('status-novo-2027')).toBeInTheDocument();
     expect(iconeDentroDoBadge(container)).not.toBeNull();
   });

@@ -6,7 +6,8 @@
     "dev": "next dev --port 3001",
     "build": "next build --webpack",
     "start": "next start --port 3001",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --test lib/next-seguro.test.ts lib/push.test.ts lib/push-sincronizacao.test.ts app/sw.test.ts"
   },
   "dependencies": {
     "@serwist/next": "^9.0.0",

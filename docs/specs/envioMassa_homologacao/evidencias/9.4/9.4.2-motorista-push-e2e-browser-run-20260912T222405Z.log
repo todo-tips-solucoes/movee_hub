@@ -1,0 +1,36 @@
+
+Running 19 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:231:7 › 3.3.3 redirecionamento seguro de next: origem diferente (protocol-relative //evil.example) (1.4s)
+  ✓   2 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:231:7 › 3.3.3 redirecionamento seguro de next: barra invertida (/\evil.example) (1.4s)
+  ✓   3 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:231:7 › 3.3.3 redirecionamento seguro de next: TAB antes do host (/\t/evil.example) (1.3s)
+  ✓   4 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:231:7 › 3.3.3 redirecionamento seguro de next: LF antes do host (/\n/evil.example) (1.3s)
+  ✓   5 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:231:7 › 3.3.3 redirecionamento seguro de next: esquema javascript: (javascript:alert(1)) (1.3s)
+  ✓   6 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:231:7 › 3.3.3 redirecionamento seguro de next: caminho válido mesma origem (/avisos/123) (1.3s)
+  ✓   7 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:249:5 › 6.2.4 Scenario 1: nenhum pedido automático de permissão ao montar (326ms)
+  ✓   8 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:258:5 › 6.2.4 Scenario 2: ativar com gesto explícito do usuário (1.3s)
+  ✓   9 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:268:5 › 6.2.4 Scenario 4: iOS sem instalação (fora do PWA) (309ms)
+  ✓  10 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:278:5 › 6.2.4 Scenario 5: permissão já bloqueada pelo navegador (270ms)
+  ✓  11 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:285:5 › 6.2.4 Scenario 6: navegador sem suporte a push (297ms)
+  ✓  12 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:292:5 › 6.2.4 Scenario 7: ponto de entrada compacto após dispensar (persiste no reload) (1.3s)
+  ✓  13 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:305:5 › 6.5.3 Cenário 1: sessão válida exibe o conteúdo do aviso (366ms)
+  ✓  14 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:320:5 › 6.5.3 Cenário 2: sessão expirada vai ao login e retorna ao destino após autenticar (1.3s)
+  ✓  15 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:339:5 › 6.5.3 Cenário 3: aviso expurgado/inexistente/fora-de-escopo mostram a MESMA mensagem, sem distinção (541ms)
+8.1.3: controle 1/3 ("Ativar notificações", Enter) — operável via teclado
+  ✓  16 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:354:5 › 8.1.3 teclado: "Ativar notificações" alcançável por Tab e operável por Enter (402ms)
+8.1.3: controle 2/3 ("Agora não", Espaço) — operável via teclado
+  ✓  17 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:372:5 › 8.1.3 teclado: "Agora não" alcançável por Tab e operável por Espaço (380ms)
+8.1.3: controle 3/3 (form de login, Tab+Enter) — operável via teclado
+  ✓  18 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:390:5 › 8.1.3 teclado: formulário de login operável via Tab + Enter (sem mouse) (1.4s)
+AXE /movimento [fora do escopo 8.1.4, achado à parte]: color-contrast (serious) — Elements must meet minimum color contrast ratio thresholds
+AXE /movimento [fora do escopo 8.1.4, achado à parte]: meta-viewport (moderate) — Zooming and scaling must not be disabled
+AXE /movimento [fora do escopo 8.1.4, achado à parte]: page-has-heading-one (moderate) — Page should contain a level-one heading
+AXE /avisos/999 [fora do escopo 8.1.4, achado à parte]: color-contrast (serious) — Elements must meet minimum color contrast ratio thresholds
+AXE /avisos/999 [fora do escopo 8.1.4, achado à parte]: meta-viewport (moderate) — Zooming and scaling must not be disabled
+AXE /login [fora do escopo 8.1.4, achado à parte]: color-contrast (serious) — Elements must meet minimum color contrast ratio thresholds
+AXE /login [fora do escopo 8.1.4, achado à parte]: meta-viewport (moderate) — Zooming and scaling must not be disabled
+8.1.4: violações de nome acessível por tela = {"/movimento":0,"/avisos/999":0,"/login":0}
+8.1.4: achados fora de escopo (outras regras axe, reportados à parte) = {"/movimento":3,"/avisos/999":2,"/login":2}
+  ✓  19 [chromium] › tests/e2e-motorista-push/motorista-push.spec.ts:436:5 › 8.1.4 axe-core: 0 violações de nome acessível em movimento, avisos/[id] e login (2.0s)
+
+  19 passed (19.3s)

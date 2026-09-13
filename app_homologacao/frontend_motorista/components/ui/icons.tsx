@@ -44,3 +44,7 @@ export const MapPin = makeIcon('location_on');
 export const Mail = makeIcon('mail');
 export const Info = makeIcon('info');
 export const Copy = makeIcon('content_copy');
+export const Bell = makeIcon('notifications');
+export const BellOff = makeIcon('notifications_off');
+export const BellRing = makeIcon('notifications_active');
+export const Smartphone = makeIcon('smartphone');

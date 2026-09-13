@@ -22,6 +22,7 @@ import { Badge, type badgeVariants } from '@/components/ui/badge';
 import type { VariantProps } from 'class-variance-authority';
 import { STATUS_LABELS, type StatusImportacao } from '@/lib/hub/importacoes-dto';
 import type { TipoAtividade } from '@/lib/hub/motoristas-dto';
+import { STATUS_AVISO_LABELS, type StatusAviso } from '@/lib/hub/avisos-dto';
 import { cn } from '@/lib/utils';
 
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>['variant']>;
@@ -101,6 +102,25 @@ export function TipoAtividadeBadge({ tipo }: { tipo: TipoAtividade }) {
   return (
     <StatusBadge variant={cfg.variant} icon={cfg.icon}>
       {cfg.label}
+    </StatusBadge>
+  );
+}
+
+// FASE 7 (push-motorista, tasks.md 7.2/7.4) — status do aviso (na fila/em
+// andamento/concluído), lista e detalhe do módulo Avisos.
+const AVISO_STATUS_BADGE: Record<StatusAviso, { variant: BadgeVariant; icon: LucideIcon; spin?: boolean }> = {
+  na_fila: { variant: 'outline', icon: Clock },
+  em_andamento: { variant: 'outline', icon: RotateCw, spin: true },
+  concluido: { variant: 'success', icon: CheckCircle2 },
+};
+
+/** Status de aviso (lista e detalhe). Fail-safe: status desconhecido cai em
+ * outline+Clock com o próprio código como rótulo. */
+export function AvisoStatusBadge({ status }: { status: StatusAviso }) {
+  const cfg = AVISO_STATUS_BADGE[status] ?? { variant: 'outline' as const, icon: Clock };
+  return (
+    <StatusBadge variant={cfg.variant} icon={cfg.icon} spin={cfg.spin}>
+      {STATUS_AVISO_LABELS[status] ?? status}
     </StatusBadge>
   );
 }

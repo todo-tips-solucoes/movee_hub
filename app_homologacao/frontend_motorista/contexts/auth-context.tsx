@@ -16,6 +16,7 @@ import React, {
   useState,
 } from 'react';
 import { api } from '@/lib/api-client';
+import { revogar as revogarPush, sincronizar as sincronizarPush } from '@/lib/push';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -89,6 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled && data.authenticated) {
           setState({ user: { cnpjPrestador: data.cnpjPrestador, nome: data.nome }, loading: false });
           startRefreshTimer();
+          // push-motorista (tasks.md 6.3.1/FR-008) — a cada abertura autenticada,
+          // sem pedir permissão de novo (no-op se ainda não concedida).
+          sincronizarPush();
         } else if (!cancelled) {
           setState({ user: null, loading: false });
         }
@@ -111,11 +115,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       setState({ user: { cnpjPrestador: data.cnpjPrestador, nome: data.nome }, loading: false });
       startRefreshTimer();
+      // push-motorista (tasks.md 6.3.1/FR-008) — mesmo gatilho de "abertura autenticada".
+      sincronizarPush();
     },
     [startRefreshTimer],
   );
 
   const logout = useCallback(async () => {
+    // push-motorista (tasks.md 6.3.2/FR-009) — revoga ANTES do logout. Best-effort
+    // (lib/push.ts#revogar nunca lança): uma falha aqui não pode impedir o logout.
+    await revogarPush();
     try {
       await api.post('/motorista/logout');
     } catch {
