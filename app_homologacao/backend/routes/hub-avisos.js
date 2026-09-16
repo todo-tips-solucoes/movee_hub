@@ -182,12 +182,16 @@ async function buscarResumoPorAviso(avisoIds, claims) {
   return mapa;
 }
 
-// FR-027/S8 — rate limit dedicado por usuário (10/15min): GET /alcance e GET
+// FR-027/S8 — rate limit dedicado por usuário (120/15min): GET /alcance e GET
 // /destinatarios/motoristas (task 4.1.4) compartilham o mesmo balde — as duas
-// são consultas de preparo do MESMO fluxo de disparo.
+// são consultas de preparo do MESMO fluxo de disparo. O teto é bem maior que o
+// do disparo porque CADA aviso criado gasta várias consultas: a prévia de
+// alcance recalcula a cada troca de modo/seleção e a busca de motorista
+// consulta enquanto o usuário digita (~2 a 4 por aviso). Com 10, o operador era
+// bloqueado no 3º/4º aviso, antes mesmo de gastar os disparos (2026-09-16).
 const consultaEnvioRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 120,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -199,11 +203,12 @@ const consultaEnvioRateLimiter = rateLimit({
   },
 });
 
-// FR-027 — POST /avisos: 10/15min por usuário (task 4.2.3), balde PRÓPRIO
-// (disparo é ação distinta de consulta de alcance/busca).
+// FR-027 — POST /avisos: 30/15min por usuário (task 4.2.3; era 10, elevado a
+// pedido do operador em 2026-09-16), balde PRÓPRIO (disparo é ação distinta de
+// consulta de alcance/busca).
 const disparoRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {

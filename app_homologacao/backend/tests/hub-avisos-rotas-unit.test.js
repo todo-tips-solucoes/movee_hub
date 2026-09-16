@@ -419,14 +419,19 @@ describe('GET /api/v1/avisos/alcance (task 4.1.1/4.1.4 — S8)', () => {
     assert.equal(r.body.erro, 'DESTINATARIOS_FORA_DO_ESCOPO');
   });
 
-  test('11ª requisição em 15 min -> 429 LIMITE_EXCEDIDO (FR-027)', async () => {
+  test('estourar a janela de 15 min -> 429 LIMITE_EXCEDIDO, bem acima do teto antigo (FR-027)', async () => {
     const cookie = tokenCookie();
     let ultima;
-    for (let i = 0; i < 11; i += 1) {
+    let aceitas = 0;
+    for (let i = 0; i < 200; i += 1) {
       ultima = await request('GET', '/api/v1/avisos/alcance?modo=toda_base', { cookie });
+      if (ultima.status === 429) break;
+      aceitas += 1;
     }
     assert.equal(ultima.status, 429);
     assert.equal(ultima.body.erro, 'LIMITE_EXCEDIDO');
+    // balde de consulta (alcance + busca) é 120: tem que passar MUITO do antigo 10
+    assert.ok(aceitas > 10, `consultas aceitas antes do 429: ${aceitas}`);
   });
 });
 
@@ -596,14 +601,20 @@ describe('POST /api/v1/avisos (task 4.2)', () => {
     assert.equal(registrosAuditoria.length, 0);
   });
 
-  test('11ª requisição em 15 min -> 429 LIMITE_EXCEDIDO (FR-027)', async () => {
+  test('estourar a janela de 15 min -> 429 LIMITE_EXCEDIDO, acima do teto antigo (FR-027)', async () => {
     const cookie = tokenCookie();
     let ultima;
-    for (let i = 0; i < 11; i += 1) {
-      ultima = await request('POST', '/api/v1/avisos', { cookie, body: payloadValido({ chaveIdempotencia: `1111111${i}-1111-4111-8111-11111111111${i % 10}` }) });
+    let aceitos = 0;
+    for (let i = 0; i < 60; i += 1) {
+      const seq = String(i).padStart(3, '0');
+      ultima = await request('POST', '/api/v1/avisos', { cookie, body: payloadValido({ chaveIdempotencia: `11111${seq}-1111-4111-8111-111111111111` }) });
+      if (ultima.status === 429) break;
+      aceitos += 1;
     }
     assert.equal(ultima.status, 429);
     assert.equal(ultima.body.erro, 'LIMITE_EXCEDIDO');
+    // balde de disparo é 30: tem que passar do antigo 10
+    assert.ok(aceitos > 10, `disparos aceitos antes do 429: ${aceitos}`);
   });
 
   test('modo empresa com 2 empresas do grupo Movee (empresa 6 + filial fictícia 7) -> aceito (task 4.2.7)', async () => {

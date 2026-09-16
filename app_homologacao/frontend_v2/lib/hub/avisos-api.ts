@@ -35,7 +35,7 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   CONTEUDO_EXCEDE_LIMITE: 'Título ou mensagem excede o limite de caracteres.',
   DESTINATARIOS_FORA_DO_ESCOPO: 'Um ou mais destinatários estão fora do escopo permitido.',
   SEM_INSCRICOES_ATIVAS: 'Nenhum motorista está com notificações ativas no momento.',
-  LIMITE_EXCEDIDO: 'Limite de disparos atingido. Tente novamente mais tarde.',
+  LIMITE_EXCEDIDO: 'Limite temporário atingido (disparos ou consultas de alcance). Tente novamente em alguns minutos.',
   PUSH_INDISPONIVEL: 'Serviço de notificações indisponível no momento.',
   AVISO_NAO_ENCONTRADO: 'Aviso não encontrado.',
 };
