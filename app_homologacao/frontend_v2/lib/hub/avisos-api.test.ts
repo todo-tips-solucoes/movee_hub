@@ -117,14 +117,15 @@ describe('avisos-api — 1 caso por código de erro mapeado', () => {
     });
   });
 
-  // disparoRateLimiter/consultaEnvioRateLimiter (routes/hub-avisos.js:188-216) — 10/15min por usuário
+  // disparoRateLimiter (30/15min) e consultaEnvioRateLimiter (120/15min) por usuário
+  // (routes/hub-avisos.js) — os dois devolvem LIMITE_EXCEDIDO, por isso a mensagem cita os dois casos
   it('LIMITE_EXCEDIDO (429)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => respostaFake({ erro: 'LIMITE_EXCEDIDO' }, 429)));
     await expect(listarAvisos()).rejects.toMatchObject({
       name: 'AvisoApiError',
       status: 429,
       codigo: 'LIMITE_EXCEDIDO',
-      message: 'Limite de disparos atingido. Tente novamente mais tarde.',
+      message: 'Limite temporário atingido (disparos ou consultas de alcance). Tente novamente em alguns minutos.',
     });
   });
 

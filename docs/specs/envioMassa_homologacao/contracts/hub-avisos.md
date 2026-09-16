@@ -70,6 +70,10 @@ A UI rotula `aceitos` como **"Aceitos pelo serviço de push"**, nunca "lidos" ou
 
 ## GET /api/v1/avisos/alcance
 
+**Limite**: 120 por 15 min por usuário, em balde compartilhado com
+`GET /api/v1/avisos/destinatarios/motoristas` → `429 LIMITE_EXCEDIDO`. Cada aviso
+criado gasta ~2 a 4 dessas consultas (prévia de alcance + busca com debounce).
+
 **Permissão**: `avisos.enviar`. Query: `modo` (`toda_base` \| `individual` \| `empresa`) e
 `ids` (CSV de inteiros; obrigatório e não vazio para `individual`/`empresa`; máximo 500).
 
@@ -90,7 +94,7 @@ A UI rotula `aceitos` como **"Aceitos pelo serviço de push"**, nunca "lidos" ou
 
 ## POST /api/v1/avisos
 
-**Permissão**: `avisos.enviar`. **Limite**: 10 por 15 min por usuário → `429 LIMITE_EXCEDIDO`.
+**Permissão**: `avisos.enviar`. **Limite**: 30 por 15 min por usuário → `429 LIMITE_EXCEDIDO`.
 
 ### Request
 
@@ -144,6 +148,9 @@ Efeito colateral: auditoria `aviso_disparado` (research Decision 18).
 | empresas[] | array | `{ id, nome }` das empresas do grupo Movee: ids de `idsDoGrupo(6)`, nomes via `buscarNomesEntidades` (`lib/hub-entidade-nome.js:25-35`) |
 
 ## GET /api/v1/avisos/destinatarios/motoristas
+
+**Limite**: balde de 120 por 15 min por usuário, compartilhado com
+`GET /api/v1/avisos/alcance` → `429 LIMITE_EXCEDIDO`.
 
 **Permissão**: `avisos.enviar`. Query: `busca` (mínimo 3 caracteres, mesmo mínimo de
 `components/hub/entregador-combobox.tsx:30-31`).
