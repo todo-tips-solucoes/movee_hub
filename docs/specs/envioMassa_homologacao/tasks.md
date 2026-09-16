@@ -1602,51 +1602,115 @@ concedida à pipeline autônoma
   `Co-Authored-By` — onda-030: operador autorizou via block-011 (`resume_after_block`);
   commit `69adf80` já criado pela sessão pai com trailer `Co-Authored-By`; confirmado por
   `git log --oneline -1` acima
-- [ ] 11.2.2 **GATE**: autorização explícita do operador **para o PR** (distinta da
+- [x] 11.2.2 **GATE**: autorização explícita do operador **para o PR** (distinta da
   autorização de commit); com autorização, abrir PR com o que muda, risco, verificação
-  com números, o que ficou deliberadamente de fora
-- [ ] 11.2.3 **GATE**: merge — avisar o operador antes (autorização standing de
+  com números, o que ficou deliberadamente de fora — onda-031: operador autorizou o PR;
+  aberto pelo operador como **PR #178** (`todo-tips-solucoes/movee_hub`), branch
+  `feat/avisos-push-motorista` com `69adf80` + `710768b`, base `649a44b` == `origin/main`
+  (verificado pela sessão pai)
+- [x] 11.2.3 **GATE**: merge — avisar o operador antes (autorização standing de
   2026-08-07 já concedida, só precisa ser avisada, não pedida de novo); squash + branch
-  deletada; `git checkout main && git pull --ff-only`
-- [ ] 11.2.4 **GATE**: autorização explícita do operador **para o deploy**, pelos 5 gates
+  deletada; `git checkout main && git pull --ff-only` — onda-031: merge executado pelo
+  operador (autorização standing), squash `f10f5d4 feat(push-motorista): avisos por Web
+  Push para o app do motorista (#178)`, branch apagada (local e remota), `main` local ==
+  `origin/main`; conferido pela sessão pai (árvore de `f10f5d4` idêntica à de `710768b`, 0
+  arquivos de `infra/robo-entrego/` alterados, stage vazio, 0 rastreados modificados).
+  Evidência literal desta onda:
+  `git log --oneline -2` → `f10f5d4 feat(push-motorista): avisos por Web Push para o app
+  do motorista (#178)` / `649a44b chore(hub-testes): cleanup dos drivers remove a imagem
+  do backend de cada rodada (#177)`; `git status -sb | head -1` → `## main...origin/main`
+- [x] 11.2.4 **GATE**: autorização explícita do operador **para o deploy**, pelos 5 gates
   do rito de produção (autorização específica para esta mudança + janela combinada +
   plano de rollback à mão + aplicar só com `docker service update --image` — nunca
   `docker stack deploy` — + smoke test antes de declarar OK); nenhum dos 5 gates é
-  concedido pela pipeline autônoma
+  concedido pela pipeline autônoma — onda-032: deploy autorizado pelo operador em etapas,
+  janela imediata (domingo 2026-09-13 ~14h45, depois do import das 14h do robô EntreGô,
+  que terminou `success` às 14:00:07); limpeza de disco autorizada (containers parados e
+  tags antigas sem uso, imagens sem tag por ID); roteiro
+  `docs/plans/push-motorista/RUNBOOK-DEPLOY-PRODUCAO.md` (revisado pela sessão pai); deploy
+  executado e validado pelo operador com a sessão pai
 
 ### 11.3 Build de produção com tag rastreável `[A]`
 
 Ref: `CLAUDE.md §Rito do ciclo git` item 6, item de risco do operador
 
-- [ ] 11.3.1 Conferir `df -h /` (abortar com < 20 GB livres) e swap ativa **antes** do
-  build
-- [ ] 11.3.2 Build a partir da `main` já mergeada: backend via `Dockerfile.hub` (conferir
+- [x] 11.3.1 Conferir `df -h /` (abortar com < 20 GB livres) e swap ativa **antes** do
+  build — onda-032: antes de cada build: backend `pre-build: disco=24G swap_livre=3332MB
+  mem_disp=5974MB`; frontend_v2 `pre-build: disco=23G swap_livre=3295MB mem_disp=6227MB`;
+  app motorista `pre-build: disco=23G swap_livre=3073MB mem_disp=6852MB`
+- [x] 11.3.2 Build a partir da `main` já mergeada: backend via `Dockerfile.hub` (conferir
   `node --version` = `v20.x`), `frontend_v2` e `frontend_motorista` (conferir
-  `BACKEND_URL`), tag `avisos-push-<sha7>` (`git rev-parse --short HEAD`)
-- [ ] 11.3.3 Verificar que a imagem de `frontend_motorista` inclui o commit `eceab62`
+  `BACKEND_URL`), tag `avisos-push-<sha7>` (`git rev-parse --short HEAD`) — onda-032: build
+  a partir da main `f10f5d4`, tag `avisos-push-f10f5d4`: backend (`Dockerfile.hub`,
+  `DOCKER_BUILDKIT=0 --memory=2g`) `2b33a8d275dd` 701MB, `node: v20.20.2`, web-push
+  `3.6.7`; frontend_v2 `0b2b48c1a4a6` 281MB, 30/30 páginas,
+  `BACKEND_URL=https://envmassapihomologacao.todo-tips.com`; app motorista `0063dde7e168`
+  289MB, 7/7 páginas. Digests no registry: backend
+  `sha256:2b33a8d275ddcc470b2cc92d3846f08d006cd9560a82a3e732af4e95f5650c01`, frontend_v2
+  `sha256:0b2b48c1a4a63b5c7390760e03e640d735b3b02befb92f9c2880a87197213e93`, app motorista
+  `sha256:0063dde7e16857c7d033ae8d16f2df7e620ed2d56edd21b83d9c249384f157fa`
+- [x] 11.3.3 Verificar que a imagem de `frontend_motorista` inclui o commit `eceab62`
   (#77), posterior ao que está hoje em produção
   (`app-motorista-frontend:login-429-trustproxy`, commit `0535325`) — registrar a
   verificação no PR/relatório, sem corrigir código nesta fase (item de risco medido pelo
-  operador em 2026-09-11)
+  operador em 2026-09-11) — onda-032: `eceab62` (PR #77) é ancestral da main e altera 2
+  arquivos do app motorista; a imagem anterior de produção era `login-429-trustproxy`
+  (commit `0535325`); entrou no build e está declarado no PR #178
 
 ### 11.4 Deploy sob os 5 gates e prova do bundle `[C]`
 
 Ref: `CLAUDE.md §Rito de produção`, `§Rito do ciclo git` item 8, `plan.md §Entrega em
 produção`
 
-- [ ] 11.4.1 Ordem: migrations 0061/0062/0063/0064 (0063/0064 são achados de onda-023 —
+- [x] 11.4.1 Ordem: migrations 0061/0062/0063/0064 (0063/0064 são achados de onda-023 —
   auditoria da chave VAPID negada por RLS e Aviso que nunca concluía com <50
   destinatários) no `chatmasterveloz` (executadas pelo operador)
   → `SIGUSR1` no PostgREST → prova das funções pela API → chave VAPID de produção
   gerada pelo operador em `/var/lib/hub_secrets/` → backend (mount da chave + env) →
   `frontend_v2` → `frontend_motorista`, cada `docker service update --image` com
-  rollback anotado
-- [ ] 11.4.2 Smoke test HTTP dos 3 serviços atualizados, sem expor segredo
-- [ ] 11.4.3 Prova de bundle: buscar no artefato servido (`frontend_v2` e
+  rollback anotado — onda-032: chave VAPID de produção em
+  `/var/lib/hub_secrets/vapid.producao.json` (0600 root), keyId `7a7b92da080faa40`, 0
+  vazamentos; backup `/root/backup-pre-0062-202609131512.sql` (4 tabelas de RBAC) e
+  `/root/backup-pre-0063-schema-202609131512.sql` (só esquema da Auditoria); `OK: 5
+  migrations aplicadas` (0061–0065, inclusive a 0065 que o texto original desta tarefa não
+  lista; `psql -1` + `lock_timeout 5s`); `SchemaMigration total=66
+  ultima=0065_push_registrar_resultado_lock_aviso.sql`; PostgREST `41 Relations ... 44
+  Functions` → `46 Relations ... 57 Functions`; prova `tabelas novas=5`, `funcoes
+  hub_push_/hub_aviso_=11`, `modulo avisos=1`, `avisos habilitado empresa 6=1`, `policy da
+  auditoria com ramo do worker=1`. Backend `verify: Service
+  envio-massa-homologacao_backend_homologacao converged`,
+  `PUSH_INDISPONIVEL=0 | registrarChaveVapid falhou=0 | AUDITORIA_PERDIDA=0`, `chave
+  ativa=7a7b92da080faa40`, `auditoria push_chave_registrada=1`; frontend_v2 e app motorista
+  `converged` (BACKEND_URL de produção preservado). Rollbacks: backend
+  `hub-enriq-auto-3952eb3` (+ `--mount-rm` da chave e `--env-rm VAPID_KEYS_FILE`),
+  frontend_v2 `hub-sessao-0d1e7bc`, app motorista `login-429-trustproxy`
+- [x] 11.4.2 Smoke test HTTP dos 3 serviços atualizados, sem expor segredo — onda-032:
+  `hub login: 200`, `app motorista: 200`, `API /motorista/push/chave-publica sem login:
+  401`, `API /api/v1/avisos sem login: 401`
+- [x] 11.4.3 Prova de bundle: buscar no artefato servido (`frontend_v2` e
   `frontend_motorista`) uma string exclusiva desta entrega, confirmando que `HTTP 200`
-  não basta (incidente do banner de ambiente, PR #81)
-- [ ] 11.4.4 Disparar 1 aviso de teste em produção para o aparelho do operador (com
-  autorização) e confirmar entrega ponta a ponta
+  não basta (incidente do banner de ambiente, PR #81) — onda-032: `frontend_v2 chunk
+  17u.8jzfk9o.y.js com 'avisos/cobertura': 1`, `frontend_v2 chunk 14s4h81z6zev5.js com
+  'avisos/cobertura': 1`, `app motorista /sw.js com 'notificationclick': 1`, `app
+  motorista chunk 277-6cdec51160f8446a.js com 'push/chave-publica': 1`; os 3 serviços
+  `1/1` em `avisos-push-f10f5d4`
+- [x] 11.4.4 Disparar 1 aviso de teste em produção para o aparelho do operador (com
+  autorização) e confirmar entrega ponta a ponta — onda-032: `aviso 1 | status=concluido |
+  modo=individual`; `status=aceito | motivo=- | tentativas=1 | qtd=1`; `fcm.googleapis.com
+  | 5` inscrições ativas; logs `PUSH_INDISPONIVEL=0 | AUDITORIA_PERDIDA=0 | linhas com
+  'erro'/'error'=0`; o operador confirmou que a notificação chegou com o app fechado e o
+  toque abriu o aviso
+- [x] 11.4.5 Cenário 21 (SC-003) em produção — 2026-09-16 11h39, **1 aparelho Android, 10
+  avisos `individual`** (desvio declarado: o roteiro pede 2 aparelhos e 20 entregas; o
+  iPhone não entrou nesta rodada, então a validação em iOS segue pendente). Medição antes
+  do disparo: `inscricoes=121 | contas distintas=115` (android 111, ios 6, desktop 4; FCM
+  115, Apple 6) — com essa adoção, `toda_base` alcançaria 121 motoristas reais, por isso
+  o teste é sempre `individual`. Resultado: 10/10 HTTP 201 `visados=1`, 0 respostas 429;
+  `status=aceito | fcm.googleapis.com | motivo=- | qtd=10`; latência no servidor
+  `aceitas=10 | mediana=0.1 | p95=0.2 | max=0.2` (critério ≤60 s); 10/10 avisos
+  `concluido` (prova em produção da trava da 0065); `PUSH_INDISPONIVEL=0 |
+  AUDITORIA_PERDIDA=0 | 429 no disparo=0`; o operador confirmou que as 10 notificações
+  chegaram na hora, cada uma com seu texto, e que o toque abriu o aviso certo
 
 ---
 
@@ -1689,14 +1753,14 @@ flowchart TD
 | 2 - Backend: Domínio e Validação | 3 | 9 | A |
 | 3 - Backend: Rotas do App Motorista | 3 | 10 | A |
 | 4 - Backend: Rotas do Hub | 3 | 17 | A/C |
-| 5 - Backend: Worker, Retry e Expurgo | 4 | 16 | C |
+| 5 - Backend: Worker, Retry e Expurgo | 4 | 18 | C |
 | 6 - Frontend App Motorista | 5 | 17 | A |
 | 7 - Frontend Hub | 4 | 15 | A/C |
 | 8 - Acessibilidade Básica | 2 | 8 | M |
 | 9 - Testes, E2E e hub-homolog | 7 | 20 | A/C |
 | 10 - Qualidade: Baseline, Lint, Build | 5 | 16 | A/C |
-| 11 - Entrega em Produção | 4 | 14 | A/C |
-| **Total** | **44** | **165** | - |
+| 11 - Entrega em Produção | 4 | 15 | A/C |
+| **Total** | **44** | **168** | - |
 
 ## Escopo Coberto
 
