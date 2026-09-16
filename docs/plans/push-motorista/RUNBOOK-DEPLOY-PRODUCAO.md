@@ -69,7 +69,7 @@ motorista continua em `avisos-push-f10f5d4`** (a mudança não o toca). Rollback
 dos dois: `avisos-push-f10f5d4`, só `--image` — o mount da chave VAPID e o
 `VAPID_KEYS_FILE` seguem no serviço desde 13/09 e não devem ser removidos.
 
-### Scenario 21 (SC-003) — executado às 11h39 de 2026-09-16
+### Scenario 21 (SC-003) — executado em 2026-09-16, 11h39 e 11h56
 
 ⚠️ **A adoção mudou a natureza do teste.** Medição antes de disparar: **121
 inscrições ativas de 115 contas distintas** (111 Android, 6 iOS, 4 desktop; 115
@@ -78,25 +78,42 @@ Um aviso `toda_base` alcançaria 121 aparelhos de motoristas reais — 10 avisos
 teste seriam 1.210 notificações para gente que não pediu. **Teste em produção é
 sempre `individual`**, visando só a conta instalada no aparelho do operador.
 
-Como foi feito: a tela cria um aviso por vez, então os 10 saíram por script
+Como foi feito: a tela cria um aviso por vez, então os avisos saíram por script
 contra as mesmas rotas que ela usa (`POST /auth/login` → `POST /me/entidade` →
-`GET /avisos/destinatarios/motoristas?busca=` para achar o id → 10 × `POST
+`GET /avisos/destinatarios/motoristas?busca=` para achar o id → N × `POST
 /avisos` com `chaveIdempotencia` própria e 2 s de intervalo).
 
-| Medida | Resultado |
-|---|---|
-| Avisos criados | 10/10 HTTP 201, `visados=1` cada, 0 falhas, 0 respostas 429 |
-| Entregas | 10/10 `aceito`, todas `fcm.googleapis.com`, nenhum `motivo` de erro |
-| Latência no servidor (criação → aceite) | mediana **0,1 s**, p95 **0,2 s**, máx **0,2 s** |
-| Finalização do aviso | 10/10 `concluido` — nenhum preso em `em_andamento` (prova em produção da trava da `0065`) |
-| Backend | 0 `PUSH_INDISPONIVEL`, 0 `AUDITORIA_PERDIDA`, 0 429 |
-| Aparelho (Android, app fechado) | as 10 notificações chegaram na hora, cada uma com o próprio texto; o toque abriu o aviso certo |
+Duas rodadas, a primeira só com o Android e a segunda com os dois aparelhos da
+**mesma** conta de motorista:
 
-Desvio declarado em relação ao roteiro do Scenario 21: **1 aparelho Android, 10
-entregas**, não 2 aparelhos e 20 entregas — o iPhone não entrou nesta rodada. O
-critério (≥95% das entregas aceitas em ≤1 min) fecha com 10/10; a validação em
-iOS continua pendente, e com ela a observação de host de endpoint Apple em campo
-(hoje só se sabe que 6 inscrições existem, não que uma entrega Apple foi aceita).
+| Medida | 11h39 — Android | 11h56 — Android + iPhone |
+|---|---|---|
+| Avisos criados | 10/10 HTTP 201, `visados=1` | 10/10 HTTP 201, `visados=2` |
+| Entregas | 10/10 `aceito`, todas FCM | **20/20 `aceito`: 10 FCM + 10 `web.push.apple.com`** |
+| Latência no servidor (criação → aceite) | mediana 0,1 s · p95 0,2 s · máx 0,2 s | mediana 0,1 s · p95 **0,3 s** · máx **0,3 s** |
+| Finalização do aviso | 10/10 `concluido` | 10/10 `concluido` |
+| Backend | 0 `PUSH_INDISPONIVEL`, 0 `AUDITORIA_PERDIDA`, 0 429 | idem — 20 disparos na mesma janela de 15 min, nenhum bloqueio |
+| Aparelhos (app fechado) | as 10 chegaram na hora, com seus textos; toque abriu o aviso certo | as 10 chegaram **em cada** aparelho, idem |
+
+O roteiro pede 2 aparelhos e 20 entregas: **cumprido na segunda rodada**, sem
+desvio. O `concluido` em 20/20 é a prova em produção da trava da `0065`. E é a
+primeira entrega **aceita** em endpoint Apple — antes disso só se sabia que
+inscrições iOS existiam; agora a allowlist de hosts está validada em campo nos
+dois serviços.
+
+⚠️ **Sair do app apaga a inscrição daquele aparelho** — e isso custou uma
+rodada. Entre as duas, o Android sumiu do alcance (2 → 1) porque o app tinha
+sido deslogado: `contexts/auth-context.tsx` chama `revogarPush()` antes do
+`POST /motorista/logout`, e `hub_push_inscricao_revogar` faz `DELETE FROM
+"PushInscricao"` pelo `endpoint_hash`. É o FR-009 funcionando, não defeito. Duas
+decorrências operacionais: **um motorista que sai do app deixa de receber aviso
+até entrar de novo** (a permissão do sistema continua concedida, então basta o
+login — não precisa reinstalar); e **não há sessão única** — o refresh token do
+motorista é JWT sem registro no servidor, então a mesma conta fica logada em
+vários aparelhos ao mesmo tempo, cada um com sua inscrição.
+
+Antes de qualquer teste futuro, medir com `alcance`: se o número de aparelhos
+não for o esperado, é quase sempre logout, não falha de entrega.
 
 ---
 

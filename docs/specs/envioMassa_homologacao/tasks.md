@@ -1700,17 +1700,22 @@ produção`
   | 5` inscrições ativas; logs `PUSH_INDISPONIVEL=0 | AUDITORIA_PERDIDA=0 | linhas com
   'erro'/'error'=0`; o operador confirmou que a notificação chegou com o app fechado e o
   toque abriu o aviso
-- [x] 11.4.5 Cenário 21 (SC-003) em produção — 2026-09-16 11h39, **1 aparelho Android, 10
-  avisos `individual`** (desvio declarado: o roteiro pede 2 aparelhos e 20 entregas; o
-  iPhone não entrou nesta rodada, então a validação em iOS segue pendente). Medição antes
-  do disparo: `inscricoes=121 | contas distintas=115` (android 111, ios 6, desktop 4; FCM
-  115, Apple 6) — com essa adoção, `toda_base` alcançaria 121 motoristas reais, por isso
-  o teste é sempre `individual`. Resultado: 10/10 HTTP 201 `visados=1`, 0 respostas 429;
-  `status=aceito | fcm.googleapis.com | motivo=- | qtd=10`; latência no servidor
-  `aceitas=10 | mediana=0.1 | p95=0.2 | max=0.2` (critério ≤60 s); 10/10 avisos
-  `concluido` (prova em produção da trava da 0065); `PUSH_INDISPONIVEL=0 |
-  AUDITORIA_PERDIDA=0 | 429 no disparo=0`; o operador confirmou que as 10 notificações
-  chegaram na hora, cada uma com seu texto, e que o toque abriu o aviso certo
+- [x] 11.4.5 Cenário 21 (SC-003) em produção — 2026-09-16, **2 aparelhos (Android +
+  iPhone) da mesma conta, 20 entregas**, como o roteiro pede. Medição antes do disparo:
+  `inscricoes=121 | contas distintas=115` (android 111, ios 6, desktop 4; FCM 115,
+  Apple 6) — com essa adoção, `toda_base` alcançaria 121 motoristas reais, por isso o
+  teste é sempre `individual`. Rodada 1 (11h39, só Android): 10/10 HTTP 201 `visados=1`,
+  `status=aceito | fcm.googleapis.com | qtd=10`, `mediana=0.1 | p95=0.2 | max=0.2`.
+  Rodada 2 (11h56, os dois): 10/10 HTTP 201 `visados=2`, `status=aceito |
+  fcm.googleapis.com | qtd=10` **+ `status=aceito | web.push.apple.com | qtd=10`**
+  (primeira entrega aceita em endpoint Apple), `aceitas=20 | mediana=0.1 | p95=0.3 |
+  max=0.3` (critério ≤60 s); 10/10 avisos `concluido` nas duas (prova em produção da
+  trava da 0065); `PUSH_INDISPONIVEL=0 | AUDITORIA_PERDIDA=0 | 429 no disparo=0` com 20
+  disparos na mesma janela de 15 min. O operador confirmou que as 10 chegaram em cada
+  aparelho, cada uma com seu texto, e que o toque abriu o aviso certo. ⚠️ Entre as duas
+  rodadas o Android sumiu do alcance: sair do app revoga a inscrição daquele aparelho
+  (`auth-context.tsx` → `revogarPush()` → `hub_push_inscricao_revogar`, FR-009) — não é
+  defeito, mas significa que motorista deslogado não recebe aviso até entrar de novo
 
 ---
 
