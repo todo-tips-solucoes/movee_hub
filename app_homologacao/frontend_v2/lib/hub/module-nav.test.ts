@@ -4,9 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MODULE_ICON,
   moduloParaRota,
+  resolveModuleDescription,
   resolveModuleIcon,
 } from './module-nav';
-import { FileUp, Truck, Upload } from 'lucide-react';
+import { FileUp, Truck, Upload, Wallet } from 'lucide-react';
 
 describe('moduloParaRota', () => {
   it('deriva /hub/dashboard/<codigo> por convenção pura, sem lista fixa (dec-039/dec-041: prefixo /hub/ evita colisão com app/dashboard/motoristas legado)', () => {
@@ -16,6 +17,10 @@ describe('moduloParaRota', () => {
 
   it('módulo importacoes (S4, tasks.md 6.1.4): resolve para /hub/dashboard/importacoes — mesma rota real da página', () => {
     expect(moduloParaRota('importacoes')).toBe('/hub/dashboard/importacoes');
+  });
+
+  it('módulo adiantamentos (adiantamento-motorista FASE 7, tasks.md 7.2.2): resolve para /hub/dashboard/adiantamentos', () => {
+    expect(moduloParaRota('adiantamentos')).toBe('/hub/dashboard/adiantamentos');
   });
 
   it('resolve qualquer codigo futuro do backend sem precisar de mudança neste arquivo', () => {
@@ -47,6 +52,11 @@ describe('resolveModuleIcon', () => {
     expect(resolveModuleIcon(undefined)).toBe(DEFAULT_MODULE_ICON);
   });
 
+  it('adiantamento-motorista FASE 7 (tasks.md 7.2.2): resolve pelo código do módulo (icone ainda null na prática)', () => {
+    expect(resolveModuleIcon(null, 'adiantamentos')).toBe(Wallet);
+    expect(resolveModuleIcon('wallet')).toBe(Wallet);
+  });
+
   it('cascata (uiux-hub F1): icone null (caso real hoje — seed não povoa icone) resolve pelo codigo do módulo', () => {
     expect(resolveModuleIcon(null, 'motoristas')).toBe(Truck);
     expect(resolveModuleIcon(undefined, 'importacoes')).toBe(FileUp);
@@ -66,5 +76,19 @@ describe('resolveModuleIcon', () => {
   it('módulo importacoes: codigo resolve para FileUp (mais específico); icone literal upload segue em Upload', () => {
     expect(resolveModuleIcon('importacoes')).toBe(FileUp);
     expect(resolveModuleIcon('upload')).toBe(Upload);
+  });
+});
+
+describe('resolveModuleDescription', () => {
+  it('adiantamento-motorista FASE 7 (tasks.md 7.2.2): módulo adiantamentos tem descrição', () => {
+    expect(resolveModuleDescription('adiantamentos')).toBe(
+      'Revise solicitações, aprove contas bancárias e monte lotes de pagamento.'
+    );
+  });
+
+  it('fail-safe: módulo sem descrição mapeada devolve null, nunca lança', () => {
+    expect(resolveModuleDescription('modulo-novo-2027')).toBeNull();
+    expect(resolveModuleDescription(null)).toBeNull();
+    expect(resolveModuleDescription(undefined)).toBeNull();
   });
 });

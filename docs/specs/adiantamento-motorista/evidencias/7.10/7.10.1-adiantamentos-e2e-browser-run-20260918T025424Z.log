@@ -1,0 +1,177 @@
+
+Running 10 tests using 1 worker
+
+  ✘   1 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:421:7 › US3 — contas bancárias › lista mostra só dado mascarado; documento/PIX completos só aparecem na revisão dedicada, e aprovar exige confirmar o entregador (15.4s)
+  ✘   2 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:449:7 › US3 — contas bancárias › aprovação em massa mostra a contagem antes de confirmar (FR-020) (15.4s)
+  ✘   3 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:471:7 › US4 — pagamentos e lotes › seleciona, revisa a prévia (com pendência real JA_EM_LOTE) e gera o lote (15.4s)
+  ✓   4 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:514:7 › US5 — confirmação de pagamento e transições de falha › confirma o resultado do lote marcando uma falha — os demais viram pagos automaticamente (1.2s)
+  ✘   5 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:534:7 › US5 — confirmação de pagamento e transições de falha › reprocessar uma solicitação falhada devolve para LIBERADA e ela reaparece na fila de pagamento (edge #20/7.7.4) (16.0s)
+  ✓   6 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:555:7 › US5 — confirmação de pagamento e transições de falha › "Encerrar sem pagamento" em FALHOU transiciona para ENCERRADA e some da fila de reprocessamento (D-23/7.3.6) (978ms)
+  ✓   7 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:572:7 › US5 — confirmação de pagamento e transições de falha › a ação explícita "Atualizar conta" resolve a pendência de conta alterada (7.3.4) (714ms)
+  ✓   8 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:595:7 › US6 — repasse e fechamento › visualiza o remanescente por motorista no período (483ms)
+  ✓   9 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:608:7 › US6 — repasse e fechamento › fechar apuração com pendências é recusado e mostra a contagem por status (D-23/7.8.4) (802ms)
+  ✓  10 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:627:7 › US6 — repasse e fechamento › fecha a apuração com sucesso quando não há pendências (831ms)
+
+
+  1) [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:421:7 › US3 — contas bancárias › lista mostra só dado mascarado; documento/PIX completos só aparecem na revisão dedicada, e aprovar exige confirmar o entregador 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  getByText('João Motorista').first()
+    Expected: visible
+    Received: hidden
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('João Motorista').first()
+        31 × locator resolved to <span class="truncate text-sm font-medium">João Motorista</span>
+           - unexpected value "hidden"
+
+
+      427 |     // CSS `md:hidden`/`hidden md:block`) — `.first()` porque o mesmo dado
+      428 |     // aparece nos dois, nunca ambiguidade de CONTEÚDO.
+    > 429 |     await expect(page.getByText('João Motorista').first()).toBeVisible();
+          |                                                            ^
+      430 |     // SC-006: o documento mascarado aparece na lista — o completo NUNCA.
+      431 |     await expect(page.getByText('***.456.789-**').first()).toBeVisible();
+      432 |     await expect(page.getByText('123.456.789-00')).toHaveCount(0);
+        at /work/tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:429:60
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamentos-US3-—-contas-b99c6-xige-confirmar-o-entregador-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamentos-US3-—-contas-b99c6-xige-confirmar-o-entregador-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamentos-US3-—-contas-b99c6-xige-confirmar-o-entregador-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamentos-US3-—-contas-b99c6-xige-confirmar-o-entregador-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:449:7 › US3 — contas bancárias › aprovação em massa mostra a contagem antes de confirmar (FR-020) 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  getByText('Maria Motorista').first()
+    Expected: visible
+    Received: hidden
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Maria Motorista').first()
+        31 × locator resolved to <span class="truncate text-sm font-medium">Maria Motorista</span>
+           - unexpected value "hidden"
+
+
+      452 |
+      453 |     await page.goto('/hub/dashboard/adiantamentos/contas');
+    > 454 |     await expect(page.getByText('Maria Motorista').first()).toBeVisible();
+          |                                                             ^
+      455 |     await page.getByRole('checkbox', { name: 'Selecionar todas as contas desta página' }).check();
+      456 |     await expect(page.getByText('2 selecionada(s)')).toBeVisible();
+      457 |
+        at /work/tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:454:61
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamentos-US3-—-contas-7fae7--antes-de-confirmar-FR-020--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamentos-US3-—-contas-7fae7--antes-de-confirmar-FR-020--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamentos-US3-—-contas-7fae7--antes-de-confirmar-FR-020--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamentos-US3-—-contas-7fae7--antes-de-confirmar-FR-020--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:471:7 › US4 — pagamentos e lotes › seleciona, revisa a prévia (com pendência real JA_EM_LOTE) e gera o lote 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  getByText('Motorista Um').first()
+    Expected: visible
+    Received: hidden
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Motorista Um').first()
+        32 × locator resolved to <span class="truncate text-sm font-medium">Motorista Um</span>
+           - unexpected value "hidden"
+
+
+      475 |
+      476 |     await page.goto('/hub/dashboard/adiantamentos/pagamentos');
+    > 477 |     await expect(page.getByText('Motorista Um').first()).toBeVisible();
+          |                                                          ^
+      478 |     await page.getByRole('checkbox', { name: 'Selecionar todas desta página' }).check();
+      479 |     await expect(page.getByText('2 selecionada(s)')).toBeVisible();
+      480 |
+        at /work/tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:477:58
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamentos-US4-—-pagame-2482c-al-JA-EM-LOTE-e-gera-o-lote-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamentos-US4-—-pagame-2482c-al-JA-EM-LOTE-e-gera-o-lote-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamentos-US4-—-pagame-2482c-al-JA-EM-LOTE-e-gera-o-lote-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamentos-US4-—-pagame-2482c-al-JA-EM-LOTE-e-gera-o-lote-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:534:7 › US5 — confirmação de pagamento e transições de falha › reprocessar uma solicitação falhada devolve para LIBERADA e ela reaparece na fila de pagamento (edge #20/7.7.4) 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  getByText('ADV-0601').first()
+    Expected: visible
+    Received: hidden
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('ADV-0601').first()
+        32 × locator resolved to <span class="font-mono">ADV-0601</span>
+           - unexpected value "hidden"
+
+
+      550 |     // possível (mesmo fluxo de montagem já provado no teste de US4 acima).
+      551 |     await page.goto('/hub/dashboard/adiantamentos/pagamentos');
+    > 552 |     await expect(page.getByText('ADV-0601').first()).toBeVisible();
+          |                                                      ^
+      553 |   });
+      554 |
+      555 |   test('"Encerrar sem pagamento" em FALHOU transiciona para ENCERRADA e some da fila de reprocessamento (D-23/7.3.6)', async ({ page }) => {
+        at /work/tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:552:54
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamentos-US5-—-confir-fec2d-de-pagamento-edge-20-7-7-4--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamentos-US5-—-confir-fec2d-de-pagamento-edge-20-7-7-4--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamentos-US5-—-confir-fec2d-de-pagamento-edge-20-7-7-4--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamentos-US5-—-confir-fec2d-de-pagamento-edge-20-7-7-4--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:421:7 › US3 — contas bancárias › lista mostra só dado mascarado; documento/PIX completos só aparecem na revisão dedicada, e aprovar exige confirmar o entregador 
+    [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:449:7 › US3 — contas bancárias › aprovação em massa mostra a contagem antes de confirmar (FR-020) 
+    [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:471:7 › US4 — pagamentos e lotes › seleciona, revisa a prévia (com pendência real JA_EM_LOTE) e gera o lote 
+    [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:534:7 › US5 — confirmação de pagamento e transições de falha › reprocessar uma solicitação falhada devolve para LIBERADA e ela reaparece na fila de pagamento (edge #20/7.7.4) 
+  6 passed (1.2m)

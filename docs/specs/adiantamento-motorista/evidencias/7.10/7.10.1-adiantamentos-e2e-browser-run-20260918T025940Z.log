@@ -1,0 +1,56 @@
+
+Running 10 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:421:7 › US3 — contas bancárias › lista mostra só dado mascarado; documento/PIX completos só aparecem na revisão dedicada, e aprovar exige confirmar o entregador (968ms)
+  ✓   2 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:451:7 › US3 — contas bancárias › aprovação em massa mostra a contagem antes de confirmar (FR-020) (965ms)
+  ✘   3 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:473:7 › US4 — pagamentos e lotes › seleciona, revisa a prévia (com pendência real JA_EM_LOTE) e gera o lote (1.1s)
+  ✓   4 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:520:7 › US5 — confirmação de pagamento e transições de falha › confirma o resultado do lote marcando uma falha — os demais viram pagos automaticamente (1.2s)
+  ✓   5 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:540:7 › US5 — confirmação de pagamento e transições de falha › reprocessar uma solicitação falhada devolve para LIBERADA e ela reaparece na fila de pagamento (edge #20/7.7.4) (887ms)
+  ✓   6 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:561:7 › US5 — confirmação de pagamento e transições de falha › "Encerrar sem pagamento" em FALHOU transiciona para ENCERRADA e some da fila de reprocessamento (D-23/7.3.6) (920ms)
+  ✓   7 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:578:7 › US5 — confirmação de pagamento e transições de falha › a ação explícita "Atualizar conta" resolve a pendência de conta alterada (7.3.4) (718ms)
+  ✓   8 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:601:7 › US6 — repasse e fechamento › visualiza o remanescente por motorista no período (511ms)
+  ✓   9 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:614:7 › US6 — repasse e fechamento › fechar apuração com pendências é recusado e mostra a contagem por status (D-23/7.8.4) (865ms)
+  ✓  10 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:633:7 › US6 — repasse e fechamento › fecha a apuração com sucesso quando não há pendências (886ms)
+
+
+  1) [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:473:7 › US4 — pagamentos e lotes › seleciona, revisa a prévia (com pendência real JA_EM_LOTE) e gera o lote 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('R$ 150,00')
+    Expected: visible
+    Error: strict mode violation: getByText('R$ 150,00') resolved to 2 elements:
+        1) <dd class="text-right font-mono font-medium">R$ 150,00</dd> aka getByRole('definition').filter({ hasText: 'R$' })
+        2) <td data-slot="table-cell" class="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 text-right font-mono">R$ 150,00</td> aka getByRole('cell', { name: 'R$' })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('R$ 150,00')
+
+
+      498 |     await page.waitForURL(/\/lotes\/\d+$/, { timeout: 15_000 });
+      499 |     await expect(page.getByText('Gerado', { exact: true })).toBeVisible();
+    > 500 |     await expect(page.getByText('R$ 150,00')).toBeVisible();
+          |                                               ^
+      501 |
+      502 |     // SC-003 (proxy): sem I/O real de rede/arquivo neste mock, o wizard
+      503 |     // completo (seleção → prévia → gerar) roda bem dentro do teto de 5 min —
+        at /work/tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:500:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamentos-US4-—-pagame-2482c-al-JA-EM-LOTE-e-gera-o-lote-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamentos-US4-—-pagame-2482c-al-JA-EM-LOTE-e-gera-o-lote-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamentos-US4-—-pagame-2482c-al-JA-EM-LOTE-e-gera-o-lote-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamentos-US4-—-pagame-2482c-al-JA-EM-LOTE-e-gera-o-lote-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:473:7 › US4 — pagamentos e lotes › seleciona, revisa a prévia (com pendência real JA_EM_LOTE) e gera o lote 
+  9 passed (10.8s)

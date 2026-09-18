@@ -16,6 +16,7 @@ import React, {
   useState,
 } from 'react';
 import { api } from '@/lib/api-client';
+import { restaurarSessao } from '@/lib/auth-sessao';
 import { revogar as revogarPush, sincronizar as sincronizarPush } from '@/lib/push';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -78,32 +79,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, REFRESH_INTERVAL_MS);
   }, [refreshToken, stopRefreshTimer]);
 
-  // Verificar sessão ao montar
+  // Verificar sessão ao montar — restaura silenciosamente com refresh (uma
+  // tentativa) antes de desistir (tasks.md 6.7.1/6.7.2, FR-053, CHK003):
+  // lógica pura em lib/auth-sessao.ts, testada isoladamente.
+  //
+  // tasks.md 11.24/FR-053: o setInterval de refresh (abaixo) não dispara com
+  // o PWA suspenso em background (timers de página congelam); ao voltar ao
+  // primeiro plano com o access token (15min) já vencido, a tela ficava
+  // presa em "Não autorizado" até um reload completo — nenhuma tela
+  // reabre com uma tentativa de restauração. `visibilitychange` é o sinal
+  // nativo de "o motorista reabriu a tela", então repete a mesma
+  // restauração silenciosa nesse gatilho, sem recarregar a página.
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      try {
-        const data = await api.get<{ authenticated: boolean; cnpjPrestador: string; nome: string }>(
-          '/motorista/verify-auth',
-        );
-        if (!cancelled && data.authenticated) {
-          setState({ user: { cnpjPrestador: data.cnpjPrestador, nome: data.nome }, loading: false });
+    const verificarSessao = () =>
+      restaurarSessao({
+        verificarAuth: () =>
+          api.get<{ authenticated: boolean; cnpjPrestador: string; nome: string }>('/motorista/verify-auth'),
+        renovarToken: () => api.post('/motorista/token/refresh'),
+      }).then((user) => {
+        if (cancelled) return;
+        setState({ user, loading: false });
+        if (user) {
           startRefreshTimer();
           // push-motorista (tasks.md 6.3.1/FR-008) — a cada abertura autenticada,
           // sem pedir permissão de novo (no-op se ainda não concedida).
           sincronizarPush();
-        } else if (!cancelled) {
-          setState({ user: null, loading: false });
+        } else {
+          stopRefreshTimer();
         }
-      } catch {
-        if (!cancelled) setState({ user: null, loading: false });
-      }
-    })();
+      });
+
+    verificarSessao();
+
+    const aoVoltarAoPrimeiroPlano = () => {
+      if (document.visibilityState === 'visible') verificarSessao();
+    };
+    document.addEventListener('visibilitychange', aoVoltarAoPrimeiroPlano);
 
     return () => {
       cancelled = true;
       stopRefreshTimer();
+      document.removeEventListener('visibilitychange', aoVoltarAoPrimeiroPlano);
     };
   }, [startRefreshTimer, stopRefreshTimer]);
 

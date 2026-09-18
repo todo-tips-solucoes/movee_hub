@@ -13,6 +13,11 @@ docs/documentos_apoio/*.zip
 docs/documentos_apoio/*.xlsx
 # templates de planilha sem dados pessoais continuam visíveis/versionáveis
 !docs/documentos_apoio/modelo_*.xlsx
+# exceto o modelo Transfeera: a linha 3 tem dado pessoal real de um motorista
+docs/documentos_apoio/modelo_transfeera.xlsx
+# retorno real da Transfeera (resultado de pagamento com nome, documento e conta
+# de motoristas reais) — pasta inteira fora do git, qualquer extensão
+docs/documentos_apoio/retorno-transfeera/
 infra/hub/seeds/out/
 # S10: dataset sintético volumoso (modo --synthesize-days do gen-seeds)
 infra/hub/seeds/out-s10/

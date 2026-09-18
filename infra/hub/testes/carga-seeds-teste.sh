@@ -15,7 +15,7 @@ HUB_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SEEDS="${1:-$HUB_DIR/seeds/out}"
 ENV_FILE="${HUB_TEST_ENV:-/var/lib/hub_secrets/.env.hub.test}"
 COMPOSE="$HUB_DIR/compose.hub.test.yml"
-RUNID="$(date +%s)"
+RUNID="$(date +%s)-$$"
 PROJECT="hub-test-$RUNID"
 
 [ -d "$SEEDS/faturamento" ] || { echo "seeds não encontrados em $SEEDS (rode gen-seeds.py)" >&2; exit 1; }

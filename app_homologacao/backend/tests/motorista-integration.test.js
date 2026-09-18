@@ -307,6 +307,43 @@ describe('2.2.5 POST /motorista/login', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// adiantamento-motorista 3.5 — POST /motorista/logout (Q-N16): funciona
+// mesmo com accessToken expirado/ausente, e sempre limpa a sessão/refresh
+// no servidor (Set-Cookie de limpeza dos dois cookies httpOnly).
+// ──────────────────────────────────────────────────────────────────────────────
+describe('adiantamento-motorista 3.5 POST /motorista/logout', () => {
+  test('3.5.2: access token EXPIRADO ainda limpa a sessão/refresh no servidor', async () => {
+    const tokenExpirado = makeToken({ cnpjPrestador: '11222333000199' }, { expiresIn: '-10s' });
+    const r = await request('POST', '/motorista/logout', {
+      cookies: `accessToken=${tokenExpirado}`,
+    });
+    assert.equal(r.status, 200);
+    const setCookies = r.headers['set-cookie'] || [];
+    assert.ok(setCookies.some((c) => c.startsWith('accessToken=') && /Expires=Thu, 01 Jan 1970/.test(c)));
+    assert.ok(setCookies.some((c) => c.startsWith('refreshToken=') && /Expires=Thu, 01 Jan 1970/.test(c)));
+  });
+
+  test('sem nenhum cookie -> 200 (idempotente) e ainda emite Set-Cookie de limpeza', async () => {
+    const r = await request('POST', '/motorista/logout', {});
+    assert.equal(r.status, 200);
+    const setCookies = r.headers['set-cookie'] || [];
+    assert.ok(setCookies.some((c) => c.startsWith('accessToken=')));
+    assert.ok(setCookies.some((c) => c.startsWith('refreshToken=')));
+  });
+
+  test('access token ainda válido -> 200 (comportamento anterior preservado)', async () => {
+    const token = makeToken({ cnpjPrestador: '11222333000199' });
+    const r = await request('POST', '/motorista/logout', { cookies: `accessToken=${token}` });
+    assert.equal(r.status, 200);
+  });
+
+  test('token de OUTRA audiência (empresa) -> 200 mesmo assim (logout nunca valida audiência)', async () => {
+    const r = await request('POST', '/motorista/logout', { cookies: `accessToken=${makeEmpresaToken()}` });
+    assert.equal(r.status, 200);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // 2.3.5 — Register (auto-cadastro)
 // ──────────────────────────────────────────────────────────────────────────────
 describe('2.3.5 POST /motorista/register', () => {

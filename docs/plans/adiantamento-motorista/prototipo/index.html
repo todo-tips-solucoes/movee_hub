@@ -1,0 +1,1161 @@
+<title>Protótipo Adiantamento</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block">
+<style>
+/* Tokens: EntreGô 2.0 como estão em frontend_v2/app/globals.css (valores AA do hub). */
+:root {
+  --bg: #f9f2e8;
+  --fg: #0f1849;
+  --card: #ffffff;
+  --muted: #efe6d6;
+  --muted-fg: #52618a;
+  --border: #e7ddcd;
+  --input: #d9cdb8;
+  --primary: #2c66e9;
+  --primary-fg: #ffffff;
+  --secondary: #b4e4ff;
+  --secondary-fg: #1b3fac;
+  --accent: #b4ffed;
+  --accent-fg: #0f4938;
+  --mint: #2ceabc;
+  --ok: #00715e;
+  --ok-bg: #dcefe8;
+  --warn: #ffb72a;
+  --warn-text: #92400e;
+  --warn-bg: #fff1d6;
+  --bad: #c62828;
+  --bad-bg: #fbe3df;
+  --info-bg: #e3ebfc;
+  --chrome: #f3ece0;
+  --bezel: #0f1849;
+  --shadow: 0 1px 2px rgb(15 24 73 / 0.06), 0 8px 24px -12px rgb(15 24 73 / 0.18);
+  --radius: 0.875rem;
+  --sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a1130; --fg: #e9eefb; --card: #141d44; --muted: #16204a; --muted-fg: #9aa8cf;
+    --border: #1e2a52; --input: #283566; --primary: #5b8df2; --primary-fg: #07112e;
+    --secondary: #1b2a55; --secondary-fg: #b9d2ff; --accent: #173a44; --accent-fg: #2ceabc;
+    --ok: #2ceabc; --ok-bg: #123a3a; --warn: #ffc555; --warn-text: #ffc555; --warn-bg: #3a2f14;
+    --bad: #ff6b6b; --bad-bg: #3d1a26; --info-bg: #1b2a55; --chrome: #0e1838; --bezel: #26336b;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a1130; --fg: #e9eefb; --card: #141d44; --muted: #16204a; --muted-fg: #9aa8cf;
+  --border: #1e2a52; --input: #283566; --primary: #5b8df2; --primary-fg: #07112e;
+  --secondary: #1b2a55; --secondary-fg: #b9d2ff; --accent: #173a44; --accent-fg: #2ceabc;
+  --ok: #2ceabc; --ok-bg: #123a3a; --warn: #ffc555; --warn-text: #ffc555; --warn-bg: #3a2f14;
+  --bad: #ff6b6b; --bad-bg: #3d1a26; --info-bg: #1b2a55; --chrome: #0e1838; --bezel: #26336b;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ms { font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; font-size: 20px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; direction: ltr; -webkit-font-smoothing: antialiased; font-variation-settings: "FILL" 0, "wght" 400; flex: none; }
+.ms.fill { font-variation-settings: "FILL" 1, "wght" 400; }
+.mono { font-family: var(--mono); font-size: 0.92em; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted-fg); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Visor ---------- */
+.viewer { display: grid; grid-template-columns: 17rem 1fr; min-height: 100%; }
+.index { background: var(--chrome); border-right: 1px solid var(--border); padding: 1.25rem 1rem 2rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.index h1 { font-size: 1.05rem; font-weight: 800; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.index .lead { margin: 0.35rem 0 1rem; color: var(--muted-fg); font-size: 0.8rem; }
+.index h2 { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted-fg); margin: 1.1rem 0 0.35rem; font-weight: 700; }
+.index a { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.4rem 0.55rem; border-radius: 0.55rem; color: inherit; text-decoration: none; font-size: 0.86rem; }
+.index a .mono { color: var(--muted-fg); font-size: 0.72rem; min-width: 2.2rem; }
+.index a:hover { background: var(--muted); }
+.index a[aria-current="page"] { background: var(--card); box-shadow: var(--shadow); font-weight: 700; }
+.index a[aria-current="page"] .mono { color: var(--primary); }
+.stage-wrap { min-width: 0; padding: 1.25rem clamp(1rem, 3vw, 2.5rem) 3rem; }
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; justify-content: space-between; margin-bottom: 1.25rem; }
+.topbar .where { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.topbar .where .mono { color: var(--primary); font-weight: 500; }
+.topbar h2 { margin: 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em; }
+.topbar .tools { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.flag { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.6rem; border-radius: 999px; background: var(--warn-bg); color: var(--warn-text); }
+.mobile-pick { display: none; }
+.stage { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+.notes { flex: 1 1 18rem; max-width: 34rem; }
+.notes h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-fg); margin: 0 0 0.5rem; }
+.notes ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.45rem; }
+.notes li { max-width: 62ch; }
+.notes .refs { margin-top: 1rem; font-size: 0.8rem; color: var(--muted-fg); }
+.navpair { display: flex; gap: 0.5rem; margin-top: 1.25rem; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .viewer { grid-template-columns: 1fr; }
+  .index { display: none; }
+  .mobile-pick { display: block; width: 100%; }
+  .mobile-pick select { width: 100%; padding: 0.6rem; border-radius: 0.6rem; border: 1px solid var(--input); background: var(--card); }
+}
+
+/* ---------- Primitivos compartilhados ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; min-height: 2.75rem; padding: 0 1rem; border-radius: 0.75rem; border: 1px solid transparent; font-weight: 700; font-size: 0.9rem; cursor: pointer; text-decoration: none; background: var(--primary); color: var(--primary-fg); white-space: nowrap; }
+.btn.sm { min-height: 2.25rem; padding: 0 0.75rem; font-size: 0.82rem; border-radius: 0.6rem; }
+.btn.block { width: 100%; }
+.btn.outline { background: var(--card); color: var(--fg); border-color: var(--input); }
+.btn.ghost { background: transparent; color: var(--fg); }
+.btn.danger { background: var(--bad-bg); color: var(--bad); }
+.btn.solid-danger { background: var(--bad); color: #fff; }
+.btn[disabled], .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+.pad { padding: 1rem; }
+.stack { display: grid; gap: 0.75rem; }
+.row { display: flex; gap: 0.75rem; align-items: center; }
+.between { justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.18rem 0.55rem; border-radius: 999px; font-size: 0.74rem; font-weight: 700; white-space: nowrap; background: var(--muted); color: var(--muted-fg); }
+.pill .ms { font-size: 15px; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.warn { background: var(--warn-bg); color: var(--warn-text); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.info { background: var(--info-bg); color: var(--primary); }
+.eyebrow { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--muted-fg); }
+.kv { display: grid; gap: 0.1rem; }
+.kv dt { font-size: 0.75rem; color: var(--muted-fg); }
+.kv dd { margin: 0; font-weight: 600; }
+.lines { display: grid; }
+.lines > div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px dashed var(--border); }
+.lines > div:last-child { border-bottom: 0; }
+.lines .total { font-weight: 800; font-size: 1.05rem; border-top: 1px solid var(--fg); border-bottom: 0; padding-top: 0.6rem; }
+.alert { display: flex; gap: 0.6rem; padding: 0.8rem 0.9rem; border-radius: 0.8rem; background: var(--info-bg); }
+.alert.warn { background: var(--warn-bg); }
+.alert.warn .ms { color: var(--warn-text); }
+.alert.bad { background: var(--bad-bg); }
+.alert.bad .ms { color: var(--bad); }
+.alert.ok { background: var(--ok-bg); }
+.alert.ok .ms { color: var(--ok); }
+.alert .ms { color: var(--primary); margin-top: 0.1rem; }
+.alert p { margin: 0; }
+.alert strong { display: block; }
+.field { display: grid; gap: 0.3rem; }
+.field label, .field .lbl { font-size: 0.8rem; font-weight: 600; }
+.field .hint { font-size: 0.75rem; color: var(--muted-fg); }
+.input { min-height: 2.75rem; border: 1px solid var(--input); border-radius: 0.7rem; background: var(--card); padding: 0 0.8rem; width: 100%; }
+textarea.input { padding: 0.6rem 0.8rem; min-height: 5rem; resize: vertical; }
+.check { display: flex; gap: 0.6rem; align-items: flex-start; }
+.check input { width: 1.2rem; height: 1.2rem; margin-top: 0.15rem; accent-color: var(--primary); flex: none; }
+.chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.chip { border: 1px solid var(--input); background: var(--card); border-radius: 999px; padding: 0 0.8rem; min-height: 2.25rem; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.3rem; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.seg { display: inline-flex; border: 1px solid var(--input); border-radius: 0.7rem; overflow: hidden; }
+.seg span { padding: 0.45rem 0.8rem; font-size: 0.8rem; font-weight: 600; }
+.seg span[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+
+/* Timeline */
+.tl { list-style: none; margin: 0; padding: 0; display: grid; }
+.tl li { display: grid; grid-template-columns: 1.75rem 1fr; gap: 0.7rem; position: relative; padding-bottom: 0.95rem; }
+.tl li:last-child { padding-bottom: 0; }
+.tl li::before { content: ""; position: absolute; left: calc(0.875rem - 1px); top: 1.75rem; bottom: 0; width: 2px; background: var(--border); }
+.tl li:last-child::before { display: none; }
+.tl li.done::before { background: var(--ok); }
+.tl .dot { width: 1.75rem; height: 1.75rem; border-radius: 999px; display: grid; place-items: center; background: var(--muted); color: var(--muted-fg); position: relative; }
+.tl .dot .ms { font-size: 17px; }
+.tl .done .dot { background: var(--ok); color: var(--card); }
+.tl .current .dot { background: var(--primary); color: var(--primary-fg); box-shadow: 0 0 0 4px var(--info-bg); }
+.tl .fail .dot { background: var(--bad); color: #fff; }
+.tl .t { font-weight: 700; line-height: 1.3; }
+.tl .s { font-size: 0.78rem; color: var(--muted-fg); }
+.tl .todo .t { color: var(--muted-fg); font-weight: 600; }
+
+/* ---------- App do motorista ---------- */
+.phone { width: 390px; max-width: 100%; height: 800px; border: 10px solid var(--bezel); border-radius: 44px; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow); flex: none; position: relative; }
+.m-status { display: flex; justify-content: space-between; padding: 0.55rem 1.3rem 0.2rem; font-size: 0.75rem; font-weight: 700; }
+.m-status .ms { font-size: 15px; }
+.m-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.45rem 1rem 0.6rem; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 85%, transparent); }
+.m-head h1 { margin: 0; font-size: 1rem; font-weight: 800; }
+.m-head .left { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.wordmark { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.03em; color: var(--fg); }
+.wordmark b { color: var(--primary); }
+.iconbtn { width: 2.75rem; height: 2.75rem; display: grid; place-items: center; border-radius: 0.75rem; border: 0; background: transparent; cursor: pointer; position: relative; }
+.m-body { flex: 1; overflow-y: auto; padding: 1rem; display: grid; gap: 0.9rem; align-content: start; }
+.m-nav { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--border); background: var(--card); padding: 0.3rem 0.25rem 0.6rem; }
+.m-nav a { display: grid; justify-items: center; gap: 0.1rem; min-height: 3rem; padding-top: 0.35rem; font-size: 0.68rem; font-weight: 600; color: var(--muted-fg); text-decoration: none; position: relative; }
+.m-nav a .ms { font-size: 23px; }
+.m-nav a[aria-current="page"] { color: var(--primary); }
+.m-nav a[aria-current="page"] .ms { font-variation-settings: "FILL" 1; }
+.badge { position: absolute; top: 0.1rem; left: calc(50% + 0.3rem); min-width: 1.1rem; height: 1.1rem; border-radius: 999px; background: var(--bad); color: #fff; font-size: 0.66rem; font-weight: 800; display: grid; place-items: center; padding: 0 0.25rem; }
+.hero { border-radius: 1.25rem; padding: 1.1rem; background: linear-gradient(140deg, #1b3fac, #2c66e9 60%, #2f7fe0); color: #fff; }
+.hero .eyebrow { color: rgb(255 255 255 / 0.8); }
+.hero .big { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.hero .sub { color: rgb(255 255 255 / 0.85); font-size: 0.82rem; }
+.hero .btn { background: #fff; color: #1b3fac; }
+.hero.paid { background: linear-gradient(140deg, #0b5c4d, #00715e); }
+.m-section-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--muted-fg); margin: 0.2rem 0 -0.35rem; }
+.list { display: grid; }
+.list > * { display: flex; gap: 0.75rem; align-items: center; padding: 0.8rem 0.9rem; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+.list > *:last-child { border-bottom: 0; }
+.list .grow { flex: 1; min-width: 0; }
+.list .title { font-weight: 700; line-height: 1.3; }
+.list .meta { font-size: 0.76rem; color: var(--muted-fg); }
+.icotile { width: 2.4rem; height: 2.4rem; border-radius: 0.75rem; display: grid; place-items: center; background: var(--info-bg); color: var(--primary); flex: none; }
+.icotile.ok { background: var(--ok-bg); color: var(--ok); }
+.icotile.warn { background: var(--warn-bg); color: var(--warn-text); }
+.icotile.bad { background: var(--bad-bg); color: var(--bad); }
+.icotile.muted { background: var(--muted); color: var(--muted-fg); }
+.unread { position: relative; }
+.unread::after { content: ""; width: 0.55rem; height: 0.55rem; border-radius: 999px; background: var(--primary); flex: none; }
+.notif-read .title { font-weight: 600; }
+.amount { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sheet-backdrop { position: absolute; inset: 0; background: rgb(10 17 48 / 0.45); display: flex; align-items: flex-end; }
+.sheet { background: var(--card); width: 100%; border-radius: 1.4rem 1.4rem 0 0; padding: 1rem 1rem 1.2rem; display: grid; gap: 0.8rem; max-height: 88%; overflow-y: auto; }
+.sheet .grab { width: 2.5rem; height: 0.3rem; border-radius: 999px; background: var(--input); justify-self: center; }
+.twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.threecol { display: grid; grid-template-columns: 1.3fr 2fr 0.9fr; gap: 0.6rem; }
+.radio-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.radio-cards label { border: 1px solid var(--input); border-radius: 0.7rem; padding: 0.65rem 0.7rem; display: flex; gap: 0.5rem; align-items: center; font-weight: 600; min-height: 2.75rem; }
+.radio-cards label.on { border-color: var(--primary); background: var(--info-bg); }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.3rem; }
+.days span { text-align: center; padding: 0.35rem 0; border-radius: 0.5rem; font-size: 0.72rem; font-weight: 700; background: var(--ok-bg); color: var(--ok); }
+.days span.off { background: var(--muted); color: var(--muted-fg); text-decoration: line-through; }
+.days span.today { outline: 2px solid var(--fg); outline-offset: -2px; }
+
+/* ---------- Hub ---------- */
+.hub-scroll { width: 100%; overflow-x: auto; border-radius: 0.9rem; box-shadow: var(--shadow); }
+.hub { min-width: 1120px; background: var(--bg); border: 1px solid var(--border); border-radius: 0.9rem; overflow: hidden; }
+.browser { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.9rem; background: var(--chrome); border-bottom: 1px solid var(--border); }
+.browser .dots { display: flex; gap: 0.35rem; }
+.browser .dots i { width: 0.65rem; height: 0.65rem; border-radius: 999px; background: var(--input); display: block; }
+.browser .url { flex: 1; font-family: var(--mono); font-size: 0.75rem; color: var(--muted-fg); background: var(--card); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.25rem 0.6rem; }
+.h-top { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); background: var(--card); }
+.h-top .right { display: flex; gap: 0.6rem; align-items: center; }
+.entity { display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--input); border-radius: 0.6rem; padding: 0.3rem 0.6rem; font-size: 0.8rem; font-weight: 600; }
+.avatar { width: 2rem; height: 2rem; border-radius: 999px; background: var(--secondary); color: var(--secondary-fg); display: grid; place-items: center; font-weight: 800; font-size: 0.75rem; }
+.h-body { display: grid; grid-template-columns: 14rem 1fr; min-height: 640px; }
+.h-side { background: var(--chrome); border-right: 1px solid var(--border); padding: 0.8rem 0.6rem; display: grid; gap: 0.1rem; align-content: start; }
+.h-side a, .h-side .item { display: flex; gap: 0.6rem; align-items: center; padding: 0.5rem 0.65rem; border-radius: 0.6rem; font-size: 0.85rem; font-weight: 600; color: var(--muted-fg); text-decoration: none; }
+.h-side a[aria-current="page"] { background: var(--primary); color: var(--primary-fg); }
+.h-side a .ms { font-size: 19px; }
+.h-main { padding: 1.25rem 1.5rem 2rem; display: grid; gap: 1rem; align-content: start; min-width: 0; }
+.h-title { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.h-title h1 { margin: 0; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.01em; }
+.h-title p { margin: 0.15rem 0 0; color: var(--muted-fg); }
+.tabs { display: flex; gap: 0.2rem; border-bottom: 1px solid var(--border); }
+.tabs a { padding: 0.55rem 0.8rem; font-weight: 600; font-size: 0.86rem; color: var(--muted-fg); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 0.35rem; align-items: center; }
+.tabs a[aria-current="page"] { color: var(--fg); border-bottom-color: var(--primary); }
+.tabs .count { background: var(--warn-bg); color: var(--warn-text); border-radius: 999px; padding: 0 0.4rem; font-size: 0.7rem; font-weight: 800; }
+.filterbar { display: grid; grid-template-columns: 1.6fr 1.2fr 1fr 1fr 1fr; gap: 0.75rem; align-items: end; padding: 0.9rem; }
+.filterbar .actions { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.select { min-height: 2.25rem; border: 1px solid var(--input); border-radius: 0.6rem; padding: 0 0.7rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; background: var(--card); font-size: 0.84rem; }
+.hinput { min-height: 2.25rem; border: 1px solid var(--input); border-radius: 0.6rem; padding: 0 0.7rem; background: var(--card); font-size: 0.84rem; width: 100%; }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+caption { text-align: left; padding: 0.75rem 0.9rem; font-weight: 700; }
+th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-fg); background: var(--muted); padding: 0.55rem 0.7rem; white-space: nowrap; font-weight: 700; }
+td { padding: 0.55rem 0.7rem; border-top: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+tr.sel td { background: color-mix(in srgb, var(--primary) 7%, var(--card)); }
+tr.pend td { background: color-mix(in srgb, var(--warn) 10%, var(--card)); }
+td input[type="checkbox"], th input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--primary); }
+.link { color: var(--primary); font-weight: 600; text-decoration: none; }
+.pager { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.9rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted-fg); }
+.pager .pgs { display: flex; gap: 0.25rem; }
+.pager .pgs span { min-width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 0.5rem; border: 1px solid var(--input); font-weight: 600; color: var(--fg); }
+.pager .pgs span.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.75rem; }
+.tile { padding: 0.9rem 1rem; }
+.tile .v { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.tile .l { font-size: 0.78rem; color: var(--muted-fg); font-weight: 600; }
+.tile.warn { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)); background: var(--warn-bg); }
+.tile.warn .v { color: var(--warn-text); }
+.tile.ok .v { color: var(--ok); }
+.selbar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.8rem 1rem; background: var(--fg); color: var(--bg); border-radius: 0.8rem; }
+.selbar .btn { background: var(--bg); color: var(--fg); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.sec-h { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.9rem 1rem; border-bottom: 1px solid var(--border); }
+.sec-h h2 { margin: 0; font-size: 1rem; font-weight: 800; }
+.sec-h p { margin: 0.1rem 0 0; font-size: 0.8rem; color: var(--muted-fg); }
+.sec-b { padding: 1rem; display: grid; gap: 1rem; }
+.focus-ring { outline: 3px solid var(--mint); outline-offset: 3px; }
+.dlg-back { background: rgb(10 17 48 / 0.5); padding: 2rem; display: grid; place-items: center; border-radius: 0.8rem; }
+.dlg { background: var(--card); border-radius: 1rem; padding: 1.2rem; width: min(30rem, 100%); display: grid; gap: 0.9rem; box-shadow: var(--shadow); }
+.dlg h2 { margin: 0; font-size: 1.1rem; font-weight: 800; }
+.check-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.check-list li { display: flex; gap: 0.5rem; align-items: center; }
+.check-list .ms { color: var(--ok); font-size: 18px; }
+.cmp { display: grid; grid-template-columns: 11rem 1fr 1fr; }
+.cmp > div { padding: 0.55rem 0.8rem; border-top: 1px solid var(--border); }
+.cmp .hd { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--muted-fg); background: var(--muted); border-top: 0; }
+.cmp .k { color: var(--muted-fg); font-size: 0.82rem; }
+.cmp .chg { background: color-mix(in srgb, var(--warn) 14%, var(--card)); font-weight: 700; }
+.diff-del { text-decoration: line-through; color: var(--muted-fg); }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+.steps .card { padding: 0.8rem; }
+.steps .n { font-family: var(--mono); color: var(--primary); font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) {
+  .stage > * { animation: rise 0.25s ease-out both; }
+  @keyframes rise { from { transform: translateY(6px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+}
+</style>
+
+<div class="viewer">
+  <nav class="index" aria-label="Telas do protótipo">
+    <h1>Adiantamento pelo app</h1>
+    <p class="lead">Protótipo navegável da Etapa A. Dados fictícios. Plano: <span class="mono">docs/plans/adiantamento-motorista/PLANO.md</span></p>
+    <div id="idx"></div>
+  </nav>
+  <main class="stage-wrap">
+    <div class="topbar">
+      <div class="where">
+        <span class="mono" id="scr-id"></span>
+        <h2 id="scr-title"></h2>
+        <span class="muted" id="scr-app"></span>
+      </div>
+      <div class="tools">
+        <span class="flag"><span class="ms" aria-hidden="true">science</span>Dados fictícios</span>
+        <button class="btn outline sm" id="theme" type="button"><span class="ms" aria-hidden="true">contrast</span>Tema</button>
+      </div>
+      <label class="mobile-pick"><span class="sr">Escolher tela</span><select id="pick"></select></label>
+    </div>
+    <div class="stage" id="stage"></div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const I = (n, cls = '') => `<span class="ms ${cls}" aria-hidden="true">${n}</span>`;
+  const pill = (kind, icon, text) => `<span class="pill ${kind}">${icon ? I(icon) : ''}${text}</span>`;
+
+  // Estados da solicitação → rótulo que o motorista vê (PLANO §11.1)
+  const ST = {
+    AGUARDANDO_CORTE: ['info', 'schedule', 'Aguardando fechamento'],
+    AGUARDANDO_PRODUCAO: ['warn', 'hourglass_top', 'Aguardando produção'],
+    LIBERADA: ['ok', 'task_alt', 'Liberado'],
+    EM_LOTE: ['info', 'inventory_2', 'Incluído para pagamento'],
+    EXPORTADA: ['info', 'sync', 'Pagamento em processamento'],
+    PAGA: ['ok', 'paid', 'Pago'],
+    FALHOU: ['bad', 'error', 'Pagamento falhou'],
+    REJEITADA: ['bad', 'block', 'Rejeitado'],
+    INELEGIVEL: ['', 'remove_circle', 'Não liberado'],
+    CANCELADA: ['', 'close', 'Cancelado'],
+  };
+  const st = (k) => pill(ST[k][0], ST[k][1], ST[k][2]);
+  const HST = { ...ST, LIBERADA: ['ok', 'task_alt', 'Liberada'], EXPORTADA: ['info', 'upload_file', 'Exportada'], PAGA: ['ok', 'paid', 'Paga'], REJEITADA: ['bad', 'block', 'Rejeitada'], INELEGIVEL: ['', 'remove_circle', 'Inelegível'], CANCELADA: ['', 'close', 'Cancelada'], EM_LOTE: ['info', 'inventory_2', 'Em lote'] };
+  const hst = (k) => pill(HST[k][0], HST[k][1], HST[k][2]);
+
+  const tl = (steps) => `<ol class="tl">${steps.map(([state, t, s]) => {
+    const icon = { done: 'check', current: 'more_horiz', todo: 'circle', fail: 'close' }[state];
+    return `<li class="${state}"><span class="dot">${I(icon)}</span><div><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div></li>`;
+  }).join('')}</ol>`;
+
+  // ---------- Moldura do app ----------
+  const navItems = [['home', 'home', 'Início', 'M01'], ['adv', 'payments', 'Adiantamento', 'M03'], ['notif', 'notifications', 'Notificações', 'M02'], ['conta', 'account_balance', 'Conta', 'M12']];
+  const phone = ({ title, back, nav, body, overlay = '', clock = '10:24', home = false }) => `
+    <div class="phone" role="img" aria-label="Tela do app do motorista: ${title || 'Início'}">
+      <div class="m-status"><span class="num">${clock}</span><span>${I('signal_cellular_alt')} ${I('wifi')} ${I('battery_5_bar')}</span></div>
+      <header class="m-head">
+        <div class="left">
+          ${back ? `<a class="iconbtn" href="#${back}" aria-label="Voltar">${I('arrow_back')}</a>` : ''}
+          ${home ? `<span class="wordmark">entreg<b>ô</b></span>` : `<h1>${title}</h1>`}
+        </div>
+        ${home ? `<a class="iconbtn" href="#M02" aria-label="Notificações, 3 não lidas">${I('notifications')}<span class="badge" style="left:1.55rem;top:0.35rem">3</span></a>` : ''}
+      </header>
+      <div class="m-body">${body}</div>
+      ${nav ? `<nav class="m-nav" aria-label="Navegação do app">${navItems.map(([k, ic, lb, to]) => `<a href="#${to}" ${k === nav ? 'aria-current="page"' : ''}>${I(ic)}${lb}${k === 'notif' ? '<span class="badge">3</span>' : ''}</a>`).join('')}</nav>` : ''}
+      ${overlay}
+    </div>`;
+
+  const contaMask = `<div class="row"><span class="icotile">${I('account_balance')}</span><div class="grow" style="min-width:0"><div style="font-weight:700">Nu Pagamentos · 260</div><div class="muted num" style="font-size:.8rem">Ag. 0001 · Conta corrente ••••4521-7</div></div></div>`;
+  const breakdown = (final) => `
+    <div class="lines num">
+      <div><span>Produção de quarta, 16/09</span><span>R$ 215,67</span></div>
+      <div><span>60% da produção</span><span>R$ 129,40</span></div>
+      <div><span>Taxa de transferência</span><span>− R$ 0,35</span></div>
+      <div class="total"><span>Você recebe${final ? '' : ' (estimativa)'}</span><span>R$ 129,05</span></div>
+    </div>`;
+  const daysRow = (today) => `<div class="days" aria-label="Dias disponíveis: segunda a sábado">${['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => `<span class="${i === 0 ? 'off' : ''} ${i === today ? 'today' : ''}" title="${['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'][i]}${i === 0 ? ' (indisponível)' : ''}">${d}</span>`).join('')}</div>`;
+
+  // ---------- Moldura do hub ----------
+  const sideMods = [['space_dashboard', 'Painel Geral'], ['groups', 'Motoristas'], ['receipt_long', 'Faturamento'], ['payments', 'Adiantamentos'], ['speed', 'Performance'], ['upload_file', 'Importações'], ['send', 'Envio em Massa'], ['campaign', 'Avisos']];
+  const subtabs = [['Solicitações', 'H01', 'sol'], ['Pagamentos', 'H08', 'pag'], ['Contas bancárias', 'H06', 'contas', '1.735'], ['Repasse', 'H14', 'rep'], ['Configurações', 'H03', 'cfg']];
+  const hub = ({ path, tab, title, sub, action = '', body }) => `
+    <div class="hub-scroll"><div class="hub" role="img" aria-label="Tela do hub: ${title}">
+      <div class="browser"><div class="dots"><i></i><i></i><i></i></div><div class="url">app.moveelog.com.br/hub/dashboard/adiantamentos${path}</div></div>
+      <div class="h-top">
+        <span class="wordmark">entreg<b>ô</b> <span class="muted" style="font-weight:600;font-size:.8rem">Hub de Frota</span></span>
+        <div class="right">
+          <span class="entity">${I('apartment')} Movee · 6 ${I('expand_more')}</span>
+          <span class="avatar">AF</span>
+          <span style="font-size:.8rem"><b>Ana Financeiro</b><br><span class="muted">financeiro</span></span>
+        </div>
+      </div>
+      <div class="h-body">
+        <nav class="h-side" aria-label="Módulos">${sideMods.map(([ic, lb]) => lb === 'Adiantamentos' ? `<a href="#H01" aria-current="page">${I(ic)}${lb}</a>` : `<span class="item">${I(ic)}${lb}</span>`).join('')}</nav>
+        <div class="h-main">
+          <div class="h-title"><div><h1>${title}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="row wrap">${action}</div></div>
+          <nav class="tabs" aria-label="Seções de Adiantamentos">${subtabs.map(([lb, to, k, c]) => `<a href="#${to}" ${k === tab ? 'aria-current="page"' : ''}>${lb}${c ? `<span class="count">${c}</span>` : ''}</a>`).join('')}</nav>
+          ${body}
+        </div>
+      </div>
+    </div></div>`;
+
+  const pager = (txt) => `<div class="pager"><span>${txt}</span><div class="pgs"><span>‹</span><span class="on">1</span><span>2</span><span>3</span><span>…</span><span>11</span><span>›</span></div></div>`;
+  const sel = (label, value) => `<div class="field"><span class="lbl">${label}</span><div class="select">${value}${I('expand_more')}</div></div>`;
+
+  const solicRows = [
+    ['ADV-000123', 'Joana Ribeiro', '***.***.***-41', '17/09 10:24', '16/09', '215,67', '129,40', '129,05', 'Nu Pagamentos', '••••4521-7', 'AGUARDANDO_CORTE', 'Não exportada', 'Não paga'],
+    ['ADV-000122', 'Carlos Menezes', '**.***.***/0001-08', '17/09 09:12', '16/09', '342,10', '205,26', '204,91', 'Inter', '••••0917-3', 'AGUARDANDO_CORTE', 'Não exportada', 'Não paga'],
+    ['ADV-000118', 'Priscila Andrade', '**.***.***/0001-55', '16/09 14:51', '15/09', '188,00', '112,80', '112,45', 'Itaú', '••••3310-0', 'PAGA', 'Lote 000121', 'Paga 16/09'],
+    ['ADV-000117', 'Renan Tavares', '***.***.***-02', '16/09 13:40', '15/09', '97,35', '58,41', '58,06', 'Caixa', '••••0045-2', 'EXPORTADA', 'Lote 000122', 'Em processamento'],
+    ['ADV-000116', 'Luana Prates', '**.***.***/0001-11', '16/09 12:05', '15/09', '—', '—', '—', 'Santander', '••••8801-6', 'AGUARDANDO_PRODUCAO', 'Não exportada', 'Não paga'],
+    ['ADV-000115', 'Diego Sampaio', '**.***.***/0001-73', '16/09 11:47', '15/09', '0,00', '0,00', '—', 'PicPay', '••••7712-1', 'INELEGIVEL', '—', '—'],
+    ['ADV-000114', 'Marta Queiroz', '***.***.***-90', '16/09 10:02', '15/09', '251,90', '151,14', '150,79', 'Bradesco', '••••6624-4', 'REJEITADA', '—', '—'],
+    ['ADV-000112', 'Otávio Lins', '**.***.***/0001-29', '16/09 09:31', '15/09', '120,00', '72,00', '71,65', 'Nubank', '••••2290-5', 'LIBERADA', 'Não exportada', 'Não paga'],
+  ];
+
+  const S = [];
+  const add = (id, app, title, render, notes, refs) => S.push({ id, app, title, render, notes, refs });
+
+  // =====================================================================
+  // APP DO MOTORISTA
+  // =====================================================================
+  add('M01', 'm', 'Início', () => phone({ home: true, nav: 'home', body: `
+    <div><div class="muted" style="font-size:.85rem">Quinta-feira, 17 de setembro</div><div style="font-size:1.35rem;font-weight:800">Olá, Joana</div></div>
+    <section class="hero stack" aria-labelledby="h-adv">
+      <div class="row between"><span class="eyebrow" id="h-adv">Adiantamento de hoje</span>${pill('ok', 'schedule', 'Aberto até 15:00')}</div>
+      <div><div class="sub">Estimativa com a produção de ontem</div><div class="big num">R$ 129,05</div></div>
+      <a class="btn block" href="#M03">Ver adiantamento</a>
+    </section>
+    <p class="m-section-title">Movimento aberto</p>
+    <div class="card pad stack">
+      <div class="row between"><span class="muted">Valor da nota</span><span class="amount">R$ 1.482,30</span></div>
+      <div class="row between"><span class="muted">Período</span><span class="num">07/09 a 13/09</span></div>
+      <div class="row between"><span class="muted">Nota fiscal</span>${pill('warn', 'pending', 'Pendente')}</div>
+      <a class="btn outline block" href="#M01">${I('upload')}Validar minha NFS-e</a>
+    </div>
+    <p class="m-section-title">Últimas notificações</p>
+    <div class="card list">
+      <a href="#M09" class="unread"><span class="icotile ok">${I('paid')}</span><span class="grow"><span class="title">Pagamento realizado</span><br><span class="meta">R$ 129,05 · ontem 17:42</span></span></a>
+      <a href="#M02"><span class="icotile muted">${I('notifications')}</span><span class="grow"><span class="title">Ver todas</span></span>${I('chevron_right')}</a>
+    </div>` }),
+    ['A home continua sendo o movimento aberto; ganha o card do adiantamento do dia e a navegação inferior (hoje o app não tem menu).', 'O card nunca some: mostra “aberto até 15:00”, “encerrado” ou “indisponível hoje” conforme o backend.', 'Badge de não lidas no sino e na aba Notificações vem de GET /motorista/notificacoes/nao-lidas.'],
+    'PLANO §19, §23 · D-04, D-15');
+
+  add('M02', 'm', 'Notificações', () => phone({ title: 'Notificações', nav: 'notif', body: `
+    <div class="row between wrap"><div class="chips" role="group" aria-label="Filtro">
+      <button class="chip" aria-pressed="true" type="button">Todas</button>
+      <button class="chip" aria-pressed="false" type="button">Não lidas · 3</button>
+      <button class="chip" aria-pressed="false" type="button">Adiantamento</button>
+      <button class="chip" aria-pressed="false" type="button">Pagamento</button>
+      <button class="chip" aria-pressed="false" type="button">Conta bancária</button>
+      <button class="chip" aria-pressed="false" type="button">Avisos</button>
+    </div></div>
+    <button class="btn ghost sm" type="button" style="justify-self:end">${I('done_all')}Marcar todas como lidas</button>
+    <p class="m-section-title">Esta semana</p>
+    <div class="card list">
+      <a href="#M09" class="unread"><span class="icotile ok">${I('paid')}</span><span class="grow"><span class="title">Pagamento realizado</span><br><span class="meta">R$ 129,05 transferidos para ••••4521-7.</span><br><span class="meta num">16/09/2026 17:42 · Pagamento</span></span></a>
+      <a href="#M11" class="unread"><span class="icotile">${I('task_alt')}</span><span class="grow"><span class="title">Adiantamento liberado</span><br><span class="meta">Produção de 15/09 calculada: você recebe R$ 129,05.</span><br><span class="meta num">16/09/2026 15:01 · Adiantamento</span></span></a>
+      <a href="#M01" class="unread"><span class="icotile warn">${I('campaign')}</span><span class="grow"><span class="title">Mudança no ponto de coleta</span><br><span class="meta">A partir de segunda, a coleta do turno da manhã…</span><br><span class="meta num">15/09/2026 08:30 · Aviso</span></span></a>
+      <a href="#M12" class="notif-read"><span class="icotile ok">${I('account_balance')}</span><span class="grow"><span class="title">Conta bancária aprovada</span><br><span class="meta">Seus próximos pagamentos vão para ••••4521-7.</span><br><span class="meta num">12/09/2026 10:15 · Conta bancária</span></span></a>
+    </div>
+    <p class="m-section-title">Anteriores</p>
+    <div class="card list">
+      <a href="#M10" class="notif-read"><span class="icotile muted">${I('remove_circle')}</span><span class="grow"><span class="title">Adiantamento não liberado</span><br><span class="meta">Não houve produção registrada em 04/09.</span><br><span class="meta num">05/09/2026 15:01 · Adiantamento</span></span></a>
+    </div>`, clock: '18:05' }),
+    ['Histórico persistente (NotificacaoMotorista) com lida/não lida, independente do push.', 'Avisos do hub entram para todo o público escolhido, inclusive quem não ativou push (D-15).', 'Tocar abre o deep link (allowlist) e marca como lida. Data e hora no fuso da configuração.'],
+    'PLANO §12.6, §19 · D-15, Q-N6, Q-N7');
+
+  add('M03', 'm', 'Adiantamento disponível', () => phone({ title: 'Adiantamento', nav: 'adv', body: `
+    <div class="row between">${pill('ok', 'check_circle', 'Disponível hoje')}<span class="muted num" style="font-size:.8rem">até 15:00</span></div>
+    <div class="card pad stack">
+      <div><div class="eyebrow">Produção considerada</div><div style="font-weight:700">Sua solicitação de hoje usa a produção de ontem, quarta-feira, 16/09.</div></div>
+      ${breakdown(false)}
+      <div class="alert"><span class="ms" aria-hidden="true">info</span><p>O valor final é calculado às 15:00, com a produção importada até lá.</p></div>
+    </div>
+    <div class="card pad stack">
+      <div class="eyebrow">Conta de destino</div>
+      ${contaMask}
+      <a class="link" href="#M12">Ver ou alterar dados bancários</a>
+    </div>
+    <div class="card pad stack">
+      <div class="row between"><span class="eyebrow">Dias disponíveis</span><span class="muted" style="font-size:.78rem">09:00 às 15:00</span></div>
+      ${daysRow(4)}
+      <div class="muted" style="font-size:.8rem">Pagamento previsto: entre 17h e 18h de hoje. Uma solicitação por dia.</div>
+    </div>
+    <a class="btn block" href="#M06">Solicitar adiantamento</a>
+    <a class="btn ghost block" href="#M15">${I('help')}Como funciona</a>` }),
+    ['Tudo vem de GET /motorista/adiantamento/disponibilidade (canRequest, regras, estimativa, conta mascarada).', 'A estimativa só aparece quando a produção de ontem já foi importada (~11h10); antes disso o card diz que o valor sai às 15:00.', 'Percentual, taxa, dias, horários e previsão são da configuração vigente; o app não guarda regra.'],
+    'PLANO §8 R-01/R-02/R-07, §13 · D-01..D-06');
+
+  add('M04', 'm', 'Dia indisponível', () => phone({ title: 'Adiantamento', nav: 'adv', clock: '11:02', body: `
+    <div class="row between">${pill('', 'event_busy', 'Indisponível hoje')}<span class="muted" style="font-size:.8rem">domingo, 20/09</span></div>
+    <div class="card pad stack">
+      <div class="row"><span class="icotile muted">${I('event_busy')}</span><div style="font-weight:800;font-size:1.05rem">Hoje não é um dia disponível para novas solicitações.</div></div>
+      <p style="margin:0">Os dias atualmente disponíveis são: segunda, terça, quarta, quinta, sexta e sábado.</p>
+      ${daysRow(0)}
+      <div class="alert"><span class="ms" aria-hidden="true">event_available</span><p><strong>Próxima oportunidade</strong>segunda-feira, 21/09, das 09:00 às 15:00 — usando a produção de domingo.</p></div>
+    </div>
+    <p class="m-section-title">Sua última solicitação</p>
+    <a class="card list" href="#M09" style="text-decoration:none;color:inherit"><span class="row" style="padding:.8rem .9rem"><span class="icotile ok">${I('paid')}</span><span class="grow"><span class="title">Sábado, 19/09</span><br><span class="meta">R$ 131,20</span></span>${st('PAGA')}</span></a>
+    <a class="btn outline block" href="#M15">Ver regras do adiantamento</a>` }),
+    ['reason = DAY_NOT_ALLOWED; nextAvailableAt = 2026-09-21T09:00:00-03:00.', 'A função não é escondida. A frase segue o doc 1 §12 e a lista de dias vem da configuração.', 'Segunda usa a produção de domingo (R-01): o dia habilitado não muda o D-1.'],
+    'PLANO §8 R-01/R-03, §13 · D-04');
+
+  add('M05', 'm', 'Prazo encerrado', () => phone({ title: 'Adiantamento', nav: 'adv', clock: '15:12', body: `
+    <div class="row between">${pill('warn', 'timer_off', 'Prazo encerrado')}<span class="muted" style="font-size:.8rem">quinta, 17/09</span></div>
+    <div class="card pad stack">
+      <div class="row"><span class="icotile warn">${I('timer_off')}</span><div style="font-weight:800;font-size:1.05rem">O prazo para solicitação de hoje terminou às 15:00.</div></div>
+      <div class="alert"><span class="ms" aria-hidden="true">event_available</span><p><strong>Próxima oportunidade</strong>sexta-feira, 18/09, das 09:00 às 15:00.</p></div>
+      <div class="muted" style="font-size:.8rem">O horário é o de Brasília e é conferido pelo servidor, não pelo relógio do celular.</div>
+    </div>
+    <a class="btn outline block" href="#M10">Ver meus adiantamentos</a>` }),
+    ['reason = AFTER_CUTOFF. Fronteira: 14:59:59 permite, 15:00:00 bloqueia (R-02).', 'Antes das 09:00 a tela equivalente usa reason = BEFORE_OPENING e “Abre hoje às 09:00”.', 'Próxima oportunidade calculada no backend com dias habilitados + abertura.'],
+    'PLANO §8 R-02, §25 casos 3–4, 27');
+
+  add('M06', 'm', 'Solicitação', () => phone({ title: 'Adiantamento', nav: 'adv', body: `
+      <div class="card pad stack" aria-hidden="true">${breakdown(false)}</div>`,
+    overlay: `<div class="sheet-backdrop"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
+      <span class="grab" aria-hidden="true"></span>
+      <h2 id="sh-t" style="margin:0;font-size:1.15rem;font-weight:800">Confirmar solicitação</h2>
+      ${breakdown(false)}
+      ${contaMask}
+      <div class="card pad" style="background:var(--muted);border:0;font-size:.82rem">
+        <strong>Termos do adiantamento (versão 3)</strong>
+        <ul style="margin:.35rem 0 0;padding-left:1.1rem;display:grid;gap:.2rem">
+          <li>Valor de 60% da produção de ontem, sem acúmulo de dias.</li>
+          <li>Taxa de transferência de R$ 0,35 descontada deste pagamento.</li>
+          <li>O valor bruto (R$ 129,40 nesta estimativa) é descontado do repasse semanal.</li>
+          <li>Você pode cancelar até as 15:00 de hoje.</li>
+        </ul>
+      </div>
+      <label class="check" for="aceite"><input id="aceite" type="checkbox" checked><span>Li e concordo com os termos acima.</span></label>
+      <a class="btn block" href="#M07">Confirmar solicitação</a>
+      <a class="btn ghost block" href="#M03">Voltar</a>
+    </div></div>` }),
+    ['O aceite é obrigatório (regra que permanece do Typebot). O texto é gerado da configuração e o hash dele fica gravado com a solicitação.', 'POST /motorista/adiantamentos {aceite, chaveIdempotencia}: duplo toque devolve a mesma solicitação.', 'O backend revalida janela, conta aprovada, vínculo e “1 por dia” no momento do envio.'],
+    'PLANO §8 R-04/R-05/R-06, §16.1 · D-11, D-14');
+
+  add('M07', 'm', 'Aguardando processamento', () => phone({ title: 'Adiantamento', nav: 'adv', body: `
+    <div class="alert ok"><span class="ms" aria-hidden="true">check_circle</span><p><strong>Solicitação recebida às 10:24</strong>Nº <span class="mono">ADV-000123</span></p></div>
+    <div class="card pad stack">
+      <div class="row between"><span class="eyebrow">Andamento</span>${st('AGUARDANDO_CORTE')}</div>
+      ${tl([
+        ['done', 'Solicitação recebida', 'hoje, 10:24'],
+        ['current', 'Aguardando fechamento', 'o cálculo acontece às 15:00'],
+        ['todo', 'Produção calculada', ''],
+        ['todo', 'Adiantamento liberado', ''],
+        ['todo', 'Incluído para pagamento', ''],
+        ['todo', 'Pagamento em processamento', ''],
+        ['todo', 'Pagamento realizado', 'previsto entre 17h e 18h'],
+      ])}
+    </div>
+    <div class="card pad">${breakdown(false)}</div>
+    <button class="btn danger block" type="button">${I('cancel')}Cancelar solicitação</button>
+    <p class="muted" style="margin:0;font-size:.78rem;text-align:center">Disponível até 15:00. Depois disso a solicitação segue para o cálculo.</p>` }),
+    ['Estado AGUARDANDO_CORTE: cobre “Solicitação recebida” e “Aguardando fechamento” da timeline.', 'Cancelar só antes do corte (D-14). Após cancelar, pode pedir de novo no mesmo dia até o corte (Q-N1).', 'Se a produção de ontem não chegar, a etapa vira “Aguardando produção” (pendência do financeiro).'],
+    'PLANO §11.1 · D-03, D-14, Q-N1');
+
+  add('M08', 'm', 'Pagamento em processamento', () => phone({ title: 'ADV-000123', back: 'M10', nav: 'adv', clock: '16:20', body: `
+    <section class="hero stack"><span class="eyebrow">Pagamento em processamento</span><div class="big num">R$ 129,05</div><div class="sub">Previsto entre 17h e 18h de hoje, na conta ••••4521-7.</div></section>
+    <div class="card pad stack">
+      ${tl([
+        ['done', 'Solicitação recebida', '17/09, 10:24'],
+        ['done', 'Aguardando fechamento', 'encerrado às 15:00'],
+        ['done', 'Produção calculada', 'R$ 215,67 de 16/09'],
+        ['done', 'Adiantamento liberado', 'R$ 129,05 líquidos'],
+        ['done', 'Incluído para pagamento', '17/09, 15:40'],
+        ['current', 'Pagamento em processamento', 'enviado ao banco pela Movee'],
+        ['todo', 'Pagamento realizado', ''],
+      ])}
+    </div>
+    <div class="card pad stack"><div class="eyebrow">Conta de destino</div>${contaMask}</div>` }),
+    ['Estado EXPORTADA (arquivo baixado pelo financeiro). Exportado ≠ pago: só vira “Pagamento realizado” com o retorno da Transfeera ou a confirmação manual.', 'Número do lote não é exibido ao motorista; a timeline mostra a data.'],
+    'PLANO §11.1, §14 · D-16');
+
+  add('M09', 'm', 'Pagamento concluído', () => phone({ title: 'ADV-000123', back: 'M10', nav: 'adv', clock: '17:45', body: `
+    <section class="hero paid stack"><div class="row between"><span class="eyebrow">Pagamento realizado</span>${I('verified', 'fill')}</div><div class="big num">R$ 129,05</div><div class="sub">Transferido em 17/09/2026 às 17:42 para ••••4521-7.</div></section>
+    <div class="card pad">${breakdown(true)}</div>
+    <div class="alert"><span class="ms" aria-hidden="true">event_repeat</span><p><strong>Desconto no repasse</strong>R$ 129,40 (valor bruto) serão descontados do repasse de quarta, 23/09. A taxa já foi cobrada aqui.</p></div>
+    <div class="card pad stack">
+      ${tl([
+        ['done', 'Solicitação recebida', '17/09, 10:24'],
+        ['done', 'Produção calculada', 'R$ 215,67 de 16/09'],
+        ['done', 'Adiantamento liberado', '17/09, 15:01'],
+        ['done', 'Incluído para pagamento', '17/09, 15:40'],
+        ['done', 'Pagamento em processamento', '17/09, 16:05'],
+        ['done', 'Pagamento realizado', '17/09, 17:42'],
+      ])}
+    </div>` }),
+    ['Estado PAGA. A frase do desconto usa o valor BRUTO (D-11) e o repasse do período da data de produção (D-12).', 'Etapas já concluídas podem ser recolhidas; aqui estão abertas para a revisão.'],
+    'PLANO §11.1, §18 · D-11, D-12');
+
+  add('M10', 'm', 'Histórico', () => phone({ title: 'Meus adiantamentos', nav: 'adv', body: `
+    <div class="card list">
+      ${[
+        ['M07', 'Hoje, 17/09', 'Estimativa R$ 129,05', 'AGUARDANDO_CORTE', 'schedule', ''],
+        ['M09', 'Quarta, 16/09', 'R$ 129,05', 'PAGA', 'paid', 'ok'],
+        ['M09', 'Terça, 15/09', 'R$ 98,12', 'PAGA', 'paid', 'ok'],
+        ['M11', 'Segunda, 14/09', 'R$ 151,14', 'REJEITADA', 'block', 'bad'],
+        ['M10', 'Sábado, 12/09', 'Sem produção em 11/09', 'INELEGIVEL', 'remove_circle', 'muted'],
+        ['M10', 'Sexta, 11/09', 'Cancelado por você às 11:20', 'CANCELADA', 'close', 'muted'],
+        ['M10', 'Quinta, 10/09', 'R$ 88,40', 'FALHOU', 'error', 'bad'],
+      ].map(([to, d, v, s, ic, k]) => `<a href="#${to}"><span class="icotile ${k}">${I(ic)}</span><span class="grow"><span class="title">${d}</span><br><span class="meta num">${v}</span></span>${st(s)}</a>`).join('')}
+    </div>
+    <button class="btn outline block" type="button">Carregar mais</button>`, clock: '18:10' }),
+    ['GET /motorista/adiantamentos?pagina — ordenado pela data da solicitação.', 'Todos os estados têm ícone + texto (nunca só cor).', '“Pagamento falhou” leva ao detalhe com o motivo e a informação de que o financeiro vai reprocessar.'],
+    'PLANO §11.1, §16.1');
+
+  add('M11', 'm', 'Detalhes', () => phone({ title: 'ADV-000108', back: 'M10', nav: 'adv', body: `
+    <div class="row between"><span style="font-weight:800;font-size:1.05rem">Segunda, 14/09</span>${st('REJEITADA')}</div>
+    <div class="alert bad"><span class="ms" aria-hidden="true">block</span><p><strong>Rejeitado pelo financeiro</strong>Motivo: produção de 13/09 em revisão com a operação. Fale com o suporte se tiver dúvida.</p></div>
+    <div class="card pad stack">
+      <div class="eyebrow">Cálculo</div>
+      <div class="lines num">
+        <div><span>Produção de domingo, 13/09</span><span>R$ 251,90</span></div>
+        <div><span>Percentual aplicado</span><span>60%</span></div>
+        <div><span>Valor bruto</span><span>R$ 151,14</span></div>
+        <div><span>Taxa</span><span>− R$ 0,35</span></div>
+        <div class="total"><span>Valor líquido</span><span>R$ 150,79</span></div>
+      </div>
+      <div class="muted" style="font-size:.78rem">Regras da versão 3, vigentes quando você pediu. Mudanças posteriores não alteram esta solicitação.</div>
+    </div>
+    <div class="card pad stack">
+      ${tl([
+        ['done', 'Solicitação recebida', '14/09, 09:48'],
+        ['done', 'Aguardando fechamento', 'encerrado às 15:00'],
+        ['done', 'Produção calculada', 'R$ 251,90'],
+        ['done', 'Adiantamento liberado', '14/09, 15:01'],
+        ['fail', 'Rejeitado', '14/09, 15:32 · financeiro'],
+      ])}
+    </div>`, clock: '18:12' }),
+    ['Detalhe com o snapshot financeiro (data, produção, %, taxa, bruto, líquido, versão da regra).', 'Ramo de rejeição (veto, D-03) com motivo obrigatório. Inelegível e falha usam o mesmo desenho.'],
+    'PLANO §8 R-06/R-11, §12.3 · D-03');
+
+  add('M12', 'm', 'Dados bancários', () => phone({ title: 'Conta', nav: 'conta', body: `
+    <div class="card pad stack">
+      <div class="row between"><span class="eyebrow">Conta para pagamentos</span>${pill('ok', 'verified', 'Aprovada')}</div>
+      ${contaMask}
+      <dl class="twocol" style="margin:0">
+        <div class="kv"><dt>Titular</dt><dd>Joana Ribeiro Serviços</dd></div>
+        <div class="kv"><dt>CNPJ</dt><dd class="num">12.***.***/0001-90</dd></div>
+        <div class="kv"><dt>Chave PIX</dt><dd>E-mail · jo••••@•••.com</dd></div>
+        <div class="kv"><dt>Comprovante</dt><dd>jo••••@•••.com</dd></div>
+      </dl>
+      <div class="muted" style="font-size:.78rem">Aprovada em 12/09/2026. A chave PIX é só para uso interno.</div>
+    </div>
+    <a class="btn block" href="#M13">${I('edit')}Alterar dados bancários</a>
+    <div class="alert"><span class="ms" aria-hidden="true">info</span><p>Toda alteração passa pela análise do financeiro. Enquanto isso, seus pagamentos continuam indo para a conta atual.</p></div>
+    <p class="m-section-title">Mais</p>
+    <div class="card list">
+      <a href="#M15"><span class="icotile muted">${I('rule')}</span><span class="grow title">Regras do adiantamento</span>${I('chevron_right')}</a>
+      <a href="#M16"><span class="icotile muted">${I('event_repeat')}</span><span class="grow title">Previsão do repasse</span>${I('chevron_right')}</a>
+      <a href="#M12"><span class="icotile muted">${I('logout')}</span><span class="grow title">Sair</span></a>
+    </div>` }),
+    ['Mostra só a conta do próprio motorista, mascarada.', 'Sem conta aprovada o adiantamento não abre (D-07): reason = NO_BANK_ACCOUNT ou BANK_ACCOUNT_PENDING.', 'PF/PJ é derivado do documento (CPF → PF, CNPJ → PJ) e exibido, não digitado.'],
+    'PLANO §7.2, §11.3 · D-07, D-18');
+
+  add('M13', 'm', 'Alteração bancária', () => phone({ title: 'Alterar dados bancários', back: 'M12', body: `
+    <div class="field"><label for="f-nome">Nome ou razão social do titular</label><input class="input" id="f-nome" value="Joana Ribeiro Serviços"></div>
+    <div class="field"><label for="f-doc">CPF ou CNPJ do titular</label><input class="input num" id="f-doc" inputmode="numeric" value="12.345.678/0001-90"><span class="hint">CNPJ → pessoa jurídica</span></div>
+    <div class="field"><label for="f-banco">Banco</label><div class="select" id="f-banco" style="min-height:2.75rem;border-radius:.7rem">077 · Banco Inter S.A. ${I('search')}</div></div>
+    <div class="threecol">
+      <div class="field"><label for="f-ag">Agência</label><input class="input num" id="f-ag" inputmode="numeric" value="0001"></div>
+      <div class="field"><label for="f-cc">Conta</label><input class="input num" id="f-cc" inputmode="numeric" value="0098812"></div>
+      <div class="field"><label for="f-dv">Dígito</label><input class="input num" id="f-dv" value="0"></div>
+    </div>
+    <span class="hint muted" style="font-size:.75rem;margin-top:-.4rem">Sem o dígito da agência. Zeros à esquerda são mantidos.</span>
+    <div class="field"><span class="lbl">Tipo de conta</span><div class="radio-cards" role="radiogroup" aria-label="Tipo de conta"><label class="on"><input type="radio" name="tp" checked> Corrente</label><label><input type="radio" name="tp"> Poupança</label></div></div>
+    <div class="twocol">
+      <div class="field"><label for="f-pt">Tipo de chave PIX</label><div class="select" id="f-pt" style="min-height:2.75rem;border-radius:.7rem">CNPJ ${I('expand_more')}</div></div>
+      <div class="field"><label for="f-px">Chave PIX (opcional)</label><input class="input num" id="f-px" value="12.345.678/0001-90"></div>
+    </div>
+    <div class="field"><label for="f-em">E-mail para comprovante (opcional)</label><input class="input" id="f-em" type="email" value="joana@exemplo.com"><span class="hint">Se preenchido, o banco envia o comprovante para este e-mail.</span></div>
+    <div class="card pad stack" style="background:var(--muted);border:0">
+      <div class="eyebrow">Confira antes de enviar</div>
+      <div class="num" style="font-size:.85rem">Inter · 077 · Ag. 0001 · Conta corrente 0098812-0<br>Titular: Joana Ribeiro Serviços · CNPJ</div>
+    </div>
+    <a class="btn block" href="#M14">Enviar para análise</a>` }),
+    ['Conta e dígito são campos separados desde o formulário (doc 2 §4); agência sempre com 4 dígitos.', 'Validação no app e no backend: DV do CPF/CNPJ, banco na lista COMPE, formatos, PIX por tipo, e-mail.', 'Só Corrente e Poupança (D-19). E-mail opcional vira a coluna “Email” da Transfeera (D-18).', 'Reenviar com uma pendente em aberto cancela a anterior (§11.3).'],
+    'PLANO §7, §11.3, §20 · D-18, D-19, Q-N18');
+
+  add('M14', 'm', 'Rejeição', () => phone({ title: 'Conta', nav: 'conta', body: `
+    <div class="alert bad"><span class="ms" aria-hidden="true">cancel</span><p><strong>Alteração não aprovada</strong>Motivo: o titular informado não confere com o seu cadastro. Envie uma conta em seu nome ou do seu MEI.</p></div>
+    <div class="card pad stack">
+      <div class="row between"><span class="eyebrow">Solicitação de 16/09</span>${pill('bad', 'block', 'Rejeitada')}</div>
+      <div class="num" style="font-size:.85rem">Inter · 077 · Ag. 0001 · CC 0098812-0<br>Titular: Paulo Ribeiro · CPF</div>
+    </div>
+    <div class="card pad stack">
+      <div class="row between"><span class="eyebrow">Conta em uso</span>${pill('ok', 'verified', 'Aprovada')}</div>
+      ${contaMask}
+      <div class="muted" style="font-size:.8rem">Seus pagamentos continuam indo para esta conta.</div>
+    </div>
+    <a class="btn block" href="#M13">Corrigir e reenviar</a>` }),
+    ['Rejeição com motivo obrigatório, notificada (M02). A conta atual permanece ativa (doc 1 §16).', 'O motorista corrige a partir dos dados enviados (formulário pré-preenchido).'],
+    'PLANO §10.2, §11.3');
+
+  add('M15', 'm', 'Regras', () => phone({ title: 'Como funciona', back: 'M03', body: `
+    <div class="card pad stack">
+      <div><div class="eyebrow">Produção considerada</div><p style="margin:.2rem 0 0">Sua solicitação de hoje usa a produção registrada ontem.</p></div>
+      <div><div class="eyebrow">Percentual</div><p style="margin:.2rem 0 0">Você pode antecipar <strong>60%</strong> da produção elegível.</p></div>
+      <div><div class="eyebrow">Taxa</div><p style="margin:.2rem 0 0">R$ 0,35 por solicitação, descontados do valor transferido.</p></div>
+      <div><div class="eyebrow">Dias disponíveis</div><p style="margin:.2rem 0 .4rem">Segunda, terça, quarta, quinta, sexta e sábado.</p>${daysRow(4)}</div>
+      <div><div class="eyebrow">Prazo</div><p style="margin:.2rem 0 0">Faça sua solicitação das <strong>09:00</strong> até <strong>15:00</strong> (horário de Brasília).</p></div>
+      <div><div class="eyebrow">Pagamento</div><p style="margin:.2rem 0 0">Previsto entre 17h e 18h do mesmo dia, na sua conta aprovada.</p></div>
+      <div><div class="eyebrow">Limite</div><p style="margin:.2rem 0 0">Uma solicitação por dia. Dias sem solicitação não acumulam. Você pode cancelar até as 15:00.</p></div>
+      <div><div class="eyebrow">Repasse semanal</div><p style="margin:.2rem 0 0">O valor bruto adiantado é descontado do repasse do período da produção.</p></div>
+    </div>
+    <p class="muted" style="margin:0;font-size:.78rem">Regras vigentes desde 16/09/2026 (versão 3).</p>` }),
+    ['Gerado de GET /motorista/adiantamento/regras (configuração vigente). Exemplo do doc 1 §6.', 'Nenhum número desta tela existe no código do app.'],
+    'PLANO §8 R-18, §13 · doc 1 §6');
+
+  add('M16', 'm', 'Previsão do repasse', () => phone({ title: 'Previsão do repasse', back: 'M12', body: `
+    <div class="card pad stack">
+      <div class="row between"><span class="eyebrow">Repasse de quarta, 23/09</span>${pill('info', 'schedule', 'Em apuração')}</div>
+      <div class="muted num" style="font-size:.82rem">Produção de 10/09 a 16/09</div>
+      <div class="lines num">
+        <div><span>Produção do período</span><span>R$ 1.000,00</span></div>
+        <div><span>Adiantamento de 16/09 (bruto)</span><span>− R$ 129,40</span></div>
+        <div class="total"><span>Previsão a receber</span><span>R$ 870,60</span></div>
+      </div>
+      <div class="alert"><span class="ms" aria-hidden="true">info</span><p>A taxa de R$ 0,35 já foi descontada no adiantamento e não é cobrada de novo. Valores podem mudar até o fechamento.</p></div>
+    </div>` }),
+    ['Só aparece se “mostrar no app” estiver ligado (D-13); caso contrário GET /motorista/repasse devolve 404 e o item some do menu.', 'Exemplo aprovado: R$ 1.000,00 − R$ 129,40 = R$ 870,60 (D-11). Período e data de repasse ilustrativos (Q-B2).'],
+    'PLANO §18 · D-09..D-13');
+
+  // =====================================================================
+  // HUB
+  // =====================================================================
+  add('H01', 'h', 'Solicitações', () => hub({ path: '', tab: 'sol', title: 'Adiantamentos', sub: 'Solicitações dos motoristas, cálculo e situação do pagamento.', action: `<button class="btn outline sm" type="button">${I('download')}Exportar CSV</button>`, body: `
+    <div class="card filterbar">
+      <div class="field"><span class="lbl">Período da solicitação</span><div class="chips"><span class="chip" aria-pressed="true">Hoje</span><span class="chip" aria-pressed="false">7 dias</span><span class="chip" aria-pressed="false">30 dias</span><span class="chip" aria-pressed="false">Este mês</span></div></div>
+      <div class="field"><label class="lbl" for="h-bus">Motorista</label><input class="hinput" id="h-bus" placeholder="Nome, CNPJ ou nº ADV"></div>
+      ${sel('Status', 'Todos')}
+      ${sel('Exportação', 'Todas')}
+      ${sel('Pagamento', 'Todos')}
+      <div class="actions"><span class="muted" style="font-size:.8rem">De 17/09/2026 a 17/09/2026 · 212 solicitações</span><button class="btn ghost sm" type="button" disabled>Limpar filtros (0)</button></div>
+    </div>
+    <div class="card tbl-wrap">
+      <table>
+        <caption class="sr">Solicitações de adiantamento</caption>
+        <thead><tr><th>Nº</th><th>Motorista</th><th>CPF/CNPJ</th><th>Solicitada</th><th>Produção</th><th class="r">Produção R$</th><th class="r">%</th><th class="r">Taxa</th><th class="r">Bruto</th><th class="r">Líquido</th><th>Banco</th><th>Conta</th><th>Status</th><th>Exportação</th><th>Pagamento</th></tr></thead>
+        <tbody>${solicRows.map((r) => `<tr><td><a class="link mono" href="#H02">${r[0]}</a></td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td><td class="r">${r[5]}</td><td class="r">60</td><td class="r">0,35</td><td class="r">${r[6]}</td><td class="r"><b>${r[7]}</b></td><td>${r[8]}</td><td class="num">${r[9]}</td><td>${hst(r[10])}</td><td>${r[11]}</td><td>${r[12]}</td></tr>`).join('')}</tbody>
+      </table>
+      ${pager('Mostrando 1–20 de 212')}
+    </div>` }),
+    ['Colunas e filtros do doc 1 §17: período, motorista, status, exportado/não exportado, pago/não pago. Filtros na URL, 20 por página, ordenação no servidor.', 'CPF/CNPJ e conta sempre mascarados na lista.', '“Aguardando produção” aparece como pendência (D-1 ainda não importado).'],
+    'PLANO §16.2, §21, §23');
+
+  add('H02', 'h', 'Detalhes', () => hub({ path: '/000114', tab: 'sol', title: 'ADV-000114', sub: 'Marta Queiroz · solicitada em 16/09/2026 10:02', action: `<button class="btn solid-danger sm" type="button">${I('block')}Rejeitar</button>`, body: `
+    <div class="row wrap">${hst('LIBERADA')}<span class="pill">${I('description')}Regra versão 3</span><span class="pill">${I('database')}Financeiro por lançamento</span></div>
+    <div class="grid3">
+      <div class="card pad stack"><div class="eyebrow">Motorista</div>
+        <dl class="stack" style="margin:0"><div class="kv"><dt>Conta do app</dt><dd class="num">CNPJ **.***.***/0001-90</dd></div><div class="kv"><dt>Entregador vinculado</dt><dd>Marta Queiroz <span class="mono muted">7f3c…e21a</span></dd></div><div class="kv"><dt>Vínculo</dt><dd>Confirmado na aprovação bancária de 02/09</dd></div></dl></div>
+      <div class="card pad stack"><div class="eyebrow">Cálculo (produção de 15/09)</div>
+        <div class="lines num"><div><span>Corridas concluídas</span><span>198,40</span></div><div><span>Valor por Hora Online</span><span>41,00</span></div><div><span>Gorjeta</span><span>12,50</span></div><div><span>Produção</span><span>251,90</span></div><div><span>60% (meio para cima)</span><span>151,14</span></div><div><span>Taxa</span><span>− 0,35</span></div><div class="total"><span>Líquido</span><span>R$ 150,79</span></div></div>
+        <div class="muted" style="font-size:.78rem">23 lançamentos · calculado em 16/09 15:00:41</div></div>
+      <div class="card pad stack"><div class="eyebrow">Conta de destino (snapshot)</div>
+        <dl class="stack" style="margin:0"><div class="kv"><dt>Banco</dt><dd>237 · Bradesco</dd></div><div class="kv"><dt>Agência / conta</dt><dd class="num">3310 · ••••6624-4 · Corrente</dd></div><div class="kv"><dt>Titular</dt><dd class="num">Marta Queiroz · ***.***.***-90</dd></div></dl>
+        <span class="pill ok" style="justify-self:start">${I('verified')}Ainda é a conta aprovada</span></div>
+    </div>
+    <div class="grid2">
+      <div class="card pad stack"><div class="eyebrow">Eventos</div>
+        ${tl([
+          ['done', 'Solicitada pelo motorista', '16/09 10:02 · aceite dos termos v3'],
+          ['done', 'Fechamento', '16/09 15:00 · sistema'],
+          ['done', 'Calculada e liberada', '16/09 15:00 · sistema · R$ 150,79'],
+          ['current', 'Aguardando inclusão em lote', ''],
+        ])}</div>
+      <div class="dlg-back"><div class="dlg" role="dialog" aria-labelledby="rej-t">
+        <h2 id="rej-t">Rejeitar ADV-000114?</h2>
+        <p style="margin:0">A solicitação não poderá entrar em lote. O motorista recebe uma notificação com o motivo.</p>
+        <div class="field"><label for="rej-m">Motivo (obrigatório)</label><textarea class="input" id="rej-m">Produção de 15/09 em revisão com a operação.</textarea><span class="hint">Aparece para o motorista. 44/300</span></div>
+        <div class="row" style="justify-content:flex-end"><button class="btn outline sm" type="button">Voltar</button><button class="btn solid-danger sm" type="button">Rejeitar solicitação</button></div>
+      </div></div>
+    </div>` }),
+    ['Veto do financeiro (D-03): só em LIBERADA ou AGUARDANDO_PRODUCAO, com motivo obrigatório; auditado.', 'Mostra a composição da produção por categoria (snapshot), a versão da regra e a conta congelada na liberação.', 'Outras ações por estado: Recalcular / Encerrar (aguardando produção), Reprocessar (falhou), Atualizar conta (conta alterada).'],
+    'PLANO §8 R-10/R-11, §12.3, §22');
+
+  const cfg = (focus) => hub({ path: '/configuracoes', tab: 'cfg', title: 'Configurações', sub: 'Regras vigentes do adiantamento. Salvar cria uma nova versão; solicitações já feitas não mudam.', action: `<button class="btn outline sm" type="button">Descartar</button><button class="btn sm" type="button">${I('save')}Salvar versão 4</button>`, body: `
+    <div class="alert"><span class="ms" aria-hidden="true">history</span><p><strong>Versão 3 · vigente desde 16/09/2026 10:02</strong>Alterada por Ana Financeiro. 212 solicitações de hoje continuam na versão 3.</p></div>
+    <div class="card ${focus === 'dias' ? 'focus-ring' : ''}" id="cfg-dias">
+      <div class="sec-h"><div><h2>Quando o motorista pode pedir</h2><p>Dias em que é possível <b>solicitar</b>. A produção considerada é sempre a do dia anterior.</p></div></div>
+      <div class="sec-b">
+        <div class="field"><span class="lbl">Dias habilitados</span><div class="chips">${['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((d, i) => `<span class="chip" aria-pressed="${i < 6}">${i < 6 ? I('check') : I('close')}${d}</span>`).join('')}</div><span class="hint">Segunda-feira usa a produção de domingo.</span></div>
+        <div class="grid3 ${focus === 'corte' ? 'focus-ring' : ''}" id="cfg-corte" style="border-radius:.6rem">
+          <div class="field"><label for="c-ab">Abertura</label><input class="hinput num" id="c-ab" type="time" value="09:00"><span class="hint">09:00:00 já permite.</span></div>
+          <div class="field"><label for="c-co">Horário de corte</label><input class="hinput num" id="c-co" type="time" value="15:00"><span class="hint">14:59:59 permite · 15:00:00 bloqueia.</span></div>
+          <div class="field"><span class="lbl">Fuso horário</span><div class="select">America/Sao_Paulo ${I('lock')}</div><span class="hint">Validação no servidor; o relógio do celular é ignorado.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec-h"><div><h2>Cálculo</h2><p>Fonte da produção, categorias, percentual e taxa.</p></div></div>
+      <div class="sec-b">
+        <div class="field"><span class="lbl">Fonte da produção de ontem</span>
+          <div class="radio-cards" style="grid-template-columns:repeat(3,1fr)">
+            <label class="on"><input type="radio" name="fonte" checked><span>Financeiro por data de lançamento<br><span class="hint muted" style="font-weight:500">Completo ~11h10. Pode incluir hora online e bônus de dias anteriores.</span></span></label>
+            <label><input type="radio" name="fonte"><span>Financeiro por competência<br><span class="hint muted" style="font-weight:500">Incompleto no dia: ~26% das linhas chegam no dia seguinte.</span></span></label>
+            <label><input type="radio" name="fonte"><span>Performance (taxas aceitas)<br><span class="hint muted" style="font-weight:500">Mede corridas aceitas, não o valor creditado.</span></span></label>
+          </div></div>
+        <div class="field"><span class="lbl">Categorias que entram na produção</span>
+          <div class="chips">${[['Corridas concluidas', 1], ['Valor por Hora Online', 1], ['Gorjeta', 1], ['Promocao entregador', 0], ['Garantido Entregador', 0], ['Tempo de espera na origem', 0], ['Promocao - Dias Produtivos Franquias', 0], ['Valor pago pelo iFood', 0]].map(([c, on]) => `<span class="chip" aria-pressed="${!!on}">${on ? I('check') : ''}${c}</span>`).join('')}<span class="chip" aria-pressed="false" aria-disabled="true" style="opacity:.6">Percentual atingido de… · sem motorista identificado</span></div>
+          <span class="hint">Categorias encontradas nos últimos 90 dias de importação.</span></div>
+        <div class="grid3">
+          <div class="field"><label for="c-pc">Percentual</label><input class="hinput num" id="c-pc" value="60"><span class="hint">% da produção</span></div>
+          <div class="field"><label for="c-tx">Taxa fixa por solicitação</label><input class="hinput num" id="c-tx" value="R$ 0,35"></div>
+          <div class="card pad" style="background:var(--muted);border:0"><div class="eyebrow">Exemplo</div><div class="num" style="font-size:.85rem">R$ 215,67 × 60% = <b>R$ 129,40</b> (meio para cima)<br>− R$ 0,35 = <b>R$ 129,05</b></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="sec-h"><div><h2>Pagamento</h2><p>Textos exibidos ao motorista e no arquivo.</p></div></div>
+        <div class="sec-b">
+          <div class="field"><label for="c-pv">Previsão de pagamento</label><input class="hinput" id="c-pv" value="entre 17h e 18h de hoje"></div>
+          <div class="field"><label for="c-dp">Modelo da Descrição Pix</label><input class="hinput mono" id="c-dp" value="Antecipação entregador mei {data_producao}_{nome}"><span class="hint">Prévia: “Antecipação entregador mei 16.09.26_Joana Ribeiro Serviços” · 60/140</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec-h"><div><h2>Repasse semanal</h2><p>Como o remanescente é apurado.</p></div></div>
+        <div class="sec-b">
+          <div class="grid2">${sel('Início da janela (7 dias)', 'A definir')}<div class="field"><label for="c-dr">Dias após o fim até o repasse</label><input class="hinput num" id="c-dr" placeholder="A definir"></div></div>
+          ${sel('Data dos lançamentos', 'Data de lançamento')}
+          <div class="field"><span class="lbl">Descontos considerados</span><label class="check" for="c-d1"><input id="c-d1" type="checkbox" checked><span>Adiantamentos pagos (valor bruto)</span></label><label class="check" for="c-d2"><input id="c-d2" type="checkbox"><span>Débitos da EntreGô</span></label></div>
+          <label class="check" for="c-app"><input id="c-app" type="checkbox"><span>Mostrar a previsão do repasse no app do motorista</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="card tbl-wrap">
+      <table><caption>Histórico de versões</caption>
+        <thead><tr><th>Versão</th><th>Vigente desde</th><th>Alterado por</th><th>O que mudou</th><th>Motivo</th></tr></thead>
+        <tbody>
+          <tr><td class="num"><b>3</b></td><td class="num">16/09/2026 10:02</td><td>Ana Financeiro</td><td>Dias: <span class="diff-del">ter–sáb</span> → seg–sáb</td><td>Segunda liberada pela diretoria</td></tr>
+          <tr><td class="num">2</td><td class="num">14/09/2026 18:40</td><td>Ana Financeiro</td><td>Categorias: + Gorjeta</td><td>—</td></tr>
+          <tr><td class="num">1</td><td class="num">14/09/2026 09:00</td><td>Sistema (migração)</td><td>Valores iniciais do Typebot</td><td>Configuração inicial</td></tr>
+        </tbody></table>
+    </div>` });
+  add('H03', 'h', 'Configurações', () => cfg(''),
+    ['Configuração central versionada (AdiantamentoConfiguracao): salvar cria a versão N+1; solicitações ficam com a versão da criação (R-06).', 'Tudo que o operador pediu parametrizável: fonte, categorias, dias, abertura, corte, %, taxa, previsão, Descrição Pix, janela do repasse, descontos, visibilidade no app.', 'Conflito de edição simultânea → 409 VERSAO_DESATUALIZADA. Alteração auditada com o diff.', 'Campos do repasse “A definir” = Q-B2: o módulo não aceita solicitações até o financeiro preencher.'],
+    'PLANO §12.1, §13 · D-01..D-13, D-21');
+  add('H04', 'h', 'Dias permitidos', () => cfg('dias'),
+    ['Os dias configurados dizem quando se pode SOLICITAR; não mudam a regra produção = D-1 (doc 1 §4).', 'Configuração inicial: segunda a sábado habilitados, domingo desabilitado.'],
+    'PLANO §8 R-01/R-03 · D-04');
+  add('H05', 'h', 'Horário de corte', () => cfg('corte'),
+    ['Fronteira documentada e testada: abertura inclusiva, corte exclusivo (08:59:59 ✗ · 09:00:00 ✓ · 14:59:59 ✓ · 15:00:00 ✗).', 'O fuso é explícito na configuração e o container (UTC) nunca é usado para decidir o dia.'],
+    'PLANO §8 R-02, §17 · D-04');
+
+  add('H06', 'h', 'Dados bancários', () => hub({ path: '/contas', tab: 'contas', title: 'Contas bancárias', sub: 'Solicitações de cadastro e alteração de dados bancários.', body: `
+    <div class="card filterbar">
+      <div class="field"><span class="lbl">Situação</span><div class="seg"><span aria-pressed="true">Pendentes · 1.735</span><span>Aprovadas</span><span>Rejeitadas</span></div></div>
+      ${sel('Origem', 'Todas')}
+      ${sel('Alertas', 'Todos')}
+      <div class="field"><label class="lbl" for="cb-b">Motorista</label><input class="hinput" id="cb-b" placeholder="Nome ou documento"></div>
+      ${sel('Banco', 'Todos')}
+    </div>
+    <div class="card tbl-wrap">
+      <table><caption class="sr">Contas pendentes</caption>
+        <thead><tr><th><input type="checkbox" aria-label="Selecionar página"></th><th>Motorista</th><th>Entregador vinculado</th><th>Titular</th><th>Documento</th><th>Banco</th><th class="r">Agência</th><th>Conta</th><th>Origem</th><th>Alertas</th><th>Enviada em</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><input type="checkbox" aria-label="Selecionar"></td><td>Joana Ribeiro</td><td>Joana Ribeiro <span class="mono muted">7f3c…</span></td><td>Joana Ribeiro Serviços</td><td class="num">**.***.***/0001-90</td><td>077 Inter</td><td class="r">0001</td><td class="num">••••8812-0</td><td>${pill('info', 'smartphone', 'App')}</td><td>${pill('warn', 'swap_horiz', 'Altera conta aprovada')}</td><td class="num">16/09 18:22</td><td><a class="link" href="#H07">Revisar</a></td></tr>
+          <tr class="sel"><td><input type="checkbox" checked aria-label="Selecionar"></td><td>Carlos Menezes</td><td>Carlos Menezes <span class="mono muted">a91d…</span></td><td>Carlos Menezes</td><td class="num">**.***.***/0001-08</td><td>260 Nu</td><td class="r">0001</td><td class="num">••••0917-3</td><td>${pill('', 'table_view', 'Carga inicial')}</td><td class="muted">—</td><td class="num">14/09 09:00</td><td><a class="link" href="#H07">Revisar</a></td></tr>
+          <tr class="sel"><td><input type="checkbox" checked aria-label="Selecionar"></td><td>Priscila Andrade</td><td>Priscila Andrade <span class="mono muted">c02e…</span></td><td>Priscila Andrade</td><td class="num">**.***.***/0001-55</td><td>341 Itaú</td><td class="r">0577</td><td class="num">••••3310-0</td><td>${pill('', 'table_view', 'Carga inicial')}</td><td class="muted">—</td><td class="num">14/09 09:00</td><td><a class="link" href="#H07">Revisar</a></td></tr>
+          <tr><td><input type="checkbox" aria-label="Selecionar"></td><td>Renan Tavares</td><td class="muted">sem vínculo</td><td>Maria Tavares</td><td class="num">***.***.***-17</td><td>104 Caixa</td><td class="r">1618</td><td class="num">••••0045-2</td><td>${pill('', 'table_view', 'Carga inicial')}</td><td>${pill('bad', 'link_off', 'Sem vínculo')} ${pill('warn', 'person_alert', 'Titular diferente')}</td><td class="num">14/09 09:00</td><td><a class="link" href="#H07">Revisar</a></td></tr>
+        </tbody></table>
+      ${pager('Mostrando 1–20 de 1.735')}
+    </div>
+    <div class="selbar"><span><b>2 selecionadas</b> · origem carga inicial, sem alertas</span><button class="btn sm" type="button">${I('done_all')}Aprovar selecionadas</button></div>` }),
+    ['Carga inicial entra como pendente (D-08): 1.731 da planilha + solicitações do app.', 'Aprovação em massa só para “carga inicial sem alertas”, com confirmação e contagem (Q-N5).', 'Alertas: sem vínculo com entregador, titular diferente do motorista, altera conta já aprovada, documento com máscara corrigida na carga.'],
+    'PLANO §5, §11.3, §21 · D-07, D-08, Q-N5, Q-N12');
+
+  add('H07', 'h', 'Aprovação/rejeição', () => hub({ path: '/contas/5021', tab: 'contas', title: 'Revisar dados bancários', sub: 'Joana Ribeiro · enviada pelo app em 16/09/2026 18:22', action: `<button class="btn danger sm" type="button">${I('block')}Rejeitar</button><button class="btn sm" type="button">${I('verified')}Aprovar conta</button>`, body: `
+    <div class="alert warn"><span class="ms" aria-hidden="true">visibility</span><p><strong>Dados completos visíveis</strong>Esta visualização fica registrada na auditoria.</p></div>
+    <div class="grid2" style="grid-template-columns:1.5fr 1fr">
+      <div class="card">
+        <div class="cmp">
+          <div class="hd">Campo</div><div class="hd">Conta aprovada hoje</div><div class="hd">Nova solicitação</div>
+          <div class="k">Titular</div><div>Joana Ribeiro Serviços</div><div>Joana Ribeiro Serviços</div>
+          <div class="k">CPF/CNPJ</div><div class="num">12.345.678/0001-90</div><div class="num">12.345.678/0001-90</div>
+          <div class="k">Banco</div><div>260 · Nu Pagamentos</div><div class="chg">077 · Banco Inter</div>
+          <div class="k">Agência</div><div class="num">0001</div><div class="num">0001</div>
+          <div class="k">Conta</div><div class="num">0034521</div><div class="chg num">0098812</div>
+          <div class="k">Dígito</div><div class="num">7</div><div class="chg num">0</div>
+          <div class="k">Tipo</div><div>Conta Corrente</div><div>Conta Corrente</div>
+          <div class="k">Chave PIX</div><div>E-mail</div><div class="chg">CNPJ · 12.345.678/0001-90</div>
+          <div class="k">E-mail comprovante</div><div>joana@exemplo.com</div><div>joana@exemplo.com</div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="card pad stack"><div class="eyebrow">Confirme o entregador</div>
+          <div class="row"><span class="icotile ok">${I('link')}</span><div><div style="font-weight:700">Joana Ribeiro</div><div class="muted mono" style="font-size:.75rem">7f3c9a0e-…-e21a</div></div></div>
+          <div class="muted" style="font-size:.8rem">Vínculo automático por nome (similaridade 0,96) em 02/09. A produção deste entregador será usada nos adiantamentos.</div>
+          <label class="check" for="conf-e"><input id="conf-e" type="checkbox" checked><span>Confirmo que a conta pertence ao motorista deste entregador.</span></label>
+        </div>
+        <div class="card pad stack"><div class="eyebrow">Verificações</div>
+          <ul class="check-list"><li>${I('check_circle')}CNPJ válido (dígitos verificadores)</li><li>${I('check_circle')}Banco 077 na lista COMPE</li><li>${I('check_circle')}Agência com 4 dígitos</li><li>${I('check_circle')}Titular igual ao da conta aprovada</li></ul>
+        </div>
+      </div>
+    </div>
+    <div class="dlg-back"><div class="dlg" role="dialog" aria-labelledby="rc-t">
+      <h2 id="rc-t">Rejeitar alteração bancária?</h2>
+      <p style="margin:0">A conta aprovada atual continua ativa. O motorista recebe o motivo e pode corrigir e reenviar.</p>
+      <div class="field"><label for="rc-m">Motivo (obrigatório)</label><textarea class="input" id="rc-m">O titular informado não confere com o seu cadastro. Envie uma conta em seu nome ou do seu MEI.</textarea></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn outline sm" type="button">Voltar</button><button class="btn solid-danger sm" type="button">Rejeitar alteração</button></div>
+    </div></div>` }),
+    ['Comparação lado a lado; campos alterados destacados. Dados completos só com adiantamentos.contas_revisar e com evento de auditoria.', 'Aprovar exige confirmar o entregador vinculado (D-07): é a checagem humana do vínculo por nome.', 'Aprovar: a anterior vira SUBSTITUIDA. Rejeitar: motivo obrigatório, anterior segue ativa. Ambos notificam o motorista.'],
+    'PLANO §10.2, §11.3, §20, §22 · D-07');
+
+  const pagRows = [
+    ['ADV-000112', 'Otávio Lins', '**.***.***/0001-29', 'Nubank', '0001', '••••2290-5', '71,65', 'Apto'],
+    ['ADV-000109', 'Bianca Rocha', '***.***.***-33', 'Itaú', '0577', '••••3195-2', '299,65', 'Apto'],
+    ['ADV-000104', 'Felipe Nunes', '**.***.***/0001-64', 'Inter', '0001', '••••6602-0', '184,20', 'Apto'],
+    ['ADV-000101', 'Sandra Luz', '**.***.***/0001-47', '—', '0001', '••••1140-?', '97,15', 'Dígito da conta ausente'],
+    ['ADV-000099', 'Tiago Moura', '***.***.***-71', 'Recargapay', '0001', '••••9021-4', '63,40', 'Código bancário não identificado'],
+    ['ADV-000097', 'Vera Campos', '**.***.***/0001-02', 'Bradesco', '2250', '••••5510-8', '140,05', 'Conta bancária aguardando aprovação'],
+  ];
+
+  add('H08', 'h', 'Pagamentos', () => hub({ path: '/pagamentos', tab: 'pag', title: 'Pagamentos', sub: 'Adiantamentos liberados, prontos para entrar num lote Transfeera.', action: `<a class="btn sm" href="#H09">${I('playlist_add_check')}Montar lote</a>`, body: `
+    <div class="tiles">
+      <div class="card tile"><div class="l">Liberadas para pagamento</div><div class="v">152</div></div>
+      <div class="card tile"><div class="l">Valor líquido</div><div class="v">R$ 49.271,40</div></div>
+      <div class="card tile warn"><div class="l">Aguardando produção</div><div class="v">9</div></div>
+      <div class="card tile"><div class="l">Em processamento</div><div class="v">148</div></div>
+      <div class="card tile ok"><div class="l">Pagas hoje</div><div class="v">0</div></div>
+    </div>
+    <div class="grid2" style="grid-template-columns:1.4fr 1fr">
+      <div class="card">
+        <div class="sec-h"><div><h2>Liberadas hoje</h2><p>Produção de 16/09 · corte às 15:00</p></div><a class="link" href="#H09">Selecionar</a></div>
+        <div class="tbl-wrap"><table><caption class="sr">Liberadas</caption><thead><tr><th>Nº</th><th>Motorista</th><th>Banco</th><th class="r">Líquido</th></tr></thead><tbody>
+          ${pagRows.slice(0, 4).map((r) => `<tr><td class="mono">${r[0]}</td><td>${r[1]}</td><td>${r[3]}</td><td class="r">R$ ${r[6]}</td></tr>`).join('')}
+        </tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="sec-h"><div><h2>Lotes recentes</h2><p>Últimos 7 dias</p></div><a class="link" href="#H13">Histórico</a></div>
+        <div class="list">
+          <a href="#H15"><span class="grow"><span class="title mono">Lote 000122</span><br><span class="meta">16/09 15:48 · 148 pagamentos · R$ 46.905,10</span></span>${pill('info', 'upload_file', 'Exportado')}</a>
+          <a href="#H13"><span class="grow"><span class="title mono">Lote 000121</span><br><span class="meta">15/09 15:36 · 139 pagamentos · R$ 44.018,77</span></span>${pill('ok', 'task_alt', 'Concluído')}</a>
+          <a href="#H13"><span class="grow"><span class="title mono">Lote 000120</span><br><span class="meta">14/09 15:52 · 131 pagamentos · R$ 41.330,02</span></span>${pill('warn', 'error', 'Concluído com falhas')}</a>
+        </div>
+      </div>
+    </div>` }),
+    ['Área “Pagamentos de Adiantamentos” do doc 1 §19. Ver pagamentos = adiantamentos.pagamentos_consultar; montar lote exige adiantamentos.lote_criar.', 'Números ilustrativos.'],
+    'PLANO §14, §21');
+
+  add('H09', 'h', 'Criação de lote', () => hub({ path: '/pagamentos/novo', tab: 'pag', title: 'Montar lote', sub: 'Selecione as solicitações liberadas. A validação acontece na revisão.', body: `
+    <div class="card filterbar" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
+      <div class="field"><span class="lbl">Solicitadas em</span><input class="hinput num" type="date" value="2026-09-17" aria-label="Data da solicitação"></div>
+      ${sel('Banco', 'Todos')}
+      <div class="field"><label class="lbl" for="lt-b">Motorista</label><input class="hinput" id="lt-b"></div>
+      ${sel('Status', 'Liberada')}
+    </div>
+    <div class="alert"><span class="ms" aria-hidden="true">select_all</span><p><strong>Todas as 20 desta página estão selecionadas.</strong><a class="link" href="#H09">Selecionar as 152 do filtro</a></p></div>
+    <div class="card tbl-wrap">
+      <table><caption class="sr">Solicitações liberadas</caption>
+        <thead><tr><th><input type="checkbox" checked aria-label="Selecionar página"></th><th>Nº</th><th>Motorista</th><th>Documento</th><th>Banco</th><th class="r">Agência</th><th>Conta</th><th class="r">Líquido</th></tr></thead>
+        <tbody>${pagRows.map((r) => `<tr class="sel"><td><input type="checkbox" checked aria-label="Selecionar ${r[0]}"></td><td class="mono">${r[0]}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td>${r[3]}</td><td class="r">${r[4]}</td><td class="num">${r[5]}</td><td class="r">R$ ${r[6]}</td></tr>`).join('')}</tbody>
+      </table>
+      ${pager('Mostrando 1–20 de 152')}
+    </div>
+    <div class="selbar"><span><b>152 selecionadas</b> · R$ 49.271,40</span><a class="btn sm" href="#H10">Revisar lote ${I('arrow_forward')}</a></div>` }),
+    ['Seleção em massa com contador fixo (novo no hub; hoje só o envio em massa tem).', '“Selecionar as N do filtro” envia os ids ao servidor; limite de 5.000 (Transfeera).'],
+    'PLANO §14.1 · R-17');
+
+  add('H10', 'h', 'Prévia do lote', () => hub({ path: '/pagamentos/novo/revisao', tab: 'pag', title: 'Revisar lote', sub: 'Confira antes de gerar o arquivo. Só as aptas entram.', action: `<a class="btn outline sm" href="#H09">Voltar à seleção</a><a class="btn sm" href="#H12">${I('table_view')}Gerar arquivo Transfeera</a>`, body: `
+    <div class="tiles">
+      <div class="card tile"><div class="l">Selecionadas</div><div class="v">152</div></div>
+      <div class="card tile ok"><div class="l">Aptas para exportação</div><div class="v">149</div></div>
+      <div class="card tile warn"><div class="l">Com pendências</div><div class="v">3</div></div>
+      <div class="card tile"><div class="l">Motoristas</div><div class="v">149</div></div>
+      <div class="card tile"><div class="l">Valor total do lote</div><div class="v">R$ 48.320,55</div></div>
+    </div>
+    <div class="alert warn"><span class="ms" aria-hidden="true">warning</span><p><strong>3 registros com pendências ficam fora deste lote</strong>Eles continuam liberados e podem entrar num próximo lote depois de corrigidos. <a class="link" href="#H11">Ver pendências</a></p></div>
+    <div class="card tbl-wrap">
+      <table><caption>Prévia das linhas</caption>
+        <thead><tr><th>Motorista</th><th>Documento</th><th>Banco</th><th class="r">Agência</th><th>Conta</th><th class="r">Valor</th><th>Situação</th></tr></thead>
+        <tbody>${pagRows.map((r) => `<tr class="${r[7] === 'Apto' ? '' : 'pend'}"><td>${r[1]}</td><td class="num">${r[2]}</td><td>${r[3]}</td><td class="r">${r[4]}</td><td class="num">${r[5]}</td><td class="r">R$ ${r[6]}</td><td>${r[7] === 'Apto' ? pill('ok', 'check', 'Apto') : pill('warn', 'warning', r[7])}</td></tr>`).join('')}</tbody>
+      </table>
+      ${pager('Mostrando 1–20 de 152')}
+    </div>
+    <div class="dlg-back"><div class="dlg" role="dialog" aria-labelledby="gl-t">
+      <h2 id="gl-t">Gerar lote com 149 pagamentos?</h2>
+      <p style="margin:0" class="num">Total <b>R$ 48.320,55</b>. As solicitações ficam reservadas neste lote e não podem entrar em outro. O arquivo é validado antes do download.</p>
+      <div class="row" style="justify-content:flex-end"><button class="btn outline sm" type="button">Voltar</button><a class="btn sm" href="#H12">Gerar lote e arquivo</a></div>
+    </div></div>` }),
+    ['Resumo do doc 2 §11 e prévia do doc 2 §12 (a tela prioriza usabilidade; o arquivo segue o layout oficial).', 'POST /lotes/previa → aptos e pendências; POST /lotes envia quantidade e total esperados: se algo mudou nesse meio tempo, 409 PREVIA_DESATUALIZADA.', 'Dois usuários gerando ao mesmo tempo: um vence, o outro recebe 409 com os ids já reservados.'],
+    'PLANO §14.2–14.3, §25 casos 13, 17');
+
+  add('H11', 'h', 'Pendências', () => hub({ path: '/pagamentos/novo/pendencias', tab: 'pag', title: 'Pendências de exportação', sub: '3 de 152 selecionadas não podem ir para o arquivo.', body: `
+    <div class="card list">
+      ${[
+        ['Sandra Luz', 'ADV-000101', 'Dígito da conta ausente', 'A conta aprovada não tem o dígito separado. Peça a correção pelo app.', 'Abrir conta', 'H07'],
+        ['Tiago Moura', 'ADV-000099', 'Código bancário não identificado', '“Recargapay” não corresponde a um código da lista COMPE.', 'Abrir conta', 'H07'],
+        ['Vera Campos', 'ADV-000097', 'Conta bancária aguardando aprovação', 'A conta aprovada mudou depois da liberação e a nova ainda não foi revisada.', 'Revisar conta', 'H07'],
+      ].map(([n, id, t, d, a, to]) => `<div><span class="icotile warn">${I('warning')}</span><span class="grow"><span class="title">${n} — ${t}</span><br><span class="meta"><span class="mono">${id}</span> · ${d}</span></span><a class="btn outline sm" href="#${to}">${a}</a></div>`).join('')}
+    </div>
+    <div class="card pad"><div class="eyebrow" style="margin-bottom:.4rem">Todos os motivos possíveis</div>
+      <div class="chips">${['Status inválido (já exportada, paga, rejeitada…)', 'Já está em outro lote', 'Duplicada na seleção', 'Valor zero ou negativo', 'Conta ausente', 'Conta não aprovada', 'Conta alterada', 'Nome ausente', 'CPF/CNPJ inválido', 'Banco inválido', 'Agência inválida', 'Conta inválida', 'Dígito ausente', 'Tipo de conta inválido', 'E-mail inválido'].map((c) => `<span class="pill">${c}</span>`).join('')}</div>
+    </div>` }),
+    ['Registros inválidos não somem: aparecem com motivo e caminho de correção (doc 1 §20, doc 2 §14).', 'Chave PIX não é validada aqui porque não vai para o arquivo; é validada no cadastro.'],
+    'PLANO §14.3');
+
+  add('H12', 'h', 'Download Transfeera', () => hub({ path: '/pagamentos/lotes/000123', tab: 'pag', title: 'Lote 000123', sub: 'Arquivo gerado e validado. Pronto para baixar.', action: `<button class="btn danger sm" type="button">Cancelar lote</button><button class="btn sm" type="button">${I('download')}Baixar arquivo Transfeera</button>`, body: `
+    <div class="row wrap">${pill('info', 'task_alt', 'Gerado')}<span class="muted">Nenhum download ainda</span></div>
+    <div class="grid2">
+      <div class="card pad stack">
+        <dl class="grid2" style="margin:0;gap:.8rem">
+          <div class="kv"><dt>Lote</dt><dd class="mono">000123</dd></div>
+          <div class="kv"><dt>Criado em</dt><dd class="num">17/09/2026 15:42</dd></div>
+          <div class="kv"><dt>Responsável</dt><dd>Ana Financeiro</dd></div>
+          <div class="kv"><dt>Pagamentos</dt><dd class="num">149</dd></div>
+          <div class="kv"><dt>Valor total</dt><dd class="num">R$ 48.320,55</dd></div>
+          <div class="kv"><dt>Tamanho</dt><dd class="num">17 KB</dd></div>
+          <div class="kv" style="grid-column:1/-1"><dt>Arquivo</dt><dd class="mono">transfeera_adiantamentos_2026-09-17_lote-000123.xlsx</dd></div>
+          <div class="kv" style="grid-column:1/-1"><dt>SHA-256</dt><dd class="mono muted">9c1e…a47b</dd></div>
+        </dl>
+      </div>
+      <div class="card pad stack">
+        <div class="eyebrow">Validação estrutural</div>
+        <ul class="check-list">
+          <li>${I('check_circle')}Aba “Página1”, única</li>
+          <li>${I('check_circle')}Linha 1: instrução original, mesclada A1:L1</li>
+          <li>${I('check_circle')}Linha 2: 12 cabeçalhos, na ordem do modelo</li>
+          <li>${I('check_circle')}Sem colunas extras</li>
+          <li>${I('check_circle')}149 linhas · soma confere com o total</li>
+          <li>${I('check_circle')}Banco, agência, conta, dígito e documento como texto</li>
+          <li>${I('check_circle')}ID integração único por linha (ADV-…)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card pad stack">
+      <div class="eyebrow">Próximos passos</div>
+      <div class="steps">
+        <div class="card"><div class="n">1</div><b>Importe na Transfeera</b><div class="muted" style="font-size:.8rem">Aba Importação → selecionar o arquivo.</div></div>
+        <div class="card"><div class="n">2</div><b>Confira e feche o lote lá</b><div class="muted" style="font-size:.8rem">“Fechar lote” é irreversível na Transfeera.</div></div>
+        <div class="card"><div class="n">3</div><b>Registre o resultado aqui</b><div class="muted" style="font-size:.8rem">Importe o retorno ou confirme manualmente.</div></div>
+      </div>
+    </div>
+    <div class="card tbl-wrap">
+      <table><caption>Primeiras linhas do arquivo</caption>
+        <thead><tr><th>Nome ou Razão Social</th><th>CPF ou CNPJ</th><th>Email (opcional)</th><th>Banco</th><th>Agência</th><th>Conta</th><th>Dígito da conta</th><th>Tipo de Conta (Corrente ou Poupança)</th><th class="r">Valor</th><th>ID integração (opcional)</th><th>Data de agendamento (opcional)</th><th>Descrição Pix (opcional)</th></tr></thead>
+        <tbody>
+          <tr><td>Otávio Lins ME</td><td class="num">**.***.***/0001-29</td><td></td><td class="mono">260</td><td class="mono">0001</td><td class="mono">••••2290</td><td class="mono">5</td><td>Conta Corrente</td><td class="r">R$ 71,65</td><td class="mono">ADV-000112</td><td></td><td>Antecipação entregador mei 16.09.26_Otávio Lins ME</td></tr>
+          <tr><td>Bianca Rocha</td><td class="num">***.***.***-33</td><td class="mono">bia@exemplo.com</td><td class="mono">341</td><td class="mono">0577</td><td class="mono">••••3195</td><td class="mono">2</td><td>Conta Corrente</td><td class="r">R$ 299,65</td><td class="mono">ADV-000109</td><td></td><td>Antecipação entregador mei 16.09.26_Bianca Rocha</td></tr>
+          <tr><td>Felipe Nunes ME</td><td class="num">**.***.***/0001-64</td><td></td><td class="mono">077</td><td class="mono">0001</td><td class="mono">••••6602</td><td class="mono">0</td><td>Conta Poupança</td><td class="r">R$ 184,20</td><td class="mono">ADV-000104</td><td></td><td>Antecipação entregador mei 16.09.26_Felipe Nunes ME</td></tr>
+        </tbody></table>
+    </div>` }),
+    ['Download pelo proxy autenticado (adiantamentos.exportar); sem URL pública; Cache-Control: no-store; cada download auditado; repetido devolve os mesmos bytes (SHA-256).', 'Nome previsível e único; bytes guardados no banco e expurgados em 90 dias (Q-N7).', 'O 1º download leva lote → EXPORTADO e solicitações → EXPORTADA. Cancelar depois disso exige declarar que não foi enviado à Transfeera.', 'Tabela mascarada só na tela; no arquivo os dados vão completos (banco 3 dígitos é a validação V-1).'],
+    'PLANO §7, §11.2, §15, §20 · D-18..D-22');
+
+  add('H13', 'h', 'Histórico de lotes', () => hub({ path: '/pagamentos/lotes', tab: 'pag', title: 'Histórico de lotes', sub: 'Lotes gerados para a Transfeera.', body: `
+    <div class="card tbl-wrap">
+      <table><caption class="sr">Lotes</caption>
+        <thead><tr><th>Lote</th><th>Data</th><th class="r">Motoristas</th><th class="r">Valor</th><th>Responsável</th><th>Status</th><th class="r">Downloads</th><th>Pagos / falhas</th><th></th></tr></thead>
+        <tbody>
+          ${[
+            ['000123', '17/09/2026 15:42', '149', '48.320,55', 'Ana Financeiro', pill('info', 'task_alt', 'Gerado'), '0', '—', 'H12'],
+            ['000122', '16/09/2026 15:48', '148', '46.905,10', 'Ana Financeiro', pill('info', 'upload_file', 'Exportado'), '2', '—', 'H15'],
+            ['000121', '15/09/2026 15:36', '139', '44.018,77', 'Bruno Caixa', pill('ok', 'task_alt', 'Concluído'), '1', '139 / 0', 'H12'],
+            ['000120', '14/09/2026 15:52', '131', '41.330,02', 'Ana Financeiro', pill('warn', 'error', 'Concluído com falhas'), '1', '129 / 2', 'H12'],
+            ['000119', '12/09/2026 16:05', '127', '39.902,48', 'Ana Financeiro', pill('', 'close', 'Cancelado'), '0', '—', 'H12'],
+          ].map((r) => `<tr><td class="mono"><b>#${r[0]}</b></td><td class="num">${r[1]}</td><td class="r">${r[2]}</td><td class="r">R$ ${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td class="r">${r[6]}</td><td class="num">${r[7]}</td><td><a class="link" href="#${r[8]}">Detalhes</a></td></tr>`).join('')}
+        </tbody></table>
+      ${pager('Mostrando 1–5 de 5')}
+    </div>
+    <p class="muted" style="margin:0;font-size:.8rem">Lote 000119 cancelado antes do download: “gerado com filtro errado”. As 127 solicitações voltaram a liberadas e entraram no 000120.</p>` }),
+    ['Tabela do doc 1 §28 + downloads e resultado. Detalhe leva à tela do lote (H12/H15).', 'Cancelamento e reprocessamento aparecem no histórico com motivo (auditados).'],
+    'PLANO §11.2, §14.2');
+
+  add('H14', 'h', 'Repasse semanal', () => hub({ path: '/repasse', tab: 'rep', title: 'Repasse semanal', sub: 'Remanescente por motorista no período de apuração.', action: `<button class="btn outline sm" type="button">${I('download')}Exportar CSV</button><button class="btn sm" type="button">${I('lock')}Fechar apuração</button>`, body: `
+    <div class="card filterbar" style="grid-template-columns:1.5fr 1fr 1fr 1fr">
+      ${sel('Período de apuração', '10/09 a 16/09/2026 · repasse 23/09')}
+      <div class="field"><label class="lbl" for="rp-b">Motorista</label><input class="hinput" id="rp-b"></div>
+      ${sel('Situação', 'Em apuração')}
+      <div class="field"><span class="lbl">Descontos</span><div class="row wrap">${pill('ok', 'check', 'Adiantamentos (bruto)')}${pill('', 'close', 'Débitos EntreGô')}</div></div>
+    </div>
+    <div class="alert"><span class="ms" aria-hidden="true">info</span><p>Exemplo ilustrativo: a janela e a data de repasse ainda não foram definidas pelo financeiro (Q-B2). Adiantamentos em processamento aparecem marcados e entram na previsão.</p></div>
+    <div class="card tbl-wrap">
+      <table><caption class="sr">Remanescente por motorista</caption>
+        <thead><tr><th>Motorista</th><th class="r">Créditos</th><th class="r">Adiantamentos</th><th class="r">Débitos</th><th class="r">Remanescente</th><th>Observação</th></tr></thead>
+        <tbody>
+          <tr><td>Joana Ribeiro</td><td class="r">R$ 1.000,00</td><td class="r">− R$ 129,40</td><td class="r">—</td><td class="r"><b>R$ 870,60</b></td><td class="muted">1 adiantamento pago</td></tr>
+          <tr><td>Carlos Menezes</td><td class="r">R$ 2.140,30</td><td class="r">− R$ 615,78</td><td class="r">—</td><td class="r"><b>R$ 1.524,52</b></td><td>${pill('info', 'sync', '1 em processamento')}</td></tr>
+          <tr><td>Priscila Andrade</td><td class="r">R$ 812,40</td><td class="r">− R$ 338,40</td><td class="r">—</td><td class="r"><b>R$ 474,00</b></td><td class="muted">3 adiantamentos pagos</td></tr>
+          <tr><td>Renan Tavares</td><td class="r">R$ 140,00</td><td class="r">− R$ 175,23</td><td class="r">—</td><td class="r"><b style="color:var(--bad)">− R$ 35,23</b></td><td>${pill('bad', 'trending_down', 'Negativo')}</td></tr>
+        </tbody>
+        <tfoot><tr><td><b>Total (412 motoristas)</b></td><td class="r"><b>R$ 318.402,11</b></td><td class="r"><b>− R$ 96.110,52</b></td><td class="r">—</td><td class="r"><b>R$ 222.291,59</b></td><td></td></tr></tfoot>
+      </table>
+      ${pager('Mostrando 1–20 de 412')}
+    </div>` }),
+    ['Remanescente = créditos das categorias do extrato − bruto dos adiantamentos com produção no período − débitos (se ligados) (D-10..D-12).', 'Negativo aparece com alerta, sem acumular (Q-N4). “Fechar apuração” grava snapshot imutável e auditado.', 'Exportação CSV com a proteção contra fórmula que o hub já usa.'],
+    'PLANO §18 · D-09..D-13, Q-N3, Q-N4');
+
+  add('H15', 'h', 'Confirmação e retorno', () => hub({ path: '/pagamentos/lotes/000122', tab: 'pag', title: 'Lote 000122', sub: 'Exportado em 16/09/2026 15:51 · 148 pagamentos · R$ 46.905,10', body: `
+    <div class="row wrap">${pill('info', 'upload_file', 'Exportado')}<span class="muted">2 downloads · último por Ana Financeiro às 15:51</span></div>
+    <div class="grid2">
+      <div class="card pad stack">
+        <div class="row between"><div class="eyebrow">Importar retorno da Transfeera</div>${pill('warn', 'hourglass_top', 'Aguardando exemplo real')}</div>
+        <p style="margin:0">O layout do arquivo de retorno será definido a partir de um relatório real enviado pelo operador (Q-B1). As linhas serão casadas pelo ID integração (ADV-…).</p>
+        <button class="btn outline" type="button" disabled>${I('upload')}Importar retorno</button>
+      </div>
+      <div class="card pad stack">
+        <div class="eyebrow">Confirmar manualmente</div>
+        <p style="margin:0">Use depois de fechar o lote na Transfeera. Marque só as exceções.</p>
+        <div class="field"><label for="cf-f">Pagamentos que falharam</label><div class="select" id="cf-f" style="min-height:2.75rem">ADV-000087 · Hugo Pires ${I('close')}</div></div>
+        <div class="field"><label for="cf-m">Motivo da falha (obrigatório por item)</label><input class="hinput" id="cf-m" value="Conta encerrada no banco de destino"></div>
+      </div>
+    </div>
+    <div class="dlg-back"><div class="dlg" role="dialog" aria-labelledby="cf-t">
+      <h2 id="cf-t">Confirmar resultado do lote 000122?</h2>
+      <ul class="check-list num"><li>${I('check_circle')}147 pagamentos marcados como <b>pagos</b></li><li><span class="ms" aria-hidden="true" style="color:var(--bad)">cancel</span>1 marcado como <b>falhou</b> — ADV-000087</li></ul>
+      <p style="margin:0" class="muted">Os motoristas recebem notificação. A solicitação que falhou pode ser reprocessada num novo lote, com motivo.</p>
+      <div class="row" style="justify-content:flex-end"><button class="btn outline sm" type="button">Voltar</button><button class="btn sm" type="button">Confirmar resultado</button></div>
+    </div></div>` }),
+    ['D-16: o caminho definitivo é importar o retorno; o importador só é construído com um arquivo real (Q-B1). Até lá, confirmação manual por lote com exceções.', 'Pago e falhou são estados finais do item; reprocessar é explícito (FALHOU → LIBERADA → novo lote, motivo e lote anterior auditados).'],
+    'PLANO §11, §14.2, §27 F9 · D-16');
+
+  // ---------- Roteador ----------
+  const idx = document.getElementById('idx');
+  const pick = document.getElementById('pick');
+  const groups = [['m', 'App do motorista'], ['h', 'Hub · Adiantamentos']];
+  idx.innerHTML = groups.map(([k, lb]) => `<h2>${lb}</h2>${S.filter((s) => s.app === k).map((s) => `<a href="#${s.id}" data-id="${s.id}"><span class="mono">${s.id}</span>${s.title}</a>`).join('')}`).join('');
+  pick.innerHTML = groups.map(([k, lb]) => `<optgroup label="${lb}">${S.filter((s) => s.app === k).map((s) => `<option value="${s.id}">${s.id} · ${s.title}</option>`).join('')}</optgroup>`).join('');
+  pick.addEventListener('change', () => { location.hash = pick.value; });
+
+  const stage = document.getElementById('stage');
+  function show() {
+    const id = (location.hash || '#M01').slice(1);
+    const i = Math.max(0, S.findIndex((s) => s.id === id));
+    const s = S[i];
+    const prev = S[(i - 1 + S.length) % S.length];
+    const next = S[(i + 1) % S.length];
+    document.getElementById('scr-id').textContent = s.id;
+    document.getElementById('scr-title').textContent = s.title;
+    document.getElementById('scr-app').textContent = s.app === 'm' ? '· App do motorista' : '· Hub';
+    pick.value = s.id;
+    idx.querySelectorAll('a').forEach((a) => {
+      if (a.dataset.id === s.id) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    const notes = `<aside class="notes"><h3>O que esta tela decide</h3><ul>${s.notes.map((n) => `<li>${n}</li>`).join('')}</ul><p class="refs">${s.refs}</p>
+      <div class="navpair"><a class="btn outline sm" href="#${prev.id}">${I('arrow_back')}${prev.id}</a><a class="btn outline sm" href="#${next.id}">${next.id}${I('arrow_forward')}</a></div></aside>`;
+    stage.innerHTML = s.app === 'm' ? s.render() + notes : `<div style="flex:1 1 100%;min-width:0">${s.render()}</div>` + notes;
+    const f = stage.querySelector('.focus-ring');
+    if (f) f.scrollIntoView({ block: 'center' });
+    else if (window.scrollY > 0 && document.activeElement?.closest('.index, .navpair')) window.scrollTo({ top: 0 });
+  }
+  window.addEventListener('hashchange', show);
+  show();
+
+  // ---------- Tema (claro/escuro, respeitando o sistema) ----------
+  const root = document.documentElement;
+  document.getElementById('theme').addEventListener('click', () => {
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+  });
+})();
+</script>

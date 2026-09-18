@@ -29,6 +29,7 @@ import {
   Truck,
   Upload,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -64,6 +65,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   shieldcheck: ShieldCheck,
   admin: Settings2,
   settings: Settings,
+  // adiantamento-motorista (FASE 7, tasks.md 7.2.2).
+  adiantamentos: Wallet,
+  wallet: Wallet,
 };
 
 /** Ícone de fallback — módulo sem `icone` reconhecido, mas ainda visível. */
@@ -122,6 +126,8 @@ const DESCRICAO_MAP: Record<string, string> = {
   usuarios: 'Convide pessoas, defina papéis e controle quem acessa cada módulo.',
   auditoria: 'Consulte a trilha imutável de quem fez o quê, e quando.',
   admin: 'Habilite ou desabilite módulos por entidade da plataforma.',
+  // adiantamento-motorista (FASE 7, tasks.md 7.2.2).
+  adiantamentos: 'Revise solicitações, aprove contas bancárias e monte lotes de pagamento.',
 };
 
 /**

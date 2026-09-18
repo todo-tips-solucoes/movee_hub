@@ -171,8 +171,13 @@ Guard 1: CNPJ deve existir em `EnvioMassa`. Guard 2: CNPJ não pode ter conta `M
 Lê cookie `refreshToken` de motorista, valida audiência `motorista`, emite novo `accessToken`.
 - **200** `{ message: "Token renovado." }` · **401** token ausente · **403** inválido
 
-#### `POST /motorista/logout` 🔒
-Limpa cookies `accessToken` e `refreshToken`. **200** `{ message: "Logout bem-sucedido." }`.
+#### `POST /motorista/logout`
+Limpa cookies `accessToken` e `refreshToken` — **funciona mesmo com `accessToken`
+expirado ou ausente** (Q-N16, `adiantamento-motorista` 3.5): não exige
+`authenticateMotorista`. Este app não mantém store server-side de refresh
+tokens (JWT stateless); a invalidação possível no servidor é limpar os dois
+cookies httpOnly via `Set-Cookie`, sempre, independente do estado do token.
+**200** `{ message: "Logout bem-sucedido." }` (idempotente, nunca 401).
 
 #### `GET /motorista/verify-auth` 🔒
 Confirma sessão ativa.
@@ -208,6 +213,37 @@ Erros:
 
 ---
 
+### Adiantamento — Rotas `/motorista/adiantamento*` 🔒
+
+> Feature: `adiantamento-motorista` — antecipação de valor a receber pelo motorista.
+> Ref: `docs/specs/adiantamento-motorista/contracts/motorista-api.md`.
+> Montadas dentro do router `/motorista` COM `authenticateMotorista` (mesmo padrão
+> das rotas acima) — identidade sempre de `req.motorista.cnpjPrestador`, nunca do
+> corpo/query (Constituição II). Chamam PostgREST/RPCs do hub via `hub-postgrest.js`
+> com a claim `motorista_cnpj`; PostgREST fora do ar → **502** `{erro:'INDISPONIVEL'}`,
+> nunca confundido com erro de negócio (`{erro:'<CODIGO>'}`).
+
+| Rota | Descrição |
+|---|---|
+| `GET /motorista/adiantamento/disponibilidade` | Pode solicitar agora? `{canRequest, reason, estimate, bankAccount, todayRequest, configVersion, configuracaoId, ...}` — `reason` cobre módulo/vínculo/config/conta/dia/horário/solicitação-do-dia |
+| `GET /motorista/adiantamento/regras` | Texto das regras vigentes + hash de aceite (`aceiteSha256`) recalculado no servidor, nunca aceito do cliente |
+| `POST /motorista/adiantamentos` | Solicita adiantamento — `{aceite:true, chaveIdempotencia, configuracaoId}`; **201** nova / **200** reenvio idempotente / **400** dados inválidos / **409** `SOLICITACAO_INDISPONIVEL`\|`VERSAO_DESATUALIZADA` |
+| `GET /motorista/adiantamentos?pagina=` | Histórico paginado (20/página) |
+| `GET /motorista/adiantamentos/:id` | Detalhe com timeline de eventos — **404** fora do CNPJ do token |
+| `POST /motorista/adiantamentos/:id/cancelar` | Só em `AGUARDANDO_CORTE` e antes do corte — **409** `TRANSICAO_INVALIDA` |
+| `GET /motorista/conta-bancaria` | Conta aprovada/pendente/última rejeição, mascaradas |
+| `POST /motorista/conta-bancaria/solicitacoes` | Envia nova conta (cancela `PENDENTE` anterior; mantém `APROVADA` vigente) |
+| `GET /motorista/bancos?q=` | Busca de banco por código/nome (fixture local, até 20 resultados) |
+
+Limiters (PLANO §20, por `cnpjPrestador`): solicitar+cancelar **10/15min**; conta
+bancária (só escrita) **5/15min**. Leituras sem limiter próprio.
+
+Tick de 60s (`lib/adiantamento-worker.js`, iniciado no boot junto do push-worker,
+guarda `POSTGREST_URL`): processa `AGUARDANDO_CORTE`/`AGUARDANDO_PRODUCAO` pendentes,
+cancela lotes `GERANDO` há +5min e expurga arquivos de lotes concluídos há +90 dias.
+
+---
+
 ### Tabela `Motorista` (PostgREST)
 
 ```sql
@@ -220,6 +256,67 @@ CREATE TABLE IF NOT EXISTS "Motorista" (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 ```
+
+---
+
+## Hub — Rotas `/api/v1/adiantamentos/*`
+
+> Feature: `adiantamento-motorista` — gestão do adiantamento pelo hub (financeiro/admin).
+> Ref: `docs/specs/adiantamento-motorista/contracts/hub-api.md`, `contracts/sql-rpc.md`.
+> Arquivo `routes/hub-adiantamentos.js`, montado sem middleware (cada rota roda
+> `requireModuloAtivo('adiantamentos')` → `requirePermission('adiantamentos.<ação>')` →
+> segunda barreira SQL `hub_adiantamento_tem_permissao` — mesmo padrão dos demais
+> módulos do hub (`hub-avisos.js`, `hub-motoristas.js`).
+>
+> **Escopo (dec-022, diferente de Avisos)**: grupo inteiro (todas as filiais) só
+> quando a entidade ativa é a empresa-pai (id 6); para uma filial, o escopo é
+> só a própria empresa — nunca copiado do padrão de `hub-avisos.js`.
+
+**As 10 permissões** (`Permissao.codigo`, módulo `adiantamentos`, migration `0070`):
+
+| Código | Uso |
+|---|---|
+| `adiantamentos.consultar` | Listar/ver solicitações e configuração |
+| `adiantamentos.gerenciar` | Rejeitar, recalcular, encerrar, atualizar conta de uma solicitação |
+| `adiantamentos.configurar` | Alterar a configuração vigente (`PUT /configuracoes`) |
+| `adiantamentos.contas_consultar` | Ver contas bancárias (mascaradas) |
+| `adiantamentos.contas_revisar` | Ver dado completo (sem máscara) e aprovar/rejeitar contas |
+| `adiantamentos.pagamentos_consultar` | Ver lotes, prévia e repasse |
+| `adiantamentos.lote_criar` | Criar lote de pagamento |
+| `adiantamentos.exportar` | Baixar o arquivo Transfeera do lote |
+| `adiantamentos.reprocessar` | Reprocessar falha, encerrar sem pagamento, cancelar lote |
+| `adiantamentos.pagamento_confirmar` | Confirmar pagamento do lote e fechar apuração de repasse |
+
+**Rotas**:
+
+| Rota | Permissão |
+|---|---|
+| `GET /`, `GET /:id` | `consultar` |
+| `POST /:id/rejeitar\|recalcular\|encerrar\|atualizar-conta` | `gerenciar` |
+| `POST /:id/reprocessar\|encerrar-falha` | `reprocessar` |
+| `GET /configuracoes`, `GET /configuracoes/categorias` | `consultar` |
+| `PUT /configuracoes` | `configurar` |
+| `GET /contas`, `GET /contas/:id` | `contas_consultar` |
+| `GET /contas/:id?completo=true`, `POST /contas/:id/aprovar\|rejeitar`, `POST /contas/aprovar-lote` | `contas_revisar` |
+| `POST /lotes/previa`, `GET /lotes`, `GET /lotes/:id` | `pagamentos_consultar` |
+| `POST /lotes` | `lote_criar` |
+| `GET /lotes/:id/arquivo` | `exportar` |
+| `POST /lotes/:id/cancelar` | `reprocessar` |
+| `POST /lotes/:id/confirmacao` | `pagamento_confirmar` |
+| `GET /repasse`, `GET /repasse/exportar` | `pagamentos_consultar` |
+| `POST /repasse/:periodo/fechar` | `pagamento_confirmar` |
+
+Erros de negócio seguem `{erro:'<CODIGO>'}` (`TRANSICAO_INVALIDA`, `VERSAO_DESATUALIZADA`,
+`APURACAO_COM_PENDENCIAS` com `detalhe` por status, `SOLICITACOES_EM_OUTRO_LOTE` com
+`ids`, `LOTE_ACIMA_DO_LIMITE`, `ARQUIVO_INDISPONIVEL`, `APURACAO_JA_FECHADA`,
+`APURACAO_NAO_CONFIGURADA`, `PERIODO_EM_ABERTO`). Toda ação que muda estado grava
+auditoria (`lib/hub-auditoria.js`), nunca com documento completo, número de conta
+ou conteúdo do arquivo (FR-047).
+
+> A mudança de contrato em `hub_aviso_criar`/`routes/hub-avisos.js` (D-15 —
+> `{motoristas, comPush, inscricoes}` na prévia de alcance) pertence à FASE 5
+> (Notificações) desta feature, ainda não implementada — não documentada aqui
+> para não descrever um comportamento que o código ainda não tem.
 
 ---
 

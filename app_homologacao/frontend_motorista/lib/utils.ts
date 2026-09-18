@@ -39,3 +39,19 @@ export function formatDate(value: string | null | undefined): string {
   if (!match) return value;
   return `${match[3]}/${match[2]}/${match[1]}`;
 }
+
+/** Formata data/hora ISO → "dd/mm/aaaa HH:mm" no fuso das regras do
+ * adiantamento (America/Sao_Paulo — tasks.md 6.3). */
+export function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d);
+}

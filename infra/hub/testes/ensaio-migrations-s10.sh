@@ -42,7 +42,7 @@ HUB_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_DIR="$(cd "$HUB_DIR/../.." && pwd)"
 COMPOSE="$HUB_DIR/compose.hub.s10.yml"
 ENV_FILE="${HUB_TEST_ENV:-/var/lib/hub_secrets/.env.hub.test}"
-RUNID="$(date +%s)"
+RUNID="$(date +%s)-$$"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
 KEEP=0

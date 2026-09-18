@@ -67,6 +67,15 @@ const hubPushWorker = require('./lib/hub-push-worker');
 // de app.use('/motorista', ...) abaixo, mesmo padrão de brandingTomadorRouter).
 const motoristaPushRoutes = require('./routes/motorista-push');
 
+// adiantamento-motorista (tasks.md FASE 3.1) — rotas /motorista/adiantamento/*
+// e /motorista/adiantamentos*, montadas com authenticateMotorista (mesmo
+// padrão de motoristaPushRoutes acima).
+const motoristaAdiantamentoRoutes = require('./routes/motorista-adiantamento');
+// adiantamento-motorista (tasks.md FASE 3.3) — tick de 60s (processar/
+// órfãos/expurgo), iniciado no boot perto de app.listen (mesmo padrão de
+// hubPushWorker.iniciarExpurgoPeriodico acima).
+const adiantamentoWorker = require('./lib/adiantamento-worker');
+
 // robo-entrego (tasks.md FASE 2) — POST /api/v1/robo-entrego/eventos
 // (auditoria de execução do robô agendado), requirePermission interno.
 // Arquivo 100% novo (routes/hub-robo-entrego.js).
@@ -94,6 +103,12 @@ const hubAvisosRoutes = require('./routes/hub-avisos');
 // agregados), requirePermission interno. Arquivo 100% novo
 // (routes/hub-performance.js). Somente leitura (FR-010).
 const hubPerformanceRoutes = require('./routes/hub-performance');
+
+// adiantamento-motorista (tasks.md FASE 4) — módulo Adiantamentos do hub:
+// solicitações, configuração, contas bancárias, lotes de pagamento e
+// repasse. Arquivo 100% novo (routes/hub-adiantamentos.js).
+// requireModuloAtivo/requirePermission aplicados dentro do próprio router.
+const hubAdiantamentosRoutes = require('./routes/hub-adiantamentos');
 
 // hub-auditoria-admin (S9 do hub de frota, FASE 4.2) — GET/POST/PUT
 // /api/v1/usuarios + POST/PUT /api/v1/usuarios/:id/vinculos (gestão de
@@ -2846,6 +2861,13 @@ motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, brandingR
 // senão req.motorista nunca é setado dentro do sub-router.
 motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, motoristaPushRoutes.router);
 
+// adiantamento-motorista (tasks.md FASE 3.1) — GET /adiantamento/disponibilidade,
+// GET /adiantamento/regras, POST /adiantamentos, GET /adiantamentos(?pagina=),
+// GET /adiantamentos/:id, POST /adiantamentos/:id/cancelar. Mesmo padrão acima:
+// authenticateMotorista explícito, senão req.motorista nunca é setado dentro
+// do sub-router.
+motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, motoristaAdiantamentoRoutes.router);
+
 // hub-fundacoes (FASE 3) — /api/v1/auth/* (login/refresh/logout/recuperar-senha/
 // redefinir-senha). Sem authenticateToken aqui — o próprio router aplica
 // rate-limit (Decision 8) e cada rota decide sua própria exigência de auth
@@ -2913,6 +2935,12 @@ app.use('/api/v1/admin', hubAdminRoutes.router);
 // bloco /api/v1/papeis acima).
 app.use('/api/v1/avisos', hubAvisosRoutes.router);
 
+// adiantamento-motorista (tasks.md FASE 4.9) — /api/v1/adiantamentos
+// (módulo Adiantamentos do hub: solicitações, configuração, contas
+// bancárias, lotes, repasse). requireModuloAtivo/requirePermission
+// aplicados dentro do próprio router (mesmo padrão do bloco acima).
+app.use('/api/v1/adiantamentos', hubAdiantamentosRoutes.router);
+
 // hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
 // boot: um restart no meio de uma importação (deploy) deixa o registro
 // preso em validating/processing, e o índice único parcial (migration
@@ -2965,6 +2993,13 @@ if (process.env.POSTGREST_URL) {
   });
 
   hubPushWorker.iniciarExpurgoPeriodico();
+
+  // adiantamento-motorista (tasks.md FASE 3.3) — tick de 60s (processar
+  // AGUARDANDO_CORTE/AGUARDANDO_PRODUCAO, cancelar lotes GERANDO órfãos,
+  // expurgar arquivo de lotes antigos). Nenhum serviço/timer novo fora do
+  // processo do backend (plan.md Constitution Check V) — mesmo padrão do
+  // bloco hubPushWorker acima.
+  adiantamentoWorker.iniciarTick();
 }
 
 // Iniciar o servidor

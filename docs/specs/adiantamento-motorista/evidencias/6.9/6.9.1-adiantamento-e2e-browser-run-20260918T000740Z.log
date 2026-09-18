@@ -1,0 +1,114 @@
+
+Running 46 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:367:7 › US1 — solicitar e acompanhar adiantamento › Scenario 1: disponível hoje — solicita com aceite e vê a confirmação/timeline (1.1s)
+  ✓   2 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:382:7 › US1 — solicitar e acompanhar adiantamento › Scenario 2: já solicitado hoje — mostra o motivo e a solicitação existente (331ms)
+  ✓   3 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:396:7 › US1 — solicitar e acompanhar adiantamento › Scenario 4: cancela antes do corte (399ms)
+  ✓   4 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:424:7 › US1 — solicitar e acompanhar adiantamento › 6.3.6: fluxo completo solicitar → timeline → cancelar, com o relógio do aparelho errado (1.1s)
+SC-001 duracao_ms=1358
+  ✓   5 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:448:7 › US1 — solicitar e acompanhar adiantamento › 6.3.7: SC-001 — solicitação concluída em menos de 2 minutos (1.5s)
+  ✓   6 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:473:7 › US2 — dados bancários › Scenario 1: sem conta cadastrada — envia dados válidos e vê "Em análise" (599ms)
+  ✓   7 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:499:7 › US2 — dados bancários › Scenario 3: conta aprovada segue valendo enquanto a nova está pendente (313ms)
+  ✓   8 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:519:7 › US7 — central de notificações › Scenario: lista, filtra por categoria, marca uma como lida ao abrir e marca todas (734ms)
+  ✓   9 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:549:7 › US7 — central de notificações › 6.2.3: badge de notificações não lidas aparece e some ao ler (1.1s)
+  ✓  10 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:576:7 › US7 — central de notificações › 6.5.2: notificação de evento aparece mesmo com push desativado no dispositivo (882ms)
+ALVO_TOQUE tela="/movimento" elementos=10 violacoes=[]
+  ✓  11 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › movimento (896ms)
+ALVO_TOQUE tela="/adiantamento" elementos=8 violacoes=[]
+  ✓  12 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento (disponível) (884ms)
+ALVO_TOQUE tela="/adiantamento" elementos=7 violacoes=[]
+  ✓  13 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento (indisponível + solicitação hoje) (889ms)
+ALVO_TOQUE tela="/adiantamento/regras" elementos=2 violacoes=[]
+  ✓  14 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/regras (807ms)
+ALVO_TOQUE tela="/adiantamento/historico" elementos=5 violacoes=[]
+  ✓  15 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/historico (886ms)
+ALVO_TOQUE tela="/adiantamento/501" elementos=3 violacoes=[]
+  ✓  16 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/[id] (834ms)
+ALVO_TOQUE tela="/adiantamento/501" elementos=2 violacoes=[]
+  ✓  17 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/[id] (paga, com desconto no repasse) (855ms)
+ALVO_TOQUE tela="/adiantamento/501" elementos=2 violacoes=[]
+  ✓  18 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/[id] (rejeitada) (815ms)
+ALVO_TOQUE tela="/conta-bancaria" elementos=8 violacoes=[]
+  ✓  19 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › conta-bancaria (851ms)
+ALVO_TOQUE tela="/conta-bancaria/alterar" elementos=3 violacoes=[]
+  ✓  20 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › conta-bancaria/alterar (1.1s)
+ALVO_TOQUE tela="/notificacoes" elementos=16 violacoes=[]
+  ✓  21 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › notificacoes (858ms)
+ALVO_TOQUE tela="/repasse" elementos=2 violacoes=[]
+  ✓  22 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:646:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › repasse (817ms)
+AXE_SCORE tela="/movimento" tema=light score=95 violacoes=1
+AXE /movimento [light]: page-has-heading-one (moderate) x1 — Page should contain a level-one heading
+AXE_CONTRASTE tela="/movimento" tema=light violacoes=0
+  ✓  23 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › movimento — tema light (1.9s)
+AXE_SCORE tela="/movimento" tema=dark score=95 violacoes=1
+AXE /movimento [dark]: page-has-heading-one (moderate) x1 — Page should contain a level-one heading
+AXE_CONTRASTE tela="/movimento" tema=dark violacoes=0
+  ✓  24 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › movimento — tema dark (2.0s)
+AXE_SCORE tela="/adiantamento" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=light violacoes=0
+  ✓  25 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (disponível) — tema light (1.9s)
+AXE_SCORE tela="/adiantamento" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=dark violacoes=0
+  ✓  26 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (disponível) — tema dark (2.0s)
+AXE_SCORE tela="/adiantamento" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=light violacoes=0
+  ✓  27 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema light (1.8s)
+AXE_SCORE tela="/adiantamento" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=dark violacoes=0
+  ✓  28 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema dark (1.8s)
+AXE_SCORE tela="/adiantamento/regras" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/regras" tema=light violacoes=0
+  ✓  29 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/regras — tema light (1.7s)
+AXE_SCORE tela="/adiantamento/regras" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/regras" tema=dark violacoes=0
+  ✓  30 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/regras — tema dark (1.7s)
+AXE_SCORE tela="/adiantamento/historico" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/historico" tema=light violacoes=0
+  ✓  31 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/historico — tema light (1.8s)
+AXE_SCORE tela="/adiantamento/historico" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/historico" tema=dark violacoes=0
+  ✓  32 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/historico — tema dark (1.8s)
+AXE_SCORE tela="/adiantamento/501" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=light violacoes=0
+  ✓  33 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema light (1.7s)
+AXE_SCORE tela="/adiantamento/501" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=dark violacoes=0
+  ✓  34 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema dark (1.8s)
+AXE_SCORE tela="/adiantamento/501" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=light violacoes=0
+  ✓  35 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (paga, com desconto no repasse) — tema light (1.8s)
+AXE_SCORE tela="/adiantamento/501" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=dark violacoes=0
+  ✓  36 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (paga, com desconto no repasse) — tema dark (1.9s)
+AXE_SCORE tela="/adiantamento/501" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=light violacoes=0
+  ✓  37 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (rejeitada) — tema light (1.7s)
+AXE_SCORE tela="/adiantamento/501" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=dark violacoes=0
+  ✓  38 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (rejeitada) — tema dark (1.8s)
+AXE_SCORE tela="/conta-bancaria" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria" tema=light violacoes=0
+  ✓  39 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria — tema light (1.9s)
+AXE_SCORE tela="/conta-bancaria" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria" tema=dark violacoes=0
+  ✓  40 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria — tema dark (2.0s)
+AXE_SCORE tela="/conta-bancaria/alterar" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria/alterar" tema=light violacoes=0
+  ✓  41 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria/alterar — tema light (2.1s)
+AXE_SCORE tela="/conta-bancaria/alterar" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria/alterar" tema=dark violacoes=0
+  ✓  42 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria/alterar — tema dark (2.3s)
+AXE_SCORE tela="/notificacoes" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/notificacoes" tema=light violacoes=0
+  ✓  43 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › notificacoes — tema light (1.9s)
+AXE_SCORE tela="/notificacoes" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/notificacoes" tema=dark violacoes=0
+  ✓  44 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › notificacoes — tema dark (2.0s)
+AXE_SCORE tela="/repasse" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/repasse" tema=light violacoes=0
+  ✓  45 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema light (1.7s)
+AXE_SCORE tela="/repasse" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/repasse" tema=dark violacoes=0
+  ✓  46 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:701:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema dark (1.8s)
+
+  46 passed (1.1m)

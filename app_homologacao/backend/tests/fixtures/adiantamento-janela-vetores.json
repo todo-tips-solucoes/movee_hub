@@ -1,0 +1,99 @@
+{
+  "_comentario": "Vetores compartilhados entre tests/adiantamento-regras-unit.test.js (JS) e o cenário 'janela SQL x JS' de infra/hub/testes/hub-adiantamentos-integration.sh (hub_adiantamento_janela) — tasks.md 2.1.5. Mudar aqui exige rodar os dois lados de novo.",
+  "config": {
+    "timezone": "America/Sao_Paulo",
+    "dias_habilitados": [1, 2, 3, 4, 5, 6],
+    "horario_abertura": "09:00:00",
+    "horario_corte": "15:00:00"
+  },
+  "vetores": [
+    {
+      "descricao": "08:59:59 — 1s antes da abertura (BEFORE_OPENING)",
+      "instante": "2026-09-17T08:59:59-03:00",
+      "esperado": {
+        "data_solicitacao": "2026-09-17",
+        "data_producao": "2026-09-16",
+        "dia_habilitado": true,
+        "antes_abertura": true,
+        "apos_corte": false
+      }
+    },
+    {
+      "descricao": "09:00:00 — exatamente na abertura (dentro da janela)",
+      "instante": "2026-09-17T09:00:00-03:00",
+      "esperado": {
+        "data_solicitacao": "2026-09-17",
+        "data_producao": "2026-09-16",
+        "dia_habilitado": true,
+        "antes_abertura": false,
+        "apos_corte": false
+      }
+    },
+    {
+      "descricao": "14:59:59 — 1s antes do corte (dentro da janela)",
+      "instante": "2026-09-17T14:59:59-03:00",
+      "esperado": {
+        "data_solicitacao": "2026-09-17",
+        "data_producao": "2026-09-16",
+        "dia_habilitado": true,
+        "antes_abertura": false,
+        "apos_corte": false
+      }
+    },
+    {
+      "descricao": "15:00:00 — exatamente no corte (AFTER_CUTOFF, exclusivo)",
+      "instante": "2026-09-17T15:00:00-03:00",
+      "esperado": {
+        "data_solicitacao": "2026-09-17",
+        "data_producao": "2026-09-16",
+        "dia_habilitado": true,
+        "antes_abertura": false,
+        "apos_corte": true
+      }
+    },
+    {
+      "descricao": "domingo desabilitado, dentro do horário (DAY_NOT_ALLOWED)",
+      "instante": "2026-09-20T10:00:00-03:00",
+      "esperado": {
+        "data_solicitacao": "2026-09-20",
+        "data_producao": "2026-09-19",
+        "dia_habilitado": false,
+        "antes_abertura": false,
+        "apos_corte": false
+      }
+    },
+    {
+      "descricao": "segunda-feira usa domingo como data de produção (D-1 puro, sem dia útil)",
+      "instante": "2026-09-21T10:00:00-03:00",
+      "esperado": {
+        "data_solicitacao": "2026-09-21",
+        "data_producao": "2026-09-20",
+        "dia_habilitado": true,
+        "antes_abertura": false,
+        "apos_corte": false
+      }
+    },
+    {
+      "descricao": "virada de mês (1º de outubro produz para 30 de setembro)",
+      "instante": "2026-10-01T10:00:00-03:00",
+      "esperado": {
+        "data_solicitacao": "2026-10-01",
+        "data_producao": "2026-09-30",
+        "dia_habilitado": true,
+        "antes_abertura": false,
+        "apos_corte": false
+      }
+    },
+    {
+      "descricao": "virada de ano (1º de janeiro produz para 31 de dezembro do ano anterior)",
+      "instante": "2026-01-01T10:00:00-03:00",
+      "esperado": {
+        "data_solicitacao": "2026-01-01",
+        "data_producao": "2025-12-31",
+        "dia_habilitado": true,
+        "antes_abertura": false,
+        "apos_corte": false
+      }
+    }
+  ]
+}

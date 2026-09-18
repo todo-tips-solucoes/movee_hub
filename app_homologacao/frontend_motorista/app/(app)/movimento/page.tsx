@@ -19,10 +19,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CountUp } from '@/components/ui/count-up';
 import { CopyButton } from '@/components/ui/copy-button';
 import { NotificacoesCard } from '@/components/notificacoes';
+import { BottomNav } from '@/components/bottom-nav';
 import { Wordmark } from '@/components/brand/wordmark';
 import { Aurora } from '@/components/brand/aurora';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LogOut, RefreshCw, Calendar, FileText, AlertTriangle, ArrowUpRight, Inbox, MapPin, Mail, Info } from '@/components/ui/icons';
+import { buscarDisponibilidade, type Disponibilidade } from '@/lib/adiantamento-api';
+import { mensagemMotivo } from '@/lib/erros-adiantamento';
 
 interface Tomador {
   razaoSocial: string | null;
@@ -72,6 +75,17 @@ export default function MovimentoPage() {
   const [movimento, setMovimento] = useState<Movimento | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Adiantamento do dia (tasks.md 6.2.2) — fetch independente do movimento:
+  // uma falha aqui não pode travar/atrasar a tela principal. `null` = falha
+  // de infra (fail-silent, mesma técnica de NotificacoesCard); o card em si
+  // "nunca some" quando a chamada tem sucesso, mesmo sem elegibilidade hoje.
+  const [disponibilidade, setDisponibilidade] = useState<Disponibilidade | null | undefined>(undefined);
+
+  useEffect(() => {
+    buscarDisponibilidade()
+      .then(setDisponibilidade)
+      .catch(() => setDisponibilidade(null));
+  }, []);
 
   const fetchMovimento = useCallback(async (soft = false) => {
     soft ? setRefreshing(true) : setLoading(true);
@@ -142,7 +156,7 @@ export default function MovimentoPage() {
             variant="ghost"
             size="sm"
             onClick={() => logout()}
-            className="gap-1.5 text-muted-foreground"
+            className="min-h-11 gap-1.5 text-muted-foreground"
           >
             <LogOut className="h-4 w-4" />
             Sair
@@ -150,7 +164,7 @@ export default function MovimentoPage() {
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-md flex-1 px-4 pb-10 pt-5">
+      <div className="mx-auto w-full max-w-md flex-1 px-4 pb-24 pt-5">
         {/* Saudação com avatar */}
         <div className="animate-fade-up mb-5 flex items-center gap-3">
           <span className="bg-gradient-warm-rich flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-display text-base font-bold text-white shadow-[0_8px_18px_-8px_color-mix(in_oklab,var(--warm-3)_70%,transparent)]">
@@ -161,6 +175,46 @@ export default function MovimentoPage() {
             <p className="truncate font-display text-lg font-bold leading-tight">{nome}</p>
           </div>
         </div>
+
+        {/* Adiantamento do dia (tasks.md 6.2.2, prototipo M01) — o card nunca
+            some: mostra "aberto até HH:MM", "encerrado por hoje" ou o motivo
+            real de indisponibilidade conforme o backend (FR-001..FR-014). */}
+        {disponibilidade === undefined ? (
+          <Skeleton className="mb-4 h-28 rounded-3xl" />
+        ) : disponibilidade ? (
+          <Link
+            href="/adiantamento"
+            className="bg-gradient-warm-rich shine shine-sweep animate-fade-up relative mb-4 block overflow-hidden rounded-3xl p-5 text-white shadow-[0_20px_44px_-24px_color-mix(in_oklab,var(--warm-3)_70%,transparent)]"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/85">
+                Adiantamento de hoje
+              </span>
+              <Badge variant={disponibilidade.canRequest ? 'success' : 'muted'} className="bg-white/15 text-white">
+                ●{' '}
+                {disponibilidade.canRequest
+                  ? `Aberto até ${disponibilidade.cutoffTime}`
+                  : disponibilidade.reason === 'AFTER_CUTOFF'
+                    ? 'Encerrado por hoje'
+                    : 'Indisponível hoje'}
+              </Badge>
+            </div>
+            {disponibilidade.canRequest ? (
+              <>
+                <p className="mt-3 text-xs text-white/75">Estimativa com a produção de ontem</p>
+                <p className="tabular mt-1 text-3xl font-bold leading-none">
+                  {disponibilidade.estimate?.eligible ? formatCurrency(disponibilidade.estimate.net) : 'Não liberado'}
+                </p>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-white/85">{mensagemMotivo(disponibilidade.reason!)}</p>
+            )}
+            <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold">
+              Ver adiantamento
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </Link>
+        ) : null}
 
         {/* push-motorista (tasks.md 6.2.3, CHK003) — ponto de entrada fixo,
             independente do carregamento do movimento abaixo (FR-007). */}
@@ -411,6 +465,8 @@ export default function MovimentoPage() {
           </div>
         )}
       </div>
+
+      <BottomNav />
     </main>
   );
 }

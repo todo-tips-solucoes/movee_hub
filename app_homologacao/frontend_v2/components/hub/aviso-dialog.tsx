@@ -169,7 +169,9 @@ export function useAvisoDialog(onEnviado?: (id: number) => void) {
   const tituloValido = titulo.trim().length > 0 && titulo.trim().length <= TITULO_MAX;
   const corpoValido = corpo.trim().length > 0 && corpo.trim().length <= CORPO_MAX;
   const destinatariosValidos = modo === 'toda_base' || idsSelecionados.length > 0;
-  // 7.3.3 — disparo desabilitado com 0 inscrições (SEM_INSCRICOES_ATIVAS).
+  // D-15 (FASE 5, 5.3.2): disparo agora só é desabilitado com público TOTAL
+  // vazio (SEM_DESTINATARIOS) — 0 inscrições de push não bloqueia mais o
+  // disparo, porque o histórico é gravado para todo o público mesmo sem push.
   const podeDisparar =
     tituloValido &&
     corpoValido &&
@@ -177,7 +179,7 @@ export function useAvisoDialog(onEnviado?: (id: number) => void) {
     !carregandoAlcance &&
     !erroAlcance &&
     alcance !== null &&
-    alcance.inscricoes > 0 &&
+    alcance.motoristas > 0 &&
     !enviando;
 
   const disparar = useCallback(async () => {
@@ -522,8 +524,11 @@ export function AvisoDialog({ onEnviado, podeCriar = true, state }: AvisoDialogP
             ) : d.alcance ? (
               <span>
                 <strong className="font-medium text-foreground">{d.alcance.motoristas}</strong> motorista(s) ·{' '}
-                <strong className="font-medium text-foreground">{d.alcance.inscricoes}</strong> inscrição(ões) ativa(s)
-                {d.alcance.inscricoes === 0 && ' — nenhuma notificação seria enviada.'}
+                <strong className="font-medium text-foreground">{d.alcance.comPush}</strong> com push
+                {d.alcance.motoristas === 0 && ' — nenhum motorista corresponde aos destinatários selecionados.'}
+                {d.alcance.motoristas > 0 &&
+                  d.alcance.comPush === 0 &&
+                  ' — ninguém tem push ativo; mesmo assim, o histórico será registrado para todos.'}
               </span>
             ) : (
               <span className="text-muted-foreground">Selecione os destinatários para ver o alcance.</span>

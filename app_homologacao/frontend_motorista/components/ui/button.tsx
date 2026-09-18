@@ -22,7 +22,14 @@ export const buttonVariants = cva(
           'border border-input bg-card/60 backdrop-blur-sm hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted hover:text-foreground',
         ghost: 'text-muted-foreground hover:bg-muted hover:text-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
-        destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+        // tasks.md 6.8.3: no tema claro, branco sobre `--destructive` puro
+        // mede 3.91:1 (axe color-contrast, < 4.5 AA) — único consumidor
+        // desta variante é "Cancelar solicitação" (adiantamento-motorista).
+        // Escurecido só no tema claro (`dark:` reverte ao token original,
+        // que já passa no escuro) — não altera `--destructive` global, que
+        // outras telas fora desta feature também consomem.
+        destructive:
+          'bg-[color-mix(in_oklab,var(--destructive)_82%,black_18%)] dark:bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
       },
       size: {
         default: 'h-11 px-5 py-2',
