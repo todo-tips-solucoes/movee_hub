@@ -1,0 +1,301 @@
+
+Running 39 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:365:7 › US1 — solicitar e acompanhar adiantamento › Scenario 1: disponível hoje — solicita com aceite e vê a confirmação/timeline (1.3s)
+  ✓   2 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:380:7 › US1 — solicitar e acompanhar adiantamento › Scenario 2: já solicitado hoje — mostra o motivo e a solicitação existente (353ms)
+  ✓   3 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:394:7 › US1 — solicitar e acompanhar adiantamento › Scenario 4: cancela antes do corte (396ms)
+  ✓   4 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:417:7 › US2 — dados bancários › Scenario 1: sem conta cadastrada — envia dados válidos e vê "Em análise" (599ms)
+  ✓   5 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:443:7 › US2 — dados bancários › Scenario 3: conta aprovada segue valendo enquanto a nova está pendente (333ms)
+  ✓   6 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:463:7 › US7 — central de notificações › Scenario: lista, filtra por categoria, marca uma como lida ao abrir e marca todas (738ms)
+ALVO_TOQUE tela="/movimento" elementos=10 violacoes=[]
+  ✓   7 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › movimento (886ms)
+ALVO_TOQUE tela="/adiantamento" elementos=8 violacoes=[]
+  ✓   8 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento (disponível) (859ms)
+ALVO_TOQUE tela="/adiantamento" elementos=7 violacoes=[]
+  ✓   9 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento (indisponível + solicitação hoje) (858ms)
+ALVO_TOQUE tela="/adiantamento/regras" elementos=2 violacoes=[]
+  ✓  10 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/regras (804ms)
+ALVO_TOQUE tela="/adiantamento/historico" elementos=5 violacoes=[]
+  ✓  11 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/historico (864ms)
+ALVO_TOQUE tela="/adiantamento/501" elementos=3 violacoes=[]
+  ✓  12 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/[id] (829ms)
+ALVO_TOQUE tela="/adiantamento/501" elementos=2 violacoes=[]
+  ✓  13 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/[id] (paga, com desconto no repasse) (829ms)
+ALVO_TOQUE tela="/conta-bancaria" elementos=8 violacoes=[]
+  ✓  14 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › conta-bancaria (862ms)
+ALVO_TOQUE tela="/conta-bancaria/alterar" elementos=3 violacoes=[]
+  ✓  15 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › conta-bancaria/alterar (1.1s)
+ALVO_TOQUE tela="/notificacoes" elementos=16 violacoes=[]
+  ✓  16 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › notificacoes (831ms)
+ALVO_TOQUE tela="/repasse" elementos=2 violacoes=[]
+  ✓  17 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:535:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › repasse (803ms)
+AXE_SCORE tela="/movimento" tema=light score=95 violacoes=1
+AXE /movimento [light]: page-has-heading-one (moderate) x1 — Page should contain a level-one heading
+AXE_CONTRASTE tela="/movimento" tema=light violacoes=0
+  ✓  18 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › movimento — tema light (2.0s)
+AXE_SCORE tela="/movimento" tema=dark score=95 violacoes=1
+AXE /movimento [dark]: page-has-heading-one (moderate) x1 — Page should contain a level-one heading
+AXE_CONTRASTE tela="/movimento" tema=dark violacoes=0
+  ✓  19 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › movimento — tema dark (2.0s)
+AXE_SCORE tela="/adiantamento" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=light violacoes=0
+  ✓  20 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (disponível) — tema light (1.9s)
+AXE_SCORE tela="/adiantamento" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=dark violacoes=0
+  ✓  21 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (disponível) — tema dark (2.0s)
+AXE_SCORE tela="/adiantamento" tema=light score=90 violacoes=1
+AXE /adiantamento [light]: color-contrast (serious) x1 — Elements must meet minimum color contrast ratio thresholds
+  ✘  22 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema light (1.6s)
+AXE_SCORE tela="/adiantamento" tema=dark score=90 violacoes=1
+AXE /adiantamento [dark]: color-contrast (serious) x1 — Elements must meet minimum color contrast ratio thresholds
+  ✘  23 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema dark (1.8s)
+AXE_SCORE tela="/adiantamento/regras" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/regras" tema=light violacoes=0
+  ✓  24 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/regras — tema light (1.8s)
+AXE_SCORE tela="/adiantamento/regras" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/regras" tema=dark violacoes=0
+  ✓  25 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/regras — tema dark (1.8s)
+AXE_SCORE tela="/adiantamento/historico" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/historico" tema=light violacoes=0
+  ✓  26 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/historico — tema light (1.8s)
+AXE_SCORE tela="/adiantamento/historico" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/historico" tema=dark violacoes=0
+  ✓  27 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/historico — tema dark (1.9s)
+AXE_SCORE tela="/adiantamento/501" tema=light score=80 violacoes=1
+AXE /adiantamento/501 [light]: color-contrast (serious) x2 — Elements must meet minimum color contrast ratio thresholds
+  ✘  28 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema light (1.6s)
+AXE_SCORE tela="/adiantamento/501" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=dark violacoes=0
+  ✓  29 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema dark (2.0s)
+AXE_SCORE tela="/adiantamento/501" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=light violacoes=0
+  ✓  30 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (paga, com desconto no repasse) — tema light (1.9s)
+AXE_SCORE tela="/adiantamento/501" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=dark violacoes=0
+  ✓  31 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (paga, com desconto no repasse) — tema dark (1.9s)
+AXE_SCORE tela="/conta-bancaria" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria" tema=light violacoes=0
+  ✓  32 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria — tema light (1.9s)
+AXE_SCORE tela="/conta-bancaria" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria" tema=dark violacoes=0
+  ✓  33 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria — tema dark (2.0s)
+AXE_SCORE tela="/conta-bancaria/alterar" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria/alterar" tema=light violacoes=0
+  ✓  34 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria/alterar — tema light (2.1s)
+AXE_SCORE tela="/conta-bancaria/alterar" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria/alterar" tema=dark violacoes=0
+  ✓  35 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria/alterar — tema dark (2.3s)
+AXE_SCORE tela="/notificacoes" tema=light score=80 violacoes=1
+AXE /notificacoes [light]: color-contrast (serious) x2 — Elements must meet minimum color contrast ratio thresholds
+  ✘  36 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › notificacoes — tema light (1.8s)
+AXE_SCORE tela="/notificacoes" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/notificacoes" tema=dark violacoes=0
+  ✓  37 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › notificacoes — tema dark (2.2s)
+AXE_SCORE tela="/repasse" tema=light score=90 violacoes=1
+AXE /repasse [light]: color-contrast (serious) x1 — Elements must meet minimum color contrast ratio thresholds
+  ✘  38 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema light (1.5s)
+AXE_SCORE tela="/repasse" tema=dark score=90 violacoes=1
+AXE /repasse [dark]: color-contrast (serious) x1 — Elements must meet minimum color contrast ratio thresholds
+  ✘  39 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema dark (1.8s)
+
+
+  1) [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema light 
+
+    Error: axe score /adiantamento (light): [{"id":"color-contrast","impact":"serious","tags":["cat.color","wcag2aa","wcag143","TTv5","TT13.c","EN-301-549","EN-9.1.4.3","ACT","RGAAv4","RGAA-3.2.1"],"description":"Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds","help":"Elements must meet minimum color contrast ratio thresholds","helpUrl":"https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright","nodes":[{"any":[{"id":"color-contrast","data":{"fgColor":"#2c67ea","bgColor":"#e6edfc","contrastRatio":4.22,"fontSize":"9.0pt (12px)","fontWeight":"bold","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<span class=\"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-semibold bg-primary/12 text-primary\">Aguardando fechamento</span>","target":[".bg-primary\\/12"]},{"html":"<a class=\"flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 text-sm font-medium\" href=\"/adiantamento/501\">","target":[".p-4"]}],"impact":"serious","message":"Element has insufficient color contrast of 4.22 (foreground color: #2c67ea, background color: #e6edfc, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<span class=\"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-semibold bg-primary/12 text-primary\">Aguardando fechamento</span>","target":[".bg-primary\\/12"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 4.22 (foreground color: #2c67ea, background color: #e6edfc, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"}]}]
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 95
+    Received:    90
+
+      602 |           console.log(`AXE ${tela.path} [${tema}]: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help}`);
+      603 |         }
+    > 604 |         expect(score, `axe score ${tela.path} (${tema}): ${JSON.stringify(resultado.violations)}`).toBeGreaterThanOrEqual(AXE_SCORE_GATE);
+          |                                                                                                    ^
+      605 |
+      606 |         const contraste = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      607 |         console.log(`AXE_CONTRASTE tela="${tela.path}" tema=${tema} violacoes=${contraste.violations.length}`);
+        at /work/tests/e2e-motorista-adiantamento/adiantamento.spec.ts:604:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-588b5-licitação-hoje-—-tema-light-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamento-6-8-3-—-axe-c-588b5-licitação-hoje-—-tema-light-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-588b5-licitação-hoje-—-tema-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamento-6-8-3-—-axe-c-588b5-licitação-hoje-—-tema-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema dark 
+
+    Error: axe score /adiantamento (dark): [{"id":"color-contrast","impact":"serious","tags":["cat.color","wcag2aa","wcag143","TTv5","TT13.c","EN-301-549","EN-9.1.4.3","ACT","RGAAv4","RGAA-3.2.1"],"description":"Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds","help":"Elements must meet minimum color contrast ratio thresholds","helpUrl":"https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright","nodes":[{"any":[{"id":"color-contrast","data":{"fgColor":"#5b8df2","bgColor":"#1d2a59","contrastRatio":4.27,"fontSize":"9.0pt (12px)","fontWeight":"bold","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<span class=\"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-semibold bg-primary/12 text-primary\">Aguardando fechamento</span>","target":[".bg-primary\\/12"]},{"html":"<a class=\"flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 text-sm font-medium\" href=\"/adiantamento/501\">","target":[".p-4"]}],"impact":"serious","message":"Element has insufficient color contrast of 4.27 (foreground color: #5b8df2, background color: #1d2a59, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<span class=\"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-semibold bg-primary/12 text-primary\">Aguardando fechamento</span>","target":[".bg-primary\\/12"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 4.27 (foreground color: #5b8df2, background color: #1d2a59, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"}]}]
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 95
+    Received:    90
+
+      602 |           console.log(`AXE ${tela.path} [${tema}]: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help}`);
+      603 |         }
+    > 604 |         expect(score, `axe score ${tela.path} (${tema}): ${JSON.stringify(resultado.violations)}`).toBeGreaterThanOrEqual(AXE_SCORE_GATE);
+          |                                                                                                    ^
+      605 |
+      606 |         const contraste = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      607 |         console.log(`AXE_CONTRASTE tela="${tela.path}" tema=${tema} violacoes=${contraste.violations.length}`);
+        at /work/tests/e2e-motorista-adiantamento/adiantamento.spec.ts:604:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-112c6-olicitação-hoje-—-tema-dark-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamento-6-8-3-—-axe-c-112c6-olicitação-hoje-—-tema-dark-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-112c6-olicitação-hoje-—-tema-dark-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamento-6-8-3-—-axe-c-112c6-olicitação-hoje-—-tema-dark-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema light 
+
+    Error: axe score /adiantamento/501 (light): [{"id":"color-contrast","impact":"serious","tags":["cat.color","wcag2aa","wcag143","TTv5","TT13.c","EN-301-549","EN-9.1.4.3","ACT","RGAAv4","RGAA-3.2.1"],"description":"Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds","help":"Elements must meet minimum color contrast ratio thresholds","helpUrl":"https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright","nodes":[{"any":[{"id":"color-contrast","data":{"fgColor":"#2c67ea","bgColor":"#dddde2","contrastRatio":3.66,"fontSize":"9.0pt (12px)","fontWeight":"bold","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<span class=\"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-semibold bg-primary/12 text-primary\"><span class=\"material-symbols-rounded shrink-0 h-3.5 w-3.5\" aria-hidden=\"true\" translate=\"no\">schedule</span>Aguardando fechamento</span>","target":[".gap-1\\.5"]},{"html":"<main class=\"relative flex min-h-dvh flex-col bg-muted/40\">","target":["main"]},{"html":"<body class=\"min-h-dvh bg-background text-foreground antialiased\">","target":["body"]}],"impact":"serious","message":"Element has insufficient color contrast of 3.66 (foreground color: #2c67ea, background color: #dddde2, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<span class=\"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-semibold bg-primary/12 text-primary\"><span class=\"material-symbols-rounded shrink-0 h-3.5 w-3.5\" aria-hidden=\"true\" translate=\"no\">schedule</span>Aguardando fechamento</span>","target":[".gap-1\\.5"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #2c67ea, background color: #dddde2, font size: 9.0pt (12px), font weight: bold). Expected contrast ratio of 4.5:1"},{"any":[{"id":"color-contrast","data":{"fgColor":"#ffffff","bgColor":"#e5484d","contrastRatio":3.91,"fontSize":"10.5pt (14px)","fontWeight":"bold","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<button class=\"relative inline-flex...\">","target":[".whitespace-nowrap"]}],"impact":"serious","message":"Element has insufficient color contrast of 3.91 (foreground color: #ffffff, background color: #e5484d, font size: 10.5pt (14px), font weight: bold). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<button class=\"relative inline-flex...\">","target":[".whitespace-nowrap"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 3.91 (foreground color: #ffffff, background color: #e5484d, font size: 10.5pt (14px), font weight: bold). Expected contrast ratio of 4.5:1"}]}]
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 95
+    Received:    80
+
+      602 |           console.log(`AXE ${tela.path} [${tema}]: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help}`);
+      603 |         }
+    > 604 |         expect(score, `axe score ${tela.path} (${tema}): ${JSON.stringify(resultado.violations)}`).toBeGreaterThanOrEqual(AXE_SCORE_GATE);
+          |                                                                                                    ^
+      605 |
+      606 |         const contraste = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      607 |         console.log(`AXE_CONTRASTE tela="${tela.path}" tema=${tema} violacoes=${contraste.violations.length}`);
+        at /work/tests/e2e-motorista-adiantamento/adiantamento.spec.ts:604:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-29eb3-diantamento-id-—-tema-light-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamento-6-8-3-—-axe-c-29eb3-diantamento-id-—-tema-light-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-29eb3-diantamento-id-—-tema-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamento-6-8-3-—-axe-c-29eb3-diantamento-id-—-tema-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › notificacoes — tema light 
+
+    Error: axe score /notificacoes (light): [{"id":"color-contrast","impact":"serious","tags":["cat.color","wcag2aa","wcag143","TTv5","TT13.c","EN-301-549","EN-9.1.4.3","ACT","RGAAv4","RGAA-3.2.1"],"description":"Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds","help":"Elements must meet minimum color contrast ratio thresholds","helpUrl":"https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright","nodes":[{"any":[{"id":"color-contrast","data":{"fgColor":"#2c67ea","bgColor":"#e1e0e2","contrastRatio":3.76,"fontSize":"9.0pt (12px)","fontWeight":"normal","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<button type=\"button\" aria-pressed=\"true\" class=\"min-h-11 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-primary bg-primary/10 text-primary\">Todas</button>","target":[".border-primary"]},{"html":"<main class=\"relative flex min-h-dvh flex-col bg-muted/40\">","target":["main"]},{"html":"<body class=\"min-h-dvh bg-background text-foreground antialiased\">","target":["body"]}],"impact":"serious","message":"Element has insufficient color contrast of 3.76 (foreground color: #2c67ea, background color: #e1e0e2, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<button type=\"button\" aria-pressed=\"true\" class=\"min-h-11 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors border-primary bg-primary/10 text-primary\">Todas</button>","target":[".border-primary"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #2c67ea, background color: #e1e0e2, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"},{"any":[{"id":"color-contrast","data":{"fgColor":"#5a6a87","bgColor":"#efe6d6","contrastRatio":4.4,"fontSize":"12.0pt (16px)","fontWeight":"normal","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<span class=\"flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted\"><span class=\"material-symbols-rounded shrink-0 h-4 w-4 text-muted-foreground\" aria-hidden=\"true\" translate=\"no\">info</span></span>","target":[".bg-muted"]}],"impact":"serious","message":"Element has insufficient color contrast of 4.4 (foreground color: #5a6a87, background color: #efe6d6, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<span class=\"material-symbols-rounded shrink-0 h-4 w-4 text-muted-foreground\" aria-hidden=\"true\" translate=\"no\">info</span>","target":[".bg-muted > .w-4.h-4.material-symbols-rounded"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 4.4 (foreground color: #5a6a87, background color: #efe6d6, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"}]}]
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 95
+    Received:    80
+
+      602 |           console.log(`AXE ${tela.path} [${tema}]: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help}`);
+      603 |         }
+    > 604 |         expect(score, `axe score ${tela.path} (${tema}): ${JSON.stringify(resultado.violations)}`).toBeGreaterThanOrEqual(AXE_SCORE_GATE);
+          |                                                                                                    ^
+      605 |
+      606 |         const contraste = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      607 |         console.log(`AXE_CONTRASTE tela="${tela.path}" tema=${tema} violacoes=${contraste.violations.length}`);
+        at /work/tests/e2e-motorista-adiantamento/adiantamento.spec.ts:604:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-80350-s-notificacoes-—-tema-light-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamento-6-8-3-—-axe-c-80350-s-notificacoes-—-tema-light-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-80350-s-notificacoes-—-tema-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamento-6-8-3-—-axe-c-80350-s-notificacoes-—-tema-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema light 
+
+    Error: axe score /repasse (light): [{"id":"color-contrast","impact":"serious","tags":["cat.color","wcag2aa","wcag143","TTv5","TT13.c","EN-301-549","EN-9.1.4.3","ACT","RGAAv4","RGAA-3.2.1"],"description":"Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds","help":"Elements must meet minimum color contrast ratio thresholds","helpUrl":"https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright","nodes":[{"any":[{"id":"color-contrast","data":{"fgColor":"#2c67ea","bgColor":"#eaf0fd","contrastRatio":4.33,"fontSize":"9.0pt (12px)","fontWeight":"normal","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<span class=\"rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary\">Em apuração</span>","target":[".bg-primary\\/10"]},{"html":"<div class=\"space-y-3 rounded-3xl border border-border bg-card p-5 shadow-sm\">","target":[".space-y-3"]}],"impact":"serious","message":"Element has insufficient color contrast of 4.33 (foreground color: #2c67ea, background color: #eaf0fd, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<span class=\"rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary\">Em apuração</span>","target":[".bg-primary\\/10"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 4.33 (foreground color: #2c67ea, background color: #eaf0fd, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"}]}]
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 95
+    Received:    90
+
+      602 |           console.log(`AXE ${tela.path} [${tema}]: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help}`);
+      603 |         }
+    > 604 |         expect(score, `axe score ${tela.path} (${tema}): ${JSON.stringify(resultado.violations)}`).toBeGreaterThanOrEqual(AXE_SCORE_GATE);
+          |                                                                                                    ^
+      605 |
+      606 |         const contraste = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      607 |         console.log(`AXE_CONTRASTE tela="${tela.path}" tema=${tema} violacoes=${contraste.violations.length}`);
+        at /work/tests/e2e-motorista-adiantamento/adiantamento.spec.ts:604:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-b1d66--temas-repasse-—-tema-light-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamento-6-8-3-—-axe-c-b1d66--temas-repasse-—-tema-light-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-b1d66--temas-repasse-—-tema-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamento-6-8-3-—-axe-c-b1d66--temas-repasse-—-tema-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema dark 
+
+    Error: axe score /repasse (dark): [{"id":"color-contrast","impact":"serious","tags":["cat.color","wcag2aa","wcag143","TTv5","TT13.c","EN-301-549","EN-9.1.4.3","ACT","RGAAv4","RGAA-3.2.1"],"description":"Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds","help":"Elements must meet minimum color contrast ratio thresholds","helpUrl":"https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright","nodes":[{"any":[{"id":"color-contrast","data":{"fgColor":"#5b8df2","bgColor":"#1b2855","contrastRatio":4.41,"fontSize":"9.0pt (12px)","fontWeight":"normal","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<span class=\"rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary\">Em apuração</span>","target":[".bg-primary\\/10"]},{"html":"<div class=\"space-y-3 rounded-3xl border border-border bg-card p-5 shadow-sm\">","target":[".space-y-3"]}],"impact":"serious","message":"Element has insufficient color contrast of 4.41 (foreground color: #5b8df2, background color: #1b2855, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<span class=\"rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary\">Em apuração</span>","target":[".bg-primary\\/10"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 4.41 (foreground color: #5b8df2, background color: #1b2855, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"}]}]
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 95
+    Received:    90
+
+      602 |           console.log(`AXE ${tela.path} [${tema}]: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help}`);
+      603 |         }
+    > 604 |         expect(score, `axe score ${tela.path} (${tema}): ${JSON.stringify(resultado.violations)}`).toBeGreaterThanOrEqual(AXE_SCORE_GATE);
+          |                                                                                                    ^
+      605 |
+      606 |         const contraste = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      607 |         console.log(`AXE_CONTRASTE tela="${tela.path}" tema=${tema} violacoes=${contraste.violations.length}`);
+        at /work/tests/e2e-motorista-adiantamento/adiantamento.spec.ts:604:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-9a731-2-temas-repasse-—-tema-dark-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamento-6-8-3-—-axe-c-9a731-2-temas-repasse-—-tema-dark-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-9a731-2-temas-repasse-—-tema-dark-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamento-6-8-3-—-axe-c-9a731-2-temas-repasse-—-tema-dark-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6 failed
+    [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema light 
+    [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema dark 
+    [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema light 
+    [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › notificacoes — tema light 
+    [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema light 
+    [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:590:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema dark 
+  33 passed (1.0m)

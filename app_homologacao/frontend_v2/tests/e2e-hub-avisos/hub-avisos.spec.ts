@@ -3,9 +3,17 @@
 // hub-test-<runid> + frontend (infra/hub/testes/hub-avisos-e2e-browser.sh).
 //
 // Cobre (tasks.md): 7.2.4 (cobertura por número), 7.3.5 (3 modos, alcance
-// atualizando, 0 inscrições bloqueia disparo, duplo-clique = 1 requisição),
-// 7.4.2 (polling para exatamente ao atingir concluido), 8.2.3 (teclado),
-// 8.2.4 (axe — 0 violações críticas/graves).
+// atualizando com comPush — D-15 —, motorista sem push não bloqueia mais o
+// disparo, duplo-clique = 1 requisição), 7.4.2 (polling para exatamente ao
+// atingir concluido), 8.2.3 (teclado), 8.2.4 (axe — 0 violações
+// críticas/graves).
+//
+// D-15 (feature adiantamento-motorista, FASE 5, tasks.md 5.3.1/5.3.2):
+// hub_aviso_criar passou a gravar histórico (NotificacaoMotorista) para
+// TODO o público-alvo, não só quem tem push ativo; GET /avisos/alcance
+// responde {motoristas, comPush, inscricoes} em vez de {motoristas,
+// inscricoes}; disparo só é bloqueado quando o público total é vazio
+// (SEM_DESTINATARIOS), não mais quando ninguém tem push.
 //
 // Fixtures seedadas pelo driver via psql (nunca aqui — specs não têm acesso
 // a docker/psql), passadas por env var:
@@ -104,7 +112,7 @@ test.describe('FASE 7.2 — cobertura por plataforma (FR-023/SC-011)', () => {
 });
 
 test.describe('FASE 7.3 — diálogo "Novo aviso"', () => {
-  test('7.3.5 — 3 modos, alcance atualiza, 0 inscrições bloqueia disparo, duplo-clique = 1 requisição', async ({ page }) => {
+  test('7.3.5 — 3 modos, alcance atualiza (comPush, D-15), motorista sem push não bloqueia disparo, duplo-clique = 1 requisição', async ({ page }) => {
     test.setTimeout(120_000); // vários debounces (alcance 300ms) + navegação encadeada
     await loginHubViaUI(page);
     await page.goto('/hub/dashboard/avisos');
@@ -120,33 +128,38 @@ test.describe('FASE 7.3 — diálogo "Novo aviso"', () => {
     await page.getByLabel('Título', { exact: true }).fill('E2E Aviso Toda Base');
     await page.getByLabel('Mensagem', { exact: true }).fill('Corpo do aviso de teste E2E (toda a base).');
 
-    // modo padrão = toda_base -> alcance calcula (>=1 motorista, debounce 300ms)
-    const previa = page.locator('[role="status"]').filter({ hasText: /inscri|Selecione|alcance/ });
-    await expect(previa).toContainText('inscrição', { timeout: 10_000 });
-    await expect(previa).not.toContainText('nenhuma notificação seria enviada');
+    // modo padrão = toda_base -> alcance calcula (>=1 motorista, debounce 300ms).
+    // D-15 (adiantamento-motorista FASE 5, 5.3.1): a prévia responde
+    // {motoristas, comPush, inscricoes} — a UI mostra "N motorista(s) · M com
+    // push" em vez de "N inscrição(ões) ativa(s)".
+    const previa = page.locator('[role="status"]').filter({ hasText: /com push|Selecione|alcance/ });
+    await expect(previa).toContainText('com push', { timeout: 10_000 });
+    await expect(previa).not.toContainText('nenhum motorista corresponde');
 
-    // ── modo individual: motorista SEM inscrição -> alcance 0, disparo bloqueado ──
+    // ── modo individual: motorista SEM push -> comPush=0, mas motoristas=1
+    //    (D-15: histórico é gravado para todo o público) -> disparo NÃO é
+    //    mais bloqueado, só o aviso "ninguém tem push ativo" muda ──────────
     await page.getByText(LABEL_INDIVIDUAL, { exact: true }).click();
     await selecionarMotoristaIndividual(page, ENTREGADOR_SEM_INSCRICAO);
-    await expect(previa).toContainText('nenhuma notificação seria enviada', { timeout: 10_000 });
-    await expect(page.getByRole('button', { name: 'Disparar' })).toBeDisabled();
+    await expect(previa).toContainText('ninguém tem push ativo', { timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'Disparar' })).toBeEnabled();
 
-    // ── troca para motorista COM inscrição -> alcance sobe, disparo habilita ──
+    // ── troca para motorista COM push -> comPush sobe, aviso some ───────────
     await page.getByRole('button', { name: `Remover ${ENTREGADOR_SEM_INSCRICAO} dos destinatários` }).click();
     await selecionarMotoristaIndividual(page, ENTREGADOR_COM_INSCRICAO);
-    await expect(previa).not.toContainText('nenhuma notificação seria enviada', { timeout: 10_000 });
-    await expect(previa).toContainText('inscrição', { timeout: 10_000 });
+    await expect(previa).not.toContainText('ninguém tem push ativo', { timeout: 10_000 });
+    await expect(previa).toContainText('com push', { timeout: 10_000 });
     await expect(page.getByRole('button', { name: 'Disparar' })).toBeEnabled();
 
     // ── modo empresa: seleciona a única empresa do escopo (Movee) ──────────
     await page.getByText(LABEL_EMPRESA, { exact: true }).click();
     await expect(page.getByText(EMPRESA_NOME)).toBeVisible({ timeout: 10_000 });
     await page.getByText(EMPRESA_NOME).click();
-    await expect(previa).toContainText('inscrição', { timeout: 10_000 });
+    await expect(previa).toContainText('com push', { timeout: 10_000 });
 
     // ── volta para toda_base (fixture com PushInscricao 201 garantida) e dispara ──
     await page.getByText(LABEL_TODA_BASE, { exact: true }).click();
-    await expect(previa).toContainText('inscrição', { timeout: 10_000 });
+    await expect(previa).toContainText('com push', { timeout: 10_000 });
 
     let requisicoesPost = 0;
     page.on('request', (req) => {

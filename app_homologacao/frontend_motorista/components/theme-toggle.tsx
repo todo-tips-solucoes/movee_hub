@@ -35,7 +35,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       onClick={toggle}
       aria-label={dark ? 'Ativar tema claro' : 'Ativar tema escuro'}
       className={cn(
-        'inline-flex h-9 w-9 items-center justify-center rounded-full text-current/90 transition-colors hover:bg-white/15',
+        'inline-flex h-11 w-11 items-center justify-center rounded-full text-current/90 transition-colors hover:bg-white/15',
         className
       )}
     >

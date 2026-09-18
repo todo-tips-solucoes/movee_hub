@@ -40,6 +40,18 @@ const CODIGOS_REAIS = [
   'usuarios.gerenciar',
   'auditoria.consultar',
   'admin.gerenciar',
+  // adiantamento-motorista (FASE 7, tasks.md 7.2.3) — 10 permissões novas do
+  // módulo `adiantamentos` (contracts/hub-api.md §Permissões por rota).
+  'adiantamentos.consultar',
+  'adiantamentos.gerenciar',
+  'adiantamentos.configurar',
+  'adiantamentos.contas_consultar',
+  'adiantamentos.contas_revisar',
+  'adiantamentos.pagamentos_consultar',
+  'adiantamentos.lote_criar',
+  'adiantamentos.exportar',
+  'adiantamentos.reprocessar',
+  'adiantamentos.pagamento_confirmar',
 ];
 
 const COM_LISTAR = modulosComListar(CODIGOS_REAIS);
@@ -110,6 +122,26 @@ describe('rotuloPermissao — os demais verbos', () => {
   });
 });
 
+describe('rotuloPermissao — os 10 códigos de adiantamentos (por código, tasks.md 7.2.3)', () => {
+  it('traduz cada código, mesmo quando o verbo é exclusivo do módulo', () => {
+    const casos: [string, string][] = [
+      ['adiantamentos.consultar', 'Acessar o módulo'],
+      ['adiantamentos.gerenciar', 'Rejeitar, recalcular e encerrar adiantamentos'],
+      ['adiantamentos.configurar', 'Alterar regras do adiantamento'],
+      ['adiantamentos.contas_consultar', 'Ver contas bancárias (mascaradas)'],
+      ['adiantamentos.contas_revisar', 'Ver completas e aprovar contas bancárias'],
+      ['adiantamentos.pagamentos_consultar', 'Ver pagamentos, lotes e repasse'],
+      ['adiantamentos.lote_criar', 'Criar lote de pagamento'],
+      ['adiantamentos.exportar', 'Baixar arquivo da Transfeera'],
+      ['adiantamentos.reprocessar', 'Reprocessar falhas e cancelar lotes'],
+      ['adiantamentos.pagamento_confirmar', 'Confirmar pagamentos e fechar apuração'],
+    ];
+    for (const [codigo, esperado] of casos) {
+      expect(rotuloPermissao(codigo, COM_LISTAR.has('adiantamentos'))).toBe(esperado);
+    }
+  });
+});
+
 describe('ehAltoImpacto', () => {
   it('marca o que concede mais do que o nome sugere, ou não tem volta', () => {
     expect(ehAltoImpacto('usuarios.gerenciar')).toBe(true);
@@ -122,5 +154,23 @@ describe('ehAltoImpacto', () => {
     expect(ehAltoImpacto('motoristas.listar')).toBe(false);
     expect(ehAltoImpacto('motoristas.criar')).toBe(false);
     expect(ehAltoImpacto('faturamento.exportar')).toBe(false);
+  });
+});
+
+describe('ehAltoImpacto — adiantamentos (por código, tasks.md 7.2.3)', () => {
+  it('marca as 6 permissões que movem dinheiro ou expõem dado bancário', () => {
+    expect(ehAltoImpacto('adiantamentos.gerenciar')).toBe(true); // já era, pelo verbo
+    expect(ehAltoImpacto('adiantamentos.configurar')).toBe(true);
+    expect(ehAltoImpacto('adiantamentos.contas_revisar')).toBe(true);
+    expect(ehAltoImpacto('adiantamentos.lote_criar')).toBe(true);
+    expect(ehAltoImpacto('adiantamentos.exportar')).toBe(true); // override por código — o verbo sozinho NÃO é alto impacto (ver faturamento.exportar acima)
+    expect(ehAltoImpacto('adiantamentos.reprocessar')).toBe(true);
+    expect(ehAltoImpacto('adiantamentos.pagamento_confirmar')).toBe(true);
+  });
+
+  it('não marca as consultas, mesmo as exclusivas do módulo', () => {
+    expect(ehAltoImpacto('adiantamentos.consultar')).toBe(false);
+    expect(ehAltoImpacto('adiantamentos.contas_consultar')).toBe(false);
+    expect(ehAltoImpacto('adiantamentos.pagamentos_consultar')).toBe(false);
   });
 });

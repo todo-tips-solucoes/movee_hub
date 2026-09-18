@@ -1,0 +1,15 @@
+
+Running 10 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:421:7 › US3 — contas bancárias › lista mostra só dado mascarado; documento/PIX completos só aparecem na revisão dedicada, e aprovar exige confirmar o entregador (798ms)
+  ✓   2 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:451:7 › US3 — contas bancárias › aprovação em massa mostra a contagem antes de confirmar (FR-020) (1.0s)
+  ✓   3 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:473:7 › US4 — pagamentos e lotes › seleciona, revisa a prévia (com pendência real JA_EM_LOTE) e gera o lote (961ms)
+  ✓   4 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:520:7 › US5 — confirmação de pagamento e transições de falha › confirma o resultado do lote marcando uma falha — os demais viram pagos automaticamente (1.0s)
+  ✓   5 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:540:7 › US5 — confirmação de pagamento e transições de falha › reprocessar uma solicitação falhada devolve para LIBERADA e ela reaparece na fila de pagamento (edge #20/7.7.4) (913ms)
+  ✓   6 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:561:7 › US5 — confirmação de pagamento e transições de falha › "Encerrar sem pagamento" em FALHOU transiciona para ENCERRADA e some da fila de reprocessamento (D-23/7.3.6) (886ms)
+  ✓   7 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:578:7 › US5 — confirmação de pagamento e transições de falha › a ação explícita "Atualizar conta" resolve a pendência de conta alterada (7.3.4) (710ms)
+  ✓   8 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:601:7 › US6 — repasse e fechamento › visualiza o remanescente por motorista no período (529ms)
+  ✓   9 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:614:7 › US6 — repasse e fechamento › fechar apuração com pendências é recusado e mostra a contagem por status (D-23/7.8.4) (897ms)
+  ✓  10 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:633:7 › US6 — repasse e fechamento › fecha a apuração com sucesso quando não há pendências (814ms)
+
+  10 passed (9.6s)

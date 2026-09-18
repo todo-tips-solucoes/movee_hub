@@ -40,11 +40,13 @@ async function proxyRequest(req: NextRequest) {
     // Reconstruct Cookie header from parsed cookies with proper encoding.
     const allCookies = req.cookies.getAll();
     const rawCookie = req.headers.get('cookie');
-    console.log('[proxy-debug]', req.method, path, {
-      rawCookie: rawCookie ? rawCookie.substring(0, 120) : null,
-      parsedCookieNames: allCookies.map(c => c.name),
-      parsedCookieCount: allCookies.length,
-    });
+    // FASE 11 (converge onda-037, 11.25, dec-155/dec-156 — correção alheia ao
+    // escopo desta feature, autorizada pelo operador em 2026-09-18): removido
+    // o console.log('[proxy-debug]', ...) que gravava 120 chars do header
+    // Cookie bruto (prefixo do accessToken) em log a cada requisição do
+    // painel. Violava o Princípio I da constitution ("Nenhum segredo entra
+    // em commit, log ou resposta de API") e era pré-existente (git log -S,
+    // só no Initial commit) — nada substitui: era só um debug esquecido.
 
     if (rawCookie) {
       // Prefer raw cookie header when available — no re-encoding needed

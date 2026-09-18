@@ -37,8 +37,10 @@ let avisosDetalheFixture = {}; // id -> row
 let resumoFixture = []; // [{aviso_id, visados, pendentes, processando, aceitos, falhas, mortas}]
 let alcanceComportamento = null; // null=ok | 'fora_escopo'
 let alcanceRows = [];
+let publicoComportamento = null; // null=ok | 'fora_escopo'
+let publicoRows = []; // D-15 (5.3.1): público TOTAL (hub_aviso_publico) — comPush é subconjunto (alcanceRows)
 let coberturaFixture = {};
-let criarComportamento = null; // null=ok | 'SEM_INSCRICOES_ATIVAS' | 'DESTINATARIOS_FORA_DO_ESCOPO' | 'FORA_DO_GRUPO_MOVEE' | 'UNIQUE_VIOLATION_UMA_VEZ' | 'UNIQUE_VIOLATION_SEMPRE'
+let criarComportamento = null; // null=ok | 'SEM_DESTINATARIOS' | 'DESTINATARIOS_FORA_DO_ESCOPO' | 'FORA_DO_GRUPO_MOVEE' | 'UNIQUE_VIOLATION_UMA_VEZ' | 'UNIQUE_VIOLATION_SEMPRE'
 let criarResultado = { aviso_id: 1, visados: 3, reutilizado: false };
 let chamadasCriarAviso = 0; // dec-097 — conta invocações de rpc/hub_aviso_criar por request
 let motoristasFixture = [];
@@ -88,6 +90,10 @@ async function fakeHubPostgrestRequest(endpoint, method, body, claims, opts) {
   if (caminho === 'rpc/hub_aviso_alcance') {
     if (alcanceComportamento === 'fora_escopo') throw raiseComMensagem('DESTINATARIOS_FORA_DO_ESCOPO');
     return alcanceRows;
+  }
+  if (caminho === 'rpc/hub_aviso_publico') {
+    if (publicoComportamento === 'fora_escopo') throw raiseComMensagem('DESTINATARIOS_FORA_DO_ESCOPO');
+    return publicoRows;
   }
   if (caminho === 'rpc/hub_push_cobertura') {
     return [coberturaFixture];
@@ -260,6 +266,14 @@ function resetFixtures() {
     { cnpj_prestador: '11111111000191', inscricao_id: 2 }, // mesmo motorista, 2 inscrições (2 aparelhos)
     { cnpj_prestador: '22222222000191', inscricao_id: 3 },
   ];
+  publicoComportamento = null;
+  // D-15: público TOTAL inclui um 3º CNPJ sem nenhuma PushInscricao — prova
+  // que `motoristas` (público) > `comPush` (alcance) quando há gente sem push.
+  publicoRows = [
+    { cnpj_prestador: '11111111000191' },
+    { cnpj_prestador: '22222222000191' },
+    { cnpj_prestador: '33333333000191' },
+  ];
   coberturaFixture = {
     ativos_android: 10, ativos_ios: 2, ativos_desktop_outros: 0,
     impedidos_bloqueadas: 1, impedidos_ios_sem_instalacao: 3, impedidos_sem_suporte: 0,
@@ -386,11 +400,12 @@ describe('GET /api/v1/avisos/:id (task 4.1.1)', () => {
 describe('GET /api/v1/avisos/alcance (task 4.1.1/4.1.4 — S8)', () => {
   beforeEach(resetFixtures);
 
-  test('modo toda_base -> {motoristas,inscricoes} deduplicado por cnpj', async () => {
+  test('modo toda_base -> {motoristas,comPush,inscricoes} (D-15: motoristas=público total, comPush=quem tem push)', async () => {
     const r = await request('GET', '/api/v1/avisos/alcance?modo=toda_base', { cookie: tokenCookie() });
     assert.equal(r.status, 200);
-    assert.equal(r.body.motoristas, 2); // 2 cnpjs distintos
-    assert.equal(r.body.inscricoes, 3); // 3 inscrições ao todo
+    assert.equal(r.body.motoristas, 3); // público total (hub_aviso_publico) — inclui quem não tem push
+    assert.equal(r.body.comPush, 2); // 2 cnpjs distintos com push (hub_aviso_alcance, dedup)
+    assert.equal(r.body.inscricoes, 3); // 3 inscrições de push ao todo
   });
 
   test('modo inválido -> 400 DADOS_INVALIDOS', async () => {
@@ -576,11 +591,11 @@ describe('POST /api/v1/avisos (task 4.2)', () => {
     assert.equal(r.body.erro, 'PERMISSAO_NEGADA');
   });
 
-  test('0 inscrições ativas -> 422 SEM_INSCRICOES_ATIVAS, nada gravado (sem auditoria)', async () => {
-    criarComportamento = 'SEM_INSCRICOES_ATIVAS';
+  test('D-15/5.3.2: público total vazio -> 422 SEM_DESTINATARIOS, nada gravado (sem auditoria)', async () => {
+    criarComportamento = 'SEM_DESTINATARIOS';
     const r = await request('POST', '/api/v1/avisos', { cookie: tokenCookie(), body: payloadValido() });
     assert.equal(r.status, 422);
-    assert.equal(r.body.erro, 'SEM_INSCRICOES_ATIVAS');
+    assert.equal(r.body.erro, 'SEM_DESTINATARIOS');
     assert.equal(registrosAuditoria.length, 0);
   });
 

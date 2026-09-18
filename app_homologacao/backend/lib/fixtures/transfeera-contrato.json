@@ -1,0 +1,19 @@
+{
+  "aba": "Página1",
+  "linha1Texto": "Mantenha sempre o cabeçalho original da planilha e esta linha, mantendo os titulos e a ordem dos campos",
+  "mesclagemLinha1": "A1:L1",
+  "cabecalhos": [
+    "Nome ou Razão Social",
+    "CPF ou CNPJ",
+    "Email (opcional)",
+    "Banco",
+    "Agência",
+    "Conta",
+    "Dígito da conta",
+    "Tipo de Conta (Corrente ou Poupança)",
+    "Valor",
+    "ID integração (opcional)",
+    "Data de agendamento (opcional)",
+    "Descrição Pix (opcional)"
+  ]
+}

@@ -73,14 +73,40 @@ function valorContemPadraoSensivel(valor) {
  * `usuario_criado` deixam de exibir o e-mail em `detalhes`; a
  * rastreabilidade do RECURSO afetado permanece garantida por
  * `recurso`/`recursoId` (FR-006), que não passam por `scrubDetalhes`.
+ *
+ * 11.13 (converge onda-040, FR-047): as duas camadas acima agora RECURSAM em
+ * objeto/array aninhado, em vez de tratá-lo como valor opaco (limitação
+ * documentada e removida — `routes/hub-adiantamentos.js` `antes`/`depois`
+ * de 11.12 e `lib/adiantamento-worker.js` `detalhes: resultado` passam
+ * objeto aninhado). Objeto aninhado é varrido recursivamente (mesmas duas
+ * camadas, nível a nível); array tem cada item varrido — item-objeto é
+ * varrido recursivamente, item-string sensível é removido do array (nunca
+ * substituído por placeholder, mesma regra "omitir, nunca mascarar").
  */
+function scrubValor(valor) {
+  if (Array.isArray(valor)) {
+    return valor
+      .map((item) => (item && typeof item === 'object' ? scrubValor(item) : item))
+      .filter((item) => !(typeof item === 'string' && valorContemPadraoSensivel(item)));
+  }
+  if (valor && typeof valor === 'object') {
+    return scrubDetalhes(valor);
+  }
+  return valor;
+}
+
 function scrubDetalhes(detalhes) {
+  if (Array.isArray(detalhes)) return scrubValor(detalhes);
   if (!detalhes || typeof detalhes !== 'object') return {};
   const out = {};
   for (const [chave, valor] of Object.entries(detalhes)) {
     const chaveLower = chave.toLowerCase();
     if (CHAVES_PROIBIDAS.some((proibida) => chaveLower.includes(proibida))) {
       continue; // nunca inclui — nem mascarado, simplesmente omitido
+    }
+    if (valor && typeof valor === 'object') {
+      out[chave] = scrubValor(valor); // recursão (FR-047, 11.13)
+      continue;
     }
     if (valorContemPadraoSensivel(valor)) {
       continue; // CHK006/SC-006 — padrão sensível no VALOR, omitido (nunca só logado)

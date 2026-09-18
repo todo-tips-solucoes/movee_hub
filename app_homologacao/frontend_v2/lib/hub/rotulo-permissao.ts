@@ -38,6 +38,46 @@ const VERBOS: Record<string, string> = {
  */
 const ALTO_IMPACTO = new Set(['gerenciar', 'enviar', 'excluir', 'credencial']);
 
+/**
+ * adiantamento-motorista (FASE 7, tasks.md 7.2.3) — rótulo por CÓDIGO
+ * COMPLETO, consultado ANTES do mapa de verbos (hub-api.md §Permissões por
+ * rota): dois verbos já mapeados mentiriam aqui (`exportar` = "Exportar
+ * (CSV)", `gerenciar` = "Administrar tudo do módulo" — nem uma nem outra
+ * descreve o que essas duas permissões fazem neste módulo); os demais
+ * verbos (`contas_consultar`, `contas_revisar`, `configurar`,
+ * `pagamentos_consultar`, `lote_criar`, `reprocessar`,
+ * `pagamento_confirmar`) são exclusivos de `adiantamentos`, sem tradução
+ * genérica possível. `consultar` fica de fora — cai no mesmo ramo
+ * ambíguo-por-módulo dos demais módulos (o módulo não tem `listar`, então
+ * vira "Acessar o módulo").
+ */
+const POR_CODIGO: Record<string, string> = {
+  'adiantamentos.gerenciar': 'Rejeitar, recalcular e encerrar adiantamentos',
+  'adiantamentos.configurar': 'Alterar regras do adiantamento',
+  'adiantamentos.contas_consultar': 'Ver contas bancárias (mascaradas)',
+  'adiantamentos.contas_revisar': 'Ver completas e aprovar contas bancárias',
+  'adiantamentos.pagamentos_consultar': 'Ver pagamentos, lotes e repasse',
+  'adiantamentos.lote_criar': 'Criar lote de pagamento',
+  'adiantamentos.exportar': 'Baixar arquivo da Transfeera',
+  'adiantamentos.reprocessar': 'Reprocessar falhas e cancelar lotes',
+  'adiantamentos.pagamento_confirmar': 'Confirmar pagamentos e fechar apuração',
+};
+
+/** Idem, para alto impacto — só os códigos cujo VERBO ainda não está em
+ * `ALTO_IMPACTO` (o de `adiantamentos.gerenciar` já está, pelo verbo
+ * `gerenciar`). `adiantamentos.exportar` PRECISA de override por código: o
+ * verbo `exportar` não é alto impacto em nenhum outro módulo
+ * (`faturamento.exportar` etc.), mas baixar o arquivo da Transfeera expõe
+ * dado bancário completo do lote inteiro. */
+const ALTO_IMPACTO_POR_CODIGO = new Set([
+  'adiantamentos.configurar',
+  'adiantamentos.contas_revisar',
+  'adiantamentos.lote_criar',
+  'adiantamentos.exportar',
+  'adiantamentos.reprocessar',
+  'adiantamentos.pagamento_confirmar',
+]);
+
 /** `motoristas.exportar` → `{ modulo: 'motoristas', verbo: 'exportar' }`. */
 export function partesDoCodigo(codigo: string): { modulo: string; verbo: string } {
   const i = codigo.indexOf('.');
@@ -46,6 +86,7 @@ export function partesDoCodigo(codigo: string): { modulo: string; verbo: string 
 }
 
 export function ehAltoImpacto(codigo: string): boolean {
+  if (ALTO_IMPACTO_POR_CODIGO.has(codigo)) return true;
   return ALTO_IMPACTO.has(partesDoCodigo(codigo).verbo);
 }
 
@@ -63,6 +104,7 @@ export function ehAltoImpacto(codigo: string): boolean {
  * invisível nem com rótulo errado (mesmo fail-safe de `resolveModuleIcon`).
  */
 export function rotuloPermissao(codigo: string, moduloTemListar: boolean): string {
+  if (POR_CODIGO[codigo]) return POR_CODIGO[codigo];
   const { verbo } = partesDoCodigo(codigo);
   if (verbo === 'consultar') return moduloTemListar ? 'Ver detalhes' : 'Acessar o módulo';
   return VERBOS[verbo] ?? codigo;

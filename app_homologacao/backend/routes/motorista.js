@@ -505,10 +505,19 @@ router.post('/token/refresh', (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// ROTA: POST /motorista/logout  (autenticado)
-// Ref: tarefa 2.2.3
+// ROTA: POST /motorista/logout  (NÃO exige access token válido — Q-N16, tasks.md 3.5.1)
+// Ref: tarefa 2.2.3 / adiantamento-motorista 3.5
+//
+// Antes exigia `authenticateMotorista`, que devolve 401 se o accessToken
+// estiver expirado/ausente — impedindo exatamente o caso mais comum de
+// querer sair (sessão já vencida por inatividade). Este app não mantém um
+// store server-side de refresh tokens (JWT stateless, sem tabela de sessão —
+// diferente do hub, que tem família de refresh com teto de 24h): a única
+// invalidação possível no servidor é limpar os cookies httpOnly via
+// `Set-Cookie` na resposta, o que `clearAuthCookies` já faz — e passa a
+// rodar SEMPRE, sem depender de o access token ainda ser válido.
 // ──────────────────────────────────────────────────────────────────────────────
-router.post('/logout', authenticateMotorista, (req, res) => {
+router.post('/logout', (req, res) => {
   clearAuthCookies(res);
   return res.json({ message: 'Logout bem-sucedido.' });
 });

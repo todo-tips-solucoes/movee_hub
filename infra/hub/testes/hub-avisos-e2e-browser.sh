@@ -42,7 +42,7 @@ REPO_DIR="$(cd "$HUB_DIR/../.." && pwd)"
 FRONTEND_DIR="$REPO_DIR/app_homologacao/frontend_v2"
 ENV_FILE="${HUB_TEST_ENV:-/var/lib/hub_secrets/.env.hub.test}"
 COMPOSE="$HUB_DIR/compose.hub.test.yml"
-RUNID="$(date +%s)"
+RUNID="$(date +%s)-$$"
 PROJECT="hub-test-$RUNID"
 TMP="$(mktemp -d)"
 PLAYWRIGHT_IMAGE="mcr.microsoft.com/playwright:v1.61.1-jammy"
@@ -195,6 +195,13 @@ CNPJ_COM=90000000000401
 CNPJ_SEM=90000000000402
 
 psql_t -c "INSERT INTO \"Motorista\" (cnpj_prestador, nome, ativo) VALUES ('$CNPJ_COM','Motorista Teste Browser',true) ON CONFLICT DO NOTHING;" >/dev/null
+# D-15 (adiantamento-motorista FASE 5, 10.2.3 — achado desta suíte): sem esta
+# linha, hub_aviso_publico (fonte_conta='legado' — HUB_MOTORISTA_LOGIN_CONTA_ATIVA
+# não é setada neste driver) não enxerga CNPJ_SEM em nenhum modo (a tabela
+# "Motorista" legada é a ÚNICA fonte de "público" sob fonte_conta='legado'),
+# fazendo `motoristas=0` mesmo ele existindo como Entregador+ContaMotorista —
+# antes do D-15 isso não importava (só PushInscricao contava para `alcance`).
+psql_t -c "INSERT INTO \"Motorista\" (cnpj_prestador, nome, ativo) VALUES ('$CNPJ_SEM','Motorista Teste Browser Sem Push',true) ON CONFLICT DO NOTHING;" >/dev/null
 psql_t -c "INSERT INTO \"ContaMotorista\" (cnpj_prestador, nome, ativo) VALUES ('$CNPJ_COM','$NOME_COM',true) ON CONFLICT (cnpj_prestador) DO NOTHING;" >/dev/null
 psql_t -c "INSERT INTO \"ContaMotorista\" (cnpj_prestador, nome, ativo) VALUES ('$CNPJ_SEM','$NOME_SEM',true) ON CONFLICT (cnpj_prestador) DO NOTHING;" >/dev/null
 CONTA_COM_ID="$(psql_val "SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='$CNPJ_COM';")"

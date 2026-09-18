@@ -98,9 +98,9 @@ describe('avisos-api — 1 caso por código de erro mapeado', () => {
     });
   });
 
-  // routes/hub-avisos.js:458-459 — 0 inscrições ativas no momento do disparo
-  it('SEM_INSCRICOES_ATIVAS (422, POST /)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => respostaFake({ erro: 'SEM_INSCRICOES_ATIVAS' }, 422)));
+  // D-15 (5.3.2) — público total vazio no momento do disparo (routes/hub-avisos.js)
+  it('SEM_DESTINATARIOS (422, POST /)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respostaFake({ erro: 'SEM_DESTINATARIOS' }, 422)));
     await expect(
       dispararAviso({
         titulo: 'Aviso',
@@ -112,8 +112,8 @@ describe('avisos-api — 1 caso por código de erro mapeado', () => {
     ).rejects.toMatchObject({
       name: 'AvisoApiError',
       status: 422,
-      codigo: 'SEM_INSCRICOES_ATIVAS',
-      message: 'Nenhum motorista está com notificações ativas no momento.',
+      codigo: 'SEM_DESTINATARIOS',
+      message: 'Nenhum motorista corresponde aos destinatários selecionados.',
     });
   });
 

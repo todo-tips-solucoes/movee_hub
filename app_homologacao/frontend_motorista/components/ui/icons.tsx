@@ -48,3 +48,28 @@ export const Bell = makeIcon('notifications');
 export const BellOff = makeIcon('notifications_off');
 export const BellRing = makeIcon('notifications_active');
 export const Smartphone = makeIcon('smartphone');
+// adiantamento-motorista (tasks.md 6.2.1) — navegação inferior (prototipo M01).
+export const Home = makeIcon('home');
+export const Payments = makeIcon('payments');
+export const Wallet = makeIcon('account_balance');
+// adiantamento-motorista (tasks.md 6.3) — pills de status (prototipo ST/HST) e
+// telas de solicitação/detalhe/regras (M03-M11, M15).
+export const Schedule = makeIcon('schedule');
+export const HourglassTop = makeIcon('hourglass_top');
+export const TaskAlt = makeIcon('task_alt');
+export const Inventory2 = makeIcon('inventory_2');
+export const Sync = makeIcon('sync');
+export const Paid = makeIcon('paid');
+export const Block = makeIcon('block');
+export const RemoveCircle = makeIcon('remove_circle');
+export const Close = makeIcon('close');
+export const EventBusy = makeIcon('event_busy');
+export const EventAvailable = makeIcon('event_available');
+export const TimerOff = makeIcon('timer_off');
+export const Help = makeIcon('help');
+export const EventRepeat = makeIcon('event_repeat');
+// adiantamento-motorista (tasks.md 6.4-6.5) — conta bancária (M12-M14) e
+// central de notificações (M02).
+export const Edit = makeIcon('edit');
+export const DoneAll = makeIcon('done_all');
+export const Rule = makeIcon('rule');

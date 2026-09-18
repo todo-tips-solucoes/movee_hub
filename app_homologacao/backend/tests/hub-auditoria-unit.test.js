@@ -46,12 +46,31 @@ function valorContemPadraoSensivel(valor) {
   return REGEX_CPF.test(valor) || REGEX_CNPJ.test(valor) || REGEX_EMAIL.test(valor);
 }
 
+// 11.13: espelha a recursão em objeto/array aninhado adicionada em
+// lib/hub-auditoria.js (FR-047) — ver comentário lá para a justificativa.
+function scrubValor(valor) {
+  if (Array.isArray(valor)) {
+    return valor
+      .map((item) => (item && typeof item === 'object' ? scrubValor(item) : item))
+      .filter((item) => !(typeof item === 'string' && valorContemPadraoSensivel(item)));
+  }
+  if (valor && typeof valor === 'object') {
+    return scrubDetalhes(valor);
+  }
+  return valor;
+}
+
 function scrubDetalhes(detalhes) {
+  if (Array.isArray(detalhes)) return scrubValor(detalhes);
   if (!detalhes || typeof detalhes !== 'object') return {};
   const out = {};
   for (const [chave, valor] of Object.entries(detalhes)) {
     const chaveLower = chave.toLowerCase();
     if (CHAVES_PROIBIDAS.some((proibida) => chaveLower.includes(proibida))) {
+      continue;
+    }
+    if (valor && typeof valor === 'object') {
+      out[chave] = scrubValor(valor);
       continue;
     }
     if (valorContemPadraoSensivel(valor)) {
@@ -173,5 +192,36 @@ describe('scrubDetalhes — checagem por padrão sensível no VALOR (CHK006/SC-0
     assert.equal(valorContemPadraoSensivel('texto qualquer sem padrao'), false);
     assert.equal(valorContemPadraoSensivel(42), false);
     assert.equal(valorContemPadraoSensivel(null), false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 11.13 (converge onda-040, FR-047) — recursão em objeto/array aninhado
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('scrubDetalhes — recursão em objeto/array aninhado (11.13/FR-047)', () => {
+  test('chave proibida DENTRO de objeto aninhado é omitida (não só no nível raiz)', () => {
+    const r = scrubDetalhes({ versao: 3, antes: { percentual: 60, token: 'abc' }, depois: { percentual: 65 } });
+    assert.deepEqual(r, { versao: 3, antes: { percentual: 60 }, depois: { percentual: 65 } });
+  });
+
+  test('CPF/e-mail em valor DENTRO de objeto aninhado é omitido', () => {
+    const r = scrubDetalhes({ resultado: { nome: 'Fulano', cpf_texto: '123.456.789-01', ok: true } });
+    assert.deepEqual(r, { resultado: { nome: 'Fulano', ok: true } });
+  });
+
+  test('objeto aninhado dentro de array é varrido item a item', () => {
+    const r = scrubDetalhes({ itens: [{ id: 1, token: 'x', valor: 10 }, { id: 2, valor: 20 }] });
+    assert.deepEqual(r, { itens: [{ id: 1, valor: 10 }, { id: 2, valor: 20 }] });
+  });
+
+  test('item-string sensível dentro de array é removido do array (nunca mascarado)', () => {
+    const r = scrubDetalhes({ observacoes: ['tudo ok', 'contato joao@example.com', 'sem pendencia'] });
+    assert.deepEqual(r, { observacoes: ['tudo ok', 'sem pendencia'] });
+  });
+
+  test('aninhamento de 2+ níveis também é varrido', () => {
+    const r = scrubDetalhes({ a: { b: { senha: 'x', c: 1 } } });
+    assert.deepEqual(r, { a: { b: { c: 1 } } });
   });
 });

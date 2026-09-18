@@ -72,6 +72,19 @@ const jwt = require('jsonwebtoken');
  *   (identidade do token, nunca do corpo — FR-003, mitigação S10 no lado do
  *   emissor: a função no banco também recusa claim fora do formato de
  *   14 dígitos, defesa em profundidade).
+ * @param {boolean} [claims.adiantamentoWorker] - vira `hub_adiantamento_worker`
+ *   (adiantamento-motorista, tasks.md 3.4.1, contracts/sql-rpc.md §Claims) —
+ *   claim booleana INTERNA emitida SÓ por `lib/adiantamento-worker.js` (tick
+ *   de 60s), NUNCA a partir de dado de requisição — mesmo padrão de
+ *   `hubPushWorker`/`hub_jwt_push_worker()`. Lida por
+ *   `hub_jwt_adiantamento_worker()` (migration 0067) nas RPCs
+ *   `hub_adiantamento_processar/_lote_orfaos/_expurgo_arquivos`.
+ * @param {boolean} [claims.cargaInicialWorker] - vira `hub_carga_inicial_worker`
+ *   (adiantamento-motorista, tasks.md FASE 8, 8.1.7) — claim booleana INTERNA
+ *   emitida SÓ por `scripts/carga-contas-bancarias.js` (carga inicial de
+ *   contas, `--gravar`), NUNCA a partir de dado de requisição. Lida por
+ *   `hub_jwt_carga_inicial_worker()` (migration 0072) na RPC
+ *   `hub_conta_bancaria_carga_inicial`.
  * @returns {string} JWT assinado (HS256)
  */
 function generateHubPostgrestJWT(claims = {}) {
@@ -99,6 +112,12 @@ function generateHubPostgrestJWT(claims = {}) {
   }
   if (typeof claims.motoristaCnpj === 'string' && claims.motoristaCnpj !== '') {
     payload.motorista_cnpj = claims.motoristaCnpj;
+  }
+  if (claims.adiantamentoWorker === true) {
+    payload.hub_adiantamento_worker = true;
+  }
+  if (claims.cargaInicialWorker === true) {
+    payload.hub_carga_inicial_worker = true;
   }
 
   const secret = process.env.PGRST_JWT_SECRET;

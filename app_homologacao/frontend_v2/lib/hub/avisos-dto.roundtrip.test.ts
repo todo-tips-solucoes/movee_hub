@@ -34,7 +34,10 @@ describe('Scenario 20 (roundtrip real) — corpos capturados batem com os parser
   });
 
   it('GET /avisos/alcance: parseAvisoAlcance aceita o corpo real sem lançar', () => {
-    expect(parseAvisoAlcance(corpos.alcance_body)).toEqual({ motoristas: 101, inscricoes: 101 });
+    // D-15 (5.3.1): a captura é anterior ao campo `comPush` (introduzido nesta
+    // FASE 5) — o fixture não tem essa chave, então o parser aplica o default
+    // documentado de campo ausente (0), sem fabricar o valor real da época.
+    expect(parseAvisoAlcance(corpos.alcance_body)).toEqual({ motoristas: 101, comPush: 0, inscricoes: 101 });
   });
 
   it('GET /avisos/cobertura: parseAvisosCobertura aceita o corpo real sem lançar', () => {

@@ -1,8 +1,9 @@
 // hub-avisos (push-motorista, FASE 7 — tasks.md 7.3.5, complemento do E2E
 // deferido à FASE 9.4 — ver block-009/dec-107): cobre em RTL o que NÃO
 // depende de Playwright/multi-página — os 3 modos, contador de caracteres,
-// prévia de alcance atualizando ao trocar seleção, disparo bloqueado com 0
-// inscrições, e clique duplo gerando exatamente 1 requisição de rede
+// prévia de alcance atualizando ao trocar seleção, disparo bloqueado com
+// público total vazio (D-15/5.3.2 — SEM_DESTINATARIOS, adiantamento-motorista
+// FASE 5), e clique duplo gerando exatamente 1 requisição de rede
 // (CHK011 — invariante central de 7.3.4/7.3.5).
 //
 // Timers REAIS (não `vi.useFakeTimers()`) — mesmo motivo de
@@ -31,8 +32,12 @@ vi.mock('@/lib/hub/avisos-api', async () => {
   };
 });
 
-const ALCANCE_OK: AvisoAlcance = { motoristas: 12, inscricoes: 20 };
-const ALCANCE_ZERO: AvisoAlcance = { motoristas: 0, inscricoes: 0 };
+const ALCANCE_OK: AvisoAlcance = { motoristas: 12, comPush: 9, inscricoes: 20 };
+// D-15 (5.3.2): público total vazio (SEM_DESTINATARIOS) — não mais "0 inscrições".
+const ALCANCE_SEM_DESTINATARIOS: AvisoAlcance = { motoristas: 0, comPush: 0, inscricoes: 0 };
+// D-15: público existe mas ninguém tem push — disparo passa a ser PERMITIDO
+// (o histórico é gravado para todos mesmo assim).
+const ALCANCE_SEM_PUSH: AvisoAlcance = { motoristas: 5, comPush: 0, inscricoes: 0 };
 const MOTORISTA: MotoristaDestino = { id: 5, nome: 'Joao Motorista' };
 const EMPRESA: EmpresaDestino = { id: 9, nome: 'Filial Sul' };
 
@@ -72,7 +77,7 @@ describe('AvisoDialog', () => {
     expect(screen.getByText('5/60')).toBeInTheDocument();
   });
 
-  it('modo toda_base (default): calcula alcance sem ids e habilita Disparar com inscrições > 0', async () => {
+  it('modo toda_base (default): calcula alcance sem ids e habilita Disparar com público > 0', async () => {
     render(<AvisoDialog />);
     abrirDialog();
     preencherTituloECorpo();
@@ -80,18 +85,29 @@ describe('AvisoDialog', () => {
     await waitFor(() => expect(mockObterAlcance).toHaveBeenCalledWith({ modo: 'toda_base', ids: [] }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Disparar/ })).toBeEnabled());
     expect(screen.getByText(/12/)).toBeInTheDocument();
-    expect(screen.getByText(/20/)).toBeInTheDocument();
+    expect(screen.getByText(/9/)).toBeInTheDocument();
   });
 
-  it('SEM_INSCRICOES_ATIVAS: 0 inscrições mantém Disparar desabilitado e avisa o operador', async () => {
-    mockObterAlcance.mockResolvedValue(ALCANCE_ZERO);
+  it('D-15/5.3.2: SEM_DESTINATARIOS (público total vazio) mantém Disparar desabilitado e avisa o operador', async () => {
+    mockObterAlcance.mockResolvedValue(ALCANCE_SEM_DESTINATARIOS);
     render(<AvisoDialog />);
     abrirDialog();
     preencherTituloECorpo();
 
     await waitFor(() => expect(mockObterAlcance).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText(/nenhuma notificação seria enviada/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/nenhum motorista corresponde aos destinatários selecionados/)).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /Disparar/ })).toBeDisabled();
+  });
+
+  it('D-15/5.3.2: público existe mas ninguém tem push — Disparar fica HABILITADO (histórico vai para todos mesmo assim)', async () => {
+    mockObterAlcance.mockResolvedValue(ALCANCE_SEM_PUSH);
+    render(<AvisoDialog />);
+    abrirDialog();
+    preencherTituloECorpo();
+
+    await waitFor(() => expect(mockObterAlcance).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(/ninguém tem push ativo/)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Disparar/ })).toBeEnabled();
   });
 
   it('modo individual: exige ao menos 1 selecionado e recalcula alcance com os ids escolhidos', async () => {
@@ -151,7 +167,7 @@ describe('AvisoDialog', () => {
   });
 
   it('erro do disparo (AvisoApiError) exibe a mensagem e não fecha o diálogo', async () => {
-    mockDispararAviso.mockRejectedValue(new AvisoApiError(422, 'Nenhum motorista está com notificações ativas no momento.', 'SEM_INSCRICOES_ATIVAS'));
+    mockDispararAviso.mockRejectedValue(new AvisoApiError(422, 'Nenhum motorista corresponde aos destinatários selecionados.', 'SEM_DESTINATARIOS'));
     render(<AvisoDialog />);
     abrirDialog();
     preencherTituloECorpo();
@@ -159,7 +175,7 @@ describe('AvisoDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Disparar/ }));
 
-    await waitFor(() => expect(screen.getByText('Nenhum motorista está com notificações ativas no momento.')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Nenhum motorista corresponde aos destinatários selecionados.')).toBeInTheDocument());
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 

@@ -209,6 +209,63 @@ describe('lib/hub-postgrest-jwt — claims por request (FASE 3 -> FASE 5)', () =
       }
     });
   });
+
+  // adiantamento-motorista (tasks.md 3.4.1/3.4.2, contracts/sql-rpc.md
+  // §Claims) — hub_adiantamento_worker segue o MESMO molde de
+  // hub_push_worker acima: parâmetro aceito pela função compartilhada, só
+  // setado `true` por lib/adiantamento-worker.js (tick de 60s), nunca a
+  // partir de dado de requisição HTTP.
+  test('adiantamentoWorker=true -> payload.hub_adiantamento_worker=true; ausente/false -> claim NUNCA aparece', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      const comClaim = jwt.decode(generateHubPostgrestJWT({ adiantamentoWorker: true }));
+      assert.equal(comClaim.hub_adiantamento_worker, true);
+      assert.equal('sub' in comClaim, false, 'claim de worker não deve carregar sub de usuário');
+
+      const semClaim = jwt.decode(generateHubPostgrestJWT());
+      assert.equal('hub_adiantamento_worker' in semClaim, false);
+
+      const claimFalsa = jwt.decode(generateHubPostgrestJWT({ adiantamentoWorker: false }));
+      assert.equal('hub_adiantamento_worker' in claimFalsa, false, 'adiantamentoWorker:false não deve virar claim (só true habilita)');
+    });
+  });
+
+  test('token do worker de adiantamento não serve para rota de usuário humano, e vice-versa (3.4.2)', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      // token do worker: só a claim do worker, nada de identidade humana.
+      const tokenWorker = jwt.decode(generateHubPostgrestJWT({ adiantamentoWorker: true }));
+      assert.equal('motorista_cnpj' in tokenWorker, false, 'token do worker não deve carregar motorista_cnpj');
+      assert.equal('sub' in tokenWorker, false, 'token do worker não deve carregar sub (usuário do hub)');
+      assert.equal('escopo' in tokenWorker, false, 'token do worker não deve carregar escopo');
+
+      // tokens de rota humana (motorista/hub) nunca carregam a claim do worker.
+      const chamadas = [
+        generateHubPostgrestJWT({ motoristaCnpj: '22222222000199' }),
+        generateHubPostgrestJWT({ usuarioId: 9, empresaAtiva: 6, escopo: [6] }),
+        generateHubPostgrestJWT({ hubPushWorker: true }),
+        generateHubPostgrestJWT(),
+      ];
+      for (const token of chamadas) {
+        const payload = jwt.decode(token);
+        assert.equal('hub_adiantamento_worker' in payload, false, 'hub_adiantamento_worker só pode ser emitida por lib/adiantamento-worker.js, nunca por uma rota HTTP ou outro worker');
+      }
+    });
+  });
+
+  // adiantamento-motorista FASE 8 (tasks.md 8.1.7) — hub_carga_inicial_worker
+  // segue o MESMO molde: só scripts/carga-contas-bancarias.js seta `true`.
+  test('cargaInicialWorker=true -> payload.hub_carga_inicial_worker=true; ausente/false -> claim NUNCA aparece', () => {
+    comSecret(TEST_SECRET, (generateHubPostgrestJWT) => {
+      const comClaim = jwt.decode(generateHubPostgrestJWT({ cargaInicialWorker: true }));
+      assert.equal(comClaim.hub_carga_inicial_worker, true);
+      assert.equal('sub' in comClaim, false, 'claim de worker não deve carregar sub de usuário');
+
+      const semClaim = jwt.decode(generateHubPostgrestJWT());
+      assert.equal('hub_carga_inicial_worker' in semClaim, false);
+
+      const claimFalsa = jwt.decode(generateHubPostgrestJWT({ cargaInicialWorker: false }));
+      assert.equal('hub_carga_inicial_worker' in claimFalsa, false, 'cargaInicialWorker:false não deve virar claim (só true habilita)');
+    });
+  });
 });
 
 describe('lib/hub-postgrest-jwt — alg-pinning (research.md Decision 12, owasp-security)', () => {

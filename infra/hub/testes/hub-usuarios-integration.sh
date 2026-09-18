@@ -27,7 +27,7 @@ set -uo pipefail
 HUB_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="${HUB_TEST_ENV:-/var/lib/hub_secrets/.env.hub.test}"
 COMPOSE="$HUB_DIR/compose.hub.test.yml"
-RUNID="$(date +%s)"
+RUNID="$(date +%s)-$$"
 PROJECT="hub-test-$RUNID"
 TMP="$(mktemp -d)"
 

@@ -27,7 +27,7 @@ set -uo pipefail
 HUB_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="${HUB_TEST_ENV:-/var/lib/hub_secrets/.env.hub.test}"
 COMPOSE="$HUB_DIR/compose.hub.test.yml"
-RUNID="$(date +%s)"
+RUNID="$(date +%s)-$$"
 PROJECT="hub-test-$RUNID"
 TMP="$(mktemp -d)"
 
@@ -145,7 +145,12 @@ async function main() {
   const bGetAE = await rGetAE.json();
   out.get_ae_status = rGetAE.status;
   out.get_ae_pode_editar = bGetAE.podeEditar === false ? 'false' : 'true';
-  out.get_ae_tem_papeis = Array.isArray(bGetAE.papeis) && bGetAE.papeis.length === 4 ? 'true' : 'false';
+  // Conjunto de nomes em vez de contagem fixa (feature adiantamento-motorista,
+  // migration 0070 acrescentou o papel 'financeiro' aos 4 originais de dec-008/
+  // migration 0007 — checar por nome deixa a asserção estável ao próximo papel novo).
+  const nomesPapeisAE = new Set((bGetAE.papeis || []).map((p) => p.nome));
+  const papeisEsperados = ['admin_plataforma', 'admin_entidade', 'operador', 'leitura', 'financeiro'];
+  out.get_ae_tem_papeis = Array.isArray(bGetAE.papeis) && papeisEsperados.every((n) => nomesPapeisAE.has(n)) ? 'true' : 'false';
 
   const rPutAE = await fetch(\`http://localhost:3000/api/v1/papeis/\${papelAdminPlataforma}/permissoes/\${permMotoristasCriar}\`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jarAE) },
@@ -226,7 +231,7 @@ jget() { printf '%s' "$R1" | node_e "const d=JSON.parse(require('fs').readFileSy
 
 check "admin_entidade GET /papeis -> 200" "$(jget get_ae_status)" "200"
 check "admin_entidade GET /papeis -> podeEditar=false" "$(jget get_ae_pode_editar)" "false"
-check "GET /papeis -> catalogo com 4 papeis (dec-008)" "$(jget get_ae_tem_papeis)" "true"
+check "GET /papeis -> catalogo contem os 5 papeis esperados (dec-008 + financeiro/migration 0070)" "$(jget get_ae_tem_papeis)" "true"
 check "admin_entidade PUT /papeis/.../permissoes/... -> 403 (FR-010/FR-016)" "$(jget put_ae_status)" "403"
 check "admin_entidade PUT -> erro=PERMISSAO_NEGADA" "$(jget put_ae_erro)" "PERMISSAO_NEGADA"
 check "admin_plataforma GET /papeis -> 200" "$(jget get_ap_status)" "200"

@@ -1,0 +1,1254 @@
+
+> backend_homologacao@1.0.0 test:hub:integration
+> node --test --test-concurrency=1 tests/hub-rls-integration.test.js tests/hub-auditoria-integration.test.js tests/hub-importacoes-integration.test.js tests/hub-import-processor-integration.test.js tests/hub-motoristas.test.js tests/hub-motoristas-credencial.test.js tests/hub-faturamento.test.js tests/hub-usuarios.test.js tests/hub-papeis.test.js tests/hub-admin.test.js tests/hub-performance.test.js tests/hub-motorista-360-integration.test.js tests/hub-enriquecimento-automatico-integration.test.js tests/hub-avisos.test.js
+
+TAP version 13
+#  Network hub-test-1789710449-2825667_default Creating 
+#  Network hub-test-1789710449-2825667_default Created 
+#  Container hub-test-1789710449-2825667-db-1 Creating 
+#  Container hub-test-1789710449-2825667-db-1 Created 
+#  Container hub-test-1789710449-2825667-db-1 Starting 
+#  Container hub-test-1789710449-2825667-db-1 Started 
+#  Container hub-test-1789710449-2825667-db-1 Waiting 
+#  Container hub-test-1789710449-2825667-db-1 Healthy 
+#  Container hub-test-1789710449-2825667-db-1 Running 
+#  Container hub-test-1789710449-2825667-postgrest-1 Creating 
+#  Container hub-test-1789710449-2825667-postgrest-1 Created 
+#  Container hub-test-1789710449-2825667-db-1 Waiting 
+#  Container hub-test-1789710449-2825667-db-1 Healthy 
+#  Container hub-test-1789710449-2825667-postgrest-1 Starting 
+#  Container hub-test-1789710449-2825667-postgrest-1 Started 
+#  Container hub-test-1789710449-2825667-db-1 Waiting 
+#  Container hub-test-1789710449-2825667-postgrest-1 Waiting 
+#  Container hub-test-1789710449-2825667-db-1 Healthy 
+#  Container hub-test-1789710449-2825667-postgrest-1 Healthy 
+#  Container hub-test-1789710449-2825667-mailpit-mock-1 Creating 
+#  Container hub-test-1789710449-2825667-mailpit-mock-1 Created 
+#  Container hub-test-1789710449-2825667-mailpit-mock-1 Starting 
+#  Container hub-test-1789710449-2825667-mailpit-mock-1 Started 
+#  Container hub-test-1789710449-2825667-mailpit-mock-1 Waiting 
+#  Container hub-test-1789710449-2825667-mailpit-mock-1 Healthy 
+#  Container hub-test-1789710449-2825667-db-1 Running 
+#  Container hub-test-1789710449-2825667-postgrest-1 Running 
+#  Container hub-test-1789710449-2825667-backend-1 Creating 
+#  Container hub-test-1789710449-2825667-backend-1 Created 
+#  Container hub-test-1789710449-2825667-db-1 Waiting 
+#  Container hub-test-1789710449-2825667-db-1 Healthy 
+#  Container hub-test-1789710449-2825667-db-1 Waiting 
+#  Container hub-test-1789710449-2825667-db-1 Healthy 
+#  Container hub-test-1789710449-2825667-backend-1 Starting 
+#  Container hub-test-1789710449-2825667-backend-1 Started 
+#  Container hub-test-1789710449-2825667-db-1 Waiting 
+#  Container hub-test-1789710449-2825667-postgrest-1 Waiting 
+#  Container hub-test-1789710449-2825667-backend-1 Waiting 
+#  Container hub-test-1789710449-2825667-postgrest-1 Healthy 
+#  Container hub-test-1789710449-2825667-db-1 Healthy 
+#  Container hub-test-1789710449-2825667-backend-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-admin-integration.sh — módulos por entidade (efeito imediato, guard anti-lockout, FR-017)
+not ok 1 - hub-admin-integration.sh — módulos por entidade (efeito imediato, guard anti-lockout, FR-017)
+  ---
+  duration_ms: 63059.098334
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-admin.test.js:37:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-admin-integration.sh
+     Network hub-test-1789710449-2825667_default Creating 
+     Network hub-test-1789710449-2825667_default Created 
+     Container hub-test-1789710449-2825667-db-1 Creating 
+     Container hub-test-1789710449-2825667-db-1 Created 
+     Container hub-test-1789710449-2825667-db-1 Starting 
+     Container hub-test-1789710449-2825667-db-1 Started 
+     Container hub-test-1789710449-2825667-db-1 Waiting 
+     Container hub-test-1789710449-2825667-db-1 Healthy 
+     Container hub-test-1789710449-2825667-db-1 Running 
+     Container hub-test-1789710449-2825667-postgrest-1 Creating 
+     Container hub-test-1789710449-2825667-postgrest-1 Created 
+     Container hub-test-1789710449-2825667-db-1 Waiting 
+     Container hub-test-1789710449-2825667-db-1 Healthy 
+     Container hub-test-1789710449-2825667-postgrest-1 Starting 
+     Container hub-test-1789710449-2825667-postgrest-1 Started 
+     Container hub-test-1789710449-2825667-db-1 Waiting 
+     Container hub-test-1789710449-2825667-postgrest-1 Waiting 
+     Container hub-test-1789710449-2825667-db-1 Healthy 
+     Container hub-test-1789710449-2825667-postgrest-1 Healthy 
+     Container hub-test-1789710449-2825667-mailpit-mock-1 Creating 
+     Container hub-test-1789710449-2825667-mailpit-mock-1 Created 
+     Container hub-test-1789710449-2825667-mailpit-mock-1 Starting 
+     Container hub-test-1789710449-2825667-mailpit-mock-1 Started 
+     Container hub-test-1789710449-2825667-mailpit-mock-1 Waiting 
+     Container hub-test-1789710449-2825667-mailpit-mock-1 Healthy 
+     Container hub-test-1789710449-2825667-db-1 Running 
+     Container hub-test-1789710449-2825667-postgrest-1 Running 
+     Container hub-test-1789710449-2825667-backend-1 Creating 
+     Container hub-test-1789710449-2825667-backend-1 Created 
+     Container hub-test-1789710449-2825667-db-1 Waiting 
+     Container hub-test-1789710449-2825667-db-1 Healthy 
+     Container hub-test-1789710449-2825667-db-1 Waiting 
+     Container hub-test-1789710449-2825667-db-1 Healthy 
+     Container hub-test-1789710449-2825667-backend-1 Starting 
+     Container hub-test-1789710449-2825667-backend-1 Started 
+     Container hub-test-1789710449-2825667-db-1 Waiting 
+     Container hub-test-1789710449-2825667-postgrest-1 Waiting 
+     Container hub-test-1789710449-2825667-backend-1 Waiting 
+     Container hub-test-1789710449-2825667-postgrest-1 Healthy 
+     Container hub-test-1789710449-2825667-db-1 Healthy 
+     Container hub-test-1789710449-2825667-backend-1 Healthy 
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-admin.test.js:47:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Network hub-test-1789710512-2841180_default Creating 
+#  Network hub-test-1789710512-2841180_default Created 
+#  Container hub-test-1789710512-2841180-db-1 Creating 
+#  Container hub-test-1789710512-2841180-db-1 Created 
+#  Container hub-test-1789710512-2841180-db-1 Starting 
+#  Container hub-test-1789710512-2841180-db-1 Started 
+#  Container hub-test-1789710512-2841180-db-1 Waiting 
+#  Container hub-test-1789710512-2841180-db-1 Healthy 
+#  Container hub-test-1789710512-2841180-db-1 Running 
+#  Container hub-test-1789710512-2841180-postgrest-1 Creating 
+#  Container hub-test-1789710512-2841180-postgrest-1 Created 
+#  Container hub-test-1789710512-2841180-db-1 Waiting 
+#  Container hub-test-1789710512-2841180-db-1 Healthy 
+#  Container hub-test-1789710512-2841180-postgrest-1 Starting 
+#  Container hub-test-1789710512-2841180-postgrest-1 Started 
+#  Container hub-test-1789710512-2841180-postgrest-1 Waiting 
+#  Container hub-test-1789710512-2841180-db-1 Waiting 
+#  Container hub-test-1789710512-2841180-postgrest-1 Healthy 
+#  Container hub-test-1789710512-2841180-db-1 Healthy 
+#  Container hub-test-1789710512-2841180-mailpit-mock-1 Creating 
+#  Container hub-test-1789710512-2841180-mailpit-mock-1 Created 
+#  Container hub-test-1789710512-2841180-mailpit-mock-1 Starting 
+#  Container hub-test-1789710512-2841180-mailpit-mock-1 Started 
+#  Container hub-test-1789710512-2841180-mailpit-mock-1 Waiting 
+#  Container hub-test-1789710512-2841180-mailpit-mock-1 Healthy 
+#  Container hub-test-1789710512-2841180-db-1 Running 
+#  Container hub-test-1789710512-2841180-postgrest-1 Running 
+#  Container hub-test-1789710512-2841180-backend-1 Creating 
+#  Container hub-test-1789710512-2841180-backend-1 Created 
+#  Container hub-test-1789710512-2841180-db-1 Waiting 
+#  Container hub-test-1789710512-2841180-db-1 Healthy 
+#  Container hub-test-1789710512-2841180-db-1 Waiting 
+#  Container hub-test-1789710512-2841180-db-1 Healthy 
+#  Container hub-test-1789710512-2841180-backend-1 Starting 
+#  Container hub-test-1789710512-2841180-backend-1 Started 
+#  Container hub-test-1789710512-2841180-db-1 Waiting 
+#  Container hub-test-1789710512-2841180-postgrest-1 Waiting 
+#  Container hub-test-1789710512-2841180-backend-1 Waiting 
+#  Container hub-test-1789710512-2841180-postgrest-1 Healthy 
+#  Container hub-test-1789710512-2841180-db-1 Healthy 
+#  Container hub-test-1789710512-2841180-backend-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-auditoria-integration.sh — Auditoria imutável (INSERT ok, UPDATE/DELETE rejeitados)
+ok 2 - hub-auditoria-integration.sh — Auditoria imutável (INSERT ok, UPDATE/DELETE rejeitados)
+  ---
+  duration_ms: 54540.086416
+  type: 'test'
+  ...
+#  Network hub-test-1789710567-2852662_default Creating 
+#  Network hub-test-1789710567-2852662_default Created 
+#  Container hub-test-1789710567-2852662-db-1 Creating 
+#  Container hub-test-1789710567-2852662-db-1 Created 
+#  Container hub-test-1789710567-2852662-db-1 Starting 
+#  Container hub-test-1789710567-2852662-db-1 Started 
+#  Container hub-test-1789710567-2852662-db-1 Waiting 
+#  Container hub-test-1789710567-2852662-db-1 Healthy 
+#  Container hub-test-1789710567-2852662-db-1 Running 
+#  Container hub-test-1789710567-2852662-postgrest-1 Creating 
+#  Container hub-test-1789710567-2852662-postgrest-1 Created 
+#  Container hub-test-1789710567-2852662-db-1 Waiting 
+#  Container hub-test-1789710567-2852662-db-1 Healthy 
+#  Container hub-test-1789710567-2852662-postgrest-1 Starting 
+#  Container hub-test-1789710567-2852662-postgrest-1 Started 
+#  Container hub-test-1789710567-2852662-db-1 Waiting 
+#  Container hub-test-1789710567-2852662-postgrest-1 Waiting 
+#  Container hub-test-1789710567-2852662-db-1 Healthy 
+#  Container hub-test-1789710567-2852662-postgrest-1 Healthy 
+#  Container hub-test-1789710567-2852662-push-mock-1 Creating 
+#  Container hub-test-1789710567-2852662-push-mock-1 Created 
+#  Container hub-test-1789710567-2852662-push-mock-1 Starting 
+#  Container hub-test-1789710567-2852662-push-mock-1 Started 
+#  Container hub-test-1789710567-2852662-push-mock-1 Waiting 
+#  Container hub-test-1789710567-2852662-push-mock-1 Healthy 
+#  Container hub-test-1789710567-2852662-db-1 Running 
+#  Container hub-test-1789710567-2852662-postgrest-1 Running 
+#  Container hub-test-1789710567-2852662-backend-1 Creating 
+#  Container hub-test-1789710567-2852662-backend-1 Created 
+#  Container hub-test-1789710567-2852662-db-1 Waiting 
+#  Container hub-test-1789710567-2852662-db-1 Healthy 
+#  Container hub-test-1789710567-2852662-db-1 Waiting 
+#  Container hub-test-1789710567-2852662-db-1 Healthy 
+#  Container hub-test-1789710567-2852662-backend-1 Starting 
+#  Container hub-test-1789710567-2852662-backend-1 Started 
+#  Container hub-test-1789710567-2852662-backend-1 Waiting 
+#  Container hub-test-1789710567-2852662-db-1 Waiting 
+#  Container hub-test-1789710567-2852662-postgrest-1 Waiting 
+#  Container hub-test-1789710567-2852662-backend-1 Healthy 
+#  Container hub-test-1789710567-2852662-postgrest-1 Healthy 
+#  Container hub-test-1789710567-2852662-db-1 Healthy 
+# Subtest: hub-avisos-integration.sh — RLS, SKIP LOCKED, reinício, push-mock real (404/410/429/retry), expurgo, auditoria
+ok 3 - hub-avisos-integration.sh — RLS, SKIP LOCKED, reinício, push-mock real (404/410/429/retry), expurgo, auditoria
+  ---
+  duration_ms: 85162.024577
+  type: 'test'
+  ...
+# Subtest: hub-enriquecimento-automatico-integration-homolog.sh — teto/excedente + manual-primeiro + empresa não habilitada + retroatividade + convivência de gatilhos + RLS + regressão do evento UPDATE
+ok 4 - hub-enriquecimento-automatico-integration-homolog.sh — teto/excedente + manual-primeiro + empresa não habilitada + retroatividade + convivência de gatilhos + RLS + regressão do evento UPDATE
+  ---
+  duration_ms: 20369.722534
+  type: 'test'
+  ...
+#  Network hub-test-1789710673-2876425_default Creating 
+#  Network hub-test-1789710673-2876425_default Created 
+#  Container hub-test-1789710673-2876425-db-1 Creating 
+#  Container hub-test-1789710673-2876425-db-1 Created 
+#  Container hub-test-1789710673-2876425-db-1 Starting 
+#  Container hub-test-1789710673-2876425-db-1 Started 
+#  Container hub-test-1789710673-2876425-db-1 Waiting 
+#  Container hub-test-1789710673-2876425-db-1 Healthy 
+#  Container hub-test-1789710673-2876425-db-1 Running 
+#  Container hub-test-1789710673-2876425-postgrest-1 Creating 
+#  Container hub-test-1789710673-2876425-postgrest-1 Created 
+#  Container hub-test-1789710673-2876425-db-1 Waiting 
+#  Container hub-test-1789710673-2876425-db-1 Healthy 
+#  Container hub-test-1789710673-2876425-postgrest-1 Starting 
+#  Container hub-test-1789710673-2876425-postgrest-1 Started 
+#  Container hub-test-1789710673-2876425-db-1 Waiting 
+#  Container hub-test-1789710673-2876425-postgrest-1 Waiting 
+#  Container hub-test-1789710673-2876425-postgrest-1 Healthy 
+#  Container hub-test-1789710673-2876425-db-1 Healthy 
+#  Container hub-test-1789710673-2876425-mailpit-mock-1 Creating 
+#  Container hub-test-1789710673-2876425-mailpit-mock-1 Created 
+#  Container hub-test-1789710673-2876425-mailpit-mock-1 Starting 
+#  Container hub-test-1789710673-2876425-mailpit-mock-1 Started 
+#  Container hub-test-1789710673-2876425-mailpit-mock-1 Waiting 
+#  Container hub-test-1789710673-2876425-mailpit-mock-1 Healthy 
+#  Container hub-test-1789710673-2876425-db-1 Running 
+#  Container hub-test-1789710673-2876425-postgrest-1 Running 
+#  Container hub-test-1789710673-2876425-backend-1 Creating 
+#  Container hub-test-1789710673-2876425-backend-1 Created 
+#  Container hub-test-1789710673-2876425-db-1 Waiting 
+#  Container hub-test-1789710673-2876425-db-1 Healthy 
+#  Container hub-test-1789710673-2876425-db-1 Waiting 
+#  Container hub-test-1789710673-2876425-db-1 Healthy 
+#  Container hub-test-1789710673-2876425-backend-1 Starting 
+#  Container hub-test-1789710673-2876425-backend-1 Started 
+#  Container hub-test-1789710673-2876425-db-1 Waiting 
+#  Container hub-test-1789710673-2876425-postgrest-1 Waiting 
+#  Container hub-test-1789710673-2876425-backend-1 Waiting 
+#  Container hub-test-1789710673-2876425-postgrest-1 Healthy 
+#  Container hub-test-1789710673-2876425-db-1 Healthy 
+#  Container hub-test-1789710673-2876425-backend-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# HUB-FATURAMENTO-INTEGRATION: 2 assert(s) FALHARAM
+# Subtest: hub-faturamento-integration.sh — GET /faturamento (filtros + paginação + isolamento + permissões)
+not ok 5 - hub-faturamento-integration.sh — GET /faturamento (filtros + paginação + isolamento + permissões)
+  ---
+  duration_ms: 78494.029209
+  type: 'test'
+  location: '/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-faturamento.test.js:38:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: bash /var/lib/envioMassa_homologacao/infra/hub/testes/hub-faturamento-integration.sh
+     Network hub-test-1789710673-2876425_default Creating 
+     Network hub-test-1789710673-2876425_default Created 
+     Container hub-test-1789710673-2876425-db-1 Creating 
+     Container hub-test-1789710673-2876425-db-1 Created 
+     Container hub-test-1789710673-2876425-db-1 Starting 
+     Container hub-test-1789710673-2876425-db-1 Started 
+     Container hub-test-1789710673-2876425-db-1 Waiting 
+     Container hub-test-1789710673-2876425-db-1 Healthy 
+     Container hub-test-1789710673-2876425-db-1 Running 
+     Container hub-test-1789710673-2876425-postgrest-1 Creating 
+     Container hub-test-1789710673-2876425-postgrest-1 Created 
+     Container hub-test-1789710673-2876425-db-1 Waiting 
+     Container hub-test-1789710673-2876425-db-1 Healthy 
+     Container hub-test-1789710673-2876425-postgrest-1 Starting 
+     Container hub-test-1789710673-2876425-postgrest-1 Started 
+     Container hub-test-1789710673-2876425-db-1 Waiting 
+     Container hub-test-1789710673-2876425-postgrest-1 Waiting 
+     Container hub-test-1789710673-2876425-postgrest-1 Healthy 
+     Container hub-test-1789710673-2876425-db-1 Healthy 
+     Container hub-test-1789710673-2876425-mailpit-mock-1 Creating 
+     Container hub-test-1789710673-2876425-mailpit-mock-1 Created 
+     Container hub-test-1789710673-2876425-mailpit-mock-1 Starting 
+     Container hub-test-1789710673-2876425-mailpit-mock-1 Started 
+     Container hub-test-1789710673-2876425-mailpit-mock-1 Waiting 
+     Container hub-test-1789710673-2876425-mailpit-mock-1 Healthy 
+     Container hub-test-1789710673-2876425-db-1 Running 
+     Container hub-test-1789710673-2876425-postgrest-1 Running 
+     Container hub-test-1789710673-2876425-backend-1 Creating 
+     Container hub-test-1789710673-2876425-backend-1 Created 
+     Container hub-test-1789710673-2876425-db-1 Waiting 
+     Container hub-test-1789710673-2876425-db-1 Healthy 
+     Container hub-test-1789710673-2876425-db-1 Waiting 
+     Container hub-test-1789710673-2876425-db-1 Healthy 
+     Container hub-test-1789710673-2876425-backend-1 Starting 
+     Container hub-test-1789710673-2876425-backend-1 Started 
+     Container hub-test-1789710673-2876425-db-1 Waiting 
+     Container hub-test-1789710673-2876425-postgrest-1 Waiting 
+     Container hub-test-1789710673-2876425-backend-1 Waiting 
+     Container hub-test-1789710673-2876425-postgrest-1 Healthy 
+     Container hub-test-1789710673-2876425-db-1 Healthy 
+     Container hub-test-1789710673-2876425-backend-1 Healthy 
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+    HUB-FATURAMENTO-INTEGRATION: 2 assert(s) FALHARAM
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (/var/lib/envioMassa_homologacao/app_homologacao/backend/tests/hub-faturamento.test.js:48:15)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+#  Network hub-test-1789710751-2894767_default Creating 
+#  Network hub-test-1789710751-2894767_default Created 
+#  Container hub-test-1789710751-2894767-db-1 Creating 
+#  Container hub-test-1789710751-2894767-db-1 Created 
+#  Container hub-test-1789710751-2894767-db-1 Starting 
+#  Container hub-test-1789710751-2894767-db-1 Started 
+#  Container hub-test-1789710751-2894767-db-1 Waiting 
+#  Container hub-test-1789710751-2894767-db-1 Healthy 
+#  Container hub-test-1789710751-2894767-db-1 Running 
+#  Container hub-test-1789710751-2894767-postgrest-1 Creating 
+#  Container hub-test-1789710751-2894767-postgrest-1 Created 
+#  Container hub-test-1789710751-2894767-db-1 Waiting 
+#  Container hub-test-1789710751-2894767-db-1 Healthy 
+#  Container hub-test-1789710751-2894767-postgrest-1 Starting 
+#  Container hub-test-1789710751-2894767-postgrest-1 Started 
+#  Container hub-test-1789710751-2894767-postgrest-1 Waiting 
+#  Container hub-test-1789710751-2894767-db-1 Waiting 
+#  Container hub-test-1789710751-2894767-postgrest-1 Healthy 
+#  Container hub-test-1789710751-2894767-db-1 Healthy 
+#  Container hub-test-1789710751-2894767-mailpit-mock-1 Creating 
+#  Container hub-test-1789710751-2894767-mailpit-mock-1 Created 
+#  Container hub-test-1789710751-2894767-mailpit-mock-1 Starting 
+#  Container hub-test-1789710751-2894767-mailpit-mock-1 Started 
+#  Container hub-test-1789710751-2894767-mailpit-mock-1 Waiting 
+#  Container hub-test-1789710751-2894767-mailpit-mock-1 Healthy 
+#  Container hub-test-1789710751-2894767-db-1 Running 
+#  Container hub-test-1789710751-2894767-postgrest-1 Running 
+#  Container hub-test-1789710751-2894767-backend-1 Creating 
+#  Container hub-test-1789710751-2894767-backend-1 Created 
+#  Container hub-test-1789710751-2894767-db-1 Waiting 
+#  Container hub-test-1789710751-2894767-db-1 Healthy 
+#  Container hub-test-1789710751-2894767-db-1 Waiting 
+#  Container hub-test-1789710751-2894767-db-1 Healthy 
+#  Container hub-test-1789710751-2894767-backend-1 Starting 
+#  Container hub-test-1789710751-2894767-backend-1 Started 
+#  Container hub-test-1789710751-2894767-db-1 Waiting 
+#  Container hub-test-1789710751-2894767-postgrest-1 Waiting 
+#  Container hub-test-1789710751-2894767-backend-1 Waiting 
+#  Container hub-test-1789710751-2894767-postgrest-1 Healthy 
+#  Container hub-test-1789710751-2894767-backend-1 Healthy 
+#  Container hub-test-1789710751-2894767-db-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-import-processor-integration.sh — processamento em lote (máquina de estados + dedupe + rollback + cancelamento)
+ok 6 - hub-import-processor-integration.sh — processamento em lote (máquina de estados + dedupe + rollback + cancelamento)
+  ---
+  duration_ms: 74088.690882
+  type: 'test'
+  ...
+#  Network hub-test-1789710825-2909129_default Creating 
+#  Network hub-test-1789710825-2909129_default Created 
+#  Container hub-test-1789710825-2909129-db-1 Creating 
+#  Container hub-test-1789710825-2909129-db-1 Created 
+#  Container hub-test-1789710825-2909129-db-1 Starting 
+#  Container hub-test-1789710825-2909129-db-1 Started 
+#  Container hub-test-1789710825-2909129-db-1 Waiting 
+#  Container hub-test-1789710825-2909129-db-1 Healthy 
+#  Container hub-test-1789710825-2909129-db-1 Running 
+#  Container hub-test-1789710825-2909129-postgrest-1 Creating 
+#  Container hub-test-1789710825-2909129-postgrest-1 Created 
+#  Container hub-test-1789710825-2909129-db-1 Waiting 
+#  Container hub-test-1789710825-2909129-db-1 Healthy 
+#  Container hub-test-1789710825-2909129-postgrest-1 Starting 
+#  Container hub-test-1789710825-2909129-postgrest-1 Started 
+#  Container hub-test-1789710825-2909129-postgrest-1 Waiting 
+#  Container hub-test-1789710825-2909129-db-1 Waiting 
+#  Container hub-test-1789710825-2909129-db-1 Healthy 
+#  Container hub-test-1789710825-2909129-postgrest-1 Healthy 
+#  Container hub-test-1789710825-2909129-mailpit-mock-1 Creating 
+#  Container hub-test-1789710825-2909129-mailpit-mock-1 Created 
+#  Container hub-test-1789710825-2909129-mailpit-mock-1 Starting 
+#  Container hub-test-1789710825-2909129-mailpit-mock-1 Started 
+#  Container hub-test-1789710825-2909129-mailpit-mock-1 Waiting 
+#  Container hub-test-1789710825-2909129-mailpit-mock-1 Healthy 
+#  Container hub-test-1789710825-2909129-db-1 Running 
+#  Container hub-test-1789710825-2909129-postgrest-1 Running 
+#  Container hub-test-1789710825-2909129-backend-1 Creating 
+#  Container hub-test-1789710825-2909129-backend-1 Created 
+#  Container hub-test-1789710825-2909129-db-1 Waiting 
+#  Container hub-test-1789710825-2909129-db-1 Healthy 
+#  Container hub-test-1789710825-2909129-db-1 Waiting 
+#  Container hub-test-1789710825-2909129-db-1 Healthy 
+#  Container hub-test-1789710825-2909129-backend-1 Starting 
+#  Container hub-test-1789710825-2909129-backend-1 Started 
+#  Container hub-test-1789710825-2909129-postgrest-1 Waiting 
+#  Container hub-test-1789710825-2909129-backend-1 Waiting 
+#  Container hub-test-1789710825-2909129-db-1 Waiting 
+#  Container hub-test-1789710825-2909129-db-1 Healthy 
+#  Container hub-test-1789710825-2909129-postgrest-1 Healthy 
+#  Container hub-test-1789710825-2909129-backend-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-importacoes-integration.sh — POST /importacoes (validações + dedupe + storage + auditoria)
+ok 7 - hub-importacoes-integration.sh — POST /importacoes (validações + dedupe + storage + auditoria)
+  ---
+  duration_ms: 63540.797794
+  type: 'test'
+  ...
+# Subtest: hub-motorista-360-integration-homolog.sh — vínculo automático + RBAC de campo + fila EntreGô (202/429/falha preserva dado)
+ok 8 - hub-motorista-360-integration-homolog.sh — vínculo automático + RBAC de campo + fila EntreGô (202/429/falha preserva dado)
+  ---
+  duration_ms: 10629.333495
+  type: 'test'
+  ...
+#  Network hub-test-1789710899-2926428_default Creating 
+#  Network hub-test-1789710899-2926428_default Created 
+#  Container hub-test-1789710899-2926428-db-1 Creating 
+#  Container hub-test-1789710899-2926428-db-1 Created 
+#  Container hub-test-1789710899-2926428-db-1 Starting 
+#  Container hub-test-1789710899-2926428-db-1 Started 
+#  Container hub-test-1789710899-2926428-db-1 Waiting 
+#  Container hub-test-1789710899-2926428-db-1 Healthy 
+#  Container hub-test-1789710899-2926428-db-1 Running 
+#  Container hub-test-1789710899-2926428-postgrest-1 Creating 
+#  Container hub-test-1789710899-2926428-postgrest-1 Created 
+#  Container hub-test-1789710899-2926428-db-1 Waiting 
+#  Container hub-test-1789710899-2926428-db-1 Healthy 
+#  Container hub-test-1789710899-2926428-postgrest-1 Starting 
+#  Container hub-test-1789710899-2926428-postgrest-1 Started 
+#  Container hub-test-1789710899-2926428-postgrest-1 Waiting 
+#  Container hub-test-1789710899-2926428-db-1 Waiting 
+#  Container hub-test-1789710899-2926428-db-1 Healthy 
+#  Container hub-test-1789710899-2926428-postgrest-1 Healthy 
+#  Container hub-test-1789710899-2926428-db-1 Running 
+#  Container hub-test-1789710899-2926428-postgrest-1 Running 
+#  Container hub-test-1789710899-2926428-backend-1 Creating 
+#  Container hub-test-1789710899-2926428-backend-1 Created 
+#  Container hub-test-1789710899-2926428-db-1 Waiting 
+#  Container hub-test-1789710899-2926428-db-1 Healthy 
+#  Container hub-test-1789710899-2926428-db-1 Waiting 
+#  Container hub-test-1789710899-2926428-db-1 Healthy 
+#  Container hub-test-1789710899-2926428-backend-1 Starting 
+#  Container hub-test-1789710899-2926428-backend-1 Started 
+#  Container hub-test-1789710899-2926428-db-1 Waiting 
+#  Container hub-test-1789710899-2926428-postgrest-1 Waiting 
+#  Container hub-test-1789710899-2926428-backend-1 Waiting 
+#  Container hub-test-1789710899-2926428-postgrest-1 Healthy 
+#  Container hub-test-1789710899-2926428-backend-1 Healthy 
+#  Container hub-test-1789710899-2926428-db-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-motorista-canonico-credencial-integration.sh — POST/PATCH .../credencial + reset-senha + login via ContaMotorista
+ok 9 - hub-motorista-canonico-credencial-integration.sh — POST/PATCH .../credencial + reset-senha + login via ContaMotorista
+  ---
+  duration_ms: 58939.44619
+  type: 'test'
+  ...
+#  Network hub-test-1789710959-2940809_default Creating 
+#  Network hub-test-1789710959-2940809_default Created 
+#  Container hub-test-1789710959-2940809-db-1 Creating 
+#  Container hub-test-1789710959-2940809-db-1 Created 
+#  Container hub-test-1789710959-2940809-db-1 Starting 
+#  Container hub-test-1789710959-2940809-db-1 Started 
+#  Container hub-test-1789710959-2940809-db-1 Waiting 
+#  Container hub-test-1789710959-2940809-db-1 Healthy 
+#  Container hub-test-1789710959-2940809-db-1 Running 
+#  Container hub-test-1789710959-2940809-postgrest-1 Creating 
+#  Container hub-test-1789710959-2940809-postgrest-1 Created 
+#  Container hub-test-1789710959-2940809-db-1 Waiting 
+#  Container hub-test-1789710959-2940809-db-1 Healthy 
+#  Container hub-test-1789710959-2940809-postgrest-1 Starting 
+#  Container hub-test-1789710959-2940809-postgrest-1 Started 
+#  Container hub-test-1789710959-2940809-postgrest-1 Waiting 
+#  Container hub-test-1789710959-2940809-db-1 Waiting 
+#  Container hub-test-1789710959-2940809-postgrest-1 Healthy 
+#  Container hub-test-1789710959-2940809-db-1 Healthy 
+#  Container hub-test-1789710959-2940809-mailpit-mock-1 Creating 
+#  Container hub-test-1789710959-2940809-mailpit-mock-1 Created 
+#  Container hub-test-1789710959-2940809-mailpit-mock-1 Starting 
+#  Container hub-test-1789710959-2940809-mailpit-mock-1 Started 
+#  Container hub-test-1789710959-2940809-mailpit-mock-1 Waiting 
+#  Container hub-test-1789710959-2940809-mailpit-mock-1 Healthy 
+#  Container hub-test-1789710959-2940809-db-1 Running 
+#  Container hub-test-1789710959-2940809-postgrest-1 Running 
+#  Container hub-test-1789710959-2940809-backend-1 Creating 
+#  Container hub-test-1789710959-2940809-backend-1 Created 
+#  Container hub-test-1789710959-2940809-db-1 Waiting 
+#  Container hub-test-1789710959-2940809-db-1 Healthy 
+#  Container hub-test-1789710959-2940809-db-1 Waiting 
+#  Container hub-test-1789710959-2940809-db-1 Healthy 
+#  Container hub-test-1789710959-2940809-backend-1 Starting 
+#  Container hub-test-1789710959-2940809-backend-1 Started 
+#  Container hub-test-1789710959-2940809-postgrest-1 Waiting 
+#  Container hub-test-1789710959-2940809-backend-1 Waiting 
+#  Container hub-test-1789710959-2940809-db-1 Waiting 
+#  Container hub-test-1789710959-2940809-db-1 Healthy 
+#  Container hub-test-1789710959-2940809-backend-1 Healthy 
+#  Container hub-test-1789710959-2940809-postgrest-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-motoristas-integration.sh — GET /motoristas + GET /motoristas/:id (filtros + isolamento + detalhe)
+ok 10 - hub-motoristas-integration.sh — GET /motoristas + GET /motoristas/:id (filtros + isolamento + detalhe)
+  ---
+  duration_ms: 90207.287942
+  type: 'test'
+  ...
+#  Network hub-test-1789711049-2962515_default Creating 
+#  Network hub-test-1789711049-2962515_default Created 
+#  Container hub-test-1789711049-2962515-db-1 Creating 
+#  Container hub-test-1789711049-2962515-db-1 Created 
+#  Container hub-test-1789711049-2962515-db-1 Starting 
+#  Container hub-test-1789711049-2962515-db-1 Started 
+#  Container hub-test-1789711049-2962515-db-1 Waiting 
+#  Container hub-test-1789711049-2962515-db-1 Healthy 
+#  Container hub-test-1789711049-2962515-db-1 Running 
+#  Container hub-test-1789711049-2962515-postgrest-1 Creating 
+#  Container hub-test-1789711049-2962515-postgrest-1 Created 
+#  Container hub-test-1789711049-2962515-db-1 Waiting 
+#  Container hub-test-1789711049-2962515-db-1 Healthy 
+#  Container hub-test-1789711049-2962515-postgrest-1 Starting 
+#  Container hub-test-1789711049-2962515-postgrest-1 Started 
+#  Container hub-test-1789711049-2962515-db-1 Waiting 
+#  Container hub-test-1789711049-2962515-postgrest-1 Waiting 
+#  Container hub-test-1789711049-2962515-postgrest-1 Healthy 
+#  Container hub-test-1789711049-2962515-db-1 Healthy 
+#  Container hub-test-1789711049-2962515-mailpit-mock-1 Creating 
+#  Container hub-test-1789711049-2962515-mailpit-mock-1 Created 
+#  Container hub-test-1789711049-2962515-mailpit-mock-1 Starting 
+#  Container hub-test-1789711049-2962515-mailpit-mock-1 Started 
+#  Container hub-test-1789711049-2962515-mailpit-mock-1 Waiting 
+#  Container hub-test-1789711049-2962515-mailpit-mock-1 Healthy 
+#  Container hub-test-1789711049-2962515-db-1 Running 
+#  Container hub-test-1789711049-2962515-postgrest-1 Running 
+#  Container hub-test-1789711049-2962515-backend-1 Creating 
+#  Container hub-test-1789711049-2962515-backend-1 Created 
+#  Container hub-test-1789711049-2962515-db-1 Waiting 
+#  Container hub-test-1789711049-2962515-db-1 Healthy 
+#  Container hub-test-1789711049-2962515-db-1 Waiting 
+#  Container hub-test-1789711049-2962515-db-1 Healthy 
+#  Container hub-test-1789711049-2962515-backend-1 Starting 
+#  Container hub-test-1789711049-2962515-backend-1 Started 
+#  Container hub-test-1789711049-2962515-db-1 Waiting 
+#  Container hub-test-1789711049-2962515-postgrest-1 Waiting 
+#  Container hub-test-1789711049-2962515-backend-1 Waiting 
+#  Container hub-test-1789711049-2962515-backend-1 Healthy 
+#  Container hub-test-1789711049-2962515-postgrest-1 Healthy 
+#  Container hub-test-1789711049-2962515-db-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-papeis-integration.sh — matriz papel×permissão (leitura vs edição, guard anti-lockout)
+ok 11 - hub-papeis-integration.sh — matriz papel×permissão (leitura vs edição, guard anti-lockout)
+  ---
+  duration_ms: 59739.828936
+  type: 'test'
+  ...
+#  Network hub-test-1789711109-2977172_default Creating 
+#  Network hub-test-1789711109-2977172_default Created 
+#  Container hub-test-1789711109-2977172-db-1 Creating 
+#  Container hub-test-1789711109-2977172-db-1 Created 
+#  Container hub-test-1789711109-2977172-db-1 Starting 
+#  Container hub-test-1789711109-2977172-db-1 Started 
+#  Container hub-test-1789711109-2977172-db-1 Waiting 
+#  Container hub-test-1789711109-2977172-db-1 Healthy 
+#  Container hub-test-1789711109-2977172-db-1 Running 
+#  Container hub-test-1789711109-2977172-postgrest-1 Creating 
+#  Container hub-test-1789711109-2977172-postgrest-1 Created 
+#  Container hub-test-1789711109-2977172-db-1 Waiting 
+#  Container hub-test-1789711109-2977172-db-1 Healthy 
+#  Container hub-test-1789711109-2977172-postgrest-1 Starting 
+#  Container hub-test-1789711109-2977172-postgrest-1 Started 
+#  Container hub-test-1789711109-2977172-postgrest-1 Waiting 
+#  Container hub-test-1789711109-2977172-db-1 Waiting 
+#  Container hub-test-1789711109-2977172-postgrest-1 Healthy 
+#  Container hub-test-1789711109-2977172-db-1 Healthy 
+#  Container hub-test-1789711109-2977172-mailpit-mock-1 Creating 
+#  Container hub-test-1789711109-2977172-mailpit-mock-1 Created 
+#  Container hub-test-1789711109-2977172-mailpit-mock-1 Starting 
+#  Container hub-test-1789711109-2977172-mailpit-mock-1 Started 
+#  Container hub-test-1789711109-2977172-mailpit-mock-1 Waiting 
+#  Container hub-test-1789711109-2977172-mailpit-mock-1 Healthy 
+#  Container hub-test-1789711109-2977172-db-1 Running 
+#  Container hub-test-1789711109-2977172-postgrest-1 Running 
+#  Container hub-test-1789711109-2977172-backend-1 Creating 
+#  Container hub-test-1789711109-2977172-backend-1 Created 
+#  Container hub-test-1789711109-2977172-db-1 Waiting 
+#  Container hub-test-1789711109-2977172-db-1 Healthy 
+#  Container hub-test-1789711109-2977172-db-1 Waiting 
+#  Container hub-test-1789711109-2977172-db-1 Healthy 
+#  Container hub-test-1789711109-2977172-backend-1 Starting 
+#  Container hub-test-1789711109-2977172-backend-1 Started 
+#  Container hub-test-1789711109-2977172-backend-1 Waiting 
+#  Container hub-test-1789711109-2977172-db-1 Waiting 
+#  Container hub-test-1789711109-2977172-postgrest-1 Waiting 
+#  Container hub-test-1789711109-2977172-backend-1 Healthy 
+#  Container hub-test-1789711109-2977172-db-1 Healthy 
+#  Container hub-test-1789711109-2977172-postgrest-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-performance-integration.sh — GET /performance (filtros + paginação + isolamento + permissões)
+ok 12 - hub-performance-integration.sh — GET /performance (filtros + paginação + isolamento + permissões)
+  ---
+  duration_ms: 90201.089906
+  type: 'test'
+  ...
+#  Network hub-test-1789711199-3000839_default Creating 
+#  Network hub-test-1789711199-3000839_default Created 
+#  Container hub-test-1789711199-3000839-db-1 Creating 
+#  Container hub-test-1789711199-3000839-db-1 Created 
+#  Container hub-test-1789711199-3000839-db-1 Starting 
+#  Container hub-test-1789711199-3000839-db-1 Started 
+#  Container hub-test-1789711199-3000839-db-1 Waiting 
+#  Container hub-test-1789711199-3000839-db-1 Healthy 
+#  Container hub-test-1789711199-3000839-db-1 Running 
+#  Container hub-test-1789711199-3000839-postgrest-1 Creating 
+#  Container hub-test-1789711199-3000839-postgrest-1 Created 
+#  Container hub-test-1789711199-3000839-db-1 Waiting 
+#  Container hub-test-1789711199-3000839-db-1 Healthy 
+#  Container hub-test-1789711199-3000839-postgrest-1 Starting 
+#  Container hub-test-1789711199-3000839-postgrest-1 Started 
+#  Container hub-test-1789711199-3000839-db-1 Waiting 
+#  Container hub-test-1789711199-3000839-postgrest-1 Waiting 
+#  Container hub-test-1789711199-3000839-postgrest-1 Healthy 
+#  Container hub-test-1789711199-3000839-db-1 Healthy 
+#  Container hub-test-1789711199-3000839-mailpit-mock-1 Creating 
+#  Container hub-test-1789711199-3000839-mailpit-mock-1 Created 
+#  Container hub-test-1789711199-3000839-mailpit-mock-1 Starting 
+#  Container hub-test-1789711199-3000839-mailpit-mock-1 Started 
+#  Container hub-test-1789711199-3000839-mailpit-mock-1 Waiting 
+#  Container hub-test-1789711199-3000839-mailpit-mock-1 Healthy 
+#  Container hub-test-1789711199-3000839-db-1 Running 
+#  Container hub-test-1789711199-3000839-postgrest-1 Running 
+#  Container hub-test-1789711199-3000839-backend-1 Creating 
+#  Container hub-test-1789711199-3000839-backend-1 Created 
+#  Container hub-test-1789711199-3000839-db-1 Waiting 
+#  Container hub-test-1789711199-3000839-db-1 Healthy 
+#  Container hub-test-1789711199-3000839-db-1 Waiting 
+#  Container hub-test-1789711199-3000839-db-1 Healthy 
+#  Container hub-test-1789711199-3000839-backend-1 Starting 
+#  Container hub-test-1789711199-3000839-backend-1 Started 
+#  Container hub-test-1789711199-3000839-backend-1 Waiting 
+#  Container hub-test-1789711199-3000839-db-1 Waiting 
+#  Container hub-test-1789711199-3000839-postgrest-1 Waiting 
+#  Container hub-test-1789711199-3000839-db-1 Healthy 
+#  Container hub-test-1789711199-3000839-postgrest-1 Healthy 
+#  Container hub-test-1789711199-3000839-backend-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-rls-integration.sh — RLS de reforço nega-por-padrão (quickstart Scenario 9)
+ok 13 - hub-rls-integration.sh — RLS de reforço nega-por-padrão (quickstart Scenario 9)
+  ---
+  duration_ms: 57410.713929
+  type: 'test'
+  ...
+#  Network hub-test-1789711256-3014018_default Creating 
+#  Network hub-test-1789711256-3014018_default Created 
+#  Container hub-test-1789711256-3014018-db-1 Creating 
+#  Container hub-test-1789711256-3014018-db-1 Created 
+#  Container hub-test-1789711256-3014018-db-1 Starting 
+#  Container hub-test-1789711256-3014018-db-1 Started 
+#  Container hub-test-1789711256-3014018-db-1 Waiting 
+#  Container hub-test-1789711256-3014018-db-1 Healthy 
+#  Container hub-test-1789711256-3014018-db-1 Running 
+#  Container hub-test-1789711256-3014018-postgrest-1 Creating 
+#  Container hub-test-1789711256-3014018-postgrest-1 Created 
+#  Container hub-test-1789711256-3014018-db-1 Waiting 
+#  Container hub-test-1789711256-3014018-db-1 Healthy 
+#  Container hub-test-1789711256-3014018-postgrest-1 Starting 
+#  Container hub-test-1789711256-3014018-postgrest-1 Started 
+#  Container hub-test-1789711256-3014018-postgrest-1 Waiting 
+#  Container hub-test-1789711256-3014018-db-1 Waiting 
+#  Container hub-test-1789711256-3014018-postgrest-1 Healthy 
+#  Container hub-test-1789711256-3014018-db-1 Healthy 
+#  Container hub-test-1789711256-3014018-mailpit-mock-1 Creating 
+#  Container hub-test-1789711256-3014018-mailpit-mock-1 Created 
+#  Container hub-test-1789711256-3014018-mailpit-mock-1 Starting 
+#  Container hub-test-1789711256-3014018-mailpit-mock-1 Started 
+#  Container hub-test-1789711256-3014018-mailpit-mock-1 Waiting 
+#  Container hub-test-1789711256-3014018-mailpit-mock-1 Healthy 
+#  Container hub-test-1789711256-3014018-db-1 Running 
+#  Container hub-test-1789711256-3014018-postgrest-1 Running 
+#  Container hub-test-1789711256-3014018-backend-1 Creating 
+#  Container hub-test-1789711256-3014018-backend-1 Created 
+#  Container hub-test-1789711256-3014018-db-1 Waiting 
+#  Container hub-test-1789711256-3014018-db-1 Healthy 
+#  Container hub-test-1789711256-3014018-db-1 Waiting 
+#  Container hub-test-1789711256-3014018-db-1 Healthy 
+#  Container hub-test-1789711256-3014018-backend-1 Starting 
+#  Container hub-test-1789711256-3014018-backend-1 Started 
+#  Container hub-test-1789711256-3014018-backend-1 Waiting 
+#  Container hub-test-1789711256-3014018-db-1 Waiting 
+#  Container hub-test-1789711256-3014018-postgrest-1 Waiting 
+#  Container hub-test-1789711256-3014018-db-1 Healthy 
+#  Container hub-test-1789711256-3014018-backend-1 Healthy 
+#  Container hub-test-1789711256-3014018-postgrest-1 Healthy 
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Warning: Ignoring extra certs from `/etc/push-mock-ca/cert.pem`, load failed: error:80000002:system library::No such file or directory
+# Subtest: hub-usuarios-integration.sh — CRUD de usuários/vínculos (SC-004/SC-008, isolamento por entidade)
+ok 14 - hub-usuarios-integration.sh — CRUD de usuários/vínculos (SC-004/SC-008, isolamento por entidade)
+  ---
+  duration_ms: 62629.621101
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 12
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 869792.898625
+EXIT_CODE=1

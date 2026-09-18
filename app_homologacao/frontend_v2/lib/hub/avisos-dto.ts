@@ -213,14 +213,22 @@ export function parseAvisoDetalhe(raw: unknown): AvisoDetalhe {
 // GET /avisos/alcance
 // ────────────────────────────────────────────────────────────────────────────
 
+// D-15 (FASE 5, 5.3.1): `motoristas` passou a ser o público TOTAL do
+// histórico (inclui quem não tem push); `comPush` é o antigo `motoristas`
+// (CNPJs distintos com PushInscricao). `inscricoes` não muda de sentido.
 export interface AvisoAlcance {
   motoristas: number;
+  comPush: number;
   inscricoes: number;
 }
 
 export function parseAvisoAlcance(raw: unknown): AvisoAlcance {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  return { motoristas: numeroOuZero(r.motoristas), inscricoes: numeroOuZero(r.inscricoes) };
+  return {
+    motoristas: numeroOuZero(r.motoristas),
+    comPush: numeroOuZero(r.comPush),
+    inscricoes: numeroOuZero(r.inscricoes),
+  };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

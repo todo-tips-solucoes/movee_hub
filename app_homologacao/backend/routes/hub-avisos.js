@@ -294,13 +294,26 @@ router.get(
       }
       const fonteConta = hubMotoristaLoginHabilitado() ? 'conta_motorista' : 'legado';
 
-      let linhas;
+      // D-15 (FASE 5, task 5.3.1): a prévia passa a mostrar o público TOTAL
+      // do histórico (hub_aviso_publico, sem exigir push), além de quantos
+      // desse público têm push (`comPush`, o antigo cálculo de `alcance`).
+      // As duas RPCs validam o mesmo escopo do grupo Movee/DESTINATARIOS_FORA_DO_ESCOPO
+      // — a 1ª a lançar decide a resposta de erro.
+      let linhasPublico;
+      let linhasAlcance;
       try {
-        linhas = await hubPostgrestRequest(
-          'rpc/hub_aviso_alcance', 'POST',
-          { p_modo: modo, p_ids: ids, p_key_id: chaveAtual.keyId, p_fonte_conta: fonteConta },
-          claims
-        );
+        [linhasPublico, linhasAlcance] = await Promise.all([
+          hubPostgrestRequest(
+            'rpc/hub_aviso_publico', 'POST',
+            { p_modo: modo, p_ids: ids, p_fonte_conta: fonteConta },
+            claims
+          ),
+          hubPostgrestRequest(
+            'rpc/hub_aviso_alcance', 'POST',
+            { p_modo: modo, p_ids: ids, p_key_id: chaveAtual.keyId, p_fonte_conta: fonteConta },
+            claims
+          ),
+        ]);
       } catch (e) {
         const msg = String((e && e.body) || (e && e.message) || '');
         if (msg.includes('DESTINATARIOS_FORA_DO_ESCOPO')) {
@@ -310,9 +323,11 @@ router.get(
         throw e;
       }
 
-      const rows = linhas || [];
-      const motoristas = new Set(rows.map((r) => r.cnpj_prestador)).size;
-      return res.status(200).json({ motoristas, inscricoes: rows.length });
+      const rowsPublico = linhasPublico || [];
+      const rowsAlcance = linhasAlcance || [];
+      const motoristas = new Set(rowsPublico.map((r) => r.cnpj_prestador)).size;
+      const comPush = new Set(rowsAlcance.map((r) => r.cnpj_prestador)).size;
+      return res.status(200).json({ motoristas, comPush, inscricoes: rowsAlcance.length });
     } catch (e) {
       console.error('[hub-avisos] erro em GET /avisos/alcance:', e.message);
       return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
@@ -460,8 +475,11 @@ router.post('/', requireModuloAtivo('avisos'), requirePermission('avisos.enviar'
         break;
       } catch (e) {
         const msg = String((e && e.body) || (e && e.message) || '');
-        if (msg.includes('SEM_INSCRICOES_ATIVAS')) {
-          return res.status(422).json({ erro: 'SEM_INSCRICOES_ATIVAS' });
+        // D-15 (FASE 5, 5.3.2): SEM_DESTINATARIOS substitui SEM_INSCRICOES_ATIVAS
+        // — hub_aviso_criar (0068) só recusa quando o público TOTAL é vazio,
+        // não mais quando ninguém do público tem push habilitado.
+        if (msg.includes('SEM_DESTINATARIOS')) {
+          return res.status(422).json({ erro: 'SEM_DESTINATARIOS' });
         }
         if (msg.includes('DESTINATARIOS_FORA_DO_ESCOPO')) {
           logRecusa(req, 'DESTINATARIOS_FORA_DO_ESCOPO');

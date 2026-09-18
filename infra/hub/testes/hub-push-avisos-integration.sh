@@ -45,7 +45,7 @@ set -uo pipefail
 HUB_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="${HUB_TEST_ENV:-/var/lib/hub_secrets/.env.hub.test}"
 COMPOSE="$HUB_DIR/compose.hub.test.yml"
-RUNID="$(date +%s)"
+RUNID="$(date +%s)-$$"
 PROJECT="hub-test-$RUNID"
 TMP="$(mktemp -d)"
 
@@ -111,8 +111,28 @@ INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id) VALUES
     (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador = '22222222000101')),
   (6, gen_random_uuid(), 'S4 Caso3 vinculo dentro do escopo',
     (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador = '22222222000103'));
+
+-- D-15 (adiantamento-motorista FASE 5, tasks 5.1.3/5.1.4/5.2/5.3.3): 1 conta
+-- COM push (D15Push) e 1 conta SEM push (D15SemPush), ambas no grupo Movee —
+-- prova de que hub_aviso_criar grava NotificacaoMotorista para as DUAS
+-- (histórico independe de push), enquanto AvisoEntrega continua só para
+-- quem tem push.
+INSERT INTO "ContaMotorista" (cnpj_prestador, nome) VALUES
+  ('44444444000101', 'D15 Com Push'),
+  ('44444444000102', 'D15 Sem Push')
+ON CONFLICT (cnpj_prestador) DO NOTHING;
+INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id) VALUES
+  (6, gen_random_uuid(), 'D15 Com Push', (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador = '44444444000101')),
+  (6, gen_random_uuid(), 'D15 Sem Push', (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador = '44444444000102'));
+INSERT INTO "PushInscricao" (cnpj_prestador, endpoint, endpoint_hash, p256dh, auth, key_id, plataforma, dispositivo_id) VALUES
+  ('44444444000101', 'https://push.example/d15', 'd15-hash', 'p', 'a', 'keyid-d15', 'android', '00000000-0000-0000-0000-0000000000d1')
+ON CONFLICT (endpoint_hash) DO NOTHING;
+INSERT INTO "Usuario" (email, senha_hash, nome) VALUES ('financeiro.d15@example.com', 'x', 'Financeiro D15')
+ON CONFLICT (email) DO NOTHING;
 SQL
-if [ $? -ne 0 ]; then echo "FAIL: seed S4 deu erro"; cat "$TMP/seed.log"; exit 1; fi
+if [ $? -ne 0 ]; then echo "FAIL: seed S4/D15 deu erro"; cat "$TMP/seed.log"; exit 1; fi
+
+SUB_D15="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email = 'financeiro.d15@example.com'")"
 
 # --- Node ad hoc: HS256 hand-rolled (crypto stdlib) + fetch direto ao
 # PostgREST via hostname da rede docker do projeto. Roda dentro do
@@ -239,6 +259,54 @@ check "S4 (1.2.11): caso3 (vínculo dentro do escopo) alcançado" \
 
 check "S10 (1.2.12): motorista_cnpj nulo/vazio/malformado — 3/3 recusados" "$(printf '%s\n' "$OUT" | grep -o 'S10=[0-9]*/[0-9]*')" "S10=3/3"
 check "S10 (1.2.12): bônus hub_jwt_push_worker() ausente — recusado" "$(printf '%s\n' "$OUT" | grep -o 'S10_WORKER=[0-9]*' | cut -d= -f2)" "1"
+
+# --- D-15 (adiantamento-motorista FASE 5, tasks 5.1.3/5.1.4/5.2/5.3.3) ------
+# Regressão do próprio hub_aviso_criar/hub_aviso_para_motorista alterados em
+# 0068: histórico gravado para o público TOTAL (com e sem push), AvisoEntrega
+# continua só para quem tem push, e SEM_DESTINATARIOS substitui
+# SEM_INSCRICOES_ATIVAS. Via psql direto (dono da tabela) + set_config da
+# claim (mesmo padrão de hub-adiantamentos-integration.sh), já que exercita
+# só a camada SQL — a tradução HTTP já é coberta por hub-avisos-rotas-unit.test.js.
+D15_CRIAR_OUT="$(psql_t -tA -F'|' -v ON_ERROR_STOP=0 <<SQL 2>&1
+BEGIN;
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', $SUB_D15, 'empresa_ativa', '6', 'escopo', jsonb_build_array(6))::text, true);
+SET ROLE authenticated;
+SELECT * FROM hub_aviso_criar('D15 aviso', 'D15 corpo', 'toda_base', ARRAY[]::int[], gen_random_uuid(), 'keyid-d15', 'conta_motorista');
+COMMIT;
+SQL
+)"
+D15_AVISO_ID="$(printf '%s\n' "$D15_CRIAR_OUT" | grep -E '^[0-9]+\|' | tail -n1 | cut -d'|' -f1 | tr -d ' ')"
+check "D-15/5.1.3: hub_aviso_criar (toda_base, 1 conta sem push no público) não lança erro" \
+  "$(printf '%s' "$D15_CRIAR_OUT" | grep -c 'ERROR')" "0"
+
+N_NOTIF_COMPUSH="$(psql_t -tAc "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE aviso_id = $D15_AVISO_ID AND cnpj_prestador = '44444444000101'")"
+check "D-15/5.1.3: NotificacaoMotorista gravada para o CNPJ COM push" "$N_NOTIF_COMPUSH" "1"
+N_NOTIF_SEMPUSH="$(psql_t -tAc "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE aviso_id = $D15_AVISO_ID AND cnpj_prestador = '44444444000102'")"
+check "D-15/5.1.3/5.3.3/FR-044: NotificacaoMotorista gravada TAMBÉM para o CNPJ SEM push" "$N_NOTIF_SEMPUSH" "1"
+N_ENTREGA_SEMPUSH="$(psql_t -tAc "SELECT count(*) FROM \"AvisoEntrega\" WHERE aviso_id = $D15_AVISO_ID AND cnpj_prestador = '44444444000102'")"
+check "D-15/5.1.3: AvisoEntrega NÃO gravada para quem não tem push (continua só push)" "$N_ENTREGA_SEMPUSH" "0"
+
+D15_PARA_MOTORISTA_OUT="$(psql_t -v ON_ERROR_STOP=0 <<SQL 2>&1
+BEGIN;
+SELECT set_config('request.jwt.claims', jsonb_build_object('motorista_cnpj', '44444444000102')::text, true);
+SET ROLE authenticated;
+SELECT * FROM hub_aviso_para_motorista($D15_AVISO_ID);
+ROLLBACK;
+SQL
+)"
+check "D-15/5.1.3: hub_aviso_para_motorista autoriza o motorista SEM push (via NotificacaoMotorista)" \
+  "$(printf '%s' "$D15_PARA_MOTORISTA_OUT" | grep -c 'D15 aviso')" "1"
+
+D15_SEM_DESTINATARIOS_OUT="$(psql_t -v ON_ERROR_STOP=0 <<SQL 2>&1
+BEGIN;
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', $SUB_D15, 'empresa_ativa', '6', 'escopo', jsonb_build_array(6))::text, true);
+SET ROLE authenticated;
+SELECT * FROM hub_aviso_criar('D15 vazio', 'D15 vazio corpo', 'individual', ARRAY[999999999], gen_random_uuid(), 'keyid-d15', 'conta_motorista');
+ROLLBACK;
+SQL
+)"
+check "D-15/5.3.2: público total vazio -> SEM_DESTINATARIOS (não mais SEM_INSCRICOES_ATIVAS)" \
+  "$(printf '%s' "$D15_SEM_DESTINATARIOS_OUT" | grep -c 'SEM_DESTINATARIOS')" "1"
 
 echo "-----------------------------------------------------------------"
 if [ "$fails" -eq 0 ]; then

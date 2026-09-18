@@ -1,0 +1,177 @@
+
+Running 42 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:365:7 › US1 — solicitar e acompanhar adiantamento › Scenario 1: disponível hoje — solicita com aceite e vê a confirmação/timeline (1.1s)
+  ✓   2 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:380:7 › US1 — solicitar e acompanhar adiantamento › Scenario 2: já solicitado hoje — mostra o motivo e a solicitação existente (368ms)
+  ✓   3 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:394:7 › US1 — solicitar e acompanhar adiantamento › Scenario 4: cancela antes do corte (410ms)
+  ✓   4 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:417:7 › US2 — dados bancários › Scenario 1: sem conta cadastrada — envia dados válidos e vê "Em análise" (647ms)
+  ✓   5 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:443:7 › US2 — dados bancários › Scenario 3: conta aprovada segue valendo enquanto a nova está pendente (346ms)
+  ✓   6 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:463:7 › US7 — central de notificações › Scenario: lista, filtra por categoria, marca uma como lida ao abrir e marca todas (693ms)
+ALVO_TOQUE tela="/movimento" elementos=10 violacoes=[]
+  ✓   7 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › movimento (854ms)
+ALVO_TOQUE tela="/adiantamento" elementos=8 violacoes=[]
+  ✓   8 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento (disponível) (861ms)
+ALVO_TOQUE tela="/adiantamento" elementos=7 violacoes=[]
+  ✓   9 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento (indisponível + solicitação hoje) (921ms)
+ALVO_TOQUE tela="/adiantamento/regras" elementos=2 violacoes=[]
+  ✓  10 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/regras (841ms)
+ALVO_TOQUE tela="/adiantamento/historico" elementos=5 violacoes=[]
+  ✓  11 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/historico (886ms)
+ALVO_TOQUE tela="/adiantamento/501" elementos=3 violacoes=[]
+  ✓  12 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/[id] (843ms)
+ALVO_TOQUE tela="/adiantamento/501" elementos=2 violacoes=[]
+  ✓  13 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/[id] (paga, com desconto no repasse) (888ms)
+ALVO_TOQUE tela="/adiantamento/501" elementos=2 violacoes=[]
+  ✓  14 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › adiantamento/[id] (rejeitada) (860ms)
+ALVO_TOQUE tela="/conta-bancaria" elementos=8 violacoes=[]
+  ✓  15 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › conta-bancaria (907ms)
+ALVO_TOQUE tela="/conta-bancaria/alterar" elementos=3 violacoes=[]
+  ✓  16 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › conta-bancaria/alterar (1.1s)
+ALVO_TOQUE tela="/notificacoes" elementos=16 violacoes=[]
+  ✓  17 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › notificacoes (863ms)
+ALVO_TOQUE tela="/repasse" elementos=2 violacoes=[]
+  ✓  18 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:543:9 › 6.8.2 — alvos de toque >= 44x44 px (medido) › repasse (875ms)
+AXE_SCORE tela="/movimento" tema=light score=95 violacoes=1
+AXE /movimento [light]: page-has-heading-one (moderate) x1 — Page should contain a level-one heading
+AXE_CONTRASTE tela="/movimento" tema=light violacoes=0
+  ✓  19 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › movimento — tema light (1.9s)
+AXE_SCORE tela="/movimento" tema=dark score=95 violacoes=1
+AXE /movimento [dark]: page-has-heading-one (moderate) x1 — Page should contain a level-one heading
+AXE_CONTRASTE tela="/movimento" tema=dark violacoes=0
+  ✓  20 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › movimento — tema dark (2.0s)
+AXE_SCORE tela="/adiantamento" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=light violacoes=0
+  ✓  21 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (disponível) — tema light (1.8s)
+AXE_SCORE tela="/adiantamento" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=dark violacoes=0
+  ✓  22 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (disponível) — tema dark (2.0s)
+AXE_SCORE tela="/adiantamento" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=light violacoes=0
+  ✓  23 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema light (1.8s)
+AXE_SCORE tela="/adiantamento" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento" tema=dark violacoes=0
+  ✓  24 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento (indisponível + solicitação hoje) — tema dark (1.9s)
+AXE_SCORE tela="/adiantamento/regras" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/regras" tema=light violacoes=0
+  ✓  25 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/regras — tema light (1.7s)
+AXE_SCORE tela="/adiantamento/regras" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/regras" tema=dark violacoes=0
+  ✓  26 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/regras — tema dark (1.8s)
+AXE_SCORE tela="/adiantamento/historico" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/historico" tema=light violacoes=0
+  ✓  27 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/historico — tema light (1.8s)
+AXE_SCORE tela="/adiantamento/historico" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/historico" tema=dark violacoes=0
+  ✓  28 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/historico — tema dark (1.9s)
+AXE_SCORE tela="/adiantamento/501" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=light violacoes=0
+  ✓  29 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema light (1.8s)
+AXE_SCORE tela="/adiantamento/501" tema=dark score=90 violacoes=1
+AXE /adiantamento/501 [dark]: color-contrast (serious) x1 — Elements must meet minimum color contrast ratio thresholds
+  ✘  30 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema dark (1.7s)
+AXE_SCORE tela="/adiantamento/501" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=light violacoes=0
+  ✓  31 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (paga, com desconto no repasse) — tema light (2.1s)
+AXE_SCORE tela="/adiantamento/501" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=dark violacoes=0
+  ✓  32 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (paga, com desconto no repasse) — tema dark (1.9s)
+AXE_SCORE tela="/adiantamento/501" tema=light score=80 violacoes=1
+AXE /adiantamento/501 [light]: color-contrast (serious) x2 — Elements must meet minimum color contrast ratio thresholds
+  ✘  33 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (rejeitada) — tema light (1.5s)
+AXE_SCORE tela="/adiantamento/501" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/adiantamento/501" tema=dark violacoes=0
+  ✓  34 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (rejeitada) — tema dark (1.9s)
+AXE_SCORE tela="/conta-bancaria" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria" tema=light violacoes=0
+  ✓  35 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria — tema light (1.9s)
+AXE_SCORE tela="/conta-bancaria" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria" tema=dark violacoes=0
+  ✓  36 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria — tema dark (2.0s)
+AXE_SCORE tela="/conta-bancaria/alterar" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria/alterar" tema=light violacoes=0
+  ✓  37 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria/alterar — tema light (2.1s)
+AXE_SCORE tela="/conta-bancaria/alterar" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/conta-bancaria/alterar" tema=dark violacoes=0
+  ✓  38 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › conta-bancaria/alterar — tema dark (2.2s)
+AXE_SCORE tela="/notificacoes" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/notificacoes" tema=light violacoes=0
+  ✓  39 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › notificacoes — tema light (2.0s)
+AXE_SCORE tela="/notificacoes" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/notificacoes" tema=dark violacoes=0
+  ✓  40 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › notificacoes — tema dark (2.0s)
+AXE_SCORE tela="/repasse" tema=light score=100 violacoes=0
+AXE_CONTRASTE tela="/repasse" tema=light violacoes=0
+  ✓  41 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema light (1.8s)
+AXE_SCORE tela="/repasse" tema=dark score=100 violacoes=0
+AXE_CONTRASTE tela="/repasse" tema=dark violacoes=0
+  ✓  42 [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › repasse — tema dark (1.8s)
+
+
+  1) [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema dark 
+
+    Error: axe score /adiantamento/501 (dark): [{"id":"color-contrast","impact":"serious","tags":["cat.color","wcag2aa","wcag143","TTv5","TT13.c","EN-301-549","EN-9.1.4.3","ACT","RGAAv4","RGAA-3.2.1"],"description":"Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds","help":"Elements must meet minimum color contrast ratio thresholds","helpUrl":"https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright","nodes":[{"any":[{"id":"color-contrast","data":{"fgColor":"#2a0606","bgColor":"#c45050","contrastRatio":4.09,"fontSize":"10.5pt (14px)","fontWeight":"bold","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<button class=\"relative inline-flex...\">","target":[".whitespace-nowrap"]}],"impact":"serious","message":"Element has insufficient color contrast of 4.09 (foreground color: #2a0606, background color: #c45050, font size: 10.5pt (14px), font weight: bold). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<button class=\"relative inline-flex...\">","target":[".whitespace-nowrap"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 4.09 (foreground color: #2a0606, background color: #c45050, font size: 10.5pt (14px), font weight: bold). Expected contrast ratio of 4.5:1"}]}]
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 95
+    Received:    90
+
+      610 |           console.log(`AXE ${tela.path} [${tema}]: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help}`);
+      611 |         }
+    > 612 |         expect(score, `axe score ${tela.path} (${tema}): ${JSON.stringify(resultado.violations)}`).toBeGreaterThanOrEqual(AXE_SCORE_GATE);
+          |                                                                                                    ^
+      613 |
+      614 |         const contraste = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      615 |         console.log(`AXE_CONTRASTE tela="${tela.path}" tema=${tema} violacoes=${contraste.violations.length}`);
+        at /work/tests/e2e-motorista-adiantamento/adiantamento.spec.ts:612:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-c136f-adiantamento-id-—-tema-dark-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamento-6-8-3-—-axe-c-c136f-adiantamento-id-—-tema-dark-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-c136f-adiantamento-id-—-tema-dark-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamento-6-8-3-—-axe-c-c136f-adiantamento-id-—-tema-dark-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (rejeitada) — tema light 
+
+    Error: axe score /adiantamento/501 (light): [{"id":"color-contrast","impact":"serious","tags":["cat.color","wcag2aa","wcag143","TTv5","TT13.c","EN-301-549","EN-9.1.4.3","ACT","RGAAv4","RGAA-3.2.1"],"description":"Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds","help":"Elements must meet minimum color contrast ratio thresholds","helpUrl":"https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright","nodes":[{"any":[{"id":"color-contrast","data":{"fgColor":"#009b7f","bgColor":"#e1eddd","contrastRatio":2.89,"fontSize":"12.0pt (16px)","fontWeight":"normal","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<div class=\"flex items-start gap-2 rounded-2xl border border-warm-2/30 bg-warm-2/10 p-4 text-sm\">","target":[".border-warm-2\\/30"]},{"html":"<main class=\"relative flex min-h-dvh flex-col bg-muted/40\">","target":["main"]},{"html":"<body class=\"min-h-dvh bg-background text-foreground antialiased\">","target":["body"]}],"impact":"serious","message":"Element has insufficient color contrast of 2.89 (foreground color: #009b7f, background color: #e1eddd, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<span class=\"material-symbols-rounded mt-0.5 h-4 w-4 shrink-0 text-warm-3\" aria-hidden=\"true\" translate=\"no\">error</span>","target":[".h-4"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 2.89 (foreground color: #009b7f, background color: #e1eddd, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"},{"any":[{"id":"color-contrast","data":{"fgColor":"#009b7f","bgColor":"#e1eddd","contrastRatio":2.89,"fontSize":"10.5pt (14px)","fontWeight":"bold","messageKey":null,"expectedContrastRatio":"4.5:1"},"relatedNodes":[{"html":"<div class=\"flex items-start gap-2 rounded-2xl border border-warm-2/30 bg-warm-2/10 p-4 text-sm\">","target":[".border-warm-2\\/30"]},{"html":"<main class=\"relative flex min-h-dvh flex-col bg-muted/40\">","target":["main"]},{"html":"<body class=\"min-h-dvh bg-background text-foreground antialiased\">","target":["body"]}],"impact":"serious","message":"Element has insufficient color contrast of 2.89 (foreground color: #009b7f, background color: #e1eddd, font size: 10.5pt (14px), font weight: bold). Expected contrast ratio of 4.5:1"}],"all":[],"none":[],"impact":"serious","html":"<strong class=\"block text-warm-3\">Rejeitado pelo financeiro</strong>","target":["strong"],"failureSummary":"Fix any of the following:\n  Element has insufficient color contrast of 2.89 (foreground color: #009b7f, background color: #e1eddd, font size: 10.5pt (14px), font weight: bold). Expected contrast ratio of 4.5:1"}]}]
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 95
+    Received:    80
+
+      610 |           console.log(`AXE ${tela.path} [${tema}]: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help}`);
+      611 |         }
+    > 612 |         expect(score, `axe score ${tela.path} (${tema}): ${JSON.stringify(resultado.violations)}`).toBeGreaterThanOrEqual(AXE_SCORE_GATE);
+          |                                                                                                    ^
+      613 |
+      614 |         const contraste = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      615 |         console.log(`AXE_CONTRASTE tela="${tela.path}" tema=${tema} violacoes=${contraste.violations.length}`);
+        at /work/tests/e2e-motorista-adiantamento/adiantamento.spec.ts:612:100
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-c7c28-o-id-rejeitada-—-tema-light-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/adiantamento-6-8-3-—-axe-c-c7c28-o-id-rejeitada-—-tema-light-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/adiantamento-6-8-3-—-axe-c-c7c28-o-id-rejeitada-—-tema-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/adiantamento-6-8-3-—-axe-c-c7c28-o-id-rejeitada-—-tema-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] — tema dark 
+    [chromium] › tests/e2e-motorista-adiantamento/adiantamento.spec.ts:598:11 › 6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas › adiantamento/[id] (rejeitada) — tema light 
+  40 passed (1.1m)
