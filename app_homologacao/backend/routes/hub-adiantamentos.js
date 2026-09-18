@@ -344,6 +344,13 @@ function limiterPorUsuario(max) {
 // "cada" (hub-api.md:53). Duas instâncias independentes, uma por rota.
 const previaRateLimiter = limiterPorUsuario(30);
 const loteRateLimiter = limiterPorUsuario(30);
+// Revisão de segurança 2026-09-18: `GET /repasse/exportar` materializa até
+// 100.000 linhas (p_limite) e monta o CSV inteiro em memória, e era a única
+// das rotas caras sem limitador. Em produção o banco do hub divide o Postgres
+// com o envio em massa, então uma rajada aqui — nem precisa ser má-fé: um
+// painel de BI recarregando basta — degrada o produto legado junto. Balde
+// próprio, para não competir com a prévia nem com a criação de lote (11.28).
+const exportarRepasseRateLimiter = limiterPorUsuario(30);
 
 // ════════════════════════════════════════════════════════════════════════
 // 4.1 — Solicitações
@@ -1258,7 +1265,14 @@ router.post('/lotes/:id/confirmacao', requireModuloAtivo('adiantamentos'), requi
  * desta FASE (nenhuma migration está listada em 9.1.1-9.1.8). Registrado
  * como acompanhamento, não bloqueia a aplicação.
  */
-router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), async (req, res) => {
+// Revisão de segurança 2026-09-18: teto de corpo PRÓPRIO desta rota. O
+// `express.json()` global (server.js:220) fica em 100 KB e NÃO deve subir —
+// ele está montado antes de toda autenticação, então aumentá-lo daria a
+// qualquer um na internet o direito de fazer o processo parsear corpos
+// grandes. Aqui os 5 MB só existem para um usuário autenticado e com
+// `pagamento_confirmar`. Dimensionado junto com `MAX_LINHAS_RETORNO`
+// (10.000 linhas ≈ 2 MB de CSV ≈ 2,7 MB em base64) — sobra folga.
+router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), express.json({ limit: '5mb' }), async (req, res) => {
   try {
     const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamento_confirmar');
     if (!ctx) return;
@@ -1309,9 +1323,22 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
       return res.status(409).json({ erro: 'RETORNO_INCOMPLETO', faltantes });
     }
 
+    // Revisão de segurança 2026-09-18: o `motivo` aqui vem do texto livre do
+    // arquivo do parceiro — era a única das cinco chamadas de confirmação que
+    // não passava por `motivoValido` (as outras: :723, :1143, :1190, :1662).
+    // SANEAR, não recusar: diferente das outras quatro, este motivo não é
+    // digitado por um usuário que pode corrigi-lo — recusar o arquivo inteiro
+    // porque o parceiro mandou um código de 2 letras bloquearia a conciliação
+    // de um retorno legítimo. Então cortamos no teto e completamos o piso,
+    // garantindo ao banco o mesmo contrato (3..500) das demais.
+    const sanearMotivoDoArquivo = (raw) => {
+      const texto = (typeof raw === 'string' ? raw : '').trim().slice(0, 500);
+      return motivoValido(texto) ? texto : `Devolvida pelo parceiro (motivo não informado: "${texto}")`.slice(0, 500);
+    };
+
     const falhas = aplicaveis
       .filter((a) => a.status === 'Devolvida')
-      .map((a) => ({ id: a.solicitacaoId, motivo: a.motivo }));
+      .map((a) => ({ id: a.solicitacaoId, motivo: sanearMotivoDoArquivo(a.motivo) }));
 
     if (aplicaveis.length > 0) {
       try {
@@ -1453,7 +1480,7 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
   }
 });
 
-router.get('/repasse/exportar', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamentos_consultar'), async (req, res) => {
+router.get('/repasse/exportar', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamentos_consultar'), exportarRepasseRateLimiter, async (req, res) => {
   try {
     const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamentos_consultar');
     if (!ctx) return;

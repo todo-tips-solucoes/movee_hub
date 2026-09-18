@@ -16,8 +16,15 @@
 
 'use strict';
 
-const XLSX = require('xlsx');
 const { paraCentavos } = require('./adiantamento-remanescente');
+
+/** Teto de linhas do arquivo de retorno (revisão de segurança 2026-09-18).
+ * Um lote vai a `LOTE_LIMITE_IDS` = 5000 itens; o dobro cobre reenvio e
+ * concatenação de exports do mesmo período com folga, e impede que um arquivo
+ * adulterado faça o processo montar estrutura arbitrariamente grande antes de
+ * qualquer validação de negócio. Dimensionado junto com o `express.json({
+ * limit })` da rota `POST /lotes/:id/retorno`. */
+const MAX_LINHAS_RETORNO = 10000;
 
 const CABECALHO_ESPERADO = [
   'ID da transferência', 'ID de integração', 'Status', 'Valor', 'Pago em', 'Criado em',
@@ -38,21 +45,77 @@ class RetornoTransfeeraParseError extends Error {
   }
 }
 
+/**
+ * Divisor CSV RFC4180 (revisão de segurança 2026-09-18). ANTES isto era
+ * `XLSX.read(texto, {type:'string'})`: para ler um CSV, todo o sniffing de
+ * formato do SheetJS (zip/XLSX, HTML, XML, Lotus…) rodava sobre bytes vindos
+ * de terceiro, ANTES de o cabeçalho ser conferido — e `xlsx@0.18.5` tem duas
+ * advisories HIGH (prototype pollution, ReDoS) sem correção publicada no npm.
+ * Para CSV a biblioteca é desnecessária.
+ *
+ * Mantém o comportamento que o parser antigo dava com `raw:false` +
+ * `blankrows:false`: cada célula é TEXTO puro (zeros à esquerda de agência e
+ * código de banco preservados, `Valor` nunca vira float) e linha totalmente
+ * vazia é descartada. Trata aspas com vírgula, quebra de linha e `""` dentro
+ * do campo — o arquivo real do parceiro usa aspas.
+ *
+ * NOTA: o `XLSX.read` de `lib/adiantamento-transfeera-xlsx.js` continua e deve
+ * continuar — ali o servidor relê a planilha que ele mesmo acabou de gerar,
+ * para conferir integridade; nenhum byte de terceiro chega lá.
+ */
+function dividirCsvRfc4180(texto, maxLinhas) {
+  const s = String(texto ?? '').replace(/^﻿/, '');
+  const linhas = [];
+  let linha = [];
+  let campo = '';
+  let emAspas = false;
+
+  const fecharLinha = () => {
+    linha.push(campo);
+    campo = '';
+    const vazia = linha.every((c) => c === '');
+    linha = vazia ? [] : linha;
+    if (!vazia) {
+      linhas.push(linha);
+      linha = [];
+      if (linhas.length > maxLinhas) {
+        throw new RetornoTransfeeraParseError(
+          `Arquivo com mais de ${maxLinhas} linhas`, 'ARQUIVO_MUITO_GRANDE',
+        );
+      }
+    }
+  };
+
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s[i];
+    if (emAspas) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { campo += '"'; i += 1; } else { emAspas = false; }
+      } else {
+        campo += c;
+      }
+    } else if (c === '"') {
+      emAspas = true;
+    } else if (c === ',') {
+      linha.push(campo);
+      campo = '';
+    } else if (c === '\n') {
+      fecharLinha();
+    } else if (c !== '\r') {
+      campo += c;
+    }
+  }
+  if (campo !== '' || linha.length > 0) fecharLinha();
+
+  return linhas;
+}
+
 /** Lê o CSV (texto já decodificado, BOM incluso ou não) e devolve as linhas
- * normalizadas (9.1.1). Usa o `xlsx` (já dependência do projeto) como parser
- * CSV RFC4180 — `raw:false` preserva o texto exatamente como está na
- * célula (sem cortar zeros à esquerda de código de banco/agência, sem
- * converter `Valor` para float). Lança `RetornoTransfeeraParseError` se o
- * cabeçalho não bater com o contrato observado. */
+ * normalizadas (9.1.1). Lança `RetornoTransfeeraParseError` se o cabeçalho
+ * não bater com o contrato observado — a conferência acontece ANTES de
+ * qualquer normalização de linha. */
 function lerCsv(texto) {
-  const wb = XLSX.read(String(texto ?? ''), { type: 'string' });
-  const nomeAba = wb.SheetNames[0];
-  const ws = nomeAba ? wb.Sheets[nomeAba] : null;
-  const linhas = ws
-    ? XLSX.utils.sheet_to_json(ws, {
-      header: 1, defval: '', raw: false, blankrows: false,
-    })
-    : [];
+  const linhas = dividirCsvRfc4180(texto, MAX_LINHAS_RETORNO);
   if (!linhas.length) throw new RetornoTransfeeraParseError('CSV vazio', 'ARQUIVO_VAZIO');
 
   const cabecalho = linhas[0].map((c) => String(c).trim());

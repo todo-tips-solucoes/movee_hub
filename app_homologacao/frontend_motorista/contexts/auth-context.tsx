@@ -148,6 +148,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignorar erros de logout (cookie pode já ter expirado)
     } finally {
+      // Revisão de segurança 2026-09-18: apaga a Cache Storage no logout.
+      // O `sw.ts` deixou de gravar resposta de rota autenticada, mas aparelhos
+      // que já rodaram a versão anterior seguem com o cache antigo em disco —
+      // sem isto, o dado do motorista anterior continuaria lá até o navegador
+      // decidir descartar. Best-effort: qualquer falha (navegador sem
+      // `caches`, modo privado, permissão negada) nunca pode impedir o logout.
+      try {
+        if (typeof caches !== 'undefined') {
+          const nomes = await caches.keys();
+          await Promise.all(nomes.map((nome) => caches.delete(nome)));
+        }
+      } catch {
+        // silencioso por desenho — ver comentário acima
+      }
       setState({ user: null, loading: false });
       stopRefreshTimer();
     }

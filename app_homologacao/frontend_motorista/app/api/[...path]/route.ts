@@ -53,11 +53,21 @@ async function proxyRequest(req: NextRequest) {
       method: req.method,
       headers,
       body,
+      // Revisão de segurança 2026-09-18: alinhado ao proxy do painel
+      // (frontend_v2/app/api/[...path]/route.ts:91) — nenhuma camada
+      // intermediária deve guardar resposta de rota autenticada.
+      cache: 'no-store' as RequestCache,
       // @ts-expect-error — Node fetch aceita duplex para streaming
       duplex: 'half',
     });
 
     const responseHeaders = new Headers(backendRes.headers);
+    // Revisão de segurança 2026-09-18: cabeçalhos de transporte são da conexão
+    // com o backend e não valem para a conexão com o cliente — repassá-los é a
+    // condição clássica de dessincronização entre proxies. O proxy do painel já
+    // os descarta (frontend_v2/app/api/[...path]/route.ts:122).
+    responseHeaders.delete('transfer-encoding');
+    responseHeaders.delete('connection');
     // Repassar Set-Cookie sem modificação (para httpOnly funcionar)
     const setCookies = backendRes.headers.getSetCookie?.() ?? [];
     responseHeaders.delete('set-cookie');
