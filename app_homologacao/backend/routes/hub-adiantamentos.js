@@ -138,6 +138,29 @@ function resolverFiltroStatus({
   return atual;
 }
 
+// Enum real de AdiantamentoLote.status (CHECK `adiantamentolote_status_chk`,
+// infra/hub/migrations/0066:261-263) — allowlist do filtro `status` de
+// `GET /lotes`, mesmo papel que `TODOS_STATUS` faz em `resolverFiltroStatus`.
+const STATUS_LOTE = ['GERANDO', 'GERADO', 'EXPORTADO', 'CONCLUIDO', 'CONCLUIDO_COM_FALHAS', 'CANCELADO'];
+
+const RE_DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Valida o intervalo `de`/`ate` das listagens ANTES de ele virar filtro do
+ * PostgREST. Sem isso os dois entravam crus (sem validação e sem encode) na
+ * querystring montada por `partes.join('&')`: bastava `&cnpj_prestador=like.12*`
+ * no valor para anexar um filtro próprio e deduzir o documento dígito a
+ * dígito pela contagem de resultados — o `GRANT SELECT` é da tabela inteira
+ * (0066:388), então só permissão de leitura já bastava para derrotar a
+ * máscara do módulo. Vazio/ausente continua significando "sem filtro".
+ * Devolve `{ erro: 'de'|'ate' }` no formato de `motivo` de DADOS_INVALIDOS. */
+function validarIntervaloDatas(query) {
+  const de = typeof query.de === 'string' ? query.de.trim() : '';
+  const ate = typeof query.ate === 'string' ? query.ate.trim() : '';
+  if (de && !RE_DATA_ISO.test(de)) return { erro: 'de' };
+  if (ate && !RE_DATA_ISO.test(ate)) return { erro: 'ate' };
+  return { de, ate };
+}
+
 /** Pendências [ADAPTADO] de uma solicitação — hoje só `FALHOU` é
  * representável sem query extra por linha (ver `STATUS_PENDENCIA` acima). */
 function pendenciasDaSolicitacao(row) {
@@ -336,9 +359,12 @@ router.get('/', requireModuloAtivo('adiantamentos'), requirePermission('adiantam
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
+    const datas = validarIntervaloDatas(req.query);
+    if (datas.erro) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: datas.erro });
+
     const partes = [`id_empresa=in.(${claims.escopo.join(',')})`];
-    if (typeof req.query.de === 'string' && req.query.de) partes.push(`data_solicitacao=gte.${req.query.de}`);
-    if (typeof req.query.ate === 'string' && req.query.ate) partes.push(`data_solicitacao=lte.${req.query.ate}`);
+    if (datas.de) partes.push(`data_solicitacao=gte.${datas.de}`);
+    if (datas.ate) partes.push(`data_solicitacao=lte.${datas.ate}`);
     const statusFiltro = resolverFiltroStatus(req.query);
     if (statusFiltro) partes.push(`status=in.(${statusFiltro.join(',')})`);
 
@@ -982,11 +1008,19 @@ router.get('/lotes', requireModuloAtivo('adiantamentos'), requirePermission('adi
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
+    const datas = validarIntervaloDatas(req.query);
+    if (datas.erro) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: datas.erro });
+
     const partes = [`id_empresa=in.(${claims.escopo.join(',')})`];
-    if (typeof req.query.de === 'string' && req.query.de) partes.push(`criado_em=gte.${req.query.de}`);
-    if (typeof req.query.ate === 'string' && req.query.ate) partes.push(`criado_em=lte.${req.query.ate}`);
-    if (typeof req.query.status === 'string' && req.query.status) {
-      const lista = req.query.status.split(',').map((s) => s.trim());
+    if (datas.de) partes.push(`criado_em=gte.${datas.de}`);
+    if (datas.ate) partes.push(`criado_em=lte.${datas.ate}`);
+    if (typeof req.query.status === 'string' && req.query.status.trim()) {
+      // Allowlist (mesma razão de `validarIntervaloDatas`): o valor ia cru
+      // para a querystring do PostgREST.
+      const lista = req.query.status.split(',')
+        .map((s) => s.trim().toUpperCase())
+        .filter((s) => STATUS_LOTE.includes(s));
+      if (!lista.length) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'status' });
       partes.push(`status=in.(${lista.join(',')})`);
     }
     partes.push(`select=${SELECT_LOTE}`);
@@ -1166,6 +1200,10 @@ router.post('/lotes/:id/confirmacao', requireModuloAtivo('adiantamentos'), requi
     } catch (e) {
       const msg = mensagemDeErro(e);
       if (msg.includes('NAO_ENCONTRADA')) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+      // Corpo pediu FALHOU para solicitação que não é item deste lote — a RPC
+      // recusa o conjunto inteiro (migration 0083). É defeito do pedido, não
+      // de estado: 400 com o mesmo `motivo` da validação de `falhas` acima.
+      if (msg.includes('SOLICITACAO_FORA_DO_LOTE')) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'falhas' });
       if (msg.includes('TRANSICAO_INVALIDA')) return res.status(409).json({ erro: 'TRANSICAO_INVALIDA' });
       if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
       console.error('[hub-adiantamentos] erro em POST /lotes/:id/confirmacao:', e.message);
@@ -1255,7 +1293,18 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
       valorCentavos: paraCentavos(i.valor),
     }));
 
-    const { aplicaveis, ignoradas, faltantes } = casarComItensDoLote(linhasCsv, itensLote);
+    let casamento;
+    try {
+      casamento = casarComItensDoLote(linhasCsv, itensLote);
+    } catch (e) {
+      // `LINHA_DUPLICADA`: o mesmo ADV-<id> veio duas vezes com conteúdo
+      // conflitante — o arquivo inteiro é recusado, nunca se escolhe uma das
+      // linhas (uma `Devolvida` duplicando uma `Finalizada` marcaria FALHOU
+      // um adiantamento já pago).
+      if (e instanceof RetornoTransfeeraParseError) return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
+      throw e;
+    }
+    const { aplicaveis, ignoradas, faltantes } = casamento;
     if (faltantes.length > 0) {
       return res.status(409).json({ erro: 'RETORNO_INCOMPLETO', faltantes });
     }
@@ -1359,16 +1408,15 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
     ]);
     const apuracao = Array.isArray(apuracaoExistente) && apuracaoExistente[0];
 
-    // 7.11.2 (dec-105): soma em centavos inteiros, nunca em ponto flutuante
-    // (mesmo defeito já corrigido em dec-063/dec-067 — ver adiantamento-remanescente.js).
-    const totaisCentavos = rows.reduce((acc, r) => ({
-      creditos: acc.creditos + paraCentavos(r.creditos || 0),
-      adiantamentos: acc.adiantamentos + paraCentavos(r.adiantamentos || 0),
-      debitos: acc.debitos + paraCentavos(r.debitos || 0),
-      remanescente: acc.remanescente + paraCentavos(r.remanescente || 0),
-    }), {
-      creditos: 0, adiantamentos: 0, debitos: 0, remanescente: 0,
-    });
+    // Os totais vêm do PERÍODO INTEIRO, calculados pela própria RPC em
+    // janela `sum(...) OVER ()` (migration 0083) — antes eram somados aqui
+    // sobre `rows`, que é a PÁGINA (20 linhas por padrão), e apareciam na
+    // tela ao lado de `motoristas: total`, que sempre foi a contagem do
+    // período: "Total (137 motorista(s)) · R$ <soma de 20>" na tela onde se
+    // decide fechar a apuração. `paraCentavos` (2.7.1/dec-063) continua
+    // sendo a única conversão para centavos — o numeric do Postgres já é
+    // exato, aqui é só para reusar `formatarCentavos` sem dividir float.
+    const totalDoPeriodo = (campo) => formatarCentavos(rows.length ? paraCentavos(rows[0][campo] ?? 0) : 0);
 
     return res.status(200).json({
       periodo: {
@@ -1378,10 +1426,10 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
         situacao: apuracao ? 'fechado' : 'aberto',
       },
       totais: {
-        creditos: formatarCentavos(totaisCentavos.creditos),
-        adiantamentos: formatarCentavos(totaisCentavos.adiantamentos),
-        debitos: formatarCentavos(totaisCentavos.debitos),
-        remanescente: formatarCentavos(totaisCentavos.remanescente),
+        creditos: totalDoPeriodo('total_creditos'),
+        adiantamentos: totalDoPeriodo('total_adiantamentos'),
+        debitos: totalDoPeriodo('total_debitos'),
+        remanescente: totalDoPeriodo('total_remanescente'),
         motoristas: total,
       },
       itens: rows.map((r) => ({

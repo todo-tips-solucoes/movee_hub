@@ -127,6 +127,9 @@ function resetFixtures() {
   repasseRowsFixture = [{
     entregador_id: 10, nome: 'Fulano', creditos: '500.00', adiantamentos: '250.00', debitos: '0.00',
     remanescente: '250.00', em_processamento: false, total: 1,
+    // Totais do PERÍODO, devolvidos pela RPC em janela `sum(...) OVER ()`
+    // (migration 0083) — o backend não soma mais as linhas da página.
+    total_creditos: '500.00', total_adiantamentos: '250.00', total_debitos: '0.00', total_remanescente: '250.00',
   }];
 }
 resetFixtures();
@@ -476,6 +479,32 @@ describe('4.1 solicitações', () => {
     assert.equal(r.body.itens[0].motorista.nome, 'Fulano de Tal');
     assert.equal(r.body.itens[0].valorLiquido, '250.00');
     assert.equal(r.body.itens[0].loteId, 900); // batch join com AdiantamentoLoteItem
+  });
+
+  // Revisão PR #182: `de`/`ate` iam CRUS (sem validação e sem encode) para a
+  // querystring do PostgREST montada por `partes.join('&')` — bastava
+  // pendurar `&cnpj_prestador=like.12*` para anexar um filtro próprio sobre a
+  // tabela inteira e deduzir o documento dígito a dígito pela contagem.
+  test('GET / com `de` fora de AAAA-MM-DD -> 400 e nenhuma consulta ao PostgREST', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos?de=2026-01-01%26cnpj_prestador%3Dlike.12*', { cookie: tokenCookie() });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.erro, 'DADOS_INVALIDOS');
+    assert.equal(r.body.motivo, 'de');
+    assert.ok(!chamadasPostgrest.some((c) => String(c.endpoint).startsWith('AdiantamentoSolicitacao?')));
+  });
+
+  test('GET / com `ate` fora de AAAA-MM-DD -> 400 (motivo aponta o campo certo)', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos?de=2026-01-01&ate=hoje', { cookie: tokenCookie() });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'ate');
+  });
+
+  test('GET / com `de`/`ate` válidos continua filtrando (e só com os dois filtros esperados)', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos?de=2026-01-01&ate=2026-01-31', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    const chamada = chamadasPostgrest.find((c) => String(c.endpoint).startsWith('AdiantamentoSolicitacao?'));
+    assert.ok(chamada.endpoint.includes('data_solicitacao=gte.2026-01-01'));
+    assert.ok(chamada.endpoint.includes('data_solicitacao=lte.2026-01-31'));
   });
 
   test('GET /:id devolve calculo/contaMascarada/eventos', async () => {
@@ -950,6 +979,28 @@ describe('4.4 lotes de pagamento', () => {
     assert.equal(r.body.itens[0].id, 900);
   });
 
+  // Mesma raiz do filtro de `GET /` (revisão PR #182): `de`/`ate`/`status`
+  // iam crus para a querystring do PostgREST.
+  test('GET /lotes com `de` fora de AAAA-MM-DD -> 400, sem consultar o PostgREST', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/lotes?de=2026-01-01%26cnpj_prestador%3Dlike.12*', { cookie: tokenCookie() });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'de');
+    assert.ok(!chamadasPostgrest.some((c) => String(c.endpoint).startsWith('AdiantamentoLote?id_empresa')));
+  });
+
+  test('GET /lotes com status fora do enum do lote -> 400 (allowlist, nunca repassado cru)', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/lotes?status=GERADO%29%26cnpj_prestador%3Dlike.12*', { cookie: tokenCookie() });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'status');
+  });
+
+  test('GET /lotes com status válido continua filtrando', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/lotes?status=GERADO,CANCELADO', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    const chamada = chamadasPostgrest.find((c) => String(c.endpoint).startsWith('AdiantamentoLote?id_empresa'));
+    assert.ok(chamada.endpoint.includes('status=in.(GERADO,CANCELADO)'));
+  });
+
   test('GET /lotes/:id devolve itens mascarados + histórico', async () => {
     const r = await request('GET', '/api/v1/adiantamentos/lotes/900', { cookie: tokenCookie() });
     assert.equal(r.status, 200);
@@ -1025,6 +1076,21 @@ describe('4.4 lotes de pagamento', () => {
     assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
   });
 
+  // Revisão PR #182 (crítica/dinheiro): a RPC recusa o conjunto inteiro
+  // quando um id de `p_falhas` não é item do lote (migration 0083) — antes o
+  // UPDATE alcançava solicitação de outro lote/outra empresa e marcava FALHOU
+  // um adiantamento já pago.
+  test('POST /lotes/:id/confirmacao com id fora do lote -> 400 (RPC recusa com SOLICITACAO_FORA_DO_LOTE)', async () => {
+    comportamentoRpc.loteConfirmar = 'SOLICITACAO_FORA_DO_LOTE';
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/confirmacao', {
+      body: { falhas: [{ id: 4242, motivo: 'conta encerrada' }] }, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.erro, 'DADOS_INVALIDOS');
+    assert.equal(r.body.motivo, 'falhas');
+    assert.ok(!registrosAuditoria.some((e) => e.acao === 'adiantamento.lote_confirmado'));
+  });
+
   test('11.17/FR-033: POST /lotes/:id/confirmacao recusa motivo só com espaços (< 3 chars após trim)', async () => {
     const r = await request('POST', '/api/v1/adiantamentos/lotes/900/confirmacao', {
       body: { falhas: [{ id: 100, motivo: '  a ' }] }, cookie: tokenCookie(),
@@ -1086,6 +1152,24 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
     assert.equal(r.body.motivo, 'CABECALHO_INVALIDO');
+  });
+
+  // Revisão PR #182: duas linhas do mesmo ADV-<id> entravam as duas em
+  // `aplicaveis`; a falha é aplicada antes do "o que sobrou é pago", então a
+  // Devolvida vencia a Finalizada e o pagamento já feito virava FALHOU.
+  test('mesmo ADV-<id> repetido com status conflitante -> 400 ARQUIVO_INVALIDO/LINHA_DUPLICADA, RPC nunca chamada', async () => {
+    loteItensFixture = [itemLote({ id: 1, solicitacaoId: 100, valor: '250.00', colIdIntegracao: 'ADV-000100' })];
+    const csvBase64 = csvRetornoBase64([
+      { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
+      {
+        'ID de integração': 'ADV-000100', Status: 'Devolvida', Valor: '250.00', 'Código de erro': 'DBA_20', 'Motivo da falha': 'Conta ou dígito verificador da conta inválido.',
+      },
+    ]);
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { body: { csvBase64 }, cookie: tokenCookie() });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
+    assert.equal(r.body.motivo, 'LINHA_DUPLICADA');
+    assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
   });
 
   test('Finalizada -> paga e Devolvida -> falhou (motivo literal), auditoria registrada', async () => {
@@ -1180,10 +1264,11 @@ describe('4.6 repasse', () => {
     assert.equal(r.body.periodo.situacao, 'fechado');
   });
 
-  test('7.11.2/7.11.3: totais somados em centavos inteiros — 300 linhas de 0,07 somam exatamente 21.00 (mesmo padrão dec-063/2.7.1: reduce() de floats acumula ruído)', async () => {
+  test('7.11.2/7.11.3: totais vêm do período (janela da RPC), formatados sem divisão de float — 300 linhas de 0,07 = 21.00', async () => {
     repasseRowsFixture = Array.from({ length: 300 }, (_v, i) => ({
       entregador_id: i + 1, nome: `Motorista ${i}`, creditos: '0.07', adiantamentos: '0.00',
       debitos: '0.00', remanescente: '0.07', em_processamento: false, total: 300,
+      total_creditos: '21.00', total_adiantamentos: '0.00', total_debitos: '0.00', total_remanescente: '21.00',
     }));
     const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
     assert.equal(r.status, 200);
@@ -1191,11 +1276,11 @@ describe('4.6 repasse', () => {
     assert.equal(r.body.totais.remanescente, '21.00');
   });
 
-  test('7.11.2/7.11.3: totais com remanescente negativo e valores fracionários somam exato em centavos', async () => {
+  test('7.11.2/7.11.3: totais com remanescente negativo e valores fracionários preservam os centavos', async () => {
     repasseRowsFixture = [
-      { entregador_id: 1, nome: 'A', creditos: '10.10', adiantamentos: '5.05', debitos: '0.20', remanescente: '4.85', em_processamento: false, total: 3 },
-      { entregador_id: 2, nome: 'B', creditos: '20.20', adiantamentos: '25.05', debitos: '0.10', remanescente: '-4.95', em_processamento: false, total: 3 },
-      { entregador_id: 3, nome: 'C', creditos: '30.30', adiantamentos: '0.00', debitos: '0.30', remanescente: '30.00', em_processamento: false, total: 3 },
+      { entregador_id: 1, nome: 'A', creditos: '10.10', adiantamentos: '5.05', debitos: '0.20', remanescente: '4.85', em_processamento: false, total: 3, total_creditos: '60.60', total_adiantamentos: '30.10', total_debitos: '0.60', total_remanescente: '29.90' },
+      { entregador_id: 2, nome: 'B', creditos: '20.20', adiantamentos: '25.05', debitos: '0.10', remanescente: '-4.95', em_processamento: false, total: 3, total_creditos: '60.60', total_adiantamentos: '30.10', total_debitos: '0.60', total_remanescente: '29.90' },
+      { entregador_id: 3, nome: 'C', creditos: '30.30', adiantamentos: '0.00', debitos: '0.30', remanescente: '30.00', em_processamento: false, total: 3, total_creditos: '60.60', total_adiantamentos: '30.10', total_debitos: '0.60', total_remanescente: '29.90' },
     ];
     const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
     assert.equal(r.status, 200);
@@ -1203,6 +1288,33 @@ describe('4.6 repasse', () => {
     assert.equal(r.body.totais.adiantamentos, '30.10');
     assert.equal(r.body.totais.debitos, '0.60');
     assert.equal(r.body.totais.remanescente, '29.90');
+  });
+
+  // Revisão PR #182: os totais eram somados sobre `rows` (a PÁGINA, 20 por
+  // padrão) e exibidos ao lado de `motoristas`, que sempre foi a contagem do
+  // período inteiro — na tela onde se decide fechar a apuração.
+  test('totais são os do PERÍODO, nunca a soma da página (137 motoristas, página de 1 linha)', async () => {
+    repasseRowsFixture = [{
+      entregador_id: 1, nome: 'A', creditos: '10.00', adiantamentos: '1.00', debitos: '0.00',
+      remanescente: '9.00', em_processamento: false, total: 137,
+      total_creditos: '1370.00', total_adiantamentos: '137.00', total_debitos: '0.00', total_remanescente: '1233.00',
+    }];
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08&pageSize=1', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.itens.length, 1);
+    assert.equal(r.body.totais.motoristas, 137);
+    assert.equal(r.body.totais.creditos, '1370.00');
+    assert.equal(r.body.totais.adiantamentos, '137.00');
+    assert.equal(r.body.totais.remanescente, '1233.00');
+  });
+
+  test('período sem nenhuma linha -> totais zerados (RPC não devolve linha alguma)', async () => {
+    repasseRowsFixture = [];
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.totais.creditos, '0.00');
+    assert.equal(r.body.totais.remanescente, '0.00');
+    assert.equal(r.body.totais.motoristas, 0);
   });
 
   test('GET /repasse/exportar devolve CSV', async () => {

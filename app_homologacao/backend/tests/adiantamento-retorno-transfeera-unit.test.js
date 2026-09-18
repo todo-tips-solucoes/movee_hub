@@ -250,3 +250,68 @@ describe('casarComItensDoLote — casamento e motivos de ignorada', () => {
     assert.ok(segunda.ignoradas.some((i) => i.idIntegracao === 'ADV-001001' && i.motivo === 'JA_APLICADO'));
   });
 });
+
+// --- linha duplicada (revisão PR #182) ----------------------------------------
+// `casarComItensDoLote` comparava `item.situacao` contra um snapshot em
+// memória que NÃO muda dentro do laço: duas linhas do mesmo `ADV-<id>`
+// entravam ambas em `aplicaveis` (nenhuma virava JA_APLICADO). Como a RPC
+// aplica as falhas antes de marcar "o que sobrou" como pago, a `Devolvida`
+// vencia a `Finalizada` em qualquer ordem — adiantamento já pago ficava
+// FALHOU em silêncio.
+describe('casarComItensDoLote — duplicatas do mesmo ID de integração', () => {
+  const itensLote = [
+    { solicitacaoId: 2001, colIdIntegracao: 'ADV-002001', situacao: 'incluido', valorCentavos: 12940 },
+  ];
+
+  test('duplicata com status conflitante -> recusa o arquivo (LINHA_DUPLICADA), nunca escolhe uma das linhas', () => {
+    const csv = montarCsv([
+      linhaCsv({ 'ID de integração': 'ADV-002001', Status: 'Finalizada', Valor: '129.40' }),
+      linhaCsv({
+        'ID de integração': 'ADV-002001', Status: 'Devolvida', Valor: '129.40',
+        'Código de erro': 'receiver_account_closed', 'Motivo da falha': 'Conta do recebedor não existe ou foi encerrada.',
+      }),
+    ]);
+    assert.throws(
+      () => casarComItensDoLote(lerCsv(csv), itensLote),
+      (e) => e instanceof RetornoTransfeeraParseError && e.motivo === 'LINHA_DUPLICADA',
+    );
+  });
+
+  test('duplicata com mesmo status mas motivo diferente também é conflito', () => {
+    const csv = montarCsv([
+      linhaCsv({
+        'ID de integração': 'ADV-002001', Status: 'Devolvida', Valor: '129.40',
+        'Código de erro': 'receiver_account_closed', 'Motivo da falha': 'Conta do recebedor não existe ou foi encerrada.',
+      }),
+      linhaCsv({
+        'ID de integração': 'ADV-002001', Status: 'Devolvida', Valor: '129.40',
+        'Código de erro': 'invalid_account', 'Motivo da falha': 'Conta inválida.',
+      }),
+    ]);
+    assert.throws(
+      () => casarComItensDoLote(lerCsv(csv), itensLote),
+      (e) => e instanceof RetornoTransfeeraParseError && e.motivo === 'LINHA_DUPLICADA',
+    );
+  });
+
+  test('duplicata idêntica (ruído do arquivo) -> deduplicada, 1 aplicável e nenhum faltante', () => {
+    const linha = { 'ID de integração': 'ADV-002001', Status: 'Finalizada', Valor: '129.40' };
+    const csv = montarCsv([linhaCsv(linha), linhaCsv(linha)]);
+    const { aplicaveis, ignoradas, faltantes } = casarComItensDoLote(lerCsv(csv), itensLote);
+    assert.equal(aplicaveis.length, 1);
+    assert.equal(aplicaveis[0].solicitacaoId, 2001);
+    assert.deepEqual(ignoradas, []);
+    assert.deepEqual(faltantes, []);
+  });
+
+  test('várias linhas sem id no padrão ADV-<id> não são tratadas como duplicata', () => {
+    const csv = montarCsv([
+      linhaCsv({ 'ID de integração': '', Status: 'Finalizada', Valor: '10.00' }),
+      linhaCsv({ 'ID de integração': '', Status: 'Devolvida', Valor: '20.00' }),
+      linhaCsv({ 'ID de integração': 'ADV-002001', Status: 'Finalizada', Valor: '129.40' }),
+    ]);
+    const { aplicaveis, ignoradas } = casarComItensDoLote(lerCsv(csv), itensLote);
+    assert.equal(aplicaveis.length, 1);
+    assert.deepEqual(ignoradas.map((i) => i.motivo), ['ID_INTEGRACAO_INVALIDO', 'ID_INTEGRACAO_INVALIDO']);
+  });
+});

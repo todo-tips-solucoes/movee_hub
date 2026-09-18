@@ -95,6 +95,46 @@ function motivoLiteral(linha) {
   return linha.motivoFalha || linha.codigoErro || linha.status;
 }
 
+/** Remove linhas repetidas do MESMO `ID de integração` e recusa o arquivo
+ * quando as repetições não dizem a mesma coisa.
+ *
+ * Sem isso, duas linhas `ADV-<id>` entravam as duas em `aplicaveis`: como a
+ * `situacao` comparada no laço é a do snapshot em memória (que não muda
+ * dentro do laço), nenhuma das duas era vista como `JA_APLICADO`. Rio
+ * abaixo, a RPC aplica as falhas antes de marcar "o que sobrou" como pago,
+ * então uma `Devolvida` duplicando uma `Finalizada` vencia em qualquer
+ * ordem — o adiantamento pago pela Transfeera ficava FALHOU em silêncio.
+ *
+ * Repetições idênticas (mesmo status, valor e motivo) são só ruído do
+ * arquivo: deduplica. Repetições que divergem em qualquer um desses campos
+ * são ambíguas e NUNCA são resolvidas por escolha nossa — o arquivo inteiro
+ * é recusado com `LINHA_DUPLICADA`. Linhas sem id no padrão `ADV-<id>`
+ * passam intactas (várias em branco são normais; todas viram
+ * `ID_INTEGRACAO_INVALIDO`). */
+function deduplicarPorIdIntegracao(linhas) {
+  const assinaturaPorId = new Map();
+  const unicas = [];
+  for (const linha of linhas) {
+    if (extrairIdSolicitacao(linha.idIntegracao) === null) {
+      unicas.push(linha);
+      continue;
+    }
+    const assinatura = `${linha.status}|${linha.valorCentavos}|${motivoLiteral(linha)}`;
+    const anterior = assinaturaPorId.get(linha.idIntegracao);
+    if (anterior === undefined) {
+      assinaturaPorId.set(linha.idIntegracao, assinatura);
+      unicas.push(linha);
+      continue;
+    }
+    if (anterior !== assinatura) {
+      throw new RetornoTransfeeraParseError(
+        `Linha duplicada com conteúdo conflitante para ${linha.idIntegracao}`, 'LINHA_DUPLICADA'
+      );
+    }
+  }
+  return unicas;
+}
+
 /**
  * Casa as linhas normalizadas do CSV com os itens de UM lote (9.1.2).
  * `itensLote`: [{solicitacaoId, colIdIntegracao, situacao, valorCentavos}]
@@ -122,7 +162,8 @@ function casarComItensDoLote(linhasNormalizadas, itensLote) {
   const aplicaveis = [];
   const ignoradas = [];
 
-  for (const linha of linhasNormalizadas) {
+  // Lança `RetornoTransfeeraParseError('LINHA_DUPLICADA')` — ver acima.
+  for (const linha of deduplicarPorIdIntegracao(linhasNormalizadas)) {
     const idSolicitacao = extrairIdSolicitacao(linha.idIntegracao);
     if (idSolicitacao === null) {
       ignoradas.push({ idIntegracao: linha.idIntegracao, motivo: 'ID_INTEGRACAO_INVALIDO' });

@@ -1694,6 +1694,109 @@ SQL
 check "9.1.5(b): backstop da RPC — reconfirmar lote fora de EXPORTADO -> TRANSICAO_INVALIDA (nunca reaplica)" \
   "$(echo "$REIMPORT_RPC_OUT" | grep -c 'TRANSICAO_INVALIDA')" "1"
 
+# --- Revisão PR #182 (CRÍTICA/dinheiro, migration 0083): `p_falhas` vem do
+# corpo da requisição e o UPDATE que marca FALHOU não era escopado por NADA
+# (0067:1761-1762) — como a RPC é SECURITY DEFINER, RLS não protege e o id
+# alcançava solicitação de OUTRO lote (e de outra empresa). Marcar FALHOU um
+# adiantamento já pago o tira do desconto do repasse (0067:1841, 0082:113 só
+# somam PAGA/EXPORTADA) e o devolve para `reprocessar` -> segundo pagamento.
+# Prova as DUAS metades contra o SQL real: id de outro lote é RECUSADO e o
+# fluxo normal do mesmo lote continua funcionando.
+echo ""
+echo "--- Revisão PR #182: hub_adiantamento_lote_confirmar escopa p_falhas ao lote ---"
+psql_t -v ON_ERROR_STOP=1 <<'SQL' >"$TMP/seed_fora_do_lote.log" 2>&1
+INSERT INTO "AdiantamentoSolicitacao" (
+    id, id_empresa, conta_motorista_id, cnpj_prestador, entregador_id, configuracao_id,
+    data_solicitacao, data_producao, aceite_texto_sha256, status, chave_idempotencia, valor_liquido, conta_bancaria_id
+) VALUES
+(611, 6, (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='55555555000100'), '55555555000100',
+ (SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='55555555000100')),
+ (SELECT id FROM "AdiantamentoConfiguracao" WHERE versao=2 AND id_empresa=6), '2026-03-06', '2026-03-05',
+ repeat('a',64), 'LIBERADA', gen_random_uuid(), 50.00,
+ (SELECT id FROM "ContaBancariaMotorista" WHERE entregador_id=(SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='55555555000100')) AND status='APROVADA')),
+(612, 6, (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='55555555000100'), '55555555000100',
+ (SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='55555555000100')),
+ (SELECT id FROM "AdiantamentoConfiguracao" WHERE versao=2 AND id_empresa=6), '2026-03-07', '2026-03-06',
+ repeat('a',64), 'LIBERADA', gen_random_uuid(), 60.00,
+ (SELECT id FROM "ContaBancariaMotorista" WHERE entregador_id=(SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='55555555000100')) AND status='APROVADA'));
+SQL
+if [ $? -ne 0 ]; then echo "FAIL: seed (611/612) do cenário fora-do-lote deu erro"; cat "$TMP/seed_fora_do_lote.log"; exit 1; fi
+
+# Dois lotes distintos, cada um com UMA solicitação, ambos levados a EXPORTADO.
+lote_ate_exportado() { # $1 = id da solicitação, $2 = valor total
+  local out id conteudo sha
+  out="$(psql_t -tA -F'|' <<SQL
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT id FROM hub_adiantamento_lote_criar(ARRAY[$1]::bigint[], 1, $2, gen_random_uuid());
+COMMIT;
+SQL
+)"
+  id="$(echo "$out" | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1)"
+  conteudo="conteudo-lote-$1"
+  sha="$(printf '%s' "$conteudo" | sha256sum | cut -d' ' -f1)"
+  psql_t -tA >/dev/null <<SQL
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT status FROM hub_adiantamento_lote_arquivo($id, '$(printf '%s' "$conteudo" | base64 -w0 2>/dev/null || printf '%s' "$conteudo" | base64)', '$sha', ${#conteudo}, 'lote-$1.xlsx');
+SELECT downloads FROM hub_adiantamento_lote_download($id);
+COMMIT;
+SQL
+  echo "$id"
+}
+LOTE_A="$(lote_ate_exportado 611 50.00)"
+LOTE_B="$(lote_ate_exportado 612 60.00)"
+check "revisão#182: dois lotes EXPORTADO para o cenário (A=$LOTE_A, B=$LOTE_B)" \
+  "$(psql_t -tAc "SELECT count(*) FROM \"AdiantamentoLote\" WHERE id IN ($LOTE_A,$LOTE_B) AND status='EXPORTADO';")" "2"
+
+# Metade 1: confirmar o lote A passando o id da solicitação do lote B.
+FORA_DO_LOTE_OUT="$(psql_relaxed -v ON_ERROR_STOP=0 <<SQL 2>&1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT status FROM hub_adiantamento_lote_confirmar($LOTE_A, '[{"id":612,"motivo":"conta encerrada"}]'::jsonb);
+COMMIT;
+SQL
+)"
+check "revisão#182: confirmar lote A com id de solicitação do lote B -> SOLICITACAO_FORA_DO_LOTE (recusa explícita, nunca silenciosa)" \
+  "$(echo "$FORA_DO_LOTE_OUT" | grep -c 'SOLICITACAO_FORA_DO_LOTE')" "1"
+check "revisão#182: solicitação 612 (outro lote) segue EXPORTADA — nunca marcada FALHOU" \
+  "$(psql_t -tAc "SELECT status FROM \"AdiantamentoSolicitacao\" WHERE id=612;")" "EXPORTADA"
+check "revisão#182: item do lote B intacto (situacao=incluido)" \
+  "$(psql_t -tAc "SELECT situacao FROM \"AdiantamentoLoteItem\" WHERE lote_id=$LOTE_B AND solicitacao_id=612;")" "incluido"
+check "revisão#182: lote A não avançou de estado com o pedido recusado" \
+  "$(psql_t -tAc "SELECT status FROM \"AdiantamentoLote\" WHERE id=$LOTE_A;")" "EXPORTADO"
+
+# Metade 2: o fluxo normal do MESMO lote continua funcionando (a correção não
+# fechou o caminho legítimo) — falha do próprio item do lote A.
+CONFIRMA_OK_OUT="$(psql_t -tA -F'|' <<SQL
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT status FROM hub_adiantamento_lote_confirmar($LOTE_A, '[{"id":611,"motivo":"conta encerrada"}]'::jsonb);
+COMMIT;
+SQL
+)"
+check "revisão#182: fluxo normal — confirmar lote A com o id do PRÓPRIO item -> CONCLUIDO_COM_FALHAS" \
+  "$(echo "$CONFIRMA_OK_OUT" | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1)" "CONCLUIDO_COM_FALHAS"
+check "revisão#182: fluxo normal — solicitação 611 (item do lote A) -> FALHOU" \
+  "$(psql_t -tAc "SELECT status FROM \"AdiantamentoSolicitacao\" WHERE id=611;")" "FALHOU"
+
+# p_falhas vazio no lote B continua marcando tudo como pago (caminho sem falha).
+CONFIRMA_B_OUT="$(psql_t -tA -F'|' <<SQL
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT status FROM hub_adiantamento_lote_confirmar($LOTE_B, '[]'::jsonb);
+COMMIT;
+SQL
+)"
+check "revisão#182: fluxo normal — lote B sem falhas -> CONCLUIDO e solicitação 612 PAGA" \
+  "$(echo "$CONFIRMA_B_OUT" | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1)|$(psql_t -tAc "SELECT status FROM \"AdiantamentoSolicitacao\" WHERE id=612;")" \
+  "CONCLUIDO|PAGA"
+
 # --- FASE 11 (converge onda-039, 11.11/migration 0075): CAS de configuração
 # compara contra a MAIOR versão gravada, não a "vigente" (vigente_desde<=now()).
 # Self-contido (MAX(versao) dinâmico) para não depender de qual versão é a
@@ -2094,6 +2197,119 @@ check "13.3 regressão: lote(905) GERANDO (sem arquivo, não expurgado) -> ARQUI
 # (mesmo evento que o tick já dispara para a idêntica transição, 0067:2106).
 N_NOTIF_103="$(psql_t -tAc "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE cnpj_prestador='33333333000101' AND categoria='adiantamento' AND titulo='Adiantamento liberado' AND corpo LIKE '%01/03/2026%';")"
 check "13.6: hub_adiantamento_recalcular (AGUARDANDO_PRODUCAO->LIBERADA, solicitação 103) notifica o motorista (FR-013/FR-042)" "$N_NOTIF_103" "1"
+
+# --- Revisão PR #182 (migration 0083): a janela semanal do motorista sai do
+# fuso da CONFIGURAÇÃO (America/Sao_Paulo), nunca de `current_date` — que é a
+# data na TimeZone da SESSÃO (UTC em produção). Domingo 21h BRT já é segunda
+# em UTC: a janela virava 3 h antes e o motorista via a semana zerada das 21h
+# à meia-noite, toda semana.
+#
+# Fixar o relógio do Postgres (`now()`) de fora não é possível sem
+# libfaketime/root no container, então a prova é feita em dois níveis:
+#  (a) a FÓRMULA, com relógio FIXO (domingo 23h30 BRT = segunda 02h30 UTC),
+#      no SQL real — mostra que o defeito é a leitura do fuso, não outra coisa;
+#  (b) a FUNÇÃO real, provando que o resultado NÃO depende da TimeZone da
+#      sessão: `Etc/GMT+12` e `Etc/GMT-14` estão a 26 h de distância, então
+#      suas datas locais SEMPRE diferem — sob o defeito as duas chamadas
+#      divergem em 100% dos instantes; com a correção, as duas (e a sessão em
+#      UTC) devolvem a semana corrente em São Paulo.
+echo ""
+echo "--- Revisão PR #182: janela semanal do motorista no fuso da configuração ---"
+
+# Semana de apuração começando na SEGUNDA (apuracao_dia_inicio=1): é a
+# configuração em que a virada indevida salta uma semana INTEIRA — domingo em
+# SP cai na semana que começou na segunda anterior; lido como segunda (UTC), a
+# janela pula para a semana seguinte.
+FIXO_OUT="$(psql_t -tAc "WITH t AS (SELECT '2026-09-14 02:30:00+00'::timestamptz AS instante)
+SELECT ((instante AT TIME ZONE 'America/Sao_Paulo')::date
+          - ((extract(dow FROM (instante AT TIME ZONE 'America/Sao_Paulo'))::int - 1 + 7) % 7))::text
+       || '|' ||
+       ((instante AT TIME ZONE 'UTC')::date
+          - ((extract(dow FROM (instante AT TIME ZONE 'UTC'))::int - 1 + 7) % 7))::text
+FROM t;")"
+check "revisão#182 (a): relógio fixo domingo 23h30 BRT -> janela em SP começa 2026-09-07 (semana corrente); pela leitura UTC começaria 2026-09-14 (uma semana adiante — o defeito)" \
+  "$FIXO_OUT" "2026-09-07|2026-09-14"
+
+# `Etc/GMT-14` é UTC+14 e `Etc/GMT+12` é UTC-12 (sinal invertido, POSIX): 26 h
+# de distância, então as datas locais das duas sessões SEMPRE diferem. Para
+# que essa diferença de data vire diferença de JANELA em qualquer dia do ano,
+# o início da semana é fixado no dia-da-semana da data mais adiantada
+# (UTC+14): sob o defeito a sessão UTC+14 abre a janela na SUA data de hoje e
+# a UTC-12 na semana anterior, então pelo menos uma das duas diverge da semana
+# de São Paulo em qualquer instante do ano; com a correção, as duas (e a
+# sessão em UTC) devolvem a mesma janela — a da semana corrente em SP.
+DIA_INICIO_TZ="$(TZ=Etc/GMT-14 date +%w)"
+psql_t -v ON_ERROR_STOP=1 <<SQL >"$TMP/config_repasse_app.log" 2>&1
+UPDATE "AdiantamentoConfiguracao"
+SET repasse_visivel_app = true, apuracao_dia_inicio = ${DIA_INICIO_TZ}, apuracao_dias_ate_repasse = 2,
+    apuracao_data_base = 'data_lancamento', categorias_extrato = ARRAY['Corrida']
+WHERE id_empresa = 6;
+SQL
+if [ $? -ne 0 ]; then echo "FAIL: config para o teste de fuso deu erro"; cat "$TMP/config_repasse_app.log"; exit 1; fi
+
+janela_motorista() { # $1 = TimeZone da SESSÃO psql
+  psql_t -tA <<SQL | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1
+BEGIN;
+SET LOCAL TIME ZONE '$1';
+SELECT set_config('request.jwt.claims', '{"motorista_cnpj":"33333333000101","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT periodo_inicio || '|' || periodo_fim FROM hub_adiantamento_repasse_motorista();
+COMMIT;
+SQL
+}
+
+# Esperado = janela da semana corrente em São Paulo para o mesmo
+# apuracao_dia_inicio configurado acima.
+HOJE_SP="$(TZ=America/Sao_Paulo date +%F)"
+DOW_SP="$(TZ=America/Sao_Paulo date +%w)"
+INICIO_SP="$(date -u -d "$HOJE_SP - $(( (DOW_SP - DIA_INICIO_TZ + 7) % 7 )) days" +%F)"
+FIM_SP="$(date -u -d "$INICIO_SP + 6 days" +%F)"
+
+check "revisão#182 (b): sessão em UTC -> janela é a da semana CORRENTE em São Paulo ($INICIO_SP..$FIM_SP)" \
+  "$(janela_motorista 'UTC')" "$INICIO_SP|$FIM_SP"
+check "revisão#182 (b): sessão em Etc/GMT-14 (UTC+14) devolve a MESMA janela (independe do fuso da sessão)" \
+  "$(janela_motorista 'Etc/GMT-14')" "$INICIO_SP|$FIM_SP"
+check "revisão#182 (b): sessão em Etc/GMT+12 (UTC-12) devolve a MESMA janela — 26 h de distância da anterior, sob o defeito as duas SEMPRE divergiriam" \
+  "$(janela_motorista 'Etc/GMT+12')" "$INICIO_SP|$FIM_SP"
+
+# --- Revisão PR #182 (migration 0083): os totais do repasse são do PERÍODO,
+# não da página. A RPC só devolvia `count(*) OVER ()`; o backend somava as
+# linhas RECEBIDAS (20 por padrão) e exibia o resultado ao lado da contagem do
+# período inteiro — "Total (N motorista(s)) · R$ <soma de 20>" na tela onde se
+# decide fechar a apuração. Período próprio (2026-05-04, segunda) com 3
+# entregadores, para não mexer no 2026-01-01 já congelado por
+# hub_adiantamento_repasse_fechar mais acima.
+echo ""
+echo "--- Revisão PR #182: totais de hub_adiantamento_repasse são do período ---"
+psql_t -v ON_ERROR_STOP=1 <<'SQL' >"$TMP/seed_totais_periodo.log" 2>&1
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status) VALUES (6, 'faturamento', repeat('7',64), 'completed');
+INSERT INTO "ContaMotorista" (cnpj_prestador, nome) VALUES
+  ('71111111000100', 'Totais Periodo A'), ('72222222000100', 'Totais Periodo B'), ('73333333000100', 'Totais Periodo C');
+INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id)
+SELECT 6, gen_random_uuid(), cm.nome, cm.id FROM "ContaMotorista" cm
+WHERE cm.cnpj_prestador IN ('71111111000100', '72222222000100', '73333333000100');
+INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
+SELECT 6, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('7',64)), e.id,
+       '2026-05-06', '2026-05-06', 'Credito', 100.00, 'Corrida', encode(sha256(e.id::text::bytea), 'hex')
+FROM "Entregador" e
+WHERE e.motorista_id IN (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador IN ('71111111000100', '72222222000100', '73333333000100'));
+SQL
+if [ $? -ne 0 ]; then echo "FAIL: seed dos totais do período deu erro"; cat "$TMP/seed_totais_periodo.log"; exit 1; fi
+
+repasse_periodo() { # $1 = p_limite
+  psql_t -tA <<SQL | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT count(*)::text || '|' || max(total)::text || '|' || max(total_creditos)::text || '|' || max(total_remanescente)::text
+FROM hub_adiantamento_repasse('2026-05-04'::date, NULL, false, 0, $1);
+COMMIT;
+SQL
+}
+check "revisão#182: varredura completa do período vê 3 motoristas e 300.00 de crédito" \
+  "$(repasse_periodo 1000)" "3|3|300.00|300.00"
+check "revisão#182: página de 1 linha traz 1 linha mas os MESMOS totais do período (antes: soma da página)" \
+  "$(repasse_periodo 1)" "1|3|300.00|300.00"
 
 echo ""
 echo "===================================================================="
