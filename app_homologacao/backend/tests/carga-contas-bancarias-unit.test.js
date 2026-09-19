@@ -205,7 +205,8 @@ describe('relatório — sem PII no stdout / arquivo 0600 fora do git (8.1.4/8.1
     }
     // Só contadores agregados.
     assert.deepEqual(Object.keys(resumo).sort(), [
-      'aceitas', 'criadas', 'jaExistentes', 'modo', 'recusadas', 'semEntregador', 'totalLinhas',
+      // 0085 acrescentou `cpfsGravados` — contador agregado, nunca o documento.
+      'aceitas', 'cpfsGravados', 'criadas', 'jaExistentes', 'modo', 'recusadas', 'semEntregador', 'totalLinhas',
     ].sort());
   });
 

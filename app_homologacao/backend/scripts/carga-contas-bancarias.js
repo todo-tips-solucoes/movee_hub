@@ -49,6 +49,11 @@ const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 
 const COLUNAS = {
   id: 'ID',
+  // 0085: CPF do próprio ENTREGADOR — não confundir com o documento do titular
+  // da conta, que é a coluna seguinte e pode legitimamente ser outro (conta de
+  // terceiro autorizada). É a comparação entre os dois que gera o alerta
+  // DOCUMENTO_DIFERENTE para titular PF.
+  cpfEntregador: 'CPFEntregador',
   titularNome: 'Nome titular',
   titularDocumento: 'CPF/CNPJ do titular da Conta',
   banco: 'Banco',
@@ -106,9 +111,17 @@ function validarLinha(linha) {
     return { aceito: false, idExterno, motivo: 'TITULAR_NOME_INVALIDO' };
   }
 
+  // 0085: CPF do entregador é OPCIONAL na carga — linha sem ele (ou com valor
+  // inválido) continua sendo aceita, só não alimenta a conferência de titular
+  // PF. Recusar a linha por causa disto faria a carga de CONTA depender de um
+  // campo que não é dela.
+  const cpfEntregadorDigitos = String(linha[COLUNAS.cpfEntregador] || '').replace(/\D/g, '');
+  const cpfEntregador = /^\d{11}$/.test(cpfEntregadorDigitos) ? cpfEntregadorDigitos : null;
+
   return {
     aceito: true,
     idExterno,
+    cpfEntregador,
     dados: {
       titularNome,
       titularDocumento: doc.documento,
@@ -130,10 +143,10 @@ function validarLinha(linha) {
  * `{criada:boolean}` — idempotente por natureza (RPC real: ON CONFLICT;
  * fake de teste: Set em memória).
  * @param {Array<object>} linhas - já lidas da planilha (sheet_to_json)
- * @param {{buscarEntregadorFn:Function, gravarContaFn:Function, simular:boolean}} opts
+ * @param {{buscarEntregadorFn:Function, gravarContaFn:Function, gravarCpfFn?:Function, simular:boolean}} opts
  */
 async function processarCarga(linhas, opts) {
-  const { buscarEntregadorFn, gravarContaFn, simular } = opts;
+  const { buscarEntregadorFn, gravarContaFn, gravarCpfFn, simular } = opts;
   const relatorio = {
     totalLinhas: linhas.length,
     aceitas: 0,
@@ -142,6 +155,8 @@ async function processarCarga(linhas, opts) {
     modo: simular ? 'simular' : 'gravar',
     criadas: 0,
     jaExistentes: 0,
+    // 0085: quantos CPFs de entregador a planilha alimentou (contador, nunca o dado)
+    cpfsGravados: 0,
   };
 
   for (const linha of linhas || []) {
@@ -166,6 +181,13 @@ async function processarCarga(linhas, opts) {
     const resultado = await gravarContaFn(entregador.id, v.dados);
     if (resultado && resultado.criada) relatorio.criadas += 1;
     else relatorio.jaExistentes += 1;
+
+    // 0085: o CPF do entregador é gravado INDEPENDENTE de a conta ser nova ou
+    // já existente — o que interessa é ter o dado para conferir contas futuras.
+    if (gravarCpfFn && v.cpfEntregador) {
+      const gravou = await gravarCpfFn(entregador.id, v.cpfEntregador);
+      if (gravou) relatorio.cpfsGravados += 1;
+    }
   }
 
   return relatorio;
@@ -206,6 +228,27 @@ async function gravarContaReal(entregadorId, dados) {
   return { criada: Boolean(linha && linha.criada) };
 }
 
+/** 0085: grava o CPF do ENTREGADOR (coluna `CPFEntregador` da planilha) em
+ * `EntregadorDocumento`, que é o que permite conferir conta de titular PF.
+ * Independente da gravação da conta: best-effort, porque a carga é de CONTA —
+ * uma falha aqui não pode derrubar a linha inteira nem interromper o lote.
+ * Devolve `true` se gravou, `false` se não havia CPF ou a RPC recusou. */
+async function gravarCpfEntregadorReal(entregadorId, cpf) {
+  if (!cpf) return false;
+  try {
+    const linhas = await hubPostgrestRequest(
+      'rpc/hub_entregador_documento_gravar',
+      'POST',
+      { p_entregador_id: entregadorId, p_cpf: cpf, p_origem: 'CARGA_INICIAL' },
+      { cargaInicialWorker: true },
+    );
+    const linha = Array.isArray(linhas) ? linhas[0] : linhas;
+    return linha === true || Boolean(linha && linha.hub_entregador_documento_gravar);
+  } catch {
+    return false;
+  }
+}
+
 function gravarRelatorio(relatorio, caminhoSaida) {
   const dir = path.dirname(caminhoSaida);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -223,6 +266,10 @@ function resumoAgregado(relatorio) {
     semEntregador: relatorio.semEntregador.length,
     criadas: relatorio.criadas,
     jaExistentes: relatorio.jaExistentes,
+    // 0085: contador agregado — quantos CPFs de entregador a planilha
+    // alimentou. É número, nunca documento: o operador precisa saber a
+    // cobertura da conferência de titular PF que acabou de habilitar.
+    cpfsGravados: relatorio.cpfsGravados,
   };
 }
 
@@ -259,6 +306,7 @@ async function main() {
     simular: opts.simular,
     buscarEntregadorFn: (idExterno) => buscarEntregadorReal(idExterno, opts.idEmpresa),
     gravarContaFn: gravarContaReal,
+    gravarCpfFn: gravarCpfEntregadorReal,
   });
 
   gravarRelatorio(relatorio, saida);

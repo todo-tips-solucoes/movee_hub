@@ -2364,8 +2364,92 @@ check "0084: conta SEM alerta aparece na listagem 'sem alertas' (contraprova)" \
   "$(listar_sem_alertas_tem "$CONTA_PJ_PROPRIO")" "1"
 
 CONTA_PF="$(solicitar_conta_0084 '12345678901')"
-check "0084: titular PF (não verificável — hub não guarda CPF do motorista) -> NÃO alerta, para não virar ruído" \
+check "0084: titular PF sem CPF cadastrado -> NÃO alerta (ausência de sinal, nunca falso positivo)" \
   "$(alertas_da_conta "$CONTA_PF" | grep -c 'DOCUMENTO_DIFERENTE')" "0"
+
+# --- 0085: com o CPF do entregador em campo próprio, o caso PF passa a ser
+#     verificável. Era a metade descoberta: no retorno real do parceiro, 2.008
+#     de 3.843 pagamentos foram para conta PF.
+ENTREGADOR_0085="$(psql_t -tAc "SELECT id FROM \"Entregador\" WHERE motorista_id=(SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='33333333000101');")"
+
+# `hub_adiantamento_tem_permissao` (0067:401) NÃO lê a lista `permissoes` da
+# claim: ela exige `sub` + `empresa_ativa` e consulta o papel no banco. Por isso
+# aqui vai o usuário do seed que tem o papel `financeiro`, no mesmo formato das
+# demais chamadas do driver (:163).
+gravar_cpf_0085() {  # $1 = cpf, $2 = origem
+  psql_t -tA <<SQL | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1
+BEGIN;
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub', (SELECT id FROM "Usuario" WHERE email='financeiro.teste@example.com'), 'empresa_ativa', '6', 'escopo', jsonb_build_array(6))::text, true);
+SET ROLE authenticated;
+SELECT hub_entregador_documento_gravar(${ENTREGADOR_0085}, '$1', '$2');
+COMMIT;
+SQL
+}
+
+check "0085: grava o CPF do entregador (origem CARGA_INICIAL)" "$(gravar_cpf_0085 '52998224725' 'CARGA_INICIAL')" "t"
+
+CONTA_PF_OUTRO="$(solicitar_conta_0084 '12345678901')"
+check "0085: titular PF com CPF != o do entregador -> alerta DOCUMENTO_DIFERENTE (o caso que faltava)" \
+  "$(alertas_da_conta "$CONTA_PF_OUTRO" | grep -c 'DOCUMENTO_DIFERENTE')" "1"
+check "0085: e por isso fica FORA da listagem 'sem alertas'" \
+  "$(listar_sem_alertas_tem "$CONTA_PF_OUTRO")" "0"
+
+CONTA_PF_PROPRIO="$(solicitar_conta_0084 '52998224725')"
+check "0085: titular PF com o PRÓPRIO CPF -> nenhum alerta (contraprova)" \
+  "$(alertas_da_conta "$CONTA_PF_PROPRIO" | grep -c 'DOCUMENTO_DIFERENTE')" "0"
+
+# A planilha é conferida pelo operador; o enriquecimento vem de portal de
+# terceiro. Re-rodar o robô não pode sobrescrever o dado conferido por humano.
+check "0085: ENRIQUECIMENTO não sobrescreve CPF de origem CARGA_INICIAL" \
+  "$(gravar_cpf_0085 '11144477735' 'ENRIQUECIMENTO')" "f"
+check "0085: e o CPF gravado continua o da carga" \
+  "$(psql_t -tAc "SELECT cpf FROM \"EntregadorDocumento\" WHERE entregador_id=${ENTREGADOR_0085};")" "52998224725"
+
+# A tabela nega tudo por RLS sem política: nem SELECT direto nem UPDATE passam,
+# mesmo com o GRANT amplo que "Entregador" tem. É o que impede transformar o
+# CPF em oráculo de filtro (a falha que a 0083 corrigiu em `de`/`ate`) e o que
+# impede alterar o CPF para casar com a conta e anular a conferência.
+# Sem GRANT algum, o Postgres barra ANTES do RLS: a mensagem é "permission
+# denied for table", não "0 linhas". Melhor ainda — nem chega a avaliar
+# política. O teste afirma a barreira, não uma contagem.
+check "0085: SELECT direto na tabela de documento é BARRADO (sem GRANT, antes mesmo do RLS)" \
+  "$(psql_t -tA <<'SQL' 2>&1 | grep -oE 'permission denied for table EntregadorDocumento' | head -1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":1,"empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT count(*) FROM "EntregadorDocumento";
+ROLLBACK;
+SQL
+)" "permission denied for table EntregadorDocumento"
+
+# --- 0085: o gatilho alimenta sozinho a cada enriquecimento. O robô grava
+#     `dados_entrego_json` por PATCH DIRETO (routes/hub-robo-entrego.js:249),
+#     então é o gatilho — e não uma chamada de função — que garante cobertura.
+ENTREGADOR_TRIGGER="$(psql_t -tAc "SELECT id FROM \"Entregador\" WHERE motorista_id=(SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='66666666000102');")"
+psql_t -tAc "UPDATE \"Entregador\" SET dados_entrego_json='{\"dadosPessoais\":{\"cpf\":\"11144477735\"}}'::jsonb WHERE id=${ENTREGADOR_TRIGGER};" >/dev/null
+check "0085: gatilho grava o CPF sozinho quando o enriquecimento chega" \
+  "$(psql_t -tAc "SELECT cpf||'|'||origem FROM \"EntregadorDocumento\" WHERE entregador_id=${ENTREGADOR_TRIGGER};")" "11144477735|ENRIQUECIMENTO"
+
+# O entregador da carga já tem CPF de origem CARGA_INICIAL: um enriquecimento
+# posterior NÃO pode sobrescrever o que o operador conferiu na planilha.
+psql_t -tAc "UPDATE \"Entregador\" SET dados_entrego_json='{\"dadosPessoais\":{\"cpf\":\"11144477735\"}}'::jsonb WHERE id=${ENTREGADOR_0085};" >/dev/null
+check "0085: gatilho NÃO rebaixa CPF de origem CARGA_INICIAL" \
+  "$(psql_t -tAc "SELECT cpf||'|'||origem FROM \"EntregadorDocumento\" WHERE entregador_id=${ENTREGADOR_0085};")" "52998224725|CARGA_INICIAL"
+
+# Enriquecimento sem CPF no pacote não pode quebrar o PATCH do robô.
+psql_t -tAc "UPDATE \"Entregador\" SET dados_entrego_json='{\"dadosPessoais\":{\"nomeCompleto\":\"Sem Documento\"}}'::jsonb WHERE id=${ENTREGADOR_TRIGGER};" >/dev/null 2>&1
+check "0085: enriquecimento sem CPF não quebra o PATCH nem apaga o que havia" \
+  "$(psql_t -tAc "SELECT cpf FROM \"EntregadorDocumento\" WHERE entregador_id=${ENTREGADOR_TRIGGER};")" "11144477735"
+
+check "0085: UPDATE direto também é barrado (ninguém altera o CPF para casar com a conta)" \
+  "$(psql_t -tA <<'SQL' 2>&1 | grep -oE 'permission denied for table EntregadorDocumento' | head -1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":1,"empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+UPDATE "EntregadorDocumento" SET cpf = '00000000000';
+ROLLBACK;
+SQL
+)" "permission denied for table EntregadorDocumento"
 
 echo ""
 echo "===================================================================="
