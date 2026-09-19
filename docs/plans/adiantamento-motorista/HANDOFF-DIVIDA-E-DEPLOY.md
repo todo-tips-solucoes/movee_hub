@@ -137,7 +137,11 @@ defeito corrigido.
 > **Nunca `docker stack deploy`** — ele preserva env/labels/segredos do serviço.
 > Sempre `docker service update --with-registry-auth --image`.
 
-### 3.2 Rollback — as imagens que estão no ar HOJE
+### 3.2 Rollback — as imagens que estavam no ar ANTES desta frente
+
+> ⚠️ **Esta tabela é um retrato de 2026-09-18 e já não é o estado atual.** Para
+> o alvo de rollback de hoje, ver a seção 8 (a mais recente sempre manda). Uma
+> tabela de rollback desatualizada aponta para a imagem errada na hora errada.
 
 Medidas em 2026-09-18, antes de qualquer alteração:
 
@@ -296,3 +300,82 @@ versão antiga, diferente dos outros dois, que são imediatos.
   responde indisponível.
 - **Valores iniciais de configuração**, teste de upload na Transfeera e carga de
   contas: ver seção 4.
+
+---
+
+## 8. Deploy EXECUTADO — 2026-09-19, 02h17–02h30 (sábado): barra inferior do app
+
+Ajuste de UI pedido pelo operador depois de ver o app no ar: os 4 itens da
+navegação inferior estavam pequenos e a barra, transparente demais. PR #188,
+`main` em `f978c9a`. **Só o app do motorista foi tocado** — backend,
+`frontend_v2` e o v1 legado seguem em `adiantamento-17a9bc6` e `homologacao`.
+
+| | Antes | Depois |
+|---|---|---|
+| Fundo da barra | `.glass` (72% opaco) | `.glass` + `.glass-nav` (92%) |
+| Rótulo | `0.68rem` (10,88px) | `0.8rem` (12,8px) |
+| Ícone | 20px | 24px |
+| 2º rótulo | "Adiantamento" | "Adiantar" |
+
+**Imagem no ar:** `registry.todo-tips.com/app-motorista-frontend:barra-inferior-f978c9a`
+(digest `sha256:a7b16da90162…`). Executado pelo agente sob os 5 gates, às 02h17
+de sábado — fora da janela de adiantamento (09h–15h) e dos horários do robô
+(11h, 13h, 14h). Serviço convergido, 1/1, sem erro nas tarefas.
+
+### Por que "Adiantamento" virou "Adiantar"
+
+A barra é uma grade de **4 colunas iguais**, então o rótulo mais longo limita
+todos. A 12,8px, "Adiantamento" mede 91px contra uma coluna de 80px num
+aparelho de 320px: o texto **se sobrepunha a "Notificações" em 11px**. Medido
+no DOM via Playwright, não estimado no olho — a foto sozinha não mostraria
+isso. Encurtar o rótulo é o que permitiu a fonte cheia em **toda** largura de
+tela, sem degrau responsivo. A tela de destino continua se chamando
+"Adiantamento" no próprio título.
+
+Folga do texto dentro da sua coluna, depois do ajuste:
+
+| Rótulo | 320px | 360px | 390px |
+|---|---|---|---|
+| Início | 48px | 58px | 66px |
+| Adiantar | 28px | 38px | 46px |
+| Notificações | −1px | 9px | 17px |
+| Conta | 41px | 51px | 59px |
+
+### Prova de que produção serve este código
+
+HTTP 200 prova que o serviço subiu, não que subiu o código certo. O CSS servido
+por produção é `c2cc3e7f0781a671.css` — **o mesmo hash do arquivo dentro da
+imagem buildada** (o nome vem do conteúdo, então hash igual = bytes iguais).
+Dentro dele: `.glass-nav{background:color-mix(in oklab,var(--card) 92%,transparent)}`
+e `text-\[0\.8rem\]{font-size:.8rem}`; a fonte antiga `0.68rem` aparece **zero**
+vezes. No chunk da navegação: `label:"Adiantar"` presente, `label:"Adiantamento"`
+**zero** vezes.
+
+### Rollback
+
+```bash
+docker service update --with-registry-auth \
+  --image registry.todo-tips.com/app-motorista-frontend:adiantamento-17a9bc6 \
+  envio-massa-homologacao_frontend_motorista_homologacao
+```
+
+O app é PWA: depois do rollback o aparelho pode precisar de um recarregamento
+para voltar à versão antiga.
+
+### O que ficou em aberto
+
+- **"Notificações" passa 1px da coluna em 320px.** Sem colisão visual — a
+  vizinha "Conta" tem 41px livres, e o que invade é espaço em branco, não outra
+  palavra. Encurtá-la esbarraria em "Avisos", palavra que o app já usa para as
+  mensagens push (`/avisos/[id]`). Decisão do operador.
+- **Fallback de `color-mix`:** o compilador emite `.glass-nav{background:var(--card)}`
+  antes da regra real. Em navegador sem `color-mix` a barra fica 100% opaca em
+  vez de 92% — degradação segura, na direção pedida.
+
+> ⚠️ **Disco: um build de frontend custou 5 GB.** `/` caiu de 20 GB para 15 GB
+> com **um único** build do app motorista — os três builds da entrega anterior
+> juntos custaram o mesmo. `docker builder prune -f` recuperou 790 MB e o host
+> voltou a 20 GB, que é exatamente a linha de abortar. **Não cabe outro build
+> aqui sem liberar espaço antes.** As ~35 GB que o Docker chama de
+> "recuperáveis" são imagens **com tag** (rollbacks e histórico): o `prune`
+> seguro não as toca, e apagá-las é decisão do operador, nunca do agente.
