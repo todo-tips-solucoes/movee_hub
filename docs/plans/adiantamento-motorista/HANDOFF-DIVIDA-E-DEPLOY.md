@@ -211,3 +211,30 @@ e derrubaram o banco de produção (2026-08-30).
   frente um achado foi superestimado por leitura de trecho: havia guarda
   algumas linhas abaixo, ou a definição citada era código morto substituído por
   migration posterior.
+
+---
+
+## 6. Imagens construídas e enviadas (2026-09-19)
+
+Construídas a partir da `main` em `17a9bc6` e enviadas ao registry. **Ainda não
+aplicadas** — imagem só vira produção no `docker service update`.
+
+| Serviço | Imagem nova | Digest |
+|---|---|---|
+| backend | `registry.todo-tips.com/envio-massa-backend:adiantamento-17a9bc6` | `sha256:13ba00ff588d…` |
+| frontend_v2 | `registry.todo-tips.com/envio-massa-frontend-v2:adiantamento-17a9bc6` | `sha256:be4ddbcef47a…` |
+| frontend_motorista | `registry.todo-tips.com/app-motorista-frontend:adiantamento-17a9bc6` | `sha256:3dcf0557505e…` |
+
+Provas feitas no build do backend (as duas obrigatórias do repositório):
+
+- `docker run --rm <tag> node --version` → **v20.20.2**, igual ao que roda em
+  produção (a imagem saiu do `Dockerfile.hub`, nunca do `Dockerfile` antigo, que
+  é `node:14` e derrubaria o runtime sob o código do hub);
+- conteúdo conferido dentro da imagem: 7 libs `adiantamento-*`, as 2 rotas, e o
+  leitor `dividirCsvRfc4180` da última correção — ou seja, é o código de
+  `17a9bc6`, não um build anterior.
+
+> ⚠️ **Disco no limite.** Os três builds levaram `/` de 21 GB a 16 GB; voltou a
+> 20 GB só depois de `docker builder prune -f` + `docker image prune -f` (as
+> duas operações seguras — **nunca** `prune -a`, que apagaria as imagens de
+> rollback). Antes de qualquer build futuro neste host, conferir `df -h /`.
