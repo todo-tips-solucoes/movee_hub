@@ -336,6 +336,16 @@ body {
     0 22px 48px -24px rgba(0, 0, 0, 0.7);
 }
 
+/* Variação da `.glass` para a navegação inferior: MENOS transparente.
+ * Classe própria (e não um ajuste em `.glass`) porque `.glass` também veste
+ * as barras SUPERIORES de várias telas — mudar lá mexeria em todas elas.
+ * Só o fundo muda; o desfoque, a borda e a sombra continuam os da `.glass`,
+ * então a barra segue pertencendo ao mesmo sistema visual.
+ * Vem DEPOIS de `.glass` no arquivo: mesma especificidade, a última vence. */
+.glass-nav {
+  background: color-mix(in oklab, var(--card) 92%, transparent);
+}
+
 /* skeleton com shimmer */
 .skeleton {
   position: relative;

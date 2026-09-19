@@ -2,7 +2,7 @@
 
 /**
  * adiantamento-motorista (tasks.md 6.2.1) — navegação inferior fixa:
- * Início · Adiantamento · Notificações (badge) · Conta.
+ * Início · Adiantar · Notificações (badge) · Conta.
  *
  * Ref: prototipo M01 (`navItems`); plan.md Project Structure F6. O app hoje
  * não tem menu (só a tela de movimento) — esta é a primeira navegação entre
@@ -20,7 +20,10 @@ import { Home, Payments, Bell, Wallet } from '@/components/ui/icons';
 
 const ITENS = [
   { href: '/movimento', label: 'Início', Icon: Home },
-  { href: '/adiantamento', label: 'Adiantamento', Icon: Payments },
+  // "Adiantar" e não "Adiantamento": a barra é uma grade de 4 colunas iguais
+  // (80px num aparelho de 320px) e o rótulo longo não cabia com a fonte maior.
+  // A tela de destino continua se chamando "Adiantamento" no próprio título.
+  { href: '/adiantamento', label: 'Adiantar', Icon: Payments },
   { href: '/notificacoes', label: 'Notificações', Icon: Bell },
   { href: '/conta-bancaria', label: 'Conta', Icon: Wallet },
 ] as const;
@@ -49,7 +52,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Navegação do app"
-      className="glass sticky bottom-0 z-20 grid grid-cols-4 rounded-none border-x-0 border-b-0 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1"
+      className="glass glass-nav sticky bottom-0 z-20 grid grid-cols-4 rounded-none border-x-0 border-b-0 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1"
     >
       {ITENS.map(({ href, label, Icon }) => {
         const ativa = pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
@@ -59,12 +62,18 @@ export function BottomNav() {
             href={href}
             aria-current={ativa ? 'page' : undefined}
             className={cn(
-              'flex min-h-11 flex-col items-center justify-center gap-0.5 py-1.5 text-[0.68rem] font-medium transition-colors',
+              // Rótulo: 0.68rem (10.88px) -> 0.8rem (12.8px), os ~2px pedidos.
+              // A barra é uma grade de 4 colunas iguais, então o rótulo mais
+              // longo é quem manda: a coluna vale 80px num aparelho de 320px.
+              // `tracking-tight` compra alguns px no rótulo longo sem mexer no
+              // corpo da letra. Largura medida no DOM (ver comentário em ITENS).
+              'flex min-h-11 flex-col items-center justify-center gap-0.5 py-1.5 text-[0.8rem] font-medium tracking-tight transition-colors',
               ativa ? 'text-primary' : 'text-muted-foreground'
             )}
           >
             <span className="relative">
-              <Icon className="h-5 w-5" />
+              {/* ícone acompanha o rótulo: 20px -> 24px */}
+              <Icon className="h-6 w-6" />
               {label === 'Notificações' && naoLidas > 0 && (
                 <span
                   aria-label={`${naoLidas} notificações não lidas`}
