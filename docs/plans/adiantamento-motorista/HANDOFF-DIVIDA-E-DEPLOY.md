@@ -238,3 +238,61 @@ Provas feitas no build do backend (as duas obrigatórias do repositório):
 > 20 GB só depois de `docker builder prune -f` + `docker image prune -f` (as
 > duas operações seguras — **nunca** `prune -a`, que apagaria as imagens de
 > rollback). Antes de qualquer build futuro neste host, conferir `df -h /`.
+
+---
+
+## 7. Deploy EXECUTADO — 2026-09-19, 01h33–01h47 (sábado)
+
+Janela escolhida pelo operador: madrugada de sábado, **fora** da janela de
+adiantamento (09h–15h) e **fora** dos horários do robô de importação (11h, 13h,
+14h). Executado pelo operador via terminal, passo a passo, com verificação do
+agente entre cada passo.
+
+> **Por que o operador executou, e não o agente:** a leitura do banco de
+> produção foi recusada pela guarda do ambiente (`Production Reads`), o que é
+> coerente com a cláusula do projeto — o agente entrega artefatos, o operador
+> executa. O agente orquestrou e conferiu cada saída.
+
+| # | Passo | Resultado |
+|---|---|---|
+| 1 | `pg_dump -t` das 7 tabelas pré-existentes tocadas | 32 KB em `/var/lib/backup-adiantamento-pre-20260919.sql` |
+| 2 | Migrations `0066`–`0085` (20, cada uma em transação própria, com registro) | 20/20 OK |
+| 3 | `SIGUSR1` no PostgREST de produção | `Schema cache loaded — 56 Relations, 118 Functions` |
+| 4 | Prova do esquema | `repasse_totais=1 doc_table=1 gatilho=1 modulo=1 tabelas_novas=4` |
+| 5 | `service update` backend | converged |
+| 6 | `service update` frontend_v2 | converged |
+| 7 | `service update` frontend_motorista | converged |
+| 8 | Imagens no ar | as três em `adiantamento-17a9bc6` |
+| 9 | Prova de código novo | API `/api/v1/adiantamentos/` → **401** (existe, pediu auth); painel e as 2 telas novas do app → **200** |
+| 10 | Logs do backend (5 min) | nenhum erro |
+
+O `frontend_homologacao` (v1 legado) **não foi tocado**, como planejado.
+
+### Rollback, se ainda for preciso
+
+```bash
+docker service update --with-registry-auth --image registry.todo-tips.com/envio-massa-backend:limites-avisos-45059b9 envio-massa-homologacao_backend_homologacao
+docker service update --with-registry-auth --image registry.todo-tips.com/envio-massa-frontend-v2:limites-avisos-45059b9 envio-massa-homologacao_frontend_v2_homologacao
+docker service update --with-registry-auth --image registry.todo-tips.com/app-motorista-frontend:avisos-push-f10f5d4 envio-massa-homologacao_frontend_motorista_homologacao
+```
+
+As migrations são **aditivas** — voltar a imagem devolve o comportamento
+anterior; o esquema novo apenas deixa de ser usado. O app do motorista é PWA:
+depois do rollback o aparelho pode precisar de um recarregamento para voltar à
+versão antiga, diferente dos outros dois, que são imediatos.
+
+### O que AINDA NÃO foi feito (e por quê)
+
+- **Carga do estoque de CPFs** —
+  `SELECT hub_entregador_documento_carregar_do_enriquecimento();` **ainda não
+  rodou**. A função exige um usuário com `adiantamentos.contas_revisar`, e o
+  papel `financeiro` acabou de nascer na `0070`: **ninguém está atribuído a ele
+  ainda**. Rodar depois de atribuir o papel. Não é bloqueante — o gatilho já
+  cobre todo enriquecimento novo, e o CPF só importa quando houver cadastro de
+  conta pelo app, que depende do módulo estar ligado.
+- **Módulo `adiantamentos` ligado para a empresa** — a tabela `Modulo` tem o
+  registro, mas ligar para a entidade é passo de configuração do operador.
+  Enquanto não estiver ligado, o motorista vê as abas novas mas o recurso
+  responde indisponível.
+- **Valores iniciais de configuração**, teste de upload na Transfeera e carga de
+  contas: ver seção 4.
