@@ -1,5 +1,5 @@
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
-import { CacheFirst, NetworkFirst, NetworkOnly, StaleWhileRevalidate, Serwist } from 'serwist';
+import { CacheFirst, NetworkOnly, StaleWhileRevalidate, Serwist } from 'serwist';
 
 // Necessário para TypeScript reconhecer as variáveis de compilação do @serwist/next.
 //
@@ -69,18 +69,23 @@ const serwist = new Serwist({
       // push-motorista (tasks.md 6.4.3, contracts/motorista-push.md §Service
       // worker) — inscrição/estado/aviso nunca podem servir de cache (o app
       // depende de 409 CHAVE_DESATUALIZADA e do conteúdo fresco do aviso).
-      // Regra MAIS específica, então DEVE vir antes do NetworkFirst genérico
-      // abaixo (a primeira `matcher` que casar vence, sw.ts:33-40 original).
+      // Regra MAIS específica, então DEVE vir antes da regra genérica abaixo
+      // (a primeira `matcher` que casar vence, sw.ts:33-40 original).
       matcher: /\/api\/motorista\/(avisos|push)\/.*/i,
       handler: new NetworkOnly(),
     },
     {
-      // Rotas da API do motorista: NetworkFirst (dados sempre frescos, fallback 5min)
+      // Revisão de segurança 2026-09-18: era `NetworkFirst` com o cache
+      // `motorista-api-cache`. Com a feature de adiantamento, essas rotas
+      // passaram a devolver conta bancária, valores e histórico — que ficavam
+      // gravados no aparelho e eram servidos offline mesmo depois do logout
+      // (o `logout` não apagava a Cache Storage, e o próprio handler desiste
+      // da rede em 10 s). `Cache-Control: no-store` NÃO resolveria: o cache do
+      // service worker filtra por status HTTP, não pelo cabeçalho.
+      // Nenhuma tela do app funciona offline (todas são 'use client' e buscam
+      // no `useEffect`), então `NetworkOnly` não tira comportamento nenhum.
       matcher: /\/api\/motorista\/.*/i,
-      handler: new NetworkFirst({
-        cacheName: 'motorista-api-cache',
-        networkTimeoutSeconds: 10,
-      }),
+      handler: new NetworkOnly(),
     },
   ],
 });

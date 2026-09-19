@@ -2311,6 +2311,62 @@ check "revisão#182: varredura completa do período vê 3 motoristas e 300.00 de
 check "revisão#182: página de 1 linha traz 1 linha mas os MESMOS totais do período (antes: soma da página)" \
   "$(repasse_periodo 1)" "1|3|300.00|300.00"
 
+# --- revisão de segurança 2026-09-18 (migration 0084): alerta DOCUMENTO_DIFERENTE
+#     `hub_conta_bancaria_solicitar` só alertava divergência de NOME. Conta com
+#     o nome do próprio motorista e documento de terceiro nascia sem alerta —
+#     e conta sem alerta é o que o fluxo de revisão trata como limpa.
+#     LIMITE deliberado: o hub não guarda o CPF do motorista (só o CNPJ do
+#     prestador), então só o caso PJ é verificável. Os três checks abaixo fixam
+#     exatamente isso, inclusive o que NÃO alerta — para ninguém "melhorar"
+#     depois e inundar a fila de alertas em toda conta pessoa física.
+solicitar_conta_0084() {  # $1 = documento do titular
+  psql_t -tA -F'|' <<SQL | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^\$' | tail -n1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"motorista_cnpj":"33333333000101","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT id FROM hub_conta_bancaria_solicitar(jsonb_build_object(
+  'titularNome', (SELECT nome FROM "ContaMotorista" WHERE cnpj_prestador='33333333000101'),
+  'titularDocumento', '$1',
+  'bancoCodigo', '341', 'bancoNome', 'Itaú', 'agencia', '5555', 'conta', '77776666',
+  'contaDigito', '3', 'tipoConta', 'CORRENTE'));
+COMMIT;
+SQL
+}
+alertas_da_conta() { psql_t -tAc "SELECT COALESCE(alertas::text,'[]') FROM \"ContaBancariaMotorista\" WHERE id=$1;"; }
+
+listar_sem_alertas_tem() {  # $1 = id da conta; devolve 1 se aparece na listagem "sem alertas"
+  psql_t -tA <<SQL | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":1,"escopo":[6],"permissoes":["adiantamentos.contas_revisar"]}', true);
+SET ROLE authenticated;
+SELECT count(*) FROM hub_conta_bancaria_listar('PENDENTE', 1, 500, NULL, true) WHERE (dados ->> 'id')::bigint = $1;
+ROLLBACK;
+SQL
+}
+
+CONTA_PJ_OUTRO="$(solicitar_conta_0084 '99999999000199')"
+check "0084: titular PJ com CNPJ != o do prestador -> alerta DOCUMENTO_DIFERENTE" \
+  "$(alertas_da_conta "$CONTA_PJ_OUTRO" | grep -c 'DOCUMENTO_DIFERENTE')" "1"
+# ATENÇÃO à ordem: cada `hub_conta_bancaria_solicitar` CANCELA o PENDENTE
+# anterior do mesmo entregador (0074:356). Se este check viesse depois das
+# outras duas solicitações, a conta já estaria CANCELADA e sairia da listagem
+# por esse motivo, não pelo alerta — passaria com a correção E sem ela (o
+# controle negativo de 2026-09-18 pegou exatamente isso).
+check "0084: conta com DOCUMENTO_DIFERENTE fica FORA da listagem 'sem alertas' (não entra em aprovação em massa)" \
+  "$(listar_sem_alertas_tem "$CONTA_PJ_OUTRO")" "0"
+
+CONTA_PJ_PROPRIO="$(solicitar_conta_0084 '33333333000101')"
+check "0084: titular PJ com o PRÓPRIO CNPJ -> nenhum alerta de documento" \
+  "$(alertas_da_conta "$CONTA_PJ_PROPRIO" | grep -c 'DOCUMENTO_DIFERENTE')" "0"
+# Contraprova do check anterior: sem alerta, a conta APARECE na mesma listagem.
+# Sem isto, o "0" acima poderia vir de qualquer outro motivo.
+check "0084: conta SEM alerta aparece na listagem 'sem alertas' (contraprova)" \
+  "$(listar_sem_alertas_tem "$CONTA_PJ_PROPRIO")" "1"
+
+CONTA_PF="$(solicitar_conta_0084 '12345678901')"
+check "0084: titular PF (não verificável — hub não guarda CPF do motorista) -> NÃO alerta, para não virar ruído" \
+  "$(alertas_da_conta "$CONTA_PF" | grep -c 'DOCUMENTO_DIFERENTE')" "0"
+
 echo ""
 echo "===================================================================="
 echo "RESULTADO: $fails falha(s)"

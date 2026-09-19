@@ -315,3 +315,68 @@ describe('casarComItensDoLote — duplicatas do mesmo ID de integração', () =>
     assert.deepEqual(ignoradas.map((i) => i.motivo), ['ID_INTEGRACAO_INVALIDO', 'ID_INTEGRACAO_INVALIDO']);
   });
 });
+
+// --- leitor RFC4180 próprio (revisão de segurança 2026-09-18) ----------------
+// Antes o parse era feito pelo `xlsx`. Estes testes fixam o que a troca tinha
+// que preservar e o que ela passou a garantir.
+describe('lerCsv — leitor RFC4180 próprio', () => {
+  test('cabeçalho inválido é recusado ANTES de normalizar qualquer linha', () => {
+    // Se a validação viesse depois, uma linha malformada estouraria primeiro e
+    // o erro seria outro — o teste falharia com motivo diferente de CABECALHO_INVALIDO.
+    const csv = 'Coluna Errada,Outra\nvalor,"aspa nao fechada\n';
+    assert.throws(() => lerCsv(csv), (e) => e.motivo === 'CABECALHO_INVALIDO');
+  });
+
+  test('campo entre aspas com vírgula, quebra de linha e aspas escapadas', () => {
+    // O arquivo real do parceiro usa aspas — split(',') simples corromperia.
+    const csv = montarCsv([
+      linhaCsv({
+        'ID de integração': 'ADV-002001',
+        Status: 'Devolvida',
+        Valor: '129.40',
+        // valor BRUTO — `linhaCsv`/`csvEscape` aplicam as aspas e o `""`.
+        'Motivo da falha': 'Conta encerrada, ver "anexo"\nlinha 2',
+      }),
+    ]);
+    const linhas = lerCsv(csv);
+    assert.equal(linhas.length, 1);
+    assert.equal(linhas[0].motivoFalha, 'Conta encerrada, ver "anexo"\nlinha 2');
+    assert.equal(linhas[0].idIntegracao, 'ADV-002001');
+  });
+
+  test('preserva o texto literal: zeros à esquerda e o que o xlsx lia como data', () => {
+    // `1234-5` era convertido pelo xlsx em `1/23/45` (medido no arquivo real
+    // do operador: 45 linhas da coluna "Número da conta" corrompidas assim).
+    const csv = montarCsv([
+      linhaCsv({
+        'ID de integração': 'ADV-002001',
+        Status: 'Finalizada',
+        Valor: '129.40',
+        'Código de erro': '0012-3',
+        'Número da agência': '0001',
+      }),
+    ]);
+    const linhas = lerCsv(csv);
+    assert.equal(linhas[0].codigoErro, '0012-3');
+  });
+
+  test('linha em branco é descartada, como o parser antigo fazia', () => {
+    const csv = `${montarCsv([
+      linhaCsv({ 'ID de integração': 'ADV-002001', Status: 'Finalizada', Valor: '129.40' }),
+    ])}\n\n`;
+    assert.equal(lerCsv(csv).length, 1);
+  });
+
+  test('arquivo acima do teto de linhas é recusado', () => {
+    const uma = linhaCsv({ 'ID de integração': 'ADV-002001', Status: 'Finalizada', Valor: '1.00' });
+    const csv = montarCsv(new Array(10_001).fill(uma));
+    assert.throws(() => lerCsv(csv), (e) => e.motivo === 'ARQUIVO_MUITO_GRANDE');
+  });
+
+  test('BOM no início não quebra o cabeçalho', () => {
+    const csv = `﻿${montarCsv([
+      linhaCsv({ 'ID de integração': 'ADV-002001', Status: 'Finalizada', Valor: '129.40' }),
+    ])}`;
+    assert.equal(lerCsv(csv).length, 1);
+  });
+});
