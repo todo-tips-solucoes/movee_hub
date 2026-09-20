@@ -1,6 +1,6 @@
 # Briefing — falhas herdadas no E2E do hub (medidas em 2026-09-20)
 
-> Estado: **4 identificadas, 1 resolvida (§2.1), 3 abertas.**
+> Estado: **4 identificadas, 3 resolvidas (§2.1, §2.2, §2.3), 1 aberta (§2.4).**
 
 Prompt para sessão limpa. **Leia o `CLAUDE.md` antes de qualquer coisa**: o ambiente
 chamado "homologação" É produção, o ciclo git é cláusula pétrea e **autorização é por
@@ -14,8 +14,8 @@ Tudo aqui foi **medido em 5 execuções do E2E**, não suposto. Onde é hipótes
 
 ## 1. O problema, medido
 
-`infra/hub/testes/hub-shell-e2e-browser.sh` fecha hoje com **135 passed / 4 failed**
-(era 133/5 antes da correção de §2.1), dos quais **3 falham de forma estável**. A última execução arquivada antes disso
+`infra/hub/testes/hub-shell-e2e-browser.sh` fecha hoje com **138 passed / 1 failed**
+(era 133/5 quando isto foi descoberto), restando só a §2.4. A última execução arquivada antes disso
 (`docs/plans/hub-frota/evidencias/S3/fase6-browser-run-20260821T145301Z.log`,
 **2026-08-21**) fechou **138 passed / 0 failed**.
 
@@ -31,7 +31,8 @@ Foram descobertas de raspão, durante a verificação do PR #194 (bump do Next),
 | controle, next 16.2.3 | 133 / 5 |
 | next 16.3.5 (1ª) | 132 / 6 |
 | next 16.3.5 (2ª) | 133 / 5 |
-| depois da correção de §2.1 (2 execuções) | **135 / 4** |
+| depois da correção de §2.1 (2 execuções) | 135 / 4 |
+| depois das correções de §2.2 e §2.3 | **138 / 1** |
 
 ---
 
@@ -63,27 +64,33 @@ refresh válido RENOVA, não expulsa`). ⚠️ **Não corrigir isto no produto:*
 expulsar a cada access vencido "conserta" o teste e **quebra a inatividade deslizante de
 6 h**, que é deliberada.
 
-### 2.2 `impeccable-rodada10.spec.ts:19` — permissão nova sem rótulo
+### 2.2 `impeccable-rodada10.spec.ts:19` — ✅ RESOLVIDA (PR #197)
 
-```
-Error: permissões ainda em código cru: motoristas.dados_sensiveis
-  Received + ["motoristas.dados_sensiveis", ...]
-```
+Era **produto**: permissão chegava à tela em código cru, sem rótulo em português.
 
-Causa direta: a permissão `motoristas.dados_sensiveis` chega à tela **em código cru**, sem
-rótulo legível em português. Falta a tradução no mapa de rótulos.
+⚠️ **Eram TRÊS permissões, não a única que o teste acusava.** Consultando o banco
+(`SELECT codigo FROM "Permissao"`) em vez de confiar na lista do teste: **49 permissões**,
+enquanto a lista do unit estava parada em 2026-08-10 com 43. Sem rótulo:
 
-### 2.3 `impeccable-rodada3.spec.ts:129` — card de módulo sem ajuda contextual
+- `motoristas.dados_sensiveis` (migration 0059)
+- `motoristas.enriquecimento.consultar` (conta de serviço do robô EntreGô)
+- `motoristas.enriquecimento.atualizar` (idem)
 
-```
-Received + ["Avisos", ...]
-```
+⚠️ **As duas do robô têm DOIS pontos no código**, e o regex do detector era
+`/^[a-z_]+\.[a-z_]+$/` — exige UM ponto. **Passaram meses cruas sem este gate acusar.**
+Regex corrigido para `/^[a-z_]+(\.[a-z_]+)+$/` no mesmo PR.
 
-O card do módulo **Avisos** aparece no dashboard sem o texto que diz *o que o módulo faz*
-— o teste exige que todo card explique a função, não só o nome. O módulo nasceu na
-migration `0062` e nunca ganhou essa descrição.
+⚠️ **Causa raiz recorrente — lista fixa que sai de sincronia em silêncio**, a mesma classe
+da contagem fixa de módulos do PR #193. Ao mexer em permissão, reconferir contra o banco.
 
-### 2.4 `impeccable-rodada3.spec.ts:51` — filtro de período
+### 2.3 `impeccable-rodada3.spec.ts:129` — ✅ RESOLVIDA (PR #197)
+
+Era **produto**: o card do módulo **Avisos** aparecia sem o texto que diz *o que o módulo
+faz*. O módulo nasceu na migration `0062` e nunca entrou no `DESCRICAO_MAP`
+(`lib/hub/module-nav.ts`). Redação seguindo a regra do próprio arquivo — o que o operador
+FAZ ali, não o que a tela é.
+
+### 2.4 `impeccable-rodada3.spec.ts:51` — ⚠️ A ÚNICA AINDA ABERTA
 
 ```
 Error: element(s) not found
@@ -149,8 +156,10 @@ infra/hub/testes/hub-shell-e2e-browser.sh
 
 - **Não re-investigue se é o Next 16.3.5.** Já medido com controle em 3 execuções: não é.
 - **Não "conserte" o teste mudando o esperado** sem antes olhar a tela. Em 2.2 e 2.3 o
-  teste está certo e **o produto é que está incompleto** — a correção é na UI, não na
-  asserção. (Em 2.4 pode ser o inverso; por isso está marcado como hipótese.)
+  teste estava certo e **o produto é que estava incompleto** — a correção foi na UI, não
+  na asserção. (Em 2.4 pode ser o inverso; por isso segue marcado como hipótese.)
+- **Não re-investigue 2.1, 2.2 e 2.3** — resolvidas nos PRs #196 e #197, com controle
+  negativo medido em cada uma.
 - O baseline 138/0 de 21/08 está arquivado em `evidencias/S3/` — serve de referência do
   que já passou um dia.
 
@@ -158,15 +167,21 @@ infra/hub/testes/hub-shell-e2e-browser.sh
 
 ## 6. Entregáveis sugeridos
 
-1. ~~Corrigir **2.1**~~ — ✅ feito em 2026-09-20: era teste, não produto. Ver §2.1.
-2. Corrigir **2.2** e **2.3** (rótulo + ajuda contextual) — provavelmente pequenas, na UI.
-   **Nas duas o teste está certo e o produto é que está incompleto.**
-3. Investigar **2.4** e decidir se é teste ou produto.
+1. ~~Corrigir **2.1**~~ — ✅ PR #196: era **teste**, não produto.
+2. ~~Corrigir **2.2** e **2.3**~~ — ✅ PR #197: era **produto**, e eram 3 permissões, não 1.
+3. **Investigar 2.4** e decidir se é teste ou produto — **o que sobrou**.
 4. Decidir **como o E2E volta ao ciclo**, senão isto se repete na próxima feature.
+   Das 4 falhas, 3 nasceram de feature entregue sem acabamento e 1 de premissa de teste
+   que envelheceu; nenhuma teria durado um mês se o E2E rodasse no ciclo.
 
-⚠️ **Lição de §2.1, que vale para 2.2–2.4:** a hipótese registrada aqui apontava para
-defeito de produto e estava ERRADA. Medir o mecanismo antes de mexer — e desconfiar
-quando "corrigir o produto" significaria desfazer uma decisão deliberada.
+⚠️ **Duas lições que valem para a §2.4, a que sobrou:**
+
+1. **Hipótese é hipótese.** A de §2.1 apontava defeito de produto e estava ERRADA. Medir o
+   mecanismo antes de mexer — e desconfiar quando "corrigir o produto" significaria
+   desfazer uma decisão deliberada.
+2. **O que o teste acusa pode ser só a ponta.** Em §2.2 o teste nomeava 1 permissão e
+   eram 3: as outras duas o próprio detector não enxergava. Conferir contra a fonte de
+   verdade (o banco), não contra a lista que o teste carrega.
 
 Relacionado: [[gotcha-suite-integracao-hub-2-falhas-herdadas]] (baselines dos drivers de
 integração, zeradas no PR #193), [[plano-hub-sessao-inatividade]], [[gotchas-medicao-ui-hub]].
