@@ -23,7 +23,7 @@ aberto**, para quem for retomar.
 |---|---|---|
 | A feature | #182, #183, #184 | em produção (`adiantamento-17a9bc6`) |
 | Barra inferior do app | #188, #189 | em produção (`barra-inferior-f978c9a`) |
-| Repasse semanal US6 | #190 | **na `main` (`3e4120f`); deploy no fim deste documento** |
+| Repasse semanal US6 | #190 | em produção (`repasse-us6-3e865c9`, migration `0086`) |
 
 ---
 
@@ -147,10 +147,11 @@ outros clientes neste host.
 4. **Definir os valores iniciais de configuração**, testar o upload na
    Transfeera **sem confirmar pagamento**, e rodar a carga de contas com
    `--simular` primeiro.
-5. **Conferir o `apuracao_dia_inicio` configurado antes de usar o botão
-   "fechar apuração" pela primeira vez** — depois do PR #190 a gravação
-   *recusa* uma janela que não comece nesse dia, com erro explícito
-   (`PERIODO_DESALINHADO`), em vez de congelar a janela errada.
+5. **O botão "fechar apuração" está liberado** desde o deploy de 2026-09-19.
+   ⚠️ Em produção a semana de apuração começa na **SEGUNDA-FEIRA**
+   (`apuracao_dia_inicio = 1`, medido no deploy): a gravação *recusa* qualquer
+   janela que comece noutro dia, com erro explícito (`PERIODO_DESALINHADO`),
+   em vez de congelar a janela errada.
 
 ---
 
