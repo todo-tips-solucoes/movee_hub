@@ -126,6 +126,10 @@ const DESCRICAO_MAP: Record<string, string> = {
   usuarios: 'Convide pessoas, defina papéis e controle quem acessa cada módulo.',
   auditoria: 'Consulte a trilha imutável de quem fez o quê, e quando.',
   admin: 'Habilite ou desabilite módulos por entidade da plataforma.',
+  // Web Push para o app motorista (migration 0062). Entrou sem descrição e o
+  // card ficou só com o nome — pego pelo `impeccable-rodada3` em 2026-09-20.
+  // "por push" separa do `envio_massa` acima, que também dispara mensagem.
+  avisos: 'Envie avisos por push ao app do motorista e acompanhe quem recebeu.',
   // adiantamento-motorista (FASE 7, tasks.md 7.2.2).
   adiantamentos: 'Revise solicitações, aprove contas bancárias e monte lotes de pagamento.',
 };

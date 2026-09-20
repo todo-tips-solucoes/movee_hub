@@ -1,8 +1,15 @@
 // impeccable rodada 10 (A7) — rótulo legível das permissões.
 //
-// Os casos aqui são os 34 códigos REAIS lidos do banco do hub em 2026-08-10,
+// Os casos aqui são os 49 códigos REAIS lidos do banco do hub em 2026-09-20,
 // não amostra inventada: a regra do `consultar` depende de quais módulos têm
 // `listar`, e essa distribuição é um fato do produto.
+//
+// ⚠️ Esta lista É O GATE, e ela sai de sincronia em silêncio. Estava parada em
+// 2026-08-10 com 34 códigos enquanto o banco já tinha 49 — por isso passava
+// verde com TRÊS permissões sem rótulo na tela (`motoristas.dados_sensiveis`
+// da 0059 e as duas `motoristas.enriquecimento.*` do robô). Ao acrescentar
+// permissão, reconferir com:
+//   SELECT codigo FROM "Permissao" ORDER BY codigo;
 import { describe, expect, it } from 'vitest';
 import { ehAltoImpacto, modulosComListar, rotuloPermissao } from './rotulo-permissao';
 
@@ -52,6 +59,13 @@ const CODIGOS_REAIS = [
   'adiantamentos.exportar',
   'adiantamentos.reprocessar',
   'adiantamentos.pagamento_confirmar',
+  // Acrescentados em 2026-09-20 ao reconferir contra o banco (49 no total).
+  'motoristas.dados_sensiveis',        // migration 0059 (hub-motorista-360)
+  'motoristas.enriquecimento.consultar', // robô EntreGô — DOIS pontos
+  'motoristas.enriquecimento.atualizar', // idem
+  'performance.metas_gerenciar',       // migration 0048
+  'avisos.consultar',                  // migration 0062
+  'avisos.enviar',                     // idem
 ];
 
 const COM_LISTAR = modulosComListar(CODIGOS_REAIS);
@@ -108,7 +122,7 @@ describe('rotuloPermissao — os demais verbos', () => {
     }
   });
 
-  it('nenhum dos 34 códigos reais fica sem rótulo', () => {
+  it('nenhum dos 49 códigos reais fica sem rótulo', () => {
     const semRotulo = CODIGOS_REAIS.filter(
       (c) => rotuloPermissao(c, COM_LISTAR.has(c.split('.')[0])) === c
     );
