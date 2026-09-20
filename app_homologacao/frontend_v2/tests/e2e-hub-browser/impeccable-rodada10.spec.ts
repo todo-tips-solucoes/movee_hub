@@ -26,7 +26,11 @@ test.describe('impeccable rodada 10 — permissões em português', () => {
         const primeira = tr.querySelector('td');
         if (!primeira) continue; // linha de cabeçalho de grupo
         const rotulo = primeira.querySelector('span')?.textContent?.trim() ?? '';
-        if (/^[a-z_]+\.[a-z_]+$/.test(rotulo)) ruins.push(rotulo);
+        // `(\.[a-z_]+)+` e não `\.[a-z_]+`: há códigos com DOIS pontos
+        // (`motoristas.enriquecimento.consultar`, do robô EntreGô) e o padrão
+        // antigo, que exigia um ponto só, não os enxergava — passaram meses em
+        // código cru na tela sem este gate acusar (achado de 2026-09-20).
+        if (/^[a-z_]+(\.[a-z_]+)+$/.test(rotulo)) ruins.push(rotulo);
       }
       return ruins;
     });
