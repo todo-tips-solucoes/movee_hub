@@ -283,6 +283,22 @@ export interface RepasseAdiantamentoItem {
   emProcessamento: boolean;
 }
 
+/** A semana JÁ FECHADA mais recente do motorista, com o valor CONGELADO no
+ * fechamento — é o que ele de fato vai receber, e a data em que recebe.
+ * `null` enquanto ele não tiver nenhuma. Não confundir com o bloco principal
+ * desta tela, que é a semana CORRENTE, ainda em apuração e sujeita a mudar. */
+export interface RepasseFechado {
+  periodoInicio: string;
+  periodoFim: string;
+  dataRepasse: string;
+  fechadoEm: string;
+  creditos: string;
+  adiantamentos: string;
+  debitos: string;
+  remanescente: string;
+  negativo: boolean;
+}
+
 export interface Repasse {
   periodoInicio: string;
   periodoFim: string;
@@ -293,6 +309,7 @@ export interface Repasse {
   debitos: string;
   remanescente: string;
   negativo: boolean;
+  ultimoFechado: RepasseFechado | null;
 }
 
 /** 404 `{erro:'NAO_DISPONIVEL'}` quando `repasseVisivelApp=false` ou a

@@ -851,8 +851,19 @@ router.post('/notificacoes/lidas', async (req, res) => {
 // (6.6.3) trata isso como "não renderizar", não como erro.
 router.get('/repasse', async (req, res) => {
   let linhas;
+  let fechadas;
   try {
-    linhas = await hubPostgrestRequest('rpc/hub_adiantamento_repasse_motorista', 'POST', {}, claimsMotorista(req));
+    // A3 (US6): a RPC ao vivo mostra sempre a semana que contém HOJE, e o
+    // fechamento só ocorre depois que a semana termina — então o motorista
+    // nunca via uma semana fechada, ou seja, nunca via o valor que de fato
+    // vai receber. `ultimoFechado` traz a apuração congelada mais recente
+    // dele. Best-effort: é informação ADICIONAL, e não pode derrubar a tela
+    // do repasse corrente se falhar.
+    [linhas, fechadas] = await Promise.all([
+      hubPostgrestRequest('rpc/hub_adiantamento_repasse_motorista', 'POST', {}, claimsMotorista(req)),
+      hubPostgrestRequest('rpc/hub_adiantamento_repasse_motorista_ultimo_fechado', 'POST', {}, claimsMotorista(req))
+        .catch((e) => { logErro('GET /repasse (ultimo fechado)', e); return null; }),
+    ]);
   } catch (e) {
     logErro('GET /repasse', e);
     return res.status(502).json({ erro: 'INDISPONIVEL' });
@@ -862,6 +873,7 @@ router.get('/repasse', async (req, res) => {
   if (!row || !row.visivel) {
     return res.status(404).json({ erro: 'NAO_DISPONIVEL' });
   }
+  const fechado = Array.isArray(fechadas) && fechadas[0];
 
   res.json({
     periodoInicio: row.periodo_inicio,
@@ -879,6 +891,19 @@ router.get('/repasse', async (req, res) => {
     debitos: dinheiro(row.debitos),
     remanescente: dinheiro(row.remanescente),
     negativo: row.negativo,
+    // `null` quando o motorista ainda não tem nenhuma semana fechada — a tela
+    // simplesmente não renderiza a seção, sem mensagem de erro.
+    ultimoFechado: fechado ? {
+      periodoInicio: fechado.periodo_inicio,
+      periodoFim: fechado.periodo_fim,
+      dataRepasse: fechado.data_repasse,
+      fechadoEm: fechado.fechado_em,
+      creditos: dinheiro(fechado.creditos),
+      adiantamentos: dinheiro(fechado.adiantamentos),
+      debitos: dinheiro(fechado.debitos),
+      remanescente: dinheiro(fechado.remanescente),
+      negativo: fechado.negativo,
+    } : null,
   });
 });
 

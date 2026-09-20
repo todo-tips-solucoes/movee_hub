@@ -949,7 +949,47 @@ describe('GET /motorista/repasse', () => {
       debitos: '0.00',
       remanescente: '870.60',
       negativo: false,
+      ultimoFechado: null,
     });
+  });
+
+  // A3 (briefing adiantamento-repasse-us6): a semana fechada mais recente. A
+  // RPC ao vivo mostra sempre a semana que contém HOJE, e o fechamento só
+  // ocorre depois que a semana termina — sem este bloco o motorista NUNCA vê
+  // o valor definitivo que vai receber.
+  test('ultimoFechado: mapeia a semana fechada com o valor CONGELADO e a data do repasse', async () => {
+    mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow()];
+    mockRespostas['rpc/hub_adiantamento_repasse_motorista_ultimo_fechado'] = [{
+      periodo_inicio: '2026-09-03', periodo_fim: '2026-09-09', data_repasse: '2026-09-16',
+      fechado_em: '2026-09-10T12:00:00-03:00',
+      creditos: 800, adiantamentos: 129.4, debitos: 20, remanescente: 650.6, negativo: false,
+    }];
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r5' } });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.ultimoFechado, {
+      periodoInicio: '2026-09-03',
+      periodoFim: '2026-09-09',
+      dataRepasse: '2026-09-16',
+      fechadoEm: '2026-09-10T12:00:00-03:00',
+      creditos: '800.00',
+      adiantamentos: '129.40',
+      debitos: '20.00',
+      remanescente: '650.60',
+      negativo: false,
+    });
+    // O bloco da semana CORRENTE não pode ser contaminado pelo congelado.
+    assert.equal(r.body.remanescente, '870.60');
+  });
+
+  // A falha da consulta do congelado é ADICIONAL: não pode derrubar a tela do
+  // repasse corrente, que é a informação principal.
+  test('ultimoFechado: falha da RPC do congelado NÃO derruba a resposta (fica null)', async () => {
+    mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow()];
+    mockRespostas['rpc/hub_adiantamento_repasse_motorista_ultimo_fechado'] = new Error('indisponivel');
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r6' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ultimoFechado, null);
+    assert.equal(r.body.remanescente, '870.60');
   });
 
   test('visivel:false (repasse_visivel_app=false ou apuração não configurada, D-13) -> 404 NAO_DISPONIVEL', async () => {

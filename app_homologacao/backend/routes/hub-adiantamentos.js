@@ -1394,6 +1394,25 @@ async function contarNaoPagosNoPeriodo(periodoInicio, periodoFim, claims) {
   return total;
 }
 
+/** A4 (US6, briefing adiantamento-repasse-us6): a apuração fechada do período,
+ * ou `null` se ainda está aberto. Decide QUAL RPC de repasse chamar — a que lê
+ * o valor congelado em `ApuracaoRepasseItem` ou a que recalcula ao vivo.
+ *
+ * Por que a escolha é aqui e não dentro da RPC: `hub_adiantamento_repasse`
+ * (0083) tem ~80 linhas de SQL de dinheiro já auditadas por revisão
+ * adversarial, e reescrevê-las só para acrescentar um desvio é como se
+ * introduz um erro de dinheiro. Para uma LEITURA o custo de errar é mostrar
+ * número errado, não destruir dado — diferente da validação de janela do A1,
+ * que ficou num gatilho sobre a tabela justamente por ser escrita irreversível. */
+async function buscarApuracaoFechada(periodoInicio, claims) {
+  const linhas = await hubPostgrestRequest(
+    `ApuracaoRepasse?id_empresa=in.(${claims.escopo.join(',')})&periodo_inicio=eq.${periodoInicio}`
+    + '&select=id,data_repasse,fechado_em',
+    'GET', null, claims
+  );
+  return (Array.isArray(linhas) && linhas[0]) || null;
+}
+
 router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamentos_consultar'), async (req, res) => {
   try {
     const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamentos_consultar');
@@ -1408,10 +1427,15 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
     const somenteNegativos = req.query.somenteNegativos === 'true';
     const fim = periodoFimDe(periodo);
 
+    // A ordem importa: saber se o período fechou é o que decide qual RPC
+    // chamar. Período fechado devolve o CONGELADO (o que foi apurado);
+    // período aberto recalcula ao vivo, como sempre.
+    const apuracao = await buscarApuracaoFechada(periodo, claims);
+
     let linhas;
     try {
       linhas = await hubPostgrestRequest(
-        'rpc/hub_adiantamento_repasse', 'POST',
+        apuracao ? 'rpc/hub_adiantamento_repasse_congelado' : 'rpc/hub_adiantamento_repasse', 'POST',
         {
           p_periodo_inicio: periodo, p_busca: busca, p_somente_negativos: somenteNegativos,
           p_offset: (page - 1) * pageSize, p_limite: pageSize,
@@ -1426,14 +1450,7 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
     const rows = linhas || [];
     const total = rows.length ? Number(rows[0].total) : 0;
 
-    const [naoPagosNoPeriodo, apuracaoExistente] = await Promise.all([
-      contarNaoPagosNoPeriodo(periodo, fim, claims),
-      hubPostgrestRequest(
-        `ApuracaoRepasse?id_empresa=in.(${claims.escopo.join(',')})&periodo_inicio=eq.${periodo}&select=id,data_repasse`,
-        'GET', null, claims
-      ),
-    ]);
-    const apuracao = Array.isArray(apuracaoExistente) && apuracaoExistente[0];
+    const naoPagosNoPeriodo = await contarNaoPagosNoPeriodo(periodo, fim, claims);
 
     // Os totais vêm do PERÍODO INTEIRO, calculados pela própria RPC em
     // janela `sum(...) OVER ()` (migration 0083) — antes eram somados aqui
@@ -1451,6 +1468,9 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
         fim,
         dataRepasse: apuracao ? apuracao.data_repasse : null,
         situacao: apuracao ? 'fechado' : 'aberto',
+        // A4: a tela rotula "fechado em X" e, com isso, o usuário sabe que o
+        // número exibido é o congelado daquele instante — não o de agora.
+        fechadoEm: apuracao ? apuracao.fechado_em : null,
       },
       totais: {
         creditos: totalDoPeriodo('total_creditos'),
@@ -1491,10 +1511,15 @@ router.get('/repasse/exportar', requireModuloAtivo('adiantamentos'), requirePerm
     }
     const fim = periodoFimDe(periodo);
 
+    // Mesma regra do `GET /repasse`: período fechado exporta o CONGELADO. Sem
+    // isso, a planilha exportada depois do fechamento poderia divergir dos
+    // números que a própria tela mostrou no momento de fechar.
+    const apuracao = await buscarApuracaoFechada(periodo, claims);
+
     let linhas;
     try {
       linhas = await hubPostgrestRequest(
-        'rpc/hub_adiantamento_repasse', 'POST',
+        apuracao ? 'rpc/hub_adiantamento_repasse_congelado' : 'rpc/hub_adiantamento_repasse', 'POST',
         {
           p_periodo_inicio: periodo, p_busca: null, p_somente_negativos: false, p_offset: 0, p_limite: 100000,
         }, claims
@@ -1554,6 +1579,13 @@ router.post('/repasse/:periodo/fechar', requireModuloAtivo('adiantamentos'), req
       if (msg.includes('APURACAO_JA_FECHADA')) return res.status(409).json({ erro: 'APURACAO_JA_FECHADA' });
       if (msg.includes('APURACAO_NAO_CONFIGURADA')) return res.status(409).json({ erro: 'APURACAO_NAO_CONFIGURADA' });
       if (msg.includes('PERIODO_EM_ABERTO')) return res.status(409).json({ erro: 'PERIODO_EM_ABERTO' });
+      // A1: o gatilho da 0086 recusa fechar uma janela que não começa no
+      // `apuracao_dia_inicio` configurado. `ApuracaoRepasse` é imutável, então
+      // a recusa é deliberadamente explícita em vez de realinhar em silêncio —
+      // o operador precisa saber que pediu outra semana.
+      if (msg.includes('PERIODO_DESALINHADO')) {
+        return res.status(409).json({ erro: 'PERIODO_DESALINHADO', detalhe: detailDoErro(e) || null });
+      }
       if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
       console.error('[hub-adiantamentos] erro em POST /repasse/:periodo/fechar:', e.message);
       return res.status(500).json({ erro: 'ERRO_SERVIDOR' });

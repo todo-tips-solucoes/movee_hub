@@ -39,6 +39,11 @@ rodada.
 
 ### 2.1 Repasse semanal (US6) — o item mais importante desta lista
 
+> ✅ **CORRIGIDO NO CÓDIGO em 2026-09-19** (migration `0086`), com as três
+> decisões de desenho tomadas pelo operador. **A dívida só deixa de existir
+> em produção quando esta entrega for deployada** — até lá tudo abaixo
+> continua valendo, inclusive o aviso sobre o botão "fechar apuração".
+
 Três achados da convergência ficaram **deliberadamente fora** (decisão do
 operador, `dec-185`), porque têm a mesma raiz e exigem decisão de desenho, não
 conserto pontual. Briefing próprio:

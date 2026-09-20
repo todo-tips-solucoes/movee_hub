@@ -30,6 +30,25 @@ export function paraISO(d: Date): string {
   return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
+/** Início da semana de apuração que contém `hoje`, alinhado ao
+ * `apuracao_dia_inicio` da configuração (0 = domingo … 6 = sábado).
+ *
+ * MESMA fórmula de `hub_adiantamento_repasse_motorista` (migration 0083):
+ *   inicio = hoje - ((dow(hoje) - dia_inicio + 7) % 7)
+ * e é essa igualdade que importa. A tela do hub abria em `hoje`, então em 6
+ * dos 7 dias da semana ela sugeria fechar um intervalo DIFERENTE do que o
+ * motorista está vendo no app — e `ApuracaoRepasse` é imutável por gatilho,
+ * logo fechar a janela errada não tem desfazer (briefing
+ * adiantamento-repasse-us6, achado A1).
+ *
+ * `getDay()` do JS e `extract(dow)` do Postgres usam a mesma numeração
+ * (0 = domingo), então a fórmula é idêntica nos dois lados sem conversão. */
+export function inicioDaSemanaApuracao(hoje: Date, diaInicio: number): string {
+  const recuo = (hoje.getDay() - diaInicio + 7) % 7;
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - recuo);
+  return paraISO(inicio);
+}
+
 /** `YYYY-MM-DD` → `DD/MM/AAAA` para exibição pt-BR. String vazia ou fora do
  * formato devolve `null` — o chamador decide o que mostrar no lugar. */
 export function formatarISOparaBR(iso: string): string | null {

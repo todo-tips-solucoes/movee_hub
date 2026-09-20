@@ -100,6 +100,16 @@ export default function RepassePage() {
                   <dd className="tabular font-medium">− {formatCurrency(a.valorBruto)}</dd>
                 </div>
               ))}
+              {/* Débitos (FR-039): o backend sempre mandou este campo e a tela
+                  nunca o exibia — a conta mostrada não fechava quando havia
+                  débito. Some quando é zero, como a lista de adiantamentos
+                  vazia: linha de R$ 0,00 é ruído, e a soma continua correta. */}
+              {Number(repasse.debitos) > 0 && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Outros débitos</dt>
+                  <dd className="tabular font-medium">− {formatCurrency(repasse.debitos)}</dd>
+                </div>
+              )}
               <div className="flex items-center justify-between border-t border-border/60 pt-1.5 font-semibold">
                 <dt>Previsão a receber</dt>
                 <dd className={`tabular ${repasse.negativo ? 'text-destructive' : ''}`}>
@@ -125,6 +135,59 @@ export default function RepassePage() {
                 <p>Este período já foi fechado — o retrato acima é definitivo.</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Última semana FECHADA — o valor definitivo, já congelado na
+            apuração. O bloco acima é a semana CORRENTE, que ainda muda; este
+            é o que o motorista vai de fato receber. Antes ele nunca via isso:
+            a semana só fecha depois de terminar, e aí a tela já mostra a
+            seguinte. */}
+        {repasse && typeof repasse === 'object' && repasse.ultimoFechado && (
+          <div className="animate-fade-up space-y-3 rounded-3xl border border-border bg-card p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                Semana fechada
+              </span>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                Definitivo
+              </span>
+            </div>
+            <p className="tabular text-xs text-muted-foreground">
+              Produção de {formatDate(repasse.ultimoFechado.periodoInicio)} a{' '}
+              {formatDate(repasse.ultimoFechado.periodoFim)} · repasse em{' '}
+              {formatDate(repasse.ultimoFechado.dataRepasse)}
+            </p>
+
+            <dl className="space-y-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <dt className="text-muted-foreground">Produção do período</dt>
+                <dd className="tabular font-medium">{formatCurrency(repasse.ultimoFechado.creditos)}</dd>
+              </div>
+              {Number(repasse.ultimoFechado.adiantamentos) > 0 && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Adiantamentos (bruto)</dt>
+                  <dd className="tabular font-medium">− {formatCurrency(repasse.ultimoFechado.adiantamentos)}</dd>
+                </div>
+              )}
+              {Number(repasse.ultimoFechado.debitos) > 0 && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Outros débitos</dt>
+                  <dd className="tabular font-medium">− {formatCurrency(repasse.ultimoFechado.debitos)}</dd>
+                </div>
+              )}
+              <div className="flex items-center justify-between border-t border-border/60 pt-1.5 font-semibold">
+                <dt>Valor a receber</dt>
+                <dd className={`tabular ${repasse.ultimoFechado.negativo ? 'text-destructive' : ''}`}>
+                  {formatCurrency(repasse.ultimoFechado.remanescente)}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="flex items-start gap-2 rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+              <EventRepeat className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>Fechado em {formatDate(repasse.ultimoFechado.fechadoEm)} — este valor não muda mais.</p>
+            </div>
           </div>
         )}
       </div>
