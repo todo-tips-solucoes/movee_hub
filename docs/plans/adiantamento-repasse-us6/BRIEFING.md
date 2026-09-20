@@ -32,8 +32,12 @@
 > entre o valor congelado e o recalculado (lançamento retroativo entrando
 > depois do fechamento). A tela mostra o congelado e a data — não compara.
 >
-> ⚠️ **Em produção a dívida só acaba no deploy.** Até lá, segue valendo:
-> **não usar o botão "fechar apuração"**.
+> 🚀 **EM PRODUÇÃO desde 2026-09-19 23h45** (imagens `repasse-us6-3e865c9`;
+> registro na seção 9 de
+> [`../adiantamento-motorista/HANDOFF-DIVIDA-E-DEPLOY.md`](../adiantamento-motorista/HANDOFF-DIVIDA-E-DEPLOY.md)).
+> **O botão "fechar apuração" está liberado** — a gravação agora recusa janela
+> desalinhada em vez de congelar o período errado. Em produção a semana de
+> apuração começa na **segunda-feira** (`apuracao_dia_inicio = 1`).
 
 Prompt para sessão futura (nova frente, não paralela a `adiantamento-motorista`
 enquanto ela estiver em execução — ver `CLAUDE.md` §Abrir outra frente de

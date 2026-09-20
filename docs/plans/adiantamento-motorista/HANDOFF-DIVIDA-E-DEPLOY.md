@@ -1,9 +1,17 @@
 # Adiantamento pelo App — dívida conhecida e runbook de deploy
 
-**Data:** 2026-09-18 · **Estado:** tudo mergeado na `main` (`a0efac3`), **nada deployado**.
+**Criado em:** 2026-09-18 · **Última atualização:** 2026-09-19.
+**Estado:** 🚀 **EM PRODUÇÃO.** Três deploys executados — a feature (seção 7),
+a barra inferior do app (seção 8) e o repasse semanal US6 (seção 9). `main` em
+`3e865c9`, migrations `0066`–`0086` aplicadas.
+**O que ainda falta é do operador, não de código:** ver seção 4 — enquanto o
+módulo `adiantamentos` não for ligado para a entidade, a feature está no ar
+mas **não em uso**.
+
 **Para que serve:** retomar esta frente em sessão limpa, sem depender do histórico
 da conversa que a produziu. Tudo aqui foi **medido**, não suposto; onde a
-cobertura é parcial, está dito que é parcial.
+cobertura é parcial, está dito que é parcial. O resumo do que sobrou de dívida
+está em [`BRIEFING-DIVIDA-RESTANTE.md`](./BRIEFING-DIVIDA-RESTANTE.md).
 
 ---
 
@@ -39,10 +47,18 @@ rodada.
 
 ### 2.1 Repasse semanal (US6) — o item mais importante desta lista
 
-> ✅ **CORRIGIDO NO CÓDIGO em 2026-09-19** (migration `0086`), com as três
-> decisões de desenho tomadas pelo operador. **A dívida só deixa de existir
-> em produção quando esta entrega for deployada** — até lá tudo abaixo
-> continua valendo, inclusive o aviso sobre o botão "fechar apuração".
+> ✅ **RESOLVIDO E EM PRODUÇÃO desde 2026-09-19 23h45** (PR #190, migration
+> `0086`, imagens `repasse-us6-3e865c9`), com as três decisões de desenho
+> tomadas pelo operador. Registro do deploy na **seção 9**.
+>
+> **O botão "fechar apuração" está LIBERADO.** Era o item A1 que o proibia, e
+> a proteção agora vive no banco, no ponto da gravação irreversível: a
+> gravação recusa (`PERIODO_DESALINHADO`) qualquer janela que não comece no
+> dia configurado. **Em produção esse dia é SEGUNDA-FEIRA**
+> (`apuracao_dia_inicio = 1`, medido no deploy).
+>
+> O texto abaixo é o registro do problema como foi medido — mantido porque
+> explica por que cada escolha foi feita.
 
 Três achados da convergência ficaram **deliberadamente fora** (decisão do
 operador, `dec-185`), porque têm a mesma raiz e exigem decisão de desenho, não
@@ -55,10 +71,12 @@ conserto pontual. Briefing próprio:
 | **A3** | `frontend_motorista/app/(app)/repasse/page.tsx:93-106` | O backend devolve `debitos` e a tela nunca renderiza — a soma exibida não fecha |
 | **A4** | `hub-adiantamentos.js:1316` | `ApuracaoRepasseItem` é escrito (`0067:1997`) e **nunca lido**: `GET /repasse` e `/exportar` recalculam ao vivo mesmo depois do fechamento |
 
-> ⚠️ **Consequência operacional, enquanto A1 não for resolvido:** não usar o
-> botão **"fechar apuração"** em produção, ou usá-lo só com a data digitada e
-> conferida à mão. `ApuracaoRepasse` é **imutável por trigger** (`0066:463`):
-> fechar com a janela errada **não tem desfazer**.
+> ~~⚠️ **Consequência operacional, enquanto A1 não for resolvido:** não usar o
+> botão **"fechar apuração"** em produção~~ — **resolvido no deploy de
+> 2026-09-19** (seção 9). `ApuracaoRepasse` continua **imutável por trigger**
+> (`0066:463`) e fechar com a janela errada continua não tendo desfazer; o que
+> mudou é que agora **não é mais possível fechar a janela errada** — a
+> gravação recusa antes.
 
 ### 2.2 Segurança — aceito e registrado
 
@@ -117,8 +135,9 @@ A cobertura depende de quantos entregadores têm CPF: os da planilha de carga
 
 ## 3. Runbook de deploy
 
-> **Nada disto foi executado.** Produção segue exatamente como antes desta
-> frente começar.
+> ⚠️ **Este runbook JÁ FOI EXECUTADO** — três vezes (seções 7, 8 e 9). Fica
+> aqui como receita para os próximos deploys desta frente, não como plano
+> pendente. A regra da ordem abaixo continua valendo integralmente.
 
 ### 3.1 A ordem NÃO pode ser trocada
 
@@ -145,7 +164,8 @@ defeito corrigido.
 ### 3.2 Rollback — as imagens que estavam no ar ANTES desta frente
 
 > ⚠️ **Esta tabela é um retrato de 2026-09-18 e já não é o estado atual.** Para
-> o alvo de rollback de hoje, ver a seção 8 (a mais recente sempre manda). Uma
+> o alvo de rollback de hoje, ver a **última seção de deploy** do documento —
+> hoje a **seção 9** (a mais recente sempre manda). Uma
 > tabela de rollback desatualizada aponta para a imagem errada na hora errada.
 
 Medidas em 2026-09-18, antes de qualquer alteração:
@@ -384,3 +404,100 @@ para voltar à versão antiga.
 > aqui sem liberar espaço antes.** As ~35 GB que o Docker chama de
 > "recuperáveis" são imagens **com tag** (rollbacks e histórico): o `prune`
 > seguro não as toca, e apagá-las é decisão do operador, nunca do agente.
+
+---
+
+## 9. Deploy EXECUTADO — 2026-09-19, 23h27–23h45 (sábado): repasse semanal (US6)
+
+PR #190 (`main` em `3e4120f`; build a partir de `3e865c9`, que inclui o
+briefing da dívida restante). Fecha os 3 achados do briefing
+`adiantamento-repasse-us6`. **Os três serviços foram atualizados**; o
+`frontend_homologacao` (v1 legado) não foi tocado.
+
+Executado pelo agente sob os 5 gates, com a **parte de banco rodada pelo
+operador** (comando `!` no chat, saída conferida a cada passo). Janela: noite
+de sábado, fora da janela de adiantamento (09h–15h) e dos horários do robô.
+
+| Serviço | Imagem | Digest |
+|---|---|---|
+| backend | `envio-massa-backend:repasse-us6-3e865c9` | `sha256:7c495b131a3a…` |
+| frontend_v2 | `envio-massa-frontend-v2:repasse-us6-3e865c9` | `sha256:5b15d355bbf9…` |
+| frontend_motorista | `app-motorista-frontend:repasse-us6-3e865c9` | `sha256:67d837428060…` |
+
+### A ordem, e por que ela importou
+
+| # | Passo | Resultado |
+|---|---|---|
+| 1 | `pg_dump -t` de `ApuracaoRepasse` e `ApuracaoRepasseItem` | 8.383 bytes em `/var/lib/backup-repasse-us6-pre-202609192338.sql` |
+| 2 | Migration `0086` em transação única | gatilho + 2 funções, medidos 0 antes e 1 depois |
+| 3 | Registro em `SchemaMigration` | `INSERT 0 1` |
+| 4 | `SIGUSR1` no PostgREST | `Schema cache loaded — 56 Relations, **120 Functions**` |
+| 5 | `service update` backend | converged, 1/1, boot limpo |
+| 6 | `service update` frontend_v2 | converged, 1/1 |
+| 7 | `service update` frontend_motorista | converged, 1/1 |
+| 8 | Smoke | API `/repasse` → **401** (existe, pede auth); painel e app → **200** |
+| 9 | Logs do backend | **0** ocorrências de erro |
+
+> 🔑 **A melhor prova do dia veio de graça, no passo 4: 120 funções.** O deploy
+> anterior (seção 7) registrou **118**. A diferença de **+2** é exatamente o
+> número de funções que a `0086` cria — uma prova aritmética de que o reload
+> pegou a migration certa, e não "o schema cache foi recarregado" genérico.
+
+### Prova de bundle
+
+HTTP 200 prova que o serviço subiu, não que subiu o código certo. Técnica:
+descobrir **dentro da imagem** qual arquivo contém o código novo e pedir
+**esse arquivo exato** a produção.
+
+- **app motorista** (`/_next/static/chunks/app/(app)/repasse/page-7d864e200e712904.js`):
+  "Semana fechada", "Outros débitos" e "Valor a receber", todos presentes;
+- **painel** (`/_next/static/chunks/0r0sed5td1gkp.js` e `0hn6g~ttvglgy.js`):
+  a mensagem do desalinhamento, o campo `fechadoEm` e o `getDay` da fórmula de
+  alinhamento;
+- **contraprova**: a RPC `hub_adiantamento_repasse_congelado` aparece **0**
+  vezes no cliente — correto, a escolha entre congelado e ao vivo é do
+  servidor, nunca do navegador.
+
+### O que mudou para o operador
+
+- **A tela de repasse abre na semana configurada**, não em "hoje".
+- ⚠️ **`apuracao_dia_inicio = 1` em produção — SEGUNDA-FEIRA.** O fechamento
+  recusa qualquer janela que não comece numa segunda.
+- **O botão "fechar apuração" está liberado.**
+- Período fechado mostra o valor **congelado**, rotulado com a data do
+  fechamento — na tela e no CSV exportado.
+- O motorista passa a ver os **débitos** e a **última semana fechada** com o
+  valor definitivo e a data do repasse.
+
+### Rollback
+
+```bash
+docker service update --with-registry-auth --image registry.todo-tips.com/envio-massa-backend:adiantamento-17a9bc6 envio-massa-homologacao_backend_homologacao
+docker service update --with-registry-auth --image registry.todo-tips.com/envio-massa-frontend-v2:adiantamento-17a9bc6 envio-massa-homologacao_frontend_v2_homologacao
+docker service update --with-registry-auth --image registry.todo-tips.com/app-motorista-frontend:barra-inferior-f978c9a envio-massa-homologacao_frontend_motorista_homologacao
+```
+
+⚠️ **Voltar as imagens NÃO remove o gatilho.** Ele continuaria recusando janela
+desalinhada, mas com o código antigo isso aparece como **500 genérico** em vez
+de mensagem clara. Para reverter por completo:
+
+```sql
+DROP TRIGGER IF EXISTS apuracaorepasse_janela_chk ON "ApuracaoRepasse";
+```
+
+As duas funções novas podem ficar — ninguém as chama no código antigo.
+
+### Tropeço do dia, registrado
+
+O script de banco foi escrito com `-U postgres`, o padrão da imagem do
+Postgres. **Aqui o papel tem o mesmo nome do banco: `chatmasterveloz`** (os
+papéis que logam são `caluser` e `chatmasterveloz`). O Postgres recusou o
+login no passo 0, antes do backup e de qualquer DDL — nada foi alterado, e a
+conferência posterior provou (`0086` não registrada, gatilho ausente, última
+migration `0085`). **Conferir `POSTGRES_USER` do container antes de escrever o
+script**, em vez de assumir o padrão da imagem.
+
+### Estado do host depois
+
+Disco em **25 GB** livres (era 30 GB antes dos três builds). Os três builds
+custaram ~7 GB. Nenhuma sobra de container ou imagem sem tag.
