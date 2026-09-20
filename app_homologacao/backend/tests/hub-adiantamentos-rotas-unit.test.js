@@ -54,6 +54,8 @@ let contaCompletaFixture = {};
 let loteFixture = {};
 let loteItensFixture = [];
 let repasseRowsFixture = []; // 7.11.2/7.11.3: linhas do RPC hub_adiantamento_repasse (default em resetFixtures)
+let repasseCongeladoFixture = []; // A4: linhas do RPC hub_adiantamento_repasse_congelado
+let rpcRepasseChamada = null; // A4: 'ao_vivo' | 'congelado' — qual RPC a rota escolheu
 let comportamentoRpc = {}; // rpc -> 'ok' | codigo de erro string
 let chamadasLoteCriar = 0; // 11.23 — conta invocações de rpc/hub_adiantamento_lote_criar por request
 let falharLeituraConfigAntes = false; // 12.2 — força a leitura de "antes" em PUT /configuracoes a falhar
@@ -75,6 +77,14 @@ function resetFixtures() {
   chamadasLoteCriar = 0;
   auditoriaFalha = false; // 11.9: por padrão a auditoria "confirma" (ok:true)
   falharLeituraConfigAntes = false;
+  rpcRepasseChamada = null;
+  // Valores propositalmente distintos dos do recálculo ao vivo: se a rota
+  // chamar a RPC errada, o número exibido denuncia.
+  repasseCongeladoFixture = [{
+    entregador_id: 1, nome: 'Fulano', creditos: '111.11', adiantamentos: '11.11',
+    debitos: '1.11', remanescente: '98.89', em_processamento: false, total: 1,
+    total_creditos: '111.11', total_adiantamentos: '11.11', total_debitos: '1.11', total_remanescente: '98.89',
+  }];
 
   solicitacaoFixture = {
     id: 100, id_empresa: 6, status: 'LIBERADA', motivo_status: null,
@@ -186,7 +196,9 @@ async function fakeHubPostgrestRequest(endpoint, method, body, claims, opts) {
     return [loteFixture];
   }
   if (caminho === 'ApuracaoRepasse' && method === 'GET') {
-    return comportamentoRpc.apuracaoExistente ? [{ id: 1, data_repasse: '2026-09-20' }] : [];
+    return comportamentoRpc.apuracaoExistente
+      ? [{ id: 1, data_repasse: '2026-09-20', fechado_em: '2026-09-10T12:00:00-03:00' }]
+      : [];
   }
 
   // ── RPCs ──────────────────────────────────────────────────────────────
@@ -304,7 +316,15 @@ async function fakeHubPostgrestRequest(endpoint, method, body, claims, opts) {
   }
   if (caminho === 'rpc/hub_adiantamento_repasse') {
     if (comportamentoRpc.repasse) throw raiseComMensagem(comportamentoRpc.repasse);
+    rpcRepasseChamada = 'ao_vivo';
     return repasseRowsFixture;
+  }
+  // A4: a rota escolhe a RPC pelo estado do período. Linhas propositalmente
+  // DIFERENTES das do recálculo ao vivo — é o que deixa o teste provar qual
+  // das duas a rota chamou, em vez de só provar que devolveu 200.
+  if (caminho === 'rpc/hub_adiantamento_repasse_congelado') {
+    rpcRepasseChamada = 'congelado';
+    return repasseCongeladoFixture;
   }
   if (caminho === 'rpc/hub_adiantamento_repasse_fechar') {
     if (comportamentoRpc.repasseFechar) {
@@ -1262,6 +1282,40 @@ describe('4.6 repasse', () => {
     const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
     assert.equal(r.status, 200);
     assert.equal(r.body.periodo.situacao, 'fechado');
+  });
+
+  // A4 (briefing adiantamento-repasse-us6): `ApuracaoRepasseItem` era escrito
+  // no fechamento e NUNCA lido — a tela recalculava ao vivo mesmo depois de
+  // fechado, então um lançamento retroativo mudava o número já apurado.
+  test('A4: período FECHADO lê o valor congelado, não o recálculo ao vivo', async () => {
+    comportamentoRpc.apuracaoExistente = true;
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(rpcRepasseChamada, 'congelado');
+    assert.equal(r.body.itens[0].creditos, '111.11');       // fixture do congelado
+    assert.equal(r.body.totais.remanescente, '98.89');
+    assert.equal(r.body.periodo.fechadoEm, '2026-09-10T12:00:00-03:00');
+  });
+
+  // Contraprova: sem apuração, NADA muda — o caminho ao vivo continua sendo o
+  // usado. Sem esta asserção o teste acima passaria mesmo se a rota tivesse
+  // trocado de RPC para sempre.
+  test('A4: período ABERTO continua recalculando ao vivo', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(rpcRepasseChamada, 'ao_vivo');
+    assert.equal(r.body.periodo.fechadoEm, null);
+    assert.notEqual(r.body.itens[0].creditos, '111.11');
+  });
+
+  test('A4: a exportação segue a MESMA regra — fechado exporta o congelado', async () => {
+    comportamentoRpc.apuracaoExistente = true;
+    const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(rpcRepasseChamada, 'congelado');
+    const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
+    assert.ok(texto.includes('111,11') || texto.includes('111.11'),
+      `o CSV exportado deve conter o valor congelado; veio: ${texto.slice(0, 200)}`);
   });
 
   test('7.11.2/7.11.3: totais vêm do período (janela da RPC), formatados sem divisão de float — 300 linhas de 0,07 = 21.00', async () => {

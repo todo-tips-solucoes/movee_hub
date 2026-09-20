@@ -1,5 +1,40 @@
 # Briefing — fechamento do remanescente semanal (US6), 3 pontas soltas
 
+> ## ✅ RESOLVIDO NO CÓDIGO — 2026-09-19, migration `0086`
+>
+> As três decisões de "O que decidir antes de começar" foram tomadas pelo
+> operador e implementadas. **Não abrir esta frente de novo**; o que segue
+> abaixo é o registro do problema como foi medido, mantido porque explica
+> *por que* cada escolha foi feita.
+>
+> | | Decisão do operador | Como ficou |
+> |---|---|---|
+> | **A1** | a gravação RECUSA janela desalinhada e a tela sugere a certa | gatilho `BEFORE INSERT` em `ApuracaoRepasse` (`PERIODO_DESALINHADO`) + a tela do hub abre na semana configurada |
+> | **A4** | período fechado mostra o CONGELADO, rotulado "fechado em X" | `hub_adiantamento_repasse_congelado`; `GET /repasse` e `/repasse/exportar` escolhem a RPC pelo estado do período |
+> | **A3** | débitos na tela **e** a semana fechada | `debitos` renderizado + seção "Semana fechada" + `hub_adiantamento_repasse_motorista_ultimo_fechado` |
+>
+> **Duas descobertas da implementação que valem mais que o conserto:**
+>
+> 1. **O próprio driver de integração fechava uma janela desalinhada.** A
+>    fixture configurava a semana começando no domingo e os cenários fechavam
+>    `2026-01-01`, uma quinta. Passava porque *nada conferia o alinhamento* —
+>    o defeito A1 estava reproduzido dentro da suíte que deveria pegá-lo. O
+>    gatilho novo quebrou 3 checks existentes na primeira execução, e foi
+>    assim que apareceu.
+> 2. **O motorista nunca via uma semana fechada.** A RPC dele mostra sempre a
+>    semana que contém *hoje*, e o fechamento só ocorre depois que a semana
+>    termina — quando fecha, ele já está vendo a seguinte. O A3 não era
+>    rotular o que existia: era acrescentar o que não existia. (Há um ramo
+>    `situacao === 'FECHADA'` na tela do app que, por isso, é inalcançável —
+>    deixado como está, é anterior a esta mudança.)
+>
+> **O que NÃO foi feito, por escolha do operador:** alerta de divergência
+> entre o valor congelado e o recalculado (lançamento retroativo entrando
+> depois do fechamento). A tela mostra o congelado e a data — não compara.
+>
+> ⚠️ **Em produção a dívida só acaba no deploy.** Até lá, segue valendo:
+> **não usar o botão "fechar apuração"**.
+
 Prompt para sessão futura (nova frente, não paralela a `adiantamento-motorista`
 enquanto ela estiver em execução — ver `CLAUDE.md` §Abrir outra frente de
 trabalho). **Leia o `CLAUDE.md` do repositório antes de qualquer coisa**: o

@@ -183,7 +183,16 @@ check "1.4.4/1.4.5: papel leitura (0/10 permissões) -> PERMISSAO_NEGADA em RPC 
 #     que precisam calcular produção/lote/repasse de verdade.
 psql_t -v ON_ERROR_STOP=1 <<'SQL' >"$TMP/config_v2.log" 2>&1
 INSERT INTO "AdiantamentoConfiguracao" (id_empresa, versao, timezone, dias_habilitados, horario_abertura, horario_corte, percentual, taxa_fixa, fonte_producao, categorias_producao, previsao_pagamento_texto, descricao_pix_modelo, apuracao_dia_inicio, apuracao_dias_ate_repasse, apuracao_data_base, categorias_extrato)
-VALUES (6, 2, 'America/Sao_Paulo', ARRAY[0,1,2,3,4,5,6]::smallint[], '00:00', '23:59', 60.00, 0.35, 'financeiro_lancamento', ARRAY['Corrida'], 'entre 17h e 18h de hoje', 'Antecipação {data_producao:DD.MM.AA}_{nome}', 0, 2, 'data_lancamento', ARRAY['Corrida']);
+-- `apuracao_dia_inicio = 4` (QUINTA) e não 0 (domingo): os cenários de
+-- fechamento desta config fecham o período 2026-01-01..2026-01-07, e
+-- 2026-01-01 é uma quinta-feira. Com 0, a própria fixture fechava uma janela
+-- DESALINHADA da semana configurada — o defeito A1 do briefing
+-- adiantamento-repasse-us6, reproduzido dentro da suíte sem ninguém notar,
+-- porque nada conferia o alinhamento. O gatilho da migration 0086 passou a
+-- conferir, e foi ele quem denunciou. As configs v3 e v90 seguem em 0, que é
+-- o que os cenários de domingo mais abaixo (e os checks do próprio 0086)
+-- usam.
+VALUES (6, 2, 'America/Sao_Paulo', ARRAY[0,1,2,3,4,5,6]::smallint[], '00:00', '23:59', 60.00, 0.35, 'financeiro_lancamento', ARRAY['Corrida'], 'entre 17h e 18h de hoje', 'Antecipação {data_producao:DD.MM.AA}_{nome}', 4, 2, 'data_lancamento', ARRAY['Corrida']);
 SQL
 if [ $? -ne 0 ]; then echo "FAIL: seed de config v2 deu erro"; cat "$TMP/config_v2.log"; exit 1; fi
 
@@ -2450,6 +2459,118 @@ UPDATE "EntregadorDocumento" SET cpf = '00000000000';
 ROLLBACK;
 SQL
 )" "permission denied for table EntregadorDocumento"
+
+# --- 0086 (briefing adiantamento-repasse-us6): A1 janela alinhada + A4/A3
+#     leitura do valor congelado. -------------------------------------------
+#
+# A config v2 semeada tem apuracao_dia_inicio = 0 (DOMINGO). 2026-06-07 é
+# domingo; 2026-06-09 é terça. As datas não são arbitrárias: são exatamente o
+# par alinhado/desalinhado que o gatilho tem de separar.
+echo ""
+echo "--- 0086 A1: a janela fechada tem de ser a semana configurada ---"
+
+inserir_apuracao() { # $1 = periodo_inicio
+  psql_t -tA <<SQL 2>&1 | grep -oE 'PERIODO_DESALINHADO|APURACAO_NAO_CONFIGURADA|INSERT 0 1' | tail -n1
+BEGIN;
+INSERT INTO "ApuracaoRepasse" (id_empresa, periodo_inicio, periodo_fim, data_repasse, configuracao_id, fechado_por)
+SELECT 6, '$1'::date, ('$1'::date + 6), ('$1'::date + 8),
+       (SELECT id FROM "AdiantamentoConfiguracao" WHERE versao=2 AND id_empresa=6),
+       (SELECT id FROM "Usuario" WHERE email='financeiro.teste@example.com');
+ROLLBACK;
+SQL
+}
+
+check "0086 A1: gravar apuração começando numa TERÇA é recusado (config começa no domingo)" \
+  "$(inserir_apuracao '2026-06-09')" "PERIODO_DESALINHADO"
+check "0086 A1: contraprova — começando no DOMINGO a gravação passa" \
+  "$(inserir_apuracao '2026-06-07')" "INSERT 0 1"
+
+echo ""
+echo "--- 0086 A4/A3: período fechado devolve o valor CONGELADO ---"
+
+# Seed: um entregador próprio, uma apuração FECHADA com valores congelados, e
+# lançamento de faturamento com valor DIFERENTE do congelado. É essa diferença
+# que torna o teste capaz de distinguir "leu o congelado" de "recalculou".
+psql_t -v ON_ERROR_STOP=1 <<'SQL' >"$TMP/seed_0086.log" 2>&1
+INSERT INTO "ContaMotorista" (cnpj_prestador, nome) VALUES ('86000000000186', 'Congelado Teste');
+INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id)
+SELECT 6, gen_random_uuid(), 'Congelado Teste', id FROM "ContaMotorista" WHERE cnpj_prestador='86000000000186';
+
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status) VALUES (6, 'faturamento', repeat('8',64), 'completed');
+-- Ao vivo o período renderia 999.00; congelado vale 111.11. Divergem de
+-- propósito: é o lançamento retroativo que o A4 existe para não deixar
+-- reescrever um número já apurado.
+INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
+SELECT 6, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('8',64)), e.id,
+       '2026-06-08', '2026-06-08', 'Credito', 999.00, 'Corrida', encode(sha256(('0086'||e.id::text)::bytea), 'hex')
+FROM "Entregador" e WHERE e.motorista_id = (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='86000000000186');
+
+INSERT INTO "ApuracaoRepasse" (id_empresa, periodo_inicio, periodo_fim, data_repasse, configuracao_id, fechado_por)
+VALUES (6, '2026-06-07', '2026-06-13', '2026-06-15',
+        (SELECT id FROM "AdiantamentoConfiguracao" WHERE versao=2 AND id_empresa=6),
+        (SELECT id FROM "Usuario" WHERE email='financeiro.teste@example.com'));
+
+INSERT INTO "ApuracaoRepasseItem" (apuracao_id, id_empresa, entregador_id, creditos, adiantamentos, debitos, remanescente)
+SELECT (SELECT id FROM "ApuracaoRepasse" WHERE periodo_inicio='2026-06-07' AND id_empresa=6), 6, e.id,
+       111.11, 11.11, 1.11, 98.89
+FROM "Entregador" e WHERE e.motorista_id = (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='86000000000186');
+SQL
+if [ $? -ne 0 ]; then echo "FAIL: seed 0086 deu erro"; cat "$TMP/seed_0086.log"; exit 1; fi
+
+congelado() {
+  psql_t -tA <<'SQL' | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT creditos::text || '|' || remanescente::text || '|' || total_remanescente::text || '|' || em_processamento::text
+FROM hub_adiantamento_repasse_congelado('2026-06-07'::date, 'Congelado', false, 0, 20);
+COMMIT;
+SQL
+}
+
+ao_vivo_mesmo_periodo() {
+  psql_t -tA <<'SQL' | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT creditos::text FROM hub_adiantamento_repasse('2026-06-07'::date, 'Congelado', false, 0, 20);
+COMMIT;
+SQL
+}
+
+check "0086 A4: a leitura do congelado devolve o que foi apurado (111.11), não o recálculo" \
+  "$(congelado)" "111.11|98.89|98.89|false"
+check "0086 A4: contraprova — a MESMA semana recalculada ao vivo daria 999.00 (o lançamento retroativo)" \
+  "$(ao_vivo_mesmo_periodo)" "999.00"
+
+# A3: sem isto o motorista nunca vê o valor definitivo — a RPC ao vivo mostra
+# sempre a semana que contém HOJE, e o fechamento só ocorre depois que a
+# semana acaba.
+ultimo_fechado() {
+  psql_t -tA <<'SQL' | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"motorista_cnpj":"86000000000186","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT periodo_inicio::text || '|' || data_repasse::text || '|' || remanescente::text || '|' || negativo::text
+FROM hub_adiantamento_repasse_motorista_ultimo_fechado();
+COMMIT;
+SQL
+}
+
+check "0086 A3: o motorista enxerga a própria semana fechada, com o valor congelado e a data do repasse" \
+  "$(ultimo_fechado)" "2026-06-07|2026-06-15|98.89|false"
+
+# Isolamento: a apuração de um motorista não pode vazar para outro.
+outro_motorista_sem_fechado() {
+  psql_t -tA <<'SQL' | grep -vE '^(BEGIN|COMMIT|ROLLBACK|SET)$' | grep -v '^$' | tail -n1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"motorista_cnpj":"33333333000101","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT count(*)::text FROM hub_adiantamento_repasse_motorista_ultimo_fechado() WHERE periodo_inicio='2026-06-07';
+COMMIT;
+SQL
+}
+check "0086 A3: outro motorista NÃO vê a apuração alheia" "$(outro_motorista_sem_fechado)" "0"
 
 echo ""
 echo "===================================================================="

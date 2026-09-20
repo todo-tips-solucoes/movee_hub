@@ -54,6 +54,10 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   APURACAO_NAO_CONFIGURADA: 'A apuração de repasse ainda não foi configurada.',
   APURACAO_COM_PENDENCIAS: 'Há solicitações pendentes neste período.',
   PERIODO_EM_ABERTO: 'O período ainda está em aberto para solicitações.',
+  // A1: a gravação recusa janela que não começa no dia configurado. A
+  // mensagem tem de dizer o que fazer, porque o fechamento é irreversível e
+  // o operador não vai adivinhar qual data o sistema espera.
+  PERIODO_DESALINHADO: 'O período escolhido não começa no dia configurado para a apuração. Use a data que a tela sugere ao abrir.',
   CONFIRMACAO_NAO_ENVIADO_OBRIGATORIA: 'Confirme que o lote não foi enviado à Transfeera.',
   FALHA_GERACAO_ARQUIVO: 'Falha ao gerar o arquivo do lote.',
   NO_BANK_ACCOUNT: 'O motorista não tem conta bancária aprovada.',
@@ -519,7 +523,14 @@ export interface RepasseItem {
 }
 
 export interface RepasseResponse {
-  periodo: { inicio: string; fim: string; dataRepasse: string | null; situacao: 'aberto' | 'fechado' };
+  // `fechadoEm`: instante do fechamento. Quando presente, os valores desta
+  // resposta são os CONGELADOS na apuração (`ApuracaoRepasseItem`), não um
+  // recálculo ao vivo — a tela precisa dizer isso, senão o usuário não tem
+  // como saber que um lançamento retroativo não está refletido ali.
+  periodo: {
+    inicio: string; fim: string; dataRepasse: string | null;
+    situacao: 'aberto' | 'fechado'; fechadoEm: string | null;
+  };
   totais: { creditos: string; adiantamentos: string; debitos: string; remanescente: string; motoristas: number };
   itens: RepasseItem[];
   naoPagosNoPeriodo: number;

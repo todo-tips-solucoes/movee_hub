@@ -44,7 +44,7 @@ import { AdiantamentosAbas } from '@/components/hub/adiantamentos-abas';
 import { FecharApuracaoDialog, useFecharApuracaoDialog } from '@/components/hub/adiantamento-fechar-apuracao-dialog';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { useDebounce } from '@/hooks/use-debounce';
-import { paraISO } from '@/lib/hub/periodo';
+import { paraISO, inicioDaSemanaApuracao } from '@/lib/hub/periodo';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import {
   AdiantamentosApiError,
@@ -59,13 +59,20 @@ const PAGE_SIZE = 20;
 
 /** Lógica isolada do JSX (mesmo padrão de `useContasLista`). */
 export function useRepasseLista() {
-  const [periodo, setPeriodoState] = useState(() => paraISO(new Date()));
+  // A1 (briefing adiantamento-repasse-us6): começa VAZIO de propósito. O
+  // período default é a semana de apuração configurada, e o dia em que ela
+  // começa só se sabe depois de carregar a configuração — abrir em `hoje`
+  // (como antes) sugeria fechar um intervalo diferente do que o motorista vê
+  // em 6 dos 7 dias. `buscar()` já ignora período vazio, então nada é
+  // requisitado até a configuração chegar.
+  const [periodo, setPeriodoState] = useState('');
   const [busca, setBuscaState] = useState('');
   const [somenteNegativos, setSomenteNegativosState] = useState(false);
   const [page, setPage] = useState(1);
   const [dados, setDados] = useState<RepasseResponse | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [descontos, setDescontos] = useState<{ adiantamentos: boolean; debitos: boolean } | null>(null);
 
   const buscaDebounced = useDebounce(busca, 300);
 
@@ -94,11 +101,38 @@ export function useRepasseLista() {
     buscar();
   }, [buscar]);
 
+  // Alinha o período inicial à semana de apuração configurada. Roda uma vez;
+  // depois disso quem manda é o operador pelo seletor de data. Se a
+  // configuração não tiver `apuracaoDiaInicio`, cai em `hoje` — o
+  // comportamento antigo, e o gatilho da 0086 ainda recusa fechar uma janela
+  // desalinhada, então o pior caso é sugerir uma data que a gravação nega.
+  // Uma única leitura da configuração serve a dois propósitos: alinhar o
+  // período inicial (A1) e alimentar os pills informativos de desconto.
+  useEffect(() => {
+    let vivo = true;
+    obterConfiguracoes()
+      .then((r) => {
+        if (!vivo) return;
+        const dia = r.vigente?.apuracaoDiaInicio;
+        setPeriodoState(
+          typeof dia === 'number' ? inicioDaSemanaApuracao(new Date(), dia) : paraISO(new Date())
+        );
+        if (r.vigente) {
+          setDescontos({ adiantamentos: r.vigente.descontoAdiantamentos, debitos: r.vigente.descontoDebitos });
+        }
+      })
+      // Falhar aqui não pode deixar a tela sem período: cai no comportamento
+      // antigo (hoje). Os pills de desconto são informativos e simplesmente
+      // não aparecem.
+      .catch(() => { if (vivo) setPeriodoState(paraISO(new Date())); });
+    return () => { vivo = false; };
+  }, []);
+
   const totalPaginas = Math.max(1, Math.ceil((dados?.total ?? 0) / PAGE_SIZE));
 
   return {
     periodo, setPeriodo, busca, setBusca, somenteNegativos, setSomenteNegativos,
-    page, setPage, totalPaginas, dados, carregando, erro, refetch: buscar,
+    page, setPage, totalPaginas, dados, carregando, erro, refetch: buscar, descontos,
   };
 }
 
@@ -107,14 +141,9 @@ export default function AdiantamentosRepassePage() {
   const { permissoes } = useHubAuth();
   const podeFechar = permissoes.includes('adiantamentos.pagamento_confirmar');
 
-  const [descontos, setDescontos] = useState<{ adiantamentos: boolean; debitos: boolean } | null>(null);
-  useEffect(() => {
-    obterConfiguracoes()
-      .then((r) => {
-        if (r.vigente) setDescontos({ adiantamentos: r.vigente.descontoAdiantamentos, debitos: r.vigente.descontoDebitos });
-      })
-      .catch(() => {}); // best-effort — os pills de descontos são só informativos
-  }, []);
+  // `descontos` vem do gancho: a configuração é lida UMA vez, e a mesma
+  // leitura que alinha o período inicial (A1) alimenta estes pills.
+  const descontos = h.descontos;
 
   const fecharDialog = useFecharApuracaoDialog({
     periodo: h.periodo,
@@ -174,7 +203,13 @@ export default function AdiantamentosRepassePage() {
           <span className="text-xs text-muted-foreground">Situação</span>
           {h.dados && (
             <Badge variant={periodoAberto ? 'outline' : 'secondary'} className="w-fit">
-              {periodoAberto ? 'Em apuração' : 'Fechado'}
+              {/* A4: período fechado mostra os valores CONGELADOS na apuração,
+                  não um recálculo. A data no rótulo é o que diz ao operador de
+                  QUANDO é o retrato — sem ela, um lançamento retroativo que não
+                  aparece na tela vira suspeita de erro do sistema. */}
+              {periodoAberto
+                ? 'Em apuração'
+                : `Fechado${h.dados.periodo.fechadoEm ? ` em ${formatDateBR(h.dados.periodo.fechadoEm)}` : ''}`}
             </Badge>
           )}
         </div>
