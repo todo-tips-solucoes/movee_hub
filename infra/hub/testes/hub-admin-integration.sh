@@ -166,7 +166,18 @@ async function main() {
   const rCatalogo = await fetch('http://localhost:3000/api/v1/admin/modulos', { headers: { Cookie: cookieHeader(jarAP) } });
   const bCatalogo = await rCatalogo.json();
   out.catalogo_status = rCatalogo.status;
-  out.catalogo_tem_9_modulos = Array.isArray(bCatalogo.modulos) && bCatalogo.modulos.length === 9 ? 'true' : 'false';
+  // Conjunto de codigos em vez de contagem fixa: o catalogo da 0007 (9 modulos)
+  // ja cresceu com validacao_xml (0047), avisos (0062) e adiantamentos (0070), e
+  // a contagem fixa quebrava a cada modulo novo. Mesmo padrao de
+  // hub-papeis-integration.sh (tarefa 10.9) — checar por codigo mantem a
+  // assercao estavel e continua provando que nenhum modulo SUMIU do catalogo.
+  const codigosCatalogo = new Set((bCatalogo.modulos || []).map((m) => m.codigo));
+  const modulosEsperados = [
+    'dashboard', 'motoristas', 'faturamento', 'performance', 'importacoes',
+    'envio_massa', 'usuarios', 'auditoria', 'admin',
+    'validacao_xml', 'avisos', 'adiantamentos',
+  ];
+  out.catalogo_tem_modulos = Array.isArray(bCatalogo.modulos) && modulosEsperados.every((c) => codigosCatalogo.has(c)) ? 'true' : 'false';
 
   // --- GET /admin/entidades/:id/modulos (entidade B) ------------------------
   const rEstadoB = await fetch(\`http://localhost:3000/api/v1/admin/entidades/\${empresaB}/modulos\`, { headers: { Cookie: cookieHeader(jarAP) } });
@@ -255,7 +266,7 @@ jget() { printf '%s' "$R1" | node_e "const d=JSON.parse(require('fs').readFileSy
 check "admin_entidade GET /admin/modulos -> 403 (FR-017, nem leitura)" "$(jget get_ae_status)" "403"
 check "admin_entidade -> erro=PERMISSAO_NEGADA" "$(jget get_ae_erro)" "PERMISSAO_NEGADA"
 check "admin_plataforma GET /admin/modulos -> 200" "$(jget catalogo_status)" "200"
-check "catalogo tem os 9 modulos seedados (0007)" "$(jget catalogo_tem_9_modulos)" "true"
+check "catalogo contem os 12 modulos esperados (0007 + 0047/0062/0070)" "$(jget catalogo_tem_modulos)" "true"
 check "GET /admin/entidades/:id/modulos (B) -> 200" "$(jget estado_b_status)" "200"
 check "estado B: usuarios habilitado=true (seed do script)" "$(jget estado_b_usuarios_habilitado)" "true"
 check "estado B: envio_massa habilitado=false (sem linha, deny-by-default)" "$(jget estado_b_envio_massa_habilitado)" "false"

@@ -549,11 +549,11 @@ check "resumo sem faturamento.consultar (papel sintético) -> 403" "$(jget resum
 check "export CSV -> 200" "$(jget csv_status)" "200"
 check "export CSV -> Content-Type text/csv; charset=utf-8" "$(jget csv_contentType)" "text/csv; charset=utf-8"
 check "export CSV -> Content-Disposition com nome de arquivo esperado" "$(jget csv_contentDisposition)" 'attachment; filename="faturamento-2026-07-01_2026-07-04.csv"'
-check "export CSV -> cabeçalho fixo do contrato" "$(jget csv_cabecalho)" "dataReferencia,categoria,valor,entregadorNome,subpraca,praca,periodo"
+check "export CSV -> cabeçalho fixo do contrato" "$(jget csv_cabecalho)" "dataLancamento,dataReferencia,categoria,valor,entregadorNome,subpraca,praca,periodo"
 check "export CSV -> 4 linhas de dados (bate com a tela, mesma janela)" "$(jget csv_qtd_linhas_dados)" "4"
 
 check "export CSV injection -> categoria '=' e entregadorNome '@' neutralizados (prefixo único ')" \
-  "$(jget csvInjecao_linha_dados)" "2026-09-01,'=SOMA(A1:A10),77.00,'@Perigoso Nome,Zona Sul,Sao Paulo,ALMOCO"
+  "$(jget csvInjecao_linha_dados)" "2026-09-01,2026-09-01,'=SOMA(A1:A10),77.00,'@Perigoso Nome,Zona Sul,Sao Paulo,ALMOCO"
 
 check "export CSV vazio -> 200 (tasks.md 5.1.6, nunca erro)" "$(jget csvVazio_status)" "200"
 check "export CSV vazio -> só a linha de cabeçalho" "$(jget csvVazio_qtd_linhas)" "1"

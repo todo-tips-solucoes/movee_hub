@@ -121,24 +121,39 @@ async function main() {
   const jwtEscopoA = generateHubPostgrestJWT({ empresaAtiva: empresaA, escopo: [empresaA] });
   const jwtSemClaims = generateHubPostgrestJWT({}); // só role=authenticated
 
+  // `ImportacaoLinhaErro` nao tem mais SELECT em nivel de TABELA desde a
+  // migration 0052: o GRANT passou a ser por COLUNA, de proposito, para manter
+  // `linha_bruta` (PII) fora do alcance de `authenticated`. Sem projecao
+  // explicita o PostgREST pede o equivalente a `SELECT *`, esbarra no deny do
+  // privilegio ANTES de a RLS ser avaliada, e o driver registrava -1 — o que
+  // parecia falha de RLS e era teste medindo a coisa errada. A projecao abaixo
+  // e a mesma que routes/hub-importacoes.js usa.
+  const PROJ_LINHA_ERRO = '&select=id,importacao_id,id_empresa,numero_linha,motivo,campo,valor_mascarado,criado_em';
   const tabelas = [
     ['Entregador', 'id_empresa'],
     ['ImportacaoArquivo', 'id_empresa'],
-    ['ImportacaoLinhaErro', 'id_empresa'],
+    ['ImportacaoLinhaErro', 'id_empresa', PROJ_LINHA_ERRO],
     ['FaturamentoLancamento', 'id_empresa'],
     ['PerformanceTurno', 'id_empresa'],
   ];
 
-  for (const [tabela, col] of tabelas) {
-    const rB = await pg(jwtEscopoA, `${tabela}?${col}=eq.${empresaB}`);
+  for (const [tabela, col, proj = ''] of tabelas) {
+    const rB = await pg(jwtEscopoA, `${tabela}?${col}=eq.${empresaB}${proj}`);
     out[`${tabela}_outro_len`] = Array.isArray(rB.body) ? rB.body.length : -1;
 
-    const rA = await pg(jwtEscopoA, `${tabela}?${col}=eq.${empresaA}`);
+    const rA = await pg(jwtEscopoA, `${tabela}?${col}=eq.${empresaA}${proj}`);
     out[`${tabela}_proprio_len`] = Array.isArray(rA.body) ? rA.body.length : -1;
 
-    const rSem = await pg(jwtSemClaims, `${tabela}?${col}=eq.${empresaA}`);
+    const rSem = await pg(jwtSemClaims, `${tabela}?${col}=eq.${empresaA}${proj}`);
     out[`${tabela}_sem_claims_len`] = Array.isArray(rSem.body) ? rSem.body.length : -1;
   }
+
+  // Contraprova da 0052: com escopo VALIDO e RLS satisfeita, `linha_bruta`
+  // continua negada pelo privilegio de coluna. Sem esta assercao, um
+  // `GRANT SELECT` de tabela inteira reintroduzido por engano passaria
+  // despercebido — os 3 checks acima voltariam a passar do mesmo jeito.
+  const rBruta = await pg(jwtEscopoA, `ImportacaoLinhaErro?id_empresa=eq.${empresaA}&select=linha_bruta`);
+  out.linha_bruta_negada = Array.isArray(rBruta.body) ? 'false' : 'true';
 
   for (const [k, v] of Object.entries(out)) {
     console.log(`${k}=${v}`);
@@ -163,6 +178,8 @@ for t in Entregador ImportacaoArquivo ImportacaoLinhaErro FaturamentoLancamento 
   esac
   check "$t: SEM claims (só role=authenticated) -> 0 linhas (nega-por-padrão)" "$sem" "0"
 done
+
+check "ImportacaoLinhaErro: linha_bruta (PII) negada a authenticated mesmo com escopo válido (0052)" "$(val linha_bruta_negada)" "true"
 
 echo "--- saída bruta ---"
 cat "$TMP/rls-out.env"
