@@ -1,0 +1,20 @@
+[Unit]
+Description=Verifica diariamente se a main nova passa no E2E do hub
+
+[Timer]
+# 05:00: fora da janela do robô EntreGô (11h/13h/14h, que compartilha trava e
+# sessão do portal), depois do backup (00:34) e antes do cert-guard (09:00).
+# O guard é barato quando a main não mudou — sai em ~1s sem buildar —, então o
+# custo real só aparece no dia em que houve entrega, que é justamente quando
+# queremos saber.
+OnCalendar=*-*-* 05:00:00
+
+# Se o host estiver desligado na hora marcada, roda assim que voltar: o ponto
+# é não deixar entrega passar sem teste, e o atraso não muda isso.
+Persistent=true
+
+# Espalha para não bater junto com outro timer no mesmo minuto.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
