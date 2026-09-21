@@ -64,10 +64,17 @@ Passos, na ordem — **a 3 depende da 2**:
 
 Origem: `docs/plans/adiantamento-motorista/BRIEFING-DIVIDA-RESTANTE.md` §4.
 
-### 2.2 Instalar o timer do `e2e-guard`
+### 2.2 ~~Instalar o timer do `e2e-guard`~~ ✅ JÁ ESTÁ INSTALADO
 
-O código está na `main`; **o timer não está instalado** — `systemctl enable` muda estado do
-host e pede os gates. Comandos:
+**Medido em 2026-09-21:** os symlinks já existem em `/etc/systemd/system/` (criados 03:27,
+mesmo padrão do `cert-guard`/`disco-guard`), `systemctl is-enabled` → `enabled`,
+`is-active` → `active`, próximo disparo confirmado no `list-timers`. O item abaixo ficou
+obsoleto entre a escrita deste briefing e a sessão seguinte.
+
+Resíduo único: o `systemctl status` avisa que o unit mudou no disco depois do link
+(`daemon-reload` pendente). Não impede o disparo.
+
+<details><summary>Comandos originais (já executados)</summary>
 
 ```bash
 sudo ln -sf /var/lib/envioMassa_homologacao/infra/producao/e2e-guard.service /etc/systemd/system/
@@ -82,7 +89,31 @@ Antes de ligar, vale rodar à mão uma vez: `node infra/producao/e2e-guard.js --
 ⚠️ **Conferir como cert-guard/disco-guard foram instalados neste host** (symlink? cópia?) e
 seguir o mesmo caminho — não inventar um terceiro jeito.
 
-### 2.3 Backend — `bcrypt@6` e `jsonwebtoken@9`
+</details>
+
+### 2.3 ~~Backend — `bcrypt@6` e `jsonwebtoken@9`~~ ✅ FEITO (branch `chore/backend-bumps-auth`)
+
+**Resultado (2026-09-21):** `bcrypt@5.1.1→6.0.0`, `jsonwebtoken@8.5.1→9.0.3`,
+`multer@1.4.4→2.4.0`. Vulnerabilidades **15 → 8**, a CRITICAL eliminada. Suíte
+**1538 → 1541 / 0** (3 testes novos, abaixo).
+
+🔴 **O achado que quase derrubou produção: `node-fetch` era dependência FANTASMA.** O
+`server.js:13` faz `require('node-fetch')` e o pacote **nunca esteve no `package.json`** —
+vinha de carona como transitivo de `bcrypt@5` → `@mapbox/node-pre-gyp`. O bump removeu
+essa árvore (65 pacotes) e o backend passou a morrer no boot com `MODULE_NOT_FOUND`.
+**Os 1538 testes passaram mesmo assim**, porque nenhum carrega o `server.js` (ele dá
+`listen`). Só apareceu ao subir o container de verdade. Corrigido declarando
+`node-fetch@^2.7.0` (a mesma versão que já rodava; a 3.x é ESM-only e quebraria o
+`require`).
+
+⚠️ **A lição vale além deste PR:** a bomba já estava armada antes do bump — qualquer
+`npm install` que reorganizasse a árvore de transitivos derrubaria o backend. E o gate que
+existia (suíte verde) não via. Ficou um teste (`tests/dependencias-declaradas.test.js`)
+que lê os `require()` do código e confere contra o `package.json`, pegando a classe
+inteira do problema sem carregar nada. Controle negativo conferido: sem a correção ele
+falha nomeando `node-fetch — usado em server.js`.
+
+<details><summary>Contexto original do item (pré-execução)</summary>
 
 `npm audit --omit=dev` no backend: **15 vulnerabilidades, 1 CRITICAL, 10 HIGH** (medido
 2026-09-20). Três caem de uma vez com `bcrypt@6` (`tar`, `@mapbox/node-pre-gyp`, `bcrypt`).
@@ -103,7 +134,22 @@ não emergência.
 
 Baseline do backend: `npm test` = **1538/0**.
 
-### 2.4 Rótulo da barra do app motorista — decisão de produto, 1 palavra
+</details>
+
+**O que ficou deliberadamente de fora do PR:** as 8 vulnerabilidades restantes (6 delas com
+`npm audit fix` não-breaking disponível: `axios`, `body-parser`, `brace-expansion`,
+`form-data`, `qs`, `follow-redirects`). O `axios` é o canal com PostgREST/n8n/FastAPI —
+minor dele já quebrou coisa neste repo, então merece PR e verificação próprios. `xml2js`
+(moderate) é breaking e parseia NFe. `xlsx` segue sem correção publicada.
+
+### 2.4 ~~Rótulo da barra do app motorista~~ ✅ DECIDIDO: fica como está
+
+**Decisão do operador em 2026-09-21: não mexer.** O estouro é de 1px de espaço em branco
+num aparelho de 320px, sem colisão visual — não paga o custo de trocar o nome de um item
+de navegação que o motorista já aprendeu. Item encerrado; reabrir só se aparecer colisão
+real medida.
+
+<details><summary>Análise original</summary>
 
 "Notificações" (12 caracteres) estoura a coluna em **1px num aparelho de 320px**. Sem
 colisão visual: a vizinha "Conta" tem 41px livres, e o que invade é espaço em branco.
@@ -115,6 +161,8 @@ Candidatos: "Alertas", "Mensagens". **É escolha do operador** — o agente não
 produto.
 
 Origem: `docs/plans/adiantamento-motorista/BRIEFING-DIVIDA-RESTANTE.md` §2.3.
+
+</details>
 
 ### 2.5 Dívida de processo, se sobrar fôlego
 
@@ -129,7 +177,7 @@ tratar como NÃO auditável por leitura:** a verificação é reexecutar as suí
 
 | Gate | Baseline (medida 2026-09-21) |
 |---|---|
-| backend `npm test` | **1538 / 0** |
+| backend `npm test` | **1541 / 0** (era 1538; +3 em `dependencias-declaradas`) |
 | painel `vitest` | **724 / 724** |
 | app motorista `npm test` | **97 / 97** |
 | `tsc --noEmit` (dois frontends) | limpo |
@@ -147,6 +195,11 @@ removeu o `next lint`). Condição pré-existente — não é gate.
 
 Todos foram pagos na sessão de 20–21/09.
 
+- ⚠️ **Suíte verde não prova que o processo SOBE.** (2026-09-21) Os 1538 testes passaram
+  com o backend incapaz de bootar: nenhum deles carrega o `server.js`, porque ele dá
+  `listen`. A falha só apareceu ao subir o container. **Depois de mexer em dependências,
+  subir o backend e ler o log é gate, não zelo extra** — e o sintoma (`MODULE_NOT_FOUND`)
+  chegaria no E2E disfarçado de "login quebrado", mandando caçar o bug no lugar errado.
 - **Hipótese é hipótese.** A de `sessao-expira` apontava defeito de produto e era **falsa**
   — o produto estava certo e o teste é que media o caminho errado. Medir o mecanismo antes
   de mexer, e **desconfiar quando "corrigir o produto" significaria desfazer uma decisão
