@@ -1,6 +1,9 @@
 # Briefing — falhas herdadas no E2E do hub (medidas em 2026-09-20)
 
-> Estado: **4 identificadas, 3 resolvidas (§2.1, §2.2, §2.3), 1 aberta (§2.4).**
+> Estado: **4 identificadas, 4 RESOLVIDAS. E2E fecha 139/0.**
+>
+> Este documento deixou de ser lista de dívida e virou registro do que foi. O que
+> sobrou não é falha de teste: é o item 4 da §6 — **como o E2E volta ao ciclo**.
 
 Prompt para sessão limpa. **Leia o `CLAUDE.md` antes de qualquer coisa**: o ambiente
 chamado "homologação" É produção, o ciclo git é cláusula pétrea e **autorização é por
@@ -14,8 +17,8 @@ Tudo aqui foi **medido em 5 execuções do E2E**, não suposto. Onde é hipótes
 
 ## 1. O problema, medido
 
-`infra/hub/testes/hub-shell-e2e-browser.sh` fecha hoje com **138 passed / 1 failed**
-(era 133/5 quando isto foi descoberto), restando só a §2.4. A última execução arquivada antes disso
+`infra/hub/testes/hub-shell-e2e-browser.sh` fecha hoje com **139 passed / 0 failed**
+(era 133/5 quando isto foi descoberto) — primeira execução limpa desde 21/08. A última execução arquivada antes disso
 (`docs/plans/hub-frota/evidencias/S3/fase6-browser-run-20260821T145301Z.log`,
 **2026-08-21**) fechou **138 passed / 0 failed**.
 
@@ -32,7 +35,8 @@ Foram descobertas de raspão, durante a verificação do PR #194 (bump do Next),
 | next 16.3.5 (1ª) | 132 / 6 |
 | next 16.3.5 (2ª) | 133 / 5 |
 | depois da correção de §2.1 (2 execuções) | 135 / 4 |
-| depois das correções de §2.2 e §2.3 | **138 / 1** |
+| depois das correções de §2.2 e §2.3 | 138 / 1 |
+| depois da correção de §2.4 | **139 / 0** ✅ |
 
 ---
 
@@ -90,17 +94,28 @@ faz*. O módulo nasceu na migration `0062` e nunca entrou no `DESCRICAO_MAP`
 (`lib/hub/module-nav.ts`). Redação seguindo a regra do próprio arquivo — o que o operador
 FAZ ali, não o que a tela é.
 
-### 2.4 `impeccable-rodada3.spec.ts:51` — ⚠️ A ÚNICA AINDA ABERTA
+### 2.4 `impeccable-rodada3.spec.ts:51` — ✅ RESOLVIDA (PR #199)
 
-```
-Error: element(s) not found
-  waiting for getByLabel('De (data de competência)', { exact: true })
-  > await expect(campoDe).toHaveValue('');
-```
+Era **teste** desatualizado, como a §2.1 — e a hipótese registrada aqui ("o rótulo mudou")
+se confirmou, ao contrário da de §2.1.
 
-O campo com rótulo exato `De (data de competência)` não é encontrado em
-`/hub/dashboard/faturamento`. **Hipótese:** o rótulo mudou ou o campo foi reestruturado
-por alguma entrega recente — confirmar lendo a tela antes de mexer no teste.
+O **PR #141** (`8ac8a1d`, 2026-08-30, *"financeiro passa a filtrar pela data de
+lançamento"*) trocou o rótulo de `De (data de competência)` para `De (data de lançamento)`.
+A tela documenta a razão para o usuário: *"os filtros de período usam a data de lançamento
+(não a competência nem a data de importação)"*.
+
+Três medições sustentaram que era o teste, não o produto:
+
+1. o teste é **parametrizado em 4 rotas** e as outras 3 (auditoria, importações,
+   performance) passavam — o padrão funciona, só o rótulo divergia;
+2. a mudança tem commit deliberado, com título explícito;
+3. o rótulo era a **única** divergência — o texto de "sem período", os 4 chips e o
+   `htmlFor` do `PeriodFilter` conferiam.
+
+⚠️ **O PR #141 deixou DOIS testes para trás, em lugares diferentes:** além deste, a coluna
+`dataLancamento` que ele acrescentou ao CSV quebrava o `hub-faturamento-integration.sh`
+(corrigido no PR #193). Descobertos com quase um mês de distância. Uma mudança de produto,
+duas dívidas silenciosas — é o argumento mais concreto a favor do item 4 da §6.
 
 ---
 
@@ -157,8 +172,8 @@ infra/hub/testes/hub-shell-e2e-browser.sh
 - **Não re-investigue se é o Next 16.3.5.** Já medido com controle em 3 execuções: não é.
 - **Não "conserte" o teste mudando o esperado** sem antes olhar a tela. Em 2.2 e 2.3 o
   teste estava certo e **o produto é que estava incompleto** — a correção foi na UI, não
-  na asserção. (Em 2.4 pode ser o inverso; por isso segue marcado como hipótese.)
-- **Não re-investigue 2.1, 2.2 e 2.3** — resolvidas nos PRs #196 e #197, com controle
+  na asserção. Em 2.1 e 2.4 foi o inverso, e só a medição disse qual era qual.
+- **Não re-investigue nenhuma das 4** — resolvidas nos PRs #196, #197 e #199, com controle
   negativo medido em cada uma.
 - O baseline 138/0 de 21/08 está arquivado em `evidencias/S3/` — serve de referência do
   que já passou um dia.
@@ -169,10 +184,22 @@ infra/hub/testes/hub-shell-e2e-browser.sh
 
 1. ~~Corrigir **2.1**~~ — ✅ PR #196: era **teste**, não produto.
 2. ~~Corrigir **2.2** e **2.3**~~ — ✅ PR #197: era **produto**, e eram 3 permissões, não 1.
-3. **Investigar 2.4** e decidir se é teste ou produto — **o que sobrou**.
-4. Decidir **como o E2E volta ao ciclo**, senão isto se repete na próxima feature.
-   Das 4 falhas, 3 nasceram de feature entregue sem acabamento e 1 de premissa de teste
-   que envelheceu; nenhuma teria durado um mês se o E2E rodasse no ciclo.
+3. ~~Investigar **2.4**~~ — ✅ PR #199: era **teste**, o rótulo mudou no PR #141.
+4. ⚠️ **O QUE SOBROU, e o único item estrutural: decidir COMO o E2E volta ao ciclo.**
+   Hoje nada o obriga a rodar. O placar final (139/0) fecha os sintomas, não a causa de
+   eles terem ficado invisíveis por um mês.
+
+   O que a frente mediu, e que sustenta esse item:
+
+   - **2 das 4** eram feature entregue sem acabamento (módulo/permissão novos sem rótulo
+     ou descrição) — o seed do E2E ativa TODO módulo do catálogo (§3), então elas entram
+     sozinhas e quebram sozinhas;
+   - **2 das 4** eram premissa de teste que envelheceu junto com uma decisão de produto
+     deliberada (renovação silenciosa; filtro por data de lançamento);
+   - **o PR #141 sozinho deixou 2 testes para trás**, em lugares diferentes, descobertos
+     com quase um mês de distância (§2.4).
+
+   Nenhuma delas era difícil de corrigir. Todas foram difíceis de *descobrir*.
 
 ⚠️ **Duas lições que valem para a §2.4, a que sobrou:**
 

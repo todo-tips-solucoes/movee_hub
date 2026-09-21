@@ -39,7 +39,14 @@ const MODULOS_COM_PERIODO = [
   },
   {
     rota: '/hub/dashboard/faturamento',
-    rotuloDe: 'De (data de competência)',
+    // Era `De (data de competência)` até o PR #141 (2026-08-30), que passou o
+    // filtro do financeiro a usar a data de LANÇAMENTO — a tela diz isso em
+    // texto ("não a competência nem a data de importação",
+    // app/hub/dashboard/faturamento/page.tsx). O teste ficou com o rótulo
+    // antigo e falhava desde então: produto correto, asserção velha. Mesma
+    // causa que o PR #193 corrigiu em hub-faturamento-integration.sh, onde o
+    // PR #141 também acrescentou a coluna `dataLancamento` ao CSV.
+    rotuloDe: 'De (data de lançamento)',
     ecoSemPeriodo: 'Exibindo os últimos 30 dias — informe um período para ver além disso.',
   },
 ];
