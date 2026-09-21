@@ -37,6 +37,13 @@ se revelou **falsa**, e teria mandado alguém caçar um bug inexistente.
 
 ### 2.1 🔴 Destravar o adiantamento — valor de negócio parado
 
+> ✅ **Runbook pronto: [`docs/plans/adiantamento-motorista/RUNBOOK-GO-LIVE.md`](../adiantamento-motorista/RUNBOOK-GO-LIVE.md)**
+> (2026-09-21), com diagnóstico somente-leitura e script de carga testados no hub-homolog.
+> **Os passos 1 e 3 abaixo estavam errados** — o módulo provavelmente já está ligado pela
+> 0070, e a função de carga dá `PERMISSAO_NEGADA` por `psql`. O que trava de verdade é a
+> configuração: `fonte_producao` nula (adiantamento) e `repasse_visivel_app`/
+> `apuracao_dia_inicio` (repasse no app) — tudo pela tela. Execução é do operador.
+
 **A feature está em produção desde 2026-09-19 e NÃO está em uso.** Enquanto o módulo não
 for ligado para a entidade, o motorista vê as abas novas e o recurso responde
 indisponível. Foram 3 PRs, migrations até a 0086 e 3 deploys — e ninguém consegue usar.
