@@ -137,6 +137,13 @@ outros clientes neste host.
 
 ## 4. O que só o operador pode fazer (não é código, e ainda pende)
 
+> ⚠️ **Superado por [`RUNBOOK-GO-LIVE.md`](RUNBOOK-GO-LIVE.md) (2026-09-21).** Medido no
+> hub-homolog, dois passos abaixo estão **errados** e não devem ser seguidos como estão:
+> o **passo 1** provavelmente já foi feito pela migration 0070 (confirmar com o
+> diagnóstico), e o **passo 3 não funciona por `psql`** — a chamada crua devolve
+> `ERROR: PERMISSAO_NEGADA`, porque a função lê permissão e escopo do JWT. O runbook traz
+> o diagnóstico e o script que funcionam. O texto original fica abaixo como registro.
+
 1. **Ligar o módulo `adiantamentos`** para a entidade. **Enquanto isso não
    acontecer, o motorista vê as abas novas mas o recurso responde
    indisponível** — ou seja, a feature está em produção mas não em uso.
