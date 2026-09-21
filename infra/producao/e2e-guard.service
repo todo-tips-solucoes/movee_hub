@@ -1,0 +1,30 @@
+[Unit]
+Description=Roda o E2E do hub quando a main mudou (e avisa se quebrou)
+Documentation=file:///var/lib/envioMassa_homologacao/docs/plans/e2e-hub-falhas-herdadas/BRIEFING.md
+# Precisa do docker: rebuilda o frontend do hub antes de testar (o driver não
+# builda). Sem docker não há o que medir, e o guard sai 2 — nunca "E2E ok".
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env node /var/lib/envioMassa_homologacao/infra/producao/e2e-guard.js
+
+# Este é o mais pesado dos guards: um build de ~2 GB mais ~4 min de Playwright.
+# O host já foi derrubado por starvation (2026-06-11) e por disco cheio
+# (2026-08-30). Um guarda nunca pode ser o que atrapalha quem atende cliente.
+Nice=15
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle
+
+# Teto generoso: build + E2E levam ~8 min juntos, mas um build frio num host
+# ocupado passa disso. Estourar aqui é melhor que ficar pendurado até o robô
+# das 11h competir por recurso.
+TimeoutStartSec=45min
+
+# `exit 1` = E2E falhou. `exit 2` = o guard não conseguiu medir (disco baixo,
+# build quebrado, ambiente fora). Os dois deixam a unidade `failed` de
+# propósito: é o rastro que sobrevive mesmo se o e-mail não sair.
+
+[Install]
+WantedBy=multi-user.target
