@@ -121,6 +121,52 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     await waitFor(() => expect(screen.getByText(/Versão 4/)).toBeInTheDocument());
   });
 
+  it('0087: família vira um item só; marcá-la salva o TOKEN, e o valor já salvo fora da lista continua lá', async () => {
+    mockListarCategoriasProducao.mockResolvedValue({
+      itens: [
+        { descricao: 'Promocao - Campanha w97', lancamentos: 38, semMotoristaIdentificado: false, familia: 'familia:promocao' },
+        { descricao: 'Promocao - Campanha w96', lancamentos: 20, semMotoristaIdentificado: false, familia: 'familia:promocao' },
+        { descricao: 'Promocao entregador', lancamentos: 16890, semMotoristaIdentificado: false, familia: null },
+      ],
+    });
+    mockObterConfiguracoes.mockResolvedValue(RESPOSTA_BASE);
+    mockSalvarConfiguracao.mockResolvedValueOnce({ ...VIGENTE_BASE, versao: 4 });
+    render(<ConfiguracoesAdiantamentoPage />);
+
+    const promo = await screen.findByRole('button', { name: /^Promoção/ });
+    expect(promo).toHaveTextContent('2 campanhas');
+    expect(screen.queryByRole('button', { name: /Campanha w97/ })).not.toBeInTheDocument();
+    // 'corrida' está salva em VIGENTE_BASE mas não veio na lista: tem que aparecer para poder desmarcar.
+    expect(screen.getByRole('button', { name: /^corrida/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/inclui também as campanhas que surgirem depois/)).toBeInTheDocument();
+
+    fireEvent.click(promo);
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+
+    await waitFor(() => expect(mockSalvarConfiguracao).toHaveBeenCalledWith(
+      expect.objectContaining({ categoriasProducao: ['corrida', 'familia:promocao'] })
+    ));
+  });
+
+  it('0087: busca sem acento + "Marcar visíveis" marca só o que a busca achou', async () => {
+    mockListarCategoriasProducao.mockResolvedValue({
+      itens: [
+        { descricao: 'Promocao - Campanha w97', lancamentos: 38, semMotoristaIdentificado: false, familia: 'familia:promocao' },
+        { descricao: 'Gorjeta', lancamentos: 4312, semMotoristaIdentificado: false, familia: null },
+      ],
+    });
+    mockObterConfiguracoes.mockResolvedValue({ ...RESPOSTA_BASE, vigente: { ...VIGENTE_BASE, categoriasProducao: [] } });
+    render(<ConfiguracoesAdiantamentoPage />);
+    await screen.findByRole('button', { name: /^Gorjeta/ });
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar categoria' }), { target: { value: 'promocao' } });
+    expect(screen.queryByRole('button', { name: /^Gorjeta/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar visíveis' }));
+
+    expect(screen.getByRole('button', { name: /^Promoção/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('1 de 2 selecionadas')).toBeInTheDocument();
+  });
+
   it('validação client-side (descrição Pix sem "{nome}") bloqueia o salvar sem chamar a API', async () => {
     mockObterConfiguracoes.mockResolvedValueOnce(RESPOSTA_BASE);
     render(<ConfiguracoesAdiantamentoPage />);
