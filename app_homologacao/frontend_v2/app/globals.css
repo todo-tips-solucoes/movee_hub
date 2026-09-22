@@ -251,9 +251,10 @@
     font-size: 1rem;
     line-height: 1.5;
   }
-  /* A lista aberta de um <select> nativo é desenhada pelo navegador: sem isto
-     ela sai clara no tema escuro (fundo cinza, texto apagado). */
-  .dark { color-scheme: dark; }
+  /* A lista aberta de um <select> nativo é desenhada pelo navegador. O
+     color-scheme escuro já vem do next-themes, mas os <select> têm fundo
+     translúcido (bg-transparent / dark:bg-input/30) e as <option> herdavam
+     fundo transparente: a lista saía cinza-clara, fora do design. */
   option {
     background-color: var(--popover);
     color: var(--popover-foreground);
