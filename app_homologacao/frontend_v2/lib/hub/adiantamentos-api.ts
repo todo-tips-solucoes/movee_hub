@@ -302,6 +302,8 @@ export interface CategoriaProducao {
   descricao: string;
   lancamentos: number;
   semMotoristaIdentificado: boolean;
+  /** Token de família (migration 0087, ex.: 'familia:promocao'), ou null se avulsa. */
+  familia: string | null;
 }
 
 /** Campos aceitos pelo `PUT /configuracoes` (routes/hub-adiantamentos.js:404-409, `CAMPOS`). */

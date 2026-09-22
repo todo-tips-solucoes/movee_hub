@@ -38,6 +38,7 @@ import {
   type Configuracao,
   type ConfiguracaoHistoricoItem,
 } from '@/lib/hub/adiantamentos-api';
+import { filtrarItensCategoria, montarItensCategoria, type ItemCategoria } from '@/lib/hub/adiantamento-categorias';
 import { LARGURA_DETALHE } from '@/lib/hub/larguras';
 import { cn, formatDateBR } from '@/lib/utils';
 
@@ -244,6 +245,86 @@ function toggleItem<T>(lista: T[], item: T): T[] {
   return lista.includes(item) ? lista.filter((x) => x !== item) : [...lista, item];
 }
 
+const numero = new Intl.NumberFormat('pt-BR');
+
+function detalheCategoria(i: ItemCategoria): string {
+  if (i.ausente === 'sem_lancamentos') return 'sem lançamentos em 90 dias';
+  if (i.ausente === 'dentro_de_familia') return `já incluída em ${i.rotuloFamilia}`;
+  const qtd = numero.format(i.lancamentos);
+  if (i.familia) return `${i.membros} ${i.membros === 1 ? 'campanha' : 'campanhas'} · ${qtd}`;
+  return i.semMotoristaIdentificado ? `${qtd} · parte sem motorista` : qtd;
+}
+
+// Só aparecem categorias com ao menos um lançamento COM motorista (0087), e
+// as famílias (Promoção, Missões) vêm dobradas num item só — marcar a família
+// inclui também as campanhas que surgirem depois.
+function CategoriasProducao({ disponiveis, selecionadas, onChange }: {
+  disponiveis: CategoriaProducao[];
+  selecionadas: string[];
+  onChange: (categorias: string[]) => void;
+}) {
+  const [busca, setBusca] = useState('');
+  const itens = montarItensCategoria(disponiveis, selecionadas);
+  const visiveis = filtrarItensCategoria(itens, busca);
+  const familias = itens.filter((i) => i.familia && !i.ausente).map((i) => i.rotulo);
+  const marcarVisiveis = (marcado: boolean) => {
+    const chaves = visiveis.map((i) => i.chave);
+    onChange(marcado ? [...new Set([...selecionadas, ...chaves])] : selecionadas.filter((s) => !chaves.includes(s)));
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+        <span className="text-sm font-medium">Categorias que entram na produção</span>
+        {itens.length > 0 && (
+          <span className="text-xs text-muted-foreground tabular-nums">{selecionadas.length} de {itens.length} selecionadas</span>
+        )}
+      </div>
+      {itens.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Escolha uma fonte para ver as categorias encontradas nos últimos 90 dias.</p>
+      ) : (
+        <>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              type="search"
+              aria-label="Buscar categoria"
+              placeholder="Buscar categoria"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="sm:max-w-xs"
+            />
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" className="min-h-11 sm:min-h-8" disabled={visiveis.length === 0} onClick={() => marcarVisiveis(true)}>
+                Marcar visíveis
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="min-h-11 sm:min-h-8" disabled={visiveis.length === 0} onClick={() => marcarVisiveis(false)}>
+                Desmarcar visíveis
+              </Button>
+            </div>
+          </div>
+          {visiveis.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma categoria encontrada para “{busca.trim()}”.</p>
+          ) : (
+            <div role="group" aria-label="Categorias que entram na produção" className="flex flex-wrap gap-1.5">
+              {visiveis.map((i) => (
+                <Chip key={i.chave} ativo={selecionadas.includes(i.chave)} onClick={() => onChange(toggleItem(selecionadas, i.chave))}>
+                  {i.rotulo}
+                  <span className="ml-1.5 text-xs font-normal opacity-75 tabular-nums">{detalheCategoria(i)}</span>
+                </Chip>
+              ))}
+            </div>
+          )}
+          {familias.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {familias.join(' e ')} {familias.length === 1 ? 'inclui' : 'incluem'} também as campanhas que surgirem depois.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ConfiguracoesAdiantamentoPage() {
   const { permissoes } = useHubAuth();
   const podeConfigurar = permissoes.includes('adiantamentos.configurar');
@@ -345,25 +426,11 @@ export default function ConfiguracoesAdiantamentoPage() {
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium">Categorias que entram na produção</span>
-                  {c.categoriasDisponiveis.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Escolha uma fonte para ver as categorias encontradas nos últimos 90 dias.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {c.categoriasDisponiveis.map((cat) => (
-                        <Chip
-                          key={cat.descricao}
-                          ativo={c.form.categoriasProducao.includes(cat.descricao)}
-                          onClick={() => c.setForm((f) => ({ ...f, categoriasProducao: toggleItem(f.categoriasProducao, cat.descricao) }))}
-                        >
-                          {cat.descricao}
-                          {cat.semMotoristaIdentificado ? ' · sem motorista identificado' : ''}
-                        </Chip>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <CategoriasProducao
+                  disponiveis={c.categoriasDisponiveis}
+                  selecionadas={c.form.categoriasProducao}
+                  onChange={(categoriasProducao) => c.setForm((f) => ({ ...f, categoriasProducao }))}
+                />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="flex flex-col gap-1">
                     <label htmlFor={`${inputId}-pct`} className="text-sm font-medium">Percentual</label>

@@ -468,6 +468,9 @@ router.get('/configuracoes/categorias', requireModuloAtivo('adiantamentos'), req
         descricao: r.descricao,
         lancamentos: Number(r.lancamentos) || 0,
         semMotoristaIdentificado: r.sem_motorista_identificado === true,
+        // 0087: categorias que o cálculo trata como uma só (ex.: toda
+        // "Promoção - …", inclusive as campanhas futuras). null = categoria avulsa.
+        familia: r.familia || null,
       })),
     });
   } catch (e) {

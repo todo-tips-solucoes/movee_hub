@@ -227,7 +227,12 @@ async function fakeHubPostgrestRequest(endpoint, method, body, claims, opts) {
     return [{ id: body.p_id, status: 'ENCERRADA' }];
   }
   if (caminho === 'rpc/hub_adiantamento_categorias') {
-    return [{ descricao: 'Frete', lancamentos: 42, sem_motorista_identificado: false }];
+    return [
+      // Sem `familia`: o formato do RPC antes da 0087 — a rota não pode quebrar
+      // se o backend novo subir antes da migration.
+      { descricao: 'Frete', lancamentos: 42, sem_motorista_identificado: false },
+      { descricao: 'Promocao - Campanha X', lancamentos: 7, sem_motorista_identificado: false, familia: 'familia:promocao' },
+    ];
   }
   if (caminho === 'rpc/hub_adiantamento_configuracao_salvar') {
     if (comportamentoRpc.configurarSalvar) throw raiseComMensagem(comportamentoRpc.configurarSalvar);
@@ -628,6 +633,8 @@ describe('4.2 configuração', () => {
     assert.equal(r.status, 200);
     assert.equal(r.body.itens[0].descricao, 'Frete');
     assert.equal(r.body.itens[0].lancamentos, 42);
+    assert.equal(r.body.itens[0].familia, null, 'RPC sem o campo (pré-0087) -> familia null, não undefined');
+    assert.equal(r.body.itens[1].familia, 'familia:promocao');
   });
 
   test('PUT /configuracoes sem versaoEsperada -> 400', async () => {
