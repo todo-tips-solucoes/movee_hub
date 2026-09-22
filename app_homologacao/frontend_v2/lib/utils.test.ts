@@ -2,7 +2,7 @@
 // SUBSTITUI os filtros precisa avisar. Errar para menos cala um aviso quando
 // havia trabalho a perder; errar para mais enche a tela de aviso sobre nada.
 import { describe, expect, it } from 'vitest';
-import { formatDateBR, initialFilters, ordenarDados, proximaOrdenacao, temFiltroAtivo } from './utils';
+import { formatBRL, formatDateBR, initialFilters, ordenarDados, proximaOrdenacao, temFiltroAtivo } from './utils';
 import type { EnvioMassa } from '@/types';
 
 describe('temFiltroAtivo', () => {
@@ -121,5 +121,36 @@ describe('formatDateBR', () => {
   it('vazio e lixo devolvem string vazia', () => {
     expect(formatDateBR(null)).toBe('');
     expect(formatDateBR('nao-e-data')).toBe('');
+  });
+});
+
+describe('formatBRL', () => {
+  // Incidente 2026-09-22: a PRIMEIRA solicitação de adiantamento em produção
+  // derrubou a tela do hub. Em `AGUARDANDO_CORTE` os valores são NULOS até o
+  // corte (o cálculo é depois), e `formatBRL(null)` lançava
+  // "Cannot read properties of null": `isNaN(null)` é false (Number(null)=0),
+  // então o guard não pegava e chamava `null.toLocaleString`. A lista estava
+  // vazia desde sempre, por isso ninguém tinha visto.
+  it('valor nulo não quebra — mostra travessão, como o app do motorista', () => {
+    expect(formatBRL(null)).toBe('—');
+  });
+
+  it('indefinido e vazio também são travessão (mesmo contrato do app do motorista)', () => {
+    expect(formatBRL(undefined)).toBe('—');
+    expect(formatBRL('')).toBe('—');
+  });
+
+  // O Intl separa "R$" do número com espaço NÃO-QUEBRÁVEL (U+00A0); comparar
+  // com espaço comum falha por um caractere invisível.
+  const semNbsp = (s: string) => s.replace(/ /g, ' ');
+
+  it('continua formatando número e string numérica', () => {
+    expect(semNbsp(formatBRL(12.5))).toBe('R$ 12,50');
+    expect(semNbsp(formatBRL('76.62'))).toBe('R$ 76,62');
+    expect(semNbsp(formatBRL(0))).toBe('R$ 0,00');
+  });
+
+  it('texto não numérico continua caindo no zero (comportamento antigo preservado)', () => {
+    expect(semNbsp(formatBRL('abc'))).toBe('R$ 0,00');
   });
 });
