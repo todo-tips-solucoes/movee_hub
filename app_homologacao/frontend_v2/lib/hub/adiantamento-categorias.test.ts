@@ -41,10 +41,19 @@ describe('montarItensCategoria', () => {
     expect(itens.at(-1)).toMatchObject({ chave: 'Categoria que sumiu', ausente: 'sem_lancamentos', lancamentos: 0 });
   });
 
-  it('nome individual salvo ANTES das famílias aparece à parte, indicando a família que já o cobre', () => {
-    const itens = montarItensCategoria(DISPONIVEIS, ['Promocao - Dias Produtivos Franquias']);
+  it('nome salvo antes das famílias, COM a família marcada: aparece como já coberto por ela', () => {
+    const itens = montarItensCategoria(DISPONIVEIS, ['Promocao - Dias Produtivos Franquias', 'familia:promocao']);
     const avulso = itens.find((i) => i.chave === 'Promocao - Dias Produtivos Franquias');
     expect(avulso).toMatchObject({ ausente: 'dentro_de_familia', rotuloFamilia: 'Promoção' });
+  });
+
+  it('nome salvo antes das famílias, SEM a família marcada: NÃO pode dizer "já incluída" — é ele que mantém a categoria no cálculo', () => {
+    // Achado da revisão do PR: o aviso "já incluída em Promoção" com a família
+    // desmarcada levava o operador a desmarcar o nome, e a categoria saía do
+    // cálculo em silêncio — exatamente a falha que a 0087 existe para evitar.
+    const itens = montarItensCategoria(DISPONIVEIS, ['Promocao - Dias Produtivos Franquias']);
+    const avulso = itens.find((i) => i.chave === 'Promocao - Dias Produtivos Franquias');
+    expect(avulso).toMatchObject({ ausente: 'fora_da_familia', rotuloFamilia: 'Promoção', lancamentos: 175 });
   });
 
   it('token de família desconhecido cai no próprio token como rótulo, sem quebrar', () => {

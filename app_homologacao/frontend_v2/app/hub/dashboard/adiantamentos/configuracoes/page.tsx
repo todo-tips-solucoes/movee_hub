@@ -251,6 +251,7 @@ function detalheCategoria(i: ItemCategoria): string {
   if (i.ausente === 'sem_lancamentos') return 'sem lançamentos em 90 dias';
   if (i.ausente === 'dentro_de_familia') return `já incluída em ${i.rotuloFamilia}`;
   const qtd = numero.format(i.lancamentos);
+  if (i.ausente === 'fora_da_familia') return `${qtd} · faz parte de ${i.rotuloFamilia}`;
   if (i.familia) return `${i.membros} ${i.membros === 1 ? 'campanha' : 'campanhas'} · ${qtd}`;
   return i.semMotoristaIdentificado ? `${qtd} · parte sem motorista` : qtd;
 }

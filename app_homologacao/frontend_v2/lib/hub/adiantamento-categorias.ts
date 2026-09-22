@@ -23,18 +23,21 @@ export interface ItemCategoria {
   semMotoristaIdentificado: boolean;
   /** Nomes que casam na busca (o próprio rótulo, ou os membros da família). */
   nomes: string[];
-  /** Presente quando o valor salvo não é um item da lista atual. */
-  ausente?: 'sem_lancamentos' | 'dentro_de_familia';
+  /** Presente quando o valor salvo não é um item da lista atual:
+   *  - `sem_lancamentos`: não apareceu nos últimos 90 dias;
+   *  - `dentro_de_familia`: nome de um membro, e a família TAMBÉM está marcada (redundante);
+   *  - `fora_da_familia`: nome de um membro, com a família DESMARCADA — é este valor
+   *    que mantém a categoria no cálculo, não pode parecer redundante. */
+  ausente?: 'sem_lancamentos' | 'dentro_de_familia' | 'fora_da_familia';
   rotuloFamilia?: string;
 }
 
 export function montarItensCategoria(disponiveis: CategoriaProducao[], selecionadas: string[]): ItemCategoria[] {
   const porChave = new Map<string, ItemCategoria>();
-  const familiaDe = new Map<string, string>(); // descrição -> token
+  const porDescricao = new Map(disponiveis.map((c) => [c.descricao, c]));
 
   for (const c of disponiveis) {
     const chave = c.familia ?? c.descricao;
-    if (c.familia) familiaDe.set(c.descricao, c.familia);
     const item = porChave.get(chave);
     if (item) {
       item.lancamentos += c.lancamentos;
@@ -60,16 +63,18 @@ export function montarItensCategoria(disponiveis: CategoriaProducao[], seleciona
   // e ninguém consegue desmarcar.
   for (const v of selecionadas) {
     if (porChave.has(v)) continue;
-    const fam = familiaDe.get(v);
+    // Só um membro de família chega aqui com dados: descrição avulsa já é chave.
+    const membro = porDescricao.get(v);
+    const fam = membro?.familia ?? undefined;
     itens.push({
       chave: v,
       rotulo: ROTULO_FAMILIA[v] ?? v,
-      lancamentos: 0,
+      lancamentos: membro?.lancamentos ?? 0,
       membros: 1,
       familia: v in ROTULO_FAMILIA,
-      semMotoristaIdentificado: false,
+      semMotoristaIdentificado: membro?.semMotoristaIdentificado ?? false,
       nomes: [v],
-      ausente: fam ? 'dentro_de_familia' : 'sem_lancamentos',
+      ausente: !fam ? 'sem_lancamentos' : selecionadas.includes(fam) ? 'dentro_de_familia' : 'fora_da_familia',
       rotuloFamilia: fam ? (ROTULO_FAMILIA[fam] ?? fam) : undefined,
     });
   }
