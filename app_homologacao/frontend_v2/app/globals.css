@@ -251,6 +251,13 @@
     font-size: 1rem;
     line-height: 1.5;
   }
+  /* A lista aberta de um <select> nativo é desenhada pelo navegador: sem isto
+     ela sai clara no tema escuro (fundo cinza, texto apagado). */
+  .dark { color-scheme: dark; }
+  option {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+  }
 }
 
 /* ---- Utilitários de marca ------------------------------------------------- */
