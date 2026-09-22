@@ -39,6 +39,7 @@ import {
   type ConfiguracaoHistoricoItem,
 } from '@/lib/hub/adiantamentos-api';
 import { filtrarItensCategoria, montarItensCategoria, type ItemCategoria } from '@/lib/hub/adiantamento-categorias';
+import { diaDoRepasse, diasAteRepasse } from '@/lib/hub/adiantamento-repasse';
 import { LARGURA_DETALHE } from '@/lib/hub/larguras';
 import { cn, formatDateBR } from '@/lib/utils';
 
@@ -69,7 +70,9 @@ interface FormState {
   previsaoPagamentoTexto: string;
   descricaoPixModelo: string;
   apuracaoDiaInicio: string;
-  apuracaoDiasAteRepasse: string;
+  /** Dia da semana do repasse (0=domingo). O banco guarda o nº de dias após o fim
+   *  — a conversão é na carga e no salvar (lib/hub/adiantamento-repasse). */
+  apuracaoDiaRepasse: string;
   apuracaoDataBase: string;
   categoriasExtrato: string[];
   descontoAdiantamentos: boolean;
@@ -90,7 +93,10 @@ function formDe(c: Configuracao | null): FormState {
     previsaoPagamentoTexto: c?.previsaoPagamentoTexto ?? '',
     descricaoPixModelo: c?.descricaoPixModelo ?? '',
     apuracaoDiaInicio: c?.apuracaoDiaInicio !== null && c?.apuracaoDiaInicio !== undefined ? String(c.apuracaoDiaInicio) : '',
-    apuracaoDiasAteRepasse: c?.apuracaoDiasAteRepasse !== null && c?.apuracaoDiasAteRepasse !== undefined ? String(c.apuracaoDiasAteRepasse) : '',
+    apuracaoDiaRepasse:
+      c?.apuracaoDiaInicio != null && c?.apuracaoDiasAteRepasse != null
+        ? String(diaDoRepasse(c.apuracaoDiaInicio, c.apuracaoDiasAteRepasse) ?? '')
+        : '',
     apuracaoDataBase: c?.apuracaoDataBase ?? '',
     categoriasExtrato: c?.categoriasExtrato ?? [],
     descontoAdiantamentos: c?.descontoAdiantamentos ?? true,
@@ -117,6 +123,7 @@ function primeiraViolacao(f: FormState): string | null {
     return 'A previsão de pagamento precisa ter entre 1 e 120 caracteres.';
   }
   if (!f.descricaoPixModelo.includes('{nome}')) return 'O modelo da descrição Pix precisa conter "{nome}".';
+  if (f.apuracaoDiaRepasse !== '' && f.apuracaoDiaInicio === '') return 'Defina o início da janela para calcular o dia do repasse.';
   return null;
 }
 
@@ -192,7 +199,12 @@ function useConfiguracaoAdiantamento() {
         previsaoPagamentoTexto: form.previsaoPagamentoTexto,
         descricaoPixModelo: form.descricaoPixModelo,
         apuracaoDiaInicio: form.apuracaoDiaInicio !== '' ? Number(form.apuracaoDiaInicio) : undefined,
-        apuracaoDiasAteRepasse: form.apuracaoDiasAteRepasse !== '' ? Number(form.apuracaoDiasAteRepasse) : undefined,
+        // undefined = mantém o valor atual (o RPC faz COALESCE) — um prazo salvo fora
+        // do padrão semanal não é reescrito sem alguém escolher o dia.
+        apuracaoDiasAteRepasse:
+          form.apuracaoDiaRepasse !== '' && form.apuracaoDiaInicio !== ''
+            ? diasAteRepasse(Number(form.apuracaoDiaInicio), Number(form.apuracaoDiaRepasse))
+            : undefined,
         apuracaoDataBase: form.apuracaoDataBase || undefined,
         categoriasExtrato: form.categoriasExtrato.length ? form.categoriasExtrato : undefined,
         descontoAdiantamentos: form.descontoAdiantamentos,
@@ -246,6 +258,25 @@ function toggleItem<T>(lista: T[], item: T): T[] {
 }
 
 const numero = new Intl.NumberFormat('pt-BR');
+
+// "Janela de segunda a domingo · repasse na quarta, 3 dias após o fim" — a frase
+// que confirma a conversão para quem configura.
+function resumoRepasse(f: FormState, vigente: Configuracao | null): string | null {
+  const diaSemana = (d: number) => NOMES_DIA[d].toLowerCase();
+  const artigo = (d: number) => (d === 0 || d === 6 ? 'no' : 'na');
+  if (f.apuracaoDiaInicio !== '' && f.apuracaoDiaRepasse !== '') {
+    const inicio = Number(f.apuracaoDiaInicio);
+    const dia = Number(f.apuracaoDiaRepasse);
+    const n = diasAteRepasse(inicio, dia);
+    return `Janela de ${diaSemana(inicio)} a ${diaSemana((inicio + 6) % 7)} · repasse ${artigo(dia)} ${diaSemana(dia)}`
+      + `${n === 7 ? ' seguinte' : ''}, ${n} ${n === 1 ? 'dia' : 'dias'} após o fim.`;
+  }
+  const atual = vigente?.apuracaoDiasAteRepasse;
+  if (f.apuracaoDiaRepasse === '' && atual != null && vigente?.apuracaoDiaInicio != null && diaDoRepasse(vigente.apuracaoDiaInicio, atual) === null) {
+    return `Configuração atual: ${atual} dias após o fim da janela. Escolha o dia do repasse para padronizar — sem escolher, o prazo atual é mantido.`;
+  }
+  return null;
+}
 
 function detalheCategoria(i: ItemCategoria): string {
   if (i.ausente === 'sem_lancamentos') return 'sem lançamentos em 90 dias';
@@ -507,16 +538,23 @@ export default function ConfiguracoesAdiantamentoPage() {
                     </select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label htmlFor={`${inputId}-dias-repasse`} className="text-sm font-medium">Dias após o fim até o repasse</label>
-                    <Input
-                      id={`${inputId}-dias-repasse`}
-                      inputMode="numeric"
-                      value={c.form.apuracaoDiasAteRepasse}
-                      onChange={(e) => c.setForm((f) => ({ ...f, apuracaoDiasAteRepasse: e.target.value }))}
-                      placeholder="A definir"
-                    />
+                    <label htmlFor={`${inputId}-dia-repasse`} className="text-sm font-medium">Dia do repasse</label>
+                    <select
+                      id={`${inputId}-dia-repasse`}
+                      value={c.form.apuracaoDiaRepasse}
+                      onChange={(e) => c.setForm((f) => ({ ...f, apuracaoDiaRepasse: e.target.value }))}
+                      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                    >
+                      <option value="">A definir</option>
+                      {NOMES_DIA.map((nome, dia) => (
+                        <option key={dia} value={dia}>{nome}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
+                {resumoRepasse(c.form, c.vigente) && (
+                  <p className="text-xs text-muted-foreground">{resumoRepasse(c.form, c.vigente)}</p>
+                )}
                 <div className="flex flex-col gap-1">
                   <label htmlFor={`${inputId}-base`} className="text-sm font-medium">Data dos lançamentos</label>
                   <select

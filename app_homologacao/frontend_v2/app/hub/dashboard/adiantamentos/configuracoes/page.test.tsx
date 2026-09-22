@@ -167,6 +167,57 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     expect(screen.getByText('1 de 2 selecionadas')).toBeInTheDocument();
   });
 
+  it('repasse por dia da semana: carrega 3 dias como quarta e mostra a frase de confirmação', async () => {
+    mockObterConfiguracoes.mockResolvedValueOnce({ ...RESPOSTA_BASE, vigente: { ...VIGENTE_BASE, apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 3 } });
+    render(<ConfiguracoesAdiantamentoPage />);
+    const sel = await screen.findByLabelText('Dia do repasse');
+    expect(sel).toHaveValue('3');
+    expect(screen.getByText('Janela de segunda a domingo · repasse na quarta, 3 dias após o fim.')).toBeInTheDocument();
+  });
+
+  it('repasse por dia da semana: escolher quarta salva 3; mudar o início depois MANTÉM a quarta', async () => {
+    mockObterConfiguracoes.mockResolvedValueOnce({ ...RESPOSTA_BASE, vigente: { ...VIGENTE_BASE, apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 7 } });
+    // Depois de salvar a página recarrega do servidor: o mock devolve o que foi salvo.
+    const salva = { ...VIGENTE_BASE, versao: 4, apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 3 };
+    mockSalvarConfiguracao.mockResolvedValue(salva);
+    mockObterConfiguracoes.mockResolvedValue({ ...RESPOSTA_BASE, vigente: salva });
+    render(<ConfiguracoesAdiantamentoPage />);
+    fireEvent.change(await screen.findByLabelText('Dia do repasse'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+    await waitFor(() => expect(mockSalvarConfiguracao).toHaveBeenLastCalledWith(
+      expect.objectContaining({ apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 3 })
+    ));
+
+    // Janela passa a começar na TERÇA (termina na segunda): a quarta vira 2 dias.
+    fireEvent.change(screen.getByLabelText(/Início da janela/), { target: { value: '2' } });
+    expect(screen.getByLabelText('Dia do repasse')).toHaveValue('3');
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+    await waitFor(() => expect(mockSalvarConfiguracao).toHaveBeenLastCalledWith(
+      expect.objectContaining({ apuracaoDiaInicio: 2, apuracaoDiasAteRepasse: 2 })
+    ));
+  });
+
+  it('repasse por dia da semana: prazo salvo fora do padrão semanal (10 dias) NÃO é reescrito sem escolha', async () => {
+    mockObterConfiguracoes.mockResolvedValueOnce({ ...RESPOSTA_BASE, vigente: { ...VIGENTE_BASE, apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 10 } });
+    mockSalvarConfiguracao.mockResolvedValueOnce({ ...VIGENTE_BASE, versao: 4 });
+    mockObterConfiguracoes.mockResolvedValueOnce({ ...RESPOSTA_BASE, vigente: { ...VIGENTE_BASE, versao: 4 } });
+    render(<ConfiguracoesAdiantamentoPage />);
+    expect(await screen.findByLabelText('Dia do repasse')).toHaveValue('');
+    expect(screen.getByText(/Configuração atual: 10 dias após o fim/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+    await waitFor(() => expect(mockSalvarConfiguracao).toHaveBeenCalled());
+    expect(mockSalvarConfiguracao.mock.calls[0][0].apuracaoDiasAteRepasse).toBeUndefined();
+  });
+
+  it('repasse por dia da semana: dia escolhido sem início da janela bloqueia o salvar', async () => {
+    mockObterConfiguracoes.mockResolvedValueOnce({ ...RESPOSTA_BASE, vigente: { ...VIGENTE_BASE, apuracaoDiaInicio: null, apuracaoDiasAteRepasse: null } });
+    render(<ConfiguracoesAdiantamentoPage />);
+    fireEvent.change(await screen.findByLabelText('Dia do repasse'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+    expect(await screen.findByText('Defina o início da janela para calcular o dia do repasse.')).toBeInTheDocument();
+    expect(mockSalvarConfiguracao).not.toHaveBeenCalled();
+  });
+
   it('validação client-side (descrição Pix sem "{nome}") bloqueia o salvar sem chamar a API', async () => {
     mockObterConfiguracoes.mockResolvedValueOnce(RESPOSTA_BASE);
     render(<ConfiguracoesAdiantamentoPage />);
