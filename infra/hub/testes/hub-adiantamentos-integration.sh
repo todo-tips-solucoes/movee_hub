@@ -2463,11 +2463,23 @@ SQL
 # --- 0086 (briefing adiantamento-repasse-us6): A1 janela alinhada + A4/A3
 #     leitura do valor congelado. -------------------------------------------
 #
-# A config v2 semeada tem apuracao_dia_inicio = 0 (DOMINGO). 2026-06-07 é
-# domingo; 2026-06-09 é terça. As datas não são arbitrárias: são exatamente o
-# par alinhado/desalinhado que o gatilho tem de separar.
+# Esta seção precisa da config v2 com apuracao_dia_inicio = 0 (DOMINGO):
+# 2026-06-07 é domingo; 2026-06-09 é terça. As datas não são arbitrárias: são
+# exatamente o par alinhado/desalinhado que o gatilho tem de separar.
 echo ""
 echo "--- 0086 A1: a janela fechada tem de ser a semana configurada ---"
+
+# Pré-condição EXPLÍCITA (antes era suposta, e falsa): a seed da v2 grava 4
+# (quinta), e o bloco "janela semanal no fuso" acima sobrescreve TODAS as
+# configs da empresa 6 com o dia da semana de HOJE em UTC+14, sem restaurar.
+# A seção só passava quando o teste rodava num dia que é DOMINGO em UTC+14 — o
+# baseline 231/0 de 2026-09-20 foi medido num domingo. Nos outros dias o A1
+# falhava e o seed do A4/A3 abaixo dava `exit 1`, abortando a suíte (228 em
+# vez de 231). O gatilho da 0086 lê a config pelo `configuracao_id` (v2); o
+# escopo é o mesmo do UPDATE do bloco de fuso para reproduzir exatamente o
+# estado em que esta seção foi escrita e passou.
+psql_t -c "UPDATE \"AdiantamentoConfiguracao\" SET apuracao_dia_inicio = 0 WHERE id_empresa = 6" >"$TMP/config_0086.log" 2>&1 \
+  || { echo "FAIL: pré-condição do 0086 (início da apuração no domingo) deu erro"; cat "$TMP/config_0086.log"; exit 1; }
 
 inserir_apuracao() { # $1 = periodo_inicio
   psql_t -tA <<SQL 2>&1 | grep -oE 'PERIODO_DESALINHADO|APURACAO_NAO_CONFIGURADA|INSERT 0 1' | tail -n1
