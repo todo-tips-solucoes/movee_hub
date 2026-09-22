@@ -57,6 +57,20 @@ describe('AdiantamentosSolicitacoesPage', () => {
     expect(screen.getAllByText('Adiantamento liberado').length).toBeGreaterThan(0);
   });
 
+  // Incidente 2026-09-22: a PRIMEIRA solicitação real de produção derrubou esta
+  // tela. Em AGUARDANDO_CORTE o valor só existe depois do corte, e o `null`
+  // fazia `formatBRL` lançar. A lista vazia até então escondia o defeito.
+  it('solicitação aguardando o corte (ainda sem valor) renderiza sem quebrar', async () => {
+    mockListarSolicitacoes.mockResolvedValueOnce({
+      itens: [{ ...ITEM_BASE, id: 1, integrationId: 'ADV-000001', status: 'AGUARDANDO_CORTE', valorLiquido: null }],
+      total: 1, page: 1, pageSize: 20,
+    });
+    render(<AdiantamentosSolicitacoesPage />);
+
+    await waitFor(() => expect(screen.getAllByText('ADV-000001').length).toBeGreaterThan(0));
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+
   it('lista vazia mostra o empty state', async () => {
     mockListarSolicitacoes.mockResolvedValueOnce({ itens: [], total: 0, page: 1, pageSize: 20 });
     render(<AdiantamentosSolicitacoesPage />);

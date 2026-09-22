@@ -124,8 +124,9 @@ export interface SolicitacaoResumo {
   dataProducao: string;
   status: string;
   motivoStatus: string | null;
-  /** String decimal — nunca somar/recalcular no cliente. */
-  valorLiquido: string;
+  /** String decimal — nunca somar/recalcular no cliente. NULO até o corte:
+   *  em `AGUARDANDO_CORTE` o cálculo ainda não rodou (incidente 2026-09-22). */
+  valorLiquido: string | null;
   pendencias: string[];
   loteId: number | null;
 }
@@ -147,7 +148,8 @@ export interface SolicitacaoCalculo {
   percentual: number | null;
   bruto: string | null;
   taxa: string | null;
-  liquido: string;
+  /** Nulo até o corte, como os demais valores do cálculo. */
+  liquido: string | null;
   calculadoEm: string | null;
   versaoConfiguracao: number | null;
 }

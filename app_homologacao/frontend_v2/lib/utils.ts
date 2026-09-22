@@ -7,7 +7,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatBRL(valor: number | string): string {
+/**
+ * ⚠️ `null` NÃO pode cair no `isNaN`: `Number(null)` é 0, então `isNaN(null)`
+ * é false, o guard não pega e `null.toLocaleString` derruba a tela inteira.
+ * Foi o que aconteceu em 2026-09-22 com a PRIMEIRA solicitação de adiantamento
+ * em produção — em `AGUARDANDO_CORTE` os valores são nulos até o corte, e a
+ * lista do hub, vazia desde sempre, quebrou na primeira linha.
+ * Ausência vira travessão, o mesmo contrato do `formatCurrency` do app do
+ * motorista (frontend_motorista/lib/utils.ts), que já tratava o caso.
+ */
+export function formatBRL(valor: number | string | null | undefined): string {
+  if (valor === null || valor === undefined || valor === '') return '—';
   const num = typeof valor === 'string' ? parseFloat(valor) : valor;
   if (isNaN(num)) return 'R$ 0,00';
   return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

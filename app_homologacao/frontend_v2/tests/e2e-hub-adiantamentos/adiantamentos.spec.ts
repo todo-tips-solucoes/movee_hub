@@ -646,3 +646,44 @@ test.describe('US6 — repasse e fechamento', () => {
     await expect(page.getByText('Fechado')).toBeVisible();
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Tema escuro — lista aberta do <select> nativo (PR #206)
+// ───────────────────────────────────────────────────────────────────────────
+// A lista aberta é desenhada pelo navegador (fora do DOM, screenshot/axe não
+// a veem). O `color-scheme: dark` já vem do next-themes; o que faltava era
+// fundo nas <option> — transparentes, a lista saía cinza-clara no tema escuro.
+// Controle negativo (globals.css da main): falha em `optionFundo`
+// ("rgba(0, 0, 0, 0)" em vez de --popover).
+test.describe('Tema escuro — combobox nativo', () => {
+  test('as opções do <select> usam as cores de menu do design (--popover), não as do navegador', async ({ page }) => {
+    const state = defaultState();
+    await setup(page, state);
+
+    await page.goto('/hub/dashboard/adiantamentos/configuracoes');
+    const select = page.getByLabel('Data dos lançamentos');
+    await expect(select).toBeVisible();
+
+    const cores = await select.evaluate((el) => {
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = 'var(--popover)';
+      probe.style.color = 'var(--popover-foreground)';
+      document.body.appendChild(probe);
+      const esperado = getComputedStyle(probe);
+      const opt = getComputedStyle(el.querySelector('option')!);
+      const r = {
+        temaEscuro: document.documentElement.classList.contains('dark'),
+        colorScheme: getComputedStyle(el).colorScheme,
+        optionFundo: opt.backgroundColor, popover: esperado.backgroundColor,
+        optionTexto: opt.color, popoverTexto: esperado.color,
+      };
+      probe.remove();
+      return r;
+    });
+
+    expect(cores.temaEscuro).toBe(true);
+    expect(cores.colorScheme).toBe('dark');
+    expect(cores.optionFundo).toBe(cores.popover);
+    expect(cores.optionTexto).toBe(cores.popoverTexto);
+  });
+});
