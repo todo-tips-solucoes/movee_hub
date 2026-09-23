@@ -1,0 +1,31 @@
+-- 0094 — índice em "EnvioMassa"(cnpj_prestador).
+--
+-- POR QUE: a tabela tem 207.665 linhas e índices só em `number`,
+-- `number+id_empresa` e `entregador_uuid`. Toda consulta por CNPJ do prestador
+-- faz **Parallel Seq Scan**. Medido em produção 2026-09-23:
+--
+--   sem índice:  Execution Time 61.656 ms   (buffers: 15728 hit + 23969 read)
+--   com índice:  Execution Time  0.094 ms   (buffers: 6 read)
+--
+-- QUEM SOFRE, e por que isto deixou de ser detalhe:
+--   - `POST /adiantamentos/repasse/:periodo/movimentos` (F4) consulta
+--     `EnvioMassa?mov_fechado=eq.false&cnpj_prestador=in.(…)` para saber quem
+--     já tem movimento aberto. Enquanto só 19 motoristas eram geráveis isso
+--     passava despercebido; depois do vínculo em massa (0093) são **718**.
+--   - `hub_motorista_vincular_por_envio_massa` (0093) busca o telefone mais
+--     recente por CNPJ. A execução real levou ~3 min para 655 motoristas, quase
+--     tudo seq scan repetido.
+--   - `GET /motorista/movimento-aberto` (app do motorista) filtra por CNPJ do
+--     prestador a cada abertura da tela inicial.
+--
+-- CUSTO DE APLICAR: `CREATE INDEX` comum trava escritas na tabela enquanto
+-- roda. Medido com BEGIN/ROLLBACK em produção: **269 ms**. Por isso NÃO se usa
+-- `CONCURRENTLY` — ele não pode rodar dentro de transação, e o `migrate.sh`
+-- aplica cada arquivo com `psql -1` (transação única). Trocar por
+-- CONCURRENTLY exigiria sair da convenção para economizar 0,27 s de lock.
+--
+-- ROLLBACK: `DROP INDEX IF EXISTS idx_envio_massa_cnpj_prestador;` — nada
+-- depende dele; só o plano das consultas volta a ser seq scan.
+
+CREATE INDEX IF NOT EXISTS idx_envio_massa_cnpj_prestador
+    ON "EnvioMassa" (cnpj_prestador);
