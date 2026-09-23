@@ -1643,7 +1643,10 @@ async function montarSolicitacaoDetalhe(id, claims) {
       'GET', null, claims
     ),
     hubPostgrestRequest(
-      `AdiantamentoLoteItem?solicitacao_id=eq.${id}&select=situacao,lote:AdiantamentoLote(*)&order=id.asc`,
+      // `SELECT_LOTE` e não `*`: o GRANT de AdiantamentoLote é POR COLUNA e
+      // exclui `arquivo`; `*` derruba a query inteira com 42501 (incidente
+      // 2026-09-22, primeiro detalhe aberto em produção).
+      `AdiantamentoLoteItem?solicitacao_id=eq.${id}&select=situacao,lote:AdiantamentoLote(${SELECT_LOTE})&order=id.asc`,
       'GET', null, claims
     ),
   ]);
