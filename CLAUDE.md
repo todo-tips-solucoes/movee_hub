@@ -351,6 +351,28 @@ conveniência numa chamada vira a "raiz" da retomada seguinte e faz a guarda
 `session-scope` recusar com `verdict=diverged`. Ancore cada comando com `cd` explícito;
 a saída não é `--allow-outside`, é voltar para a raiz.
 
+## Propor UI nova — mostrar antes onde a informação já aparece
+
+Antes de propor tela, card, seção ou **rótulo** novo, **abra as telas que já mostram
+aquele dado e diga, na proposta, onde ele aparece hoje**. Sem essa frase, a proposta não
+sai. Vale também para renomear: um rótulo novo num lugar cria um segundo vocabulário
+para a mesma conta.
+
+⚠️ Em 2026-09-23, logo depois do deploy da F3, o agente propôs trocar os rótulos do
+extrato do repasse para "Emitir nota de" / "Gorjeta (não entra na nota)" — sem ter aberto
+a **home do app motorista**, onde o card do movimento já dizia `VALOR DA NOTA FISCAL` /
+`GORJETA` / `TOTAL PRODUZIDO`, com os mesmos três números e melhor. Quem pegou foi o
+operador, com um print. O modo ponytail estava ativo e não evita isto: os hooks dele
+(`ponytail-activate.js`) **injetam as regras no contexto, não verificam nada**; o único
+hook que verifica é o do impeccable, e ele mede qualidade de design (token, contraste,
+área tocável), nunca redundância. "Já existe?" é julgamento, e julgamento precisa de
+leitura — a escada encurta a solução, nunca a leitura.
+
+Duas fontes para o mesmo número são normais aqui e **não** são duplicidade: o card da
+home vem da `EnvioMassa` (movimento já fechado, via planilha) e o extrato do repasse vem
+do hub (semana em curso, antes de existir movimento). O que não pode é cada uma inventar
+o seu vocabulário.
+
 ## Governança
 
 - Commit/push/merge/deploy **somente com autorização explícita** do operador, **uma por
