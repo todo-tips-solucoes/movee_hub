@@ -114,8 +114,10 @@ export function useRepasseLista() {
       .then((r) => {
         if (!vivo) return;
         const dia = r.vigente?.apuracaoDiaInicio;
-        setPeriodoState(
-          typeof dia === 'number' ? inicioDaSemanaApuracao(new Date(), dia) : paraISO(new Date())
+        // Só preenche se o operador ainda não escolheu: a configuração pode
+        // chegar DEPOIS de ele digitar uma data, e sobrescrever descartava a escolha.
+        setPeriodoState((atual) =>
+          atual || (typeof dia === 'number' ? inicioDaSemanaApuracao(new Date(), dia) : paraISO(new Date()))
         );
         if (r.vigente) {
           setDescontos({ adiantamentos: r.vigente.descontoAdiantamentos, debitos: r.vigente.descontoDebitos });
@@ -124,7 +126,7 @@ export function useRepasseLista() {
       // Falhar aqui não pode deixar a tela sem período: cai no comportamento
       // antigo (hoje). Os pills de desconto são informativos e simplesmente
       // não aparecem.
-      .catch(() => { if (vivo) setPeriodoState(paraISO(new Date())); });
+      .catch(() => { if (vivo) setPeriodoState((atual) => atual || paraISO(new Date())); });
     return () => { vivo = false; };
   }, []);
 
