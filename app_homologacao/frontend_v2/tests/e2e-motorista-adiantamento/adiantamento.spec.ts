@@ -103,6 +103,8 @@ interface StubState {
   bancos: { codigo: string; nome: string }[];
   notificacoes: Notificacao[];
   repasse: unknown | null;
+  /** F2 (briefing repasse-nota-producao): abertura do crédito da semana. */
+  extrato: unknown | null;
 }
 
 function disponibilidadeBase(overrides: Partial<Disponibilidade> = {}): Disponibilidade {
@@ -164,6 +166,7 @@ function defaultState(): StubState {
       { id: 3, categoria: 'sistema', titulo: 'Manutenção programada', corpo: 'Sistema indisponível às 22h.', link: null, criadaEm: '2026-09-14T08:00:00Z', lida: true },
     ],
     repasse: null,
+    extrato: null,
   };
 }
 
@@ -337,6 +340,9 @@ async function installApiStubs(page: Page, state: StubState): Promise<void> {
       return noContent();
     }
 
+    if (path === '/motorista/repasse/extrato' && method === 'GET') {
+      return state.extrato ? json(200, state.extrato) : json(404, { erro: 'NAO_DISPONIVEL' });
+    }
     if (path === '/motorista/repasse' && method === 'GET') {
       return state.repasse ? json(200, state.repasse) : json(404, { erro: 'NAO_DISPONIVEL' });
     }
@@ -638,8 +644,60 @@ const TELAS_TOQUE: { nome: string; path: string; state?: (s: StubState) => void 
       adiantamentos: [{ id: 501, integrationId: 'ADT-501', dataProducao: '2026-09-16', valorBruto: '256.00', emProcessamento: false }],
       debitos: '256.00', remanescente: '944.00', negativo: false,
     };
+    s.extrato = {
+      periodoInicio: '2026-09-10', periodoFim: '2026-09-16', total: '1200.00',
+      dias: [
+        { data: '2026-09-10', total: '700.00', itens: [{ descricao: 'Corridas concluidas', quantidade: 4, valor: '700.00' }] },
+        { data: '2026-09-11', total: '500.00', itens: [{ descricao: 'Corridas concluidas', quantidade: 3, valor: '500.00' }] },
+      ],
+    };
   } },
 ];
+
+// F2 (briefing repasse-nota-producao): o motorista passa a ver DE ONDE vem o
+// crédito da semana. O total do extrato é o mesmo `creditos` do repasse — se
+// divergir, ele vê dois números para a mesma semana e acredita no menor.
+test.describe('F2 — extrato da semana', () => {
+  test('a tela do repasse abre o extrato por dia, com a quantidade por categoria', async ({ page }) => {
+    const state = defaultState();
+    state.repasse = {
+      periodoInicio: '2026-09-10', periodoFim: '2026-09-16', dataRepasse: '2026-09-18',
+      situacao: 'EM_APURACAO', creditos: '1200.00', adiantamentos: [],
+      debitos: '0.00', remanescente: '1200.00', negativo: false,
+    };
+    state.extrato = {
+      periodoInicio: '2026-09-10', periodoFim: '2026-09-16', total: '1200.00',
+      dias: [
+        { data: '2026-09-10', total: '700.00', itens: [{ descricao: 'Corridas concluidas', quantidade: 4, valor: '700.00' }] },
+        { data: '2026-09-11', total: '500.00', itens: [{ descricao: 'Promocao - Campanha w99', quantidade: 1, valor: '500.00' }] },
+      ],
+    };
+    await setup(page, state);
+    await page.goto(`${BASE}/repasse`);
+
+    const extrato = page.locator('details', { hasText: 'Extrato da produção' });
+    await expect(extrato).toBeVisible();
+    await extrato.locator('summary').click();
+    await expect(extrato.getByText('Corridas concluidas', { exact: false })).toBeVisible();
+    await expect(extrato.getByText('×4')).toBeVisible();
+    await expect(extrato.getByText('Promocao - Campanha w99')).toBeVisible();
+  });
+
+  test('sem extrato disponível (404), a tela do repasse continua inteira', async ({ page }) => {
+    const state = defaultState();
+    state.repasse = {
+      periodoInicio: '2026-09-10', periodoFim: '2026-09-16', dataRepasse: '2026-09-18',
+      situacao: 'EM_APURACAO', creditos: '1200.00', adiantamentos: [],
+      debitos: '0.00', remanescente: '1200.00', negativo: false,
+    };
+    state.extrato = null;   // a rota devolve 404
+    await setup(page, state);
+    await page.goto(`${BASE}/repasse`);
+
+    await expect(page.getByText('Previsão a receber')).toBeVisible();
+    await expect(page.locator('details', { hasText: 'Extrato da produção' })).toHaveCount(0);
+  });
+});
 
 test.describe('6.8.2 — alvos de toque >= 44x44 px (medido)', () => {
   for (const tela of TELAS_TOQUE) {

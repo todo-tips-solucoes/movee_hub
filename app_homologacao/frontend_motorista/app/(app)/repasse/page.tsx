@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { buscarRepasse, type Repasse } from '@/lib/adiantamento-api';
+import { buscarExtrato, buscarRepasse, type Extrato, type Repasse } from '@/lib/adiantamento-api';
 import { classificarErroRepasse } from '@/lib/repasse-estado';
 import { AlertCircle, AlertTriangle, ArrowLeft, EventRepeat, Info } from '@/components/ui/icons';
 
@@ -26,9 +26,14 @@ type Estado = Repasse | null | undefined | 'indisponivel';
 
 export default function RepassePage() {
   const [repasse, setRepasse] = useState<Estado>(undefined);
+  // F2: informação ADICIONAL. Se falhar, a tela do repasse continua inteira —
+  // mesmo princípio do `ultimoFechado` na rota.
+  const [extrato, setExtrato] = useState<Extrato | null>(null);
 
   const carregar = useCallback(() => {
     setRepasse(undefined);
+    setExtrato(null);
+    buscarExtrato().then(setExtrato).catch(() => setExtrato(null));
     buscarRepasse()
       .then(setRepasse)
       .catch((err: unknown) => {
@@ -117,6 +122,36 @@ export default function RepassePage() {
                 </dd>
               </div>
             </dl>
+
+            {extrato && extrato.dias.length > 0 && (
+              <details className="rounded-xl border border-border/60">
+                <summary className="flex min-h-11 cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium">
+                  <span>Extrato da produção</span>
+                  <span className="tabular text-muted-foreground">{formatCurrency(extrato.total)}</span>
+                </summary>
+                <div className="space-y-3 border-t border-border/60 px-3 py-3">
+                  {extrato.dias.map((dia) => (
+                    <div key={dia.data} className="space-y-1">
+                      <div className="flex items-baseline justify-between text-sm font-medium">
+                        <span>{formatDate(dia.data)}</span>
+                        <span className="tabular">{formatCurrency(dia.total)}</span>
+                      </div>
+                      <dl className="space-y-0.5 text-xs text-muted-foreground">
+                        {dia.itens.map((item) => (
+                          <div key={item.descricao} className="flex items-baseline justify-between gap-3">
+                            <dt className="min-w-0 truncate">
+                              {item.descricao}
+                              {item.quantidade > 1 && <span className="tabular"> ×{item.quantidade}</span>}
+                            </dt>
+                            <dd className="tabular shrink-0">{formatCurrency(item.valor)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
 
             {repasse.negativo && (
               <div className="flex items-start gap-2 rounded-xl bg-destructive/10 p-3 text-xs text-destructive">

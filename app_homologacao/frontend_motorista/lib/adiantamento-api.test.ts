@@ -23,6 +23,7 @@ import {
   buscarContaBancaria,
   buscarBancos,
   buscarNotificacoes,
+  buscarExtrato,
 } from './adiantamento-api.ts';
 import { ApiError } from './api-client.ts';
 import { traduzirErroAdiantamento } from './erros-adiantamento.ts';
@@ -236,4 +237,45 @@ test('traduzirErroAdiantamento: 400 DADOS_INVALIDOS vira mensagem pt-BR de negó
   const traduzido = traduzirErroAdiantamento(erro);
   assert.equal(traduzido.tipo, 'negocio');
   assert.equal(traduzido.mensagem, 'Alguns dados informados são inválidos. Confira e tente novamente.');
+});
+
+// ── F2 (briefing repasse-nota-producao): extrato da semana ────────────────
+
+test('buscarExtrato: aceita o corpo real de GET /repasse/extrato (migration 0089) sem lançar', async () => {
+  // Corpo literal que `routes/motorista-adiantamento.js` emite na rota nova.
+  stubFetch({ '/motorista/repasse/extrato': { status: 200, body: {
+    periodoInicio: '2026-09-22', periodoFim: '2026-09-28', total: '155.00',
+    dias: [
+      { data: '2026-09-22', total: '125.00', itens: [
+        { descricao: 'Corridas concluidas', quantidade: 2, valor: '100.00' },
+        { descricao: 'Promocao - Campanha w99 NOVA', quantidade: 1, valor: '25.00' },
+      ] },
+      { data: '2026-09-23', total: '30.00', itens: [
+        { descricao: 'Corridas concluidas', quantidade: 1, valor: '30.00' },
+      ] },
+    ],
+  } } });
+
+  const extrato = await buscarExtrato();
+  assert.equal(extrato.total, '155.00');
+  assert.equal(extrato.dias.length, 2);
+  assert.equal(extrato.dias[0].itens[0].quantidade, 2);
+  // A soma dos dias é o total — quem soma é o banco; aqui só conferimos que o
+  // corpo chega coerente (uma divergência aqui seria bug de contrato).
+  const soma = extrato.dias.reduce((acc, d) => acc + Number(d.total), 0);
+  assert.equal(soma.toFixed(2), extrato.total);
+});
+
+test('buscarExtrato: semana sem lançamentos vem com total 0,00 e lista vazia — não é erro', async () => {
+  stubFetch({ '/motorista/repasse/extrato': { status: 200, body: {
+    periodoInicio: '2026-09-22', periodoFim: '2026-09-28', total: '0.00', dias: [],
+  } } });
+  const extrato = await buscarExtrato();
+  assert.equal(extrato.total, '0.00');
+  assert.deepEqual(extrato.dias, []);
+});
+
+test('buscarExtrato: 404 NAO_DISPONIVEL lança ApiError — a tela trata como "não renderizar"', async () => {
+  stubFetch({ '/motorista/repasse/extrato': { status: 404, body: { erro: 'NAO_DISPONIVEL' } } });
+  await assert.rejects(() => buscarExtrato(), (e: unknown) => e instanceof ApiError && e.status === 404);
 });

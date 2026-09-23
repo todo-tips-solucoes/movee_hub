@@ -318,3 +318,33 @@ export interface Repasse {
 export function buscarRepasse(): Promise<Repasse> {
   return api.get<Repasse>('/motorista/repasse');
 }
+
+// --- F2: extrato da semana (briefing repasse-nota-producao) ---------------
+
+export interface ExtratoItem {
+  descricao: string;
+  /** Lançamentos daquela categoria no dia — 3 corridas viram uma linha só. */
+  quantidade: number;
+  valor: string;
+}
+
+export interface ExtratoDia {
+  data: string;
+  total: string;
+  itens: ExtratoItem[];
+}
+
+/** A MESMA semana do `/repasse`, aberta por dia e por categoria. O `total`
+ * vem somado do banco e é igual a `Repasse.creditos` — não recalcular aqui,
+ * senão a tela pode mostrar um número diferente do que o hub mostra. */
+export interface Extrato {
+  periodoInicio: string;
+  periodoFim: string;
+  total: string;
+  dias: ExtratoDia[];
+}
+
+/** 404 `{erro:'NAO_DISPONIVEL'}` nas mesmas condições do `/repasse`. */
+export function buscarExtrato(): Promise<Extrato> {
+  return api.get<Extrato>('/motorista/repasse/extrato');
+}
