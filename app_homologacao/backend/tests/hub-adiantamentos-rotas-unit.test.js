@@ -542,6 +542,25 @@ describe('4.1 solicitações', () => {
     assert.equal(r.body.eventos.length, 1);
   });
 
+  // Incidente 2026-09-22: abrir o detalhe em produção devolvia 500 —
+  // "permission denied for table AdiantamentoLote" (42501). O embed usava
+  // `lote:AdiantamentoLote(*)`, e `*` expande para TODAS as colunas, inclusive
+  // `arquivo`, que está FORA do GRANT por coluna (dec-023/CHK010: os bytes só
+  // saem pela RPC de download). O arquivo já tinha `SELECT_LOTE` para isso,
+  // usado em 5 outros pontos — só este ficou de fora. `has_table_privilege`
+  // não denuncia: com GRANT por coluna ele devolve false mesmo havendo acesso.
+  test('GET /:id NUNCA pede select=* em AdiantamentoLote (GRANT é por coluna)', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/100', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    const embedsLote = chamadasPostgrest.filter((c) => String(c.endpoint).includes('AdiantamentoLote'));
+    assert.ok(embedsLote.length > 0, 'o detalhe precisa ler os lotes');
+    for (const c of embedsLote) {
+      assert.ok(!/AdiantamentoLote\(\*\)/.test(c.endpoint), `select=* em AdiantamentoLote: ${c.endpoint}`);
+      assert.ok(!/\barquivo\b(?!_)/.test(c.endpoint), `pediu a coluna proibida "arquivo": ${c.endpoint}`);
+    }
+    assert.ok(embedsLote.some((c) => c.endpoint.includes('arquivo_sha256')), 'as colunas liberadas continuam sendo pedidas');
+  });
+
   test('GET /:id inexistente -> 404 NAO_ENCONTRADO', async () => {
     const r = await request('GET', '/api/v1/adiantamentos/999', { cookie: tokenCookie() });
     assert.equal(r.status, 404);

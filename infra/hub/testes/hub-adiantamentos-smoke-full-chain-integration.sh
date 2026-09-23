@@ -179,6 +179,18 @@ async function main() {
   out.validacao_ok = validacao.ok;
   out.validacao_falhas = validacao.falhas;
 
+  // Detalhe da solicitação COM lote já criado: é o embed
+  // `lote:AdiantamentoLote(...)` que o incidente de 2026-09-22 derrubou com
+  // `select=*` — o GRANT de AdiantamentoLote é por COLUNA e exclui `arquivo`,
+  // então `*` faz o Postgres negar a query inteira (42501). Nenhum unit test
+  // pega: eles mockam o PostgREST. Só a cadeia HTTP real pega.
+  const rDetalhe = await fetch(`http://localhost:3000/api/v1/adiantamentos/${solicitacaoId}`, { headers: { Cookie: cookieHeader(jar) } });
+  out.detalhe_status = rDetalhe.status;
+  const bDetalhe = rDetalhe.status === 200 ? await rDetalhe.json() : {};
+  out.detalhe_tem_lote = Array.isArray(bDetalhe.lotes) && bDetalhe.lotes.length > 0 ? 'true' : 'false';
+  out.detalhe_lote_sem_bytes_do_arquivo = bDetalhe.lotes && bDetalhe.lotes[0]
+    ? (bDetalhe.lotes[0].arquivo === undefined ? 'true' : 'false') : 'null';
+
   process.stdout.write(JSON.stringify(out));
 }
 main().catch((e) => { console.error('ERRO:', e && e.stack || e); process.exit(1); });
@@ -202,6 +214,14 @@ check "10.7.1: download real -> Content-Type xlsx" "$(G arquivo_content_type)" "
 BYTES="$(G arquivo_bytes)"
 check "10.7.1: download real -> arquivo não vazio" "$([ "${BYTES:-0}" -gt 0 ] 2>/dev/null && echo true || echo false)" "true"
 check "10.7.1: conteúdo baixado bate com o informado pela API (quantidade e soma, validador real)" "$(G validacao_ok)" "true"
+
+# Incidente 2026-09-22: o detalhe devolvia 500 ("permission denied for table
+# AdiantamentoLote") porque o embed pedia `select=*` numa tabela cujo GRANT é
+# por COLUNA. O smoke cobria lista e download, mas NÃO o detalhe — foi por esse
+# buraco que o defeito chegou à produção.
+check "10.7.1: GET /adiantamentos/:id (detalhe real, com lote) -> 200" "$(G detalhe_status)" "200"
+check "10.7.1: detalhe real traz o lote no embed" "$(G detalhe_tem_lote)" "true"
+check "10.7.1: detalhe real NÃO devolve os bytes do arquivo (dec-023/CHK010)" "$(G detalhe_lote_sem_bytes_do_arquivo)" "true"
 
 echo ""
 echo "===================================================================="
