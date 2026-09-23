@@ -57,6 +57,7 @@ const {
   rotuloStatusAdiantamento, mapConfiguracao, mapContaCompleta, mapSolicitacaoResumo,
   mapEvento, mapLote, mapLoteItem,
 } = require('../lib/adiantamento-dto');
+const { placeholdersInvalidos, PLACEHOLDERS_PERMITIDOS } = require('../lib/adiantamento-mensagem');
 const {
   montarPlanilhaTransfeera, validarPlanilhaTransfeera, nomeArquivoTransfeera, renderizarDescricaoPix,
 } = require('../lib/adiantamento-transfeera-xlsx');
@@ -496,12 +497,29 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
     const CAMPOS = [
       'vigenteDesde', 'motivo', 'diasHabilitados', 'horarioAbertura', 'horarioCorte', 'percentual', 'taxaFixa',
       'fonteProducao', 'categoriasProducao', 'previsaoPagamentoTexto', 'descricaoPixModelo', 'apuracaoDiaInicio',
-      'apuracaoDiasAteRepasse', 'apuracaoDataBase', 'categoriasExtrato', 'categoriasNota', 'descontoAdiantamentos', 'descontoDebitos',
+      'apuracaoDiasAteRepasse', 'apuracaoDataBase', 'categoriasExtrato', 'categoriasNota',
+      'mensagem1Modelo', 'mensagem2Modelo', 'descontoAdiantamentos', 'descontoDebitos',
       'repasseVisivelApp',
     ];
     const dados = {};
     for (const campo of CAMPOS) {
       if (corpo[campo] !== undefined) dados[campo] = corpo[campo];
+    }
+
+    // F4: molde de mensagem só pode citar placeholder da whitelist — o texto é
+    // editável aqui e vai para o WhatsApp do motorista via `EnvioMassa`.
+    // Recusar no salvamento, e não só na geração: descobrir molde inválido na
+    // hora de gerar as notas da semana seria tarde demais.
+    for (const campo of ['mensagem1Modelo', 'mensagem2Modelo']) {
+      if (dados[campo] === undefined) continue;
+      const proibidos = placeholdersInvalidos(dados[campo]);
+      if (proibidos.length) {
+        return res.status(400).json({
+          erro: 'DADOS_INVALIDOS', motivo: campo,
+          placeholdersInvalidos: proibidos,
+          placeholdersPermitidos: [...PLACEHOLDERS_PERMITIDOS],
+        });
+      }
     }
 
     // 11.12 (converge onda-040, FR-024): "antes" é a linha vigente ANTES do
@@ -545,7 +563,8 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
     const CAMPOS_COLUNA = [
       'vigente_desde', 'motivo', 'dias_habilitados', 'horario_abertura', 'horario_corte', 'percentual', 'taxa_fixa',
       'fonte_producao', 'categorias_producao', 'previsao_pagamento_texto', 'descricao_pix_modelo', 'apuracao_dia_inicio',
-      'apuracao_dias_ate_repasse', 'apuracao_data_base', 'categorias_extrato', 'categorias_nota', 'desconto_adiantamentos', 'desconto_debitos',
+      'apuracao_dias_ate_repasse', 'apuracao_data_base', 'categorias_extrato', 'categorias_nota',
+      'mensagem1_modelo', 'mensagem2_modelo', 'desconto_adiantamentos', 'desconto_debitos',
       'repasse_visivel_app',
     ];
     // 12.2 (converge onda-044, FR-024): quando a leitura de `linhaAntes`

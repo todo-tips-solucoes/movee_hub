@@ -22,6 +22,7 @@ import {
   obterSolicitacao,
   previaLote,
   rejeitarSolicitacao,
+  MARCADORES_MENSAGEM,
 } from './adiantamentos-api';
 
 function respostaFake(body: unknown, status = 200) {
@@ -251,5 +252,24 @@ describe('adiantamentos-api — roundtrip com payload real (routes/hub-adiantame
       codigo: 'APURACAO_COM_PENDENCIAS',
       detalhe: { LIBERADA: 2, FALHOU: 1 },
     });
+  });
+});
+
+// F4: a lista de marcadores que a tela mostra é uma CÓPIA da whitelist do
+// backend. Cópia sem trava diverge em silêncio — e o sintoma seria o pior
+// possível: a tela oferece um marcador que o salvamento recusa, ou esconde um
+// que funciona. Este teste lê o arquivo do backend e compara.
+describe('MARCADORES_MENSAGEM x whitelist do backend', () => {
+  it('bate exatamente com PLACEHOLDERS_PERMITIDOS de lib/adiantamento-mensagem.js', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const fonte = readFileSync(
+      resolve(__dirname, '../../../backend/lib/adiantamento-mensagem.js'), 'utf8');
+
+    const bloco = /PLACEHOLDERS_PERMITIDOS = new Set\(\[([\s\S]*?)\]\)/.exec(fonte);
+    expect(bloco, 'não achei PLACEHOLDERS_PERMITIDOS no backend — o teste ficou cego').not.toBeNull();
+    const doBackend = [...bloco![1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+
+    expect([...MARCADORES_MENSAGEM].sort()).toEqual([...doBackend].sort());
   });
 });

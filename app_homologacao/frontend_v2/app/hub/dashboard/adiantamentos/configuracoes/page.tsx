@@ -35,6 +35,7 @@ import {
   listarCategoriasProducao,
   salvarConfiguracao,
   type CategoriaProducao,
+  MARCADORES_MENSAGEM,
   type Configuracao,
   type ConfiguracaoHistoricoItem,
 } from '@/lib/hub/adiantamentos-api';
@@ -77,6 +78,9 @@ interface FormState {
   categoriasExtrato: string[];
   /** F3: subconjunto do extrato que compõe a base da nota. */
   categoriasNota: string[];
+  /** F4: moldes das mensagens do movimento gerado pelo hub. */
+  mensagem1Modelo: string;
+  mensagem2Modelo: string;
   descontoAdiantamentos: boolean;
   descontoDebitos: boolean;
   repasseVisivelApp: boolean;
@@ -102,6 +106,8 @@ function formDe(c: Configuracao | null): FormState {
     apuracaoDataBase: c?.apuracaoDataBase ?? '',
     categoriasExtrato: c?.categoriasExtrato ?? [],
     categoriasNota: c?.categoriasNota ?? [],
+    mensagem1Modelo: c?.mensagem1Modelo ?? '',
+    mensagem2Modelo: c?.mensagem2Modelo ?? '',
     descontoAdiantamentos: c?.descontoAdiantamentos ?? true,
     descontoDebitos: c?.descontoDebitos ?? false,
     repasseVisivelApp: c?.repasseVisivelApp ?? false,
@@ -209,6 +215,8 @@ function useConfiguracaoAdiantamento() {
         apuracaoDataBase: form.apuracaoDataBase || undefined,
         categoriasExtrato: form.categoriasExtrato.length ? form.categoriasExtrato : undefined,
         categoriasNota: form.categoriasNota.length ? form.categoriasNota : undefined,
+        mensagem1Modelo: form.mensagem1Modelo || undefined,
+        mensagem2Modelo: form.mensagem2Modelo || undefined,
         descontoAdiantamentos: form.descontoAdiantamentos,
         descontoDebitos: form.descontoDebitos,
         repasseVisivelApp: form.repasseVisivelApp,
@@ -525,6 +533,29 @@ export default function ConfiguracoesAdiantamentoPage() {
                     placeholder="Antecipação {nome}"
                   />
                   <span className="text-xs text-muted-foreground">Precisa conter o marcador literal &quot;{'{nome}'}&quot;.</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">Mensagens do movimento gerado</span>
+                  <span className="text-xs text-muted-foreground">
+                    Vão para o WhatsApp do motorista quando o hub gerar as notas da semana. Marcadores
+                    aceitos: {MARCADORES_MENSAGEM.map((m) => `{${m}}`).join(', ')}. Qualquer outro é recusado ao salvar.
+                  </span>
+                  <Input
+                    id={`${inputId}-msg1`}
+                    aria-label="Modelo da mensagem 1"
+                    className="mt-1 font-mono"
+                    value={c.form.mensagem1Modelo}
+                    onChange={(e) => c.setForm((f) => ({ ...f, mensagem1Modelo: e.target.value }))}
+                    placeholder="Ola {nome}, sua nota da semana e {valor}."
+                  />
+                  <Input
+                    id={`${inputId}-msg2`}
+                    aria-label="Modelo da mensagem 2"
+                    className="font-mono"
+                    value={c.form.mensagem2Modelo}
+                    onChange={(e) => c.setForm((f) => ({ ...f, mensagem2Modelo: e.target.value }))}
+                    placeholder="Gorjeta de {gorjeta}, total a receber {total}."
+                  />
                 </div>
               </CardContent>
             </Card>

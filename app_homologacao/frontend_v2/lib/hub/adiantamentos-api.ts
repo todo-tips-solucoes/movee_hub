@@ -283,11 +283,23 @@ export interface Configuracao {
   categoriasExtrato: string[] | null;
   /** F3: subconjunto do extrato que compõe a base da nota. `null` = não configurado. */
   categoriasNota: string[] | null;
+  mensagem1Modelo: string | null;
+  mensagem2Modelo: string | null;
   descontoAdiantamentos: boolean;
   descontoDebitos: boolean;
   repasseVisivelApp: boolean;
   completa: boolean;
 }
+
+/** F4: marcadores aceitos nos moldes de mensagem do movimento.
+ *  ⚠️ A fonte de verdade é a whitelist do backend
+ *  (`lib/adiantamento-mensagem.js#PLACEHOLDERS_PERMITIDOS`), que RECUSA o
+ *  salvamento com qualquer outro. Esta cópia existe só para a tela explicar o
+ *  que vale; `adiantamentos-api.test.ts` lê o arquivo do backend e falha se as
+ *  duas listas divergirem. */
+export const MARCADORES_MENSAGEM = [
+  'nome', 'valor', 'gorjeta', 'total', 'periodo_inicio', 'periodo_fim',
+] as const;
 
 export interface ConfiguracaoHistoricoItem {
   versao: number;
@@ -329,6 +341,8 @@ export interface SalvarConfiguracaoInput {
   apuracaoDataBase?: string;
   categoriasExtrato?: string[];
   categoriasNota?: string[];
+  mensagem1Modelo?: string;
+  mensagem2Modelo?: string;
   descontoAdiantamentos?: boolean;
   descontoDebitos?: boolean;
   repasseVisivelApp?: boolean;
