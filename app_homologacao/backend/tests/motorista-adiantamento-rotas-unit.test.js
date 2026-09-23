@@ -934,6 +934,54 @@ function repasseRow(overrides) {
   );
 }
 
+// --- F2: GET /motorista/repasse/extrato (briefing repasse-nota-producao) ---
+describe('GET /motorista/repasse/extrato', () => {
+  const extratoRow = () => ({
+    visivel: true,
+    periodo_inicio: '2026-09-22',
+    periodo_fim: '2026-09-28',
+    total: '155.00',
+    dias: [
+      { data: '2026-09-22', total: '125.00', itens: [
+        { descricao: 'Corridas concluidas', quantidade: 2, valor: '100.00' },
+        { descricao: 'Promocao - Campanha w99 NOVA', quantidade: 1, valor: '25.00' },
+      ] },
+      { data: '2026-09-23', total: '30.00', itens: [
+        { descricao: 'Corridas concluidas', quantidade: 1, valor: '30.00' },
+      ] },
+    ],
+  });
+
+  test('visivel:true -> 200 com o consolidado da semana e o de cada dia', async () => {
+    mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [extratoRow()];
+    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.periodoInicio, '2026-09-22');
+    assert.equal(r.body.periodoFim, '2026-09-28');
+    assert.equal(r.body.total, '155.00');
+    assert.equal(r.body.dias.length, 2);
+    // a soma dos dias é o total da semana — uma conta só, feita no banco
+    const soma = r.body.dias.reduce((acc, d) => acc + Number(d.total), 0);
+    assert.equal(soma.toFixed(2), r.body.total);
+    assert.deepEqual(r.body.dias[0].itens[0], { descricao: 'Corridas concluidas', quantidade: 2, valor: '100.00' });
+  });
+
+  test('visivel:false -> 404 NAO_DISPONIVEL (mesma guarda do /repasse)', async () => {
+    mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [{ visivel: false, periodo_inicio: null, periodo_fim: null, total: null, dias: null }];
+    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
+    assert.equal(r.status, 404);
+    assert.equal(r.body.erro, 'NAO_DISPONIVEL');
+  });
+
+  test('semana sem lançamentos -> 200 com total 0,00 e lista vazia (não é erro)', async () => {
+    mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [{ ...extratoRow(), total: '0.00', dias: [] }];
+    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.total, '0.00');
+    assert.deepEqual(r.body.dias, []);
+  });
+});
+
 describe('GET /motorista/repasse', () => {
   test('visivel:true -> 200 com previsão mapeada (D-11: 1000 - 129,40 = 870,60)', async () => {
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow()];

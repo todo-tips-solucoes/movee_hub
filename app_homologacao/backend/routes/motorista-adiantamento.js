@@ -907,4 +907,41 @@ router.get('/repasse', async (req, res) => {
   });
 });
 
+// --- F2 GET /repasse/extrato --------------------------------------------
+// briefing docs/plans/repasse-nota-producao §F2; migration 0089. O motorista
+// via só o TOTAL do repasse e não de onde ele vinha. A RPC devolve a MESMA
+// semana do `/repasse` (mesma janela, mesmas categorias, mesma regra de
+// família), aberta por dia e por categoria — e o total já vem somado no banco,
+// para não existir uma segunda conta que possa divergir da do repasse.
+// 404 NAO_DISPONIVEL nas mesmas condições do `/repasse` (a tela não renderiza).
+router.get('/repasse/extrato', async (req, res) => {
+  let linhas;
+  try {
+    linhas = await hubPostgrestRequest('rpc/hub_adiantamento_extrato_motorista', 'POST', {}, claimsMotorista(req));
+  } catch (e) {
+    logErro('GET /repasse/extrato', e);
+    return res.status(502).json({ erro: 'INDISPONIVEL' });
+  }
+
+  const row = Array.isArray(linhas) && linhas[0];
+  if (!row || !row.visivel) {
+    return res.status(404).json({ erro: 'NAO_DISPONIVEL' });
+  }
+
+  res.json({
+    periodoInicio: row.periodo_inicio,
+    periodoFim: row.periodo_fim,
+    total: dinheiro(row.total),
+    dias: (row.dias || []).map((d) => ({
+      data: d.data,
+      total: dinheiro(d.total),
+      itens: (d.itens || []).map((i) => ({
+        descricao: i.descricao,
+        quantidade: i.quantidade,
+        valor: dinheiro(i.valor),
+      })),
+    })),
+  });
+});
+
 module.exports = { router };
