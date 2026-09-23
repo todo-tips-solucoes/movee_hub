@@ -121,6 +121,9 @@ function mapConfiguracao(row) {
     apuracaoDiasAteRepasse: row.apuracao_dias_ate_repasse,
     apuracaoDataBase: row.apuracao_data_base,
     categoriasExtrato: row.categorias_extrato,
+    // F3: subconjunto do extrato que compõe a base da nota. `null` = ainda não
+    // configurado — a tela do motorista não mostra divisão nenhuma.
+    categoriasNota: row.categorias_nota ?? null,
     descontoAdiantamentos: row.desconto_adiantamentos,
     descontoDebitos: row.desconto_debitos,
     repasseVisivelApp: row.repasse_visivel_app,

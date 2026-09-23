@@ -38,7 +38,7 @@ import {
   type Configuracao,
   type ConfiguracaoHistoricoItem,
 } from '@/lib/hub/adiantamentos-api';
-import { filtrarItensCategoria, montarItensCategoria, type ItemCategoria } from '@/lib/hub/adiantamento-categorias';
+import { filtrarItensCategoria, montarItensCategoria, type ItemCategoria, restringirAoExtrato } from '@/lib/hub/adiantamento-categorias';
 import { diaDoRepasse, diasAteRepasse } from '@/lib/hub/adiantamento-repasse';
 import { LARGURA_DETALHE } from '@/lib/hub/larguras';
 import { cn, formatDateBR } from '@/lib/utils';
@@ -75,6 +75,8 @@ interface FormState {
   apuracaoDiaRepasse: string;
   apuracaoDataBase: string;
   categoriasExtrato: string[];
+  /** F3: subconjunto do extrato que compõe a base da nota. */
+  categoriasNota: string[];
   descontoAdiantamentos: boolean;
   descontoDebitos: boolean;
   repasseVisivelApp: boolean;
@@ -99,6 +101,7 @@ function formDe(c: Configuracao | null): FormState {
         : '',
     apuracaoDataBase: c?.apuracaoDataBase ?? '',
     categoriasExtrato: c?.categoriasExtrato ?? [],
+    categoriasNota: c?.categoriasNota ?? [],
     descontoAdiantamentos: c?.descontoAdiantamentos ?? true,
     descontoDebitos: c?.descontoDebitos ?? false,
     repasseVisivelApp: c?.repasseVisivelApp ?? false,
@@ -205,6 +208,7 @@ function useConfiguracaoAdiantamento() {
             : undefined,
         apuracaoDataBase: form.apuracaoDataBase || undefined,
         categoriasExtrato: form.categoriasExtrato.length ? form.categoriasExtrato : undefined,
+        categoriasNota: form.categoriasNota.length ? form.categoriasNota : undefined,
         descontoAdiantamentos: form.descontoAdiantamentos,
         descontoDebitos: form.descontoDebitos,
         repasseVisivelApp: form.repasseVisivelApp,
@@ -584,6 +588,14 @@ export default function ConfiguracoesAdiantamentoPage() {
                   selecionadas={c.form.categoriasExtrato}
                   onChange={(categoriasExtrato) => c.setForm((f) => ({ ...f, categoriasExtrato }))}
                   aviso="Sem nenhuma categoria marcada, o repasse de todas as semanas fica zerado."
+                />
+                <SeletorCategorias
+                  titulo="Dessas, quais entram na nota"
+                  textoVazio="Marque primeiro as categorias do repasse, acima."
+                  disponiveis={restringirAoExtrato(c.categoriasDisponiveis, c.form.categoriasExtrato)}
+                  selecionadas={c.form.categoriasNota}
+                  onChange={(categoriasNota) => c.setForm((f) => ({ ...f, categoriasNota }))}
+                  aviso="Enquanto nada estiver marcado, o app do motorista mostra só o total, sem separar o que entra na nota."
                 />
                 <div className="flex flex-col gap-1.5">
                   <span className="text-sm font-medium">Descontos considerados</span>

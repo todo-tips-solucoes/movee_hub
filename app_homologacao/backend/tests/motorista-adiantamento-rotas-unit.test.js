@@ -941,13 +941,17 @@ describe('GET /motorista/repasse/extrato', () => {
     periodo_inicio: '2026-09-22',
     periodo_fim: '2026-09-28',
     total: '155.00',
+    // F3 (migration 0090): a divisão só existe depois que alguém configura
+    // `categorias_nota`. Este é o retrato de DEPOIS de configurar.
+    total_nota: '130.00',
+    total_outros: '25.00',
     dias: [
       { data: '2026-09-22', total: '125.00', itens: [
-        { descricao: 'Corridas concluidas', quantidade: 2, valor: '100.00' },
-        { descricao: 'Promocao - Campanha w99 NOVA', quantidade: 1, valor: '25.00' },
+        { descricao: 'Corridas concluidas', quantidade: 2, valor: '100.00', naNota: true },
+        { descricao: 'Promocao - Campanha w99 NOVA', quantidade: 1, valor: '25.00', naNota: false },
       ] },
       { data: '2026-09-23', total: '30.00', itens: [
-        { descricao: 'Corridas concluidas', quantidade: 1, valor: '30.00' },
+        { descricao: 'Corridas concluidas', quantidade: 1, valor: '30.00', naNota: true },
       ] },
     ],
   });
@@ -963,11 +967,30 @@ describe('GET /motorista/repasse/extrato', () => {
     // a soma dos dias é o total da semana — uma conta só, feita no banco
     const soma = r.body.dias.reduce((acc, d) => acc + Number(d.total), 0);
     assert.equal(soma.toFixed(2), r.body.total);
-    assert.deepEqual(r.body.dias[0].itens[0], { descricao: 'Corridas concluidas', quantidade: 2, valor: '100.00' });
+    assert.deepEqual(r.body.dias[0].itens[0], { descricao: 'Corridas concluidas', quantidade: 2, valor: '100.00', naNota: true });
+    // F3: a divisão reparte o total, nunca o reduz.
+    assert.equal(r.body.totalNota, '130.00');
+    assert.equal(r.body.totalOutros, '25.00');
+    assert.equal((Number(r.body.totalNota) + Number(r.body.totalOutros)).toFixed(2), r.body.total);
+  });
+
+  // F3: estado em que a 0090 deixa produção — ninguém configurou ainda.
+  test('sem categorias_nota configurada -> totalNota/totalOutros nulos e nenhum item marcado', async () => {
+    const semNota = extratoRow();
+    semNota.total_nota = null;
+    semNota.total_outros = null;
+    for (const d of semNota.dias) for (const i of d.itens) i.naNota = null;
+    mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [semNota];
+    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.total, '155.00');   // o total NÃO muda
+    assert.equal(r.body.totalNota, null);
+    assert.equal(r.body.totalOutros, null);
+    assert.equal(r.body.dias[0].itens[0].naNota, null);
   });
 
   test('visivel:false -> 404 NAO_DISPONIVEL (mesma guarda do /repasse)', async () => {
-    mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [{ visivel: false, periodo_inicio: null, periodo_fim: null, total: null, dias: null }];
+    mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [{ visivel: false, periodo_inicio: null, periodo_fim: null, total: null, total_nota: null, total_outros: null, dias: null }];
     const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
     assert.equal(r.status, 404);
     assert.equal(r.body.erro, 'NAO_DISPONIVEL');

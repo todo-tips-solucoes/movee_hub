@@ -281,6 +281,8 @@ export interface Configuracao {
   apuracaoDiasAteRepasse: number | null;
   apuracaoDataBase: string | null;
   categoriasExtrato: string[] | null;
+  /** F3: subconjunto do extrato que compõe a base da nota. `null` = não configurado. */
+  categoriasNota: string[] | null;
   descontoAdiantamentos: boolean;
   descontoDebitos: boolean;
   repasseVisivelApp: boolean;
@@ -326,6 +328,7 @@ export interface SalvarConfiguracaoInput {
   apuracaoDiasAteRepasse?: number;
   apuracaoDataBase?: string;
   categoriasExtrato?: string[];
+  categoriasNota?: string[];
   descontoAdiantamentos?: boolean;
   descontoDebitos?: boolean;
   repasseVisivelApp?: boolean;

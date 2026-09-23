@@ -102,6 +102,17 @@ repasse que o hub mostra.
 **Pronto quando:** o motorista enxerga quanto vai para a nota e quanto não vai, antes de
 qualquer nota ser emitida.
 
+**Restrição do operador (2026-09-23):** a F3 só vai a produção se **não alterar os valores
+que já vêm nesta semana**. Por isso a migration 0090 é puramente aditiva: a coluna
+`categorias_nota` nasce **nula**, o `total` do extrato continua sendo a soma de TUDO, e as
+três funções de repasse **não são tocadas**. A divisão (`total_nota`/`total_outros`,
+`naNota` por item) vem **nula** até alguém configurar — nesse estado a tela do motorista
+fica idêntica à de hoje. A prova está no driver
+`infra/hub/testes/hub-categoria-entra-na-nota.sh`, que tira um retrato do repasse e do
+extrato **antes** da migration e compara depois, na mesma transação, com três controles
+negativos (`SEM_MIGRATION=1`, `CONTROLE_TOTAL=1`, `CONTROLE_JANELA=1`) e o rollback
+conferido (`ROLLBACK=1`).
+
 ### F4 — Gerar o movimento a partir do repasse (o coração da mudança)
 
 - Botão no hub: **"gerar notas da semana"** para uma apuração **fechada**.

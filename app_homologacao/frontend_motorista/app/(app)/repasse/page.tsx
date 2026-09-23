@@ -130,6 +130,21 @@ export default function RepassePage() {
                   <span className="tabular text-muted-foreground">{formatCurrency(extrato.total)}</span>
                 </summary>
                 <div className="space-y-3 border-t border-border/60 px-3 py-3">
+                  {/* `!= null` cobre o backend antigo, que nem manda o campo:
+                       entre o deploy do app e a migration a seção some inteira
+                       em vez de mostrar "—". */}
+                  {extrato.totalNota != null && (
+                    <dl className="space-y-1 rounded-lg bg-muted/60 px-2.5 py-2 text-xs">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <dt>Entra na nota</dt>
+                        <dd className="tabular font-medium">{formatCurrency(extrato.totalNota)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 text-muted-foreground">
+                        <dt>Fora da nota</dt>
+                        <dd className="tabular">{formatCurrency(extrato.totalOutros)}</dd>
+                      </div>
+                    </dl>
+                  )}
                   {extrato.dias.map((dia) => (
                     <div key={dia.data} className="space-y-1">
                       <div className="flex items-baseline justify-between text-sm font-medium">

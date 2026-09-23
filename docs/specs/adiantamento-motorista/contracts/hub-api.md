@@ -77,7 +77,7 @@ arquivo, como `disparoRateLimiter` em `hub-avisos.js:209`.
 |---|---|---|---|
 | `GET /configuracoes` | `consultar` | — | `{vigente: Configuracao, historico:[{versao, vigenteDesde, criadoPor, criadoEm, motivo, alteracoes}]}` |
 | `GET /configuracoes/categorias` | `consultar` | `?fonte=` | `{itens:[{descricao, lancamentos, semMotoristaIdentificado}]}` — últimos 90 dias |
-| `PUT /configuracoes` | `configurar` | `{versaoEsperada, vigenteDesde?, motivo?, diasHabilitados, horarioAbertura, horarioCorte, percentual, taxaFixa, fonteProducao, categoriasProducao, previsaoPagamentoTexto, descricaoPixModelo, apuracaoDiaInicio, apuracaoDiasAteRepasse, apuracaoDataBase, categoriasExtrato, descontoAdiantamentos, descontoDebitos, repasseVisivelApp}` | 201 `Configuracao` (N+1); 409 `VERSAO_DESATUALIZADA`; 400 `DADOS_INVALIDOS` |
+| `PUT /configuracoes` | `configurar` | `{versaoEsperada, vigenteDesde?, motivo?, diasHabilitados, horarioAbertura, horarioCorte, percentual, taxaFixa, fonteProducao, categoriasProducao, previsaoPagamentoTexto, descricaoPixModelo, apuracaoDiaInicio, apuracaoDiasAteRepasse, apuracaoDataBase, categoriasExtrato, categoriasNota, descontoAdiantamentos, descontoDebitos, repasseVisivelApp}` | 201 `Configuracao` (N+1); 409 `VERSAO_DESATUALIZADA`; 400 `DADOS_INVALIDOS` |
 
 `Configuracao`: os mesmos campos em camelCase + `versao`, `vigenteDesde`, `timezone`,
 `completa` (FR-025). Auditoria `adiantamento.configuracao_alterada` com o diff.
