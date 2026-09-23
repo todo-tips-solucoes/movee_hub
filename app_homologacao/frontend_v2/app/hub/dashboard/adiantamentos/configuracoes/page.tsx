@@ -157,13 +157,11 @@ function useConfiguracaoAdiantamento() {
     buscar();
   }, [buscar]);
 
+  // Sem depender da fonte: o EXTRATO (repasse semanal) usa a mesma lista de
+  // categorias do faturamento, e existe mesmo com a fonte da produção vazia.
   useEffect(() => {
-    if (!form.fonteProducao) {
-      setCategoriasDisponiveis([]);
-      return;
-    }
     let cancelado = false;
-    listarCategoriasProducao(form.fonteProducao)
+    listarCategoriasProducao(form.fonteProducao || undefined)
       .then((r) => {
         if (!cancelado) setCategoriasDisponiveis(r.itens);
       })
@@ -290,10 +288,15 @@ function detalheCategoria(i: ItemCategoria): string {
 // Só aparecem categorias com ao menos um lançamento COM motorista (0087), e
 // as famílias (Promoção, Missões) vêm dobradas num item só — marcar a família
 // inclui também as campanhas que surgirem depois.
-function CategoriasProducao({ disponiveis, selecionadas, onChange }: {
+function SeletorCategorias({ titulo, textoVazio, disponiveis, selecionadas, onChange, aviso }: {
+  titulo: string;
+  textoVazio: string;
   disponiveis: CategoriaProducao[];
   selecionadas: string[];
   onChange: (categorias: string[]) => void;
+  /** Mostrado quando nada está selecionado — o silêncio do repasse zerado
+   *  custou meses sem ninguém perceber (F1, briefing repasse-nota-producao). */
+  aviso?: string;
 }) {
   const [busca, setBusca] = useState('');
   const itens = montarItensCategoria(disponiveis, selecionadas);
@@ -307,13 +310,13 @@ function CategoriasProducao({ disponiveis, selecionadas, onChange }: {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-        <span className="text-sm font-medium">Categorias que entram na produção</span>
+        <span className="text-sm font-medium">{titulo}</span>
         {itens.length > 0 && (
           <span className="text-xs text-muted-foreground tabular-nums">{selecionadas.length} de {itens.length} selecionadas</span>
         )}
       </div>
       {itens.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Escolha uma fonte para ver as categorias encontradas nos últimos 90 dias.</p>
+        <p className="text-xs text-muted-foreground">{textoVazio}</p>
       ) : (
         <>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -337,7 +340,7 @@ function CategoriasProducao({ disponiveis, selecionadas, onChange }: {
           {visiveis.length === 0 ? (
             <p className="text-xs text-muted-foreground">Nenhuma categoria encontrada para “{busca.trim()}”.</p>
           ) : (
-            <div role="group" aria-label="Categorias que entram na produção" className="flex flex-wrap gap-1.5">
+            <div role="group" aria-label={titulo} className="flex flex-wrap gap-1.5">
               {visiveis.map((i) => (
                 <Chip key={i.chave} ativo={selecionadas.includes(i.chave)} onClick={() => onChange(toggleItem(selecionadas, i.chave))}>
                   {i.rotulo}
@@ -345,6 +348,9 @@ function CategoriasProducao({ disponiveis, selecionadas, onChange }: {
                 </Chip>
               ))}
             </div>
+          )}
+          {aviso && selecionadas.length === 0 && (
+            <p className="text-xs text-amber-600 dark:text-amber-500">{aviso}</p>
           )}
           {familias.length > 0 && (
             <p className="text-xs text-muted-foreground">
@@ -458,8 +464,10 @@ export default function ConfiguracoesAdiantamentoPage() {
                     ))}
                   </div>
                 </div>
-                <CategoriasProducao
-                  disponiveis={c.categoriasDisponiveis}
+                <SeletorCategorias
+                  titulo="Categorias que entram na produção"
+                  textoVazio="Escolha uma fonte para ver as categorias encontradas nos últimos 90 dias."
+                  disponiveis={c.form.fonteProducao ? c.categoriasDisponiveis : []}
                   selecionadas={c.form.categoriasProducao}
                   onChange={(categoriasProducao) => c.setForm((f) => ({ ...f, categoriasProducao }))}
                 />
@@ -569,6 +577,14 @@ export default function ConfiguracoesAdiantamentoPage() {
                     ))}
                   </select>
                 </div>
+                <SeletorCategorias
+                  titulo="Categorias que entram no repasse (extrato)"
+                  textoVazio="Nenhuma categoria encontrada nos últimos 90 dias."
+                  disponiveis={c.categoriasDisponiveis}
+                  selecionadas={c.form.categoriasExtrato}
+                  onChange={(categoriasExtrato) => c.setForm((f) => ({ ...f, categoriasExtrato }))}
+                  aviso="Sem nenhuma categoria marcada, o repasse de todas as semanas fica zerado."
+                />
                 <div className="flex flex-col gap-1.5">
                   <span className="text-sm font-medium">Descontos considerados</span>
                   <label className="flex cursor-pointer items-center gap-2 text-sm">

@@ -2,7 +2,7 @@
 // configuração — carregamento, histórico, permissão de edição e o
 // tratamento do conflito 409 VERSAO_DESATUALIZADA (FR-023/7.4.3: o
 // formulário NUNCA perde o que foi digitado).
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ConfiguracoesAdiantamentoPage from './page';
 import { AdiantamentosApiError } from '@/lib/hub/adiantamentos-api';
@@ -133,12 +133,14 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     mockSalvarConfiguracao.mockResolvedValueOnce({ ...VIGENTE_BASE, versao: 4 });
     render(<ConfiguracoesAdiantamentoPage />);
 
-    const promo = await screen.findByRole('button', { name: /^Promoção/ });
+    // Há DOIS seletores na tela (produção e extrato): escopar no da produção.
+    const grupo = await screen.findByRole('group', { name: 'Categorias que entram na produção' });
+    const promo = within(grupo).getByRole('button', { name: /^Promoção/ });
     expect(promo).toHaveTextContent('2 campanhas');
-    expect(screen.queryByRole('button', { name: /Campanha w97/ })).not.toBeInTheDocument();
+    expect(within(grupo).queryByRole('button', { name: /Campanha w97/ })).not.toBeInTheDocument();
     // 'corrida' está salva em VIGENTE_BASE mas não veio na lista: tem que aparecer para poder desmarcar.
-    expect(screen.getByRole('button', { name: /^corrida/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText(/inclui também as campanhas que surgirem depois/)).toBeInTheDocument();
+    expect(within(grupo).getByRole('button', { name: /^corrida/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByText(/inclui também as campanhas que surgirem depois/).length).toBeGreaterThan(0);
 
     fireEvent.click(promo);
     fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
@@ -157,14 +159,16 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     });
     mockObterConfiguracoes.mockResolvedValue({ ...RESPOSTA_BASE, vigente: { ...VIGENTE_BASE, categoriasProducao: [] } });
     render(<ConfiguracoesAdiantamentoPage />);
-    await screen.findByRole('button', { name: /^Gorjeta/ });
+    const grupo = await screen.findByRole('group', { name: 'Categorias que entram na produção' });
+    within(grupo).getByRole('button', { name: /^Gorjeta/ });
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar categoria' }), { target: { value: 'promocao' } });
-    expect(screen.queryByRole('button', { name: /^Gorjeta/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Marcar visíveis' }));
+    // A busca e os botões são os do bloco da produção (o 1º da tela).
+    fireEvent.change(screen.getAllByRole('searchbox', { name: 'Buscar categoria' })[0], { target: { value: 'promocao' } });
+    expect(within(grupo).queryByRole('button', { name: /^Gorjeta/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Marcar visíveis' })[0]);
 
-    expect(screen.getByRole('button', { name: /^Promoção/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText('1 de 2 selecionadas')).toBeInTheDocument();
+    expect(within(grupo).getByRole('button', { name: /^Promoção/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByText('1 de 2 selecionadas').length).toBeGreaterThan(0);
   });
 
   it('repasse por dia da semana: carrega 3 dias como quarta e mostra a frase de confirmação', async () => {
@@ -216,6 +220,46 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
     expect(await screen.findByText('Defina o início da janela para calcular o dia do repasse.')).toBeInTheDocument();
     expect(mockSalvarConfiguracao).not.toHaveBeenCalled();
+  });
+
+  // F1 (briefing repasse-nota-producao): `categorias_extrato` existia no
+  // formulário e no payload, mas NUNCA era renderizado — por isso o repasse de
+  // todas as semanas devolvia R$ 0,00 em produção e não havia como corrigir
+  // pela tela.
+  it('F1: o extrato tem seletor próprio; marcar uma categoria salva categoriasExtrato', async () => {
+    mockListarCategoriasProducao.mockResolvedValue({
+      itens: [
+        { descricao: 'Corridas concluidas', lancamentos: 39199, semMotoristaIdentificado: false, familia: null },
+        { descricao: 'Promocao - Campanha w97', lancamentos: 38, semMotoristaIdentificado: false, familia: 'familia:promocao' },
+      ],
+    });
+    const semExtrato = { ...VIGENTE_BASE, categoriasExtrato: [] };
+    mockObterConfiguracoes.mockResolvedValue({ ...RESPOSTA_BASE, vigente: semExtrato });
+    mockSalvarConfiguracao.mockResolvedValueOnce({ ...semExtrato, versao: 4 });
+    render(<ConfiguracoesAdiantamentoPage />);
+
+    const grupoExtrato = await screen.findByRole('group', { name: 'Categorias que entram no repasse (extrato)' });
+    expect(screen.getByText(/o repasse de todas as semanas fica zerado/)).toBeInTheDocument();
+
+    fireEvent.click(within(grupoExtrato).getByRole('button', { name: /^Corridas concluidas/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+
+    await waitFor(() => expect(mockSalvarConfiguracao).toHaveBeenCalledWith(
+      expect.objectContaining({ categoriasExtrato: ['Corridas concluidas'] })
+    ));
+  });
+
+  it('F1: o extrato aparece mesmo sem fonte da produção escolhida', async () => {
+    mockListarCategoriasProducao.mockResolvedValue({
+      itens: [{ descricao: 'Gorjeta', lancamentos: 4312, semMotoristaIdentificado: false, familia: null }],
+    });
+    mockObterConfiguracoes.mockResolvedValue({ ...RESPOSTA_BASE, vigente: { ...VIGENTE_BASE, fonteProducao: null, categoriasProducao: [], categoriasExtrato: ['Gorjeta'] } });
+    render(<ConfiguracoesAdiantamentoPage />);
+
+    const grupoExtrato = await screen.findByRole('group', { name: 'Categorias que entram no repasse (extrato)' });
+    expect(within(grupoExtrato).getByRole('button', { name: /^Gorjeta/ })).toHaveAttribute('aria-pressed', 'true');
+    // A produção segue pedindo a fonte primeiro — comportamento antigo intacto.
+    expect(screen.getByText(/Escolha uma fonte para ver as categorias/)).toBeInTheDocument();
   });
 
   it('validação client-side (descrição Pix sem "{nome}") bloqueia o salvar sem chamar a API', async () => {
