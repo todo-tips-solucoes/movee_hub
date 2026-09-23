@@ -132,6 +132,20 @@ describe('AdiantamentosRepassePage', () => {
     expect(screen.getByText('— Débitos EntreGô')).toBeInTheDocument();
   });
 
+  it('a configuração que chega depois não sobrescreve o período que o operador já digitou', async () => {
+    let resolverConfig: (v: unknown) => void = () => {};
+    mockObterConfiguracoes.mockReturnValue(new Promise((r) => { resolverConfig = r; }));
+    mockObterRepasse.mockResolvedValue(REPASSE_ABERTO);
+    render(<AdiantamentosRepassePage />);
+
+    const campo = screen.getByLabelText('Período de apuração (início)') as HTMLInputElement;
+    fireEvent.change(campo, { target: { value: '2026-09-01' } });
+    resolverConfig({ vigente: { apuracaoDiaInicio: 1, descontoAdiantamentos: true, descontoDebitos: false }, historico: [] });
+
+    await waitFor(() => expect(screen.getByText('✓ Adiantamentos (bruto)')).toBeInTheDocument());
+    expect(campo.value).toBe('2026-09-01');
+  });
+
   it('período fechado desabilita "Fechar apuração"', async () => {
     mockObterRepasse.mockResolvedValueOnce({ ...REPASSE_ABERTO, periodo: { ...REPASSE_ABERTO.periodo, situacao: 'fechado' } });
     render(<AdiantamentosRepassePage />);
