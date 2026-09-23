@@ -589,3 +589,29 @@ export async function fecharRepasse(periodo: string): Promise<FecharRepasseRespo
     body: JSON.stringify({ confirmacao: true }),
   });
 }
+
+/** F4-B: uma recusa da geração, com motivo legível para o relatório. */
+export interface MovimentoRecusado {
+  entregadorId: number;
+  nome: string | null;
+  motivo: string;
+  detalhe: string;
+}
+
+export interface GerarMovimentosResponse {
+  apuracaoId: number;
+  gerados: number;
+  /** Gerados SEM telefone: a nota vale, só o disparo por WhatsApp não alcança. */
+  semTelefone: number;
+  recusados: MovimentoRecusado[];
+}
+
+/** F4-B: cria na EnvioMassa o movimento de cada motorista da apuração fechada,
+ *  com `valor` = base da nota e `gorjeta` = o que não entra na nota. Idempotente
+ *  — reexecutar devolve os mesmos motoristas como `JA_GERADO`. */
+export async function gerarMovimentos(periodo: string): Promise<GerarMovimentosResponse> {
+  return request<GerarMovimentosResponse>(`/adiantamentos/repasse/${periodo}/movimentos`, {
+    method: 'POST',
+    body: JSON.stringify({ confirmacao: true }),
+  });
+}
