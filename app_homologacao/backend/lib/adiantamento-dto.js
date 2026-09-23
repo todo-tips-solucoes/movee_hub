@@ -124,6 +124,9 @@ function mapConfiguracao(row) {
     // F3: subconjunto do extrato que compõe a base da nota. `null` = ainda não
     // configurado — a tela do motorista não mostra divisão nenhuma.
     categoriasNota: row.categorias_nota ?? null,
+    // F4: moldes das mensagens do movimento gerado pelo hub.
+    mensagem1Modelo: row.mensagem1_modelo ?? null,
+    mensagem2Modelo: row.mensagem2_modelo ?? null,
     descontoAdiantamentos: row.desconto_adiantamentos,
     descontoDebitos: row.desconto_debitos,
     repasseVisivelApp: row.repasse_visivel_app,

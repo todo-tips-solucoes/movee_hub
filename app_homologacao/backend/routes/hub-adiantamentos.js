@@ -57,6 +57,8 @@ const {
   rotuloStatusAdiantamento, mapConfiguracao, mapContaCompleta, mapSolicitacaoResumo,
   mapEvento, mapLote, mapLoteItem,
 } = require('../lib/adiantamento-dto');
+const { placeholdersInvalidos, PLACEHOLDERS_PERMITIDOS } = require('../lib/adiantamento-mensagem');
+const { planejarGeracao } = require('../lib/adiantamento-geracao-movimento');
 const {
   montarPlanilhaTransfeera, validarPlanilhaTransfeera, nomeArquivoTransfeera, renderizarDescricaoPix,
 } = require('../lib/adiantamento-transfeera-xlsx');
@@ -496,12 +498,29 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
     const CAMPOS = [
       'vigenteDesde', 'motivo', 'diasHabilitados', 'horarioAbertura', 'horarioCorte', 'percentual', 'taxaFixa',
       'fonteProducao', 'categoriasProducao', 'previsaoPagamentoTexto', 'descricaoPixModelo', 'apuracaoDiaInicio',
-      'apuracaoDiasAteRepasse', 'apuracaoDataBase', 'categoriasExtrato', 'categoriasNota', 'descontoAdiantamentos', 'descontoDebitos',
+      'apuracaoDiasAteRepasse', 'apuracaoDataBase', 'categoriasExtrato', 'categoriasNota',
+      'mensagem1Modelo', 'mensagem2Modelo', 'descontoAdiantamentos', 'descontoDebitos',
       'repasseVisivelApp',
     ];
     const dados = {};
     for (const campo of CAMPOS) {
       if (corpo[campo] !== undefined) dados[campo] = corpo[campo];
+    }
+
+    // F4: molde de mensagem só pode citar placeholder da whitelist — o texto é
+    // editável aqui e vai para o WhatsApp do motorista via `EnvioMassa`.
+    // Recusar no salvamento, e não só na geração: descobrir molde inválido na
+    // hora de gerar as notas da semana seria tarde demais.
+    for (const campo of ['mensagem1Modelo', 'mensagem2Modelo']) {
+      if (dados[campo] === undefined) continue;
+      const proibidos = placeholdersInvalidos(dados[campo]);
+      if (proibidos.length) {
+        return res.status(400).json({
+          erro: 'DADOS_INVALIDOS', motivo: campo,
+          placeholdersInvalidos: proibidos,
+          placeholdersPermitidos: [...PLACEHOLDERS_PERMITIDOS],
+        });
+      }
     }
 
     // 11.12 (converge onda-040, FR-024): "antes" é a linha vigente ANTES do
@@ -545,7 +564,8 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
     const CAMPOS_COLUNA = [
       'vigente_desde', 'motivo', 'dias_habilitados', 'horario_abertura', 'horario_corte', 'percentual', 'taxa_fixa',
       'fonte_producao', 'categorias_producao', 'previsao_pagamento_texto', 'descricao_pix_modelo', 'apuracao_dia_inicio',
-      'apuracao_dias_ate_repasse', 'apuracao_data_base', 'categorias_extrato', 'categorias_nota', 'desconto_adiantamentos', 'desconto_debitos',
+      'apuracao_dias_ate_repasse', 'apuracao_data_base', 'categorias_extrato', 'categorias_nota',
+      'mensagem1_modelo', 'mensagem2_modelo', 'desconto_adiantamentos', 'desconto_debitos',
       'repasse_visivel_app',
     ];
     // 12.2 (converge onda-044, FR-024): quando a leitura de `linhaAntes`
@@ -1609,6 +1629,133 @@ router.post('/repasse/:periodo/fechar', requireModuloAtivo('adiantamentos'), req
     });
   } catch (e) {
     console.error('[hub-adiantamentos] erro inesperado em POST /repasse/:periodo/fechar:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// F4-B — POST /repasse/:periodo/movimentos: gerar as notas da semana
+// (briefing repasse-nota-producao §F4; migrations 0091/0092).
+//
+// O que o hub passa a fazer no lugar da planilha: para cada motorista de uma
+// apuração FECHADA, cria o movimento na `EnvioMassa` com `valor` = base da
+// nota e `gorjeta` = o que não entra na nota — a divisão CONGELADA no
+// fechamento (`ApuracaoRepasseItem.valor_nota`), nunca recalculada, senão uma
+// mudança de configuração entre fechar e gerar faria a nota divergir do que
+// foi apurado e pago.
+//
+// Nada muda na FastAPI nem na validação (decisão 3 do operador): a linha
+// gerada é indistinguível de uma linha da planilha.
+//
+// Idempotência real vem da trilha `ApuracaoRepasseMovimento`
+// (UNIQUE apuracao+entregador). A guarda de "já tem movimento aberto" sozinha
+// não bastaria: o movimento pode ser fechado depois e a geração rodaria de novo.
+// ════════════════════════════════════════════════════════════════════════
+router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamento_confirmar');
+    if (!ctx) return;
+    const { claims, entidadeAtiva, payload } = ctx;
+    const periodo = req.params.periodo;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodo)) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'periodo' });
+    if (!(req.body && req.body.confirmacao === true)) {
+      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'confirmacao' });
+    }
+
+    // 1. A apuração precisa estar FECHADA — é ela que tem os valores congelados.
+    const apuracoes = await hubPostgrestRequest(
+      `ApuracaoRepasse?id_empresa=eq.${GRUPO_MOVEE_ID}&periodo_inicio=eq.${periodo}&select=id,periodo_inicio,periodo_fim,configuracao_id&limit=1`,
+      'GET', null, claims);
+    const apuracao = Array.isArray(apuracoes) ? apuracoes[0] : null;
+    if (!apuracao) return res.status(409).json({ erro: 'APURACAO_NAO_FECHADA' });
+
+    // 2. Itens congelados + trilha do que já foi gerado.
+    const [itens, jaGeradosLinhas, configLinhas] = await Promise.all([
+      hubPostgrestRequest(
+        `ApuracaoRepasseItem?apuracao_id=eq.${apuracao.id}&select=entregador_id,creditos,valor_nota,valor_fora_nota`,
+        'GET', null, claims),
+      hubPostgrestRequest(
+        `ApuracaoRepasseMovimento?apuracao_id=eq.${apuracao.id}&select=entregador_id`, 'GET', null, claims),
+      hubPostgrestRequest(
+        `AdiantamentoConfiguracao?id=eq.${apuracao.configuracao_id}&select=mensagem1_modelo,mensagem2_modelo`,
+        'GET', null, claims),
+    ]);
+    if (!Array.isArray(itens) || itens.length === 0) {
+      return res.status(200).json({ apuracaoId: apuracao.id, gerados: 0, recusados: [], semTelefone: 0 });
+    }
+    const config = (Array.isArray(configLinhas) && configLinhas[0]) || {};
+
+    // 3. CNPJ, nome e telefone — do HUB, que virou o dono (F4-A).
+    const ids = [...new Set(itens.map((i) => i.entregador_id))];
+    const entregadores = await hubPostgrestRequest(
+      `Entregador?id=in.(${ids.join(',')})&select=id,nome,motorista_id`, 'GET', null, claims);
+    const motoristaIds = [...new Set((entregadores || []).map((e) => e.motorista_id).filter(Boolean))];
+    const contas = motoristaIds.length
+      ? await hubPostgrestRequest(
+          `ContaMotorista?id=in.(${motoristaIds.join(',')})&select=id,cnpj_prestador,nome,telefone`, 'GET', null, claims)
+      : [];
+    const contaPorId = new Map((contas || []).map((c) => [c.id, c]));
+    const contasPorEntregador = new Map();
+    for (const e of entregadores || []) {
+      const c = e.motorista_id ? contaPorId.get(e.motorista_id) : null;
+      if (c) contasPorEntregador.set(e.id, { cnpjPrestador: c.cnpj_prestador, nome: c.nome || e.nome, telefone: c.telefone });
+    }
+
+    // 4. Quem já tem movimento aberto na EnvioMassa (convivência com a planilha).
+    const cnpjs = [...new Set([...contasPorEntregador.values()].map((c) => c.cnpjPrestador).filter(Boolean))];
+    let abertos = [];
+    if (cnpjs.length) {
+      abertos = await hubPostgrestRequest(
+        `EnvioMassa?mov_fechado=eq.false&cnpj_prestador=in.(${cnpjs.join(',')})&select=cnpj_prestador`,
+        'GET', null, claims);
+    }
+
+    const { aGerar, recusados } = planejarGeracao(
+      itens, contasPorEntregador,
+      new Set((jaGeradosLinhas || []).map((l) => l.entregador_id)),
+      new Set((abertos || []).map((l) => l.cnpj_prestador)),
+      {
+        cnpjTomador: req.body.cnpjTomador || null,
+        idEmpresa: GRUPO_MOVEE_ID,
+        periodoInicio: apuracao.periodo_inicio,
+        periodoFim: apuracao.periodo_fim,
+        mensagem1Modelo: config.mensagem1_modelo,
+        mensagem2Modelo: config.mensagem2_modelo,
+      });
+
+    // 5. Insere um a um: um CNPJ que falhe não pode derrubar a rodada inteira,
+    //    e a trilha tem de refletir exatamente o que entrou na EnvioMassa.
+    const gerados = [];
+    for (const alvo of aGerar) {
+      try {
+        const criado = await hubPostgrestRequest('EnvioMassa', 'POST', alvo.linha, claims);
+        const linha = Array.isArray(criado) ? criado[0] : criado;
+        await hubPostgrestRequest('ApuracaoRepasseMovimento', 'POST', {
+          apuracao_id: apuracao.id, entregador_id: alvo.entregadorId, id_empresa: GRUPO_MOVEE_ID,
+          envio_massa_id: linha.id, valor: alvo.linha.valor, gorjeta: alvo.linha.gorjeta || 0,
+          criado_por: payload.sub,
+        }, claims);
+        gerados.push({ entregadorId: alvo.entregadorId, envioMassaId: linha.id, semTelefone: alvo.semTelefone });
+      } catch (e) {
+        console.error('[hub-adiantamentos] falha ao gerar movimento do entregador', alvo.entregadorId, e.message);
+        recusados.push({ entregadorId: alvo.entregadorId, nome: null, motivo: 'FALHA_AO_GRAVAR', detalhe: 'Não foi possível criar o movimento; nada foi gravado para este motorista.' });
+      }
+    }
+
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva, usuarioId: payload.sub, acao: 'adiantamento.movimentos_gerados',
+      recurso: 'ApuracaoRepasse', recursoId: apuracao.id,
+      detalhes: { periodo, gerados: gerados.length, recusados: recusados.length }, claims,
+    });
+
+    return res.status(201).json({
+      apuracaoId: apuracao.id,
+      gerados: gerados.length,
+      semTelefone: gerados.filter((g) => g.semTelefone).length,
+      recusados,
+    });
+  } catch (e) {
+    console.error('[hub-adiantamentos] erro inesperado em POST /repasse/:periodo/movimentos:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
