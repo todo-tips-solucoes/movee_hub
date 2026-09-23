@@ -88,3 +88,11 @@ export function filtrarItensCategoria(itens: ItemCategoria[], busca: string): It
   if (!q) return itens;
   return itens.filter((i) => [i.rotulo, ...i.nomes].some((n) => semAcento(n).includes(q)));
 }
+
+/** F3: o que pode ser marcado como "entra na nota" é sempre um subconjunto do
+ *  extrato — oferecer o resto deixaria marcar algo que o cálculo ignora.
+ *  Mesma regra do `hub_adiantamento_categoria_casa` no banco: casa pelo nome
+ *  exato ou pelo token da família. */
+export function restringirAoExtrato(disponiveis: CategoriaProducao[], extrato: string[]): CategoriaProducao[] {
+  return disponiveis.filter((c) => extrato.includes(c.descricao) || (c.familia !== null && extrato.includes(c.familia)));
+}

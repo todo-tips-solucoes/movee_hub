@@ -326,6 +326,9 @@ export interface ExtratoItem {
   /** Lançamentos daquela categoria no dia — 3 corridas viram uma linha só. */
   quantidade: number;
   valor: string;
+  /** F3: se a categoria compõe a base da nota. `null` enquanto ninguém
+   *  configurar `categoriasNota` no hub. */
+  naNota: boolean | null;
 }
 
 export interface ExtratoDia {
@@ -341,6 +344,11 @@ export interface Extrato {
   periodoInicio: string;
   periodoFim: string;
   total: string;
+  /** F3: como o `total` se reparte. `null` enquanto ninguém configurar quais
+   *  categorias entram na nota — e aí a tela não mostra divisão nenhuma.
+   *  `totalNota + totalOutros === total`, sempre. */
+  totalNota: string | null;
+  totalOutros: string | null;
   dias: ExtratoDia[];
 }
 

@@ -496,7 +496,7 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
     const CAMPOS = [
       'vigenteDesde', 'motivo', 'diasHabilitados', 'horarioAbertura', 'horarioCorte', 'percentual', 'taxaFixa',
       'fonteProducao', 'categoriasProducao', 'previsaoPagamentoTexto', 'descricaoPixModelo', 'apuracaoDiaInicio',
-      'apuracaoDiasAteRepasse', 'apuracaoDataBase', 'categoriasExtrato', 'descontoAdiantamentos', 'descontoDebitos',
+      'apuracaoDiasAteRepasse', 'apuracaoDataBase', 'categoriasExtrato', 'categoriasNota', 'descontoAdiantamentos', 'descontoDebitos',
       'repasseVisivelApp',
     ];
     const dados = {};
@@ -545,7 +545,7 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
     const CAMPOS_COLUNA = [
       'vigente_desde', 'motivo', 'dias_habilitados', 'horario_abertura', 'horario_corte', 'percentual', 'taxa_fixa',
       'fonte_producao', 'categorias_producao', 'previsao_pagamento_texto', 'descricao_pix_modelo', 'apuracao_dia_inicio',
-      'apuracao_dias_ate_repasse', 'apuracao_data_base', 'categorias_extrato', 'desconto_adiantamentos', 'desconto_debitos',
+      'apuracao_dias_ate_repasse', 'apuracao_data_base', 'categorias_extrato', 'categorias_nota', 'desconto_adiantamentos', 'desconto_debitos',
       'repasse_visivel_app',
     ];
     // 12.2 (converge onda-044, FR-024): quando a leitura de `linhaAntes`

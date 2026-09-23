@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filtrarItensCategoria, montarItensCategoria } from './adiantamento-categorias';
+import { filtrarItensCategoria, montarItensCategoria, restringirAoExtrato } from './adiantamento-categorias';
 import type { CategoriaProducao } from './adiantamentos-api';
 
 const cat = (descricao: string, lancamentos: number, familia: string | null = null): CategoriaProducao => ({
@@ -76,5 +76,27 @@ describe('filtrarItensCategoria', () => {
 
   it('busca vazia devolve tudo', () => {
     expect(filtrarItensCategoria(itens, '  ')).toHaveLength(itens.length);
+  });
+});
+
+// F3: o que pode entrar na nota é sempre um subconjunto do extrato — a mesma
+// regra do banco (`hub_adiantamento_categoria_casa`).
+describe('restringirAoExtrato', () => {
+  it('mantém o que está no extrato pelo nome exato e o que está pela família', () => {
+    const r = restringirAoExtrato(DISPONIVEIS, ['Corridas concluidas', 'familia:promocao']);
+    expect(r.map((c) => c.descricao)).toEqual([
+      'Corridas concluidas',
+      'Promocao - Destravou_Ganhou Elite w97 Franquias',
+      'Promocao - Dias Produtivos Franquias',
+    ]);
+  });
+
+  it('não oferece categoria fora do extrato — marcá-la não mudaria conta nenhuma', () => {
+    const r = restringirAoExtrato(DISPONIVEIS, ['Corridas concluidas']);
+    expect(r.map((c) => c.descricao)).toEqual(['Corridas concluidas']);
+  });
+
+  it('extrato vazio não oferece nada', () => {
+    expect(restringirAoExtrato(DISPONIVEIS, [])).toEqual([]);
   });
 });

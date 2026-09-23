@@ -290,7 +290,12 @@ check "5.5.1: nome editado manualmente PERMANECE protegido na reimportação (00
 sol_em_14_apos="$(psql_val "SELECT dados_entrego_solicitado_em FROM \"Entregador\" WHERE id_externo='$U14_1';")"
 check "5.5.1: estado de fila (0060) continua obedecendo suas próprias regras (não regride ao reimportar)" "$sol_em_14_apos" "$sol_em_14"
 
-tgorder="$(psql_val "SELECT string_agg(tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE tgrelid = '\"Entregador\"'::regclass AND NOT tgisinternal;")"
+# O check é sobre os gatilhos BEFORE UPDATE, e a query precisa dizer isso: a
+# 0085 acrescentou `entregador_documento_enriquecimento` (AFTER INSERT OR
+# UPDATE OF dados_entrego_json), que entrava na lista sem filtro e quebrava o
+# check por um gatilho que ele nunca quis medir. tgtype: bit 2 = BEFORE,
+# bit 16 = UPDATE.
+tgorder="$(psql_val "SELECT string_agg(tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE tgrelid = '\"Entregador\"'::regclass AND NOT tgisinternal AND (tgtype & 2) = 2 AND (tgtype & 16) = 16;")"
 check "5.5.3: ordem alfabética dos 2 gatilhos BEFORE UPDATE (campos disjuntos, ordem indiferente)" "$tgorder" "trg_entregador_enfileira_import,trg_entregador_protege_nome"
 
 # =============================================================================

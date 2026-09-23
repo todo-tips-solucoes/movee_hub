@@ -119,6 +119,7 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
     apuracao_dias_ate_repasse: 0,
     apuracao_data_base: 'data_lancamento',
     categorias_extrato: ['Repasse'],
+    categorias_nota: ['Repasse'],
     desconto_adiantamentos: true,
     desconto_debitos: false,
     repasse_visivel_app: false,
@@ -131,6 +132,7 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
       'apuracaoDiaInicio',
       'apuracaoDiasAteRepasse',
       'categoriasExtrato',
+      'categoriasNota',
       'categoriasProducao',
       'completa',
       'descontoAdiantamentos',
@@ -154,6 +156,15 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
     assert.equal(dto.taxaFixa, '0.35'); // string — motorista-api.md `fee: string`
     assert.match(dto.taxaFixa, REGEX_DINHEIRO);
     assert.equal(dto.completa, true);
+  });
+
+  // F3: `categorias_nota` nula é o estado em que a migration 0090 deixa
+  // produção — e não pode virar `[]`, que na tela pareceria "configurado e
+  // vazio" (nada entra na nota) em vez de "ainda não configurado".
+  test('categorias_nota ausente vira null, não lista vazia', () => {
+    const { categorias_nota, ...semNota } = ROW_COMPLETA;
+    assert.equal(mapConfiguracao(semNota).categoriasNota, null);
+    assert.deepEqual(mapConfiguracao(ROW_COMPLETA).categoriasNota, ['Repasse']);
   });
 
   test('fonte financeira sem categorias => incompleta', () => {

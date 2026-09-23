@@ -932,6 +932,11 @@ router.get('/repasse/extrato', async (req, res) => {
     periodoInicio: row.periodo_inicio,
     periodoFim: row.periodo_fim,
     total: dinheiro(row.total),
+    // F3: a divisão nota/fora-da-nota. `null` enquanto ninguém configurar
+    // `categoriasNota` — e aí a tela não mostra divisão. `total` é o mesmo de
+    // antes da F3 (soma de tudo), nota + outros o repartem.
+    totalNota: row.total_nota === null || row.total_nota === undefined ? null : dinheiro(row.total_nota),
+    totalOutros: row.total_outros === null || row.total_outros === undefined ? null : dinheiro(row.total_outros),
     dias: (row.dias || []).map((d) => ({
       data: d.data,
       total: dinheiro(d.total),
@@ -939,6 +944,7 @@ router.get('/repasse/extrato', async (req, res) => {
         descricao: i.descricao,
         quantidade: i.quantidade,
         valor: dinheiro(i.valor),
+        naNota: i.naNota ?? null,
       })),
     })),
   });
