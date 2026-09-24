@@ -14,6 +14,7 @@ const mockObterSugestoes = vi.fn();
 const mockDesvincularMotorista = vi.fn();
 const mockCriarCredencial = vi.fn();
 const mockResetSenhaCredencial = vi.fn();
+const mockDefinirNovaSenha = vi.fn();
 const mockAtualizarCredencial = vi.fn();
 const mockBuscarEntregoEnriquecimento = vi.fn();
 const mockPush = vi.fn();
@@ -37,6 +38,7 @@ vi.mock('@/lib/hub/motoristas-api', async () => {
     desvincularMotorista: (...args: unknown[]) => mockDesvincularMotorista(...args),
     criarCredencial: (...args: unknown[]) => mockCriarCredencial(...args),
     resetSenhaCredencial: (...args: unknown[]) => mockResetSenhaCredencial(...args),
+    definirNovaSenhaCredencial: (...args: unknown[]) => mockDefinirNovaSenha(...args),
     atualizarCredencial: (...args: unknown[]) => mockAtualizarCredencial(...args),
     buscarEntregoEnriquecimento: (...args: unknown[]) => mockBuscarEntregoEnriquecimento(...args),
   };
@@ -295,11 +297,13 @@ describe('MotoristaDetalhePage', () => {
         .mockResolvedValueOnce(DETALHE_SEM_VINCULO) // carga inicial
         .mockResolvedValueOnce(DETALHE_COM_VINCULO) // após criar
         .mockResolvedValueOnce(DETALHE_COM_VINCULO) // após resetar (credencial continua ativa)
+        .mockResolvedValueOnce(DETALHE_COM_VINCULO) // após DEFINIR a nova senha (passo novo)
         .mockResolvedValueOnce(DETALHE_COM_VINCULO_CREDENCIAL_DESATIVADA); // após desativar
       mockCriarCredencial.mockResolvedValueOnce({
         id: 7, cnpjPrestador: '12.***.***/0001-**', ativo: true, senhaTemporaria: 'SenhaTemp123',
       });
       mockResetSenhaCredencial.mockResolvedValueOnce({ ok: true, tokenDefinicao: 'a'.repeat(64) });
+      mockDefinirNovaSenha.mockResolvedValueOnce(undefined);
       mockAtualizarCredencial.mockResolvedValueOnce({ id: 7, ativo: false });
 
       render(<MotoristaDetalhePage />);
@@ -319,7 +323,17 @@ describe('MotoristaDetalhePage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Redefinir senha' }));
       await waitFor(() => expect(mockResetSenhaCredencial).toHaveBeenCalledWith(1));
       await waitFor(() => expect(screen.getByText('a'.repeat(64))).toBeInTheDocument());
-      fireEvent.click(screen.getByRole('button', { name: 'Concluído' }));
+      // O reset já invalidou a senha (na ContaMotorista E no legado): o diálogo
+      // agora exige definir a nova ali mesmo, senão o motorista fica trancado
+      // para fora — o app não tem tela que consuma o token.
+      fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'SenhaNova123' } });
+      fireEvent.click(screen.getByRole('button', { name: /definir senha/i }));
+      await waitFor(() => expect(mockDefinirNovaSenha).toHaveBeenCalledWith(1, {
+        token: 'a'.repeat(64), novaSenha: 'SenhaNova123',
+      }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Concluído' }));
+      // o diálogo precisa FECHAR antes do passo seguinte — o overlay cobre a página
+      await waitFor(() => expect(screen.queryByLabelText('Nova senha')).not.toBeInTheDocument());
 
       // 3. Desativar
       await waitFor(() => expect(screen.getByRole('button', { name: /Desativar credencial/ })).toBeInTheDocument());
@@ -328,8 +342,10 @@ describe('MotoristaDetalhePage', () => {
       fireEvent.click(confirmButtons[confirmButtons.length - 1]);
       await waitFor(() => expect(mockAtualizarCredencial).toHaveBeenCalledWith(1, { ativo: false }));
 
-      // Re-busca o detalhe a cada passo (feedback de sucesso = estado atualizado na tela).
-      expect(mockObterMotorista).toHaveBeenCalledTimes(4);
+      // Re-busca o detalhe a cada passo (feedback de sucesso = estado atualizado
+      // na tela). São 5 desde que o reset ganhou o segundo passo obrigatório:
+      // carga inicial + criar + resetar + definir a nova senha + desativar.
+      expect(mockObterMotorista).toHaveBeenCalledTimes(5);
     });
 
     it('erro ao criar credencial mostra mensagem sem quebrar a tela', async () => {
