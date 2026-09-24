@@ -1701,7 +1701,23 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
       if (c) contasPorEntregador.set(e.id, { cnpjPrestador: c.cnpj_prestador, nome: c.nome || e.nome, telefone: c.telefone });
     }
 
-    // 4. Quem já tem movimento aberto na EnvioMassa (convivência com a planilha).
+    // 4. CNPJ do TOMADOR: vem do CADASTRO da empresa (`Empresa.cnpj`), não do
+    //    corpo da requisição nem do último movimento. Decisão do operador
+    //    2026-09-23: "quando o CNPJ mudar, quem troca? onde edito?" — dado sem
+    //    lugar de edição é dado que ninguém mantém. `Empresa` é onde ele já
+    //    vive e já é editado; herdar do último movimento criaria uma cópia sem
+    //    dono, e um campo novo na config seria um segundo lugar para errar.
+    //    (O CNPJ do PRESTADOR é outro campo e já vem do hub: `ContaMotorista`.)
+    const empresas = await hubPostgrestRequest(
+      `Empresa?id=eq.${GRUPO_MOVEE_ID}&select=cnpj`, 'GET', null, claims);
+    const cnpjTomador = (Array.isArray(empresas) && empresas[0] && empresas[0].cnpj) || null;
+    if (!cnpjTomador) {
+      // Recusar é melhor que gerar: sem o tomador a FastAPI reprova a nota
+      // inteira (`valid_cnpj`), e o motorista descobre só ao tentar emitir.
+      return res.status(409).json({ erro: 'EMPRESA_SEM_CNPJ' });
+    }
+
+    // 5. Quem já tem movimento aberto na EnvioMassa (convivência com a planilha).
     const cnpjs = [...new Set([...contasPorEntregador.values()].map((c) => c.cnpjPrestador).filter(Boolean))];
     let abertos = [];
     if (cnpjs.length) {
@@ -1715,7 +1731,7 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
       new Set((jaGeradosLinhas || []).map((l) => l.entregador_id)),
       new Set((abertos || []).map((l) => l.cnpj_prestador)),
       {
-        cnpjTomador: req.body.cnpjTomador || null,
+        cnpjTomador,
         idEmpresa: GRUPO_MOVEE_ID,
         periodoInicio: apuracao.periodo_inicio,
         periodoFim: apuracao.periodo_fim,
@@ -1723,7 +1739,7 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
         mensagem2Modelo: config.mensagem2_modelo,
       });
 
-    // 5. Insere um a um: um CNPJ que falhe não pode derrubar a rodada inteira,
+    // 6. Insere um a um: um CNPJ que falhe não pode derrubar a rodada inteira,
     //    e a trilha tem de refletir exatamente o que entrou na EnvioMassa.
     const gerados = [];
     for (const alvo of aGerar) {

@@ -98,6 +98,35 @@ test.describe('planejarGeracao() — as recusas, cada uma com motivo próprio', 
   });
 });
 
+// O CNPJ do tomador vem do CADASTRO da empresa (`Empresa.cnpj`), decidido pelo
+// operador em 2026-09-23: dado sem lugar de edição é dado que ninguém mantém.
+// A F4 nasceu lendo `req.body.cnpjTomador`, que a tela nunca enviou — todo
+// movimento sairia sem tomador e a FastAPI reprovaria por `valid_cnpj`.
+// Estes testes travam o contrato do lado puro; a origem do valor é da rota.
+test.describe('planejarGeracao() — CNPJ do tomador', () => {
+  test('o tomador do contexto vai para a linha, sem transformação', () => {
+    const { aGerar } = planejar([item()], [[1, conta()]]);
+    assert.equal(aGerar[0].linha.cnpj_tomador, '48904673000100');
+  });
+
+  // Em produção há DUAS formas do mesmo CNPJ do tomador em uso (só dígitos até
+  // out/2025, formatado desde então) e não se sabe como a FastAPI normaliza —
+  // então o valor é repassado exatamente como está no cadastro, nunca
+  // "arrumado" aqui. Formatar por conta própria seria decidir no escuro.
+  test('CNPJ formatado passa intacto — não cabe a esta camada normalizar', () => {
+    const ctxFormatado = { ...CTX, cnpjTomador: '48.904.673/0001-00' };
+    const { aGerar } = planejarGeracao([item()], new Map([[1, conta()]]), new Set(), new Set(), ctxFormatado);
+    assert.equal(aGerar[0].linha.cnpj_tomador, '48.904.673/0001-00');
+  });
+
+  test('prestador e tomador são campos DIFERENTES e não se misturam', () => {
+    const { aGerar } = planejar([item()], [[1, conta()]]);
+    assert.equal(aGerar[0].linha.cnpj_prestador, '89000000000100');  // do motorista (hub)
+    assert.equal(aGerar[0].linha.cnpj_tomador, '48904673000100');    // da empresa (hub)
+    assert.notEqual(aGerar[0].linha.cnpj_prestador, aGerar[0].linha.cnpj_tomador);
+  });
+});
+
 test.describe('planejarGeracao() — lote', () => {
   test('separa quem gera de quem não, sem perder ninguém', () => {
     const itens = [item({ entregador_id: 1 }), item({ entregador_id: 2 }), item({ entregador_id: 3, valor_nota: null })];
