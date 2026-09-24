@@ -48,10 +48,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   atualizarCredencial,
   criarCredencial,
   resetSenhaCredencial,
+  definirNovaSenhaCredencial,
   MotoristaApiError,
 } from '@/lib/hub/motoristas-api';
 
@@ -140,7 +142,41 @@ export function useCredencialMotoristaDialog({ entregadorId, onAtualizado }: Use
     }
   }, [entregadorId, onAtualizado]);
 
-  const fecharTokenRevelado = useCallback(() => setTokenRevelado(null), []);
+  // O token sozinho não devolve acesso a ninguém: o app do motorista não tem
+  // tela que o consuma. Sem este segundo passo aqui, o reset zera a senha (na
+  // ContaMotorista E no legado, desde o espelho) e ninguém consegue repor —
+  // o motorista fica trancado para fora. Por isso a definição acontece no
+  // mesmo diálogo, logo depois de revelar o token.
+  const [novaSenha, setNovaSenha] = useState('');
+  const [definindo, setDefinindo] = useState(false);
+  const [erroDefinir, setErroDefinir] = useState<string | null>(null);
+  const [senhaDefinida, setSenhaDefinida] = useState(false);
+
+  const confirmarDefinirSenha = useCallback(async () => {
+    if (novaSenha.trim().length < 8) {
+      setErroDefinir('A nova senha precisa ter pelo menos 8 caracteres.');
+      return;
+    }
+    if (!tokenRevelado) return;
+    setDefinindo(true);
+    setErroDefinir(null);
+    try {
+      await definirNovaSenhaCredencial(entregadorId, { token: tokenRevelado, novaSenha: novaSenha.trim() });
+      setSenhaDefinida(true);
+      onAtualizado();
+    } catch (e) {
+      setErroDefinir(e instanceof MotoristaApiError ? e.message : 'Falha ao definir a nova senha.');
+    } finally {
+      setDefinindo(false);
+    }
+  }, [novaSenha, tokenRevelado, entregadorId, onAtualizado]);
+
+  const fecharTokenRevelado = useCallback(() => {
+    setTokenRevelado(null);
+    setNovaSenha('');
+    setErroDefinir(null);
+    setSenhaDefinida(false);
+  }, []);
 
   // --- 3. ativar/desativar ---
   const [ativarDesativarOpen, setAtivarDesativarOpen] = useState(false);
@@ -176,6 +212,7 @@ export function useCredencialMotoristaDialog({ entregadorId, onAtualizado }: Use
     // reset
     resetConfirmOpen, setResetConfirmOpen, resetando, erroReset,
     tokenRevelado, confirmarReset, fecharTokenRevelado,
+    novaSenha, setNovaSenha, definindo, erroDefinir, senhaDefinida, confirmarDefinirSenha,
     // ativar/desativar
     ativarDesativarOpen, setAtivarDesativarOpen, ativoAlvo, alterandoSituacao, erroSituacao,
     abrirAtivarDesativar, confirmarAtivarDesativar,
@@ -312,22 +349,50 @@ export function CredencialMotoristaDialogs({ state: v }: CredencialMotoristaDial
       <Dialog open={!!v.tokenRevelado} onOpenChange={(next) => !next && v.fecharTokenRevelado()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Token de definição de senha</DialogTitle>
+            <DialogTitle>{v.senhaDefinida ? 'Senha definida' : 'Defina a nova senha'}</DialogTitle>
             <DialogDescription>
-              Exibido UMA ÚNICA vez — expira em 60 minutos e só pode ser usado uma vez. Repasse à pessoa motorista
-              por fora do sistema (não existe canal de e-mail do app motorista).
+              {v.senhaDefinida
+                ? 'A pessoa motorista já pode entrar no app com esta senha. Repasse por fora do sistema — não existe canal de e-mail do app motorista.'
+                : 'A senha anterior foi invalidada AGORA e a pessoa motorista está sem acesso até você definir a nova. O token abaixo vale 60 minutos e só pode ser usado uma vez.'}
             </DialogDescription>
           </DialogHeader>
-          {v.tokenRevelado && (
-            <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3">
-              <KeyRound className="size-5 shrink-0 text-primary" aria-hidden="true" />
-              <CopyableUuid value={v.tokenRevelado} label="Copiar token de definição de senha" className="text-sm" />
+
+          {v.tokenRevelado && !v.senhaDefinida && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3">
+                <KeyRound className="size-5 shrink-0 text-primary" aria-hidden="true" />
+                <CopyableUuid value={v.tokenRevelado} label="Copiar token de definição de senha" className="text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="credencial-nova-senha">Nova senha</Label>
+                <Input
+                  id="credencial-nova-senha"
+                  type="password"
+                  autoComplete="new-password"
+                  className="h-11 sm:h-9"
+                  placeholder="mínimo 8 caracteres"
+                  value={v.novaSenha}
+                  onChange={(e) => v.setNovaSenha(e.target.value)}
+                />
+              </div>
+              {v.erroDefinir && <p className="text-sm text-destructive">{v.erroDefinir}</p>}
             </div>
           )}
+
           <DialogFooter>
-            <Button className="min-h-11 sm:min-h-8" onClick={v.fecharTokenRevelado}>
-              Concluído
-            </Button>
+            {v.senhaDefinida ? (
+              <Button className="min-h-11 sm:min-h-8" onClick={v.fecharTokenRevelado}>
+                Concluído
+              </Button>
+            ) : (
+              <Button
+                className="min-h-11 sm:min-h-8"
+                disabled={v.definindo || v.novaSenha.trim().length < 8}
+                onClick={v.confirmarDefinirSenha}
+              >
+                {v.definindo ? 'Definindo…' : 'Definir senha'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

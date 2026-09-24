@@ -14,6 +14,7 @@ import { MotoristaApiError } from '@/lib/hub/motoristas-api';
 const mockCriarCredencial = vi.fn();
 const mockResetSenhaCredencial = vi.fn();
 const mockAtualizarCredencial = vi.fn();
+const mockDefinirNovaSenha = vi.fn();
 
 vi.mock('@/lib/hub/motoristas-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/hub/motoristas-api')>('@/lib/hub/motoristas-api');
@@ -22,6 +23,7 @@ vi.mock('@/lib/hub/motoristas-api', async () => {
     criarCredencial: (...args: unknown[]) => mockCriarCredencial(...args),
     resetSenhaCredencial: (...args: unknown[]) => mockResetSenhaCredencial(...args),
     atualizarCredencial: (...args: unknown[]) => mockAtualizarCredencial(...args),
+    definirNovaSenhaCredencial: (...args: unknown[]) => mockDefinirNovaSenha(...args),
   };
 });
 
@@ -168,5 +170,65 @@ describe('CredencialMotoristaDialogs', () => {
     fireEvent.click(confirmButtons[confirmButtons.length - 1]);
 
     await waitFor(() => expect(screen.getByText('Você não tem permissão para esta ação.')).toBeInTheDocument());
+  });
+});
+
+// O reset invalida a senha IMEDIATAMENTE — na ContaMotorista e, desde o
+// espelho, também na tabela que o login usa. Se o diálogo parasse em "aqui
+// está o token", o motorista ficaria trancado para fora: o app não tem tela
+// que consuma esse token. Estes testes travam o segundo passo.
+describe('definir a nova senha logo após o reset', () => {
+  beforeEach(() => {
+    mockResetSenhaCredencial.mockReset();
+    mockDefinirNovaSenha.mockReset();
+    mockResetSenhaCredencial.mockResolvedValue({ ok: true, tokenDefinicao: 'a'.repeat(64) });
+  });
+
+  async function resetar() {
+    render(<Harness credencialAtiva />);
+    fireEvent.click(screen.getByRole('button', { name: /redefinir senha/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^redefinir senha$/i }));
+    await screen.findByLabelText('Nova senha');
+  }
+
+  it('o diálogo pede a nova senha depois de revelar o token — não termina no token', async () => {
+    await resetar();
+    expect(screen.getByLabelText('Nova senha')).toBeInTheDocument();
+    // avisa que o acesso JÁ caiu, para ninguém fechar a janela no meio
+    expect(screen.getByText(/sem acesso até você definir a nova/i)).toBeInTheDocument();
+  });
+
+  it('envia o token revelado junto com a senha', async () => {
+    await resetar();
+    mockDefinirNovaSenha.mockResolvedValue(undefined);
+    fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'SenhaNova123' } });
+    fireEvent.click(screen.getByRole('button', { name: /definir senha/i }));
+    await waitFor(() => expect(mockDefinirNovaSenha).toHaveBeenCalledWith(1, {
+      token: 'a'.repeat(64), novaSenha: 'SenhaNova123',
+    }));
+  });
+
+  it('senha curta não chega a ser enviada', async () => {
+    await resetar();
+    fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'curta' } });
+    expect(screen.getByRole('button', { name: /definir senha/i })).toBeDisabled();
+    expect(mockDefinirNovaSenha).not.toHaveBeenCalled();
+  });
+
+  it('falha ao definir mostra o erro e NÃO fecha — o token ainda vale', async () => {
+    await resetar();
+    mockDefinirNovaSenha.mockRejectedValue(new MotoristaApiError(400, 'token_invalido'));
+    fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'SenhaNova123' } });
+    fireEvent.click(screen.getByRole('button', { name: /definir senha/i }));
+    await screen.findByText(/token_invalido/i);
+    expect(screen.getByLabelText('Nova senha')).toBeInTheDocument();
+  });
+
+  it('sucesso confirma que o motorista já pode entrar', async () => {
+    await resetar();
+    mockDefinirNovaSenha.mockResolvedValue(undefined);
+    fireEvent.change(screen.getByLabelText('Nova senha'), { target: { value: 'SenhaNova123' } });
+    fireEvent.click(screen.getByRole('button', { name: /definir senha/i }));
+    expect(await screen.findByText(/já pode entrar no app/i)).toBeInTheDocument();
   });
 });
