@@ -1089,6 +1089,44 @@ function gerarTokenResetCredencial() {
 // POST /motoristas/:id/credencial — criar credencial (task 5.1)
 // ────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────
+// Espelho da senha na tabela LEGADA (`Motorista`) — incidente 2026-09-23/24.
+//
+// O login do app motorista ainda autentica contra `Motorista.senha`
+// (routes/motorista.js; o gate `HUB_MOTORISTA_LOGIN_CONTA_ATIVA` está
+// desligado em produção). Enquanto isso for verdade, mexer na senha SÓ na
+// `ContaMotorista` não tem efeito nenhum para o motorista: o reset do hub
+// prometia repor acesso e não repunha, e o token devolvido não abria porta
+// alguma.
+//
+// ⚠️ As QUATRO escritas de senha do hub têm de espelhar JUNTAS. Espelhar só o
+// reset (que zera) sem espelhar o definir (que grava) trancaria o motorista
+// para fora de vez — ele perderia a senha antiga e a nova não valeria no app.
+//
+// Casa por CNPJ só com dígitos: é como o login normaliza o que o motorista
+// digita, e como a `ContaMotorista` passou a guardar (migration 0095).
+// Best-effort: falha aqui NÃO derruba a operação do hub, mas é registrada —
+// o hub continua sendo a fonte, o legado é a cópia que mantém o app vivo.
+// Quando o gate for ligado, este espelho deixa de ser necessário.
+async function espelharSenhaNoLegado(contaMotoristaId, senhaOuNull, claims) {
+  try {
+    const contas = await hubPostgrestRequest(
+      `ContaMotorista?id=eq.${contaMotoristaId}&select=cnpj_prestador`, 'GET', null, claims);
+    const cnpj = contas && contas[0] && contas[0].cnpj_prestador;
+    if (!cnpj) return { ok: false, motivo: 'conta_sem_cnpj' };
+    const digitos = String(cnpj).replace(/\D/g, '');
+    if (!digitos) return { ok: false, motivo: 'cnpj_invalido' };
+
+    await hubPostgrestRequest(
+      `Motorista?cnpj_prestador=eq.${encodeURIComponent(digitos)}`, 'PATCH',
+      { senha: senhaOuNull }, claims, { returnMinimal: true });
+    return { ok: true };
+  } catch (e) {
+    console.error('[hub-motoristas] espelho da senha no legado falhou:', e.message);
+    return { ok: false, motivo: 'erro' };
+  }
+}
+
 router.post('/:id/credencial', requirePermission('motoristas.credencial'), async (req, res) => {
   try {
     const ctx = await resolverContextoEntidade(req, res, 'motoristas.credencial');
@@ -1180,6 +1218,10 @@ router.post('/:id/credencial', requirePermission('motoristas.credencial'), async
       if (!conta) return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
     }
 
+    // Espelha no legado a senha recém-criada: é o que faz a credencial valer no
+    // app do motorista enquanto o login usar `Motorista.senha`.
+    await espelharSenhaNoLegado(conta.id, hash, claims);
+
     // 7. vincular Entregador -> conta, se ainda não apontava para ela
     // (mesmo idioma de PATCH em POST /:id/vinculo).
     if (entregador.motorista_id !== conta.id) {
@@ -1253,6 +1295,9 @@ router.post('/:id/credencial/reset-senha', requirePermission('motoristas.credenc
       { senha: null, token_reset_hash: tokenHash, token_reset_expira: expira.toISOString() },
       claims, { returnMinimal: true }
     );
+    // Espelha a invalidação no legado: sem isto o motorista continuaria
+    // entrando com a senha antiga e o reset seria só aparência.
+    const espelhoReset = await espelharSenhaNoLegado(contaMotoristaId, null, claims);
 
     // Auditoria — NUNCA o token (mandato S4).
     await registrarAuditoria({
@@ -1261,7 +1306,7 @@ router.post('/:id/credencial/reset-senha', requirePermission('motoristas.credenc
       acao: 'motorista.credencial_reset_iniciado',
       recurso: 'ContaMotorista',
       recursoId: contaMotoristaId,
-      detalhes: { contaMotoristaId },
+      detalhes: { contaMotoristaId, espelhoLegado: espelhoReset.ok, espelhoMotivo: espelhoReset.motivo || null },
       claims,
     });
 
@@ -1270,7 +1315,10 @@ router.post('/:id/credencial/reset-senha', requirePermission('motoristas.credenc
     // e-mail mock), não existe canal de e-mail para o motorista — o
     // operador que aciona esta rota repassa o token à pessoa motorista por
     // fora do sistema (WhatsApp/telefone/presencial).
-    return res.status(200).json({ ok: true, tokenDefinicao: tokenBruto });
+    // `espelhoLegado` na resposta: enquanto o login usar a tabela legada, um
+    // espelho que falhou significa que o reset NÃO teve efeito no app — quem
+    // aciona precisa saber disso na hora, não descobrir pelo motorista.
+    return res.status(200).json({ ok: true, tokenDefinicao: tokenBruto, espelhoLegado: espelhoReset.ok });
   } catch (e) {
     console.error('[hub-motoristas] erro em POST /motoristas/:id/credencial/reset-senha:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
@@ -1347,6 +1395,9 @@ router.post('/:id/credencial/reset-senha/definir', requirePermission('motoristas
       { senha: hash, token_reset_hash: null, token_reset_expira: null },
       claims, { returnMinimal: true }
     );
+    // Espelha a senha NOVA no legado — é esta escrita que devolve o acesso ao
+    // app. Sem ela, o reset (que já zerou) deixaria o motorista trancado.
+    const espelhoDefinir = await espelharSenhaNoLegado(contaMotoristaId, hash, claims);
 
     await registrarAuditoria({
       idEmpresa: entidadeAtiva,
@@ -1354,7 +1405,7 @@ router.post('/:id/credencial/reset-senha/definir', requirePermission('motoristas
       acao: 'motorista.credencial_senha_definida',
       recurso: 'ContaMotorista',
       recursoId: contaMotoristaId,
-      detalhes: { contaMotoristaId },
+      detalhes: { contaMotoristaId, espelhoLegado: espelhoDefinir.ok, espelhoMotivo: espelhoDefinir.motivo || null },
       claims,
     });
 
@@ -1427,4 +1478,7 @@ module.exports = {
   idValido,
   ORDENAVEIS_MOTORISTAS,
   compararMotorista,
+  // Exportado para teste: o espelho da senha no legado é o que mantém o app do
+  // motorista funcionando enquanto o gate do login não é ligado.
+  espelharSenhaNoLegado,
 };
