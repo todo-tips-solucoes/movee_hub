@@ -29,6 +29,9 @@ const { mesmoGrupoQue } = require('./grupo');
 // EXERCITADO quando HUB_MOTORISTA_LOGIN_CONTA_ATIVA=true (nunca definida em
 // produção hoje) — o require em si não tem efeito colateral.
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
+const crypto = require('node:crypto');
+const { enviarEmail } = require('../lib/resend-email');
+const { planejarRecuperacao } = require('../lib/motorista-recuperacao-senha');
 const { hubMotoristaLoginHabilitado } = require('../lib/hub-motorista-app-login');
 // hub-motorista-360 (FASE 3) — vínculo automático de credencial (FR-009),
 // chamado dentro de POST /register em try/catch isolado (ver o handler).
@@ -296,6 +299,162 @@ async function loginViaContaMotorista(cnpjNorm, senha, res) {
 // ROTA: POST /motorista/login  (público)
 // Ref: tarefa 2.2.1 / contracts §login / spec FR-001 / quickstart 1, 2
 // ──────────────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════
+// "Esqueci minha senha" (2026-09-25)
+//
+// Até aqui não existia recuperação nenhuma: quem esquecia a senha dependia de
+// alguém do hub acionar o reset e informar a nova por fora. O e-mail virou
+// cadastro do hub na 0096, e é isso que torna o auto-atendimento possível.
+//
+// Reusa o MESMO mecanismo de token do reset do hub (`token_reset_hash` +
+// `token_reset_expira`, 60 min, uso único) — nada de segredo novo.
+// ════════════════════════════════════════════════════════════════════════
+
+const TOKEN_RECUPERACAO_TTL_MS = 60 * 60 * 1000;
+
+// Mais apertado que o login: cada pedido dispara um e-mail, então o abuso aqui
+// custa reputação de domínio, não só CPU.
+const recuperacaoPerIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' },
+});
+
+router.post('/recuperar-senha', recuperacaoPerIpLimiter, async (req, res) => {
+  try {
+    const { cnpjPrestador } = req.body || {};
+    const cnpjNorm = String(cnpjPrestador || '').replace(/\D/g, '');
+    if (cnpjNorm.length !== 14) {
+      return res.status(400).json({ error: 'Informe o CNPJ do prestador.' });
+    }
+
+    let conta = null;
+    try {
+      const contas = await hubPostgrestRequest(
+        `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}&select=id,email,ativo`,
+        'GET'
+      );
+      conta = Array.isArray(contas) ? contas[0] || null : null;
+    } catch (e) {
+      console.error('[motorista] recuperar-senha: falha ao buscar conta:', e.message);
+      return res.status(502).json({ error: 'Serviço indisponível. Tente novamente.' });
+    }
+
+    const plano = planejarRecuperacao(conta);
+
+    if (!plano.enviar) {
+      // Resposta IGUAL à do sucesso quando não há e-mail, para não transformar
+      // esta rota num detector de cadastro. O motivo fica só no log do
+      // servidor — é ele que permite ao hub procurar a pessoa e cadastrar o
+      // e-mail (242 das 1.456 contas estavam sem, em 2026-09-24).
+      console.error('[motorista] recuperar-senha sem envio:', plano.motivo, 'cnpj=', cnpjNorm.slice(0, 5) + '…');
+      return res.status(200).json({ ok: true, emailMascarado: null });
+    }
+
+    const tokenBruto = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(tokenBruto).digest('hex');
+    const expira = new Date(Date.now() + TOKEN_RECUPERACAO_TTL_MS).toISOString();
+
+    // ⚠️ O token é gravado ANTES do envio, mas a senha atual NÃO é invalidada:
+    // se o e-mail não chegar, o motorista continua entrando com a senha que
+    // tem. Zerar aqui repetiria o erro do reset do hub, que deixava a pessoa
+    // trancada para fora quando o segundo passo não acontecia.
+    try {
+      await hubPostgrestRequest(
+        `ContaMotorista?id=eq.${conta.id}`, 'PATCH',
+        { token_reset_hash: tokenHash, token_reset_expira: expira },
+        {}, { returnMinimal: true }
+      );
+    } catch (e) {
+      console.error('[motorista] recuperar-senha: falha ao gravar token:', e.message);
+      return res.status(502).json({ error: 'Serviço indisponível. Tente novamente.' });
+    }
+
+    const base = process.env.APP_MOTORISTA_URL || 'https://app.motorista.moveelog.com.br';
+    const link = `${base}/definir-senha?token=${tokenBruto}`;
+    const envio = await enviarEmail({
+      para: conta.email,
+      assunto: 'Recuperação de senha — app do motorista',
+      texto: [
+        'Você pediu para redefinir a senha do app do motorista.',
+        '',
+        `Abra este link para criar uma nova senha: ${link}`,
+        '',
+        'O link vale por 60 minutos e só pode ser usado uma vez.',
+        'Se não foi você, ignore este e-mail — sua senha atual continua valendo.',
+      ].join('\n'),
+    });
+
+    if (!envio.ok) {
+      console.error('[motorista] recuperar-senha: e-mail não enviado:', envio.erro);
+      return res.status(502).json({ error: 'Não foi possível enviar o e-mail agora. Tente novamente.' });
+    }
+
+    return res.status(200).json({ ok: true, emailMascarado: plano.emailMascarado });
+  } catch (e) {
+    console.error('[motorista] erro inesperado em POST /recuperar-senha:', e.message);
+    return res.status(500).json({ error: 'Erro interno.' });
+  }
+});
+
+router.post('/definir-senha', recuperacaoPerIpLimiter, async (req, res) => {
+  try {
+    const { token, novaSenha } = req.body || {};
+    if (typeof token !== 'string' || token.length < 32) {
+      return res.status(400).json({ error: 'Link inválido ou expirado.' });
+    }
+    if (typeof novaSenha !== 'string' || novaSenha.length < 8) {
+      return res.status(400).json({ error: 'A senha precisa ter pelo menos 8 caracteres.' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    let conta = null;
+    try {
+      const contas = await hubPostgrestRequest(
+        `ContaMotorista?token_reset_hash=eq.${encodeURIComponent(tokenHash)}&select=id,cnpj_prestador,token_reset_expira,ativo`,
+        'GET'
+      );
+      conta = Array.isArray(contas) ? contas[0] || null : null;
+    } catch (e) {
+      console.error('[motorista] definir-senha: falha ao buscar token:', e.message);
+      return res.status(502).json({ error: 'Serviço indisponível. Tente novamente.' });
+    }
+
+    // Mesma mensagem para token inexistente, expirado e conta inativa: não
+    // revelar QUAL parte falhou (mesmo espírito anti-enumeração do login).
+    if (!conta || conta.ativo === false) return res.status(400).json({ error: 'Link inválido ou expirado.' });
+    if (!conta.token_reset_expira || new Date(conta.token_reset_expira).getTime() < Date.now()) {
+      return res.status(400).json({ error: 'Link inválido ou expirado.' });
+    }
+
+    const hash = await bcrypt.hash(novaSenha, 12);
+    try {
+      // Uso único: o token é zerado no MESMO update que grava a senha.
+      await hubPostgrestRequest(
+        `ContaMotorista?id=eq.${conta.id}`, 'PATCH',
+        { senha: hash, token_reset_hash: null, token_reset_expira: null },
+        {}, { returnMinimal: true }
+      );
+      // Espelho no legado — é a tabela que o login usa hoje (incidente
+      // 2026-09-23/24). Sem isto a senha nova não vale no app.
+      await hubPostgrestRequest(
+        `Motorista?cnpj_prestador=eq.${encodeURIComponent(String(conta.cnpj_prestador).replace(/\D/g, ''))}`,
+        'PATCH', { senha: hash }, {}, { returnMinimal: true }
+      );
+    } catch (e) {
+      console.error('[motorista] definir-senha: falha ao gravar:', e.message);
+      return res.status(502).json({ error: 'Não foi possível salvar a senha. Tente novamente.' });
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('[motorista] erro inesperado em POST /definir-senha:', e.message);
+    return res.status(500).json({ error: 'Erro interno.' });
+  }
+});
+
 router.post('/login', loginPerIpLimiter, loginPerAccountLimiter, async (req, res) => {
   try {
     const { cnpjPrestador, senha } = req.body;
