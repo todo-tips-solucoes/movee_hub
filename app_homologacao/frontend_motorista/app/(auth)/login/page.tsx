@@ -182,6 +182,12 @@ export default function LoginPage() {
           </div>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
+            <Link href="/recuperar-senha" className="font-semibold text-primary underline-offset-4 hover:underline">
+              Esqueci minha senha
+            </Link>
+          </p>
+
+          <p className="mt-2 text-center text-sm text-muted-foreground">
             Primeira vez?{' '}
             <Link href="/cadastro" className="font-semibold text-primary underline-offset-4 hover:underline">
               Criar conta
