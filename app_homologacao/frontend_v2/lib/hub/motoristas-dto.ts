@@ -100,6 +100,11 @@ export interface MotoristaVinculo {
    * (ContaMotorista.ativo), independente de `MotoristaDetalhe.ativo`
    * (situação do próprio motorista/Entregador — FR-015/FR-018). */
   ativo: boolean;
+  /** 0096: e-mail como cadastro do hub. */
+  email: string | null;
+  /** `'entrego'` = veio do enriquecimento e pode ser atualizado por ele;
+   *  `'hub'` = digitado aqui, e o enriquecimento não sobrescreve mais. */
+  emailOrigem: 'hub' | 'entrego' | null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -279,6 +284,8 @@ function parseVinculo(raw: unknown): MotoristaVinculo | null {
     nome: r.nome,
     cnpjPrestadorMascarado: isString(r.cnpjPrestadorMascarado) ? r.cnpjPrestadorMascarado : '',
     ativo: r.ativo === true,
+    email: isStringOrNull(r.email) ? r.email : null,
+    emailOrigem: r.emailOrigem === 'hub' || r.emailOrigem === 'entrego' ? r.emailOrigem : null,
   };
 }
 

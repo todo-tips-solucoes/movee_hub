@@ -240,6 +240,10 @@ describe('mapMotoristaDetalhe', () => {
         nome: 'Fulano da Silva',
         cnpjPrestadorMascarado: '12.***.***/0001-**',
         ativo: true,
+        // 0096 — e-mail como cadastro do hub, com a origem que define quem
+        // vence quando o enriquecimento tentar sobrescrever.
+        email: null,
+        emailOrigem: null,
       },
       // FASE 7 (task 7.1.3) — default `false` quando o caller não informa
       // (fail-closed, coberto isoladamente no describe abaixo).
@@ -924,5 +928,49 @@ describe('cnpjEnvioMassaFilter (dual-format EnvioMassa.cnpj_prestador, FASE 7)',
     const filtro = cnpjEnvioMassaFilter('');
     const decodificado = decodeURIComponent(filtro.replace('cnpj_prestador=in.(', '').replace(/\)$/, ''));
     assert.equal(decodificado, '""');
+  });
+});
+
+// O e-mail do motorista é CADASTRO DO HUB (migration 0096) e vive na
+// "ContaMotorista", não no "Entregador" — por isso sai em `patchConta`.
+// Gravar pelo hub carimba `email_origem='hub'`, que é o que faz o gatilho da
+// 0096 impedir o enriquecimento da EntreGô de sobrescrever depois.
+describe('validarPatchMotorista — e-mail (cadastro do hub, 0096)', () => {
+  test('normaliza para minúsculas e sem espaços, e carimba origem hub', () => {
+    const r = validarPatchMotorista({ email: '  Fulano@Exemplo.COM  ' });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.patchConta, { email: 'fulano@exemplo.com', email_origem: 'hub' });
+    // não pode vazar para o Entregador, que não tem essa coluna
+    assert.deepEqual(r.patch, {});
+    assert.deepEqual(r.camposAlterados, ['email']);
+  });
+
+  test('e-mail inválido é recusado ANTES do banco, com motivo', () => {
+    for (const ruim of ['sem-arroba', 'a@b', 'a@b.c', 'com espaco@x.com', '@x.com']) {
+      assert.equal(validarPatchMotorista({ email: ruim }).ok, false, `deveria recusar: ${ruim}`);
+    }
+  });
+
+  // Limpar é legítimo: e-mail ERRADO no cadastro é pior que e-mail ausente —
+  // a recuperação de senha mandaria o código para a caixa de outra pessoa.
+  test('permite LIMPAR o e-mail, zerando também a origem', () => {
+    for (const vazio of [null, '']) {
+      const r = validarPatchMotorista({ email: vazio });
+      assert.equal(r.ok, true);
+      assert.deepEqual(r.patchConta, { email: null, email_origem: null });
+    }
+  });
+
+  test('e-mail junto de nome: cada um vai para a sua tabela', () => {
+    const r = validarPatchMotorista({ nome: 'Fulano', email: 'f@x.com' });
+    assert.equal(r.patch.nome, 'Fulano');
+    assert.equal(r.patch.nome_editado_manualmente, true);
+    assert.equal(r.patchConta.email, 'f@x.com');
+    assert.deepEqual(r.camposAlterados, ['nome', 'email']);
+  });
+
+  test('corpo só com email não é mais VAZIO', () => {
+    assert.equal(validarPatchMotorista({ email: 'f@x.com' }).ok, true);
+    assert.equal(validarPatchMotorista({}).erro, 'VAZIO');
   });
 });

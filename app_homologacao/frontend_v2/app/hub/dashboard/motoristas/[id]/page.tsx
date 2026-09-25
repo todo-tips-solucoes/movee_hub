@@ -141,6 +141,7 @@ export default function MotoristaDetalhePage() {
   // Edição de nome/ativo (7.1.1 + FR-004)
   const [editando, setEditando] = useState(false);
   const [nomeEdicao, setNomeEdicao] = useState('');
+  const [emailEdicao, setEmailEdicao] = useState('');
   const [ativoEdicao, setAtivoEdicao] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erroEdicao, setErroEdicao] = useState<string | null>(null);
@@ -148,6 +149,7 @@ export default function MotoristaDetalhePage() {
   const iniciarEdicao = useCallback(() => {
     if (!detalhe) return;
     setNomeEdicao(detalhe.nome);
+    setEmailEdicao(detalhe.vinculo?.email ?? '');
     setAtivoEdicao(detalhe.ativo);
     setErroEdicao(null);
     setEditando(true);
@@ -167,9 +169,14 @@ export default function MotoristaDetalhePage() {
     setSalvando(true);
     setErroEdicao(null);
     try {
-      const body: { nome?: string; ativo?: boolean } = {};
+      const body: { nome?: string; ativo?: boolean; email?: string | null } = {};
       if (nomeEdicao.trim() !== detalhe.nome) body.nome = nomeEdicao.trim();
       if (ativoEdicao !== detalhe.ativo) body.ativo = ativoEdicao;
+      // Só manda se mudou de fato: reenviar o mesmo e-mail carimbaria origem
+      // 'hub' sem ninguém ter decidido isso.
+      const emailNovo = emailEdicao.trim().toLowerCase();
+      const emailAtual = (detalhe.vinculo?.email ?? '').toLowerCase();
+      if (emailNovo !== emailAtual) body.email = emailNovo === '' ? null : emailNovo;
       if (Object.keys(body).length > 0) {
         await editarMotorista(id, body);
         await refetch();
@@ -181,7 +188,7 @@ export default function MotoristaDetalhePage() {
     } finally {
       setSalvando(false);
     }
-  }, [detalhe, nomeEdicao, ativoEdicao, id, refetch]);
+  }, [detalhe, nomeEdicao, emailEdicao, ativoEdicao, id, refetch]);
 
   // Sugestões (pré-carregadas p/ o diálogo de vínculo — task 7.2.1)
   const [sugestoes, setSugestoes] = useState<{
@@ -373,6 +380,31 @@ export default function MotoristaDetalhePage() {
                     disabled={salvando}
                     className="h-11 sm:h-9"
                   />
+                  {detalhe.vinculo ? (
+                    <>
+                      <label htmlFor="motorista-edicao-email" className="mt-2 text-xs text-muted-foreground">
+                        E-mail
+                      </label>
+                      <Input
+                        id="motorista-edicao-email"
+                        type="email"
+                        value={emailEdicao}
+                        onChange={(e) => setEmailEdicao(e.target.value)}
+                        disabled={salvando}
+                        placeholder="motorista@exemplo.com"
+                        className="h-11 sm:h-9"
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {detalhe.vinculo.emailOrigem === 'hub'
+                          ? 'Editado no hub — o enriquecimento da EntreGô não sobrescreve.'
+                          : 'Veio do enriquecimento da EntreGô. Ao salvar, passa a ser do hub e deixa de ser sobrescrito.'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="mt-2 text-xs text-muted-foreground">
+                      Vincule uma conta de acesso para poder cadastrar o e-mail.
+                    </span>
+                  )}
                 </div>
               ) : (
                 <CardTitle as="h1" className="text-lg">

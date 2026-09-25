@@ -767,18 +767,39 @@ router.patch('/:id', requirePermission('motoristas.editar'), async (req, res) =>
     // (defesa em profundidade, mesmo padrão de GET /:id); evita um PATCH
     // "no-op" silencioso contra 0 linhas de outro tenant.
     const existente = await hubPostgrestRequest(
-      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id`,
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,motorista_id`,
       'GET', null, claims
     );
     if (!existente || existente.length === 0) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
 
+    // O e-mail mora na "ContaMotorista" (0096), não no "Entregador": sem conta
+    // vinculada não há onde gravar. Recusar com motivo é melhor que aceitar e
+    // perder o dado em silêncio — quem edita precisa saber que falta vincular.
+    const temEmailNoPatch = validado.patchConta && Object.keys(validado.patchConta).length > 0;
+    const contaMotoristaId = existente[0].motorista_id;
+    if (temEmailNoPatch && !contaMotoristaId) {
+      return res.status(409).json({ erro: 'SEM_CONTA_VINCULADA', motivo: 'email' });
+    }
+
     // Único UPDATE (nome/ativo/nome_editado_manualmente juntos, FR-004) —
     // nunca toca FaturamentoLancamento/PerformanceTurno.
-    await hubPostgrestRequest(
-      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`,
-      'PATCH', validado.patch, claims,
-      { returnMinimal: true }
-    );
+    if (Object.keys(validado.patch).length > 0) {
+      await hubPostgrestRequest(
+        `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`,
+        'PATCH', validado.patch, claims,
+        { returnMinimal: true }
+      );
+    }
+
+    // O e-mail grava com `email_origem='hub'`: a partir daqui o gatilho da 0096
+    // impede que o enriquecimento da EntreGô o sobrescreva.
+    if (temEmailNoPatch) {
+      await hubPostgrestRequest(
+        `ContaMotorista?id=eq.${contaMotoristaId}`,
+        'PATCH', validado.patchConta, claims,
+        { returnMinimal: true }
+      );
+    }
 
     await registrarAuditoria({
       idEmpresa: entidadeAtiva,

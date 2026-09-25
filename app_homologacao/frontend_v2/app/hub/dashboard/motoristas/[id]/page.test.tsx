@@ -61,12 +61,12 @@ const DETALHE_COM_VINCULO = {
   ...DETALHE_SEM_VINCULO,
   // FASE 4 (task 4.1, FR-008) — CNPJ do legado, não mascarado.
   cnpjPrestador: '12345678000195',
-  vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
+  vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true, email: 'do.entrego@exemplo.com', emailOrigem: 'entrego' },
 };
 
 const DETALHE_COM_VINCULO_CREDENCIAL_DESATIVADA = {
   ...DETALHE_SEM_VINCULO,
-  vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: false },
+  vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: false, email: null, emailOrigem: null },
 };
 
 // FASE 7 (tasks 7.1/7.2) — fixtures de `entregoEnriquecimento`. CPF/RG em
@@ -616,5 +616,63 @@ describe('MotoristaDetalhePage', () => {
       await waitFor(() => expect(screen.getByRole('heading', { name: 'Dados da EntreGô' })).toBeInTheDocument());
       expect(screen.queryByRole('button', { name: /Buscar dados EntreGô/ })).not.toBeInTheDocument();
     });
+  });
+});
+
+// 0096 — o e-mail é CADASTRO do hub. A edição aqui é o que faz a origem 'hub'
+// existir na prática: sem ela a precedência está construída e ninguém consegue
+// exercê-la.
+describe('e-mail do motorista (cadastro do hub)', () => {
+  beforeEach(() => {
+    withPermissoes(['motoristas.consultar', 'motoristas.editar']);
+    mockEditarMotorista.mockReset();
+  });
+
+  async function abrirEdicao(detalhe = DETALHE_COM_VINCULO) {
+    mockObterMotorista.mockResolvedValue(detalhe);
+    render(<MotoristaDetalhePage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Editar/ }));
+    return screen.findByLabelText('E-mail');
+  }
+
+  it('mostra o e-mail atual e avisa que ele veio do enriquecimento', async () => {
+    const campo = await abrirEdicao();
+    expect(campo).toHaveValue('do.entrego@exemplo.com');
+    expect(screen.getByText(/passa a ser do hub e deixa de ser sobrescrito/i)).toBeInTheDocument();
+  });
+
+  it('salvar envia o e-mail novo, em minúsculas', async () => {
+    const campo = await abrirEdicao();
+    fireEvent.change(campo, { target: { value: '  Novo@Exemplo.COM ' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+    await waitFor(() => expect(mockEditarMotorista).toHaveBeenCalledWith(1,
+      expect.objectContaining({ email: 'novo@exemplo.com' })));
+  });
+
+  // Reenviar o mesmo e-mail carimbaria origem 'hub' sem ninguém ter decidido
+  // isso — e aí o enriquecimento deixaria de atualizar um dado que era dele.
+  it('não envia o e-mail quando ele não mudou', async () => {
+    const campo = await abrirEdicao();
+    fireEvent.change(campo, { target: { value: 'DO.ENTREGO@exemplo.com' } });
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Outro Nome' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+    await waitFor(() => expect(mockEditarMotorista).toHaveBeenCalled());
+    expect(mockEditarMotorista.mock.calls[0][1]).not.toHaveProperty('email');
+  });
+
+  it('esvaziar o campo LIMPA o e-mail (manda null)', async () => {
+    const campo = await abrirEdicao();
+    fireEvent.change(campo, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar/ }));
+    await waitFor(() => expect(mockEditarMotorista).toHaveBeenCalledWith(1,
+      expect.objectContaining({ email: null })));
+  });
+
+  it('sem conta vinculada não oferece o campo, e explica por quê', async () => {
+    mockObterMotorista.mockResolvedValue(DETALHE_SEM_VINCULO);
+    render(<MotoristaDetalhePage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Editar/ }));
+    expect(screen.queryByLabelText('E-mail')).not.toBeInTheDocument();
+    expect(screen.getByText(/Vincule uma conta de acesso/i)).toBeInTheDocument();
   });
 });
