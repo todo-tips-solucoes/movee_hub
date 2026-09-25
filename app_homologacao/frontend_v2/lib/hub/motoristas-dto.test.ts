@@ -92,7 +92,7 @@ describe('parseMotoristaDetalhe', () => {
     vinculoCredencialAutomatico: true,
     areas: [{ subpraca: 'Zona Sul', dataMaisRecente: '2026-07-01' }],
     resumo: { totalFaturamento: 42, totalPerformance: 30, dataMaisRecente: '2026-07-01' },
-    vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true },
+    vinculo: { contaMotoristaId: 7, nome: 'Fulano da Silva', cnpjPrestadorMascarado: '12.***.***/0001-**', ativo: true, email: null, emailOrigem: null },
     // FASE 6 (tasks.md 6.4/6.5) — seção "Atividades" (histórico read-only).
     atividades: {
       items: [{ tipo: 'faturamento', data: '2026-07-01', descricao: 'Entrega X', valor: 42.5 }],

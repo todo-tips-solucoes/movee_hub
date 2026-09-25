@@ -241,6 +241,11 @@ function mapMotoristaDetalhe(row, areas, resumo, atividades, temPermissaoDadosSe
         // exposto no detalhe para a UI de "Ativar/Desativar credencial"
         // (PATCH /:id/credencial) refletir o servidor em vez de adivinhar.
         ativo: !!contaMotorista.ativo,
+        // 0096: e-mail como CADASTRO do hub. `emailOrigem` diz se veio do
+        // enriquecimento ('entrego') ou foi digitado aqui ('hub') — a tela
+        // precisa disso para avisar que editar passa a dona do campo.
+        email: contaMotorista.email || null,
+        emailOrigem: contaMotorista.email_origem || null,
       }
       : null,
     // FASE 7 (task 7.1.3, SC-002) — necessário para a UI distinguir vínculo
@@ -412,12 +417,17 @@ function validarPatchMotorista(corpoCru) {
   const corpo = corpoCru && typeof corpoCru === 'object' ? corpoCru : {};
   const temNome = Object.prototype.hasOwnProperty.call(corpo, 'nome');
   const temAtivo = Object.prototype.hasOwnProperty.call(corpo, 'ativo');
+  const temEmail = Object.prototype.hasOwnProperty.call(corpo, 'email');
 
-  if (!temNome && !temAtivo) {
+  if (!temNome && !temAtivo && !temEmail) {
     return { ok: false, erro: 'VAZIO' };
   }
 
   const patch = {};
+  // `patchConta` vai para "ContaMotorista", não para "Entregador": o e-mail é
+  // dado da PESSOA (migration 0096), e mora na conta. Separar aqui evita
+  // mandar coluna inexistente para a tabela errada.
+  const patchConta = {};
   const camposAlterados = [];
 
   if (temNome) {
@@ -438,7 +448,29 @@ function validarPatchMotorista(corpoCru) {
     camposAlterados.push('ativo');
   }
 
-  return { ok: true, patch, camposAlterados };
+  if (temEmail) {
+    const bruto = corpo.email;
+    if (bruto === null || bruto === '') {
+      // Limpar é legítimo: e-mail errado no cadastro é pior que e-mail ausente
+      // — a recuperação de senha mandaria o código para a caixa de outra pessoa.
+      patchConta.email = null;
+      patchConta.email_origem = null;
+    } else {
+      const email = typeof bruto === 'string' ? bruto.trim().toLowerCase() : '';
+      // Mesmo formato do CHECK da 0096. Validar aqui também para devolver 400
+      // com motivo, em vez de deixar o banco recusar com erro opaco.
+      if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(email)) {
+        return { ok: false, erro: 'INVALIDO' };
+      }
+      patchConta.email = email;
+      // Digitado no hub => o hub passa a ser o dono deste campo, e o
+      // enriquecimento da EntreGô não o sobrescreve mais (gatilho da 0096).
+      patchConta.email_origem = 'hub';
+    }
+    camposAlterados.push('email');
+  }
+
+  return { ok: true, patch, patchConta, camposAlterados };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

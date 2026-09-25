@@ -165,6 +165,9 @@ export async function listarAreasMotoristas(): Promise<string[]> {
 export interface EditarMotoristaBody {
   nome?: string;
   ativo?: boolean;
+  /** 0096: grava em `ContaMotorista` com `email_origem='hub'`. `null` limpa.
+   *  409 `SEM_CONTA_VINCULADA` se o motorista não tiver conta. */
+  email?: string | null;
 }
 
 export async function editarMotorista(id: number, body: EditarMotoristaBody): Promise<MotoristaDetalhe> {
