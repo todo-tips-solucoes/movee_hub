@@ -271,22 +271,28 @@ F2: `hub-rbac-integration.sh` + caso novo que chama o **RPC direto** com JWT de 
 **Revisão adversarial independente sobre o diff antes do PR** da F3 (e da F2) — memória
 "revisão adversarial antes do PR".
 
-## 6. [MEDIR] — o operador mede em produção antes do `specify`
+## 6. Medido em produção (operador, 2026-09-26)
 
-Leitura apenas (sem escrita), via os mesmos meios dos briefings anteriores:
+Leitura apenas, numa transação `BEGIN READ ONLY … ROLLBACK` no `chatmasterveloz`. A prévia
+da semana usou `hub_adiantamento_repasse` com a claim de escopo `[6]` simulada via
+`set_config(…, true)` — o mesmo número que a tela do hub mostra.
 
-1. `SELECT count(*), min(periodo_inicio), max(periodo_inicio) FROM "ApuracaoRepasse";`
-2. Itens fechados com `remanescente > 0 AND remanescente < 5.50` — quantos e soma (**D7**).
-3. Na última semana ao vivo: quantos motoristas ficariam retidos e quanto somam (dimensiona
-   o impacto no financeiro).
-4. Usuários `admin_plataforma` com vínculo ativo em `UsuarioEntidade` na empresa 6 — só a
-   **contagem** (**pré-condição da F2**).
-5. Papéis (além de `admin_plataforma`) que hoje têm `adiantamentos.pagamento_confirmar` — só
-   os **nomes** dos papéis (**F2**).
-6. Lotes de adiantamento (`AdiantamentoLote`) ainda sem confirmação/retorno — só a contagem (depois da
-   F2, só o admin confirma; não deixar lote parado na virada).
-7. Quantos `Entregador` da empresa 6 aparecem no repasse — confirma que o lote de 100 da F1
-   basta sem paginação extra.
+| # | Medida | Resultado | Consequência |
+|---|---|---|---|
+| 1 | Apurações fechadas | **0** | **D7 não tem caso**: nenhuma semana congelada a respeitar. O primeiro fechamento já nasce com a regra nova — se a F3 for ao ar antes dele. |
+| 2 | Itens fechados com `0 < remanescente < 5,50` | **0** | Idem. |
+| 3 | Semana 2026-09-14 (última completa), abaixo do piso | **38 motoristas, R$ 47,55** retidos | ~3,7 % dos motoristas, valor irrisório no total. |
+| 3 | Mesma semana: negativos · a pagar | **0** · **R$ 887.799,30** | D2/D9 não têm caso hoje, mas continuam com teste. |
+| 4 | `admin_plataforma` com vínculo ativo na empresa 6 | **1** | **F2 é viável.** ⚠️ Mas vira **uma pessoa só** capaz de fechar a semana e confirmar lote. Férias ou saída dessa pessoa param o pagamento. |
+| 4b | Módulo `adiantamentos` ativo na empresa 6 | **1** | A terceira camada (SQL) aceita o admin. |
+| 5 | Papéis com `pagamento_confirmar` | `admin_entidade` (1 vínculo), `admin_plataforma` (1), `financeiro` (1) | **Nenhum papel criado por tela.** A F2 retira dos dois conhecidos; **duas pessoas perdem o acesso** (avisar antes). |
+| 6 | Lotes sem confirmação/retorno | **0** | Virada da F2 sem lote parado — hoje. Reconferir no dia do deploy. |
+| 7 | Motoristas no repasse da semana | **1.021** | A tela pagina (20 por página): 1 consulta de uuid por página. O CSV precisa de **11 lotes de 100** — aceitável, sem paginação extra. |
+
+**Ordem que isto sugere:** a F3 deveria ir ao ar **antes do primeiro fechamento**. Enquanto
+não houver apuração fechada, não há valor congelado a respeitar e o retrato antes/depois
+(§5, caso 8) é trivial. Cada semana fechada antes da F3 é uma semana cujos retidos (~38)
+não são carregados.
 
 ## 7. Entregáveis
 
