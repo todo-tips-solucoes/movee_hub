@@ -101,14 +101,15 @@ pode ser esquecido de jeito nenhum" protege**; teste obrigatório (§5).
 | D1 | Sobre **qual valor** vale o piso de R$ 5,50? | O **total a pagar** da semana = `remanescente` (créditos − adiantamentos − débitos) **+ saldo carregado**. |
 | D2 | Remanescente **negativo** carrega? | **Não.** O piso vale para `0 < total < 5,50`. Negativo segue como hoje: alerta, não transporta. |
 | D4 | Semana retida **gera nota** (movimento na EnvioMassa)? | **Não.** A geração pula o motorista retido; na semana em que ele receber, o movimento leva `valor_nota` e `valor_fora_nota` **somados aos componentes carregados** — uma nota só. |
-| D5 | "Aprovação de pagamento" cobre quais ações? | **Fechar apuração**, **gerar notas da semana** **e** confirmar/retornar **lotes de adiantamento (Transfeera)**. Todas só do administrador do sistema. |
+| D5 | "Aprovação de pagamento" cobre quais ações? | **Fechar apuração**, **gerar notas da semana** **e** confirmar/retornar **lotes de adiantamento (Transfeera)**. Todas só de quem tem o papel que aprova (D10). |
+| D10 | Um admin só vira ponto único de falha (§6). Segundo `admin_plataforma` ou papel novo? | **Papel novo `financeiro_aprovador`** (= `financeiro` + aprovar pagamento) **+ trava**: só `admin_plataforma` atribui, altera ou desativa os papéis que aprovam. `admin_entidade` continua existindo. Ver F2. |
 
 ### Do agente — recomendações que o operador pode vetar no `clarify`
 
 | # | Pergunta | Recomendação |
 |---|---|---|
 | D3 | Piso fixo ou configurável? | Coluna `repasse_valor_minimo numeric(14,2) NOT NULL DEFAULT 5.50` em `AdiantamentoConfiguracao` (versionada, auditável). **Sem campo na tela** — entra quando alguém pedir para mudar. |
-| D6 | Como restringir ao admin? | Consequência de D5: **as quatro ações de D5 são exatamente todos os usos de `adiantamentos.pagamento_confirmar`** (rotas `:1209`, `:1298`, `:1580`, `:1654`; telas `lotes/[id]/page.tsx:153` e `repasse/page.tsx:146`; SQL 0067/0083/0092). Então **não precisa de permissão nova nem de mexer nas três camadas**: basta **retirar** essa permissão de `financeiro` e `admin_entidade` em `PapelPermissao`. Ficam só com `admin_plataforma`. |
+| D6 | Como restringir? | As quatro ações de D5 são **exatamente todos os usos** de `adiantamentos.pagamento_confirmar` (rotas `:1209`, `:1298`, `:1580`, `:1654`; telas `lotes/[id]/page.tsx:153` e `repasse/page.tsx:146`; SQL 0067/0083/0092). Então **não precisa de permissão nova nem mexer nas três camadas de checagem**: basta controlar **quais papéis** a têm (F2a). |
 | D7 | Semanas **já fechadas** antes do deploy | **Não reescrever** (imutáveis por gatilho). O carregamento começa na primeira semana fechada depois do deploy. Item fechado com `0 < remanescente < 5,50` **não pago** → o operador decide caso a caso. **[MEDIR]** |
 | D9 | Motorista com saldo carregado (ex.: R$ 3,00) tem semana **negativa** (ex.: −R$ 10,00). O que acontece com os R$ 3,00? | **Continuam carregados, intactos.** Somar daria −R$ 7,00, que pela D2 não transporta: os R$ 3,00 sumiriam, e o requisito é que nunca sumam. O negativo da semana é tratado como hoje (alerta, sem transporte). |
 | D8 | Ordem de fechamento | Proibir fechar semana **anterior** à última fechada (`APURACAO_FORA_DE_ORDEM`). Sem isso, o saldo anterior de uma semana fechada fora de ordem sai errado e não há como corrigir (imutável). |
@@ -132,28 +133,84 @@ A regra que ordena: **não inviabilizar o repasse em uso**. Do menor risco para 
 - **Pronto quando:** tela e CSV da semana corrente e de uma semana fechada trazem o uuid, e o
   uuid bate com o da tela de Motoristas para o mesmo motorista.
 
-### F2 — aprovação só do administrador do sistema
+### F2 — aprovação só de `admin_plataforma` e do papel novo `financeiro_aprovador`, com trava
 
-- **Só migration, zero código de aplicação** (D6). `NNNN_pagamento_so_admin_plataforma.sql`:
-  `DELETE FROM "PapelPermissao"` da permissão `adiantamentos.pagamento_confirmar` para os
-  papéis `financeiro` e `admin_entidade`, por **nome** (nunca por id). Idempotente.
-  Rollback = o `INSERT … ON CONFLICT DO NOTHING` inverso, testado antes.
-- As três camadas (middleware, `resolverContextoAdiantamentos`, `hub_adiantamento_tem_permissao`
-  no SQL) já leem `PapelPermissao` — passam a recusar sozinhas. O cache do RBAC tem TTL de
-  60 s (`hub-rbac-cache.js:28`): o efeito é total em até 1 minuto, sem restart.
-- Os botões ("Fechar apuração", "Gerar notas da semana", confirmação de lote) já dependem da
-  permissão e somem sozinhos. **Nenhum build, nenhum `service update`.**
-- ⚠️ **Pré-condição, antes da migration:** existir ao menos um usuário `admin_plataforma`
-  com vínculo ativo em `UsuarioEntidade` na **empresa 6**. Sem isso **ninguém fecha a semana
-  nem confirma lote de adiantamento** — e o lote parado atrasa o pagamento do motorista.
-  **[MEDIR]**
-- ⚠️ Conferir se algum outro papel (criado por tela, fora das migrations) tem a permissão:
-  a migration deve retirar de **todo papel exceto `admin_plataforma`**, não só dos dois
-  conhecidos. **[MEDIR]**
-- Conferir o rótulo em `lib/hub/rotulo-permissao.ts:58-95` e textos de tela que digam que o
-  `financeiro` confirma pagamento (ajuste de texto, se houver, entra na F1 ou na F3).
-- **Pronto quando:** `financeiro` e `admin_entidade` recebem 403 nas quatro ações (rota **e**
-  RPC direto no PostgREST), `admin_plataforma` executa, e os botões somem para os demais.
+Decisão do operador (2026-09-26, D10): **opção B + trava**. Um admin só é ponto único de
+falha (§6, medida 4); em vez de um segundo `admin_plataforma` (poder total na plataforma), um
+papel de **menor privilégio** que aprova pagamento. `admin_entidade` **continua existindo**
+e fazendo tudo o que faz hoje, menos aprovar pagamento e atribuir os papéis que aprovam.
+
+#### F2a — migration `NNNN_papel_financeiro_aprovador.sql` (idempotente, tudo por **nome**)
+
+1. `INSERT INTO "Papel" (nome, escopo, is_sistema) VALUES ('financeiro_aprovador', 'entidade', true) ON CONFLICT DO NOTHING`.
+2. `PapelPermissao` do papel novo = **todas as permissões de `financeiro`** (INSERT … SELECT a
+   partir do `financeiro`) **+** `adiantamentos.pagamento_confirmar`. Motivo: há **um papel
+   por pessoa por empresa** (`UNIQUE (usuario_id, empresa_id)`, 0003:50) — o aprovador
+   precisa carregar tudo o que o financeiro faz.
+3. `DELETE` de `adiantamentos.pagamento_confirmar` de **todo papel exceto**
+   `admin_plataforma` e `financeiro_aprovador` (hoje: `financeiro` e `admin_entidade`, §6).
+4. Rollback testado antes: devolve a permissão aos dois, remove `PapelPermissao` do papel
+   novo e o papel — **só se não houver vínculo com ele** (senão recusa e avisa).
+
+⚠️ **Dívida que nasce aqui:** o papel novo é uma **cópia** do `financeiro` na data da
+migration. Toda migration futura que conceder permissão ao `financeiro` **precisa conceder
+também ao `financeiro_aprovador`**. Registrar isso num comentário da migration **e** no
+`CLAUDE.md` (seção de migrations do hub) — senão diverge calado.
+
+As três camadas de checagem (middleware, `resolverContextoAdiantamentos`,
+`hub_adiantamento_tem_permissao`) já leem `PapelPermissao` e passam a valer sozinhas; cache
+do RBAC com TTL de 60 s (`hub-rbac-cache.js:28`). Os botões ("Fechar apuração", "Gerar notas
+da semana", confirmação de lote) dependem da permissão e se ajustam sozinhos.
+
+#### F2b — a trava: só `admin_plataforma` mexe nos papéis que aprovam
+
+**O furo, lido no código (2026-09-26), anterior a esta frente:** `POST /usuarios/:id/vinculos`
+(`hub-usuarios.js:397`) e `PUT /usuarios/:id/vinculos/:vinculoId` (`:478`) só conferem se o
+papel **existe**; a política de banco da 0039 (`usuarioentidade_insert_admin` /
+`_update_admin`) deixa quem tem escopo na empresa gravar **qualquer** `papel_id`. Ou seja,
+hoje um `admin_entidade` pode dar `admin_plataforma` a qualquer um da empresa, **inclusive a
+si mesmo**. Sem a trava, a F2a é decorativa. **Não foi testado em execução** — o primeiro
+passo da F2b é um teste que **prove** o furo (tem de passar hoje, antes da correção).
+
+Papéis restritos: `admin_plataforma` e `financeiro_aprovador`. Sem ser `admin_plataforma`:
+
+- **não pode atribuir** papel restrito (POST e PUT de vínculo);
+- **não pode alterar nem desativar** vínculo cujo papel **atual** é restrito (senão o
+  `admin_entidade` rebaixa ou desliga o aprovador);
+- recusa com **403 `PAPEL_RESTRITO`**, auditada.
+
+Duas camadas, como o resto do RBAC:
+
+1. **Rota** (`hub-usuarios.js`): a checagem acima, pelo claim `admin_plataforma` do JWT.
+2. **Banco**: migration que refaz as políticas de INSERT/UPDATE de `UsuarioEntidade`
+   (partir do corpo **vigente** — conferir se algo depois da 0039 as redefiniu):
+   `hub_jwt_admin_plataforma() OR (empresa_id = ANY (hub_jwt_escopo_ids()) AND papel_id NÃO restrito)`
+   no `WITH CHECK`, e o mesmo sobre a linha **atual** no `USING` do UPDATE.
+
+Tela de Usuários: esconder os papéis restritos do seletor para quem não é
+`admin_plataforma` (conforto; a segurança é das duas camadas acima). Rótulo do papel novo:
+**abrir antes** a tela de Usuários/Papéis e reusar o vocabulário que ela já usa para
+`financeiro` (regra de UI do `CLAUDE.md`).
+
+#### Ordem de deploy da F2
+
+1. F2b (trava) **antes ou junto** da F2a — nunca depois: com o papel novo no ar e a trava
+   fora, o `admin_entidade` se torna aprovador sozinho.
+2. Migration F2a → `SIGUSR1` no `pgadmin_postgrest` → `service update` do backend (trava na
+   rota) e do frontend_v2 (seletor).
+3. Logo depois, o `admin_plataforma` atribui `financeiro_aprovador` a quem vai aprovar. Até
+   lá, só ele aprova — fazer **fora** da janela de fechamento e com 0 lote pendente (§6).
+4. ⚠️ Antes de tudo, o operador **confirma que o único `admin_plataforma` de hoje é quem
+   deveria ser** — o furo existe desde a 0039 e nada impediu uma promoção indevida.
+
+**Pronto quando:**
+- `financeiro` e `admin_entidade` recebem 403 nas quatro ações de D5 (rota **e** RPC direto no
+  PostgREST); `admin_plataforma` e `financeiro_aprovador` executam;
+- `financeiro_aprovador` faz **tudo** o que o `financeiro` faz (teste compara os dois
+  conjuntos de permissões: diferença = só `pagamento_confirmar`);
+- `admin_entidade` recebe 403 `PAPEL_RESTRITO` ao atribuir, alterar ou desativar papel
+  restrito — pela rota **e** direto no PostgREST com o JWT dele (prova da camada de banco);
+- `admin_entidade` continua criando usuários e atribuindo os papéis não restritos.
 
 ### F3 — saldo mínimo carregado (o coração; código de dinheiro)
 
@@ -265,28 +322,38 @@ Específico da F3 — driver novo `infra/hub/testes/hub-repasse-saldo-minimo.sh`
 **quais** falham): sem a inclusão do saldo no CTE `linhas`, o caso 2 **tem** de falhar; sem
 a soma do saldo anterior, os casos 1, 3 e 7 **têm** de falhar. `ROLLBACK=1` conferido.
 
-F2: `hub-rbac-integration.sh` + caso novo que chama o **RPC direto** com JWT de `financeiro`
-(prova a terceira camada, não só a rota).
+F2: `hub-rbac-integration.sh` + `hub-papeis-integration.sh` + casos novos: RPC direto com JWT
+de `financeiro` (403) e de `financeiro_aprovador` (ok); POST/PUT de vínculo com papel restrito
+por `admin_entidade` pela rota e direto no PostgREST (403). **Controle negativo:** o teste do
+furo roda **antes** da trava e tem de mostrar a promoção passando; sem a política de banco, o
+caso "direto no PostgREST" tem de voltar a passar. O RPC direto prova a camada do banco, não
+só a rota.
 
 **Revisão adversarial independente sobre o diff antes do PR** da F3 (e da F2) — memória
 "revisão adversarial antes do PR".
 
-## 6. [MEDIR] — o operador mede em produção antes do `specify`
+## 6. Medido em produção (operador, 2026-09-26)
 
-Leitura apenas (sem escrita), via os mesmos meios dos briefings anteriores:
+Leitura apenas, numa transação `BEGIN READ ONLY … ROLLBACK` no `chatmasterveloz`. A prévia
+da semana usou `hub_adiantamento_repasse` com a claim de escopo `[6]` simulada via
+`set_config(…, true)` — o mesmo número que a tela do hub mostra.
 
-1. `SELECT count(*), min(periodo_inicio), max(periodo_inicio) FROM "ApuracaoRepasse";`
-2. Itens fechados com `remanescente > 0 AND remanescente < 5.50` — quantos e soma (**D7**).
-3. Na última semana ao vivo: quantos motoristas ficariam retidos e quanto somam (dimensiona
-   o impacto no financeiro).
-4. Usuários `admin_plataforma` com vínculo ativo em `UsuarioEntidade` na empresa 6 — só a
-   **contagem** (**pré-condição da F2**).
-5. Papéis (além de `admin_plataforma`) que hoje têm `adiantamentos.pagamento_confirmar` — só
-   os **nomes** dos papéis (**F2**).
-6. Lotes de adiantamento (`AdiantamentoLote`) ainda sem confirmação/retorno — só a contagem (depois da
-   F2, só o admin confirma; não deixar lote parado na virada).
-7. Quantos `Entregador` da empresa 6 aparecem no repasse — confirma que o lote de 100 da F1
-   basta sem paginação extra.
+| # | Medida | Resultado | Consequência |
+|---|---|---|---|
+| 1 | Apurações fechadas | **0** | **D7 não tem caso**: nenhuma semana congelada a respeitar. O primeiro fechamento já nasce com a regra nova — se a F3 for ao ar antes dele. |
+| 2 | Itens fechados com `0 < remanescente < 5,50` | **0** | Idem. |
+| 3 | Semana 2026-09-14 (última completa), abaixo do piso | **38 motoristas, R$ 47,55** retidos | ~3,7 % dos motoristas, valor irrisório no total. |
+| 3 | Mesma semana: negativos · a pagar | **0** · **R$ 887.799,30** | D2/D9 não têm caso hoje, mas continuam com teste. |
+| 4 | `admin_plataforma` com vínculo ativo na empresa 6 | **1** | **F2 é viável.** Uma pessoa só seria ponto único de falha → **D10** (papel `financeiro_aprovador`). |
+| 4b | Módulo `adiantamentos` ativo na empresa 6 | **1** | A terceira camada (SQL) aceita o admin. |
+| 5 | Papéis com `pagamento_confirmar` | `admin_entidade` (1 vínculo), `admin_plataforma` (1), `financeiro` (1) | **Nenhum papel criado por tela.** A F2 retira dos dois conhecidos; **duas pessoas perdem o acesso** (avisar antes). |
+| 6 | Lotes sem confirmação/retorno | **0** | Virada da F2 sem lote parado — hoje. Reconferir no dia do deploy. |
+| 7 | Motoristas no repasse da semana | **1.021** | A tela pagina (20 por página): 1 consulta de uuid por página. O CSV precisa de **11 lotes de 100** — aceitável, sem paginação extra. |
+
+**Ordem que isto sugere:** a F3 deveria ir ao ar **antes do primeiro fechamento**. Enquanto
+não houver apuração fechada, não há valor congelado a respeitar e o retrato antes/depois
+(§5, caso 8) é trivial. Cada semana fechada antes da F3 é uma semana cujos retidos (~38)
+não são carregados.
 
 ## 7. Entregáveis
 
