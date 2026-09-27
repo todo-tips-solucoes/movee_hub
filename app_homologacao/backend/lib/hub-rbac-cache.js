@@ -24,6 +24,7 @@
 'use strict';
 
 const { hubPostgrestRequest } = require('./hub-postgrest');
+const { papelEhRestrito } = require('./hub-papeis-restritos');
 
 const TTL_MS = 60 * 1000;
 
@@ -173,6 +174,47 @@ async function usuarioEhAdminPlataforma(usuarioId) {
   return resultado.has('admin_plataforma');
 }
 
+/**
+ * Consulta se o usuário ALVO tem vínculo ATIVO com papel RESTRITO
+ * (`admin_plataforma`/`financeiro_aprovador` — `lib/hub-papeis-restritos.js`)
+ * em QUALQUER empresa — trava F2 de `routes/hub-usuarios.js` (FR-012a) antes
+ * de alterar um campo GLOBAL de `Usuario` (nome/ativo/senha) de outra pessoa.
+ *
+ * MESMO padrão privilegiado de `usuarioEhAdminPlataforma` acima: emite
+ * `sub = usuarioAlvoId` na claim, o que satisfaz a policy de RLS
+ * `usuarioentidade_select_proprio` (`usuario_id = claim.sub`,
+ * `0006_rls_policies.sql`) e por isso enxerga os vínculos do ALVO em
+ * QUALQUER empresa — nunca escopado pela entidade ativa do CHAMADOR.
+ *
+ * Correção pós-review (block-009/dec-075, repasse-saldo-minimo F2 2.4.4): a
+ * leitura anterior em `routes/hub-usuarios.js` reusava `vinculosVisiveis`
+ * (filtrada por `empresa_id=eq.entidadeAtiva` DO CHAMADOR e lida com claims
+ * escopadas a essa mesma entidade) para decidir a trava — um vínculo
+ * restrito do alvo em OUTRA empresa nunca aparecia ali, e um `admin_entidade`
+ * conseguia trocar a senha de um `admin_plataforma`/`financeiro_aprovador`
+ * de outra entidade (tomada de conta).
+ *
+ * SEM cache (ao contrário de `usuarioEhAdminPlataforma`/`obterComCache`) —
+ * de propósito: o núcleo `obterComCache` é fail-closed para checagem de
+ * PERMISSÃO (erro -> Set vazio -> "sem permissão nenhuma", seguro), mas essa
+ * mesma direção seria fail-OPEN aqui (erro -> Set vazio -> "não é
+ * restrito" -> trava NÃO dispara -> PATCH sensível passaria sob falha de
+ * infra). Por isso este helper deixa o erro SUBIR (nunca captura) — o
+ * caller (`routes/hub-usuarios.js`) já responde 500 `ERRO_SERVIDOR` pelo
+ * try/catch da rota, negando a alteração em vez de arriscar liberar.
+ * @param {number|string} usuarioAlvoId
+ * @returns {Promise<boolean>}
+ */
+async function alvoTemPapelRestritoAtivo(usuarioAlvoId) {
+  const vinculos = await hubPostgrestRequest(
+    `UsuarioEntidade?usuario_id=eq.${usuarioAlvoId}&ativo=eq.true&select=papel:Papel(nome)`,
+    'GET',
+    null,
+    { usuarioId: usuarioAlvoId }
+  );
+  return (vinculos || []).some((v) => v && v.papel && papelEhRestrito(v.papel.nome));
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Cache de módulos ATIVOS por entidade (hub-auditoria-admin S9, tasks.md
 // FASE 4.1, research.md Decision 3) — namespace de chave PRÓPRIO (`mod:<id>`,
@@ -250,6 +292,7 @@ module.exports = {
   obterPermissoesEfetivas,
   obterPermissoesEfetivasPorEntidade,
   usuarioEhAdminPlataforma,
+  alvoTemPapelRestritoAtivo,
   obterModulosAtivosPorEntidade,
   invalidarEntidadeModulos,
   invalidarUsuario,

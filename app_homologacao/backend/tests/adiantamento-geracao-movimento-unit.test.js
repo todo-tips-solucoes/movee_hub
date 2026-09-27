@@ -127,6 +127,114 @@ test.describe('planejarGeracao() — CNPJ do tomador', () => {
   });
 });
 
+// F3 (saldo mínimo carregado): os três casos de research.md Decision 8 —
+// retido, pago com saldo carregado, e pré-regra (comportamento de hoje).
+test.describe('planejarGeracao() — F3: saldo mínimo carregado', () => {
+  test('item retido (valor_pago=0, valor_transportado>0) nunca gera nota', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ valor_pago: '0.00', valor_transportado: '3.00' })],
+      [[1, conta()]],
+    );
+    assert.equal(aGerar.length, 0);
+    assert.equal(recusados[0].motivo, 'RETIDO');
+    assert.match(recusados[0].detalhe, /entra no próximo repasse/);
+  });
+
+  // O ponto do FR-020: nunca uma nota extra por semana retida — os
+  // componentes carregados somam na MESMA nota da semana em que paga.
+  test('item pago com saldo carregado soma os componentes numa nota só', () => {
+    const { aGerar, recusados } = planejar(
+      [item({
+        valor_pago: '505.00', valor_transportado: '0.00',
+        valor_nota: '480.00', valor_fora_nota: '20.00',
+        saldo_anterior_nota: '20.00', saldo_anterior_fora: '5.00',
+      })],
+      [[1, conta()]],
+    );
+    assert.equal(recusados.length, 0);
+    assert.equal(aGerar[0].linha.valor, 500);   // 480 (semana) + 20 (saldo)
+    assert.equal(aGerar[0].linha.gorjeta, 25);  // 20 (semana) + 5 (saldo)
+  });
+
+  // item() (default) não define valor_pago/valor_transportado/saldo_anterior_*
+  // — é exatamente o shape de um item PRÉ-REGRA (Decision 7: colunas novas
+  // NULAS). O caso feliz já cobre isso; aqui deixamos explícito que a F3 não
+  // muda esse caminho.
+  test('item pré-regra (valor_pago ausente) mantém o comportamento de hoje', () => {
+    const { aGerar, recusados } = planejar([item()], [[1, conta()]]);
+    assert.equal(recusados.length, 0);
+    assert.equal(aGerar[0].linha.valor, 480);
+    assert.equal(aGerar[0].linha.gorjeta, 20);
+  });
+
+  // Controle negativo (memória "controle negativo pega teste oco"): comentar
+  // a checagem de `retido` em lib/adiantamento-geracao-movimento.js faz este
+  // teste falhar porque `aGerar.length` vira 1 (o item retido seria
+  // indevidamente gerado) — não por um erro de sintaxe/require. Conferido
+  // manualmente nesta tarefa (3.7.4): revertendo o bloco `if (retido) {
+  // recusar('RETIDO'); continue; }`, a suíte cai exatamente nesta asserção.
+  test('sem a checagem de retido, o item retido SERIA gerado (documentação do controle negativo)', () => {
+    const { aGerar } = planejar(
+      [item({ valor_pago: '0.00', valor_transportado: '3.00' })],
+      [[1, conta()]],
+    );
+    assert.equal(aGerar.length, 0, 'se isto falhar com length=1, a checagem de retido foi removida/quebrada');
+  });
+
+  // dec-055/block-008: revisão adversarial da F3 achou uma assimetria — com
+  // remanescente NEGATIVO (débito > crédito) e saldo carregado (saldo_anterior
+  // >0), `valor_pago=0` e `valor_transportado=saldo_anterior>0` (0098:268) são
+  // exatamente o SHAPE de um item retido — mas remanescente<0 nunca teve
+  // retenção nenhuma (a produção da semana é consumida pelo débito maior, não
+  // "presa esperando o piso"). Decisão do operador: a semana negativa gera a
+  // nota da PRÓPRIA produção (valor_nota/valor_fora_nota), sem somar o saldo
+  // antigo — que segue carregado intacto (transportado_nota/_fora = saldo_
+  // anterior_nota/_fora, 0098:279/284) para a nota em que finalmente pagar.
+  test('remanescente negativo com saldo carregado gera a nota da própria semana, sem somar o saldo antigo', () => {
+    const { aGerar, recusados } = planejar(
+      [item({
+        remanescente: '-10.00', valor_pago: '0.00', valor_transportado: '4.00',
+        valor_nota: '20.00', valor_fora_nota: '5.00',
+        saldo_anterior_nota: '3.00', saldo_anterior_fora: '1.00',
+      })],
+      [[1, conta()]],
+    );
+    assert.equal(recusados.length, 0);
+    assert.equal(aGerar[0].linha.valor, 20);    // só a produção desta semana
+    assert.equal(aGerar[0].linha.gorjeta, 5);   // idem — sem o 1,00 carregado
+  });
+
+  // Controle negativo (verificado manualmente nesta tarefa, revertendo a
+  // cláusula `&& num(item.remanescente) >= 0` do `retido` numa cópia isolada
+  // do módulo — nunca no arquivo versionado): sem ela, este item cai em
+  // RETIDO por ter o mesmo shape (valor_pago=0 && valor_transportado>0).
+  test('sem o remanescente>=0 no retido, este item seria indevidamente recusado (controle negativo)', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ remanescente: '-10.00', valor_pago: '0.00', valor_transportado: '4.00' })],
+      [[1, conta()]],
+    );
+    assert.equal(aGerar.length, 1, 'se isto falhar com length=0, a cláusula remanescente>=0 foi removida/quebrada');
+    assert.notEqual(recusados[0]?.motivo, 'RETIDO');
+  });
+
+  // Controle negativo (mesma verificação manual): sem a exclusão do saldo
+  // carregado quando `negativo` é true, valor/gorjeta duplicariam o saldo
+  // antigo (23/6 em vez de 20/5) — ele já segue carregado pela 0098 e seria
+  // cobrado de novo quando a nota futura finalmente somá-lo.
+  test('sem a exclusão do saldo carregado, o valor duplicaria o saldo antigo (controle negativo)', () => {
+    const { aGerar } = planejar(
+      [item({
+        remanescente: '-10.00', valor_pago: '0.00', valor_transportado: '4.00',
+        valor_nota: '20.00', valor_fora_nota: '5.00',
+        saldo_anterior_nota: '3.00', saldo_anterior_fora: '1.00',
+      })],
+      [[1, conta()]],
+    );
+    assert.notEqual(aGerar[0].linha.valor, 23, 'se isto falhar com 23, o saldo antigo foi somado de novo (duplicidade)');
+    assert.notEqual(aGerar[0].linha.gorjeta, 6, 'se isto falhar com 6, o saldo antigo foi somado de novo (duplicidade)');
+  });
+});
+
 test.describe('planejarGeracao() — lote', () => {
   test('separa quem gera de quem não, sem perder ninguém', () => {
     const itens = [item({ entregador_id: 1 }), item({ entregador_id: 2 }), item({ entregador_id: 3, valor_nota: null })];

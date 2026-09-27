@@ -123,7 +123,17 @@ function calcularLinhaRemanescente({ entregadorId, nome, creditos, adiantamentos
 
 // --- CSV (2.4.3) -------------------------------------------------------------
 
-const CABECALHOS_CSV = ['Entregador', 'Créditos', 'Adiantamentos', 'Débitos', 'Remanescente'];
+// F1 (repasse-saldo-minimo, spec.md FR-004): `Identificador` é a primeira
+// coluna — mesmo identificador (`Entregador.id_externo`) já usado na tela de
+// Motoristas (FR-003). Mudança de cabeçalho quebra planilha que lê por
+// posição — avisar o financeiro no PR (tasks.md 1.3.5).
+// F3 (repasse-saldo-minimo, contracts/hub-repasse-api.md §GET /repasse/exportar):
+// três colunas novas no fim. Mudança de cabeçalho quebra planilha que lê por
+// posição — avisar o financeiro no PR (tasks.md 3.3.2).
+const CABECALHOS_CSV = [
+  'Identificador', 'Entregador', 'Créditos', 'Adiantamentos', 'Débitos', 'Remanescente',
+  'Saldo anterior', 'A pagar', 'Passou para a próxima semana',
+];
 
 function celulaCsv(valor) {
   return quotarCelulaCsv(escaparCelulaCsvInjection(valor === null || valor === undefined ? '' : valor));
@@ -139,13 +149,31 @@ function celulaMoeda(linha, campo) {
   return celulaCsv(formatarCentavos(centavos));
 }
 
+/** F3: célula monetária que sai VAZIA (não "0,00") quando o valor é
+ * `null`/`undefined` — semana fechada antes da regra do saldo mínimo
+ * (Decision 7) não tem esses campos, e "sem valor" é diferente de zero. */
+function celulaMoedaOuVazia(valor) {
+  if (valor === null || valor === undefined) return celulaCsv('');
+  return celulaCsv(formatarCentavos(paraCentavos(valor)));
+}
+
 /** CSV (RFC 4180 + proteção de injeção de fórmula, S5) das linhas de
  * remanescente — mesma dupla `escaparCelulaCsvInjection` + `quotarCelulaCsv`
- * usada em `routes/hub-faturamento.js`/`lib/hub-csv.js`. */
+ * usada em `routes/hub-faturamento.js`/`lib/hub-csv.js`.
+ *
+ * F3/FR-024: uma linha de motorista RETIDO nunca é omitida — `aPagar` sai
+ * "0,00" (nunca vazio) e `transportado` traz o valor carregado para a
+ * próxima semana. `saldoAnterior`/`aPagar`/`transportado` ausentes na linha
+ * (`undefined`, nunca inseridos pelo caller) saem vazios — semana fechada
+ * antes da 0098. */
 function serializarCsvRemanescente(linhas) {
   const cabecalho = CABECALHOS_CSV.join(',');
   const corpo = linhas.map((l) =>
-    [celulaCsv(l.nome), celulaMoeda(l, 'creditos'), celulaMoeda(l, 'adiantamentos'), celulaMoeda(l, 'debitos'), celulaMoeda(l, 'remanescente')].join(','),
+    [
+      celulaCsv(l.idExterno), celulaCsv(l.nome), celulaMoeda(l, 'creditos'), celulaMoeda(l, 'adiantamentos'),
+      celulaMoeda(l, 'debitos'), celulaMoeda(l, 'remanescente'),
+      celulaMoedaOuVazia(l.saldoAnterior), celulaMoedaOuVazia(l.aPagar), celulaMoedaOuVazia(l.transportado),
+    ].join(','),
   );
   return [cabecalho, ...corpo].join('\r\n');
 }

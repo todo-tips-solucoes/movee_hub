@@ -40,6 +40,7 @@ import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { EmptyState } from '@/components/hub/empty-state';
 import { PageHeader } from '@/components/hub/page-header';
 import { FilterBar } from '@/components/hub/filter-bar';
+import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { AdiantamentosAbas } from '@/components/hub/adiantamentos-abas';
 import { FecharApuracaoDialog, useFecharApuracaoDialog } from '@/components/hub/adiantamento-fechar-apuracao-dialog';
 import { useHubAuth } from '@/contexts/hub-auth-context';
@@ -300,10 +301,13 @@ export default function AdiantamentosRepassePage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Motorista</TableHead>
+                  <TableHead>Identificador</TableHead>
                   <TableHead className="text-right">Créditos</TableHead>
                   <TableHead className="text-right">Adiantamentos</TableHead>
                   <TableHead className="text-right">Débitos</TableHead>
                   <TableHead className="text-right">Remanescente</TableHead>
+                  <TableHead className="text-right">Saldo anterior</TableHead>
+                  <TableHead className="text-right">A pagar</TableHead>
                   <TableHead>Observação</TableHead>
                 </TableRow>
               </TableHeader>
@@ -311,14 +315,22 @@ export default function AdiantamentosRepassePage() {
                 {h.dados.itens.map((item) => (
                   <TableRow key={item.entregadorId}>
                     <TableCell>{item.nome}</TableCell>
+                    <TableCell>
+                      <CopyableUuid value={item.idExterno} label={`Copiar identificador de ${item.nome}`} />
+                    </TableCell>
                     <TableCell className="text-right font-mono">{formatBRL(item.creditos)}</TableCell>
                     <TableCell className="text-right font-mono">− {formatBRL(item.adiantamentos)}</TableCell>
                     <TableCell className="text-right font-mono">{item.debitos !== '0.00' ? `− ${formatBRL(item.debitos)}` : '—'}</TableCell>
                     <TableCell className={`text-right font-mono font-semibold ${item.negativo ? 'text-destructive' : ''}`}>
                       {formatBRL(item.remanescente)}
                     </TableCell>
+                    <TableCell className="text-right font-mono">{formatBRL(item.saldoAnterior)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatBRL(item.aPagar)}</TableCell>
                     <TableCell>
-                      {item.emProcessamento && <Badge variant="default">Em processamento</Badge>}
+                      <div className="flex flex-wrap gap-1">
+                        {item.emProcessamento && <Badge variant="default">Em processamento</Badge>}
+                        {item.retido && <Badge variant="secondary">Passou para a próxima semana</Badge>}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -326,10 +338,13 @@ export default function AdiantamentosRepassePage() {
               <TableFooter>
                 <TableRow>
                   <TableCell className="font-semibold">Total ({h.dados.totais.motoristas} motorista(s))</TableCell>
+                  <TableCell />
                   <TableCell className="text-right font-mono font-semibold">{formatBRL(h.dados.totais.creditos)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">− {formatBRL(h.dados.totais.adiantamentos)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">− {formatBRL(h.dados.totais.debitos)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">{formatBRL(h.dados.totais.remanescente)}</TableCell>
+                  <TableCell className="text-right font-mono font-semibold">{formatBRL(h.dados.totais.saldoAnterior)}</TableCell>
+                  <TableCell className="text-right font-mono font-semibold">{formatBRL(h.dados.totais.aPagar)}</TableCell>
                   <TableCell />
                 </TableRow>
               </TableFooter>

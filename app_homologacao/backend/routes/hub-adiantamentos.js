@@ -51,6 +51,7 @@ const { requirePermission } = require('../middleware/hub-require-permission');
 const { obterPermissoesEfetivasPorEntidade } = require('../lib/hub-rbac-cache');
 const { mesmoGrupoQue } = require('./grupo');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
+const { buscarEmLotes } = require('../lib/hub-postgrest-lotes');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const {
   dinheiro, formatarSequencial, formatarBancoCodigoNome, pontuarDocumentoMascarado,
@@ -500,11 +501,37 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
       'fonteProducao', 'categoriasProducao', 'previsaoPagamentoTexto', 'descricaoPixModelo', 'apuracaoDiaInicio',
       'apuracaoDiasAteRepasse', 'apuracaoDataBase', 'categoriasExtrato', 'categoriasNota',
       'mensagem1Modelo', 'mensagem2Modelo', 'descontoAdiantamentos', 'descontoDebitos',
-      'repasseVisivelApp',
+      'repasseVisivelApp', 'repasseValorMinimo',
     ];
     const dados = {};
     for (const campo of CAMPOS) {
       if (corpo[campo] !== undefined) dados[campo] = corpo[campo];
+    }
+
+    // F3/FR-025/FR-026: piso do repasse — `> 0` e só quem tem
+    // `adiantamentos.pagamento_confirmar` pode ALTERAR o valor vigente
+    // (checagem repetida no banco, contracts/hub-repasse-api.md §configuracoes).
+    if (dados.repasseValorMinimo !== undefined) {
+      const pisoNovo = Number(String(dados.repasseValorMinimo).replace(',', '.'));
+      if (!Number.isFinite(pisoNovo) || pisoNovo <= 0) {
+        return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'repasseValorMinimo' });
+      }
+      // Normalizado ANTES de seguir pra RPC — sem isto, um cliente de API que
+      // manda "5,50" (aceito pela validação acima) chegava cru no `::numeric`
+      // do banco e quebrava com erro genérico (achado da revisão adversarial
+      // F3): a UI já normaliza antes de enviar, mas a rota não devia depender
+      // disso.
+      dados.repasseValorMinimo = pisoNovo;
+      const atuais = await hubPostgrestRequest(
+        `AdiantamentoConfiguracao?id_empresa=eq.${GRUPO_MOVEE_ID}&order=versao.desc&limit=1&select=repasse_valor_minimo`,
+        'GET', null, claims);
+      const pisoAtual = Array.isArray(atuais) && atuais[0] ? Number(atuais[0].repasse_valor_minimo) : null;
+      if (pisoAtual === null || pisoNovo !== pisoAtual) {
+        const permsPiso = await obterPermissoesEfetivasPorEntidade(payload.sub, entidadeAtiva);
+        if (!permsPiso.has('adiantamentos.pagamento_confirmar')) {
+          return res.status(403).json({ erro: 'PERMISSAO_NEGADA_PISO' });
+        }
+      }
     }
 
     // F4: molde de mensagem só pode citar placeholder da whitelist — o texto é
@@ -551,6 +578,12 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
     } catch (e) {
       const msg = mensagemDeErro(e);
       if (msg.includes('VERSAO_DESATUALIZADA')) return res.status(409).json({ erro: 'VERSAO_DESATUALIZADA' });
+      // F3: defesa em profundidade — o backend já barrou os dois casos acima;
+      // isto só dispara numa corrida ou se o pré-check for contornado.
+      if (msg.includes('PERMISSAO_NEGADA_PISO')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA_PISO' });
+      if (msg.includes('DADOS_INVALIDOS_REPASSE_VALOR_MINIMO')) {
+        return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'repasseValorMinimo' });
+      }
       if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
       if (msg.includes('FORA_DO_GRUPO_MOVEE')) return res.status(403).json({ erro: 'FORA_DO_GRUPO_MOVEE' });
       console.error('[hub-adiantamentos] erro em PUT /configuracoes:', e.message);
@@ -566,10 +599,10 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
       'fonte_producao', 'categorias_producao', 'previsao_pagamento_texto', 'descricao_pix_modelo', 'apuracao_dia_inicio',
       'apuracao_dias_ate_repasse', 'apuracao_data_base', 'categorias_extrato', 'categorias_nota',
       'mensagem1_modelo', 'mensagem2_modelo', 'desconto_adiantamentos', 'desconto_debitos',
-      'repasse_visivel_app',
+      'repasse_visivel_app', 'repasse_valor_minimo',
     ];
     // 12.2 (converge onda-044, FR-024): quando a leitura de `linhaAntes`
-    // falhou, não há "antes" real para comparar — gravar `null` para os 18
+    // falhou, não há "antes" real para comparar — gravar `null` para os 19
     // campos afirmaria que cada um veio de nulo (dado inventado, pior que
     // registrar a ausência). Neste caso a trilha grava só o "depois"
     // submetido + `antesIndisponivel: true`, nunca um "antes" fabricado.
@@ -1436,6 +1469,28 @@ async function buscarApuracaoFechada(periodoInicio, claims) {
   return (Array.isArray(linhas) && linhas[0]) || null;
 }
 
+/** F1 (spec.md FR-001..FR-005; research.md Decision 1; contracts/hub-repasse-api.md
+ * §GET /repasse): resolve `Entregador.id_externo` — o mesmo "Identificador" já
+ * exibido na tela de Motoristas (FR-003) — para cada `entregador_id` de `rows`,
+ * em lotes de 100 (lib/hub-postgrest-lotes.js). Nunca devolve linha sem
+ * identificador: se algum `entregador_id` não resolver (ou algum lote do
+ * PostgREST falhar), rejeita a Promise inteira — a rota converte isso em
+ * `502 { erro: 'ERRO_SERVIDOR' }`. */
+async function anexarIdExterno(rows, claims) {
+  if (!rows.length) return rows;
+  const entregadores = await buscarEmLotes(
+    'Entregador?select=id,id_externo', rows.map((r) => r.entregador_id), { campoId: 'id', claims }
+  );
+  const idExternoPorId = new Map(entregadores.map((e) => [e.id, e.id_externo]));
+  return rows.map((r) => {
+    const idExterno = idExternoPorId.get(r.entregador_id);
+    if (!idExterno) {
+      throw new Error(`F1: id_externo não resolvido para entregador_id=${r.entregador_id}`);
+    }
+    return { ...r, id_externo: idExterno };
+  });
+}
+
 router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamentos_consultar'), async (req, res) => {
   try {
     const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamentos_consultar');
@@ -1470,8 +1525,15 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
       console.error('[hub-adiantamentos] erro em GET /repasse:', e.message);
       return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
     }
-    const rows = linhas || [];
+    let rows = linhas || [];
     const total = rows.length ? Number(rows[0].total) : 0;
+
+    try {
+      rows = await anexarIdExterno(rows, claims);
+    } catch (e) {
+      console.error('[hub-adiantamentos] falha ao resolver id_externo em GET /repasse:', e.message);
+      return res.status(502).json({ erro: 'ERRO_SERVIDOR' });
+    }
 
     const naoPagosNoPeriodo = await contarNaoPagosNoPeriodo(periodo, fim, claims);
 
@@ -1501,9 +1563,15 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
         debitos: totalDoPeriodo('total_debitos'),
         remanescente: totalDoPeriodo('total_remanescente'),
         motoristas: total,
+        // F3: semana aberta = previsão (piso vigente agora); semana fechada
+        // = valores congelados. Vem NULO quando não há nenhuma linha.
+        saldoAnterior: rows.length ? dinheiro(rows[0].total_saldo_anterior) : null,
+        aPagar: rows.length ? dinheiro(rows[0].total_a_pagar) : null,
+        transportado: rows.length ? dinheiro(rows[0].total_transportado) : null,
       },
       itens: rows.map((r) => ({
         entregadorId: r.entregador_id,
+        idExterno: r.id_externo,
         nome: r.nome,
         creditos: dinheiro(r.creditos),
         adiantamentos: dinheiro(r.adiantamentos),
@@ -1511,6 +1579,11 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
         remanescente: dinheiro(r.remanescente),
         negativo: Number(r.remanescente) < 0,
         emProcessamento: r.em_processamento === true,
+        // F3: NULL num item de semana fechada antes da regra (Decision 7).
+        saldoAnterior: dinheiro(r.saldo_anterior),
+        aPagar: dinheiro(r.valor_pago),
+        transportado: dinheiro(r.valor_transportado),
+        retido: r.retido === true,
       })),
       naoPagosNoPeriodo,
       total,
@@ -1553,17 +1626,29 @@ router.get('/repasse/exportar', requireModuloAtivo('adiantamentos'), requirePerm
       console.error('[hub-adiantamentos] erro em GET /repasse/exportar:', e.message);
       return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
     }
-    const rows = linhas || [];
+    let rows = linhas || [];
+    try {
+      rows = await anexarIdExterno(rows, claims);
+    } catch (e) {
+      console.error('[hub-adiantamentos] falha ao resolver id_externo em GET /repasse/exportar:', e.message);
+      return res.status(502).json({ erro: 'ERRO_SERVIDOR' });
+    }
     // `serializarCsvRemanescente` já escapa (`escaparCelulaCsvInjection`) e
     // converte reais->centavos (`paraCentavos`) internamente — passar valor
     // já mascarado ou pré-multiplicado por 100 duplicaria a conversão.
     const csv = serializarCsvRemanescente(rows.map((r) => ({
+      idExterno: r.id_externo,
       entregadorId: r.entregador_id,
       nome: r.nome,
       creditos: r.creditos,
       adiantamentos: r.adiantamentos,
       debitos: r.debitos,
       remanescente: r.remanescente,
+      // F3: NULL num item de semana fechada antes da regra (Decision 7) —
+      // `celulaMoedaOuVazia` sai em branco nesse caso, nunca "0,00".
+      saldoAnterior: r.saldo_anterior,
+      aPagar: r.valor_pago,
+      transportado: r.valor_transportado,
     })));
 
     res.set({
@@ -1600,6 +1685,9 @@ router.post('/repasse/:periodo/fechar', requireModuloAtivo('adiantamentos'), req
         return res.status(409).json({ erro: 'APURACAO_COM_PENDENCIAS', detalhe });
       }
       if (msg.includes('APURACAO_JA_FECHADA')) return res.status(409).json({ erro: 'APURACAO_JA_FECHADA' });
+      // F3/FR-021: só a semana seguinte, em ordem, à última já fechada da
+      // empresa — impede tanto fechar uma anterior quanto pular uma semana.
+      if (msg.includes('APURACAO_FORA_DE_ORDEM')) return res.status(409).json({ erro: 'APURACAO_FORA_DE_ORDEM' });
       if (msg.includes('APURACAO_NAO_CONFIGURADA')) return res.status(409).json({ erro: 'APURACAO_NAO_CONFIGURADA' });
       if (msg.includes('PERIODO_EM_ABERTO')) return res.status(409).json({ erro: 'PERIODO_EM_ABERTO' });
       // A1: o gatilho da 0086 recusa fechar uma janela que não começa no
@@ -1672,7 +1760,10 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
     // 2. Itens congelados + trilha do que já foi gerado.
     const [itens, jaGeradosLinhas, configLinhas] = await Promise.all([
       hubPostgrestRequest(
-        `ApuracaoRepasseItem?apuracao_id=eq.${apuracao.id}&select=entregador_id,creditos,valor_nota,valor_fora_nota`,
+        // F3: colunas do saldo mínimo — `planejarGeracao` decide RETIDO/soma
+        // com saldo a partir delas (contracts/hub-repasse-api.md §movimentos).
+        `ApuracaoRepasseItem?apuracao_id=eq.${apuracao.id}&select=entregador_id,creditos,valor_nota,valor_fora_nota,` +
+        `remanescente,saldo_anterior_nota,saldo_anterior_fora,valor_pago,valor_transportado`,
         'GET', null, claims),
       hubPostgrestRequest(
         `ApuracaoRepasseMovimento?apuracao_id=eq.${apuracao.id}&select=entregador_id`, 'GET', null, claims),
@@ -1685,14 +1776,14 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
     }
     const config = (Array.isArray(configLinhas) && configLinhas[0]) || {};
 
-    // 3. CNPJ, nome e telefone — do HUB, que virou o dono (F4-A).
-    const ids = [...new Set(itens.map((i) => i.entregador_id))];
-    const entregadores = await hubPostgrestRequest(
-      `Entregador?id=in.(${ids.join(',')})&select=id,nome,motorista_id`, 'GET', null, claims);
+    // 3. CNPJ, nome e telefone — do HUB, que virou o dono (F4-A). F3/Decision
+    //    13: em lotes de 100 (lib/hub-postgrest-lotes.js) — nunca todos os ids
+    //    da apuração de uma vez (mesmo padrão do incidente do PR #50).
+    const ids = itens.map((i) => i.entregador_id);
+    const entregadores = await buscarEmLotes('Entregador?select=id,nome,motorista_id', ids, { campoId: 'id', claims });
     const motoristaIds = [...new Set((entregadores || []).map((e) => e.motorista_id).filter(Boolean))];
     const contas = motoristaIds.length
-      ? await hubPostgrestRequest(
-          `ContaMotorista?id=in.(${motoristaIds.join(',')})&select=id,cnpj_prestador,nome,telefone`, 'GET', null, claims)
+      ? await buscarEmLotes('ContaMotorista?select=id,cnpj_prestador,nome,telefone', motoristaIds, { campoId: 'id', claims })
       : [];
     const contaPorId = new Map((contas || []).map((c) => [c.id, c]));
     const contasPorEntregador = new Map();

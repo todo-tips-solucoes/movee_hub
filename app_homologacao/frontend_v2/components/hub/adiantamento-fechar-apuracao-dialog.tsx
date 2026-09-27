@@ -8,7 +8,14 @@
 // (routes/hub-adiantamentos.js:1213-1216) — mostrada aqui, não escondida
 // atrás de uma mensagem genérica (7.8.4).
 //
+// F3 (repasse-saldo-minimo, tasks.md 3.3.3): fechar passa a poder RETER quem
+// fica abaixo do piso configurado — o total pago não é mais necessariamente
+// o remanescente inteiro. O aviso deixa isso explícito para quem confirma.
+// Fechamento fora de ordem (pular ou repetir uma semana) é recusado com
+// `APURACAO_FORA_DE_ORDEM` — mensagem tratada em lib/hub/adiantamentos-api.ts.
+//
 // Ref: docs/specs/adiantamento-motorista/contracts/hub-api.md §Repasse;
+// docs/specs/repasse-saldo-minimo/contracts/hub-repasse-api.md;
 // spec.md US6 cenário 5, FR-041; prototipo H14 (botão "Fechar apuração").
 
 import { useCallback, useState } from 'react';
@@ -84,7 +91,8 @@ export function FecharApuracaoDialog({ d }: { d: ReturnType<typeof useFecharApur
           <AlertDialogTitle>Fechar apuração deste período?</AlertDialogTitle>
           <AlertDialogDescription>
             Grava um retrato permanente do remanescente por motorista — não muda depois, mesmo que dados de
-            origem sejam corrigidos (FR-041). Esta ação não pode ser desfeita.
+            origem sejam corrigidos (FR-041). Quem fica abaixo do valor mínimo configurado não recebe nesta
+            semana: o valor passa para o repasse da próxima. Esta ação não pode ser desfeita.
           </AlertDialogDescription>
         </AlertDialogHeader>
 

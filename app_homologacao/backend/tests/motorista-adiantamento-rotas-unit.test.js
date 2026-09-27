@@ -1020,8 +1020,24 @@ describe('GET /motorista/repasse', () => {
       debitos: '0.00',
       remanescente: '870.60',
       negativo: false,
+      saldoAnterior: null,
+      previsaoTotal: null,
+      abaixoDoMinimo: false,
       ultimoFechado: null,
     });
+  });
+
+  // F3 (saldo mínimo carregado): saldo carregado de semana(s) anterior(es) +
+  // previsão do total + o efeito do piso (nunca o piso em si).
+  test('F3: saldo carregado soma na previsão e sinaliza abaixoDoMinimo', async () => {
+    mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow({
+      creditos: 2, remanescente: 2, saldo_anterior: 3, abaixo_do_minimo: true,
+    })];
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r-saldo' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.saldoAnterior, '3.00');
+    assert.equal(r.body.previsaoTotal, '5.00'); // 2 (semana) + 3 (saldo)
+    assert.equal(r.body.abaixoDoMinimo, true);
   });
 
   // A3 (briefing adiantamento-repasse-us6): a semana fechada mais recente. A
@@ -1047,9 +1063,30 @@ describe('GET /motorista/repasse', () => {
       debitos: '20.00',
       remanescente: '650.60',
       negativo: false,
+      saldoAnterior: null,
+      aPagar: null,
+      transportado: null,
+      retido: false,
     });
     // O bloco da semana CORRENTE não pode ser contaminado pelo congelado.
     assert.equal(r.body.remanescente, '870.60');
+  });
+
+  // F3: apuração fechada DEPOIS da 0098 traz os 4 campos novos do congelado.
+  test('F3: ultimoFechado retido traz saldoAnterior/aPagar/transportado/retido', async () => {
+    mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow()];
+    mockRespostas['rpc/hub_adiantamento_repasse_motorista_ultimo_fechado'] = [{
+      periodo_inicio: '2026-09-03', periodo_fim: '2026-09-09', data_repasse: '2026-09-16',
+      fechado_em: '2026-09-10T12:00:00-03:00',
+      creditos: 3, adiantamentos: 0, debitos: 0, remanescente: 3, negativo: false,
+      saldo_anterior: 0, valor_pago: 0, valor_transportado: 3, retido: true,
+    }];
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r-retido' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ultimoFechado.saldoAnterior, '0.00');
+    assert.equal(r.body.ultimoFechado.aPagar, '0.00');
+    assert.equal(r.body.ultimoFechado.transportado, '3.00');
+    assert.equal(r.body.ultimoFechado.retido, true);
   });
 
   // A falha da consulta do congelado é ADICIONAL: não pode derrubar a tela do

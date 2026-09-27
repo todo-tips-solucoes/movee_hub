@@ -297,6 +297,13 @@ export interface RepasseFechado {
   debitos: string;
   remanescente: string;
   negativo: boolean;
+  /** F3 (saldo mínimo carregado) — `null` numa apuração fechada antes da regra. */
+  saldoAnterior: string | null;
+  aPagar: string | null;
+  /** Valor retido nesta semana e transportado para a próxima (0 quando `retido:false`). */
+  transportado: string | null;
+  /** `true` quando o piso não foi atingido e o valor foi retido por inteiro. */
+  retido: boolean;
 }
 
 export interface Repasse {
@@ -309,6 +316,14 @@ export interface Repasse {
   debitos: string;
   remanescente: string;
   negativo: boolean;
+  /** F3: saldo carregado de semana(s) anterior(es) somado à previsão. `null`
+   * numa configuração antes da regra do saldo mínimo. */
+  saldoAnterior: string | null;
+  /** `remanescente + saldoAnterior`; `null` quando `saldoAnterior` é `null`
+   * (usar `remanescente` nesse caso). */
+  previsaoTotal: string | null;
+  /** O piso em si nunca é exposto — só o efeito. */
+  abaixoDoMinimo: boolean;
   ultimoFechado: RepasseFechado | null;
 }
 

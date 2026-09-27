@@ -162,14 +162,21 @@ function defaultState(): StubState {
     proximoLoteId: 9101,
     repasse: {
       '2026-09-01': {
-        itens: [{ entregadorId: 11, nome: 'Motorista Um', creditos: '500.00', adiantamentos: '150.00', debitos: '0.00', remanescente: '350.00', negativo: false, emProcessamento: false }],
+        itens: [{ entregadorId: 11, nome: 'Motorista Um', idExterno: '11111111-1111-4111-8111-111111111111', creditos: '500.00', adiantamentos: '150.00', debitos: '0.00', remanescente: '350.00', saldoAnterior: '0.00', aPagar: '350.00', negativo: false, retido: false, emProcessamento: false }],
         totais: { creditos: '500.00', adiantamentos: '150.00', debitos: '0.00', remanescente: '350.00', motoristas: 1 },
         naoPagosNoPeriodo: 2,
         fechavel: false,
       },
+      // F3 (repasse-saldo-minimo): Motorista Três retido — "A pagar" zerado
+      // e badge "Passou para a próxima semana" (rótulo aprovado, dec-047).
       '2026-09-08': {
-        itens: [{ entregadorId: 12, nome: 'Motorista Dois', creditos: '300.00', adiantamentos: '90.00', debitos: '10.00', remanescente: '200.00', negativo: false, emProcessamento: false }],
-        totais: { creditos: '300.00', adiantamentos: '90.00', debitos: '10.00', remanescente: '200.00', motoristas: 1 },
+        itens: [
+          { entregadorId: 12, nome: 'Motorista Dois', idExterno: '22222222-2222-4222-8222-222222222222', creditos: '300.00', adiantamentos: '90.00', debitos: '10.00', remanescente: '200.00', saldoAnterior: '0.00', aPagar: '200.00', negativo: false, retido: false, emProcessamento: false },
+          // "R$ 1,00" no crédito/adiantamento evita colidir, via substring,
+          // com o "R$ 0,00" do "A pagar" retido nas asserções da coluna.
+          { entregadorId: 13, nome: 'Motorista Três', idExterno: '33333333-3333-4333-8333-333333333333', creditos: '3.00', adiantamentos: '1.00', debitos: '0.00', remanescente: '2.00', saldoAnterior: '1.00', aPagar: '0.00', negativo: false, retido: true, emProcessamento: false },
+        ],
+        totais: { creditos: '303.00', adiantamentos: '91.00', debitos: '10.00', remanescente: '202.00', motoristas: 2 },
         naoPagosNoPeriodo: 0,
         fechavel: true,
       },
@@ -371,7 +378,7 @@ async function installApiStubs(page: Page, state: StubState): Promise<void> {
           fonteProducao: 'movimento', categoriasProducao: null, previsaoPagamentoTexto: 'Em até 1 dia útil',
           descricaoPixModelo: 'Adiantamento {nome}', apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 7,
           apuracaoDataBase: null, categoriasExtrato: null, descontoAdiantamentos: true, descontoDebitos: false,
-          repasseVisivelApp: false, completa: true,
+          repasseVisivelApp: false, repasseValorMinimo: '5.50', completa: true,
         },
         historico: [],
       });
@@ -645,6 +652,26 @@ test.describe('US6 — repasse e fechamento', () => {
     await expect(page.getByText(/Apuração fechada/)).toBeVisible();
     await expect(page.getByText('Fechado')).toBeVisible();
   });
+
+  // F3 (repasse-saldo-minimo, tasks.md 3.6.4): coluna Identificador (uuid
+  // copiável) e o badge de retido — rótulo "Passou para a próxima semana"
+  // (block-007/dec-047 baniu a palavra "Retido" de toda UI visível).
+  test('coluna Identificador mostra o uuid; motorista retido tem "A pagar" zerado e o badge', async ({ page }) => {
+    const state = defaultState();
+    await setup(page, state);
+
+    await page.goto('/hub/dashboard/adiantamentos/repasse');
+    await page.getByLabel('Período de apuração (início)').fill('2026-09-08');
+    await expect(page.getByText('Motorista Três')).toBeVisible();
+
+    await expect(page.getByRole('columnheader', { name: 'Identificador' })).toBeVisible();
+    await expect(page.getByText('33333333-3333-4333-8333-333333333333')).toBeVisible();
+    await expect(page.getByText('Passou para a próxima semana')).toBeVisible();
+
+    const linha = page.getByRole('row', { name: /Motorista Três/ });
+    await expect(linha.getByText('R$ 0,00')).toBeVisible(); // "A pagar"
+    await expect(page.getByText('Retido', { exact: false })).toHaveCount(0);
+  });
 });
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -685,5 +712,22 @@ test.describe('Tema escuro — combobox nativo', () => {
     expect(cores.colorScheme).toBe('dark');
     expect(cores.optionFundo).toBe(cores.popover);
     expect(cores.optionTexto).toBe(cores.popoverTexto);
+  });
+});
+
+// F3 (repasse-saldo-minimo, tasks.md 3.6.4): campo "Valor mínimo para
+// repasse" nas configurações — carrega o piso vigente e fica editável só
+// para quem tem `adiantamentos.pagamento_confirmar` (RBAC completo é
+// 2.5.x, fora deste E2E de UI).
+test.describe('F3 — piso do repasse (configurações)', () => {
+  test('campo do piso carrega o valor vigente e fica habilitado para quem confirma pagamento', async ({ page }) => {
+    const state = defaultState();
+    await setup(page, state);
+
+    await page.goto('/hub/dashboard/adiantamentos/configuracoes');
+    const campo = page.getByLabel('Valor mínimo para repasse');
+    await expect(campo).toBeVisible();
+    await expect(campo).toHaveValue('5.50');
+    await expect(campo).toBeEnabled();
   });
 });

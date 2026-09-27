@@ -55,6 +55,13 @@ let loteFixture = {};
 let loteItensFixture = [];
 let repasseRowsFixture = []; // 7.11.2/7.11.3: linhas do RPC hub_adiantamento_repasse (default em resetFixtures)
 let repasseCongeladoFixture = []; // A4: linhas do RPC hub_adiantamento_repasse_congelado
+// F1 (repasse-saldo-minimo, tasks.md 1.2.4): fake de buscarEmLotes
+// (lib/hub-postgrest-lotes.js) — por padrão resolve `id_externo` p/ QUALQUER
+// entregador_id pedido (determinístico: `uuid-entregador-<id>`). Os dois
+// campos abaixo simulam os dois caminhos de falha do contrato (falha
+// explícita, nunca linha sem identificador).
+let buscarEmLotesFalha = false; // simula lote do PostgREST rejeitando
+let buscarEmLotesIdsSemIdExterno = new Set(); // simula id_externo não encontrado
 let rpcRepasseChamada = null; // A4: 'ao_vivo' | 'congelado' — qual RPC a rota escolheu
 let comportamentoRpc = {}; // rpc -> 'ok' | codigo de erro string
 let chamadasLoteCriar = 0; // 11.23 — conta invocações de rpc/hub_adiantamento_lote_criar por request
@@ -78,6 +85,8 @@ function resetFixtures() {
   auditoriaFalha = false; // 11.9: por padrão a auditoria "confirma" (ok:true)
   falharLeituraConfigAntes = false;
   rpcRepasseChamada = null;
+  buscarEmLotesFalha = false;
+  buscarEmLotesIdsSemIdExterno = new Set();
   // Valores propositalmente distintos dos do recálculo ao vivo: se a rota
   // chamar a RPC errada, o número exibido denuncia.
   repasseCongeladoFixture = [{
@@ -361,6 +370,20 @@ Module._load = function (request, parent, isMain) {
   }
   if (request === '../lib/hub-postgrest') {
     return { hubPostgrestRequest: async (...args) => fakeHubPostgrestRequest(...args) };
+  }
+  if (request === '../lib/hub-postgrest-lotes') {
+    return {
+      buscarEmLotes: async (_caminho, ids) => {
+        if (buscarEmLotesFalha) {
+          const e = new Error('mock: falha simulada em buscarEmLotes (Entregador)');
+          e.status = 502;
+          throw e;
+        }
+        return (ids || [])
+          .filter((id) => !buscarEmLotesIdsSemIdExterno.has(id))
+          .map((id) => ({ id, id_externo: `uuid-entregador-${id}` }));
+      },
+    };
   }
   if (request === '../lib/hub-auditoria') {
     return {
@@ -702,6 +725,33 @@ describe('4.2 configuração', () => {
     const r = await request('PUT', '/api/v1/adiantamentos/configuracoes', { body: { versaoEsperada: 3 }, cookie: tokenCookie() });
     assert.equal(r.status, 403);
     assert.equal(r.body.erro, 'PERMISSAO_NEGADA');
+  });
+
+  // F3 (repasse-saldo-minimo, FR-025/FR-026): piso do repasse semanal.
+  test('F3: PUT /configuracoes repasseValorMinimo <= 0 -> 400 DADOS_INVALIDOS', async () => {
+    const r = await request('PUT', '/api/v1/adiantamentos/configuracoes', {
+      body: { versaoEsperada: 3, repasseValorMinimo: '0' }, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 400);
+    assert.deepEqual(r.body, { erro: 'DADOS_INVALIDOS', motivo: 'repasseValorMinimo' });
+  });
+
+  test('F3: PUT /configuracoes repasseValorMinimo sem adiantamentos.pagamento_confirmar -> 403 PERMISSAO_NEGADA_PISO', async () => {
+    // "configurar" sozinho é exatamente o caso do FR-026: pode mexer nos
+    // demais campos, mas não no piso.
+    permissoesPorEntidade = new Set(['adiantamentos.configurar']);
+    const r = await request('PUT', '/api/v1/adiantamentos/configuracoes', {
+      body: { versaoEsperada: 3, repasseValorMinimo: '6.00' }, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 403);
+    assert.equal(r.body.erro, 'PERMISSAO_NEGADA_PISO');
+  });
+
+  test('F3: PUT /configuracoes repasseValorMinimo válido, com pagamento_confirmar -> 201', async () => {
+    const r = await request('PUT', '/api/v1/adiantamentos/configuracoes', {
+      body: { versaoEsperada: 3, repasseValorMinimo: '6.00' }, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 201);
   });
 });
 
@@ -1300,7 +1350,67 @@ describe('4.6 repasse', () => {
     assert.equal(r.body.periodo.fim, '2026-09-14');
     assert.equal(r.body.periodo.situacao, 'aberto');
     assert.equal(r.body.itens[0].nome, 'Fulano');
+    // F1 (repasse-saldo-minimo, spec.md FR-001/FR-003): mesmo identificador
+    // já usado na tela de Motoristas, resolvido via lib/hub-postgrest-lotes.js.
+    assert.equal(r.body.itens[0].idExterno, 'uuid-entregador-10');
     assert.equal(typeof r.body.naoPagosNoPeriodo, 'number');
+  });
+
+  // F3 (repasse-saldo-minimo, contracts/hub-repasse-api.md §GET /repasse):
+  // saldoAnterior/aPagar/transportado/retido por item + os 3 totais novos.
+  test('F3: GET /repasse traz saldoAnterior/aPagar/transportado/retido', async () => {
+    repasseRowsFixture = [{
+      entregador_id: 10, nome: 'Fulano', creditos: '3.00', adiantamentos: '0.00', debitos: '0.00',
+      remanescente: '3.00', em_processamento: false, total: 1,
+      total_creditos: '3.00', total_adiantamentos: '0.00', total_debitos: '0.00', total_remanescente: '3.00',
+      saldo_anterior: '0.00', valor_pago: '0.00', valor_transportado: '3.00', retido: true,
+      total_saldo_anterior: '0.00', total_a_pagar: '0.00', total_transportado: '3.00',
+    }];
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.itens[0].saldoAnterior, '0.00');
+    assert.equal(r.body.itens[0].aPagar, '0.00');
+    assert.equal(r.body.itens[0].transportado, '3.00');
+    assert.equal(r.body.itens[0].retido, true);
+    assert.equal(r.body.totais.saldoAnterior, '0.00');
+    assert.equal(r.body.totais.aPagar, '0.00');
+    assert.equal(r.body.totais.transportado, '3.00');
+  });
+
+  // F3: semana fechada ANTES da regra (Decision 7) — as colunas novas do RPC
+  // vêm ausentes/NULL, e a resposta tem de propagar `null`, nunca "0.00".
+  test('F3: item pré-regra devolve saldoAnterior/aPagar/transportado nulos', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.itens[0].saldoAnterior, null);
+    assert.equal(r.body.itens[0].aPagar, null);
+    assert.equal(r.body.itens[0].transportado, null);
+    assert.equal(r.body.itens[0].retido, false);
+  });
+
+  // F1 (tasks.md 1.2.4): item sem id_externo resolvido NUNCA aparece sem
+  // identificador — falha explícita (FR-003), nunca linha "vazia".
+  test('F1: entregador sem id_externo resolvido -> 502 ERRO_SERVIDOR (falha explícita, nunca linha sem identificador)', async () => {
+    buscarEmLotesIdsSemIdExterno.add(10);
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 502);
+    assert.equal(r.body.erro, 'ERRO_SERVIDOR');
+  });
+
+  // F1 (tasks.md 1.1.3/1.2.4): lote do PostgREST falha -> falha total, nunca
+  // resultado parcial.
+  test('F1: falha do lote de Entregador (id_externo) -> 502 ERRO_SERVIDOR', async () => {
+    buscarEmLotesFalha = true;
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 502);
+    assert.equal(r.body.erro, 'ERRO_SERVIDOR');
+  });
+
+  test('F1: GET /repasse/exportar também falha explícita quando id_externo não resolve', async () => {
+    buscarEmLotesIdsSemIdExterno.add(10);
+    const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 502);
+    assert.equal(r.body.erro, 'ERRO_SERVIDOR');
   });
 
   test('GET /repasse com apuração já fechada -> situacao fechado', async () => {
@@ -1405,6 +1515,35 @@ describe('4.6 repasse', () => {
     assert.ok(texto.includes('Fulano'));
   });
 
+  // F1 (spec.md FR-004): coluna Identificador é a PRIMEIRA do CSV.
+  test('F1: GET /repasse/exportar — "Identificador" é a primeira coluna do CSV', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
+    const linhas = texto.split('\r\n');
+    assert.equal(linhas[0].split(',')[0], 'Identificador');
+    assert.match(linhas[1], /^uuid-entregador-10,Fulano,/);
+  });
+
+  // F3 (repasse-saldo-minimo, tasks.md 3.3.7): CSV end-to-end pela rota com um
+  // motorista retido — cabeçalho ganha as 3 colunas novas e a linha do
+  // retido traz "A pagar = 0,00" (FR-024), nunca vazio.
+  test('F3: GET /repasse/exportar — CSV traz Saldo anterior/A pagar/Retido, com A pagar=0,00 para quem foi retido', async () => {
+    repasseRowsFixture = [{
+      entregador_id: 10, nome: 'Fulano', creditos: '3.00', adiantamentos: '0.00', debitos: '0.00',
+      remanescente: '3.00', em_processamento: false, total: 1,
+      total_creditos: '3.00', total_adiantamentos: '0.00', total_debitos: '0.00', total_remanescente: '3.00',
+      saldo_anterior: '0.00', valor_pago: '0.00', valor_transportado: '3.00', retido: true,
+      total_saldo_anterior: '0.00', total_a_pagar: '0.00', total_transportado: '3.00',
+    }];
+    const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
+    const linhas = texto.split('\r\n');
+    assert.equal(linhas[0], 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana');
+    assert.equal(linhas[1], 'uuid-entregador-10,Fulano,3.00,0.00,0.00,3.00,0.00,0.00,3.00');
+  });
+
   test('POST /repasse/:periodo/fechar exige confirmacao:true', async () => {
     const r = await request('POST', '/api/v1/adiantamentos/repasse/2026-09-08/fechar', { body: {}, cookie: tokenCookie() });
     assert.equal(r.status, 400);
@@ -1437,6 +1576,17 @@ describe('4.6 repasse', () => {
     });
     assert.equal(r.status, 409);
     assert.equal(r.body.erro, 'APURACAO_JA_FECHADA');
+  });
+
+  // F3/FR-021 (Decision 9): fechar fora de ordem (pular uma semana ou fechar
+  // uma anterior à última já fechada) -> 409, nunca 201 silencioso.
+  test('F3: POST /repasse/:periodo/fechar fora de ordem -> 409 APURACAO_FORA_DE_ORDEM', async () => {
+    comportamentoRpc.repasseFechar = 'APURACAO_FORA_DE_ORDEM';
+    const r = await request('POST', '/api/v1/adiantamentos/repasse/2026-09-15/fechar', {
+      body: { confirmacao: true }, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 409);
+    assert.equal(r.body.erro, 'APURACAO_FORA_DE_ORDEM');
   });
 
   test('4.6.8: encerrar-falha fora de FALHOU -> TRANSICAO_INVALIDA', async () => {

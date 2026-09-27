@@ -32,6 +32,7 @@ const VIGENTE_BASE = {
   fonteProducao: 'importacao', categoriasProducao: ['corrida'], previsaoPagamentoTexto: 'D+1',
   descricaoPixModelo: 'Antecipação {nome}', apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 7, apuracaoDataBase: null,
   categoriasExtrato: null, descontoAdiantamentos: true, descontoDebitos: false, repasseVisivelApp: false,
+  repasseValorMinimo: '5.50',
   completa: true,
 };
 
@@ -85,6 +86,30 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     expect(screen.queryByRole('button', { name: /Salvar versão/ })).not.toBeInTheDocument();
     const fieldset = document.querySelector('fieldset');
     expect(fieldset).toBeDisabled();
+  });
+
+  // F3 (repasse-saldo-minimo, tasks.md 3.5.2/3.5.3): o piso exige a permissão
+  // mais restrita de aprovação — `financeiro`/`admin_entidade` (só
+  // `adiantamentos.configurar`) editam o resto do formulário, mas não o piso.
+  it('F3: campo "Valor mínimo para repasse" desabilitado para quem não tem pagamento_confirmar', async () => {
+    mockUseHubAuth.mockReturnValue({ permissoes: ['adiantamentos.consultar', 'adiantamentos.configurar'] });
+    mockObterConfiguracoes.mockResolvedValueOnce(RESPOSTA_BASE);
+    render(<ConfiguracoesAdiantamentoPage />);
+    await waitFor(() => expect(screen.getByText(/Versão 3/)).toBeInTheDocument());
+
+    expect(screen.getByLabelText('Valor mínimo para repasse')).toBeDisabled();
+    expect(screen.getByText(/Só quem pode confirmar pagamento altera/)).toBeInTheDocument();
+  });
+
+  it('F3: campo "Valor mínimo para repasse" habilitado para quem tem pagamento_confirmar', async () => {
+    mockUseHubAuth.mockReturnValue({
+      permissoes: ['adiantamentos.consultar', 'adiantamentos.configurar', 'adiantamentos.pagamento_confirmar'],
+    });
+    mockObterConfiguracoes.mockResolvedValueOnce(RESPOSTA_BASE);
+    render(<ConfiguracoesAdiantamentoPage />);
+    await waitFor(() => expect(screen.getByText(/Versão 3/)).toBeInTheDocument());
+
+    expect(screen.getByLabelText('Valor mínimo para repasse')).not.toBeDisabled();
   });
 
   it('7.4.3: salvar com versão desatualizada (409) mostra o aviso de conflito SEM perder o que foi digitado', async () => {

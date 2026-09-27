@@ -169,7 +169,10 @@ describe('soma em centavos inteiros — correção dec-063 (2.7.1-2.7.3)', () =>
       CONFIG_PADRAO,
     );
     assert.equal(linha.creditosCentavos, 268);
-    assert.equal(serializarCsvRemanescente([linha]).split('\r\n')[1], 'X,2.68,0.00,0.00,2.68');
+    // F3: 3 colunas novas no fim, vazias quando a linha não traz saldoAnterior/
+    // aPagar/transportado (fixture sem os campos — mesmo shape de semana
+    // pré-regra).
+    assert.equal(serializarCsvRemanescente([linha]).split('\r\n')[1], ',X,2.68,0.00,0.00,2.68,,,');
   });
 
   test('300 linhas de 0,07 somam exatamente 2100 centavos (21.00) — reduce() de floats acumulava ruído (21.000000000000064)', () => {
@@ -229,20 +232,45 @@ describe('paraCentavos() — arredondamento sem multiplicação em ponto flutuan
 describe('serializarCsvRemanescente() — proteção de injeção de fórmula (2.4.3, S5)', () => {
   test('cabeçalho + linhas, valores em 2 casas', () => {
     const csv = serializarCsvRemanescente([
-      { nome: 'Fulano de Tal', creditos: 1000, adiantamentos: 129.4, debitos: 0, remanescente: 870.6 },
+      { idExterno: 'uuid-1', nome: 'Fulano de Tal', creditos: 1000, adiantamentos: 129.4, debitos: 0, remanescente: 870.6 },
     ]);
     const linhas = csv.split('\r\n');
-    assert.equal(linhas[0], 'Entregador,Créditos,Adiantamentos,Débitos,Remanescente');
-    assert.equal(linhas[1], 'Fulano de Tal,1000.00,129.40,0.00,870.60');
+    assert.equal(linhas[0], 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana');
+    assert.equal(linhas[1], 'uuid-1,Fulano de Tal,1000.00,129.40,0.00,870.60,,,');
+  });
+
+  // F3 (repasse-saldo-minimo, FR-024): motorista retido NUNCA é omitido —
+  // "A pagar" sai "0,00" (nunca vazio) e "Retido..." traz o valor carregado.
+  test('F3: motorista retido tem A pagar=0,00 e o valor transportado na coluna certa', () => {
+    const csv = serializarCsvRemanescente([
+      { idExterno: 'uuid-2', nome: 'Retido', creditos: 3, adiantamentos: 0, debitos: 0, remanescente: 3, saldoAnterior: 0, aPagar: 0, transportado: 3 },
+    ]);
+    assert.equal(csv.split('\r\n')[1], 'uuid-2,Retido,3.00,0.00,0.00,3.00,0.00,0.00,3.00');
+  });
+
+  // F3: semana fechada ANTES da regra do saldo mínimo (Decision 7) — as três
+  // colunas novas saem vazias, nunca "0,00" (que mentiria "não havia saldo").
+  test('F3: semana pré-regra deixa as três colunas novas vazias', () => {
+    const csv = serializarCsvRemanescente([
+      { idExterno: 'uuid-3', nome: 'PreRegra', creditos: 10, adiantamentos: 0, debitos: 0, remanescente: 10 },
+    ]);
+    assert.equal(csv.split('\r\n')[1], 'uuid-3,PreRegra,10.00,0.00,0.00,10.00,,,');
+  });
+
+  // F1 (repasse-saldo-minimo, spec.md FR-004): Identificador é sempre a
+  // primeira coluna do cabeçalho — a mudança que quebra planilha por posição.
+  test('F1: coluna "Identificador" é a primeira do cabeçalho', () => {
+    const csv = serializarCsvRemanescente([]);
+    assert.equal(csv.split('\r\n')[0].split(',')[0], 'Identificador');
   });
 
   test('nome começando com "=" ganha prefixo de neutralização (fórmula em Excel/Sheets)', () => {
-    const csv = serializarCsvRemanescente([{ nome: '=SOMA(A1:A9)', creditos: 0, adiantamentos: 0, debitos: 0, remanescente: 0 }]);
-    assert.match(csv, /^Entregador.*\r\n'=SOMA\(A1:A9\),/s);
+    const csv = serializarCsvRemanescente([{ idExterno: 'uuid-1', nome: '=SOMA(A1:A9)', creditos: 0, adiantamentos: 0, debitos: 0, remanescente: 0 }]);
+    assert.match(csv, /^Identificador.*\r\nuuid-1,'=SOMA\(A1:A9\),/s);
   });
 
   test('nome com vírgula é quotado (RFC 4180)', () => {
-    const csv = serializarCsvRemanescente([{ nome: 'Silva, João', creditos: 0, adiantamentos: 0, debitos: 0, remanescente: 0 }]);
+    const csv = serializarCsvRemanescente([{ idExterno: 'uuid-1', nome: 'Silva, João', creditos: 0, adiantamentos: 0, debitos: 0, remanescente: 0 }]);
     assert.match(csv, /"Silva, João"/);
   });
 });

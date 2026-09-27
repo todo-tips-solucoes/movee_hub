@@ -14,6 +14,9 @@ const MOTIVOS = {
   VALOR_ZERO: 'Base da nota é zero — nada a emitir.',
   JA_GERADO: 'O hub já gerou movimento para este motorista nesta apuração.',
   MOVIMENTO_ABERTO: 'O motorista já tem movimento aberto (provavelmente da planilha).',
+  // F3/FR-014/FR-020: total (semana + saldo carregado) abaixo do piso mínimo
+  // — a semana inteira fica retida e soma automaticamente ao próximo repasse.
+  RETIDO: 'Saldo abaixo do mínimo — entra no próximo repasse.',
 };
 
 /** `500.00` (string ou número) -> número. Valores vêm do PostgREST como texto. */
@@ -41,13 +44,39 @@ function planejarGeracao(itens, contasPorEntregador, jaGerados, cnpjsComMoviment
     const conta = contasPorEntregador.get(entregadorId);
     const recusar = (motivo) => recusados.push({ entregadorId, nome: conta?.nome ?? null, motivo, detalhe: MOTIVOS[motivo] });
 
+    // F3/FR-014/FR-020: item retido (0 < total < piso, remanescente>=0) nunca
+    // gera nota nesta semana — o saldo já foi transportado pelo fechamento
+    // (banco) e entra automaticamente no cálculo da semana seguinte.
+    // `valor_pago` NULL = item pré-regra (Decision 7) — sem retenção.
+    // `remanescente >= 0` casa com a MESMA formula de "retido" já usada pelo
+    // SQL (`hub_adiantamento_repasse_congelado`/`_motorista_ultimo_fechado`,
+    // migration 0098 linhas 438/497/670) — sem essa cláusula, uma semana com
+    // remanescente NEGATIVO e saldo carregado (`valor_transportado =
+    // saldo_anterior`, 0098:268) ficava presa como se estivesse "abaixo do
+    // piso", quando na verdade nunca teve retenção nenhuma (dec-055/block-008).
+    const retido = item.valor_pago !== null && item.valor_pago !== undefined
+      && num(item.valor_pago) === 0 && num(item.valor_transportado) > 0
+      && num(item.remanescente) >= 0;
+    if (retido) { recusar('RETIDO'); continue; }
+
     if (!conta || !conta.cnpjPrestador) { recusar('SEM_CNPJ'); continue; }
     // `valor_nota` nulo = apuração fechada antes da F3 ser configurada. Não
     // inventar divisão: o congelado é a verdade do que foi apurado.
     if (item.valor_nota === null || item.valor_nota === undefined) { recusar('SEM_DIVISAO'); continue; }
 
-    const valor = num(item.valor_nota);
-    const gorjeta = num(item.valor_fora_nota);
+    // F3/FR-020: item pago com saldo carregado de semana(s) anterior(es) soma
+    // os componentes numa nota só — nunca gera nota extra por semana retida.
+    // `saldo_anterior_nota`/`_fora` vêm NULL num item pré-regra; `num()`
+    // trata como 0 e preserva o comportamento de hoje.
+    //
+    // Remanescente NEGATIVO é exceção (dec-055/block-008): o saldo carregado
+    // não entra aqui porque a 0098 (linhas 279/284) o mantém intacto em
+    // `transportado_nota`/`_fora` para a PRÓXIMA nota — somá-lo também nesta
+    // duplicaria o valor quando ele finalmente for pago. A nota desta semana
+    // negativa é só a produção nota-elegível dela mesma.
+    const negativo = num(item.remanescente) < 0;
+    const valor = num(item.valor_nota) + (negativo ? 0 : num(item.saldo_anterior_nota));
+    const gorjeta = num(item.valor_fora_nota) + (negativo ? 0 : num(item.saldo_anterior_fora));
     if (valor <= 0) { recusar('VALOR_ZERO'); continue; }
 
     // A trilha vem antes da guarda de movimento aberto de propósito: se o hub

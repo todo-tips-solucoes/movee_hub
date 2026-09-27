@@ -125,6 +125,8 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
     desconto_adiantamentos: true,
     desconto_debitos: false,
     repasse_visivel_app: false,
+    // F3 (repasse-saldo-minimo, FR-025): piso do repasse semanal.
+    repasse_valor_minimo: '5.50',
   };
 
   test('roundtrip: campos camelCase batem 1:1 com contracts/hub-api.md §Configuração', () => {
@@ -148,6 +150,7 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
       'mensagem2Modelo',
       'percentual',
       'previsaoPagamentoTexto',
+      'repasseValorMinimo',
       'repasseVisivelApp',
       'taxaFixa',
       'timezone',
@@ -159,6 +162,8 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
     assert.equal(dto.percentual, 60); // number, não string — motorista-api.md `percentage: number`
     assert.equal(dto.taxaFixa, '0.35'); // string — motorista-api.md `fee: string`
     assert.match(dto.taxaFixa, REGEX_DINHEIRO);
+    assert.equal(dto.repasseValorMinimo, '5.50');
+    assert.match(dto.repasseValorMinimo, REGEX_DINHEIRO);
     assert.equal(dto.completa, true);
   });
 

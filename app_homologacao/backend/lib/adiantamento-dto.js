@@ -130,6 +130,8 @@ function mapConfiguracao(row) {
     descontoAdiantamentos: row.desconto_adiantamentos,
     descontoDebitos: row.desconto_debitos,
     repasseVisivelApp: row.repasse_visivel_app,
+    // F3 (repasse-saldo-minimo, FR-025): piso do repasse semanal, por empresa.
+    repasseValorMinimo: dinheiro(row.repasse_valor_minimo),
     completa: configuracaoCompleta(row),
   };
 }
