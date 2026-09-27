@@ -90,6 +90,11 @@ docs/                     # constitution.md, RITO-PRODUCAO.md, plans/ (planos ve
   editar migration já aplicada — criar a próxima `NNNN`. Segredos do hub vivem **somente**
   em `/var/lib/hub_secrets/` (fora do git; templates `.env.hub.*.example`; geração via
   `scripts/gen-secrets.sh`).
+  ⚠️ **Papel `financeiro_aprovador` (migration `0097`) nasceu como CÓPIA do papel
+  `financeiro`** (permissões vigentes na data da 0097 + `adiantamentos.pagamento_confirmar`)
+  — não há vínculo vivo entre os dois. Uma permissão nova dada só a `financeiro` depois da
+  0097 **não** se propaga para `financeiro_aprovador`; quem editar a matriz papel×permissão
+  precisa lembrar de espelhar manualmente (ou criar migration dedicada).
 - **Auth (constitution §I–III)**: JWT em cookies httpOnly (`accessToken` 15 min +
   `refreshToken`), nunca em localStorage/query/header exposto; escopo multi-tenant é
   resolvido server-side a partir do token, nunca do corpo da requisição. A sessão do hub

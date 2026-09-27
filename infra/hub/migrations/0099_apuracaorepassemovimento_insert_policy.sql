@@ -1,0 +1,51 @@
+-- 0099 — ApuracaoRepasseMovimento: policy de INSERT ausente (bugfix).
+--
+-- ACHADO (medido em hub-test, 2026-09-27, feature repasse-saldo-minimo,
+-- tasks.md 3.3.7 "resto" — infra/hub/testes/hub-repasse-saldo-minimo-
+-- roundtrip-integration.sh, primeiro driver a exercitar um POST
+-- /repasse/:periodo/movimentos de verdade, sem mock, até o fim):
+--
+--   [hub-adiantamentos] falha ao gerar movimento do entregador 2
+--   hub-postgrest: 403 Forbidden — {"code":"42501", "message":
+--   "new row violates row-level security policy for table
+--   \"ApuracaoRepasseMovimento\""}
+--
+-- CAUSA RAIZ: a 0092 fez `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` +
+-- `GRANT SELECT, INSERT ... TO authenticated` + UMA policy, mas a policy
+-- criada foi só de SELECT (`apuracaorepassemovimento_select_por_escopo`).
+-- Sob RLS, `GRANT INSERT` sozinho não basta — sem policy `FOR INSERT`
+-- (ou `FOR ALL`), toda inserção de um role sem BYPASSRLS é negada. O
+-- `financeiro_aprovador`/`admin_plataforma` do hub roda como `authenticated`
+-- (mesmo papel de qualquer outra rota), então TODO POST
+-- /repasse/:periodo/movimentos que gera pelo menos uma nota falha nesse
+-- segundo INSERT — em QUALQUER ambiente (hub-test, hub-homolog, produção
+-- depois do deploy), não só neste teste.
+--
+-- IMPACTO (dinheiro — por isso corrigido aqui, não represado): a rota já
+-- cria a linha em `EnvioMassa` (a nota em si) ANTES de tentar gravar a
+-- trilha; quando a trilha falha, a rota devolve o motorista como
+-- `recusados: [{motivo: 'FALHA_AO_GRAVAR'}]` — só que a nota FOI gerada, e
+-- fica órfã (sem registro em `ApuracaoRepasseMovimento`). Pior: a
+-- idempotência de "já gerado nesta apuração" (`planejarGeracao`,
+-- lib/adiantamento-geracao-movimento.js) lê exatamente essa trilha —
+-- com o INSERT sempre falhando, o SELECT de dedup nunca encontra nada, e
+-- reexecutar a geração para a mesma semana geraria uma SEGUNDA nota
+-- duplicada para o mesmo motorista. Medido, não suposto: 0 apurações desta
+-- feature tinham chegado a produção quando este bug foi encontrado — só a
+-- própria migration 0092 e o comentário "F4: um registro por movimento...
+-- o UNIQUE é a idempotência" citam a garantia que a ausência da policy
+-- quebra por completo.
+--
+-- CORREÇÃO: mesmo padrão de toda outra tabela de escopo por empresa neste
+-- schema (Entregador/0015, Auditoria/0069 etc.) — `FOR INSERT WITH CHECK
+-- (id_empresa = ANY (hub_jwt_escopo_ids()))`. Sem UPDATE/DELETE: a tabela é
+-- trilha imutável (só INSERT e SELECT são usados pela rota; nenhuma rota
+-- atualiza ou apaga uma linha já gravada — mesma classe de "Auditoria").
+--
+-- EXPAND-ONLY / IDEMPOTENTE (DROP POLICY IF EXISTS + CREATE POLICY, roda
+-- 2× sem efeito colateral). Não edita a 0092 (já aplicada no hub-homolog).
+
+DROP POLICY IF EXISTS apuracaorepassemovimento_insert_por_escopo ON "ApuracaoRepasseMovimento";
+CREATE POLICY apuracaorepassemovimento_insert_por_escopo ON "ApuracaoRepasseMovimento"
+    FOR INSERT
+    WITH CHECK (id_empresa = ANY (hub_jwt_escopo_ids()));

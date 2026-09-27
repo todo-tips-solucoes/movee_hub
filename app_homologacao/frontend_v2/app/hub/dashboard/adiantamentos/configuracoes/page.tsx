@@ -84,6 +84,9 @@ interface FormState {
   descontoAdiantamentos: boolean;
   descontoDebitos: boolean;
   repasseVisivelApp: boolean;
+  /** F3 (repasse-saldo-minimo): piso do repasse semanal — só quem tem
+   *  `adiantamentos.pagamento_confirmar` pode alterar (ver `podePiso` abaixo). */
+  repasseValorMinimo: string;
   motivo: string;
 }
 
@@ -111,6 +114,7 @@ function formDe(c: Configuracao | null): FormState {
     descontoAdiantamentos: c?.descontoAdiantamentos ?? true,
     descontoDebitos: c?.descontoDebitos ?? false,
     repasseVisivelApp: c?.repasseVisivelApp ?? false,
+    repasseValorMinimo: c?.repasseValorMinimo ?? '',
     motivo: '',
   };
 }
@@ -133,6 +137,9 @@ function primeiraViolacao(f: FormState): string | null {
   }
   if (!f.descricaoPixModelo.includes('{nome}')) return 'O modelo da descrição Pix precisa conter "{nome}".';
   if (f.apuracaoDiaRepasse !== '' && f.apuracaoDiaInicio === '') return 'Defina o início da janela para calcular o dia do repasse.';
+  // F3: mesma CHECK de infra/hub/migrations/0098 (`repasse_valor_minimo > 0`).
+  const piso = Number(f.repasseValorMinimo.replace(',', '.'));
+  if (!Number.isFinite(piso) || piso <= 0) return 'O valor mínimo para repasse precisa ser maior que zero.';
   return null;
 }
 
@@ -220,6 +227,11 @@ function useConfiguracaoAdiantamento() {
         descontoAdiantamentos: form.descontoAdiantamentos,
         descontoDebitos: form.descontoDebitos,
         repasseVisivelApp: form.repasseVisivelApp,
+        // Sempre enviado, mesmo sem `pagamento_confirmar`: a rota só exige a
+        // permissão quando o valor MUDA de fato (routes/hub-adiantamentos.js
+        // — compara com o vigente antes de checar), então reenviar o valor
+        // carregado sem alteração nunca é recusado.
+        repasseValorMinimo: form.repasseValorMinimo.replace(',', '.'),
         motivo: form.motivo.trim() || undefined,
       });
       setVigente(nova);
@@ -378,6 +390,10 @@ function SeletorCategorias({ titulo, textoVazio, disponiveis, selecionadas, onCh
 export default function ConfiguracoesAdiantamentoPage() {
   const { permissoes } = useHubAuth();
   const podeConfigurar = permissoes.includes('adiantamentos.configurar');
+  // F3 (repasse-saldo-minimo, FR-026): alterar o piso exige a permissão mais
+  // restrita de aprovação — quem só tem `adiantamentos.configurar` vê o
+  // campo desabilitado (routes/hub-adiantamentos.js: 403 PERMISSAO_NEGADA_PISO).
+  const podePiso = permissoes.includes('adiantamentos.pagamento_confirmar');
   const c = useConfiguracaoAdiantamento();
   const inputId = useId();
 
@@ -658,6 +674,22 @@ export default function ConfiguracoesAdiantamentoPage() {
                   />
                   Mostrar a previsão do repasse no app do motorista
                 </label>
+                <div className="flex flex-col gap-1 sm:w-64">
+                  <label htmlFor={`${inputId}-piso`} className="text-sm font-medium">Valor mínimo para repasse</label>
+                  <Input
+                    id={`${inputId}-piso`}
+                    inputMode="decimal"
+                    value={c.form.repasseValorMinimo}
+                    disabled={!podePiso}
+                    onChange={(e) => c.setForm((f) => ({ ...f, repasseValorMinimo: e.target.value }))}
+                    placeholder="5.50"
+                  />
+                  {!podePiso && (
+                    <p className="text-xs text-muted-foreground">
+                      Só quem pode confirmar pagamento altera o valor mínimo do repasse.
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
 

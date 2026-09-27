@@ -107,14 +107,21 @@ function useUsuariosLista() {
   return { busca, setBusca: (v: string) => { setBusca(v); setPage(1); }, page, setPage, totalPaginas, usuarios, total, carregando, erro, refetch: buscar };
 }
 
-function usePapeisCatalogo() {
+// repasse-saldo-minimo F2 (tasks.md 2.4.6, contracts/hub-usuarios-trava.md
+// "Tela de Usuários") — papéis que só admin_plataforma pode conceder/
+// alterar/desativar (espelho de lib/hub-papeis-restritos.js). Esconder da
+// lista é só conforto de UX: a segurança de verdade é da rota
+// (routes/hub-usuarios.js) + RLS (migration 0097).
+const PAPEIS_RESTRITOS_UI = ['admin_plataforma', 'financeiro_aprovador'];
+
+function usePapeisCatalogo(podeVerRestritos: boolean) {
   const [papeis, setPapeis] = useState<PapelCatalogo[]>([]);
   useEffect(() => {
     listarPapeisMatriz()
       .then((r) => setPapeis(r.papeis))
       .catch(() => setPapeis([]));
   }, []);
-  return papeis;
+  return podeVerRestritos ? papeis : papeis.filter((p) => !PAPEIS_RESTRITOS_UI.includes(p.nome));
 }
 
 /** Select de papel do design system (uiux-hub F3 — substitui os <select>
@@ -580,9 +587,13 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
 }
 
 export default function UsuariosPage() {
-  const { entidadeAtiva } = useHubAuth();
+  const { entidadeAtiva, permissoes } = useHubAuth();
+  // Mesmo proxy documentado em app/hub/dashboard/auditoria/page.tsx:
+  // `admin.gerenciar` é exclusivo do papel admin_plataforma (dec-008) —
+  // useHubAuth() não expõe um flag `isAdminPlataforma` dedicado.
+  const podeVerRestritos = permissoes.includes('admin.gerenciar');
   const h = useUsuariosLista();
-  const papeis = usePapeisCatalogo();
+  const papeis = usePapeisCatalogo(podeVerRestritos);
   const [criarAberto, setCriarAberto] = useState(false);
   const [editando, setEditando] = useState<UsuarioListItem | null>(null);
 

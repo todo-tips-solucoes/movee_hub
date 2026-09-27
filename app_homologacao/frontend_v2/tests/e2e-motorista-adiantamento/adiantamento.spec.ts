@@ -699,6 +699,59 @@ test.describe('F2 — extrato da semana', () => {
   });
 });
 
+// F3 (repasse-saldo-minimo, quickstart.md Cenário F3.12): motorista com
+// saldo retido de uma semana fechada — "Saldo da semana anterior" some na
+// semana corrente e "Passou para a próxima semana" some no card da semana
+// fechada, no lugar de "Valor a receber". Rótulo "Retido" foi banido de
+// toda UI (block-007/dec-047) — nunca reintroduzir essa palavra aqui.
+test.describe('F3 — saldo mínimo carregado (tasks.md 3.6.4)', () => {
+  test('semana corrente: saldo da semana anterior somado + aviso de abaixo do mínimo', async ({ page }) => {
+    const state = defaultState();
+    state.repasse = {
+      periodoInicio: '2026-09-17', periodoFim: '2026-09-23', dataRepasse: '2026-09-25',
+      situacao: 'EM_APURACAO', creditos: '2.00', adiantamentos: [],
+      debitos: '0.00', remanescente: '2.00', negativo: false,
+      saldoAnterior: '3.00', previsaoTotal: '5.00', abaixoDoMinimo: true, ultimoFechado: null,
+    };
+    state.extrato = null;
+    await setup(page, state);
+    await page.goto(`${BASE}/repasse`);
+
+    await expect(page.getByText('Saldo da semana anterior')).toBeVisible();
+    await expect(page.getByText('+ R$ 3,00', { exact: false })).toBeVisible();
+    // "Previsão a receber" usa previsaoTotal (5,00), não remanescente (2,00) isolado.
+    await expect(page.getByText('R$ 5,00', { exact: false })).toBeVisible();
+    await expect(page.getByText('abaixo do valor mínimo', { exact: false })).toBeVisible();
+    await expect(page.getByText('Retido', { exact: false })).toHaveCount(0);
+  });
+
+  test('semana fechada retida: "Passou para a próxima semana" no lugar de "Valor a receber"', async ({ page }) => {
+    const state = defaultState();
+    state.repasse = {
+      periodoInicio: '2026-09-24', periodoFim: '2026-09-30', dataRepasse: '2026-10-02',
+      situacao: 'EM_APURACAO', creditos: '0.00', adiantamentos: [],
+      debitos: '0.00', remanescente: '0.00', negativo: false,
+      saldoAnterior: null, previsaoTotal: null, abaixoDoMinimo: false,
+      ultimoFechado: {
+        periodoInicio: '2026-09-17', periodoFim: '2026-09-23', dataRepasse: '2026-09-25',
+        fechadoEm: '2026-09-25T10:00:00Z',
+        creditos: '2.00', adiantamentos: '0.00', debitos: '0.00', remanescente: '2.00', negativo: false,
+        saldoAnterior: null, aPagar: '0.00', transportado: '3.00', retido: true,
+      },
+    };
+    state.extrato = null;
+    await setup(page, state);
+    await page.goto(`${BASE}/repasse`);
+
+    await expect(page.getByText('Passou para a próxima semana')).toBeVisible();
+    await expect(page.getByText('Valor a receber', { exact: true })).toHaveCount(0);
+    // linha dt/dd que contém o rótulo é o mesmo div que contém o valor (3.6.3).
+    const linha = page.locator('div', { hasText: 'Passou para a próxima semana' }).last();
+    await expect(linha.getByText('R$ 3,00', { exact: false })).toBeVisible();
+    await expect(page.getByText('Retido', { exact: false })).toHaveCount(0);
+  });
+});
+
 test.describe('6.8.2 — alvos de toque >= 44x44 px (medido)', () => {
   for (const tela of TELAS_TOQUE) {
     test(`${tela.nome}`, async ({ page }) => {

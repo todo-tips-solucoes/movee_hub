@@ -135,6 +135,7 @@ describe('adiantamentos-api — roundtrip com payload real (routes/hub-adiantame
         fonteProducao: 'importacao', categoriasProducao: ['corrida'], previsaoPagamentoTexto: 'D+1',
         descricaoPixModelo: null, apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 7, apuracaoDataBase: null,
         categoriasExtrato: null, descontoAdiantamentos: true, descontoDebitos: false, repasseVisivelApp: false,
+        repasseValorMinimo: '5.50',
         completa: true,
       },
       historico: [{ versao: 3, vigenteDesde: '2026-08-01', criadoPor: { id: 1, nome: 'Financeiro' }, criadoEm: '2026-08-01', motivo: null }],

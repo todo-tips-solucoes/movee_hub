@@ -20,12 +20,14 @@ const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const {
   obterPermissoesEfetivasPorEntidade,
   usuarioEhAdminPlataforma,
+  alvoTemPapelRestritoAtivo,
   invalidarUsuario,
 } = require('../lib/hub-rbac-cache');
 const { requirePermission } = require('../middleware/hub-require-permission');
 const { requireModuloAtivo } = require('../middleware/hub-require-modulo');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { buscarNomesEntidades } = require('../lib/hub-entidade-nome');
+const { papelEhRestrito } = require('../lib/hub-papeis-restritos');
 
 const router = express.Router();
 
@@ -137,6 +139,45 @@ function montarClaims(ctx, entidadeAlvo) {
   return claims;
 }
 
+/**
+ * 403 padrão da trava de papel restrito (contracts/hub-usuarios-trava.md).
+ * @param {import('express').Response} res
+ */
+function negarPapelRestrito(res) {
+  return res.status(403).json({
+    erro: 'PAPEL_RESTRITO',
+    mensagem: 'Somente o administrador da plataforma pode conceder, alterar ou desativar este papel.',
+  });
+}
+
+/**
+ * Auditoria de recusa por papel restrito (FR-012, contracts/hub-usuarios-
+ * trava.md) — SEM dado pessoal (nome/email/senha), só ids + motivo + rota.
+ * Best-effort (mesmo padrão de registrarAuditoria no resto do arquivo —
+ * nunca deve impedir a resposta 403 já decidida).
+ * @param {{idEmpresa:number, usuarioId:number, rota:string,
+ *   usuarioAlvoId:number|null, papelSolicitadoId?:number|null,
+ *   papelAtualId?:number|null, claims:object, ip:*}} p
+ */
+async function auditarPapelRestrito(p) {
+  await registrarAuditoria({
+    idEmpresa: p.idEmpresa,
+    usuarioId: p.usuarioId,
+    acao: 'usuario_vinculo_negado',
+    recurso: 'UsuarioEntidade',
+    recursoId: null,
+    detalhes: {
+      motivo: 'PAPEL_RESTRITO',
+      rota: p.rota,
+      usuarioAlvoId: p.usuarioAlvoId ?? null,
+      papelSolicitadoId: p.papelSolicitadoId ?? null,
+      papelAtualId: p.papelAtualId ?? null,
+    },
+    ip: p.ip || null,
+    claims: p.claims,
+  });
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // GET /usuarios (task 4.2.2)
 // ────────────────────────────────────────────────────────────────────────────
@@ -242,6 +283,16 @@ router.post('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.ger
     if (!papeis || papeis.length === 0) {
       return res.status(400).json({ erro: 'PAPEL_NAO_ENCONTRADO' });
     }
+    // Trava F2 (FR-009/FR-010, contracts/hub-usuarios-trava.md): só admin
+    // plataforma concede papel restrito no 1º vínculo de um usuário novo.
+    if (papelEhRestrito(papeis[0].nome) && !ctx.isAdminPlataforma) {
+      await auditarPapelRestrito({
+        idEmpresa: entidadeAlvo, usuarioId: ctx.payload.sub, rota: 'POST /usuarios',
+        usuarioAlvoId: null, papelSolicitadoId: papelIdParam,
+        claims: montarClaims(ctx, entidadeAlvo), ip: req.ip,
+      });
+      return negarPapelRestrito(res);
+    }
 
     const emailNormalizado = email.trim();
     const existentes = await hubPostgrestRequest(`Usuario?email=eq.${encodeURIComponent(emailNormalizado)}&select=id`);
@@ -335,7 +386,7 @@ router.put('/:id', requireModuloAtivo('usuarios'), requirePermission('usuarios.g
     const filtroEscopo = ctx.isAdminPlataforma ? '' : `&empresa_id=eq.${ctx.entidadeAtiva}`;
     const claimsLeitura = montarClaims(ctx, ctx.entidadeAtiva);
     const vinculosVisiveis = await hubPostgrestRequest(
-      `UsuarioEntidade?usuario_id=eq.${usuarioId}${filtroEscopo}&select=id`,
+      `UsuarioEntidade?usuario_id=eq.${usuarioId}${filtroEscopo}&select=id,ativo,papel:Papel(nome)`,
       'GET', null, claimsLeitura
     );
     if (!vinculosVisiveis || vinculosVisiveis.length === 0) {
@@ -358,6 +409,25 @@ router.put('/:id', requireModuloAtivo('usuarios'), requirePermission('usuarios.g
     }
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ erro: 'DADOS_INVALIDOS' });
+    }
+
+    // Trava F2 (FR-012a): senha/nome/ativo de alvo com vínculo ATIVO em
+    // papel restrito EM QUALQUER EMPRESA só pode ser alterado por admin
+    // plataforma — vale mesmo quando o alvo é o próprio chamador (a
+    // checagem não distingue). Leitura PRIVILEGIADA e SEPARADA da consulta
+    // de visibilidade acima (`vinculosVisiveis` continua só para o 404
+    // anti-vazamento) — correção pós-review (block-009/dec-075): a trava
+    // antiga reusava `vinculosVisiveis`, que é filtrada por
+    // `empresa_id=eq.entidadeAtiva` DO CHAMADOR e lida com claims escopadas
+    // a essa mesma entidade, então um vínculo restrito do alvo em OUTRA
+    // entidade nunca era enxergado (ver `alvoTemPapelRestritoAtivo`).
+    const temVinculoRestritoAtivo = await alvoTemPapelRestritoAtivo(usuarioId);
+    if (temVinculoRestritoAtivo && !ctx.isAdminPlataforma) {
+      await auditarPapelRestrito({
+        idEmpresa: ctx.entidadeAtiva, usuarioId: ctx.payload.sub, rota: 'PUT /usuarios/:id',
+        usuarioAlvoId: usuarioId, claims: claimsLeitura, ip: req.ip,
+      });
+      return negarPapelRestrito(res);
     }
 
     const atualizados = await hubPostgrestRequest(`Usuario?id=eq.${usuarioId}`, 'PATCH', patch);
@@ -413,6 +483,15 @@ router.post('/:id/vinculos', requireModuloAtivo('usuarios'), requirePermission('
 
     const papeis = await hubPostgrestRequest(`Papel?id=eq.${papelIdParam}&select=id,nome`);
     if (!papeis || papeis.length === 0) return res.status(400).json({ erro: 'PAPEL_NAO_ENCONTRADO' });
+    // Trava F2: só admin plataforma cria vínculo com papel restrito.
+    if (papelEhRestrito(papeis[0].nome) && !ctx.isAdminPlataforma) {
+      await auditarPapelRestrito({
+        idEmpresa: entidadeAlvo, usuarioId: ctx.payload.sub, rota: 'POST /usuarios/:id/vinculos',
+        usuarioAlvoId: usuarioId, papelSolicitadoId: papelIdParam,
+        claims: montarClaims(ctx, entidadeAlvo), ip: req.ip,
+      });
+      return negarPapelRestrito(res);
+    }
 
     const usuariosExistentes = await hubPostgrestRequest(`Usuario?id=eq.${usuarioId}&select=id`);
     if (!usuariosExistentes || usuariosExistentes.length === 0) {
@@ -509,13 +588,26 @@ router.put('/:id/vinculos/:vinculoId', requireModuloAtivo('usuarios'), requirePe
     const filtroEscopo = ctx.isAdminPlataforma ? '' : `&empresa_id=eq.${ctx.entidadeAtiva}`;
     const claimsLeitura = montarClaims(ctx, ctx.entidadeAtiva);
     const vinculosVisiveis = await hubPostgrestRequest(
-      `UsuarioEntidade?id=eq.${vinculoId}&usuario_id=eq.${usuarioId}${filtroEscopo}&select=id,empresa_id,ativo,papel_id`,
+      `UsuarioEntidade?id=eq.${vinculoId}&usuario_id=eq.${usuarioId}${filtroEscopo}&select=id,empresa_id,ativo,papel_id,papel:Papel(nome)`,
       'GET', null, claimsLeitura
     );
     if (!vinculosVisiveis || vinculosVisiveis.length === 0) {
       return res.status(404).json({ erro: 'USUARIO_NAO_ENCONTRADO' });
     }
     const vinculoAtual = vinculosVisiveis[0];
+
+    // Trava F2 (FR-009/FR-010): só admin plataforma altera/desativa um
+    // vínculo cujo papel ATUAL é restrito, OU atribui um papel NOVO restrito.
+    const papelAtualRestrito = papelEhRestrito(vinculoAtual.papel ? vinculoAtual.papel.nome : null);
+    const papelNovoRestrito = papelNome !== null && papelEhRestrito(papelNome);
+    if ((papelAtualRestrito || papelNovoRestrito) && !ctx.isAdminPlataforma) {
+      await auditarPapelRestrito({
+        idEmpresa: vinculoAtual.empresa_id, usuarioId: ctx.payload.sub, rota: 'PUT /usuarios/:id/vinculos/:vinculoId',
+        usuarioAlvoId: usuarioId, papelSolicitadoId: patch.papel_id ?? null, papelAtualId: vinculoAtual.papel_id,
+        claims: montarClaims(ctx, vinculoAtual.empresa_id), ip: req.ip,
+      });
+      return negarPapelRestrito(res);
+    }
 
     const claims = montarClaims(ctx, vinculoAtual.empresa_id);
     const atualizados = await hubPostgrestRequest(`UsuarioEntidade?id=eq.${vinculoId}`, 'PATCH', patch, claims);

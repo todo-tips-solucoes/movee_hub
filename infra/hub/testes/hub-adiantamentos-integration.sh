@@ -97,11 +97,16 @@ INSERT INTO "ContaBancariaMotorista" (id_empresa, entregador_id, origem, status,
 VALUES (6, (SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='33333333000101')), 'CARGA_INICIAL', 'APROVADA', 'Fulano Teste', '12345678901', 'PF', '001', 'Banco do Brasil', '1234', '00012345', '6', 'CORRENTE', (SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='33333333000101')), now());
 -- Módulo/permissões/ModuloEntidade/papel "financeiro"/config v1 (incompleta)
 -- já vêm da migration 0070 (task 1.4) — só liga usuários de teste aos 3
--- papéis relevantes (financeiro tem as 10 permissões; operador/leitura,
--- nenhuma — usados no bloco 1.4.4/1.4.5 abaixo).
+-- papéis relevantes. Pós-0097 (repasse-saldo-minimo F2): quem confirma
+-- pagamento/lote/fechamento é `financeiro_aprovador` (cópia das 10
+-- permissões originais de `financeiro`, que perdeu `pagamento_confirmar` —
+-- 2.5.3/2.5.6); usa-se aqui esse papel para o usuário "financeiro" de
+-- teste continuar exercendo as RPCs gated por pagamento_confirmar em todo
+-- o resto deste driver, sem perder nenhuma das outras 9 permissões
+-- (operador/leitura seguem com 0, usados no bloco 1.4.4/1.4.5 abaixo).
 INSERT INTO "Usuario" (email, senha_hash, nome) VALUES ('financeiro.teste@example.com', 'x', 'Financeiro Teste');
 INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo)
-  VALUES ((SELECT id FROM "Usuario" WHERE email='financeiro.teste@example.com'), 6, (SELECT id FROM "Papel" WHERE nome='financeiro'), true);
+  VALUES ((SELECT id FROM "Usuario" WHERE email='financeiro.teste@example.com'), 6, (SELECT id FROM "Papel" WHERE nome='financeiro_aprovador'), true);
 INSERT INTO "Usuario" (email, senha_hash, nome) VALUES ('operador.teste@example.com', 'x', 'Operador Teste');
 INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo)
   VALUES ((SELECT id FROM "Usuario" WHERE email='operador.teste@example.com'), 6, (SELECT id FROM "Papel" WHERE nome='operador'), true);
@@ -117,11 +122,16 @@ N_ORDEM="$(psql_t -tAc "SELECT ordem FROM \"Modulo\" WHERE codigo='adiantamentos
 check "1.4.1: módulo adiantamentos ordem 35" "$N_ORDEM" "35"
 N_PERMISSOES="$(psql_t -tAc "SELECT count(*) FROM \"Permissao\" perm JOIN \"Modulo\" m ON m.id=perm.modulo_id WHERE m.codigo='adiantamentos';")"
 check "1.4.1: módulo adiantamentos com 10 permissões distintas" "$N_PERMISSOES" "10"
+# Pós-0097 (repasse-saldo-minimo F2, 2.5.3/2.5.6): `pagamento_confirmar`
+# saiu de `financeiro`/`admin_entidade` (9/10 permissões) e só sobra em
+# `admin_plataforma`/`financeiro_aprovador` (10/10) — furo fechado
+# (EVIDENCIA-F2-CONTROLE-NEGATIVO.md).
 GRANTS="$(psql_t -tAc "SELECT p.nome || '=' || count(*) FROM \"Papel\" p JOIN \"PapelPermissao\" pp ON pp.papel_id=p.id JOIN \"Permissao\" perm ON perm.id=pp.permissao_id JOIN \"Modulo\" m ON m.id=perm.modulo_id WHERE m.codigo='adiantamentos' GROUP BY p.nome ORDER BY p.nome;")"
-check "1.4.2: só financeiro/admin_entidade/admin_plataforma têm as 10 permissões" "$GRANTS" "admin_entidade=10
+check "1.4.2: pós-0097 — pagamento_confirmar só em admin_plataforma/financeiro_aprovador (10); financeiro/admin_entidade ficam com 9" "$GRANTS" "admin_entidade=9
 admin_plataforma=10
-financeiro=10"
-N_OUTROS="$(psql_t -tAc "SELECT count(*) FROM \"PapelPermissao\" pp JOIN \"Permissao\" perm ON perm.id=pp.permissao_id JOIN \"Modulo\" m ON m.id=perm.modulo_id WHERE m.codigo='adiantamentos' AND pp.papel_id NOT IN (SELECT id FROM \"Papel\" WHERE nome IN ('financeiro','admin_plataforma','admin_entidade'));")"
+financeiro=9
+financeiro_aprovador=10"
+N_OUTROS="$(psql_t -tAc "SELECT count(*) FROM \"PapelPermissao\" pp JOIN \"Permissao\" perm ON perm.id=pp.permissao_id JOIN \"Modulo\" m ON m.id=perm.modulo_id WHERE m.codigo='adiantamentos' AND pp.papel_id NOT IN (SELECT id FROM \"Papel\" WHERE nome IN ('financeiro','admin_plataforma','admin_entidade','financeiro_aprovador'));")"
 check "1.4.2: fail-closed — nenhum outro papel (inclui operador/leitura) recebe permissão" "$N_OUTROS" "0"
 
 # --- 1.4.3: config v1 (migration 0070) com D-04/D-05/D-06/D-21/Q-N2; Q-B2/Q-B3 nulos ---
@@ -435,6 +445,26 @@ COL_BANCO_LOTE="$(psql_t -tAc "SELECT col_banco FROM \"AdiantamentoLoteItem\" WH
 check "11.14: col_documento formatado (999.999.999-99), não redigido" "$COL_DOC_LOTE" "123.456.789-01"
 check "11.15: col_banco é o código de 3 dígitos, não o nome do banco" "$COL_BANCO_LOTE" "001"
 
+# --- 1.6.3: hub_adiantamento_repasse_fechar recusa PERIODO_EM_ABERTO --------
+# fronteira via a função interna (instante injetável), config v2 (horario_corte=23:59):
+# limite = (periodo_fim + 1) 23:59:00 America/Sao_Paulo.
+FRONTEIRA_ANTES="$(psql_t -tAc "SELECT hub_adiantamento_repasse_pode_fechar(c, '2026-01-07'::date, '2026-01-08 23:58:59-03'::timestamptz) FROM \"AdiantamentoConfiguracao\" c WHERE c.versao=2 AND c.id_empresa=6;")"
+check "1.6.3 fronteira: 1s antes do corte do dia seguinte -> não pode fechar (false)" "$FRONTEIRA_ANTES" "f"
+FRONTEIRA_NO_CORTE="$(psql_t -tAc "SELECT hub_adiantamento_repasse_pode_fechar(c, '2026-01-07'::date, '2026-01-08 23:59:00-03'::timestamptz) FROM \"AdiantamentoConfiguracao\" c WHERE c.versao=2 AND c.id_empresa=6;")"
+check "1.6.3 fronteira: no instante do corte do dia seguinte -> pode fechar (true)" "$FRONTEIRA_NO_CORTE" "t"
+
+# fim-a-fim via a RPC pública, com now() real: período corrente (hoje) ainda
+# não pode ter fechado — a produção de ontem ainda pode ser solicitada hoje.
+ABERTO_OUT="$(psql_relaxed -v ON_ERROR_STOP=0 <<'SQL' 2>&1
+BEGIN;
+SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
+SET ROLE authenticated;
+SELECT * FROM hub_adiantamento_repasse_fechar((current_date - 6)::date);
+ROLLBACK;
+SQL
+)"
+check "1.6.3: período corrente (hoje) -> PERIODO_EM_ABERTO" "$(echo "$ABERTO_OUT" | grep -c 'PERIODO_EM_ABERTO')" "1"
+
 # --- D-23: fechamento com pendências / liberado / dupla tentativa -----------
 PENDENCIA_OUT="$(psql_relaxed -v ON_ERROR_STOP=0 <<'SQL' 2>&1
 BEGIN;
@@ -716,26 +746,6 @@ ARQ_902="$(psql_t -tAc "SELECT (arquivo IS NULL) || '|' || (arquivo_sha256 IS NO
 check "1.6.2 expurgo_arquivos: 902 zerou arquivo, manteve sha256, marcou expurgado_em" "$ARQ_902" "true|true|true"
 ARQ_904="$(psql_t -tAc "SELECT arquivo IS NOT NULL FROM \"AdiantamentoLote\" WHERE id=904;")"
 check "1.6.2 expurgo_arquivos: 904 (concluído há <90 dias) NÃO expurgado" "$ARQ_904" "t"
-
-# --- 1.6.3: hub_adiantamento_repasse_fechar recusa PERIODO_EM_ABERTO --------
-# fronteira via a função interna (instante injetável), config v2 (horario_corte=23:59):
-# limite = (periodo_fim + 1) 23:59:00 America/Sao_Paulo.
-FRONTEIRA_ANTES="$(psql_t -tAc "SELECT hub_adiantamento_repasse_pode_fechar(c, '2026-01-07'::date, '2026-01-08 23:58:59-03'::timestamptz) FROM \"AdiantamentoConfiguracao\" c WHERE c.versao=2 AND c.id_empresa=6;")"
-check "1.6.3 fronteira: 1s antes do corte do dia seguinte -> não pode fechar (false)" "$FRONTEIRA_ANTES" "f"
-FRONTEIRA_NO_CORTE="$(psql_t -tAc "SELECT hub_adiantamento_repasse_pode_fechar(c, '2026-01-07'::date, '2026-01-08 23:59:00-03'::timestamptz) FROM \"AdiantamentoConfiguracao\" c WHERE c.versao=2 AND c.id_empresa=6;")"
-check "1.6.3 fronteira: no instante do corte do dia seguinte -> pode fechar (true)" "$FRONTEIRA_NO_CORTE" "t"
-
-# fim-a-fim via a RPC pública, com now() real: período corrente (hoje) ainda
-# não pode ter fechado — a produção de ontem ainda pode ser solicitada hoje.
-ABERTO_OUT="$(psql_relaxed -v ON_ERROR_STOP=0 <<'SQL' 2>&1
-BEGIN;
-SELECT set_config('request.jwt.claims', '{"sub":"1","empresa_ativa":"6","escopo":[6]}', true);
-SET ROLE authenticated;
-SELECT * FROM hub_adiantamento_repasse_fechar((current_date - 6)::date);
-ROLLBACK;
-SQL
-)"
-check "1.6.3: período corrente (hoje) -> PERIODO_EM_ABERTO" "$(echo "$ABERTO_OUT" | grep -c 'PERIODO_EM_ABERTO')" "1"
 
 # --- 1.6.5 (dec-047): corte do tick deve considerar o DIA da solicitação ----
 # fronteira via a função interna hub_adiantamento_corte_passou (mesmo padrão

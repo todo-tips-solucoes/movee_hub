@@ -42,7 +42,7 @@ vi.mock('@/lib/hub/adiantamentos-api', async () => {
 const REPASSE_ABERTO = {
   periodo: { inicio: '2026-09-10', fim: '2026-09-16', dataRepasse: null, situacao: 'aberto' as const },
   totais: { creditos: '1200.00', adiantamentos: '256.00', debitos: '0.00', remanescente: '944.00', motoristas: 1 },
-  itens: [{ entregadorId: 42, nome: 'Joana Ribeiro', creditos: '1200.00', adiantamentos: '256.00', debitos: '0.00', remanescente: '944.00', negativo: false, emProcessamento: false }],
+  itens: [{ entregadorId: 42, idExterno: 'a1b2c3d4-0000-4000-8000-000000000042', nome: 'Joana Ribeiro', creditos: '1200.00', adiantamentos: '256.00', debitos: '0.00', remanescente: '944.00', negativo: false, emProcessamento: false }],
   naoPagosNoPeriodo: 0,
   total: 1,
   page: 1,
@@ -71,6 +71,44 @@ describe('AdiantamentosRepassePage', () => {
     expect(screen.getByText('Carregando repasse...')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
     expect(screen.getByText('Total (1 motorista(s))')).toBeInTheDocument();
+  });
+
+  // F1 (repasse-saldo-minimo, spec.md FR-001/FR-003): mesma coluna
+  // "Identificador" com CopyableUuid já usada na tela de Motoristas.
+  it('F1: mostra a coluna Identificador com CopyableUuid recebendo o idExterno', async () => {
+    mockObterRepasse.mockResolvedValueOnce(REPASSE_ABERTO);
+    render(<AdiantamentosRepassePage />);
+    await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
+
+    expect(screen.getByText('Identificador')).toBeInTheDocument();
+    expect(screen.getByText('a1b2c3d4-0000-4000-8000-000000000042')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copiar identificador de Joana Ribeiro' })).toBeInTheDocument();
+  });
+
+  // F3 (repasse-saldo-minimo, tasks.md 3.5.1/3.5.3): colunas novas e o badge
+  // de retenção — só aparece quando `retido=true`, nunca para os demais.
+  it('F3: mostra colunas Saldo anterior/A pagar e o badge de retido só quando retido=true', async () => {
+    mockObterRepasse.mockResolvedValueOnce({
+      ...REPASSE_ABERTO,
+      totais: { ...REPASSE_ABERTO.totais, saldoAnterior: '10.00', aPagar: '944.00', transportado: '0.00' },
+      itens: [
+        { ...REPASSE_ABERTO.itens[0], saldoAnterior: '10.00', aPagar: '944.00', transportado: null, retido: false },
+        {
+          entregadorId: 43, idExterno: 'a1b2c3d4-0000-4000-8000-000000000043', nome: 'Carlos Souza',
+          creditos: '3.00', adiantamentos: '0.00', debitos: '0.00', remanescente: '3.00', negativo: false,
+          emProcessamento: false, saldoAnterior: '0.00', aPagar: '0.00', transportado: '3.00', retido: true,
+        },
+      ],
+    });
+    render(<AdiantamentosRepassePage />);
+    await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
+
+    expect(screen.getByText('Saldo anterior')).toBeInTheDocument();
+    expect(screen.getByText('A pagar')).toBeInTheDocument();
+    expect(screen.getByText('Passou para a próxima semana')).toBeInTheDocument();
+    // Joana (retido=false) não ganha o badge.
+    const linhaJoana = screen.getByText('Joana Ribeiro').closest('tr') as HTMLElement;
+    expect(linhaJoana).not.toHaveTextContent('Passou para a próxima semana');
   });
 
   it('lista vazia mostra o empty state', async () => {

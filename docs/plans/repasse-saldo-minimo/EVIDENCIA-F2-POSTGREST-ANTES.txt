@@ -1,0 +1,6 @@
+-- POST /UsuarioEntidade (papel_id=admin_plataforma) --
+
+HTTP_STATUS:201
+-- POST /PapelPermissao (arbitrário) --
+{"code":"23505","details":"Key (papel_id, permissao_id)=(4, 1) already exists.","hint":null,"message":"duplicate key value violates unique constraint \"PapelPermissao_pkey\""}
+HTTP_STATUS:409

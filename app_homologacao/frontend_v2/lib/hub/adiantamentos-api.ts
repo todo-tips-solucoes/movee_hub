@@ -39,6 +39,8 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   NAO_AUTENTICADO: 'Sua sessão expirou. Faça login novamente.',
   ENTIDADE_NAO_SELECIONADA: 'Selecione uma entidade antes de continuar.',
   PERMISSAO_NEGADA: 'Você não tem permissão para esta ação.',
+  // F3: só quem tem `adiantamentos.pagamento_confirmar` altera o piso do repasse.
+  PERMISSAO_NEGADA_PISO: 'Você não tem permissão para alterar o valor mínimo do repasse.',
   MODULO_DESABILITADO: 'O módulo de adiantamentos está desabilitado para esta empresa.',
   FORA_DO_GRUPO_MOVEE: 'Esta empresa não pertence ao grupo Movee.',
   DADOS_INVALIDOS: 'Dados inválidos. Confira os campos e tente novamente.',
@@ -51,6 +53,10 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   ARQUIVO_INDISPONIVEL: 'O arquivo deste lote não está disponível.',
   LIMITE_EXCEDIDO: 'Limite de tentativas excedido. Aguarde alguns minutos.',
   APURACAO_JA_FECHADA: 'Este período já foi fechado.',
+  // F3 (repasse-saldo-minimo, FR-021): só a semana seguinte, em ordem, à
+  // última já fechada — nunca pular nem repetir. "Tente novamente" seria
+  // enganoso aqui, o fechamento certo é sempre o da semana em ordem.
+  APURACAO_FORA_DE_ORDEM: 'Só é possível fechar a próxima semana em ordem, a partir da última já fechada.',
   APURACAO_NAO_CONFIGURADA: 'A apuração de repasse ainda não foi configurada.',
   APURACAO_COM_PENDENCIAS: 'Há solicitações pendentes neste período.',
   PERIODO_EM_ABERTO: 'O período ainda está em aberto para solicitações.',
@@ -288,6 +294,10 @@ export interface Configuracao {
   descontoAdiantamentos: boolean;
   descontoDebitos: boolean;
   repasseVisivelApp: boolean;
+  /** F3 (repasse-saldo-minimo, FR-025): piso do repasse semanal — string
+   *  dinheiro (mesmo formato de `taxaFixa`). Só quem tem
+   *  `adiantamentos.pagamento_confirmar` pode alterar (403 `PERMISSAO_NEGADA_PISO`). */
+  repasseValorMinimo: string;
   completa: boolean;
 }
 
@@ -346,6 +356,8 @@ export interface SalvarConfiguracaoInput {
   descontoAdiantamentos?: boolean;
   descontoDebitos?: boolean;
   repasseVisivelApp?: boolean;
+  /** F3: exige `adiantamentos.pagamento_confirmar` — 403 `PERMISSAO_NEGADA_PISO` senão. */
+  repasseValorMinimo?: string;
 }
 
 export async function obterConfiguracoes(): Promise<ConfiguracaoResponse> {
@@ -534,6 +546,10 @@ export async function confirmarLote(id: number, dados: ConfirmarLoteInput = { fa
 
 export interface RepasseItem {
   entregadorId: number;
+  // F1 (repasse-saldo-minimo, spec.md FR-001..FR-003): mesmo identificador
+  // (`Entregador.id_externo`) já exibido na tela de Motoristas — nenhum
+  // vocabulário novo.
+  idExterno: string;
   nome: string;
   creditos: string;
   adiantamentos: string;
@@ -541,6 +557,12 @@ export interface RepasseItem {
   remanescente: string;
   negativo: boolean;
   emProcessamento: boolean;
+  // F3 (repasse-saldo-minimo, FR-014..FR-020): `null` num item de semana
+  // fechada anterior à regra (Decision 7) — nunca "0,00" nesse caso.
+  saldoAnterior: string | null;
+  aPagar: string | null;
+  transportado: string | null;
+  retido: boolean;
 }
 
 export interface RepasseResponse {
@@ -552,7 +574,12 @@ export interface RepasseResponse {
     inicio: string; fim: string; dataRepasse: string | null;
     situacao: 'aberto' | 'fechado'; fechadoEm: string | null;
   };
-  totais: { creditos: string; adiantamentos: string; debitos: string; remanescente: string; motoristas: number };
+  totais: {
+    creditos: string; adiantamentos: string; debitos: string; remanescente: string; motoristas: number;
+    // F3: semana aberta = previsão (piso vigente agora); semana fechada =
+    // valores congelados. `null` quando não há nenhuma linha no período.
+    saldoAnterior: string | null; aPagar: string | null; transportado: string | null;
+  };
   itens: RepasseItem[];
   naoPagosNoPeriodo: number;
   total: number;

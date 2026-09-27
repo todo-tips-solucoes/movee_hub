@@ -97,6 +97,12 @@ export default function RepassePage() {
                 <dt className="text-muted-foreground">Produção do período</dt>
                 <dd className="tabular font-medium">{formatCurrency(repasse.creditos)}</dd>
               </div>
+              {Number(repasse.saldoAnterior) > 0 && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Saldo da semana anterior</dt>
+                  <dd className="tabular font-medium">+ {formatCurrency(repasse.saldoAnterior)}</dd>
+                </div>
+              )}
               {repasse.adiantamentos.map((a) => (
                 <div key={a.id} className="flex items-center justify-between">
                   <dt className="text-muted-foreground">
@@ -118,7 +124,7 @@ export default function RepassePage() {
               <div className="flex items-center justify-between border-t border-border/60 pt-1.5 font-semibold">
                 <dt>Previsão a receber</dt>
                 <dd className={`tabular ${repasse.negativo ? 'text-destructive' : ''}`}>
-                  {formatCurrency(repasse.remanescente)}
+                  {formatCurrency(repasse.previsaoTotal ?? repasse.remanescente)}
                 </dd>
               </div>
             </dl>
@@ -175,6 +181,13 @@ export default function RepassePage() {
               </div>
             )}
 
+            {repasse.abaixoDoMinimo && (
+              <div className="flex items-start gap-2 rounded-xl bg-warning/10 p-3 text-xs text-warning-foreground">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>Esta previsão está abaixo do valor mínimo para repasse. Se continuar assim até o fechamento, ela é somada à previsão da próxima semana e você não recebe nesta.</p>
+              </div>
+            )}
+
             <div className="flex items-start gap-2 rounded-xl bg-primary/5 p-3 text-xs text-foreground/80">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-[color-mix(in_oklab,var(--primary)_70%,var(--foreground)_30%)]" />
               <p>A taxa de cada adiantamento já foi descontada no ato e não é cobrada de novo. Valores podem mudar até o fechamento.</p>
@@ -227,9 +240,9 @@ export default function RepassePage() {
                 </div>
               )}
               <div className="flex items-center justify-between border-t border-border/60 pt-1.5 font-semibold">
-                <dt>Valor a receber</dt>
+                <dt>{repasse.ultimoFechado.retido ? 'Passou para a próxima semana' : 'Valor a receber'}</dt>
                 <dd className={`tabular ${repasse.ultimoFechado.negativo ? 'text-destructive' : ''}`}>
-                  {formatCurrency(repasse.ultimoFechado.remanescente)}
+                  {formatCurrency(repasse.ultimoFechado.retido ? repasse.ultimoFechado.transportado : repasse.ultimoFechado.remanescente)}
                 </dd>
               </div>
             </dl>

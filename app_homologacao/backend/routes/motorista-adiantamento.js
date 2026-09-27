@@ -875,6 +875,13 @@ router.get('/repasse', async (req, res) => {
   }
   const fechado = Array.isArray(fechadas) && fechadas[0];
 
+  // F3 (saldo mínimo carregado, contracts/motorista-repasse-api.md): o piso
+  // em si NUNCA é exposto ao motorista — só o efeito (`abaixoDoMinimo`).
+  const saldoAnterior = row.saldo_anterior;
+  const previsaoTotal = (saldoAnterior === null || saldoAnterior === undefined)
+    ? null
+    : dinheiro(Number(row.remanescente || 0) + Number(saldoAnterior));
+
   res.json({
     periodoInicio: row.periodo_inicio,
     periodoFim: row.periodo_fim,
@@ -891,6 +898,9 @@ router.get('/repasse', async (req, res) => {
     debitos: dinheiro(row.debitos),
     remanescente: dinheiro(row.remanescente),
     negativo: row.negativo,
+    saldoAnterior: dinheiro(saldoAnterior),
+    previsaoTotal,
+    abaixoDoMinimo: row.abaixo_do_minimo === true,
     // `null` quando o motorista ainda não tem nenhuma semana fechada — a tela
     // simplesmente não renderiza a seção, sem mensagem de erro.
     ultimoFechado: fechado ? {
@@ -903,6 +913,11 @@ router.get('/repasse', async (req, res) => {
       debitos: dinheiro(fechado.debitos),
       remanescente: dinheiro(fechado.remanescente),
       negativo: fechado.negativo,
+      // F3: NULL numa apuração fechada antes da regra (Decision 7).
+      saldoAnterior: dinheiro(fechado.saldo_anterior),
+      aPagar: dinheiro(fechado.valor_pago),
+      transportado: dinheiro(fechado.valor_transportado),
+      retido: fechado.retido === true,
     } : null,
   });
 });
