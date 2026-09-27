@@ -153,7 +153,37 @@ sequência **antes** de trocar qualquer imagem (ordem abaixo), nunca intercaland
 9. Texto do aviso no app do motorista já aprovado (block-007/dec-047, 2026-09-26) — sem
    pendência.
 
+## Estado medido em produção (2026-09-27, leitura só, pelo operador)
+
+| Item | Resultado |
+|---|---|
+| Pré-condição 2 — `admin_plataforma` | 1 pessoa, empresa 6, confirmada pelo operador ✔ |
+| Pré-condição 3 — quem recebe `financeiro_aprovador` | a conta `financeiro` da empresa 6 (decisão do operador) |
+| Pré-condição 4 — quem perde `pagamento_confirmar` | 9 vínculos (`admin_entidade` das empresas 1–8 + `financeiro` da 6); **na prática só os 2 da empresa 6**, único escopo com o módulo `adiantamentos` ativo |
+| Pré-condição 6 — apurações fechadas | 0 ✔ |
+| Pré-condição 7 — `ApuracaoRepasseMovimento` | 0 linhas — o defeito da `0092` ainda não produziu nota órfã ✔ |
+| Pré-condição 8 — lotes `GERANDO`/`GERADO`/`EXPORTADO` | nenhum ✔ |
+| Objetos de 0090–0096 | todos presentes (incl. `hub_adiantamento_repasse_fechar` na versão da `0092` e `salvar` na da `0091`) ✔ |
+| Objetos de 0097–0099 | nenhum ainda ✔ |
+| Pré-condição 1 — hashes dos segredos JWT | **pendente** |
+
+⚠️ **`SchemaMigration` para em `0089`** (23/09): as migrations 0090–0096 foram aplicadas
+fora do `migrate.sh`, mas os objetos estão lá (tabela acima). Consequência: **NUNCA
+rodar `infra/hub/scripts/migrate.sh` em produção** nesta janela — ele tentaria reaplicar
+0090–0096. Aplicar `0097`, `0098` e `0099` **arquivo a arquivo**, como abaixo.
+
 ## Ordem de deploy
+
+0. **Backup antes de qualquer escrita** (a `0097` apaga linhas de `PapelPermissao`; a
+   `0098` altera `AdiantamentoConfiguracao`):
+   ```
+   CID=$(docker ps -qf name=pgadmin_db | head -1)
+   docker exec "$CID" sh -c 'pg_dump -U "$POSTGRES_USER" -d chatmasterveloz -t "\"Papel\"" -t "\"PapelPermissao\"" -t "\"UsuarioEntidade\"" -t "\"AdiantamentoConfiguracao\"" -t "\"ApuracaoRepasse\"" -t "\"ApuracaoRepasseItem\"" -t "\"ApuracaoRepasseMovimento\"" --data-only' \
+     > ~/repasse-saldo-minimo-antes-deploy.sql && ls -l ~/repasse-saldo-minimo-antes-deploy.sql
+   ```
+   Anotar as imagens em produção (rollback): backend e `frontend_motorista`
+   `esqueci-senha-3244051`, `frontend_v2` `email-editavel-ecab730` — reconferir com
+   `docker service ls --filter name=envio-massa-homologacao_ --format '{{.Name}}\t{{.Image}}'`.
 
 1. **Migration `0097_papel_financeiro_aprovador.sql`** (papel + trava de banco):
    ```
@@ -209,15 +239,15 @@ sequência **antes** de trocar qualquer imagem (ordem abaixo), nunca intercaland
    ```
 6. **Backend** (imagem única com as três fases):
    ```
-   docker service update --with-registry-auth --image <nova-imagem> envio-massa-homologacao_backend_homologacao
+   docker service update --with-registry-auth --image registry.todo-tips.com/envio-massa-backend:saldo-minimo-9ccfa96 envio-massa-homologacao_backend_homologacao
    ```
 7. **`frontend_v2`**:
    ```
-   docker service update --with-registry-auth --image <nova-imagem> envio-massa-homologacao_frontend_v2_homologacao
+   docker service update --with-registry-auth --image registry.todo-tips.com/envio-massa-frontend-v2:saldo-minimo-9ccfa96 envio-massa-homologacao_frontend_v2_homologacao
    ```
 8. **`frontend_motorista`**:
    ```
-   docker service update --with-registry-auth --image <nova-imagem> envio-massa-homologacao_frontend_motorista_homologacao
+   docker service update --with-registry-auth --image registry.todo-tips.com/app-motorista-frontend:saldo-minimo-9ccfa96 envio-massa-homologacao_frontend_motorista_homologacao
    ```
 9. **Imediatamente após** — conceder `financeiro_aprovador` à pessoa decidida na
    pré-condição 3 (pela tela de Usuários, logado como o `admin_plataforma` único).
@@ -231,8 +261,7 @@ INSERT de trilha só funciona depois da `0099`).
 1. **Antes de aplicar qualquer coisa**: `pg_dump -t` das tabelas afetadas (dado
    financeiro + RBAC, para poder auditar o que mudou se algo der errado):
    ```
-   docker exec "$CID" sh -c 'pg_dump -U "$POSTGRES_USER" -d chatmasterveloz -t "\"PapelPermissao\"" -t "\"UsuarioEntidade\"" -t "\"ApuracaoRepasse\"" -t "\"ApuracaoRepasseItem\"" --data-only' \
-     > ~/repasse-saldo-minimo-antes-deploy.sql
+   (feito no passo 0 da ordem de deploy — `~/repasse-saldo-minimo-antes-deploy.sql`)
    ```
 2. **Rollback de imagem** (se o problema for só numa imagem): anotar a imagem anterior
    ANTES de atualizar — `docker service ls --filter name=envio-massa-homologacao_
@@ -271,26 +300,36 @@ INSERT de trilha só funciona depois da `0099`).
 1. **F1** — `GET /api/v1/adiantamentos/repasse?periodo=<semana atual>` autenticado:
    confirmar `idExterno` presente em cada item; coluna "Identificador" na tela; exportar
    o CSV e confirmar a primeira coluna.
-2. **F2** — `financeiro`/`admin_entidade` puro tenta `POST
-   /repasse/<periodo>/fechar {"confirmacao":true}` → esperado **403
-   PERMISSAO_NEGADA**; a pessoa com `financeiro_aprovador` tenta a mesma chamada →
-   esperado 2xx ou erro de negócio (nunca 403 por autorização). Tela de Usuários:
-   `admin_entidade` não vê `admin_plataforma`/`financeiro_aprovador` no seletor;
-   `admin_plataforma` vê os dois. Auditoria: linha `usuario_vinculo_negado` se algum
-   teste acima disparar a trava.
+2. **F2** — ⚠️ **NUNCA fechar uma semana real no smoke**: fechar é irreversível (a
+   apuração congela) e a semana só pode ser fechada quando o operador decidir. Use
+   **sempre a semana corrente, ainda em aberto**, que a regra de negócio recusa sem
+   gravar nada:
+   - `financeiro`/`admin_entidade` puro: `POST /repasse/<semana-corrente>/fechar
+     {"confirmacao":true}` → esperado **403 PERMISSAO_NEGADA** (a permissão é checada
+     antes da regra de negócio);
+   - a pessoa com `financeiro_aprovador`: mesma chamada → esperado **409
+     PERIODO_EM_ABERTO** (passou pela autorização e parou na regra — nunca 403, nunca
+     2xx). Se vier 2xx, a semana foi fechada: parar e avisar o operador.
+   Tela de Usuários: `admin_entidade` não vê `admin_plataforma`/`financeiro_aprovador` no
+   seletor; `admin_plataforma` vê os dois. Auditoria: linha `usuario_vinculo_negado` se
+   algum teste acima disparar a trava.
 3. **F3** — `GET /repasse` confere `saldoAnterior`/`aPagar`; `GET /configuracoes`
    confere `repasseValorMinimo`; colunas "Saldo anterior"/"A pagar" na tela; badge
    "Passou para a próxima semana" em item retido (ou conferir no bundle servido);
    `GET /motorista/repasse` confere `abaixoDoMinimo`/`previsaoTotal`, sem a palavra
    "Retido" em nenhum texto visível.
-4. **0099** — `POST /repasse/:periodo/movimentos` numa apuração fechada com pelo menos
-   um motorista pago: confirmar HTTP 2xx sem `FALHA_AO_GRAVAR`, e uma linha nova em
-   `ApuracaoRepasseMovimento` para esse motorista (a policy de INSERT funcionando).
+4. **0099** — **não** testar "Gerar notas" em produção (exige apuração fechada, que não
+   existe e não deve ser criada no smoke). A prova da `0099` é a do passo 5 da ordem de
+   deploy (a policy de INSERT existe em `pg_policy`); o fluxo completo já foi provado em
+   `hub-test-*` (roundtrip 46/0). O primeiro "Gerar notas" real acontece depois do
+   primeiro fechamento decidido pelo operador — conferir então 1 linha em
+   `ApuracaoRepasseMovimento` por motorista gerado.
 5. Exportar o CSV e confirmar o cabeçalho final (4 colunas novas — ver "O que muda").
 6. **Prova de bundle** (CLAUDE.md "Prova" — HTTP 200 não prova nada): buscar no bundle
    servido do `frontend_v2` a string "Identificador" (coluna nova de F1) e "Passou para
-   a próxima semana" (rótulo de F3); no `frontend_motorista`, a mesma string "Passou
-   para a próxima semana".
+   a próxima semana" (rótulo de F3); no `frontend_motorista`, a mesma string — ⚠️ no bundle do app o
+   acento vem escapado: procurar `Passou para a pr` (ou `pr\xf3xima`), não a forma
+   acentuada, senão o grep dá falso negativo.
 
 ## Os 5 gates de produção
 
