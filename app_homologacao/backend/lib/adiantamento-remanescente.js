@@ -130,10 +130,24 @@ function calcularLinhaRemanescente({ entregadorId, nome, creditos, adiantamentos
 // F3 (repasse-saldo-minimo, contracts/hub-repasse-api.md §GET /repasse/exportar):
 // três colunas novas no fim. Mudança de cabeçalho quebra planilha que lê por
 // posição — avisar o financeiro no PR (tasks.md 3.3.2).
+// Conferência com a planilha de movimento (2026-09-28): mais três no fim —
+// a chave da planilha (CNPJ) e a divisão da nota da SEMANA, com o mesmo
+// vocabulário do app ("valor da nota fiscal" / "gorjeta") e da planilha
+// (`valor` / `gorjeta`). No fim para não mudar a posição das nove de antes.
 const CABECALHOS_CSV = [
   'Identificador', 'Entregador', 'Créditos', 'Adiantamentos', 'Débitos', 'Remanescente',
   'Saldo anterior', 'A pagar', 'Passou para a próxima semana',
+  'CNPJ do prestador', 'Valor da nota fiscal da semana', 'Gorjeta da semana',
 ];
+
+/** CNPJ de 14 dígitos -> 00.000.000/0000-00. Só dígitos, o Excel/Sheets o
+ *  leria como NÚMERO: 1,23457E+13 e o zero da frente sumiria — a coluna-chave
+ *  da conferência deixaria de casar. Formatado, fica texto. Outro formato
+ *  (vazio, tamanho errado) sai como veio. */
+function formatarCnpj(v) {
+  const d = String(v ?? '').replace(/\D/g, '');
+  return d.length === 14 ? `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}` : String(v ?? '');
+}
 
 function celulaCsv(valor) {
   return quotarCelulaCsv(escaparCelulaCsvInjection(valor === null || valor === undefined ? '' : valor));
@@ -173,6 +187,7 @@ function serializarCsvRemanescente(linhas) {
       celulaCsv(l.idExterno), celulaCsv(l.nome), celulaMoeda(l, 'creditos'), celulaMoeda(l, 'adiantamentos'),
       celulaMoeda(l, 'debitos'), celulaMoeda(l, 'remanescente'),
       celulaMoedaOuVazia(l.saldoAnterior), celulaMoedaOuVazia(l.aPagar), celulaMoedaOuVazia(l.transportado),
+      celulaCsv(formatarCnpj(l.cnpjPrestador)), celulaMoedaOuVazia(l.valorNota), celulaMoedaOuVazia(l.valorForaNota),
     ].join(','),
   );
   return [cabecalho, ...corpo].join('\r\n');

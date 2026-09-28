@@ -122,7 +122,7 @@ BEGIN
   SELECT 6, v_ver, now(), timezone, dias_habilitados, horario_abertura, horario_corte,
       percentual, taxa_fixa, fonte_producao, categorias_producao, previsao_pagamento_texto,
       descricao_pix_modelo, 1, 3, 'data_lancamento',
-      ARRAY['Corridas concluidas'], ARRAY['Corridas concluidas'], true, true, true
+      ARRAY['Corridas concluidas','Gorjeta'], ARRAY['Corridas concluidas'], true, true, true
   FROM "AdiantamentoConfiguracao" WHERE id_empresa = 6 ORDER BY versao DESC LIMIT 1;
 
   INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status)
@@ -191,6 +191,18 @@ BEGIN
   VALUES ('Roundtrip 229 Legado', '77777777000105', '12345678000199', 2.00, 6, true,
           (date '$PERIODO')::timestamp AT TIME ZONE 'America/Sao_Paulo',
           (date '$PERIODO' + 6 + time '23:59:59') AT TIME ZONE 'America/Sao_Paulo');
+
+  -- 0100 (conferência): quarto motorista com nota E gorjeta na semana 1
+  -- (7,00 em categoria da nota + 2,00 fora dela) — a divisão não degenerada;
+  -- CNPJ com zero à esquerda (o que o Excel comeria se saísse só dígitos).
+  INSERT INTO "ContaMotorista" (cnpj_prestador, nome, ativo, senha) VALUES
+    ('08888888000106', 'Roundtrip 0100 Divisao', true, '$HASH_MOTORISTA');
+  INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id) VALUES
+    (6, gen_random_uuid(), 'Roundtrip 0100 Divisao', (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='08888888000106'));
+  INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
+  SELECT 6, v_imp, e.id, date '$PERIODO', date '$PERIODO', 'Credito', x.valor, x.descr, md5('roundtrip-0100')||md5(x.descr)
+  FROM "Entregador" e, (VALUES (7.00, 'Corridas concluidas'), (2.00, 'Gorjeta')) AS x(valor, descr)
+  WHERE e.motorista_id = (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='08888888000106');
 END \$\$;
 SQL
 if [ $? -ne 0 ]; then echo "FAIL: seed deu erro"; cat "$TMP/seed.log"; exit 1; fi
@@ -217,7 +229,7 @@ function parseSetCookie(res) {
 }
 function cookieHeader(jar) { return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '); }
 
-const CABECALHO_CSV_ESPERADO = 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana';
+const CABECALHO_CSV_ESPERADO = 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana';
 
 async function main() {
   const senhaHub = process.argv[2];
@@ -261,6 +273,13 @@ async function main() {
   const textoExportarAberta = await rExportarAberta.text();
   out.hub_exportar_aberta_status = rExportarAberta.status;
   out.hub_exportar_aberta_header_ok = textoExportarAberta.split('\r\n')[0] === CABECALHO_CSV_ESPERADO ? 'true' : 'false';
+  // 0100 (conferência com a planilha): as 3 últimas colunas da linha do
+  // motorista retido na semana ABERTA (prévia) — comparadas depois com a
+  // mesma linha na semana FECHADA (congelado).
+  const linhaAberta = textoExportarAberta.split('\r\n').find((l) => l.startsWith(idExterno + ','));
+  out.conf_aberta_tail = linhaAberta ? linhaAberta.split(',').slice(-3).join('|') : null;
+  const linhaDivAberta = textoExportarAberta.split('\r\n').find((l) => l.includes(',08.888.888/0001-06,'));
+  out.conf_div_aberta_tail = linhaDivAberta ? linhaDivAberta.split(',').slice(-3).join('|') : null;
 
   // --- fechar semana 1 + GET pós-fechamento ---------------------------------
   const rFechar = await fetch(`http://localhost:3000/api/v1/adiantamentos/repasse/${periodo}/fechar`, {
@@ -300,6 +319,10 @@ async function main() {
   const textoExportarFechada = await rExportarFechada.text();
   out.hub_exportar_fechada_status = rExportarFechada.status;
   out.hub_exportar_fechada_header_ok = textoExportarFechada.split('\r\n')[0] === CABECALHO_CSV_ESPERADO ? 'true' : 'false';
+  const linhaFechada = textoExportarFechada.split('\r\n').find((l) => l.startsWith(idExterno + ','));
+  out.conf_fechada_tail = linhaFechada ? linhaFechada.split(',').slice(-3).join('|') : null;
+  const linhaDivFechada = textoExportarFechada.split('\r\n').find((l) => l.includes(',08.888.888/0001-06,'));
+  out.conf_div_fechada_tail = linhaDivFechada ? linhaDivFechada.split(',').slice(-3).join('|') : null;
 
   // --- 3.3.7 resto: POST /repasse/:periodo1/movimentos — motorista retido
   //     é RECUSADO com motivo RETIDO, sem gerar movimento nenhum. ----------
@@ -439,7 +462,7 @@ check "F1.1: idExterno de GET /repasse bate com idExterno de GET /motoristas" "$
 # --- 3.3.7 resto: POST /repasse/:periodo/movimentos — retido é RECUSADO ----
 check "3.3.7: 2º motorista (saldo) também retido na semana 1 (2,00 < piso)" "$(G hub_item_saldo1_retido)" "true"
 check "3.3.7: POST /repasse/:periodo1/movimentos real -> 201" "$(G hub_mov1_status)" "201"
-check "3.3.7: nenhum movimento gerado na semana 1 (só retido)" "$(G hub_mov1_gerados)" "0"
+check "3.3.7: semana 1 gera só o motorista da conferência 0100 (os retidos não)" "$(G hub_mov1_gerados)" "1"
 check "3.3.7: motorista retido recusado com motivo RETIDO" "$(G hub_mov1_motivo_retido)" "RETIDO"
 
 # --- 3.3.7 resto: semana 2 — pago com saldo carregado ----------------------
@@ -478,7 +501,28 @@ check "3.3.7: EnvioMassa.gorjeta do motorista pago vazia (sem produção fora-no
 COUNT_ENVIOMASSA_LEGADO="$(psql_t -tAc "SELECT count(*) FROM \"EnvioMassa\" WHERE cnpj_prestador='77777777000105';" | tr -d '[:space:]')"
 check "#229: só o movimento legado existe para o motorista bloqueado (nenhuma nota duplicada gerada)" "$COUNT_ENVIOMASSA_LEGADO" "1"
 
+NOTA_DIV="$(psql_t -tAc "SELECT valor::numeric(12,2)||'|'||gorjeta::numeric(12,2) FROM \"EnvioMassa\" WHERE cnpj_prestador='08888888000106';" | tr -d '[:space:]')"
+check "0100: movimento gerado tem os mesmos nota/gorjeta que o CSV mostra" "$NOTA_DIV" "7.00|2.00"
+
 echo ""
+# --- 0100: conferência com a planilha — CNPJ + divisão da nota da semana ---
+check "0100: CSV semana aberta — CNPJ formatado, nota 3.00, gorjeta 0.00" "$(G conf_aberta_tail)" "55.555.555/0001-03|3.00|0.00"
+check "0100: CSV semana fechada — mesmos CNPJ/nota/gorjeta (prévia == fechamento)" "$(G conf_fechada_tail)" "55.555.555/0001-03|3.00|0.00"
+check "0100: divisão real na semana aberta — zero à esquerda preservado, nota 7.00, gorjeta 2.00" "$(G conf_div_aberta_tail)" "08.888.888/0001-06|7.00|2.00"
+check "0100: divisão real na semana fechada — igual à prévia" "$(G conf_div_fechada_tail)" "08.888.888/0001-06|7.00|2.00"
+
+# --- 0100: rollback volta à assinatura da 0098 e a 0100 reaplica (idempotente)
+psql_t -q < "$HUB_DIR/testes/sql/0100-rollback.sql" >"$TMP/rb0100.log" 2>&1 || { cat "$TMP/rb0100.log"; }
+COLS_RB="$(psql_t -tAc "SELECT count(*) FROM pg_proc p, unnest(p.proargnames) n WHERE p.proname IN ('hub_adiantamento_repasse','hub_adiantamento_repasse_congelado') AND n='valor_nota';" | tr -d '[:space:]')"
+check "0100: rollback remove valor_nota das 2 funções" "$COLS_RB" "0"
+GRANT_RB="$(psql_t -tAc "SELECT has_function_privilege('authenticated','hub_adiantamento_repasse(date,text,boolean,integer,integer)','EXECUTE') AND has_function_privilege('authenticated','hub_adiantamento_repasse_congelado(date,text,boolean,integer,integer)','EXECUTE');" | tr -d '[:space:]')"
+check "0100: rollback mantém GRANT EXECUTE nas 2 funções" "$GRANT_RB" "t"
+psql_t -q < "$HUB_DIR/migrations/0100_repasse_divisao_nota_previa.sql" >"$TMP/re0100.log" 2>&1 || { cat "$TMP/re0100.log"; }
+COLS_RE="$(psql_t -tAc "SELECT count(*) FROM pg_proc p, unnest(p.proargnames) n WHERE p.proname IN ('hub_adiantamento_repasse','hub_adiantamento_repasse_congelado') AND n='valor_nota';" | tr -d '[:space:]')"
+check "0100: reaplicar devolve valor_nota às 2 funções" "$COLS_RE" "2"
+GRANT_OK="$(psql_t -tAc "SELECT has_function_privilege('authenticated','hub_adiantamento_repasse(date,text,boolean,integer,integer)','EXECUTE') AND has_function_privilege('authenticated','hub_adiantamento_repasse_congelado(date,text,boolean,integer,integer)','EXECUTE');" | tr -d '[:space:]')"
+check "0100: GRANT EXECUTE refeito nas 2 funções" "$GRANT_OK" "t"
+
 echo "===================================================================="
 echo "RESULTADO: $fails falha(s)"
 echo "===================================================================="
