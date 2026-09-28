@@ -8,8 +8,13 @@
 import type { MovimentoRecusado } from './adiantamentos-api';
 
 /** Ordem de leitura: o que o operador consegue resolver vem primeiro. */
-const PRIORIDADE = ['SEM_CNPJ', 'SEM_DIVISAO', 'FALHA_AO_GRAVAR', 'VALOR_ZERO', 'MOVIMENTO_ABERTO', 'JA_GERADO'];
+const PRIORIDADE = [
+  'SEM_CNPJ', 'SEM_DIVISAO', 'FALHA_AO_GRAVAR', 'MOVIMENTO_LEGADO_EM_SEMANA_RETIDA',
+  'VALOR_ZERO', 'MOVIMENTO_ABERTO', 'RETIDO', 'JA_GERADO',
+];
 
+// "Passou para a próxima semana" é o termo do operador para o retido (o mesmo
+// da tela do repasse, do CSV e do app) — "RETIDO" nunca aparece para ninguém.
 const ROTULO: Record<string, string> = {
   SEM_CNPJ: 'sem CNPJ no hub',
   SEM_DIVISAO: 'apuração fechada antes de configurar a nota',
@@ -17,6 +22,8 @@ const ROTULO: Record<string, string> = {
   JA_GERADO: 'já gerados antes',
   MOVIMENTO_ABERTO: 'já têm movimento aberto',
   FALHA_AO_GRAVAR: 'falha ao gravar',
+  RETIDO: 'passaram para a próxima semana',
+  MOVIMENTO_LEGADO_EM_SEMANA_RETIDA: 'já têm movimento antigo na semana que passou para a próxima — ver com o financeiro',
 };
 
 export function resumirRecusas(recusados: MovimentoRecusado[]): string {

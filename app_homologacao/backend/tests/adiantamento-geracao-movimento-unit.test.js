@@ -245,3 +245,83 @@ test.describe('planejarGeracao() — lote', () => {
     assert.equal(aGerar.length + recusados.length, itens.length);
   });
 });
+
+// Issue #229 — a planilha não sabe da retenção. Motorista retido na semana X
+// (14–20/09) é pago na Y (21–27/09) com o saldo de X somado na nota; se X já
+// saiu em movimento pelo método antigo, a nota de Y duplicaria esse valor.
+test.describe('entregadoresComMovimentoEmSemanaRetida() — issue #229', () => {
+  const { entregadoresComMovimentoEmSemanaRetida } = require('../lib/adiantamento-geracao-movimento');
+  const CNPJ = '89000000000100';
+  const contas = new Map([[1, { cnpjPrestador: CNPJ }]]);
+  const pagoComSaldo = item({ remanescente: '4.00', saldo_anterior_nota: '3.00', saldo_anterior_fora: '0.00' });
+  const semanaX = { entregador_id: 1, valor_pago: '0.00', valor_transportado: '3.00', remanescente: '3.00',
+    periodo_inicio: '2026-09-14', periodo_fim: '2026-09-20' };
+  const movX = (over = {}) => ({ cnpj_prestador: CNPJ, dt_inicial: '2026-09-14T03:00:00+00:00', dt_final: '2026-09-21T02:59:59+00:00', ...over });
+  const bloqueia = (itens, historico, movimentos) => entregadoresComMovimentoEmSemanaRetida(itens, historico, movimentos, contas);
+
+  test('movimento legado FECHADO cobrindo a semana retida → bloqueia', () => {
+    assert.deepEqual([...bloqueia([pagoComSaldo], [semanaX], [movX()])], [1]);
+  });
+
+  test('sem movimento legado na semana retida → não bloqueia (gera com a soma)', () => {
+    assert.equal(bloqueia([pagoComSaldo], [semanaX], []).size, 0);
+    // movimento de OUTRA semana (a própria Y) não conta
+    assert.equal(bloqueia([pagoComSaldo], [semanaX],
+      [movX({ dt_inicial: '2026-09-21T03:00:00+00:00', dt_final: '2026-09-28T02:59:59+00:00' })]).size, 0);
+  });
+
+  test('fim de período às 23:59 -03 não vira o dia seguinte (fuso de São Paulo)', () => {
+    // termina em 13/09 23:59 local = 14/09 02:59Z: NÃO cruza a semana X
+    assert.equal(bloqueia([pagoComSaldo], [semanaX],
+      [movX({ dt_inicial: '2026-09-07T03:00:00+00:00', dt_final: '2026-09-14T02:59:59+00:00' })]).size, 0);
+  });
+
+  test('acúmulo de várias semanas: movimento em qualquer uma delas bloqueia', () => {
+    const semanaW = { ...semanaX, valor_transportado: '1.50', remanescente: '1.50', periodo_inicio: '2026-09-07', periodo_fim: '2026-09-13' };
+    const movW = movX({ dt_inicial: '2026-09-07T03:00:00+00:00', dt_final: '2026-09-14T02:59:59+00:00' });
+    assert.equal(bloqueia([pagoComSaldo], [semanaX, semanaW], [movW]).size, 1);
+  });
+
+  test('a cadeia para na primeira semana paga: movimento antes dela não conta', () => {
+    const semanaPaga = { ...semanaX, valor_pago: '50.00', valor_transportado: '0.00', periodo_inicio: '2026-09-07', periodo_fim: '2026-09-13' };
+    const movW = movX({ dt_inicial: '2026-09-07T03:00:00+00:00', dt_final: '2026-09-14T02:59:59+00:00' });
+    assert.equal(bloqueia([pagoComSaldo], [semanaX, semanaPaga], [movW]).size, 0);
+  });
+
+  test('semana negativa na cadeia preserva o saldo mas não é semana de origem', () => {
+    const semanaNeg = { ...semanaX, remanescente: '-10.00', periodo_inicio: '2026-09-14', periodo_fim: '2026-09-20' };
+    const semanaW = { ...semanaX, valor_transportado: '3.00', periodo_inicio: '2026-09-07', periodo_fim: '2026-09-13' };
+    // movimento só na semana negativa (que emite a própria nota) → não bloqueia
+    assert.equal(bloqueia([pagoComSaldo], [semanaNeg, semanaW], [movX()]).size, 0);
+    // movimento na W (origem real do saldo) → bloqueia
+    const movW = movX({ dt_inicial: '2026-09-07T03:00:00+00:00', dt_final: '2026-09-14T02:59:59+00:00' });
+    assert.equal(bloqueia([pagoComSaldo], [semanaNeg, semanaW], [movW]).size, 1);
+  });
+
+  // Revisão adversarial (HIGH): o movimento que o PRÓPRIO hub gera numa semana
+  // negativa grava dt_* como data pura (vira 00:00Z = dia anterior em SP) e
+  // cruzaria a semana de origem. Sem excluir a trilha, o pagamento seguinte
+  // ficaria preso para sempre com um "movimento antigo" que não existe.
+  test('movimento gerado pelo hub (trilha) nunca conta como método antigo', () => {
+    const semanaNeg = { ...semanaX, remanescente: '-10.00', periodo_inicio: '2026-09-21', periodo_fim: '2026-09-27' };
+    const doHub = { id: 900, cnpj_prestador: CNPJ, dt_inicial: '2026-09-21T00:00:00+00:00', dt_final: '2026-09-27T00:00:00+00:00' };
+    const hist = [semanaNeg, semanaX];
+    // sem a trilha, o formato do hub cruzaria a semana X (controle do bug)
+    assert.equal(entregadoresComMovimentoEmSemanaRetida([pagoComSaldo], hist, [doHub], contas).size, 1);
+    // com a trilha, é reconhecido como do hub e não bloqueia
+    assert.equal(entregadoresComMovimentoEmSemanaRetida([pagoComSaldo], hist, [doHub], contas, new Set([900])).size, 0);
+    // e um movimento legado de verdade na X continua bloqueando mesmo com a trilha
+    assert.equal(entregadoresComMovimentoEmSemanaRetida([pagoComSaldo], hist, [doHub, movX({ id: 1 })], contas, new Set([900])).size, 1);
+  });
+
+  test('sem saldo carregado ou semana atual negativa → nunca bloqueia', () => {
+    assert.equal(bloqueia([item({ remanescente: '50.00' })], [semanaX], [movX()]).size, 0);
+    assert.equal(bloqueia([item({ remanescente: '-5.00', saldo_anterior_nota: '3.00' })], [semanaX], [movX()]).size, 0);
+  });
+
+  test('planejarGeracao recusa com o motivo novo e não gera a nota', () => {
+    const { aGerar, recusados } = planejarGeracao([pagoComSaldo], new Map([[1, conta()]]), new Set(), new Set(), CTX, new Set([1]));
+    assert.equal(aGerar.length, 0);
+    assert.equal(recusados[0].motivo, 'MOVIMENTO_LEGADO_EM_SEMANA_RETIDA');
+  });
+});
