@@ -58,6 +58,22 @@ Regras F3: linha de motorista retido **sempre presente** com `A pagar` = `0,00` 
 regra: as três colunas novas saem vazias. ⚠️ Mudança de cabeçalho quebra planilha que lê
 por posição — avisar o financeiro no PR de F1 e de F3.
 
+**Conferência com a planilha (migration 0100, 2026-09-28)** — mais três colunas **no fim**
+(as nove de F3 não mudam de posição):
+
+`…,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana`
+
+- `CNPJ do prestador`: completo (decisão do operador), do cadastro `ContaMotorista` via
+  `Entregador.motorista_id`; vazio se o motorista não tem conta vinculada. Sai
+  **formatado** (`00.000.000/0000-00`): só dígitos, o Excel o leria como número
+  (`1,23457E+13`, zero da frente perdido) e a conferência por CNPJ falharia.
+- `Valor da nota fiscal da semana` / `Gorjeta da semana`: divisão da nota **da própria semana** (sem saldo
+  carregado) — mesma grandeza de `valor`/`gorjeta` da planilha de movimento. Semana aberta:
+  calculada ao vivo pela `hub_adiantamento_repasse` com a mesma regra do fechamento;
+  semana fechada: o congelado em `ApuracaoRepasseItem`. **Vazias** só quando a
+  configuração (vigente, ou a da apuração fechada) não tem `categorias_nota`; configurada
+  sem crédito naquele lado => `0.00`.
+
 ## POST /repasse/:periodo/fechar — `hub-adiantamentos.js:1580`
 
 Permissão: `adiantamentos.pagamento_confirmar` (existente; após F2 só

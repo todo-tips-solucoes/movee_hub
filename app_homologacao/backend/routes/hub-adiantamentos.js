@@ -1633,6 +1633,23 @@ router.get('/repasse/exportar', requireModuloAtivo('adiantamentos'), requirePerm
       console.error('[hub-adiantamentos] falha ao resolver id_externo em GET /repasse/exportar:', e.message);
       return res.status(502).json({ erro: 'ERRO_SERVIDOR' });
     }
+    // Conferência com a planilha (2026-09-28): a planilha casa por CNPJ do
+    // prestador — o do cadastro do hub (`ContaMotorista`, via
+    // `Entregador.motorista_id`), completo, decisão do operador. Motorista sem
+    // conta vinculada sai com CNPJ em branco (não é erro: é o "sem CNPJ no
+    // hub" que a geração de notas também recusa).
+    let cnpjPorEntregador = new Map();
+    try {
+      const entregadores = await buscarEmLotes('Entregador?select=id,motorista_id',
+        rows.map((r) => r.entregador_id), { campoId: 'id', claims });
+      const contas = await buscarEmLotes('ContaMotorista?select=id,cnpj_prestador',
+        entregadores.map((e) => e.motorista_id).filter(Boolean), { campoId: 'id', claims });
+      const cnpjPorConta = new Map(contas.map((c) => [c.id, c.cnpj_prestador]));
+      cnpjPorEntregador = new Map(entregadores.map((e) => [e.id, cnpjPorConta.get(e.motorista_id) || '']));
+    } catch (e) {
+      console.error('[hub-adiantamentos] falha ao resolver CNPJ em GET /repasse/exportar:', e.message);
+      return res.status(502).json({ erro: 'ERRO_SERVIDOR' });
+    }
     // `serializarCsvRemanescente` já escapa (`escaparCelulaCsvInjection`) e
     // converte reais->centavos (`paraCentavos`) internamente — passar valor
     // já mascarado ou pré-multiplicado por 100 duplicaria a conversão.
@@ -1649,6 +1666,12 @@ router.get('/repasse/exportar', requireModuloAtivo('adiantamentos'), requirePerm
       saldoAnterior: r.saldo_anterior,
       aPagar: r.valor_pago,
       transportado: r.valor_transportado,
+      // 0100: divisão da nota DA SEMANA (sem saldo carregado) — mesma
+      // grandeza que `valor`/`gorjeta` da planilha. NULL = `categorias_nota`
+      // não configurada (sai em branco).
+      cnpjPrestador: cnpjPorEntregador.get(r.entregador_id) || '',
+      valorNota: r.valor_nota,
+      valorForaNota: r.valor_fora_nota,
     })));
 
     res.set({

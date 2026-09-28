@@ -62,6 +62,8 @@ let repasseCongeladoFixture = []; // A4: linhas do RPC hub_adiantamento_repasse_
 // explícita, nunca linha sem identificador).
 let buscarEmLotesFalha = false; // simula lote do PostgREST rejeitando
 let buscarEmLotesIdsSemIdExterno = new Set(); // simula id_externo não encontrado
+let cnpjLookupFalha = false; // conferência: falha ao resolver o CNPJ
+let entregadoresSemConta = new Set(); // conferência: Entregador sem motorista_id
 let rpcRepasseChamada = null; // A4: 'ao_vivo' | 'congelado' — qual RPC a rota escolheu
 let comportamentoRpc = {}; // rpc -> 'ok' | codigo de erro string
 let chamadasLoteCriar = 0; // 11.23 — conta invocações de rpc/hub_adiantamento_lote_criar por request
@@ -87,6 +89,8 @@ function resetFixtures() {
   rpcRepasseChamada = null;
   buscarEmLotesFalha = false;
   buscarEmLotesIdsSemIdExterno = new Set();
+  cnpjLookupFalha = false;
+  entregadoresSemConta = new Set();
   // Valores propositalmente distintos dos do recálculo ao vivo: se a rota
   // chamar a RPC errada, o número exibido denuncia.
   repasseCongeladoFixture = [{
@@ -374,6 +378,14 @@ Module._load = function (request, parent, isMain) {
   if (request === '../lib/hub-postgrest-lotes') {
     return {
       buscarEmLotes: async (_caminho, ids) => {
+        // Conferência (CSV): Entregador -> motorista_id -> ContaMotorista.cnpj.
+        if (_caminho === 'Entregador?select=id,motorista_id') {
+          if (cnpjLookupFalha) throw Object.assign(new Error('mock: falha no CNPJ'), { status: 502 });
+          return (ids || []).map((id) => ({ id, motorista_id: entregadoresSemConta.has(id) ? null : 1000 + id }));
+        }
+        if (_caminho === 'ContaMotorista?select=id,cnpj_prestador') {
+          return (ids || []).map((id) => ({ id, cnpj_prestador: `9900000000${id}` }));
+        }
         if (buscarEmLotesFalha) {
           const e = new Error('mock: falha simulada em buscarEmLotes (Entregador)');
           e.status = 502;
@@ -1540,8 +1552,39 @@ describe('4.6 repasse', () => {
     assert.equal(r.status, 200);
     const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
     const linhas = texto.split('\r\n');
-    assert.equal(linhas[0], 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana');
-    assert.equal(linhas[1], 'uuid-entregador-10,Fulano,3.00,0.00,0.00,3.00,0.00,0.00,3.00');
+    assert.equal(linhas[0], 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana');
+    assert.equal(linhas[1], 'uuid-entregador-10,Fulano,3.00,0.00,0.00,3.00,0.00,0.00,3.00,99.000.000/0010-10,,');
+  });
+
+  // Conferência com a planilha (2026-09-28): CNPJ completo do cadastro do hub
+  // e a divisão da nota da semana (0100), vindos da RPC por nome.
+  test('conferência: GET /repasse/exportar traz CNPJ completo, valor da nota e gorjeta da semana', async () => {
+    repasseRowsFixture = [{
+      entregador_id: 10, nome: 'Fulano', creditos: '100.00', adiantamentos: '20.00', debitos: '0.00',
+      remanescente: '80.00', em_processamento: false, total: 1,
+      total_creditos: '100.00', total_adiantamentos: '20.00', total_debitos: '0.00', total_remanescente: '80.00',
+      saldo_anterior: '0.00', valor_pago: '80.00', valor_transportado: '0.00', retido: false,
+      total_saldo_anterior: '0.00', total_a_pagar: '80.00', total_transportado: '0.00',
+      valor_nota: '90.00', valor_fora_nota: '10.00',
+    }];
+    const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
+    assert.equal(texto.split('\r\n')[1], 'uuid-entregador-10,Fulano,100.00,20.00,0.00,80.00,0.00,80.00,0.00,99.000.000/0010-10,90.00,10.00');
+  });
+
+  test('conferência: falha ao resolver o CNPJ -> 502, nunca CSV sem a coluna-chave', async () => {
+    cnpjLookupFalha = true;
+    const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 502);
+  });
+
+  test('conferência: motorista sem conta vinculada sai com CNPJ vazio (linha não some)', async () => {
+    entregadoresSemConta.add(10);
+    const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
+    assert.equal(texto.split('\r\n')[1].split(',')[9], '');
   });
 
   test('POST /repasse/:periodo/fechar exige confirmacao:true', async () => {
