@@ -17,7 +17,81 @@ const MOTIVOS = {
   // F3/FR-014/FR-020: total (semana + saldo carregado) abaixo do piso mínimo
   // — a semana inteira fica retida e soma automaticamente ao próximo repasse.
   RETIDO: 'Saldo abaixo do mínimo — entra no próximo repasse.',
+  // Issue #229: a planilha não conhece a retenção. Se já saiu movimento (aberto
+  // OU fechado) cobrindo uma semana cujo valor passou para a frente, somar esse
+  // saldo nesta nota emitiria o mesmo valor duas vezes.
+  MOVIMENTO_LEGADO_EM_SEMANA_RETIDA:
+    'Já existe movimento pelo método antigo cobrindo semana que passou para a próxima — resolva com o financeiro antes de gerar.',
 };
+
+/** timestamptz (ISO) ou 'YYYY-MM-DD' -> 'YYYY-MM-DD' no fuso do negócio. Sem
+ *  isso um dt_final às 23:59 -03 viraria o dia seguinte em UTC. */
+function dataLocal(v) {
+  if (!v) return null;
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+}
+
+/**
+ * Issue #229 — quem vai receber agora um saldo carregado cujas semanas de
+ * origem já tiveram movimento pelo método antigo.
+ *
+ * @param itens       itens da apuração que está gerando notas
+ * @param historico   ApuracaoRepasseItem de apurações ANTERIORES, cada um com
+ *                    {entregador_id, valor_pago, valor_transportado, remanescente, periodo_inicio, periodo_fim}
+ * @param movimentos  EnvioMassa (qualquer mov_fechado) {id, cnpj_prestador, dt_inicial, dt_final}
+ * @param contasPorEntregador  Map entregadorId -> {cnpjPrestador}
+ * @param idsGeradosPeloHub  Set de EnvioMassa.id da trilha ApuracaoRepasseMovimento
+ *                    — o que o próprio hub emitiu não é "método antigo" (e grava
+ *                    dt_* como data pura, que em SP cairia no dia anterior e
+ *                    cruzaria a semana de origem: falso bloqueio)
+ * @returns {Set} entregadorIds a recusar
+ *
+ * As semanas de origem saem andando para trás a partir da semana anterior,
+ * enquanto a semana transportou (`valor_pago = 0`, `valor_transportado > 0`).
+ * Só as de remanescente >= 0 tiveram a produção carregada; a semana negativa
+ * só preserva o saldo e emite a própria nota (dec-055), então não conta.
+ */
+function entregadoresComMovimentoEmSemanaRetida(itens, historico, movimentos, contasPorEntregador,
+  idsGeradosPeloHub = new Set()) {
+  const bloqueados = new Set();
+  const comSaldo = itens.filter((i) => num(i.remanescente) >= 0
+    && (num(i.saldo_anterior_nota) > 0 || num(i.saldo_anterior_fora) > 0));
+  if (comSaldo.length === 0) return bloqueados;
+
+  const historicoPor = new Map();
+  for (const h of historico || []) {
+    if (!historicoPor.has(h.entregador_id)) historicoPor.set(h.entregador_id, []);
+    historicoPor.get(h.entregador_id).push(h);
+  }
+  const movimentosPor = new Map();
+  for (const m of movimentos || []) {
+    if (idsGeradosPeloHub.has(m.id)) continue;
+    if (!movimentosPor.has(m.cnpj_prestador)) movimentosPor.set(m.cnpj_prestador, []);
+    movimentosPor.get(m.cnpj_prestador).push({ ini: dataLocal(m.dt_inicial), fim: dataLocal(m.dt_final) });
+  }
+
+  for (const item of comSaldo) {
+    const cnpj = contasPorEntregador.get(item.entregador_id)?.cnpjPrestador;
+    const movs = cnpj ? movimentosPor.get(cnpj) : null;
+    if (!movs || movs.length === 0) continue;
+
+    const semanas = [];
+    const linhas = [...(historicoPor.get(item.entregador_id) || [])]
+      .sort((a, b) => (a.periodo_inicio < b.periodo_inicio ? 1 : -1));
+    for (const h of linhas) {
+      if (!(num(h.valor_pago) === 0 && num(h.valor_transportado) > 0)) break;
+      if (num(h.remanescente) >= 0) semanas.push({ ini: h.periodo_inicio, fim: h.periodo_fim });
+    }
+
+    // Movimento sem data não prova nada — só bloqueia o que cruza a semana.
+    const cruza = semanas.some((s) => movs.some((m) => m.ini && m.fim && m.ini <= s.fim && m.fim >= s.ini));
+    if (cruza) bloqueados.add(item.entregador_id);
+  }
+  return bloqueados;
+}
 
 /** `500.00` (string ou número) -> número. Valores vêm do PostgREST como texto. */
 function num(v) {
@@ -33,9 +107,12 @@ function num(v) {
  * @param jaGerados    Set de entregadorId já registrados na trilha desta apuração
  * @param cnpjsComMovimentoAberto  Set de cnpj_prestador com movimento aberto na EnvioMassa
  * @param contexto     {cnpjTomador, idEmpresa, periodoInicio, periodoFim, mensagem1Modelo, mensagem2Modelo}
+ * @param comMovimentoEmSemanaRetida  Set de entregadorId (issue #229) — ver
+ *                     `entregadoresComMovimentoEmSemanaRetida`
  * @returns {{ aGerar: Array, recusados: Array }}
  */
-function planejarGeracao(itens, contasPorEntregador, jaGerados, cnpjsComMovimentoAberto, contexto) {
+function planejarGeracao(itens, contasPorEntregador, jaGerados, cnpjsComMovimentoAberto, contexto,
+  comMovimentoEmSemanaRetida = new Set()) {
   const aGerar = [];
   const recusados = [];
 
@@ -84,6 +161,7 @@ function planejarGeracao(itens, contasPorEntregador, jaGerados, cnpjsComMoviment
     // não "pode gerar".
     if (jaGerados.has(entregadorId)) { recusar('JA_GERADO'); continue; }
     if (cnpjsComMovimentoAberto.has(conta.cnpjPrestador)) { recusar('MOVIMENTO_ABERTO'); continue; }
+    if (comMovimentoEmSemanaRetida.has(entregadorId)) { recusar('MOVIMENTO_LEGADO_EM_SEMANA_RETIDA'); continue; }
 
     const dados = {
       nome: conta.nome, valor, gorjeta, total: valor + gorjeta,
@@ -117,4 +195,4 @@ function planejarGeracao(itens, contasPorEntregador, jaGerados, cnpjsComMoviment
   return { aGerar, recusados };
 }
 
-module.exports = { planejarGeracao, MOTIVOS };
+module.exports = { planejarGeracao, entregadoresComMovimentoEmSemanaRetida, MOTIVOS };

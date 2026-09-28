@@ -21,6 +21,12 @@ describe('resumirRecusas', () => {
     expect(resumirRecusas([])).toBe('');
   });
 
+  // F3 + issue #229: "RETIDO" nunca aparece cru — o termo é o do operador.
+  it('retido e movimento antigo em semana retida têm rótulo próprio, o acionável antes', () => {
+    expect(resumirRecusas([...r('RETIDO', 38), ...r('MOVIMENTO_LEGADO_EM_SEMANA_RETIDA', 1)]))
+      .toBe('1 já têm movimento antigo na semana que passou para a próxima — ver com o financeiro · 38 passaram para a próxima semana');
+  });
+
   // Backend novo + front antigo: um motivo desconhecido não pode SUMIR do
   // resumo — sumir esconderia recusa do operador.
   it('motivo desconhecido aparece cru, no fim', () => {

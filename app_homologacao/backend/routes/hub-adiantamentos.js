@@ -59,7 +59,7 @@ const {
   mapEvento, mapLote, mapLoteItem,
 } = require('../lib/adiantamento-dto');
 const { placeholdersInvalidos, PLACEHOLDERS_PERMITIDOS } = require('../lib/adiantamento-mensagem');
-const { planejarGeracao } = require('../lib/adiantamento-geracao-movimento');
+const { planejarGeracao, entregadoresComMovimentoEmSemanaRetida } = require('../lib/adiantamento-geracao-movimento');
 const {
   montarPlanilhaTransfeera, validarPlanilhaTransfeera, nomeArquivoTransfeera, renderizarDescricaoPix,
 } = require('../lib/adiantamento-transfeera-xlsx');
@@ -1809,12 +1809,49 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
     }
 
     // 5. Quem já tem movimento aberto na EnvioMassa (convivência com a planilha).
+    //    Em lotes de 100 (issue #229): ~1.000 CNPJs num `in.()` só estouram o
+    //    header do PostgREST, mesmo incidente do PR #50.
     const cnpjs = [...new Set([...contasPorEntregador.values()].map((c) => c.cnpjPrestador).filter(Boolean))];
-    let abertos = [];
-    if (cnpjs.length) {
-      abertos = await hubPostgrestRequest(
-        `EnvioMassa?mov_fechado=eq.false&cnpj_prestador=in.(${cnpjs.join(',')})&select=cnpj_prestador`,
+    const abertos = await buscarEmLotes('EnvioMassa?mov_fechado=eq.false&select=cnpj_prestador', cnpjs,
+      { campoId: 'cnpj_prestador', claims });
+
+    // 5b. Issue #229 — quem recebe agora saldo carregado de semanas em que já
+    //     saiu movimento pelo método antigo (aberto OU fechado). Só busca algo
+    //     quando há saldo carregado; sem isso não há o que duplicar.
+    const comSaldoIds = itens
+      .filter((i) => Number(i.remanescente) >= 0 && (Number(i.saldo_anterior_nota) > 0 || Number(i.saldo_anterior_fora) > 0))
+      .map((i) => i.entregador_id);
+    let comMovimentoEmSemanaRetida = new Set();
+    if (comSaldoIds.length) {
+      const anteriores = await hubPostgrestRequest(
+        `ApuracaoRepasse?id_empresa=eq.${GRUPO_MOVEE_ID}&periodo_inicio=lt.${apuracao.periodo_inicio}&select=id,periodo_inicio,periodo_fim`,
         'GET', null, claims);
+      const periodoPorApuracao = new Map((anteriores || []).map((a) => [a.id, a]));
+      if (periodoPorApuracao.size) {
+        const historico = (await buscarEmLotes(
+          `ApuracaoRepasseItem?apuracao_id=in.(${[...periodoPorApuracao.keys()].join(',')})` +
+          '&select=entregador_id,apuracao_id,valor_pago,valor_transportado,remanescente',
+          comSaldoIds, { campoId: 'entregador_id', claims }))
+          .map((h) => ({ ...h, ...periodoPorApuracao.get(h.apuracao_id) }));
+        const inicioMaisAntigo = [...periodoPorApuracao.values()].map((a) => a.periodo_inicio).sort()[0];
+        const cnpjsComSaldo = comSaldoIds.map((id) => contasPorEntregador.get(id)?.cnpjPrestador).filter(Boolean);
+        // Só movimentos do grupo Movee (CLAUDE.md: `mesmoGrupoQue(_, 6)`, nunca
+        // id_empresa=6 estrito) — o mesmo CNPJ pode emitir para outra empresa
+        // cliente, e isso não duplica nada do saldo daqui. Falha na consulta do
+        // grupo cai no fail-safe do helper: só a empresa 6.
+        const grupoCache = {};
+        await mesmoGrupoQue(GRUPO_MOVEE_ID, GRUPO_MOVEE_ID, grupoCache);
+        const idsGrupo = [...(grupoCache.ids || new Set([GRUPO_MOVEE_ID]))];
+        const [movimentos, trilha] = await Promise.all([
+          buscarEmLotes(
+            `EnvioMassa?dt_final=gte.${inicioMaisAntigo}&id_empresa=in.(${idsGrupo.join(',')})` +
+            '&select=id,cnpj_prestador,dt_inicial,dt_final',
+            cnpjsComSaldo, { campoId: 'cnpj_prestador', claims }),
+          buscarEmLotes('ApuracaoRepasseMovimento?select=envio_massa_id', comSaldoIds, { campoId: 'entregador_id', claims }),
+        ]);
+        comMovimentoEmSemanaRetida = entregadoresComMovimentoEmSemanaRetida(
+          itens, historico, movimentos, contasPorEntregador, new Set(trilha.map((t) => t.envio_massa_id)));
+      }
     }
 
     const { aGerar, recusados } = planejarGeracao(
@@ -1828,7 +1865,8 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
         periodoFim: apuracao.periodo_fim,
         mensagem1Modelo: config.mensagem1_modelo,
         mensagem2Modelo: config.mensagem2_modelo,
-      });
+      },
+      comMovimentoEmSemanaRetida);
 
     // 6. Insere um a um: um CNPJ que falhe não pode derrubar a rodada inteira,
     //    e a trilha tem de refletir exatamente o que entrou na EnvioMassa.

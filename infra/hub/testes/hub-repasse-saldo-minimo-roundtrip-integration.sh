@@ -173,6 +173,24 @@ BEGIN
   INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
   VALUES (6, v_imp, (SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='66666666000104')),
           date '$PERIODO2', date '$PERIODO2', 'Credito', 8.00, 'Corridas concluidas', md5('roundtrip-f313-saldo')||md5('semana2'));
+
+  -- Issue #229: terceiro motorista, igual ao de cima (2,00 retidos na semana 1,
+  -- 8,00 na 2), MAS com movimento pelo método antigo JÁ FECHADO cobrindo a
+  -- semana 1. Somar os 2,00 na nota da semana 2 duplicaria a nota -> recusa.
+  INSERT INTO "ContaMotorista" (cnpj_prestador, nome, ativo, senha) VALUES
+    ('77777777000105', 'Roundtrip 229 Legado', true, '$HASH_MOTORISTA');
+  INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id) VALUES
+    (6, gen_random_uuid(), 'Roundtrip 229 Legado', (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='77777777000105'));
+  INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
+  VALUES (6, v_imp, (SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='77777777000105')),
+          date '$PERIODO', date '$PERIODO', 'Credito', 2.00, 'Corridas concluidas', md5('roundtrip-229-legado')||md5('semana1'));
+  INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
+  VALUES (6, v_imp, (SELECT id FROM "Entregador" WHERE motorista_id=(SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='77777777000105')),
+          date '$PERIODO2', date '$PERIODO2', 'Credito', 8.00, 'Corridas concluidas', md5('roundtrip-229-legado')||md5('semana2'));
+  INSERT INTO "EnvioMassa" (nome, cnpj_prestador, cnpj_tomador, valor, id_empresa, mov_fechado, dt_inicial, dt_final)
+  VALUES ('Roundtrip 229 Legado', '77777777000105', '12345678000199', 2.00, 6, true,
+          (date '$PERIODO')::timestamp AT TIME ZONE 'America/Sao_Paulo',
+          (date '$PERIODO' + 6 + time '23:59:59') AT TIME ZONE 'America/Sao_Paulo');
 END \$\$;
 SQL
 if [ $? -ne 0 ]; then echo "FAIL: seed deu erro"; cat "$TMP/seed.log"; exit 1; fi
@@ -180,10 +198,12 @@ ID_EXTERNO="$(psql_t -tAc "SELECT id_externo FROM \"Entregador\" WHERE motorista
 [ -n "$ID_EXTERNO" ] || { echo "FAIL: Entregador de fixture não foi criado"; exit 1; }
 ID_EXTERNO_SALDO="$(psql_t -tAc "SELECT id_externo FROM \"Entregador\" WHERE motorista_id=(SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='66666666000104');" | tr -d '[:space:]')"
 [ -n "$ID_EXTERNO_SALDO" ] || { echo "FAIL: Entregador de fixture (saldo) não foi criado"; exit 1; }
+ID_EXTERNO_LEGADO="$(psql_t -tAc "SELECT id_externo FROM \"Entregador\" WHERE motorista_id=(SELECT id FROM \"ContaMotorista\" WHERE cnpj_prestador='77777777000105');" | tr -d '[:space:]')"
+[ -n "$ID_EXTERNO_LEGADO" ] || { echo "FAIL: Entregador de fixture (legado #229) não foi criado"; exit 1; }
 check "seed: Entregador/ContaMotorista/config/crédito criados (id_externo=$ID_EXTERNO, id_externo_saldo=$ID_EXTERNO_SALDO)" "0" "0"
 
 # --- cadeia HTTP real, dentro do container backend ---------------------------
-SMOKE_OUT="$(dc exec -T backend node - "$SENHA_HUB" "$SENHA_MOTORISTA" "$PERIODO" "$ID_EXTERNO" "$SENHA_ADMIN" "$ID_EXTERNO_SALDO" "$PERIODO2" <<'JS' 2>&1
+SMOKE_OUT="$(dc exec -T backend node - "$SENHA_HUB" "$SENHA_MOTORISTA" "$PERIODO" "$ID_EXTERNO" "$SENHA_ADMIN" "$ID_EXTERNO_SALDO" "$PERIODO2" "$ID_EXTERNO_LEGADO" <<'JS' 2>&1
 'use strict';
 function parseSetCookie(res) {
   const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
@@ -207,6 +227,7 @@ async function main() {
   const senhaAdmin = process.argv[6];
   const idExternoSaldo = process.argv[7];
   const periodo2 = process.argv[8];
+  const idExternoLegado = process.argv[9];
   const out = {};
 
   // --- lado HUB: login + troca de entidade ---------------------------------
@@ -325,6 +346,10 @@ async function main() {
   const bMov2 = await rMov2.json();
   out.hub_mov2_status = rMov2.status;
   out.hub_mov2_gerados = bMov2.gerados;
+  // Issue #229: o motorista com movimento legado na semana retida é recusado.
+  const itemLegado2 = (bRepasse2.itens || []).find((i) => i.idExterno === idExternoLegado);
+  const recusaLegado = (bMov2.recusados || []).find((r) => itemLegado2 && r.entregadorId === itemLegado2.entregadorId);
+  out.hub_mov2_motivo_legado = recusaLegado ? recusaLegado.motivo : null;
 
   // --- F1 1.2.5: cross-check idExterno com GET /motoristas (admin_entidade,
   //     financeiro_aprovador não tem `motoristas.listar`) -------------------
@@ -427,6 +452,7 @@ check "3.3.7: item da semana 2 -> A pagar=10.00 (8,00 da semana + 2,00 carregado
 check "3.3.7: item da semana 2 -> transportado=0.00 (nada mais fica retido)" "$(G hub_item_saldo2_transportado)" "0.00"
 check "3.3.7: POST /repasse/:periodo2/movimentos real -> 201" "$(G hub_mov2_status)" "201"
 check "3.3.7: 1 movimento gerado na semana 2 (motorista pago com saldo)" "$(G hub_mov2_gerados)" "1"
+check "#229: motorista com movimento legado FECHADO na semana retida -> MOVIMENTO_LEGADO_EM_SEMANA_RETIDA" "$(G hub_mov2_motivo_legado)" "MOVIMENTO_LEGADO_EM_SEMANA_RETIDA"
 
 check "F3.13: login app motorista (ContaMotorista) real -> 200" "$(G moto_login_status)" "200"
 check "F3.13: GET /motorista/repasse real -> 200" "$(G moto_repasse_status)" "200"
@@ -448,6 +474,9 @@ check "3.3.7: EnvioMassa.valor do motorista pago = 10.00 (nota soma valor_nota+s
 
 GORJETA_ENVIOMASSA_SALDO="$(psql_t -tAc "SELECT gorjeta FROM \"EnvioMassa\" WHERE cnpj_prestador='66666666000104' ORDER BY id DESC LIMIT 1;" | tr -d '[:space:]')"
 check "3.3.7: EnvioMassa.gorjeta do motorista pago vazia (sem produção fora-nota)" "$GORJETA_ENVIOMASSA_SALDO" ""
+
+COUNT_ENVIOMASSA_LEGADO="$(psql_t -tAc "SELECT count(*) FROM \"EnvioMassa\" WHERE cnpj_prestador='77777777000105';" | tr -d '[:space:]')"
+check "#229: só o movimento legado existe para o motorista bloqueado (nenhuma nota duplicada gerada)" "$COUNT_ENVIOMASSA_LEGADO" "1"
 
 echo ""
 echo "===================================================================="
