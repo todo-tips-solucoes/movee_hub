@@ -63,7 +63,9 @@ export async function listarUsuarios(filtros: ListarUsuariosQuery = {}): Promise
 export interface CriarUsuarioPayload {
   nome: string;
   email: string;
-  senha: string;
+  /** Omitida pela tela desde 2026-09-29: sem senha, o servidor envia um
+   *  convite por e-mail com link para a pessoa criar a própria senha. */
+  senha?: string;
   vinculo: { entidadeId: number; papelId: number };
 }
 

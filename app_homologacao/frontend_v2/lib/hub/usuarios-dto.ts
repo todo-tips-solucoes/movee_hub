@@ -98,7 +98,7 @@ export function parseUsuarioListResponse(raw: unknown): UsuarioListResponse {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// POST /usuarios — resposta { usuario: {...} }
+// POST /usuarios — resposta { conviteEnviado, usuario: {...} }
 // ────────────────────────────────────────────────────────────────────────────
 
 export interface UsuarioCriado {
@@ -106,6 +106,9 @@ export interface UsuarioCriado {
   nome: string;
   email: string;
   vinculos: UsuarioVinculo[];
+  /** `true`/`false` quando houve convite por e-mail (criação sem senha);
+   *  `null` quando a senha foi definida na própria criação. */
+  conviteEnviado: boolean | null;
 }
 
 export function parseUsuarioCriadoResponse(raw: unknown): UsuarioCriado {
@@ -116,6 +119,7 @@ export function parseUsuarioCriadoResponse(raw: unknown): UsuarioCriado {
     nome: isString(u.nome) ? u.nome : '',
     email: isString(u.email) ? u.email : '',
     vinculos: Array.isArray(u.vinculos) ? u.vinculos.map(parseUsuarioVinculo) : [],
+    conviteEnviado: typeof r.conviteEnviado === 'boolean' ? r.conviteEnviado : null,
   };
 }
 

@@ -11,7 +11,8 @@
 #   (c) admin_entidade: GET /usuarios lista só os vínculos da PRÓPRIA entidade
 #   (d) POST /usuarios cria usuário + 1º vínculo em um passo (SC-008);
 #       e-mail duplicado -> 409 EMAIL_JA_CADASTRADO; senha fraca -> 400
-#       SENHA_FRACA
+#       SENHA_FRACA; SEM senha -> convite por e-mail com link que define a
+#       senha e libera o login (hub-convite-senha)
 #   (e) PUT /usuarios/:id edita nome/ativo (CHK033: desativar = ativo:false)
 #   (f) POST /usuarios/:id/vinculos cria vínculo adicional; vínculo
 #       duplicado -> 409 VINCULO_JA_EXISTE
@@ -197,6 +198,37 @@ async function main() {
   out.fraca_status = rFraca.status;
   out.fraca_erro = bFraca.erro;
 
+  // (d2) convite (hub-convite-senha, 2026-09-29): POST /usuarios SEM senha
+  // cria a conta SEM acesso e manda o link por e-mail. O que este trecho
+  // prova é a corrente inteira: 201 -> e-mail no mock com link -> login
+  // ainda barrado -> token do link redefine -> login passa. Sem o passo do
+  // "login antes", um bug que deixasse a conta aberta passaria despercebido.
+  const emailConvite = "convite-a@example.test";
+  const rConvite = await fetch("http://localhost:3000/api/v1/usuarios", {
+    method: "POST", headers: { "Content-Type": "application/json", Cookie: cookieHeader(jar) },
+    body: JSON.stringify({ nome: "Convidado A", email: emailConvite, vinculo: { entidadeId: empresaA, papelId: papelOperador } }),
+  });
+  const bConvite = await rConvite.json();
+  out.convite_status = rConvite.status;
+  out.convite_enviado = String(bConvite.conviteEnviado);
+
+  const logMail = await (await fetch("http://mailpit-mock:8080/_log?to=" + encodeURIComponent(emailConvite))).json();
+  const ultimoMail = logMail[logMail.length - 1];
+  const achado = ultimoMail && ultimoMail.text && ultimoMail.text.match(/redefinir-senha\?token=([0-9a-f]+)/);
+  out.convite_tem_link = achado ? "true" : "false";
+
+  const conviteLoginAntes = await login(emailConvite, senhaOk);
+  out.convite_login_antes = conviteLoginAntes.status;
+
+  const rRedef = await fetch("http://localhost:3000/api/v1/auth/redefinir-senha", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: achado ? achado[1] : "sem-token", nova_senha: "S3nh@Convite" }),
+  });
+  out.convite_redefinir_status = rRedef.status;
+
+  const conviteLoginDepois = await login(emailConvite, "S3nh@Convite");
+  out.convite_login_depois = conviteLoginDepois.status;
+
   // (h) isolamento — admin-a NÃO vê/edita usuário só vinculado a B
   const rEditarCross = await fetch(\`http://localhost:3000/api/v1/usuarios/\${uidAlvoB}\`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) },
@@ -285,6 +317,12 @@ check "POST /usuarios email duplicado -> 409" "$(jget dup_status)" "409"
 check "POST /usuarios email duplicado -> erro=EMAIL_JA_CADASTRADO" "$(jget dup_erro)" "EMAIL_JA_CADASTRADO"
 check "POST /usuarios senha fraca -> 400" "$(jget fraca_status)" "400"
 check "POST /usuarios senha fraca -> erro=SENHA_FRACA" "$(jget fraca_erro)" "SENHA_FRACA"
+check "POST /usuarios SEM senha (convite) -> 201" "$(jget convite_status)" "201"
+check "POST /usuarios SEM senha -> conviteEnviado=true" "$(jget convite_enviado)" "true"
+check "convite: e-mail no mock traz o link /hub/redefinir-senha?token=" "$(jget convite_tem_link)" "true"
+check "convite: login ANTES de usar o link -> 401 (conta sem acesso)" "$(jget convite_login_antes)" "401"
+check "convite: token do link redefine a senha -> 200" "$(jget convite_redefinir_status)" "200"
+check "convite: login DEPOIS de criar a senha -> 200" "$(jget convite_login_depois)" "200"
 check "PUT /usuarios/:id -> 200" "$(jget editar_status)" "200"
 check "PUT /usuarios/:id -> nome atualizado" "$(jget editar_nome)" "Novo Usuario A Editado"
 check "PUT /usuarios/:id -> ativo=false (CHK033, sem DELETE)" "$(jget editar_ativo)" "false"

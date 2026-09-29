@@ -170,7 +170,6 @@ function PapelSelect({
 interface ErrosCamposCriar {
   nome?: string;
   email?: string;
-  senha?: string;
 }
 
 interface CriarUsuarioDialogProps {
@@ -184,7 +183,6 @@ interface CriarUsuarioDialogProps {
 function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriado }: CriarUsuarioDialogProps) {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
   const [papelId, setPapelId] = useState<string>('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -195,7 +193,6 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
     if (open) {
       setNome('');
       setEmail('');
-      setSenha('');
       setPapelId(papeis[0] ? String(papeis[0].id) : '');
       setErro(null);
       setErrosCampo({});
@@ -206,9 +203,8 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
     const erros: ErrosCamposCriar = {};
     if (!nome.trim()) erros.nome = 'Informe o nome.';
     if (!email.trim()) erros.email = 'Informe o e-mail.';
-    if (!isStrongPassword(senha)) erros.senha = 'A senha precisa de 6+ caracteres, 1 maiúscula e 1 número.';
     setErrosCampo(erros);
-    const primeiroInvalido = (['nome', 'email', 'senha'] as const).find((c) => erros[c]);
+    const primeiroInvalido = (['nome', 'email'] as const).find((c) => erros[c]);
     if (primeiroInvalido) {
       document.getElementById(`novo-usuario-${primeiroInvalido}`)?.focus();
       return;
@@ -220,28 +216,37 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
     setSalvando(true);
     setErro(null);
     try {
-      await criarUsuario({
+      // Sem `senha`: o servidor cria o usuário sem acesso e manda o convite.
+      const criado = await criarUsuario({
         nome: nome.trim(),
         email: email.trim(),
-        senha,
         vinculo: { entidadeId: entidadeAtiva, papelId: Number(papelId) },
       });
       onCriado();
       onOpenChange(false);
-      toast.success('Usuário criado.');
+      // O e-mail pode falhar sem derrubar a criação — dizer qual dos dois
+      // aconteceu, senão quem criou fica esperando uma mensagem que não saiu.
+      if (criado.conviteEnviado === false) {
+        toast.warning('Usuário criado, mas o e-mail com o link de senha não foi enviado. Peça para usar "Esqueci minha senha".');
+      } else {
+        toast.success(`Usuário criado. Enviamos para ${criado.email || email.trim()} um link para criar a senha.`);
+      }
     } catch (e) {
       setErro(e instanceof UsuariosApiError ? e.message : 'Não foi possível criar o usuário.');
     } finally {
       setSalvando(false);
     }
-  }, [nome, email, senha, papelId, entidadeAtiva, onCriado, onOpenChange]);
+  }, [nome, email, papelId, entidadeAtiva, onCriado, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Novo usuário</DialogTitle>
-          <DialogDescription>Cria o usuário e já vincula com um papel na sua entidade.</DialogDescription>
+          <DialogDescription>
+            Cria o usuário e já vincula com um papel na sua entidade. Ele recebe por e-mail um link para criar a
+            própria senha — ninguém aqui define senha por ele.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
@@ -274,27 +279,6 @@ function CriarUsuarioDialog({ open, onOpenChange, entidadeAtiva, papeis, onCriad
             {errosCampo.email && (
               <p id="novo-usuario-email-erro" role="alert" className="text-xs text-destructive">
                 {errosCampo.email}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="novo-usuario-senha">Senha inicial</Label>
-            <Input
-              id="novo-usuario-senha"
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              disabled={salvando}
-              aria-invalid={!!errosCampo.senha}
-              aria-describedby={errosCampo.senha ? 'novo-usuario-senha-erro' : 'novo-usuario-senha-ajuda'}
-            />
-            {errosCampo.senha ? (
-              <p id="novo-usuario-senha-erro" role="alert" className="text-xs text-destructive">
-                {errosCampo.senha}
-              </p>
-            ) : (
-              <p id="novo-usuario-senha-ajuda" className="text-xs text-muted-foreground">
-                Mínimo 6 caracteres, 1 letra maiúscula e 1 número.
               </p>
             )}
           </div>

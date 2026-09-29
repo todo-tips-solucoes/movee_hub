@@ -253,7 +253,7 @@ async function main() {
   const rLog = await fetch('http://mailpit-mock:8080/_log?to=e2e-teste-troca-senha@example.test');
   const bLog = await rLog.json();
   const ultimo = bLog[bLog.length - 1];
-  const m = ultimo && ultimo.text ? ultimo.text.match(/token para redefinir sua senha: ([0-9a-f]+)/) : null;
+  const m = ultimo && ultimo.text ? ultimo.text.match(/redefinir-senha\?token=([0-9a-f]+)/) : null;
   const token = m ? m[1] : null;
   out.token_capturado = token ? 'true' : 'false';
 

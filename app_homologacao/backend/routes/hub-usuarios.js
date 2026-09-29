@@ -28,6 +28,12 @@ const { requireModuloAtivo } = require('../middleware/hub-require-modulo');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
 const { buscarNomesEntidades } = require('../lib/hub-entidade-nome');
 const { papelEhRestrito } = require('../lib/hub-papeis-restritos');
+const {
+  TTL_CONVITE_MS,
+  gerarTokenBruto,
+  hashToken,
+  enviarLinkSenha,
+} = require('../lib/hub-convite-senha');
 
 const router = express.Router();
 
@@ -264,7 +270,12 @@ router.post('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.ger
     if (!email || typeof email !== 'string' || !EMAIL_RE.test(email)) {
       return res.status(400).json({ erro: 'DADOS_INVALIDOS' });
     }
-    if (!isStrongPassword(senha)) {
+    // `senha` é OPCIONAL desde 2026-09-29: sem ela o usuário nasce sem acesso
+    // e recebe por e-mail um link para criar a própria senha (convite). Quando
+    // vem, o comportamento antigo é preservado — a validação de força continua
+    // valendo, inclusive para string vazia, que é senha fraca e não convite.
+    const comSenha = senha !== undefined && senha !== null;
+    if (comSenha && !isStrongPassword(senha)) {
       return res.status(400).json({ erro: 'SENHA_FRACA' });
     }
     if (!vinculo || typeof vinculo !== 'object') {
@@ -300,11 +311,21 @@ router.post('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.ger
       return res.status(409).json({ erro: 'EMAIL_JA_CADASTRADO' });
     }
 
-    const senhaHash = await bcrypt.hash(senha, 10);
+    // Sem senha: hash de um segredo aleatório que ninguém conhece (a coluna é
+    // NOT NULL — migration 0002). A conta só fica acessível quando o convite
+    // for usado; nenhum login intermediário é possível.
+    const tokenConvite = comSenha ? null : gerarTokenBruto();
+    const senhaHash = await bcrypt.hash(comSenha ? senha : gerarTokenBruto(), 10);
     let criados;
     try {
       criados = await hubPostgrestRequest('Usuario', 'POST', {
         nome: nome.trim(), email: emailNormalizado, senha_hash: senhaHash, ativo: true,
+        ...(tokenConvite
+          ? {
+              token_recuperacao_hash: hashToken(tokenConvite),
+              token_recuperacao_expira: new Date(Date.now() + TTL_CONVITE_MS).toISOString(),
+            }
+          : {}),
       });
     } catch (e) {
       if (e.status === 409) return res.status(409).json({ erro: 'EMAIL_JA_CADASTRADO' });
@@ -329,6 +350,20 @@ router.post('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.ger
 
     invalidarUsuario(novoUsuario.id);
 
+    // Convite: só DEPOIS do vínculo, para não chamar alguém que ficaria sem
+    // entidade. Falha de envio não desfaz a criação — a resposta diz que o
+    // e-mail não saiu e quem criou reenvia pelo "esqueci minha senha".
+    let conviteEnviado = null;
+    if (tokenConvite) {
+      const envio = await enviarLinkSenha({
+        para: novoUsuario.email, nome: novoUsuario.nome, tokenBruto: tokenConvite, tipo: 'convite',
+      });
+      conviteEnviado = envio.ok;
+      if (!envio.ok) {
+        console.error('[hub-usuarios] convite nao enviado para usuario', novoUsuario.id, '-', envio.erro);
+      }
+    }
+
     // Auditoria: NUNCA senha/hash em `detalhes` (scrub por chave já cobre,
     // mas nem sequer incluímos aqui — defesa em profundidade). E-mail
     // também fica de fora de propósito (dec-029, scrubDetalhes por VALOR).
@@ -338,7 +373,10 @@ router.post('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.ger
       acao: 'usuario_criado',
       recurso: 'Usuario',
       recursoId: novoUsuario.id,
-      detalhes: { nome: nome.trim(), papelId: papelIdParam, papel: papeis[0].nome },
+      detalhes: {
+        nome: nome.trim(), papelId: papelIdParam, papel: papeis[0].nome,
+        ...(tokenConvite ? { conviteEnviado } : {}),
+      },
       ip: req.ip,
       claims,
     });
@@ -346,6 +384,7 @@ router.post('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.ger
     const nomesEntidades = await buscarNomesEntidades([entidadeAlvo], claims);
 
     return res.status(201).json({
+      conviteEnviado,
       usuario: {
         id: novoUsuario.id,
         nome: novoUsuario.nome,

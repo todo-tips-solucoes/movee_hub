@@ -25,6 +25,7 @@ const {
 } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
+const { enviarLinkSenha } = require('../lib/hub-convite-senha');
 
 const router = express.Router();
 
@@ -569,22 +570,17 @@ router.post('/recuperar-senha', authRateLimiter, async (req, res) => {
         token_recuperacao_expira: expira.toISOString(),
       });
 
-      // Decision 11: envio via mock — falha de e-mail NUNCA muda a resposta.
-      try {
-        const mailMockUrl = process.env.MAIL_MOCK_URL;
-        if (mailMockUrl) {
-          await fetch(`${mailMockUrl}/send`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: usuario.email,
-              subject: 'Recuperação de senha — Hub de Frota',
-              text: `Use este token para redefinir sua senha: ${tokenBruto} (expira em ${expira.toISOString()})`,
-            }),
-          });
-        }
-      } catch (mailErr) {
-        console.error('[hub-auth] falha ao enviar e-mail de recuperacao via mock (nao afeta resposta):', mailErr.message);
+      // Envio pelo MESMO caminho do convite de usuário novo (Resend em
+      // produção, mock nos ambientes isolados — lib/hub-convite-senha.js).
+      // Até 2026-09-29 aqui só existia a chamada ao mock, que produção não
+      // define: o "esqueci minha senha" do hub era letra morta para o
+      // cliente. Falha de envio NUNCA muda a resposta (FR-020/SC-005), só
+      // vira log — e o e-mail agora leva o LINK, não o token cru.
+      const envio = await enviarLinkSenha({
+        para: usuario.email, nome: usuario.nome, tokenBruto, tipo: 'recuperacao',
+      });
+      if (!envio.ok) {
+        console.error('[hub-auth] e-mail de recuperacao nao enviado (resposta padrao mantida):', envio.erro);
       }
 
       await registrarAuditoria({
