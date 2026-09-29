@@ -16,13 +16,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, Loader2, Plus, UserCog, Users as UsersIcon } from 'lucide-react';
+import { AlertCircle, Loader2, Mail, Plus, UserCog, Users as UsersIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
-import { AtivoBadge } from '@/components/hub/status-badge';
+import { AtivoBadge, SenhaPendenteBadge } from '@/components/hub/status-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -62,6 +62,7 @@ import {
   isStrongPassword,
   listarUsuarios,
   UsuariosApiError,
+  reenviarConvite,
 } from '@/lib/hub/usuarios-api';
 import type { UsuarioListItem, UsuarioVinculo } from '@/lib/hub/usuarios-dto';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -580,8 +581,27 @@ export default function UsuariosPage() {
   const papeis = usePapeisCatalogo(podeVerRestritos);
   const [criarAberto, setCriarAberto] = useState(false);
   const [editando, setEditando] = useState<UsuarioListItem | null>(null);
+  const [reenviando, setReenviando] = useState<number | null>(null);
 
   const entidade = entidadeAtiva ?? 0;
+
+  // Reenviar emite um link NOVO e mata o anterior — por isso o aviso é
+  // explícito, e não um "enviado!" silencioso.
+  const reenviar = useCallback(
+    async (u: UsuarioListItem) => {
+      setReenviando(u.id);
+      try {
+        await reenviarConvite(u.id);
+        toast.success(`Link enviado para ${u.email}. O link anterior deixou de valer.`);
+        h.refetch();
+      } catch (e) {
+        toast.error(e instanceof UsuariosApiError ? e.message : 'Não foi possível enviar o link agora.');
+      } finally {
+        setReenviando(null);
+      }
+    },
+    [h]
+  );
 
   return (
     <div className={`mx-auto flex ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
@@ -643,6 +663,7 @@ export default function UsuariosPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{u.nome}</span>
                   {!u.ativo && <AtivoBadge ativo={false} />}
+                  {u.ativo && u.linkSenhaPendente && <SenhaPendenteBadge />}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                 <p className="text-xs text-muted-foreground">
@@ -650,10 +671,28 @@ export default function UsuariosPage() {
                     'Sem vínculo visível'}
                 </p>
               </div>
-              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => setEditando(u)}>
-                <UserCog className="size-4" aria-hidden="true" />
-                Editar
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {u.ativo && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="min-h-11 sm:min-h-8"
+                    disabled={reenviando === u.id}
+                    onClick={() => reenviar(u)}
+                  >
+                    {reenviando === u.id ? (
+                      <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Mail className="size-4" aria-hidden="true" />
+                    )}
+                    {u.linkSenhaPendente ? 'Reenviar link' : 'Enviar link de senha'}
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => setEditando(u)}>
+                  <UserCog className="size-4" aria-hidden="true" />
+                  Editar
+                </Button>
+              </div>
             </div>
           ))}
 

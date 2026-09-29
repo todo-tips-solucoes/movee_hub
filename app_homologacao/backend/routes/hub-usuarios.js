@@ -60,6 +60,19 @@ function isStrongPassword(senha) {
 }
 
 /**
+ * Há link de senha (convite ou recuperação) emitido e ainda dentro da
+ * validade? Só a DATA é lida — o hash nunca sai do banco.
+ * @param {*} expira valor de `Usuario.token_recuperacao_expira`
+ * @param {Date} [agora]
+ * @returns {boolean}
+ */
+function linkSenhaPendente(expira, agora = new Date()) {
+  if (!expira) return false;
+  const d = new Date(expira);
+  return !Number.isNaN(d.getTime()) && d > agora;
+}
+
+/**
  * Paginação de `GET /usuarios` (contracts/usuarios-api.md): `page` >= 1
  * default 1; `pageSize` 1..100 default 20. Mesmo padrão de
  * `parsePaginacaoAuditoria` em routes/hub-me.js. NUNCA lança.
@@ -210,7 +223,7 @@ router.get('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.gere
     // UNIQUE(usuario_id, empresa_id) garante NO MÁXIMO 1 vínculo por pessoa
     // nesta entidade — a listagem abaixo é naturalmente 1 linha == 1 pessoa.
     const linhas = await hubPostgrestRequest(
-      `UsuarioEntidade?empresa_id=eq.${entidadeAlvo}&select=id,ativo,papel:Papel(id,nome),usuario:Usuario(id,nome,email,ativo)`,
+      `UsuarioEntidade?empresa_id=eq.${entidadeAlvo}&select=id,ativo,papel:Papel(id,nome),usuario:Usuario(id,nome,email,ativo,token_recuperacao_expira)`,
       'GET', null, claims
     );
 
@@ -224,6 +237,15 @@ router.get('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.gere
         nome: v.usuario.nome,
         email: v.usuario.email,
         ativo: v.usuario.ativo,
+        // Quem foi convidado e ainda não criou a senha aparece marcado na
+        // lista — sem isso ninguém sabe a quem reenviar o convite.
+        // ⚠️ O MESMO sinal acende para quem já usava o hub e pediu "esqueci
+        // minha senha": as duas coisas gravam as mesmas colunas. Por isso o
+        // rótulo fala do LINK pendente, não de "nunca acessou" — dizer
+        // "nunca acessou" exigiria uma coluna `ultimo_login_em` que não
+        // existe, e mentiria no segundo caso. A ação certa é a mesma nos
+        // dois: reenviar.
+        linkSenhaPendente: linkSenhaPendente(v.usuario.token_recuperacao_expira),
         vinculo: {
           id: v.id,
           entidadeId: entidadeAlvo,
@@ -244,7 +266,8 @@ router.get('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.gere
     const total = usuarios.length;
     const from = (page - 1) * pageSize;
     const pagina = usuarios.slice(from, from + pageSize).map((u) => ({
-      id: u.id, nome: u.nome, email: u.email, ativo: u.ativo, vinculos: [u.vinculo],
+      id: u.id, nome: u.nome, email: u.email, ativo: u.ativo,
+      linkSenhaPendente: u.linkSenhaPendente, vinculos: [u.vinculo],
     }));
 
     return res.status(200).json({ usuarios: pagina, total, page, pageSize });
@@ -500,6 +523,94 @@ router.put('/:id', requireModuloAtivo('usuarios'), requirePermission('usuarios.g
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// POST /usuarios/:id/convite (2026-09-29) — reenvia o link de criar senha
+//
+// Sem isto, o convite que se perde (spam, e-mail digitado errado, apagado sem
+// ler) tinha duas saídas ruins: o admin definir uma senha pela edição — o
+// hábito que o convite veio tirar — ou orientar a pessoa a usar o "esqueci
+// minha senha", que ela não procura porque não sabe que tem conta.
+//
+// Gera token NOVO e sobrescreve o pendente: o link antigo morre na hora, que é
+// o que se espera de um reenvio.
+// ────────────────────────────────────────────────────────────────────────────
+
+router.post('/:id/convite', requireModuloAtivo('usuarios'), requirePermission('usuarios.gerenciar'), async (req, res) => {
+  try {
+    const ctx = await resolverContexto(req, res);
+    if (!ctx) return;
+
+    const usuarioId = Number(req.params.id);
+    if (!Number.isInteger(usuarioId)) return res.status(400).json({ erro: 'DADOS_INVALIDOS' });
+
+    // 404 (não 403) fora do escopo — mesma regra do PUT: não vaza existência
+    // cross-tenant.
+    const filtroEscopo = ctx.isAdminPlataforma ? '' : `&empresa_id=eq.${ctx.entidadeAtiva}`;
+    const claims = montarClaims(ctx, ctx.entidadeAtiva);
+    const vinculosVisiveis = await hubPostgrestRequest(
+      `UsuarioEntidade?usuario_id=eq.${usuarioId}${filtroEscopo}&select=id`,
+      'GET', null, claims
+    );
+    if (!vinculosVisiveis || vinculosVisiveis.length === 0) {
+      return res.status(404).json({ erro: 'USUARIO_NAO_ENCONTRADO' });
+    }
+
+    // Mesma trava do PUT (FR-012a): emitir link de senha para alvo com papel
+    // restrito é poder equivalente a trocar a senha dele — só admin
+    // plataforma. Leitura privilegiada, cobre vínculo restrito em QUALQUER
+    // entidade.
+    const alvoRestrito = await alvoTemPapelRestritoAtivo(usuarioId);
+    if (alvoRestrito && !ctx.isAdminPlataforma) {
+      await auditarPapelRestrito({
+        idEmpresa: ctx.entidadeAtiva, usuarioId: ctx.payload.sub, rota: 'POST /usuarios/:id/convite',
+        usuarioAlvoId: usuarioId, claims, ip: req.ip,
+      });
+      return negarPapelRestrito(res);
+    }
+
+    const alvos = await hubPostgrestRequest(`Usuario?id=eq.${usuarioId}&select=id,nome,email,ativo`);
+    const alvo = alvos && alvos[0];
+    if (!alvo) return res.status(404).json({ erro: 'USUARIO_NAO_ENCONTRADO' });
+    // Conta desativada não entra nem com senha nova — reenviar mandaria a
+    // pessoa para uma porta trancada.
+    if (alvo.ativo === false) return res.status(409).json({ erro: 'USUARIO_INATIVO' });
+
+    const tokenBruto = gerarTokenBruto();
+    await hubPostgrestRequest(`Usuario?id=eq.${usuarioId}`, 'PATCH', {
+      token_recuperacao_hash: hashToken(tokenBruto),
+      token_recuperacao_expira: new Date(Date.now() + TTL_CONVITE_MS).toISOString(),
+    });
+
+    const envio = await enviarLinkSenha({
+      para: alvo.email, nome: alvo.nome, tokenBruto, tipo: 'convite',
+    });
+
+    await registrarAuditoria({
+      idEmpresa: ctx.entidadeAtiva,
+      usuarioId: ctx.payload.sub,
+      acao: 'convite_reenviado',
+      recurso: 'Usuario',
+      recursoId: usuarioId,
+      detalhes: { conviteEnviado: envio.ok },
+      ip: req.ip,
+      claims,
+    });
+
+    if (!envio.ok) {
+      // O token JÁ foi gravado: o link antigo morreu e o novo não chegou.
+      // Dizer isso em voz alta é melhor que um 200 mentiroso — quem opera
+      // tenta de novo, e cada tentativa emite um link novo.
+      console.error('[hub-usuarios] reenvio de convite nao entregue ao usuario', usuarioId, '-', envio.erro);
+      return res.status(502).json({ erro: 'EMAIL_NAO_ENVIADO' });
+    }
+
+    return res.status(200).json({ ok: true, conviteEnviado: true });
+  } catch (e) {
+    console.error('[hub-usuarios] erro em POST /usuarios/:id/convite:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // POST /usuarios/:id/vinculos (task 4.2.5) — novo vínculo a usuário existente
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -701,6 +812,7 @@ module.exports = {
   router,
   // exportados para testes unitários
   isStrongPassword,
+  linkSenhaPendente,
   parsePaginacaoUsuarios,
   resolverEntidadeAlvo,
 };
