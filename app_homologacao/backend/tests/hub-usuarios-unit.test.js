@@ -22,7 +22,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'segredo-teste-unit';
 process.env.PGRST_JWT_SECRET = process.env.PGRST_JWT_SECRET || 'segredo-teste-postgrest';
 process.env.POSTGREST_URL = process.env.POSTGREST_URL || 'http://postgrest-fake:3000';
 
-const { isStrongPassword, parsePaginacaoUsuarios, resolverEntidadeAlvo } = require('../routes/hub-usuarios');
+const { isStrongPassword, parsePaginacaoUsuarios, resolverEntidadeAlvo, linkSenhaPendente } = require('../routes/hub-usuarios');
 
 describe('isStrongPassword', () => {
   test('senha forte (>=6, maiúscula, dígito) -> true', () => {
@@ -103,4 +103,28 @@ describe('resolverEntidadeAlvo', () => {
     assert.equal(r, 9002);
     assert.equal(res.getStatus(), null);
   });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// linkSenhaPendente (2026-09-29) — o selo "Senha pendente" da lista.
+//
+// O que ele NÃO pode fazer: acender para quem já criou a senha (o admin
+// reenviaria link à toa e mataria um link válido) nem apagar para quem está
+// esperando (a pessoa fica sem acesso e ninguém vê).
+// ────────────────────────────────────────────────────────────────────────────
+
+test('linkSenhaPendente: só acende com validade no futuro', () => {
+  const agora = new Date('2026-09-29T12:00:00Z');
+  assert.equal(linkSenhaPendente('2026-09-29T12:00:01Z', agora), true, 'um segundo à frente ainda vale');
+  assert.equal(linkSenhaPendente('2026-10-06T12:00:00Z', agora), true);
+  assert.equal(linkSenhaPendente('2026-09-29T11:59:59Z', agora), false, 'expirado não é pendente');
+  assert.equal(linkSenhaPendente(agora.toISOString(), agora), false, 'exatamente agora já venceu');
+});
+
+test('linkSenhaPendente: ausência e lixo no banco não viram "pendente"', () => {
+  const agora = new Date('2026-09-29T12:00:00Z');
+  for (const vazio of [null, undefined, '']) {
+    assert.equal(linkSenhaPendente(vazio, agora), false);
+  }
+  assert.equal(linkSenhaPendente('não é data', agora), false);
 });

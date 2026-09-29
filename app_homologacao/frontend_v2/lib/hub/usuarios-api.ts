@@ -35,6 +35,8 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   VINCULO_JA_EXISTE: 'Este usuário já possui vínculo com esta entidade — edite o vínculo existente.',
   PAPEL_NAO_ENCONTRADO: 'Papel selecionado não existe no catálogo.',
   USUARIO_NAO_ENCONTRADO: 'Usuário não encontrado no seu escopo.',
+  USUARIO_INATIVO: 'Usuário desativado — reative antes de reenviar o convite.',
+  EMAIL_NAO_ENVIADO: 'O e-mail não pôde ser enviado agora. Tente de novo em instantes.',
   ERRO_SERVIDOR: 'Erro no servidor. Tente novamente em instantes.',
 };
 
@@ -86,6 +88,12 @@ export interface EditarUsuarioPayload {
 export async function editarUsuario(usuarioId: number, payload: EditarUsuarioPayload): Promise<UsuarioEditado> {
   const raw = await request<unknown>(`/usuarios/${usuarioId}`, { method: 'PUT', body: JSON.stringify(payload) });
   return parseUsuarioEditadoResponse(raw);
+}
+
+/** `POST /usuarios/:id/convite` — reenvia o link de criar senha. Emite um
+ *  token NOVO: o link anterior deixa de valer. */
+export async function reenviarConvite(usuarioId: number): Promise<void> {
+  await request<unknown>(`/usuarios/${usuarioId}/convite`, { method: 'POST' });
 }
 
 /** `POST /usuarios/:id/vinculos` — novo vínculo a usuário existente. */

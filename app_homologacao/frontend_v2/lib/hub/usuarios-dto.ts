@@ -54,6 +54,9 @@ export interface UsuarioListItem {
   nome: string;
   email: string;
   ativo: boolean;
+  /** Há um link de senha (convite ou recuperação) emitido e ainda válido —
+   *  ou seja, a pessoa recebeu um link e ainda não o usou. */
+  linkSenhaPendente: boolean;
   vinculos: UsuarioVinculo[];
 }
 
@@ -77,6 +80,7 @@ export function parseUsuarioListItem(raw: unknown): UsuarioListItem {
     nome: r.nome,
     email: isString(r.email) ? r.email : '',
     ativo: r.ativo === true,
+    linkSenhaPendente: r.linkSenhaPendente === true,
     vinculos: Array.isArray(r.vinculos) ? r.vinculos.map(parseUsuarioVinculo) : [],
   };
 }

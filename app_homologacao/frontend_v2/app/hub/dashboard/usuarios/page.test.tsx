@@ -6,12 +6,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
+import { UsuariosApiError } from '@/lib/hub/usuarios-api';
 import UsuariosPage from './page';
 
 const mockUseHubAuth = vi.fn();
 const mockListarUsuarios = vi.fn();
 const mockListarPapeisMatriz = vi.fn();
 const mockCriarUsuario = vi.fn();
+const mockReenviarConvite = vi.fn();
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -25,6 +27,7 @@ vi.mock('@/lib/hub/usuarios-api', async () => {
     ...actual,
     listarUsuarios: (...args: unknown[]) => mockListarUsuarios(...args),
     criarUsuario: (...args: unknown[]) => mockCriarUsuario(...args),
+    reenviarConvite: (...args: unknown[]) => mockReenviarConvite(...args),
   };
 });
 
@@ -132,6 +135,66 @@ describe('UsuariosPage — convite por e-mail ao criar usuário', () => {
     await abrirEPreencher();
 
     await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});
+
+// O selo e o botão existem para uma pergunta só: "quem está esperando o link,
+// e como mando de novo?". Se o selo não aparecer, ninguém reenvia; se o botão
+// não chamar a rota, o admin acha que mandou e não mandou.
+describe('UsuariosPage — senha pendente e reenvio do link', () => {
+  const USUARIO = (extra: Record<string, unknown> = {}) => ({
+    id: 7, nome: 'Ana Financeiro', email: 'ana@exemplo.com', ativo: true,
+    linkSenhaPendente: true,
+    vinculos: [{ id: 1, entidadeId: 6, entidadeNome: 'Movee', papelId: 3, papel: 'financeiro', ativo: true }],
+    ...extra,
+  });
+
+  beforeEach(() => {
+    mockUseHubAuth.mockReset();
+    mockListarUsuarios.mockReset();
+    mockListarPapeisMatriz.mockReset();
+    mockReenviarConvite.mockReset();
+    vi.mocked(toast.success).mockReset();
+    vi.mocked(toast.error).mockReset();
+    mockUseHubAuth.mockReturnValue({ entidadeAtiva: 6, permissoes: ['usuarios.gerenciar'] });
+    mockListarPapeisMatriz.mockResolvedValue({ papeis: [], permissoes: [], matriz: [], podeEditar: false });
+  });
+
+  it('quem tem link pendente aparece marcado, e o botão reenvia', async () => {
+    mockListarUsuarios.mockResolvedValue({ usuarios: [USUARIO()], total: 1, page: 1, pageSize: 20 });
+    mockReenviarConvite.mockResolvedValue(undefined);
+    render(<UsuariosPage />);
+
+    await waitFor(() => expect(screen.getByText('Ana Financeiro')).toBeInTheDocument());
+    expect(screen.getByText('Senha pendente')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Reenviar link/i }));
+    await waitFor(() => expect(mockReenviarConvite).toHaveBeenCalledWith(7));
+    // O aviso precisa dizer que o link anterior morreu — quem reenvia por
+    // engano tem de saber que invalidou o que a pessoa já tinha em mãos.
+    await waitFor(() => expect(vi.mocked(toast.success).mock.calls[0][0]).toMatch(/deixou de valer/i));
+  });
+
+  it('sem link pendente o selo some e o botão muda de rótulo', async () => {
+    mockListarUsuarios.mockResolvedValue({
+      usuarios: [USUARIO({ linkSenhaPendente: false })], total: 1, page: 1, pageSize: 20,
+    });
+    render(<UsuariosPage />);
+
+    await waitFor(() => expect(screen.getByText('Ana Financeiro')).toBeInTheDocument());
+    expect(screen.queryByText('Senha pendente')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Enviar link de senha/i })).toBeInTheDocument();
+  });
+
+  it('falha no envio vira erro visível, não sucesso silencioso', async () => {
+    mockListarUsuarios.mockResolvedValue({ usuarios: [USUARIO()], total: 1, page: 1, pageSize: 20 });
+    mockReenviarConvite.mockRejectedValue(new UsuariosApiError(502, 'O e-mail não pôde ser enviado agora.', 'EMAIL_NAO_ENVIADO'));
+    render(<UsuariosPage />);
+
+    await waitFor(() => expect(screen.getByText('Ana Financeiro')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Reenviar link/i }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(toast.success).not.toHaveBeenCalled();
   });
 });

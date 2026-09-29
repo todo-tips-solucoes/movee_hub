@@ -15,6 +15,7 @@ import {
   Layers,
   Link2,
   Link2Off,
+  MailWarning,
   RotateCw,
   Send,
   ShieldOff,
@@ -79,6 +80,17 @@ export function ImportacaoStatusBadge({ status }: { status: StatusImportacao }) 
 }
 
 /** Ativo/Inativo (motoristas, usuários). */
+/** Convite/recuperação emitidos e ainda não usados. Fala do LINK, não de
+ *  "nunca acessou": as duas situações gravam as mesmas colunas, e a ação de
+ *  quem vê o selo — reenviar — é a mesma nas duas. */
+export function SenhaPendenteBadge() {
+  return (
+    <StatusBadge variant="warning" icon={MailWarning}>
+      Senha pendente
+    </StatusBadge>
+  );
+}
+
 export function AtivoBadge({ ativo }: { ativo: boolean }) {
   return ativo ? (
     <StatusBadge variant="success" icon={CheckCircle2}>

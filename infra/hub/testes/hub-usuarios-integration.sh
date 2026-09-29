@@ -229,6 +229,61 @@ async function main() {
   const conviteLoginDepois = await login(emailConvite, "S3nh@Convite");
   out.convite_login_depois = conviteLoginDepois.status;
 
+  // (d3) reenvio do convite (2026-09-29): o admin dispara um link NOVO e o
+  // anterior morre na hora. O caso que importa é a morte do link antigo —
+  // sem ela, um convite vazado continuaria valendo depois do reenvio.
+  //
+  // Usa uma conta SÓ deste caso: reenviar troca a senha de quem recebe, e
+  // reaproveitar o usuário de outro cenário faria o login dele falhar lá na
+  // frente por um motivo que nada tem a ver com o que aquele teste mede.
+  const emailReenvio = "reenvio-a@example.test";
+  const rCriarReenvio = await fetch("http://localhost:3000/api/v1/usuarios", {
+    method: "POST", headers: { "Content-Type": "application/json", Cookie: cookieHeader(jar) },
+    body: JSON.stringify({ nome: "Reenvio A", email: emailReenvio, vinculo: { entidadeId: empresaA, papelId: papelOperador } }),
+  });
+  const bCriarReenvio = await rCriarReenvio.json();
+  const idReenvio = bCriarReenvio.usuario && bCriarReenvio.usuario.id;
+
+  const mailInicial = await (await fetch("http://mailpit-mock:8080/_log?to=" + encodeURIComponent(emailReenvio))).json();
+  const tokenInicial = mailInicial.length
+    ? (String(mailInicial[mailInicial.length - 1].text).match(/redefinir-senha\?token=([0-9a-f]+)/) || [])[1]
+    : null;
+
+  const rReenvio = await fetch("http://localhost:3000/api/v1/usuarios/" + idReenvio + "/convite", {
+    method: "POST", headers: { Cookie: cookieHeader(jar) },
+  });
+  out.reenvio_status = rReenvio.status;
+
+  const mailReenvio = await (await fetch("http://mailpit-mock:8080/_log?to=" + encodeURIComponent(emailReenvio))).json();
+  const tokenNovo = mailReenvio.length
+    ? (String(mailReenvio[mailReenvio.length - 1].text).match(/redefinir-senha\?token=([0-9a-f]+)/) || [])[1]
+    : null;
+  out.reenvio_tem_link = tokenNovo ? "true" : "false";
+  out.reenvio_token_mudou = tokenNovo && tokenInicial && tokenNovo !== tokenInicial ? "true" : "false";
+
+  // o link ANTIGO (nunca usado) foi sobrescrito e não vale mais…
+  const rRedefAntigo = await fetch("http://localhost:3000/api/v1/auth/redefinir-senha", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: tokenInicial || "sem-token", nova_senha: "S3nh@Antigo" }),
+  });
+  out.reenvio_token_antigo_status = rRedefAntigo.status;
+
+  // …e o NOVO funciona
+  const rRedefNovo = await fetch("http://localhost:3000/api/v1/auth/redefinir-senha", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: tokenNovo || "sem-token", nova_senha: "S3nh@Reenvio" }),
+  });
+  out.reenvio_redefinir_status = rRedefNovo.status;
+
+  const loginReenvio = await login(emailReenvio, "S3nh@Reenvio");
+  out.reenvio_login = loginReenvio.status;
+
+  // usuário fora do escopo do chamador -> 404, nunca 403 (não vaza existência)
+  const rReenvioCross = await fetch("http://localhost:3000/api/v1/usuarios/" + uidAlvoB + "/convite", {
+    method: "POST", headers: { Cookie: cookieHeader(jar) },
+  });
+  out.reenvio_cross_status = rReenvioCross.status;
+
   // (h) isolamento — admin-a NÃO vê/edita usuário só vinculado a B
   const rEditarCross = await fetch(\`http://localhost:3000/api/v1/usuarios/\${uidAlvoB}\`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) },
@@ -323,6 +378,13 @@ check "convite: e-mail no mock traz o link /hub/redefinir-senha?token=" "$(jget 
 check "convite: login ANTES de usar o link -> 401 (conta sem acesso)" "$(jget convite_login_antes)" "401"
 check "convite: token do link redefine a senha -> 200" "$(jget convite_redefinir_status)" "200"
 check "convite: login DEPOIS de criar a senha -> 200" "$(jget convite_login_depois)" "200"
+check "reenvio de convite -> 200" "$(jget reenvio_status)" "200"
+check "reenvio: novo e-mail no mock traz link" "$(jget reenvio_tem_link)" "true"
+check "reenvio: o token emitido e DIFERENTE do anterior" "$(jget reenvio_token_mudou)" "true"
+check "reenvio: o link NOVO redefine a senha -> 200" "$(jget reenvio_redefinir_status)" "200"
+check "reenvio: login com a senha criada pelo link novo -> 200" "$(jget reenvio_login)" "200"
+check "reenvio: o link ANTIGO deixou de valer -> 400" "$(jget reenvio_token_antigo_status)" "400"
+check "reenvio cross-tenant -> 404 (nao vaza existencia)" "$(jget reenvio_cross_status)" "404"
 check "PUT /usuarios/:id -> 200" "$(jget editar_status)" "200"
 check "PUT /usuarios/:id -> nome atualizado" "$(jget editar_nome)" "Novo Usuario A Editado"
 check "PUT /usuarios/:id -> ativo=false (CHK033, sem DELETE)" "$(jget editar_ativo)" "false"
