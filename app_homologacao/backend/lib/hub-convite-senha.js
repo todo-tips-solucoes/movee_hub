@@ -38,40 +38,87 @@ function montarLink(tokenBruto) {
   return `${base}/hub/redefinir-senha?token=${tokenBruto}`;
 }
 
-/** Puro — separado do envio para poder ser conferido em teste sem rede. */
+/** Nome vem do banco: entra no HTML escapado, nunca cru. */
+function escaparHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * Corpo HTML — tabela + CSS inline porque cliente de e-mail não tem `<style>`
+ * confiável nem flex/grid. Sem imagem externa (Gmail bloqueia por padrão e o
+ * e-mail chegaria vazio), então a marca é só tipografia e cor.
+ *
+ * O link aparece DUAS vezes de propósito: no botão e escrito por extenso
+ * embaixo. Cliente que não renderiza o botão, ou quem precisa copiar a URL
+ * para outro navegador, continua conseguindo entrar.
+ */
+function montarHtml({ saudacao, chamada, link, rodape, botao }) {
+  const PRIMARIA = '#2c66e9'; // --primary do painel (frontend_v2/app/globals.css)
+  return `<!doctype html>
+<html lang="pt-BR"><body style="margin:0;padding:24px;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2430;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:12px;">
+  <tr><td style="padding:32px 28px 8px;">
+    <p style="margin:0 0 4px;font-size:18px;font-weight:600;color:${PRIMARIA};">Movee Hub</p>
+    <p style="margin:16px 0 0;font-size:15px;line-height:22px;">${escaparHtml(saudacao)}</p>
+    <p style="margin:12px 0 0;font-size:15px;line-height:22px;">${escaparHtml(chamada)}</p>
+  </td></tr>
+  <tr><td style="padding:24px 28px;">
+    <a href="${escaparHtml(link)}" style="display:inline-block;padding:12px 24px;background:${PRIMARIA};color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escaparHtml(botao)}</a>
+  </td></tr>
+  <tr><td style="padding:0 28px 28px;">
+    <p style="margin:0;font-size:13px;line-height:20px;color:#5b6472;">Se o botão não abrir, copie este endereço no navegador:<br>
+      <a href="${escaparHtml(link)}" style="color:${PRIMARIA};word-break:break-all;">${escaparHtml(link)}</a>
+    </p>
+    <p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#5b6472;">${escaparHtml(rodape)}</p>
+  </td></tr>
+</table>
+</body></html>`;
+}
+
+/** Puro — separado do envio para poder ser conferido em teste sem rede.
+ *  Devolve `texto` E `html`: o texto continua sendo o corpo que o mock guarda
+ *  e de onde os testes extraem o token, e é o fallback de quem lê em texto. */
 function montarMensagem({ nome, tokenBruto, tipo }) {
   const link = montarLink(tokenBruto);
   const primeiroNome = String(nome || '').trim().split(/\s+/)[0] || '';
   const saudacao = primeiroNome ? `Olá, ${primeiroNome}.` : 'Olá.';
 
   if (tipo === 'convite') {
+    const chamada = 'Uma conta foi criada para você no Movee Hub.';
+    const rodape = 'O link vale por 7 dias e só pode ser usado uma vez. Depois de criar a senha, entre pelo mesmo endereço com seu e-mail.';
     return {
       assunto: 'Seu acesso ao Movee Hub',
       texto: [
         saudacao,
         '',
-        'Uma conta foi criada para você no Movee Hub.',
+        chamada,
         '',
         `Abra este link para criar sua senha: ${link}`,
         '',
         'O link vale por 7 dias e só pode ser usado uma vez.',
         'Depois de criar a senha, entre pelo endereço acima com seu e-mail.',
       ].join('\n'),
+      html: montarHtml({ saudacao, chamada, link, rodape, botao: 'Criar minha senha' }),
     };
   }
 
+  const chamada = 'Você pediu para redefinir a senha do Movee Hub.';
+  const rodape = 'O link vale por 60 minutos e só pode ser usado uma vez. Se não foi você, ignore este e-mail — sua senha atual continua valendo.';
   return {
     assunto: 'Recuperação de senha — Movee Hub',
     texto: [
       saudacao,
       '',
-      'Você pediu para redefinir a senha do Movee Hub.',
+      chamada,
       '',
       `Abra este link para criar uma nova senha: ${link}`,
       '',
       'O link vale por 60 minutos e só pode ser usado uma vez.',
       'Se não foi você, ignore este e-mail — sua senha atual continua valendo.',
     ].join('\n'),
+    html: montarHtml({ saudacao, chamada, link, rodape, botao: 'Criar nova senha' }),
   };
 }
 
@@ -89,8 +136,8 @@ function montarMensagem({ nome, tokenBruto, tipo }) {
  * @returns {Promise<{ok:boolean, id?:string|null, erro?:string}>}
  */
 async function enviarLinkSenha({ para, nome, tokenBruto, tipo }) {
-  const { assunto, texto } = montarMensagem({ nome, tokenBruto, tipo });
-  const resultado = await enviarEmail({ para, assunto, texto });
+  const { assunto, texto, html } = montarMensagem({ nome, tokenBruto, tipo });
+  const resultado = await enviarEmail({ para, assunto, texto, html });
 
   const mailMockUrl = process.env.MAIL_MOCK_URL;
   if (!mailMockUrl) return resultado;

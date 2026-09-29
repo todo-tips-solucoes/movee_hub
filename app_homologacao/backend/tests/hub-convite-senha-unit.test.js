@@ -70,6 +70,33 @@ test('sem nome, a saudação não vira "Olá, ."', () => {
   assert.ok(m.texto.startsWith('Olá.'), m.texto.slice(0, 20));
 });
 
+// O que quebra em silêncio num e-mail HTML: o link deixar de ser clicável
+// (href errado) e o nome vindo do banco entrar cru no corpo. Nada disso
+// aparece em teste de tela — só aqui.
+test('o HTML traz o link no href do botão e repetido por extenso', () => {
+  for (const tipo of ['convite', 'recuperacao']) {
+    const { html } = montarMensagem({ nome: 'Ana', tokenBruto: 'deadbeef', tipo });
+    const link = montarLink('deadbeef');
+    const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(hrefs, [link, link], `${tipo}: botão e link por extenso apontam para o link`);
+    assert.match(html, /<a [^>]*>Criar (minha|nova) senha<\/a>/);
+  }
+});
+
+test('nome com HTML entra escapado, nunca cru', () => {
+  const { html } = montarMensagem({
+    nome: '<script>alert(1)</script>', tokenBruto: 'deadbeef', tipo: 'convite',
+  });
+  assert.ok(!html.includes('<script>'), 'tag vinda do nome não pode sobreviver no corpo');
+  assert.match(html, /&lt;script&gt;/);
+});
+
+test('o texto puro continua indo junto (fallback e fonte do token nos testes)', () => {
+  const m = montarMensagem({ nome: 'Ana', tokenBruto: 'deadbeef', tipo: 'convite' });
+  assert.ok(m.texto.includes(montarLink('deadbeef')));
+  assert.ok(!m.texto.includes('<'), 'o corpo de texto não pode carregar marcação');
+});
+
 test('TTL do convite é de 7 dias', () => {
   assert.equal(TTL_CONVITE_MS, 7 * 24 * 60 * 60 * 1000);
 });
