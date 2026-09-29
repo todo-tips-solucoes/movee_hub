@@ -7,6 +7,24 @@ nenhum dado pessoal real em código, teste, log ou documento.
 
 Tudo aqui foi **medido**, não suposto. Onde a cobertura é parcial, está dito.
 
+> **Estado em 2026-09-29 — leia antes do resto.** Medido de novo:
+>
+> | Item | Estado |
+> |---|---|
+> | §2.1 `xlsx` | **resolvido** (branch `fix/deps-seguranca-xlsx-axios`): SheetJS 0.20.3 do CDN oficial (`cdn.sheetjs.com`, o npm parou em 0.18.5), travado por `integrity` no lock. A exposição era **maior** do que este briefing dizia: o upload de planilha de movimento (`server.js`, `xlsx.readFile`) lê arquivo **enviado pelo cliente**. |
+> | §2.1 demais do backend | **resolvido**: `axios` 1.20.0, `form-data` 4.0.6, `xml2js` 0.6.2 (lê o XML da nota enviado pelo motorista), `express` 4.22.3 (`qs`). `npm audit --omit=dev`: **0**. |
+> | §2.1 `next` crítica | **resolvido** antes (`next@16.3.5`, 2026-09-20). Painel: `npm audit --omit=dev` **0**. |
+> | §2.1 app motorista | `@serwist` atualizado; resta `browserslist` 4.28.6 **fixado exato** pelo `@serwist/next` — roda só no build do service worker, nunca com entrada externa. Aceito. |
+> | §2.2 baselines | **resolvido** no PR #193 (driver RLS 19/0, agregada sem falha herdada). |
+> | §2.3 rótulo | **decisão do operador: manter "Notificações"** (sem colisão; "Avisos" já nomeia o push). |
+> | §2.4, §2.5 | inalterados — não são código. |
+>
+> Gotcha medido: `npm audit fix --omit=dev` **remove as devDependencies do
+> `node_modules`** (o `tsc` passa a falhar por falta de `vitest`/`@types/node`);
+> rodar `npm install` depois — o lock não muda. E `next build` do painel **fora
+> do Docker** falha neste host ao baixar fontes do Google (igual na `main`): o
+> gate do painel é o `docker build`.
+
 ---
 
 ## 1. De onde isto vem
