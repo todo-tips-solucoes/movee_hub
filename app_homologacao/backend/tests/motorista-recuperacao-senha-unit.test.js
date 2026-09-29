@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { mascararEmail, planejarRecuperacao } = require('../lib/motorista-recuperacao-senha');
+const { mascararEmail, planejarRecuperacao, montarEmailRecuperacao } = require('../lib/motorista-recuperacao-senha');
 
 test.describe('mascararEmail() — o que a tela pode mostrar', () => {
   test('mostra o suficiente para reconhecer a caixa, não para reconstruí-la', () => {
@@ -75,5 +75,37 @@ test.describe('planejarRecuperacao() — quem recebe e-mail', () => {
     const r = planejarRecuperacao(conta({ email: 'isto-nao-e-email' }));
     assert.equal(r.enviar, false);
     assert.equal(r.motivo, 'SEM_EMAIL');
+  });
+});
+
+// O e-mail é o único caminho de volta de quem perdeu a senha: se o link parar
+// de ser clicável, ou o nome do cadastro entrar cru no HTML, ninguém percebe
+// pela tela — só aqui.
+test.describe('montarEmailRecuperacao() — o que chega na caixa do motorista', () => {
+  const LINK = 'https://app.motorista.moveelog.com.br/definir-senha?token=abc123';
+
+  test('o link vai no href do botão E escrito por extenso', () => {
+    const { html } = montarEmailRecuperacao({ nome: 'João Silva', link: LINK });
+    const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(hrefs, [LINK, LINK]);
+    assert.match(html, /<a [^>]*>Criar nova senha<\/a>/);
+  });
+
+  test('o texto puro continua indo junto, com o link e sem marcação', () => {
+    const { texto, assunto } = montarEmailRecuperacao({ nome: 'João', link: LINK });
+    assert.ok(texto.includes(LINK));
+    assert.ok(!texto.includes('<'));
+    assert.equal(assunto, 'Recuperação de senha — app do motorista');
+  });
+
+  test('saudação usa o primeiro nome; sem nome não vira "Olá, ."', () => {
+    assert.match(montarEmailRecuperacao({ nome: 'João Silva', link: LINK }).html, /Olá, João\./);
+    assert.match(montarEmailRecuperacao({ link: LINK }).html, /Olá\./);
+  });
+
+  test('nome com HTML entra escapado', () => {
+    const { html } = montarEmailRecuperacao({ nome: '<b>x</b>', link: LINK });
+    assert.ok(!html.includes('<b>x</b>'));
+    assert.match(html, /&lt;b&gt;/);
   });
 });
