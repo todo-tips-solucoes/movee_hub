@@ -31,7 +31,7 @@ const { mesmoGrupoQue } = require('./grupo');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const crypto = require('node:crypto');
 const { enviarEmail } = require('../lib/resend-email');
-const { planejarRecuperacao } = require('../lib/motorista-recuperacao-senha');
+const { planejarRecuperacao, montarEmailRecuperacao } = require('../lib/motorista-recuperacao-senha');
 const { hubMotoristaLoginHabilitado } = require('../lib/hub-motorista-app-login');
 // hub-motorista-360 (FASE 3) — vínculo automático de credencial (FR-009),
 // chamado dentro de POST /register em try/catch isolado (ver o handler).
@@ -333,7 +333,7 @@ router.post('/recuperar-senha', recuperacaoPerIpLimiter, async (req, res) => {
     let conta = null;
     try {
       const contas = await hubPostgrestRequest(
-        `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}&select=id,email,ativo`,
+        `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}&select=id,nome,email,ativo`,
         'GET'
       );
       conta = Array.isArray(contas) ? contas[0] || null : null;
@@ -374,18 +374,9 @@ router.post('/recuperar-senha', recuperacaoPerIpLimiter, async (req, res) => {
 
     const base = process.env.APP_MOTORISTA_URL || 'https://app.motorista.moveelog.com.br';
     const link = `${base}/definir-senha?token=${tokenBruto}`;
-    const envio = await enviarEmail({
-      para: conta.email,
-      assunto: 'Recuperação de senha — app do motorista',
-      texto: [
-        'Você pediu para redefinir a senha do app do motorista.',
-        '',
-        `Abra este link para criar uma nova senha: ${link}`,
-        '',
-        'O link vale por 60 minutos e só pode ser usado uma vez.',
-        'Se não foi você, ignore este e-mail — sua senha atual continua valendo.',
-      ].join('\n'),
-    });
+    // Corpo (texto + HTML com o botão) em lib/motorista-recuperacao-senha.js.
+    const { assunto, texto, html } = montarEmailRecuperacao({ nome: conta.nome, link });
+    const envio = await enviarEmail({ para: conta.email, assunto, texto, html });
 
     if (!envio.ok) {
       console.error('[motorista] recuperar-senha: e-mail não enviado:', envio.erro);
