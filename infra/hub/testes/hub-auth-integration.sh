@@ -232,7 +232,10 @@ check "tentativas_login resetado a 0 após login correto" "$TENTATIVAS_POS_OK" "
 node_e "
   fetch('http://localhost:3000/api/v1/auth/recuperar-senha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'auth-recuperacao@example.test' }) })
     .then(r => r.json()).then(j => { process.stdout.write(JSON.stringify(j)); process.exit(0); });
-" >"$TMP/rec-existe.json" 2>&1
+" >"$TMP/rec-existe.json"
+# Sem `2>&1`: o container de teste define NODE_EXTRA_CA_CERTS para um cert do
+# mock de push que nem sempre existe, e o warning no stderr entrava SÓ nesta
+# captura — as duas respostas eram idênticas e o check acusava diferença.
 
 BODY_REC_EXISTE="$(cat "$TMP/rec-existe.json")"
 BODY_REC_NAO="$(node_e "
@@ -249,7 +252,7 @@ MAIL_LOG="$(node_e "
 TOKEN_BRUTO="$(printf '%s' "$MAIL_LOG" | node_e "
   const arr = JSON.parse(require('fs').readFileSync(0,'utf8'));
   const last = arr[arr.length - 1];
-  const m = last && last.text && last.text.match(/token para redefinir sua senha: ([0-9a-f]+)/);
+  const m = last && last.text && last.text.match(/redefinir-senha\?token=([0-9a-f]+)/);
   process.stdout.write(m ? m[1] : '');
 ")"
 check "token de recuperação extraído do mock mailpit" "$([ -n "$TOKEN_BRUTO" ] && echo sim || echo nao)" "sim"
@@ -311,7 +314,7 @@ MAIL_LOG_RB="$(node_e "
 TOKEN_RB="$(printf '%s' "$MAIL_LOG_RB" | node_e "
   const arr = JSON.parse(require('fs').readFileSync(0,'utf8'));
   const last = arr[arr.length - 1];
-  const m = last && last.text && last.text.match(/token para redefinir sua senha: ([0-9a-f]+)/);
+  const m = last && last.text && last.text.match(/redefinir-senha\?token=([0-9a-f]+)/);
   process.stdout.write(m ? m[1] : '');
 ")"
 check "(#3) token de recuperação extraído (reset-bloqueio)" "$([ -n "$TOKEN_RB" ] && echo sim || echo nao)" "sim"
