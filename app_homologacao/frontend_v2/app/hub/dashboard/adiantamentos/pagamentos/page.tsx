@@ -353,7 +353,7 @@ export default function AdiantamentosPagamentosPage() {
 
   return (
     <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
-      <PageHeader titulo="Pagamentos" subtitulo="Adiantamentos liberados, prontos para entrar num lote Transfeera." />
+      <PageHeader titulo="Aguardando lote" subtitulo="Adiantamentos aprovados, esperando entrar num lote Transfeera." />
       <AdiantamentosAbas />
 
       <FilterBar
