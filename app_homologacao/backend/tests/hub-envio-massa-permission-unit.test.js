@@ -235,7 +235,10 @@ describe('cobertura de middleware nas 11 rotas legadas (2.2.7, achado F3)', () =
     { method: 'post', pathLiteral: '/upload', permissao: 'envio_massa.criar' },
     { method: 'get', pathLiteral: '/export-envio-massa', permissao: 'envio_massa.consultar' },
     { method: 'get', pathLiteral: '/download-xml-movimento', permissao: 'envio_massa.consultar' },
-    { method: 'post', pathLiteral: '/validate-xml-batch', permissao: 'envio_massa.enviar' },
+    // 0101 (2026-09-29): gate próprio, para o financeiro validar NFS-e sem
+    // ganhar junto o poder de iniciar/parar disparo. Ninguém perdeu acesso —
+    // a 0047 deu `validacao_xml.validar` a todo papel com `envio_massa.enviar`.
+    { method: 'post', pathLiteral: '/validate-xml-batch', permissao: 'validacao_xml.validar' },
     { method: 'post', pathLiteral: '/close-movimento', permissao: 'envio_massa.aprovar' },
   ];
 

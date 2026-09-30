@@ -9,7 +9,8 @@
 // Mesmo contrato da tela de origem (hub-envio-massa FASE 5): guard de
 // entidade ativa idêntico (sem `entidade_ativa` → `/selecionar-entidade`) e
 // reuso 100% do `XmlValidationCard` legado — nenhuma chamada de rede nova; o
-// backend `/validate-xml-batch` continua gateado por `envio_massa.enviar`.
+// backend `/validate-xml-batch` é gateado por `validacao_xml.validar`
+// (migration 0101, 2026-09-29 — era `envio_massa.enviar`).
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
