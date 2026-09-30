@@ -1328,7 +1328,12 @@ router.post('/lotes/:id/confirmacao', requireModuloAtivo('adiantamentos'), requi
 // grandes. Aqui os 5 MB só existem para um usuário autenticado e com
 // `pagamento_confirmar`. Dimensionado junto com `MAX_LINHAS_RETORNO`
 // (10.000 linhas ≈ 2 MB de CSV ≈ 2,7 MB em base64) — sobra folga.
-router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), express.json({ limit: '5mb' }), async (req, res) => {
+// Limite 12 MB (era 5 MB, 2026-09-30): o export real de UM mês do portal tem
+// 3,4 MB de CSV, que em base64 dá 4,32 MiB — 86% do teto antigo. O mês
+// seguinte estouraria com PayloadTooLargeError, e o operador veria só um erro
+// genérico. O teto de LINHAS (`MAX_LINHAS_RETORNO` = 10000) continua sendo a
+// trava de verdade contra arquivo adulterado; este limite é só de transporte.
+router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), express.json({ limit: '12mb' }), async (req, res) => {
   try {
     const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamento_confirmar');
     if (!ctx) return;

@@ -144,7 +144,10 @@ describe('AdiantamentoLoteDetalhePage', () => {
     render(<AdiantamentoLoteDetalhePage />);
     await waitFor(() => expect(screen.getByText('Lote 000123')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar resultado' }));
+    // Na tela o botão virou "Confirmar na mão" quando a importação do retorno
+    // ganhou espaço ao lado dele; DENTRO do diálogo o rótulo segue
+    // "Confirmar resultado".
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar na mão' }));
     const dialog = await screen.findByRole('dialog');
 
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /Marcar ADV-000501 como falha/ }));
@@ -161,7 +164,10 @@ describe('AdiantamentoLoteDetalhePage', () => {
     render(<AdiantamentoLoteDetalhePage />);
     await waitFor(() => expect(screen.getByText('Lote 000123')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Cancelar lote' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Confirmar resultado' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirmar na mão' })).not.toBeInTheDocument();
+    // A importação do retorno segue a MESMA regra das outras ações: só em
+    // lote EXPORTADO. Lote cancelado não concilia nada.
+    expect(screen.queryByRole('button', { name: 'Importar retorno' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Baixar arquivo Transfeera/ })).not.toBeInTheDocument();
   });
 });
