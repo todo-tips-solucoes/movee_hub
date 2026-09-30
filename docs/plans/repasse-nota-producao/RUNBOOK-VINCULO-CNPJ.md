@@ -1,27 +1,41 @@
 # Runbook — vincular os entregadores sem CNPJ usando a EnvioMassa
 
-Migration `0093_vinculo_cnpj_por_envio_massa.sql`. Preparado em 2026-09-23.
+Migration `0093_vinculo_cnpj_por_envio_massa.sql`. Preparado em 2026-09-23,
+**EXECUTADO em produção em 2026-09-30** (resultado no fim desta seção).
 
 > O ambiente "homologação" **é produção**. Aplicar a migration e, principalmente,
 > **executar com `p_aplicar => true`** são escritas no ambiente vivo: exigem os 5 gates.
 
 ## O problema, medido
 
-A empresa 6 tem **925 entregadores sem vínculo** com `ContaMotorista`. Sem CNPJ não há
-nota, e a F4 só alcançava 330 de 824 motoristas da semana. Não é limitação de código — é
+A empresa 6 tinha **925 entregadores sem vínculo** com `ContaMotorista` (23/09). Sem CNPJ não
+há nota, e a F4 só alcançava 330 de 824 motoristas da semana. Não é limitação de código — é
 cadastro.
+
+### ⚠️ Remedir antes de agir — o número muda sozinho
+
+Em **30/09**, ao remedir para executar, os 925 tinham virado **213**. Não foi erro de medição:
+o **vínculo automático por similaridade** (hub-motorista-360, em produção desde 04/09) já havia
+vinculado a maior parte, e segue vinculando todo dia com o import do robô EntreGô
+(`motorista.vinculado_automaticamente`: 550 eventos até 30/09).
+
+Consequência prática: o ganho desta execução foi **91 vínculos, não 753**. Remeça a simulação
+sempre — agir pelos números do dia anterior é agir sobre uma base que não existe mais.
 
 A ponte é o **nome**: a `EnvioMassa` guarda `nome` + `cnpj_prestador` de anos de planilha.
 Casando por `hub_normaliza_nome` (a mesma normalização que o vínculo manual já usa):
 
-| Situação | Motoristas |
-|---|---|
-| **Vinculáveis** (um CNPJ, sem homônimo) | **753** |
-| Ambíguos (mesmo nome, CNPJs diferentes) | 92 |
-| Sem casamento na EnvioMassa | 80 |
+| Situação | 23/09 | **30/09 (execução)** |
+|---|---|---|
+| **Vinculáveis** (um CNPJ, sem homônimo) | **753** | **91** |
+| — criar conta e vincular | 655 | 31 |
+| — vincular a conta que já existe | 97 | 60 |
+| Ambíguos (mesmo nome, CNPJs diferentes) | 92 | 33 |
+| Sem casamento na EnvioMassa | 80 | 88 |
+| Conta já vinculada a outro (a função recusa) | 1 | 1 |
 
-Dos 753: **655** precisam de conta nova, **97** têm conta livre para vincular, **1** esbarra
-em conta já vinculada a outro entregador (a função recusa, não estoura).
+Em 30/09 os quatro grupos somavam exatamente os 213 sem vínculo — confira essa soma ao
+remedir: se não fechar, a leitura está incompleta.
 
 ## As três guardas — e por que elas existem
 
@@ -117,7 +131,37 @@ ROLLBACK;
 SQL
 ```
 
-Antes disto: 824 na semana, 330 com CNPJ.
+Antes disto: 824 na semana, 330 com CNPJ (23/09).
+
+### Resultado da execução de 2026-09-30
+
+Rodado com `~/aplicar-0093-vinculo-cnpj.sh` (preflight, medição, `pg_dump` de `Entregador` e
+`ContaMotorista`, simulação, confirmação, aplicação e medição final).
+
+| | Antes | Depois |
+|---|---|---|
+| Entregadores da empresa 6 sem vínculo | 213 | **122** |
+| Motoristas da semana (28/09–) com CNPJ | 715 / 786 (91%) | **754 / 786 (96%)** |
+| Sem CNPJ na semana | 71 | **32** |
+
+`CONTAS_CRIADAS: 31` · `VINCULOS_FEITOS: 91`, idêntico ao que a simulação previu. Reexecutar
+a simulação depois não traz mais nada a vincular (as duas ações somem do relatório) — a
+idempotência se confirma em produção, não só no teste.
+
+Dos 71 sem CNPJ da semana, 39 eram vinculáveis e foram resolvidos; os 32 restantes são 16
+ambíguos + 16 sem casamento.
+
+### ⚠️ Dois enganos que custaram tempo na execução
+
+1. **`set_config('request.jwt.claims', …, true)` é LOCAL à transação.** O passo de aplicação
+   sem `BEGIN`/`COMMIT` roda em autocommit: o claim morre com o primeiro statement e a função
+   aborta com `PERMISSAO_NEGADA` no segundo. Falha fechada (nada escrito), mas parece defeito
+   de permissão do usuário — e não é. Envolva a aplicação numa transação, que de quebra dá
+   atomicidade.
+2. **A função NÃO grava trilha em `Auditoria`.** O comentário da 0093 e a seção de rollback
+   diziam que "a trilha em Auditoria diz quais foram" — não é verdade: o corpo da função não
+   tem nenhum `INSERT` em `Auditoria`, e as 91 mudanças de 30/09 não aparecem lá. O que
+   identifica o que mudou está abaixo, em Rollback.
 
 ## Rollback
 
@@ -125,7 +169,16 @@ Antes disto: 824 na semana, 330 com CNPJ.
 `Entregador.motorista_id` preenchido é dado de cadastro, e as contas criadas podem já ter
 recebido conta bancária ou solicitação. Desfazer é decisão à parte, com lista na mão.
 
+**Como saber o que mudou** (a função não grava auditoria — ver o engano 2 acima):
+
+1. **O `pg_dump` de antes** é a via confiável: `~/backup-vinculo-cnpj-<timestamp>.sql`, com
+   `Entregador` e `ContaMotorista` inteiras. O script de execução sempre o tira antes.
+2. `Entregador.atualizado_em` marca os vinculados na janela da execução.
+3. `ContaMotorista.criado_em::date` dá as contas do dia — mas **não separa** as criadas pela
+   0093 das criadas por outro caminho: em 30/09 foram 37 no dia, das quais 31 desta execução.
+   Sem trilha, essa imprecisão é o preço; use o dump se precisar de exatidão.
+
 ## O que NÃO é resolvido aqui
 
-Os **92 ambíguos** e os **80 sem casamento** continuam sem CNPJ. Os ambíguos pedem revisão
+Os **ambíguos** (33 em 30/09) e os **sem casamento** (88) continuam sem CNPJ. Os ambíguos pedem revisão
 humana — ou uma segunda chave, e todos têm `id_externo` da EntreGô, que pode servir.
