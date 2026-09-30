@@ -104,7 +104,11 @@ INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES
   ('fin-financeiroaprov@example.test', '$HASH_OK', 'Usuario Financeiro Aprovador', true),
   ('fin-adminplataforma@example.test', '$HASH_OK', 'Usuario Admin Plataforma',     true),
   ('fin-restrito-alvo@example.test',   '$HASH_OK', 'Usuario Alvo Restrito',        true),
-  ('fin-operador-alvo@example.test',   '$HASH_OK', 'Usuario Operador Alvo',        true);
+  ('fin-operador-alvo@example.test',   '$HASH_OK', 'Usuario Operador Alvo',        true),
+  -- controle negativo da 0101: `leitura` tem `envio_massa.consultar` mas NÃO
+  -- `envio_massa.enviar`, então a 0047 nunca lhe deu `validacao_xml.validar`
+  -- — é quem prova que o gate novo do /validate-xml-batch recusa de verdade.
+  ('fin-leitura@example.test',         '$HASH_OK', 'Usuario Leitura',              true);
 SQL
 UID_FIN="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='fin-financeiro@example.test'" | tr -d '[:space:]')"
 UID_ADME="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='fin-adminentidade@example.test'" | tr -d '[:space:]')"
@@ -112,6 +116,7 @@ UID_FINA="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='fin-financeiroa
 UID_ADMP="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='fin-adminplataforma@example.test'" | tr -d '[:space:]')"
 UID_RESTRITO="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='fin-restrito-alvo@example.test'" | tr -d '[:space:]')"
 UID_OPER_ALVO="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='fin-operador-alvo@example.test'" | tr -d '[:space:]')"
+UID_LEITURA="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='fin-leitura@example.test'" | tr -d '[:space:]')"
 
 PAPEL_FINANCEIRO="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='financeiro'" | tr -d '[:space:]')"
 PAPEL_ADMIN_ENTIDADE="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='admin_entidade'" | tr -d '[:space:]')"
@@ -125,6 +130,12 @@ PAPEL_LEITURA="$(psql_t -tAc "SELECT id FROM \"Papel\" WHERE nome='leitura'" | t
 
 MODULO_ADIANTAMENTOS="$(psql_t -tAc "SELECT id FROM \"Modulo\" WHERE codigo='adiantamentos'" | tr -d '[:space:]')"
 MODULO_USUARIOS="$(psql_t -tAc "SELECT id FROM \"Modulo\" WHERE codigo='usuarios'" | tr -d '[:space:]')"
+# 0101 — os módulos que `financeiro`/`financeiro_aprovador` passaram a
+# enxergar. Sem ModuloEntidade ativo o item não aparece no /me nem com a
+# permissão concedida (deny-by-default), então o teste precisa dos dois lados.
+MODULO_ENVIO_MASSA="$(psql_t -tAc "SELECT id FROM \"Modulo\" WHERE codigo='envio_massa'" | tr -d '[:space:]')"
+MODULO_VALIDACAO_XML="$(psql_t -tAc "SELECT id FROM \"Modulo\" WHERE codigo='validacao_xml'" | tr -d '[:space:]')"
+MODULO_MOTORISTAS="$(psql_t -tAc "SELECT id FROM \"Modulo\" WHERE codigo='motoristas'" | tr -d '[:space:]')"
 
 psql_t <<SQL >/dev/null
 INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
@@ -132,7 +143,8 @@ INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ($UID_ADME,       $E, $PAPEL_ADMIN_ENTIDADE,       true),
   ($UID_FINA,       $E, $PAPEL_FINANCEIRO_APROVADOR, true),
   ($UID_ADMP,       $E, $PAPEL_ADMIN_PLATAFORMA,     true),
-  ($UID_RESTRITO,   $E, $PAPEL_ADMIN_PLATAFORMA,     true);
+  ($UID_RESTRITO,   $E, $PAPEL_ADMIN_PLATAFORMA,     true),
+  ($UID_LEITURA,    $E, $PAPEL_LEITURA,              true);
 -- $UID_OPER_ALVO (fin-operador-alvo) fica DE PROPÓSITO sem vínculo em $E:
 -- é o alvo da concessão de vínculo NOVO em 2.5.4 (POST /usuarios/:id/vinculos).
 -- Um alvo que já tivesse vínculo em E daria 409 VINCULO_JA_EXISTE no caminho
@@ -140,8 +152,11 @@ INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
 -- vínculo existente), mascarando o que o teste quer provar.
 
 INSERT INTO "ModuloEntidade" (modulo_id, empresa_id, ativo) VALUES
-  ($MODULO_ADIANTAMENTOS, $E, true),
-  ($MODULO_USUARIOS,      $E, true);
+  ($MODULO_ADIANTAMENTOS,  $E, true),
+  ($MODULO_USUARIOS,       $E, true),
+  ($MODULO_ENVIO_MASSA,    $E, true),
+  ($MODULO_VALIDACAO_XML,  $E, true),
+  ($MODULO_MOTORISTAS,     $E, true);
 SQL
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -509,6 +524,100 @@ R2="$(echo "$OUT2" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
 [ -n "$R2" ] || { echo "FAIL: script Node (2.5.5 trocar/desativar) não retornou resultado"; echo "$OUT2"; exit 1; }
 check "2.5.5 admin_entidade: PUT vinculo papelId=leitura -> 200" "$(jget "$R2" trocar_papel_status)" "200"
 check "2.5.5 admin_entidade: PUT vinculo ativo=false (desativar) -> 200" "$(jget "$R2" desativar_status)" "200"
+
+# ─────────────────────────────────────────────────────────────────────────
+# 0101 — `financeiro` e `financeiro_aprovador` enxergam Envio em Massa,
+# Validação XML e Motoristas, em LEITURA (pedido do operador, 2026-09-29).
+#
+# O que estes asserts protegem: (a) o menu do hub é
+# `ModuloEntidade ativo ∩ prefixos das permissões` (hub-me.js) — um dos dois
+# lados faltando e o item some sem erro nenhum; (b) o escopo é leitura — se
+# `envio_massa.enviar` vazar para o papel, o financeiro passa a poder
+# disparar mensagem a motorista, que é irreversível.
+# ─────────────────────────────────────────────────────────────────────────
+modulos_e_permissoes() { # modulos_e_permissoes <email> <senha>
+  run_node "$1" "$2" "$E" <<'JS'
+const BASE = 'http://localhost:3000/api/v1';
+function parseSetCookie(res) {
+  const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  const jar = {};
+  for (const c of raw) { const [pair] = c.split(';'); const idx = pair.indexOf('='); jar[pair.slice(0, idx)] = pair.slice(idx + 1); }
+  return jar;
+}
+function cookieHeader(jar) { return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '); }
+async function main() {
+  const email = process.argv[2], senha = process.argv[3], empresaId = Number(process.argv[4]);
+  const out = {};
+
+  const rLogin = await fetch(BASE + '/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, senha }),
+  });
+  let jar = parseSetCookie(rLogin);
+  out.login_status = rLogin.status;
+
+  const rTroca = await fetch(BASE + '/me/entidade', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) },
+    body: JSON.stringify({ empresa_id: empresaId }),
+  });
+  jar = { ...jar, ...parseSetCookie(rTroca) };
+
+  const rMe = await fetch(BASE + '/me', { headers: { Cookie: cookieHeader(jar) } });
+  const me = await rMe.json();
+  const codigos = (me.modulos || []).map((m) => m.codigo);
+  const perms = new Set(me.permissoes || []);
+  out.me_status = rMe.status;
+  for (const c of ['adiantamentos', 'envio_massa', 'validacao_xml', 'motoristas']) {
+    out['modulo_' + c] = codigos.includes(c) ? 'true' : 'false';
+  }
+  for (const p of ['envio_massa.consultar', 'validacao_xml.validar', 'motoristas.listar', 'motoristas.consultar']) {
+    out['perm_' + p.replace('.', '_')] = perms.has(p) ? 'true' : 'false';
+  }
+  // leitura, não operação
+  for (const p of ['envio_massa.criar', 'envio_massa.enviar', 'envio_massa.aprovar', 'motoristas.editar', 'motoristas.credencial']) {
+    out['negada_' + p.replace('.', '_')] = perms.has(p) ? 'true' : 'false';
+  }
+
+  // Gate REAL do XML: sem arquivo o multer responde 400 — o que importa é
+  // não ser 403. Um papel sem `validacao_xml.validar` bate em 403 antes.
+  const rXml = await fetch('http://localhost:3000/validate-xml-batch', {
+    method: 'POST', headers: { Cookie: cookieHeader(jar) },
+  });
+  out.xml_status = rXml.status;
+
+  console.log('___RESULT_JSON___' + JSON.stringify(out));
+}
+main().catch((e) => { console.error('SCRIPT_ERROR', e); process.exit(1); });
+JS
+}
+
+for PERFIL in financeiro financeiroaprov; do
+  OUT="$(modulos_e_permissoes "fin-$PERFIL@example.test" "$SENHA_OK")"
+  R="$(echo "$OUT" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+  [ -n "$R" ] || { echo "FAIL: script Node (0101 $PERFIL) não retornou resultado"; echo "$OUT"; exit 1; }
+  check "0101 $PERFIL: GET /me -> 200" "$(jget "$R" me_status)" "200"
+  for M in adiantamentos envio_massa validacao_xml motoristas; do
+    check "0101 $PERFIL: modulo '$M' no menu" "$(jget "$R" "modulo_$M")" "true"
+  done
+  for P in envio_massa_consultar validacao_xml_validar motoristas_listar motoristas_consultar; do
+    check "0101 $PERFIL: tem permissao $P" "$(jget "$R" "perm_$P")" "true"
+  done
+  for P in envio_massa_criar envio_massa_enviar envio_massa_aprovar motoristas_editar motoristas_credencial; do
+    check "0101 $PERFIL: NAO tem permissao $P (leitura)" "$(jget "$R" "negada_$P")" "false"
+  done
+  check "0101 $PERFIL: POST /validate-xml-batch passa do gate (400, nao 403)" "$(jget "$R" xml_status)" "400"
+done
+
+# Controle negativo do gate: `leitura` não tem `validacao_xml.validar` (nunca
+# teve `envio_massa.enviar`, então a 0047 não o alcançou) -> 403 no MESMO
+# endpoint que o financeiro atravessa. Sem este par, um gate que deixasse
+# QUALQUER autenticado passar pareceria igualmente verde.
+OUT="$(modulos_e_permissoes 'fin-leitura@example.test' "$SENHA_OK")"
+R="$(echo "$OUT" | grep '___RESULT_JSON___' | sed 's/^___RESULT_JSON___//')"
+[ -n "$R" ] || { echo "FAIL: script Node (0101 controle leitura) não retornou resultado"; echo "$OUT"; exit 1; }
+check "0101 controle (leitura): NAO tem validacao_xml.validar" "$(jget "$R" perm_validacao_xml_validar)" "false"
+check "0101 controle (leitura): /validate-xml-batch -> 403" "$(jget "$R" xml_status)" "403"
+check "0101 controle (leitura): modulo validacao_xml FORA do menu" "$(jget "$R" modulo_validacao_xml)" "false"
 
 echo
 echo "fails=$fails"

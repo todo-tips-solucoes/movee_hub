@@ -2465,7 +2465,13 @@ function xmlBatchUpload(req, res, next) {
 // Casa cada XML com um movimento ABERTO da empresa-alvo e persiste o resultado
 // no registro EXISTENTE via PATCH por id — NUNCA sobrescreve nota APROVADA (gate
 // central). Usa uploadXmlBatch (limite 2 MB/arquivo, 100 arquivos — FASE 0).
-app.post('/validate-xml-batch', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('envio_massa.enviar'), xmlBatchUpload, async (req, res) => {
+// Gate: `validacao_xml.validar` (2026-09-29). Era `envio_massa.enviar` — a
+// 0047 criou a permissão própria só para o item aparecer no menu e deixou
+// escrito que o gate viria depois. Sem esta troca, quem precisa apenas
+// validar NFS-e (o financeiro) teria de ganhar junto o poder de iniciar e
+// parar o disparo de mensagens. Ninguém perde acesso: a 0047 concedeu
+// `validacao_xml.validar` a TODO papel que já tinha `envio_massa.enviar`.
+app.post('/validate-xml-batch', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, hubEnvioMassaRequirePermission('validacao_xml.validar'), xmlBatchUpload, async (req, res) => {
   var files = req.files || [];
 
   if (files.length === 0) {
