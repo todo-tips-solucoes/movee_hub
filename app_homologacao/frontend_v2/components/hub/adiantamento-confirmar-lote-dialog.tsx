@@ -1,9 +1,16 @@
 'use client';
 
 // adiantamento-motorista — components/hub/adiantamento-confirmar-lote-dialog.tsx
-// (tasks.md 7.7.2, H15, D-16): confirmação MANUAL do resultado de um lote —
-// o caminho definitivo (importar o retorno da Transfeera) está bloqueado por
-// Q-B1 (FASE 9, sem arquivo real de exemplo — Constitution VI). Só lotes
+// (tasks.md 7.7.2, H15, D-16): confirmação MANUAL do resultado de um lote.
+//
+// Deixou de ser o único caminho em 2026-09-30: o operador entregou um arquivo
+// real de retorno e a importação ganhou tela
+// (`adiantamento-importar-retorno-dialog.tsx`), que é o caminho preferido —
+// o arquivo da Transfeera diz o resultado de cada pagamento. Este diálogo
+// continua para o que o arquivo não resolve: lote pago por fora, retorno que
+// não sai, correção pontual. Na tela ele aparece como "Confirmar na mão".
+//
+// Só lotes
 // `EXPORTADO` podem ser confirmados (`hub_adiantamento_lote_confirmar`,
 // infra/hub/migrations/0067:1729-1745, `TRANSICAO_INVALIDA` fora disso).
 //

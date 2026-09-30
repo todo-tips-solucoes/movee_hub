@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { AlertCircle, ArrowLeft, Ban, CheckCircle2, Download, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Ban, CheckCircle2, Download, Loader2, FileUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -35,6 +35,10 @@ import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { LoteStatusBadge, LoteItemSituacaoBadge } from '@/components/hub/status-badge';
 import { CancelarLoteDialog, useCancelarLoteDialog } from '@/components/hub/adiantamento-cancelar-lote-dialog';
 import { ConfirmarLoteDialog, useConfirmarLoteDialog } from '@/components/hub/adiantamento-confirmar-lote-dialog';
+import {
+  ImportarRetornoDialog,
+  useImportarRetornoDialog,
+} from '@/components/hub/adiantamento-importar-retorno-dialog';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { LARGURA_DETALHE } from '@/lib/hub/larguras';
 import {
@@ -97,6 +101,11 @@ export default function AdiantamentoLoteDetalhePage() {
       refetch();
     },
   });
+  // Caminho preferido de conciliação: o arquivo da Transfeera diz o resultado
+  // de cada pagamento, em vez de alguém marcar falha por falha (FASE 9, Q-B1
+  // respondida com arquivo real em 2026-09-30). O toast não anuncia número —
+  // quem mostra o placar é o próprio diálogo, que fica aberto no resultado.
+  const importarDialog = useImportarRetornoDialog({ loteId: id, onSucesso: refetch });
 
   const baixar = useCallback(async () => {
     if (!lote) return;
@@ -151,9 +160,15 @@ export default function AdiantamentoLoteDetalhePage() {
                   </Button>
                 )}
                 {permissoes.includes('adiantamentos.pagamento_confirmar') && lote.status === 'EXPORTADO' && (
+                  <Button variant="outline" size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={importarDialog.abrir}>
+                    <FileUp className="size-4" aria-hidden="true" />
+                    Importar retorno
+                  </Button>
+                )}
+                {permissoes.includes('adiantamentos.pagamento_confirmar') && lote.status === 'EXPORTADO' && (
                   <Button variant="outline" size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={confirmarDialog.abrir}>
                     <CheckCircle2 className="size-4" aria-hidden="true" />
-                    Confirmar resultado
+                    Confirmar na mão
                   </Button>
                 )}
                 {permissoes.includes('adiantamentos.exportar') && PODE_BAIXAR.includes(lote.status) && (
@@ -244,6 +259,7 @@ export default function AdiantamentoLoteDetalhePage() {
 
       <CancelarLoteDialog d={cancelarDialog} />
       <ConfirmarLoteDialog d={confirmarDialog} />
+      <ImportarRetornoDialog d={importarDialog} />
     </div>
   );
 }

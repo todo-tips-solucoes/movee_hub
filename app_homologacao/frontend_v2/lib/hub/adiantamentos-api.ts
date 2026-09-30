@@ -51,6 +51,11 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   SOLICITACOES_EM_OUTRO_LOTE: 'Uma ou mais solicitações já estão em outro lote.',
   LOTE_ACIMA_DO_LIMITE: 'O lote excede o limite de 5.000 solicitações.',
   ARQUIVO_INDISPONIVEL: 'O arquivo deste lote não está disponível.',
+  // Importador de retorno (FASE 9 / Q-B1 respondida em 2026-09-18). O motivo
+  // específico (`CABECALHO_INVALIDO`, `ARQUIVO_VAZIO`, `LINHA_DUPLICADA`) vem
+  // no corpo e a tela o traduz — aqui fica só o texto genérico do código.
+  ARQUIVO_INVALIDO: 'O arquivo não está no formato esperado do retorno da Transfeera.',
+  RETORNO_INCOMPLETO: 'O arquivo não traz o resultado de todos os pagamentos deste lote.',
   LIMITE_EXCEDIDO: 'Limite de tentativas excedido. Aguarde alguns minutos.',
   APURACAO_JA_FECHADA: 'Este período já foi fechado.',
   // F3 (repasse-saldo-minimo, FR-021): só a semana seguinte, em ordem, à
@@ -81,7 +86,16 @@ export class AdiantamentosApiError extends HubApiError {
     /** Só presente em `APURACAO_COM_PENDENCIAS` (contagem de solicitações
      * por status que ainda impede o fechamento — routes/hub-adiantamentos.js
      * :1213-1216, 7.8.4/D-23). */
-    public readonly detalhe?: Record<string, number>
+    public readonly detalhe?: Record<string, number>,
+    /** Só presente em `RETORNO_INCOMPLETO`: ids das solicitações do lote que
+     * não têm linha correspondente no arquivo. A rota NÃO aplica nada nesse
+     * caso — aplicar parcialmente marcaria como pago quem não tem retorno. */
+    public readonly faltantes?: number[],
+    /** `motivo` do corpo: em `ARQUIVO_INVALIDO` diz QUAL defeito o leitor
+     * encontrou (`CABECALHO_INVALIDO`, `ARQUIVO_VAZIO`, `LINHA_DUPLICADA`,
+     * `ARQUIVO_MUITO_GRANDE`) — é o que permite dar instrução útil na tela em
+     * vez de "arquivo inválido". */
+    public readonly motivo?: string
   ) {
     super(status, message, codigo);
   }
@@ -92,9 +106,18 @@ function detalheDoErro(body: Record<string, unknown>): Record<string, number> | 
   return d && typeof d === 'object' ? (d as Record<string, number>) : undefined;
 }
 
+function faltantesDoErro(body: Record<string, unknown>): number[] | undefined {
+  const f = body.faltantes;
+  return Array.isArray(f) && f.every((x) => typeof x === 'number') ? (f as number[]) : undefined;
+}
+
 const request = criarRequest(
   (status, body) =>
-    new AdiantamentosApiError(status, mensagemPorCodigo(MENSAGENS_CODIGO, body, status), codigoDoErro(body), detalheDoErro(body))
+    new AdiantamentosApiError(
+      status, mensagemPorCodigo(MENSAGENS_CODIGO, body, status), codigoDoErro(body),
+      detalheDoErro(body), faltantesDoErro(body),
+      typeof body.motivo === 'string' ? body.motivo : undefined
+    )
 );
 
 async function baixarBlob(path: string, nomePadrao: string): Promise<void> {
@@ -538,6 +561,32 @@ export interface ConfirmarLoteInput {
 
 export async function confirmarLote(id: number, dados: ConfirmarLoteInput = { falhas: [] }): Promise<Lote> {
   return request<Lote>(`/adiantamentos/lotes/${id}/confirmacao`, { method: 'POST', body: JSON.stringify(dados) });
+}
+
+/** Uma linha do arquivo que o backend NÃO aplicou, com o motivo técnico.
+ *  Num export de período inteiro isso vem aos milhares (quase tudo
+ *  `ID_INTEGRACAO_INVALIDO`: pagamento de outro processo, sem `ADV-<id>`), por
+ *  isso a tela agrega por motivo em vez de listar. */
+export interface RetornoIgnorada {
+  idIntegracao: string;
+  motivo: string;
+}
+
+export interface ImportarRetornoResponse {
+  aplicadas: number;
+  ignoradas: RetornoIgnorada[];
+}
+
+/** `POST /adiantamentos/lotes/:id/retorno` — concilia o lote a partir do CSV de
+ *  retorno da Transfeera. O casamento é por `ID de integração` (`ADV-<id>`),
+ *  nunca por nome ou valor; o backend recusa o arquivo inteiro (409
+ *  `RETORNO_INCOMPLETO`) se faltar o retorno de algum item do lote, em vez de
+ *  aplicar pela metade. */
+export async function importarRetornoLote(id: number, csvBase64: string): Promise<ImportarRetornoResponse> {
+  return request<ImportarRetornoResponse>(`/adiantamentos/lotes/${id}/retorno`, {
+    method: 'POST',
+    body: JSON.stringify({ csvBase64 }),
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────
