@@ -1,5 +1,10 @@
 # Briefing — executar o vínculo de CNPJ dos entregadores (0093)
 
+> ✅ **EXECUTADO em 2026-09-30.** 91 vínculos (31 contas criadas), entregadores sem vínculo
+> 213 → 122, semana corrente 91% → 96% de cobertura de CNPJ. Números, os dois enganos da
+> execução e como saber o que mudou: [`RUNBOOK-VINCULO-CNPJ.md`](RUNBOOK-VINCULO-CNPJ.md).
+> O que sobrou (33 ambíguos, 88 sem casamento) segue em aberto — ver §3 item 6 e §4.
+
 Prompt para sessão limpa, aberta **em paralelo** a outra frente (2026-09-29).
 **Leia o `CLAUDE.md` antes de qualquer coisa**: o ambiente "homologação" É
 produção, o agente **nunca** escreve no banco de produção (o operador executa),
