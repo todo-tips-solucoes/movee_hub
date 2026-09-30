@@ -123,7 +123,7 @@ export default function AdiantamentosSolicitacoesPage() {
 
   return (
     <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
-      <PageHeader titulo="Adiantamentos" subtitulo="Solicitações dos motoristas, cálculo e situação do pagamento." />
+      <PageHeader titulo="Solicitações" subtitulo="Solicitações dos motoristas, cálculo e situação do pagamento." />
       <AdiantamentosAbas />
 
       <FilterBar

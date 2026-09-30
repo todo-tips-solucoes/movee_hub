@@ -42,6 +42,8 @@ import {
 import { filtrarItensCategoria, montarItensCategoria, type ItemCategoria, restringirAoExtrato } from '@/lib/hub/adiantamento-categorias';
 import { diaDoRepasse, diasAteRepasse } from '@/lib/hub/adiantamento-repasse';
 import { LARGURA_DETALHE } from '@/lib/hub/larguras';
+import { PageHeader } from '@/components/hub/page-header';
+import { AdiantamentosAbas } from '@/components/hub/adiantamentos-abas';
 import { cn, formatDateBR } from '@/lib/utils';
 
 // domingo..sábado (0..6) — mesma convenção de `dias_habilitados`
@@ -399,10 +401,14 @@ export default function ConfiguracoesAdiantamentoPage() {
 
   return (
     <div className={`mx-auto flex w-full ${LARGURA_DETALHE} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
-      <h1 className="text-lg font-semibold">Configurações de adiantamento</h1>
-      <p className="text-sm text-muted-foreground">
-        Regras vigentes do adiantamento. Salvar cria uma nova versão; solicitações já feitas não mudam (FR-022).
-      </p>
+      {/* Mesmo cabeçalho e mesma barra de abas das outras cinco telas do
+          módulo: esta era a única sem navegação — quem entrava aqui ficava
+          sem caminho de volta, o mesmo beco que a tela de lotes tinha. */}
+      <PageHeader
+        titulo="Configurações"
+        subtitulo="Regras vigentes do adiantamento. Salvar cria uma nova versão; solicitações já feitas não mudam."
+      />
+      <AdiantamentosAbas />
 
       {c.carregando ? (
         <ListSkeleton label="Carregando configurações..." linhas={4} />

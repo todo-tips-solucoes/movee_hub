@@ -110,7 +110,7 @@ export default function AdiantamentosLotesPage() {
 
   return (
     <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
-      <PageHeader titulo="Histórico de lotes" subtitulo="Lotes gerados para a Transfeera." />
+      <PageHeader titulo="Lotes" subtitulo="Lotes gerados para a Transfeera, do mais recente ao mais antigo." />
       <AdiantamentosAbas />
 
       <FilterBar

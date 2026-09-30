@@ -31,7 +31,7 @@ describe('AdiantamentosAbas — visibilidade por permissão (tasks.md 7.2.4)', (
     ]);
     render(<AdiantamentosAbas />);
     expect(screen.getByRole('link', { name: 'Solicitações' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Pagamentos' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Aguardando lote' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Lotes' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Contas bancárias' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Repasse' })).toBeInTheDocument();
@@ -43,13 +43,13 @@ describe('AdiantamentosAbas — visibilidade por permissão (tasks.md 7.2.4)', (
     render(<AdiantamentosAbas />);
     expect(screen.queryByRole('link', { name: 'Contas bancárias' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Solicitações' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Pagamentos' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Aguardando lote' })).toBeInTheDocument();
   });
 
-  it('sem adiantamentos.pagamentos_consultar, Pagamentos E Repasse somem juntas (mesma permissão de leitura no backend)', () => {
+  it('sem adiantamentos.pagamentos_consultar, Aguardando lote, Lotes E Repasse somem juntas (mesma permissão de leitura no backend)', () => {
     comPermissoes(['adiantamentos.consultar', 'adiantamentos.contas_consultar']);
     render(<AdiantamentosAbas />);
-    expect(screen.queryByRole('link', { name: 'Pagamentos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Aguardando lote' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Repasse' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Lotes' })).not.toBeInTheDocument();
   });
@@ -73,7 +73,7 @@ describe('AdiantamentosAbas — visibilidade por permissão (tasks.md 7.2.4)', (
     comPermissoes(['adiantamentos.consultar', 'adiantamentos.pagamentos_consultar']);
     mockUsePathname.mockReturnValue('/hub/dashboard/adiantamentos/pagamentos');
     render(<AdiantamentosAbas />);
-    expect(screen.getByRole('link', { name: 'Pagamentos' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Aguardando lote' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Solicitações' })).not.toHaveAttribute('aria-current');
   });
 
@@ -95,6 +95,24 @@ describe('AdiantamentosAbas — visibilidade por permissão (tasks.md 7.2.4)', (
     mockUsePathname.mockReturnValue('/hub/dashboard/adiantamentos/lotes/1');
     render(<AdiantamentosAbas />);
     expect(screen.getByRole('link', { name: 'Lotes' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Pagamentos' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Aguardando lote' })).not.toHaveAttribute('aria-current');
+  });
+
+  // A ordem É a informação: as quatro primeiras abas contam o caminho do
+  // dinheiro (pede -> a pagar -> lote -> repasse da semana), e o cadastro de
+  // apoio vem depois. Sem este caso, uma reordenação acidental passa batida.
+  // "A pagar" foi descartado como rótulo desta aba: já é a coluna do extrato
+  // em repasse/page.tsx (quanto o motorista recebe na semana). Duas contas
+  // diferentes com o mesmo nome, no mesmo módulo.
+  it('as abas seguem a ordem do fluxo, com o cadastro de apoio no fim', () => {
+    comPermissoes([
+      'adiantamentos.consultar',
+      'adiantamentos.pagamentos_consultar',
+      'adiantamentos.contas_consultar',
+    ]);
+    render(<AdiantamentosAbas />);
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual([
+      'Solicitações', 'Aguardando lote', 'Lotes', 'Repasse', 'Contas bancárias', 'Configurações',
+    ]);
   });
 });

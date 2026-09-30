@@ -2,16 +2,31 @@
 
 // adiantamento-motorista — components/hub/adiantamentos-abas.tsx (tasks.md 7.2.1)
 //
-// Navegação por abas do módulo `adiantamentos`: Solicitações · Pagamentos ·
-// Lotes · Contas · Repasse · Configurações. Cada aba só aparece se a entidade ativa
+// Navegação por abas do módulo `adiantamentos`, na ordem do fluxo do dinheiro:
+// Solicitações · Aguardando lote · Lotes · Repasse · Contas bancárias ·
+// Configurações.
+//
+// "Aguardando lote" chamava-se "Pagamentos" até 2026-09-30 e era o rótulo mais
+// enganoso do módulo: a tela lista o que AINDA VAI ser pago (aprovado, fora de
+// lote), nunca o que já foi. O operador procurou nela um lote já gerado — que
+// por definição não está lá — e concluiu que o adiantamento havia sumido. O
+// nome novo diz o estado e encadeia com a aba seguinte: "Aguardando lote" ->
+// "Lotes".
+//
+// ⚠️ NÃO usar "A pagar" aqui: já é a coluna do extrato em `repasse/page.tsx`
+// (quanto o motorista recebe na semana). Mesmo rótulo para duas contas
+// diferentes no mesmo módulo é o vocabulário duplo que o CLAUDE.md proíbe.
+//
+// "Contas bancárias" desceu para depois de "Repasse": é cadastro de apoio, não
+// etapa do caminho do dinheiro (pede -> a pagar -> lote -> repasse da semana). Cada aba só aparece se a entidade ativa
 // tiver a permissão que o respectivo `GET` exige de fato no backend — NÃO a
 // permissão de "gerenciar" da área, que é sobre ação, não sobre visão
 // (contracts/hub-api.md §Parte 2, ground truth em routes/hub-adiantamentos.js):
 //   - Solicitações  -> GET /            -> adiantamentos.consultar
-//   - Pagamentos    -> GET /lotes       -> adiantamentos.pagamentos_consultar
+//   - Aguardando lote -> GET /lotes      -> adiantamentos.pagamentos_consultar
 //   - Lotes         -> GET /lotes       -> adiantamentos.pagamentos_consultar
-//   - Contas        -> GET /contas      -> adiantamentos.contas_consultar
 //   - Repasse       -> GET /repasse     -> adiantamentos.pagamentos_consultar
+//   - Contas        -> GET /contas      -> adiantamentos.contas_consultar
 //   - Configurações -> GET /configuracoes -> adiantamentos.consultar (só o
 //     PUT exige `configurar` — quem só consulta ainda vê a regra vigente)
 //
@@ -33,16 +48,10 @@ const BASE = '/hub/dashboard/adiantamentos';
 
 const ABAS: Aba[] = [
   { href: BASE, label: 'Solicitações', permissao: 'adiantamentos.consultar' },
-  { href: `${BASE}/pagamentos`, label: 'Pagamentos', permissao: 'adiantamentos.pagamentos_consultar' },
-  // A tela `/lotes` existe desde 7.7.2 mas ficou ÓRFÃ na navegação: só se
-  // chegava nela pelo `router.push` logo após gerar o lote, ou pela URL na
-  // mão. Quem saísse da tela perdia o caminho — e o adiantamento também já
-  // não estava em "Pagamentos" (essa aba lista o que ainda NÃO entrou em
-  // lote), então parecia ter sumido. Aconteceu de verdade com o operador em
-  // 2026-09-30, com o lote pronto e o arquivo esperando upload na Transfeera.
+  { href: `${BASE}/pagamentos`, label: 'Aguardando lote', permissao: 'adiantamentos.pagamentos_consultar' },
   { href: `${BASE}/lotes`, label: 'Lotes', permissao: 'adiantamentos.pagamentos_consultar' },
-  { href: `${BASE}/contas`, label: 'Contas bancárias', permissao: 'adiantamentos.contas_consultar' },
   { href: `${BASE}/repasse`, label: 'Repasse', permissao: 'adiantamentos.pagamentos_consultar' },
+  { href: `${BASE}/contas`, label: 'Contas bancárias', permissao: 'adiantamentos.contas_consultar' },
   { href: `${BASE}/configuracoes`, label: 'Configurações', permissao: 'adiantamentos.consultar' },
 ];
 
