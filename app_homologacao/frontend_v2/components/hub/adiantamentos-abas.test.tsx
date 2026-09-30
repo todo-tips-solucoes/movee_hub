@@ -23,7 +23,7 @@ function comPermissoes(permissoes: string[] | undefined) {
 }
 
 describe('AdiantamentosAbas — visibilidade por permissão (tasks.md 7.2.4)', () => {
-  it('com todas as 4 permissões distintas, mostra as 5 abas', () => {
+  it('com todas as permissões distintas, mostra as 6 abas', () => {
     comPermissoes([
       'adiantamentos.consultar',
       'adiantamentos.pagamentos_consultar',
@@ -32,6 +32,7 @@ describe('AdiantamentosAbas — visibilidade por permissão (tasks.md 7.2.4)', (
     render(<AdiantamentosAbas />);
     expect(screen.getByRole('link', { name: 'Solicitações' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Pagamentos' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Lotes' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Contas bancárias' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Repasse' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Configurações' })).toBeInTheDocument();
@@ -50,6 +51,7 @@ describe('AdiantamentosAbas — visibilidade por permissão (tasks.md 7.2.4)', (
     render(<AdiantamentosAbas />);
     expect(screen.queryByRole('link', { name: 'Pagamentos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Repasse' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Lotes' })).not.toBeInTheDocument();
   });
 
   it('só 1 aba visível -> nada a navegar, componente não renderiza nada', () => {
@@ -73,5 +75,26 @@ describe('AdiantamentosAbas — visibilidade por permissão (tasks.md 7.2.4)', (
     render(<AdiantamentosAbas />);
     expect(screen.getByRole('link', { name: 'Pagamentos' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Solicitações' })).not.toHaveAttribute('aria-current');
+  });
+
+  // 2026-09-30: a tela `/lotes` existia sem aba nenhuma. O operador gerou o
+  // lote, saiu da tela e não achou mais o caminho — nem em "Pagamentos", que
+  // por definição só lista o que ainda NÃO entrou em lote. Estes dois casos
+  // existem para que a entrada não se perca de novo.
+  it('a aba Lotes aponta para /adiantamentos/lotes', () => {
+    comPermissoes(['adiantamentos.consultar', 'adiantamentos.pagamentos_consultar']);
+    render(<AdiantamentosAbas />);
+    expect(screen.getByRole('link', { name: 'Lotes' })).toHaveAttribute(
+      'href',
+      '/hub/dashboard/adiantamentos/lotes'
+    );
+  });
+
+  it('no DETALHE de um lote a aba Lotes fica ativa, e Pagamentos não', () => {
+    comPermissoes(['adiantamentos.consultar', 'adiantamentos.pagamentos_consultar']);
+    mockUsePathname.mockReturnValue('/hub/dashboard/adiantamentos/lotes/1');
+    render(<AdiantamentosAbas />);
+    expect(screen.getByRole('link', { name: 'Lotes' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Pagamentos' })).not.toHaveAttribute('aria-current');
   });
 });
