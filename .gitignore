@@ -64,5 +64,8 @@ docs/nota_entrego/
 __pycache__/
 *.pyc
 
-# PII: evidencias com dado pessoal visivel na imagem (feature hub-motorista-360)
-arquivos_complementares/hub-motorista-360-evidencias/
+# PII: scratchpad do operador — relatórios e retornos reais (nomes, documentos,
+# contas, e URLs de comprovante da Transfeera com JWT portador). A pasta INTEIRA
+# fica fora do git: em 2026-10-01 o gitleaks achou 3812 JWTs de comprovante e
+# 7574 linhas de PII financeira aqui, e o repo é PÚBLICO.
+arquivos_complementares/

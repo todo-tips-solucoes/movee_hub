@@ -1,0 +1,39 @@
+# Config do gitleaks para este repositório (PÚBLICO — todo blob commitado é
+# público para sempre; não existe "apagar depois").
+#
+# Rodar à mão:
+#   gitleaks git   --redact .            # histórico inteiro
+#   gitleaks git   --redact --staged .   # só o que está no índice (é o pre-commit)
+#   gitleaks dir   --redact .            # working tree, inclui não-versionados
+#
+# SEMPRE com --redact: sem ele o relatório passa a conter os próprios segredos.
+# Instalar o binário + o hook: scripts/instalar-hook-gitleaks.sh
+#
+# Varredura de 2026-10-01 (v8.30.1, 347 commits): 2 achados no histórico, ambos
+# falsos positivos, allowlisted abaixo com o motivo conferido.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """Planos de execução do Postgres. EXPLAIN ANALYZE imprime \
+'Group Key: <coluna>' e a regra generic-api-key lê isso como atribuição de \
+chave. O valor capturado é nome de coluna."""
+regexTarget = "line"
+regexes = ['''(Group|Sort|Index Cond|Hash Cond|Hash|Filter|Cache) Key:''']
+
+[[allowlists]]
+description = """Fixtures dummy do preflight negativo do hub. O próprio script \
+diz 'valores dummy; nunca os reais'; conferido em 2026-10-01 comparando o \
+sha256 do fixture com os 4 /var/lib/hub_secrets/.env.hub.* reais — nenhum bate."""
+paths = ['''^infra/hub/testes/preflight-negativo\.sh$''']
+
+[[allowlists]]
+description = "Ruído de varredura de diretório: dependências, builds e binários."
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''(^|/)(dist|build|coverage)/''',
+  '''(^|/)package-lock\.json$''',
+  '''\.(png|jpg|jpeg|gif|svg|mp4|pdf|xlsx|zip|dump|woff2?)$''',
+]
