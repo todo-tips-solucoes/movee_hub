@@ -106,3 +106,45 @@ keep-alive sobreviveu à troca.
 git, é aceitável — mas o padrão do projeto para segredo é
 `/var/lib/hub_secrets/` (modo 600), de onde o script pode ler. Isso evita que a
 próxima cópia do script carregue a credencial junto.
+
+## Varredura automatizada — gitleaks (2026-10-01)
+
+A varredura manual desta frente foi por padrões escolhidos à mão. Rodamos o
+`gitleaks` v8.30.1 por cima, para pegar o que não foi pensado.
+
+**Histórico (347 commits, 17,8 MB): 2 achados, ambos falsos positivos.**
+
+| Achado | Veredito |
+|---|---|
+| `evidencias/S6/followup-sc004-mv.md:94` | `Group Key: filtro_1.f_descricao` de um `EXPLAIN ANALYZE` — a regra lê "Key:" como atribuição |
+| `infra/hub/testes/preflight-negativo.sh:29` | fixture dummy; o `sha256` do valor não bate com nenhum dos 4 `/var/lib/hub_secrets/.env.hub.*` reais |
+
+Os dois estão allowlistados em `.gitleaks.toml` **com o motivo conferido**, não
+suprimidos. Nenhum segredo real jamais entrou no histórico deste repositório.
+
+**Working tree (597 MB, inclui não-versionados): 7600 achados, todos em arquivos
+fora do git — mas um deles estava a um `git add -A` de distância.**
+
+`arquivos_complementares/` tinha 3812 JWTs de comprovante da Transfeera
+(`api.transfeera.com/pub/…` — link portador: quem tem o link vê o comprovante
+bancário) e 7574 linhas de PII financeira, e **não estava no `.gitignore`** — só
+duas subpastas estavam. A única defesa era a disciplina de `git add` por caminho
+explícito. Agora a pasta inteira é ignorada. Os `.env` e `.claude/settings*`
+apontados pela varredura já eram ignorados (conferido um a um).
+
+### Como rodar, e a guarda
+
+```bash
+scripts/instalar-hook-gitleaks.sh      # binário pinado + hook pre-commit (prova sozinho que não está oco)
+gitleaks git --redact .                # histórico inteiro
+gitleaks dir --redact .                # working tree, inclui não-versionados
+```
+
+**Sempre `--redact`** — sem ele o relatório passa a ser o próprio vazamento.
+Relatório com PII vai para `~/`, fora do git; no chat, só contagens.
+
+⚠️ **Dois jeitos de a varredura passar sem provar nada**, os dois pegos aqui por
+controle negativo: a regra `aws-access-token` exige **base32** (`AKIA` +
+`[A-Z2-7]{16}`) — um valor de teste com `0/1/8/9` não casa; e valores de exemplo
+da própria AWS (`…EXAMPLEKEY`) são allowlist da ferramenta. Teste de hook de
+segredo sem controle negativo é teste oco.
