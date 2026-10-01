@@ -33,6 +33,27 @@ describe('manifest do app instalável', () => {
     }
   });
 
+  it('os ícones maskable são arquivos próprios e sem transparência', () => {
+    // O defeito que isto guarda: a 1ª versão declarou o `go-512.png` comum como
+    // maskable e o Android cortou as bordas do logo (visto no aparelho). E
+    // maskable com canal alpha deixa o launcher pintar o fundo DELE atrás do
+    // logo. Regerar com `scripts/gerar-icones-maskable.sh`.
+    const maskables = (m.icons ?? []).filter((i) => i.purpose === 'maskable');
+    const comuns = (m.icons ?? []).filter((i) => i.purpose !== 'maskable').map((i) => String(i.src));
+    expect(maskables.length).toBeGreaterThan(0);
+
+    for (const icone of maskables) {
+      const src = String(icone.src);
+      expect(comuns, `maskable reusando o ícone comum: ${src}`).not.toContain(src);
+
+      // color type do PNG: byte 25 do IHDR. 6 = RGBA, 4 = cinza+alpha.
+      const png = readFileSync(path.join(__dirname, '..', 'public', src));
+      expect(png.subarray(1, 4).toString()).toBe('PNG');
+      const colorType = png[25];
+      expect([6, 4], `maskable com canal alpha: ${src}`).not.toContain(colorType);
+    }
+  });
+
   it('usa a marca que o produto já mostra na tela, não um terceiro vocabulário', () => {
     // Wordmark do login/header e a aba do painel dizem EntreGô; "Movee" vive no
     // domínio e nos e-mails. Trocar isto é decisão de marca, não refactor.

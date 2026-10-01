@@ -26,10 +26,16 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: 'pt-BR',
     background_color: '#ffffff',
     theme_color: '#0f172a',
+    // ⚠️ `maskable` tem arquivo PRÓPRIO, com área de segurança. O launcher do
+    // Android recorta o ícone em círculo/squircle e só preserva o que está
+    // dentro de um círculo de 80% do lado — declarar o `go-512.png` aqui, como
+    // na primeira versão, cortava as bordas do logo (visto no aparelho).
+    // Regerar com `scripts/gerar-icones-maskable.sh`, nunca à mão.
     icons: [
-      { src: '/brand/go-192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/brand/go-512.png', sizes: '512x512', type: 'image/png' },
-      { src: '/brand/go-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: '/brand/go-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/brand/go-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/brand/go-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      { src: '/brand/go-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   };
 }
