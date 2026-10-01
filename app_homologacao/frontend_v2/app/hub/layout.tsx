@@ -16,6 +16,7 @@ import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { HubAuthProvider } from '@/contexts/hub-auth-context';
 import { HubSessionGuard } from '@/components/hub/session-guard';
+import { PwaRegister } from '@/components/hub/pwa-register';
 
 // impeccable rodada 8 (P2): as 13 rotas do hub compartilhavam UM título de aba
 // — e ele nomeava o produto legado ("EntreGô — Envio em Massa") mesmo em
@@ -31,11 +32,15 @@ import { HubSessionGuard } from '@/components/hub/session-guard';
 // seria doze arquivos para um dado que a navegação já carrega.
 export const metadata: Metadata = {
   title: { default: 'Hub de Frota', template: '%s · Hub de Frota' },
+  // `<link rel="manifest">` — a rota vem de `app/manifest.ts`. Fica aqui e não
+  // no layout raiz porque o app instalável é o hub: o `start_url` é `/hub`.
+  manifest: '/manifest.webmanifest',
 };
 
 export default function HubLayout({ children }: { children: ReactNode }) {
   return (
     <HubAuthProvider>
+      <PwaRegister />
       <HubSessionGuard>{children}</HubSessionGuard>
     </HubAuthProvider>
   );
