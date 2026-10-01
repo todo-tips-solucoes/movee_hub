@@ -13,7 +13,7 @@
     "@serwist/next": "^9.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "next": "16.3.5",
+    "next": "16.3.8",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "serwist": "^9.0.0",
@@ -30,5 +30,8 @@
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "browserslist": "^4.29.3"
   }
 }
