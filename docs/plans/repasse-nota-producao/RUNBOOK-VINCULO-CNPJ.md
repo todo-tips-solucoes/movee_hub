@@ -180,5 +180,43 @@ recebido conta bancária ou solicitação. Desfazer é decisão à parte, com li
 
 ## O que NÃO é resolvido aqui
 
-Os **ambíguos** (33 em 30/09) e os **sem casamento** (88) continuam sem CNPJ. Os ambíguos pedem revisão
-humana — ou uma segunda chave, e todos têm `id_externo` da EntreGô, que pode servir.
+Os **ambíguos** (33 em 30/09) e os **sem casamento** (88) continuam sem CNPJ.
+
+### ⚠️ O `id_externo` da EntreGô NÃO resolve os ambíguos — investigado em 01/10
+
+Este runbook sugeria o `id_externo` como segunda chave. **Não serve**, e a investigação está
+aqui para ninguém gastar o tempo de novo:
+
+- A `EnvioMassa` — a única fonte de CNPJ por nome — **não tem** `id_externo` nem CPF. Suas
+  colunas de identificação são `nome`, `cnpj_prestador` e `number` (telefone).
+- `EnvioMassa.entregador_uuid` existe e seria a ponte natural, mas está **100% vazia**
+  (0 de 51.129 linhas da empresa 6). Coluna preparada e nunca populada.
+- O que a EntreGô traz de aproveitável é `dados_entrego_json -> dadosPessoais.telefone`
+  (e `cpf`, que a `EnvioMassa` não tem para cruzar). O telefone desempata **3 dos 33**: em 11
+  casos o MESMO telefone aparece em CNPJs diferentes.
+
+### O que a investigação achou de útil: a maioria não é homônimo
+
+Cruzando os períodos (`dt_inicial`/`dt_final`) dos CNPJs candidatos de cada nome:
+
+| Classificação | Ambíguos | Leitura |
+|---|---|---|
+| `TROCOU_DE_CNPJ_PERIODOS_SEQUENCIAIS` | **14** | mesma pessoa, trocou de MEI — períodos não se sobrepõem (e o telefone confere) |
+| `HOMONIMO_PERIODOS_SOBREPOSTOS` | **8** | duas pessoas faturando ao mesmo tempo — são exatamente as 8 com telefones diferentes |
+| `INDETERMINADO_SEM_DATA` | **11** | sem data para comparar |
+
+Duas medições independentes (telefone e sobreposição temporal) apontam os **mesmos 8**
+homônimos reais — é o grupo que nenhuma regra deve tocar.
+
+### Decisão de 01/10: resolver na tela, não por migration
+
+Automatizar renderia **13 dos 33** (os sequenciais com CNPJ mais recente sem empate de data) e
+criaria uma heurística de recência decidindo em qual CNPJ a nota sai. Para 33 casos, o
+caminho é o **vínculo manual que já existe** (`POST /motoristas/:id/vinculo`, diálogo na tela de
+Motoristas), com um relatório que torna cada decisão rápida.
+
+**Relatório** (gerado em 01/10, 79 linhas = 33 entregadores × CNPJs candidatos): por linha traz
+nome, `id_externo`, CNPJ candidato, período, nº de linhas na EnvioMassa, telefone dos dois lados,
+a marca `TELEFONE CONFERE` e, nos sequenciais, qual é o `MAIS RECENTE — candidato`. Tem PII:
+fica em `~/ambiguos-vinculo-cnpj-<timestamp>.csv`, **fora do git**, e no chat só contagens.
+Priorização: 16 dos 33 produziram na semana corrente — a coluna `produziu_nesta_semana` ordena.
