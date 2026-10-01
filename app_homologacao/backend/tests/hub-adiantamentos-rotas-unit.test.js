@@ -423,13 +423,17 @@ app.use('/api/v1/adiantamentos', router);
 let server;
 let baseUrl;
 
-function request(method, path, { body, cookie } = {}) {
+function request(method, path, { body, cookie, raw, contentType } = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, baseUrl);
-    const bodyStr = body !== undefined ? JSON.stringify(body) : undefined;
+    // `raw` + `contentType`: corpo que NÃO é JSON. A importação de retorno
+    // recebe `text/csv` justamente para escapar do `express.json()` global de
+    // 100 KB (gate owasp-security 2026-10-01) — o teste tem de falar a mesma
+    // língua, senão exercita um caminho que não existe em produção.
+    const bodyStr = raw !== undefined ? raw : (body !== undefined ? JSON.stringify(body) : undefined);
     const headers = {};
-    if (bodyStr) {
-      headers['Content-Type'] = 'application/json';
+    if (bodyStr !== undefined) {
+      headers['Content-Type'] = contentType || 'application/json';
       headers['Content-Length'] = Buffer.byteLength(bodyStr);
     }
     if (cookie) headers.Cookie = cookie;
@@ -1224,12 +1228,17 @@ const LINHA_RETORNO_PADRAO = {
   'Recibo bancário': '', 'Recibo Transfeera': 'rec_teste', 'Código de erro': '', 'Motivo da falha': '',
 };
 
-function csvRetornoBase64(linhasOverrides) {
+function csvRetornoTexto(linhasOverrides) {
   const cab = CABECALHO_RETORNO.join(',');
   const corpo = linhasOverrides
     .map((over) => CABECALHO_RETORNO.map((c) => ({ ...LINHA_RETORNO_PADRAO, ...over }[c])).join(','))
     .join('\n');
-  return Buffer.from(`${cab}\n${corpo}\n`, 'utf-8').toString('base64');
+  return `${cab}\n${corpo}\n`;
+}
+
+/** Atalho para o corpo da rota de retorno: texto cru em `text/csv`. */
+function corpoRetorno(linhasOverrides) {
+  return { raw: csvRetornoTexto(linhasOverrides), contentType: 'text/csv' };
 }
 
 function itemLote({
@@ -1248,15 +1257,14 @@ function itemLote({
 describe('FASE 9 — POST /lotes/:id/retorno', () => {
   beforeEach(resetFixtures);
 
-  test('csvBase64 ausente -> 400 DADOS_INVALIDOS', async () => {
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { body: {}, cookie: tokenCookie() });
+  test('corpo ausente -> 400 DADOS_INVALIDOS', async () => {
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { raw: '', contentType: 'text/csv', cookie: tokenCookie() });
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'DADOS_INVALIDOS');
   });
 
   test('cabeçalho fora do contrato -> 400 ARQUIVO_INVALIDO/CABECALHO_INVALIDO', async () => {
-    const csvBase64 = Buffer.from('a,b,c\n1,2,3\n', 'utf-8').toString('base64');
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { body: { csvBase64 }, cookie: tokenCookie() });
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { raw: 'a,b,c\n1,2,3\n', contentType: 'text/csv', cookie: tokenCookie() });
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
     assert.equal(r.body.motivo, 'CABECALHO_INVALIDO');
@@ -1267,13 +1275,12 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
   // Devolvida vencia a Finalizada e o pagamento já feito virava FALHOU.
   test('mesmo ADV-<id> repetido com status conflitante -> 400 ARQUIVO_INVALIDO/LINHA_DUPLICADA, RPC nunca chamada', async () => {
     loteItensFixture = [itemLote({ id: 1, solicitacaoId: 100, valor: '250.00', colIdIntegracao: 'ADV-000100' })];
-    const csvBase64 = csvRetornoBase64([
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
       { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
       {
         'ID de integração': 'ADV-000100', Status: 'Devolvida', Valor: '250.00', 'Código de erro': 'DBA_20', 'Motivo da falha': 'Conta ou dígito verificador da conta inválido.',
       },
-    ]);
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { body: { csvBase64 }, cookie: tokenCookie() });
+    ]), cookie: tokenCookie() });
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
     assert.equal(r.body.motivo, 'LINHA_DUPLICADA');
@@ -1285,16 +1292,19 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
       itemLote({ id: 1, solicitacaoId: 100, valor: '250.00', colIdIntegracao: 'ADV-000100' }),
       itemLote({ id: 2, solicitacaoId: 101, valor: '80.00', colIdIntegracao: 'ADV-000101' }),
     ];
-    const csvBase64 = csvRetornoBase64([
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
       { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
       {
         'ID de integração': 'ADV-000101', Status: 'Devolvida', Valor: '80.00', 'Código de erro': 'DBA_20', 'Motivo da falha': 'Conta ou dígito verificador da conta inválido.',
       },
-    ]);
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { body: { csvBase64 }, cookie: tokenCookie() });
+    ]), cookie: tokenCookie() });
     assert.equal(r.status, 200);
     assert.equal(r.body.aplicadas, 2);
-    assert.deepEqual(r.body.ignoradas, []);
+    // Desde o gate owasp-security (2026-10-01) a resposta traz CONTAGEM e
+    // agregado por motivo — nunca as linhas, cujo `ID de integração` é texto
+    // livre do parceiro e carrega nome de pessoas.
+    assert.equal(r.body.ignoradas, 0);
+    assert.deepEqual(r.body.ignoradasPorMotivo, []);
 
     const chamadaConfirmar = chamadasPostgrest.find((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar');
     assert.ok(chamadaConfirmar);
@@ -1311,10 +1321,9 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
       itemLote({ id: 1, solicitacaoId: 100, valor: '250.00', colIdIntegracao: 'ADV-000100' }),
       itemLote({ id: 2, solicitacaoId: 101, valor: '80.00', colIdIntegracao: 'ADV-000101' }),
     ];
-    const csvBase64 = csvRetornoBase64([
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
       { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
-    ]);
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { body: { csvBase64 }, cookie: tokenCookie() });
+    ]), cookie: tokenCookie() });
     assert.equal(r.status, 409);
     assert.equal(r.body.erro, 'RETORNO_INCOMPLETO');
     assert.deepEqual(r.body.faltantes, [101]);
@@ -1323,21 +1332,26 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
 
   test('reimportação (item já pago) -> 200 aplicadas:0, ignoradas JA_APLICADO, RPC não chamada de novo', async () => {
     loteItensFixture = [itemLote({ id: 1, solicitacaoId: 100, valor: '250.00', colIdIntegracao: 'ADV-000100', situacao: 'pago' })];
-    const csvBase64 = csvRetornoBase64([
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
       { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
-    ]);
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { body: { csvBase64 }, cookie: tokenCookie() });
+    ]), cookie: tokenCookie() });
     assert.equal(r.status, 200);
     assert.equal(r.body.aplicadas, 0);
-    assert.deepEqual(r.body.ignoradas, [{ idIntegracao: 'ADV-000100', motivo: 'JA_APLICADO' }]);
+    assert.equal(r.body.ignoradas, 1);
+    assert.deepEqual(r.body.ignoradasPorMotivo, [{ motivo: 'JA_APLICADO', total: 1 }]);
     assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
-    assert.ok(!registrosAuditoria.some((e) => e.acao === 'adiantamento.retorno_importado'));
+    // A asserção aqui era `!some(...)`: tentativa que não aplicava nada NÃO
+    // deixava rastro — o teste codificava o defeito que o gate owasp-security
+    // apontou (A09). Agora toda tentativa é auditada, com `aplicadas: 0`; é
+    // justamente a reimportação repetida que interessa ver na trilha.
+    const auditoriaReimport = registrosAuditoria.find((e) => e.acao === 'adiantamento.retorno_importado');
+    assert.ok(auditoriaReimport, 'tentativa sem efeito também precisa de trilha');
+    assert.deepEqual(auditoriaReimport.detalhes, { aplicadas: 0, falhas: 0, ignoradas: 1 });
   });
 
   test('lote sem itens no escopo -> 404 NAO_ENCONTRADO', async () => {
     loteItensFixture = [];
-    const csvBase64 = csvRetornoBase64([{ 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' }]);
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { body: { csvBase64 }, cookie: tokenCookie() });
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([{ 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' }]), cookie: tokenCookie() });
     assert.equal(r.status, 404);
     assert.equal(r.body.erro, 'NAO_ENCONTRADO');
   });
@@ -1677,7 +1691,9 @@ describe('4.7.3/1.4.4 — 403 sem nenhuma das 10 permissões em toda rota nova d
     ['GET', '/api/v1/adiantamentos/lotes/900/arquivo'],
     ['POST', '/api/v1/adiantamentos/lotes/900/cancelar', { motivo: 'x'.repeat(10) }],
     ['POST', '/api/v1/adiantamentos/lotes/900/confirmacao', { falhas: [] }],
-    ['POST', '/api/v1/adiantamentos/lotes/900/retorno', { csvBase64: Buffer.from('x').toString('base64') }],
+    // `null` de body + `raw`: esta rota recebe `text/csv`, não JSON — e o que
+    // o caso mede (403/401 antes de qualquer leitura de corpo) não depende dele.
+    ['POST', '/api/v1/adiantamentos/lotes/900/retorno', null, { raw: 'x', contentType: 'text/csv' }],
     ['GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08'],
     ['GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08'],
     ['POST', '/api/v1/adiantamentos/repasse/2026-09-08/fechar', { confirmacao: true }],
@@ -1688,9 +1704,10 @@ describe('4.7.3/1.4.4 — 403 sem nenhuma das 10 permissões em toda rota nova d
     permissoesPorEntidade = new Set([]); // 0 das 10 permissões
   });
 
-  for (const [method, path, body] of ROTAS) {
+  for (const [method, path, body, extra] of ROTAS) {
     test(`${method} ${path} -> 403 PERMISSAO_NEGADA`, async () => {
-      const r = await request(method, path, { body, cookie: tokenCookie() });
+      // `extra` só existe para a rota de retorno, que recebe `text/csv`.
+      const r = await request(method, path, { body: body ?? undefined, ...extra, cookie: tokenCookie() });
       assert.equal(r.status, 403);
       assert.equal(r.body && r.body.erro, 'PERMISSAO_NEGADA');
     });

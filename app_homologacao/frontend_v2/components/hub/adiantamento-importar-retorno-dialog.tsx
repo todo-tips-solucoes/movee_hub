@@ -39,13 +39,14 @@ import {
 import {
   AdiantamentosApiError,
   importarRetornoLote,
-  type RetornoIgnorada,
+  type RetornoIgnoradaPorMotivo,
 } from '@/lib/hub/adiantamentos-api';
 
-/** Teto de transporte da rota (`express.json({ limit: '12mb' })`): o base64
- *  infla ~4/3, então o CSV precisa caber em ~9 MB. O export real de um mês tem
- *  3,4 MB — a checagem existe para o caso de alguém exportar o ano. */
-const CSV_MAX_BYTES = 9 * 1024 * 1024;
+/** Teto de transporte da rota (`express.text({ limit: '12mb' })`). Desde
+ *  2026-10-01 o CSV vai cru, sem base64, então o limite é o próprio tamanho do
+ *  arquivo — não mais 3/4 dele. O export real de um mês tem 3,4 MB; a checagem
+ *  existe para o caso de alguém exportar o ano inteiro. */
+const CSV_MAX_BYTES = 12 * 1024 * 1024;
 
 /** Tradução dos motivos técnicos do backend
  *  (lib/adiantamento-retorno-transfeera.js#casarComItensDoLote). Não invento
@@ -75,31 +76,12 @@ function rotuloIgnorada(motivo: string): string {
   return MOTIVO_IGNORADA[motivo] ?? motivo;
 }
 
-/** Agrega as ignoradas por motivo, em ordem decrescente — é o que cabe na tela
- *  quando o arquivo tem milhares de linhas de outros pagamentos. */
-export function agruparIgnoradas(ignoradas: RetornoIgnorada[]): { rotulo: string; total: number }[] {
-  const porMotivo = new Map<string, number>();
-  for (const i of ignoradas) {
-    const r = rotuloIgnorada(i.motivo);
-    porMotivo.set(r, (porMotivo.get(r) ?? 0) + 1);
-  }
-  return [...porMotivo.entries()]
-    .map(([rotulo, total]) => ({ rotulo, total }))
-    .sort((a, b) => b.total - a.total);
-}
-
-/** `File` -> base64 puro (sem o prefixo `data:`), que é o que a rota espera. */
-function lerComoBase64(arquivo: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const leitor = new FileReader();
-    leitor.onerror = () => reject(new Error('Não foi possível ler o arquivo.'));
-    leitor.onload = () => {
-      const resultado = typeof leitor.result === 'string' ? leitor.result : '';
-      const virgula = resultado.indexOf(',');
-      resolve(virgula >= 0 ? resultado.slice(virgula + 1) : '');
-    };
-    leitor.readAsDataURL(arquivo);
-  });
+/** Traduz os motivos que o backend já devolve agregados. A agregação saiu do
+ *  cliente em 2026-10-01: ela existia porque a resposta trazia linha a linha —
+ *  com nome de pessoas no `ID de integração`. Agora o servidor manda só as
+ *  contagens, e aqui é só rótulo. */
+export function rotularIgnoradas(ignoradas: RetornoIgnoradaPorMotivo[]): { rotulo: string; total: number }[] {
+  return ignoradas.map((i) => ({ rotulo: rotuloIgnorada(i.motivo), total: i.total }));
 }
 
 export interface UseImportarRetornoDialogArgs {
@@ -129,7 +111,7 @@ export function useImportarRetornoDialog({ loteId, onSucesso }: UseImportarRetor
     setResultado(null);
     if (f && f.size > CSV_MAX_BYTES) {
       setArquivo(null);
-      setErro('Arquivo grande demais (máximo 9 MB). Exporte um período menor.');
+      setErro('Arquivo grande demais (máximo 12 MB). Exporte um período menor.');
       return;
     }
     setArquivo(f);
@@ -140,9 +122,11 @@ export function useImportarRetornoDialog({ loteId, onSucesso }: UseImportarRetor
     setEnviando(true);
     setErro(null);
     try {
-      const base64 = await lerComoBase64(arquivo);
-      const r = await importarRetornoLote(loteId, base64);
-      setResultado({ aplicadas: r.aplicadas, grupos: agruparIgnoradas(r.ignoradas) });
+      // `File.text()` decodifica como UTF-8 — o mesmo que o backend assume ao
+      // ler o corpo. Sem base64 desde 2026-10-01 (ver `importarRetornoLote`).
+      const csv = await arquivo.text();
+      const r = await importarRetornoLote(loteId, csv);
+      setResultado({ aplicadas: r.aplicadas, grupos: rotularIgnoradas(r.ignoradasPorMotivo) });
       onSucesso();
     } catch (e) {
       if (e instanceof AdiantamentosApiError) {

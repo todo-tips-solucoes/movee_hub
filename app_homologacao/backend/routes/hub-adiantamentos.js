@@ -354,6 +354,12 @@ const loteRateLimiter = limiterPorUsuario(30);
 // painel de BI recarregando basta — degrada o produto legado junto. Balde
 // próprio, para não competir com a prévia nem com a criação de lote (11.28).
 const exportarRepasseRateLimiter = limiterPorUsuario(30);
+// Gate owasp-security de 2026-10-01 (o primeiro que esta rota recebeu): a
+// importação de retorno era a rota de MAIOR corpo e maior custo de CPU — até
+// 10.000 linhas divididas em memória — e a única das caras sem limitador.
+// Balde próprio e mais estreito que os outros: conciliar um lote é ato raro
+// (uma vez por lote pago), não fluxo contínuo como prévia ou export.
+const retornoRateLimiter = limiterPorUsuario(10);
 
 // ════════════════════════════════════════════════════════════════════════
 // 4.1 — Solicitações
@@ -1321,38 +1327,46 @@ router.post('/lotes/:id/confirmacao', requireModuloAtivo('adiantamentos'), requi
  * desta FASE (nenhuma migration está listada em 9.1.1-9.1.8). Registrado
  * como acompanhamento, não bloqueia a aplicação.
  */
-// Revisão de segurança 2026-09-18: teto de corpo PRÓPRIO desta rota. O
-// `express.json()` global (server.js:220) fica em 100 KB e NÃO deve subir —
-// ele está montado antes de toda autenticação, então aumentá-lo daria a
+// O CORPO CHEGA COMO `text/csv`, não como JSON com base64 — e isto é o que
+// faz a rota existir de verdade.
+//
+// Gate owasp-security de 2026-10-01: a rota era INALCANÇÁVEL com arquivo real.
+// O `express.json()` global (server.js:220) usa o default de 100 KB e está
+// montado ANTES do router (server.js:2948), então todo CSV real (3,4 MB → 4,32
+// MiB em base64) levava `413 Payload Too Large` em HTML antes de qualquer
+// autenticação — medido em produção: 200 KB sem cookie devolvia 413, enquanto
+// um corpo pequeno devolvia 401. O teto próprio da rota nunca era alcançado, e
+// a tela mostrava um erro genérico porque 413 não vem em JSON.
+//
+// Subir o global NÃO é opção: ele roda antes da auth, e aumentá-lo daria a
 // qualquer um na internet o direito de fazer o processo parsear corpos
-// grandes. Aqui os 5 MB só existem para um usuário autenticado e com
-// `pagamento_confirmar`. Dimensionado junto com `MAX_LINHAS_RETORNO`
-// (10.000 linhas ≈ 2 MB de CSV ≈ 2,7 MB em base64) — sobra folga.
-// Limite 12 MB (era 5 MB, 2026-09-30): o export real de UM mês do portal tem
-// 3,4 MB de CSV, que em base64 dá 4,32 MiB — 86% do teto antigo. O mês
-// seguinte estouraria com PayloadTooLargeError, e o operador veria só um erro
-// genérico. O teto de LINHAS (`MAX_LINHAS_RETORNO` = 10000) continua sendo a
-// trava de verdade contra arquivo adulterado; este limite é só de transporte.
-router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), express.json({ limit: '12mb' }), async (req, res) => {
+// grandes. A saída é não ser JSON: `express.json()` só toca
+// `application/json`, então um corpo `text/csv` passa direto por ele e é lido
+// AQUI, depois de `requireModuloAtivo` + `requirePermission` — que é onde o
+// comentário de 18/09 queria o limite desde o começo.
+//
+// Bônus: sem base64 o payload cai 25% (3,24 MiB em vez de 4,32 MiB para o
+// mesmo arquivo). O teto de LINHAS (`MAX_LINHAS_RETORNO` = 10000) continua
+// sendo a trava de verdade contra arquivo adulterado; 12 MB é só transporte.
+router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), retornoRateLimiter, express.text({ limit: '12mb', type: ['text/csv', 'text/plain'] }), async (req, res) => {
   try {
     const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamento_confirmar');
     if (!ctx) return;
     const { claims, entidadeAtiva, payload } = ctx;
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = Number(req.params.id);
-    const corpo = (req.body && typeof req.body === 'object') ? req.body : {};
-    if (typeof corpo.csvBase64 !== 'string' || !corpo.csvBase64) {
-      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'csvBase64' });
-    }
+    // `express.text()` entrega string; qualquer outro content-type cai aqui
+    // como `{}` (o parser não casou) e vira 400 — nunca 500.
+    const csv = typeof req.body === 'string' ? req.body : '';
+    if (!csv) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'csv' });
 
     let linhasCsv;
     try {
-      const texto = Buffer.from(corpo.csvBase64, 'base64').toString('utf-8');
-      linhasCsv = lerRetornoTransfeeraCsv(texto);
+      linhasCsv = lerRetornoTransfeeraCsv(csv);
     } catch (e) {
       if (e instanceof RetornoTransfeeraParseError) return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
       console.error('[hub-adiantamentos] erro ao ler CSV em POST /lotes/:id/retorno:', e.message);
-      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'csvBase64' });
+      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'csv' });
     }
 
     const itensRaw = await hubPostgrestRequest(
@@ -1414,15 +1428,36 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
         console.error('[hub-adiantamentos] erro em POST /lotes/:id/retorno:', e.message);
         return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
       }
-
-      await registrarAuditoria({
-        idEmpresa: entidadeAtiva, usuarioId: payload.sub, acao: 'adiantamento.retorno_importado',
-        recurso: 'AdiantamentoLote', recursoId: id,
-        detalhes: { aplicadas: aplicaveis.length, falhas: falhas.length, ignoradas: ignoradas.length }, claims,
-      });
     }
 
-    return res.status(200).json({ aplicadas: aplicaveis.length, ignoradas });
+    // Gate owasp-security 2026-10-01 (A09): a auditoria vivia DENTRO do `if`
+    // acima, então importação que não aplicava nada — arquivo de outro
+    // período, repetido, ou de outro lote — não deixava rastro nenhum. É
+    // justamente o padrão de quem está tentando descobrir o formato aceito.
+    // Agora toda tentativa que chega até aqui é registrada, com `aplicadas: 0`
+    // quando foi o caso.
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva, usuarioId: payload.sub, acao: 'adiantamento.retorno_importado',
+      recurso: 'AdiantamentoLote', recursoId: id,
+      detalhes: { aplicadas: aplicaveis.length, falhas: falhas.length, ignoradas: ignoradas.length }, claims,
+    });
+
+    // Gate owasp-security 2026-10-01: a resposta devolvia `ignoradas` CRUAS —
+    // e `idIntegracao` é texto livre do arquivo do parceiro, que no export
+    // real traz NOME COMPLETO de pessoas ("Repasse Semanal Pendente_<nome>").
+    // Eram até 10.000 desses, de gente sem relação alguma com este lote,
+    // atravessando proxy, browser e logs. A tela só usa a contagem por motivo
+    // — então é só isso que sai daqui.
+    const ignoradasPorMotivo = [...ignoradas.reduce((acc, i) => {
+      acc.set(i.motivo, (acc.get(i.motivo) || 0) + 1);
+      return acc;
+    }, new Map())].map(([motivo, total]) => ({ motivo, total })).sort((a, b) => b.total - a.total);
+
+    return res.status(200).json({
+      aplicadas: aplicaveis.length,
+      ignoradas: ignoradas.length,
+      ignoradasPorMotivo,
+    });
   } catch (e) {
     console.error('[hub-adiantamentos] erro inesperado em POST /lotes/:id/retorno:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });

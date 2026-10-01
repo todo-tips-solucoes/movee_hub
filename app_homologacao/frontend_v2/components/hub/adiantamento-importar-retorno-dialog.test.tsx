@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ImportarRetornoDialog,
   useImportarRetornoDialog,
-  agruparIgnoradas,
+  rotularIgnoradas,
 } from './adiantamento-importar-retorno-dialog';
 import { AdiantamentosApiError } from '@/lib/hub/adiantamentos-api';
 
@@ -24,15 +24,16 @@ vi.mock('@/lib/hub/adiantamentos-api', async () => {
   return { ...actual, importarRetornoLote: (...args: unknown[]) => mockImportar(...args) };
 });
 
-describe('agruparIgnoradas — o arquivo real tem milhares de linhas alheias', () => {
-  it('agrega por motivo, do maior para o menor, com rótulo humano', () => {
-    const ignoradas = [
-      ...Array.from({ length: 3843 }, () => ({ idIntegracao: 'Repasse Semanal', motivo: 'ID_INTEGRACAO_INVALIDO' })),
-      { idIntegracao: 'ADV-000009', motivo: 'NAO_PERTENCE_AO_LOTE' },
-      { idIntegracao: 'ADV-000010', motivo: 'JA_APLICADO' },
-      { idIntegracao: 'ADV-000011', motivo: 'JA_APLICADO' },
-    ];
-    expect(agruparIgnoradas(ignoradas)).toEqual([
+// O backend passou a AGREGAR (gate owasp-security, 2026-10-01): o `ID de
+// integração` é texto livre do parceiro e carregava nome de pessoas. Aqui ficou
+// só a tradução do motivo técnico para frase legível.
+describe('rotularIgnoradas — tradução dos motivos que o backend agrega', () => {
+  it('traduz cada motivo conhecido, preservando a contagem e a ordem do servidor', () => {
+    expect(rotularIgnoradas([
+      { motivo: 'ID_INTEGRACAO_INVALIDO', total: 3843 },
+      { motivo: 'JA_APLICADO', total: 2 },
+      { motivo: 'NAO_PERTENCE_AO_LOTE', total: 1 },
+    ])).toEqual([
       { rotulo: 'Linhas de outros pagamentos (sem ID de integração do hub)', total: 3843 },
       { rotulo: 'Já conciliados numa importação anterior', total: 2 },
       { rotulo: 'Pagamentos de outro lote', total: 1 },
@@ -40,13 +41,13 @@ describe('agruparIgnoradas — o arquivo real tem milhares de linhas alheias', (
   });
 
   it('status desconhecido carrega o valor CRU do arquivo, nunca traduzido', () => {
-    const r = agruparIgnoradas([{ idIntegracao: 'ADV-1', motivo: 'STATUS_DESCONHECIDO:EM_ANALISE' }]);
-    expect(r[0].rotulo).toContain('EM_ANALISE');
+    expect(rotularIgnoradas([{ motivo: 'STATUS_DESCONHECIDO:EM_ANALISE', total: 1 }])[0].rotulo)
+      .toContain('EM_ANALISE');
   });
 
   it('motivo que não conhecemos aparece cru, sem inventar texto', () => {
-    const r = agruparIgnoradas([{ idIntegracao: 'ADV-1', motivo: 'MOTIVO_NOVO_DO_BACKEND' }]);
-    expect(r[0].rotulo).toBe('MOTIVO_NOVO_DO_BACKEND');
+    expect(rotularIgnoradas([{ motivo: 'MOTIVO_NOVO_DO_BACKEND', total: 1 }])[0].rotulo)
+      .toBe('MOTIVO_NOVO_DO_BACKEND');
   });
 });
 
@@ -70,7 +71,8 @@ describe('ImportarRetornoDialog — o que o operador lê', () => {
   it('sucesso: mostra quantos conciliou e o resumo do que ignorou', async () => {
     mockImportar.mockResolvedValue({
       aplicadas: 1,
-      ignoradas: Array.from({ length: 3843 }, () => ({ idIntegracao: 'Repasse', motivo: 'ID_INTEGRACAO_INVALIDO' })),
+      ignoradas: 3843,
+      ignoradasPorMotivo: [{ motivo: 'ID_INTEGRACAO_INVALIDO', total: 3843 }],
     });
     render(<Harness />);
     await waitFor(() => expect(screen.getByRole('button', { name: /Importar retorno/i })).toBeEnabled());
@@ -106,5 +108,18 @@ describe('ImportarRetornoDialog — o que o operador lê', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     expect(screen.getByRole('alert').textContent).toMatch(/CSV/);
+  });
+
+  it('envia o CSV como TEXTO, nunca em base64', async () => {
+    mockImportar.mockResolvedValue({ aplicadas: 0, ignoradas: 0, ignoradasPorMotivo: [] });
+    render(<Harness />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Importar retorno/i })).toBeEnabled());
+    screen.getByRole('button', { name: /Importar retorno/i }).click();
+
+    await waitFor(() => expect(mockImportar).toHaveBeenCalledTimes(1));
+    const [, corpo] = mockImportar.mock.calls[0];
+    // O conteúdo do File do Harness, cru. Em base64 começaria com "SUQg…".
+    expect(corpo).toContain('ID da transferência');
+    expect(corpo).toContain('ADV-000003');
   });
 });
