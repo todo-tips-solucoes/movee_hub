@@ -132,7 +132,8 @@ As skills/commands do cstk só ficam visíveis após reiniciar a sessão.
 > ✅ **Painel + túnel já estão no ar e DESTACADOS** (sobrevivem ao restart):
 > - Painel `cstk serve` → `127.0.0.1:5173` (processo reparentado ao init).
 > - ngrok → URL pública atual: **https://overprosperously-geomorphic-mathias.ngrok-free.dev**
->   (login `admin` / `Garantia.1182`). A URL pode mudar se o ngrok cair e subir de novo.
+>   (basic-auth: usuário `admin`; a senha NÃO entra neste documento — ela vive só em
+>   `/root/cstk-up.sh`, fora do git). A URL pode mudar se o ngrok cair e subir de novo.
 > - Para subir tudo de novo a qualquer momento (idempotente): `bash /root/cstk-up.sh`
 >   (script fora do repo porque contém a senha do basic-auth).
 > - Logs: `/tmp/cstk-serve.log` e `/tmp/ngrok.log`.
