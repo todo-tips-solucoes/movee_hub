@@ -563,29 +563,41 @@ export async function confirmarLote(id: number, dados: ConfirmarLoteInput = { fa
   return request<Lote>(`/adiantamentos/lotes/${id}/confirmacao`, { method: 'POST', body: JSON.stringify(dados) });
 }
 
-/** Uma linha do arquivo que o backend NÃO aplicou, com o motivo técnico.
- *  Num export de período inteiro isso vem aos milhares (quase tudo
- *  `ID_INTEGRACAO_INVALIDO`: pagamento de outro processo, sem `ADV-<id>`), por
- *  isso a tela agrega por motivo em vez de listar. */
-export interface RetornoIgnorada {
-  idIntegracao: string;
+/** Linhas não aplicadas, AGREGADAS por motivo técnico.
+ *
+ *  O backend não devolve mais linha a linha: o `ID de integração` é texto
+ *  livre do arquivo do parceiro e, no export real, traz nome completo de
+ *  pessoas que nada têm com este lote — eram até 10.000 numa resposta
+ *  (gate owasp-security, 2026-10-01). A tela sempre usou só a contagem. */
+export interface RetornoIgnoradaPorMotivo {
   motivo: string;
+  total: number;
 }
 
 export interface ImportarRetornoResponse {
   aplicadas: number;
-  ignoradas: RetornoIgnorada[];
+  /** Total de linhas ignoradas (soma de `ignoradasPorMotivo`). */
+  ignoradas: number;
+  ignoradasPorMotivo: RetornoIgnoradaPorMotivo[];
 }
 
 /** `POST /adiantamentos/lotes/:id/retorno` — concilia o lote a partir do CSV de
  *  retorno da Transfeera. O casamento é por `ID de integração` (`ADV-<id>`),
  *  nunca por nome ou valor; o backend recusa o arquivo inteiro (409
  *  `RETORNO_INCOMPLETO`) se faltar o retorno de algum item do lote, em vez de
- *  aplicar pela metade. */
-export async function importarRetornoLote(id: number, csvBase64: string): Promise<ImportarRetornoResponse> {
+ *  aplicar pela metade.
+ *
+ *  ⚠️ O corpo vai como **`text/csv` cru**, não como JSON com base64. O
+ *  `express.json()` global do backend tem o default de 100 KB e está montado
+ *  antes de toda autenticação: um JSON de 4 MB levava `413` em HTML antes de
+ *  chegar na rota, e a importação simplesmente não funcionava com arquivo real
+ *  (gate owasp-security, 2026-10-01). Com `text/csv` o parser global não toca
+ *  no corpo, e de quebra cai 25% do tamanho. */
+export async function importarRetornoLote(id: number, csv: string): Promise<ImportarRetornoResponse> {
   return request<ImportarRetornoResponse>(`/adiantamentos/lotes/${id}/retorno`, {
     method: 'POST',
-    body: JSON.stringify({ csvBase64 }),
+    headers: { 'Content-Type': 'text/csv' },
+    body: csv,
   });
 }
 
