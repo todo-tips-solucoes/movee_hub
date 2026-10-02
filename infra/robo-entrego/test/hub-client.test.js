@@ -444,3 +444,113 @@ describe('atualizarEnriquecimento — retry no 429', () => {
     assert.deepEqual(esperas, []);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Renovação de sessão no 401 (frente de confiabilidade do robô, 2026-10-02).
+//
+// Incidente que isto corrige: `hub_accessToken` vive 15 min e o cliente fazia
+// login UMA vez por execução. Quando o portal EntreGô demorava a gerar o
+// relatório, a execução passava de 15 min e o upload levava 401 — o dia inteiro
+// se perdia. Medido no log real: as 3 falhas por 401 (11/09, 15/09, 16/09)
+// duraram 28, 25 e 27 min; nenhuma execução abaixo de 15 min deu 401.
+// ---------------------------------------------------------------------------
+describe('renovação de sessão no 401', () => {
+  /** Mock que devolve 401 nas `quantos401` primeiras chamadas ao caminho dado. */
+  function mockComExpiracao({ quantos401 = 1, refreshStatus = 200 } = {}) {
+    const chamadas = { upload: 0, refresh: 0 };
+    const cookiesEnviados = { refresh: null, uploadDepois: null };
+    return {
+      chamadas,
+      cookiesEnviados,
+      axios: {
+        async post(url, body, opts) {
+          if (url === '/api/v1/auth/login') return loginHandlerPadrao()();
+          if (url === '/api/v1/me/entidade') return entidadeHandlerPadrao()(body);
+          if (url === '/api/v1/auth/refresh') {
+            chamadas.refresh += 1;
+            cookiesEnviados.refresh = opts.headers.Cookie;
+            if (refreshStatus !== 200) return { status: refreshStatus, data: {}, headers: {} };
+            return {
+              status: 200,
+              data: { ok: true },
+              headers: {
+                'set-cookie': [
+                  `hub_accessToken=${fakeJwt({ sub: 1, entidade_ativa: 6 })}; HttpOnly`,
+                  'hub_refreshToken=novo-refresh; HttpOnly',
+                ],
+              },
+            };
+          }
+          if (url === '/api/v1/importacoes') {
+            chamadas.upload += 1;
+            if (chamadas.upload <= quantos401) return { status: 401, data: { erro: 'Sessão inválida.' }, headers: {} };
+            cookiesEnviados.uploadDepois = opts.headers.Cookie;
+            return { status: 201, data: { id: 9, status: 'pending' }, headers: {} };
+          }
+          throw new Error(`sem handler POST para ${url}`);
+        },
+        async get() { throw new Error('não deveria chamar GET'); },
+        async patch() { throw new Error('não deveria chamar PATCH'); },
+      },
+    };
+  }
+
+  test('401 no upload: renova a sessão e refaz a chamada, que então passa', async () => {
+    const m = mockComExpiracao();
+    const client = criarClienteHub({ baseURL: 'http://x', idEmpresaEsperado: 6, axiosInstance: m.axios });
+    await client.login('robo@x.com', 'senha');
+
+    const r = await client.enviarImportacao({ tipo: 'performance', nomeArquivo: 'a.csv', bufferArquivo: Buffer.from('x') });
+
+    assert.equal(r.sinal, 'upload_201', 'o upload deveria ter passado depois de renovar');
+    assert.equal(m.chamadas.refresh, 1, 'deveria ter chamado /auth/refresh exatamente uma vez');
+    assert.equal(m.chamadas.upload, 2, 'deveria ter refeito o upload uma vez');
+  });
+
+  test('manda o cookie INTEIRO no refresh, não só o refreshToken', async () => {
+    // O hub relê `entidade_ativa` do accessToken ANTIGO, mesmo expirado
+    // (routes/hub-auth.js#entidadeAtivaDeAccessAntigo, PR #161). Mandar só o
+    // refresh faria o token novo nascer sem entidade e as chamadas seguintes
+    // voltariam 400 ENTIDADE_NAO_SELECIONADA.
+    const m = mockComExpiracao();
+    const client = criarClienteHub({ baseURL: 'http://x', idEmpresaEsperado: 6, axiosInstance: m.axios });
+    await client.login('robo@x.com', 'senha');
+    await client.enviarImportacao({ tipo: 'performance', nomeArquivo: 'a.csv', bufferArquivo: Buffer.from('x') });
+
+    assert.match(m.cookiesEnviados.refresh, /hub_accessToken=/, 'o refresh precisa levar o accessToken antigo');
+  });
+
+  test('a chamada refeita usa o cookie NOVO, não o vencido', async () => {
+    const m = mockComExpiracao();
+    const client = criarClienteHub({ baseURL: 'http://x', idEmpresaEsperado: 6, axiosInstance: m.axios });
+    await client.login('robo@x.com', 'senha');
+    await client.enviarImportacao({ tipo: 'performance', nomeArquivo: 'a.csv', bufferArquivo: Buffer.from('x') });
+
+    assert.match(m.cookiesEnviados.uploadDepois, /hub_refreshToken=novo-refresh/, 'o upload refeito deveria usar o cookie devolvido pelo refresh');
+  });
+
+  test('refresh que falha: devolve o 401 original, sem insistir', async () => {
+    // 401 que sobrevive ao refresh não é token vencido — é vínculo/cadastro do
+    // usuário de serviço. Insistir só atrasaria a falha.
+    const m = mockComExpiracao({ quantos401: 99, refreshStatus: 401 });
+    const client = criarClienteHub({ baseURL: 'http://x', idEmpresaEsperado: 6, axiosInstance: m.axios });
+    await client.login('robo@x.com', 'senha');
+
+    await assert.rejects(
+      () => client.enviarImportacao({ tipo: 'performance', nomeArquivo: 'a.csv', bufferArquivo: Buffer.from('x') }),
+      (e) => e instanceof ErroHub && /status inesperado 401/.test(e.message)
+    );
+    assert.equal(m.chamadas.refresh, 1, 'tentou renovar uma vez');
+    assert.equal(m.chamadas.upload, 1, 'não refez a chamada quando o refresh falhou');
+  });
+
+  test('401 que persiste mesmo após renovar: não entra em laço', async () => {
+    const m = mockComExpiracao({ quantos401: 99 });
+    const client = criarClienteHub({ baseURL: 'http://x', idEmpresaEsperado: 6, axiosInstance: m.axios });
+    await client.login('robo@x.com', 'senha');
+
+    await assert.rejects(() => client.enviarImportacao({ tipo: 'performance', nomeArquivo: 'a.csv', bufferArquivo: Buffer.from('x') }), ErroHub);
+    assert.equal(m.chamadas.upload, 2, 'exatamente uma retentativa, não mais');
+    assert.equal(m.chamadas.refresh, 1, 'exatamente um refresh, não mais');
+  });
+});
