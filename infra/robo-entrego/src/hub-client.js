@@ -109,6 +109,52 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
   }
 
   /**
+   * POST /api/v1/auth/refresh reusando o cookie guardado.
+   *
+   * O `hub_accessToken` vive 15 MINUTOS (constitution §I) e este cliente fazia
+   * `login()` UMA vez, no começo da execução, reenviando o mesmo cookie até o
+   * fim. Execução que passasse de 15 min levava 401 no upload e o dia inteiro
+   * se perdia. Medido no log de execuções: as 3 falhas por 401 (11/09, 15/09,
+   * 16/09) duraram 28, 25 e 27 min; NENHUMA execução abaixo de 15 min deu 401.
+   * A causa de a execução esticar é o portal demorando a gerar o relatório —
+   * mas quem derrubava o dia era a sessão do hub, não o portal.
+   *
+   * O refresh preserva a claim `entidade_ativa`: `routes/hub-auth.js` relê o
+   * accessToken ANTIGO mesmo expirado (`entidadeAtivaDeAccessAntigo`, PR #161).
+   * Por isso mandamos o cookie inteiro, com access E refresh — mandar só o
+   * refresh faria o hub reemitir o token sem entidade e as chamadas seguintes
+   * voltariam 400 ENTIDADE_NAO_SELECIONADA.
+   *
+   * @returns {Promise<boolean>} true se renovou e `cookieHeader` foi trocado.
+   */
+  async function renovarSessao() {
+    if (!cookieHeader) return false;
+    const resp = await http.post('/api/v1/auth/refresh', null, { headers: { Cookie: cookieHeader } });
+    if (resp.status !== 200) return false;
+    const novo = extrairCookieHeader(resp.headers && resp.headers['set-cookie']);
+    if (!novo) return false;
+    cookieHeader = novo;
+    return true;
+  }
+
+  /**
+   * Executa uma chamada autenticada; se vier 401, renova a sessão UMA vez e
+   * repete. Qualquer outro status passa direto — o tratamento por status
+   * continua onde sempre esteve, em cada função.
+   *
+   * Uma tentativa só: se o 401 persistir depois de renovar, o problema não é
+   * token vencido (é vínculo/cadastro do usuário de serviço) e insistir só
+   * atrasaria a falha.
+   */
+  async function comRenovacao(fazer) {
+    const resp = await fazer();
+    if (!resp || resp.status !== 401) return resp;
+    const renovou = await renovarSessao();
+    if (!renovou) return resp;
+    return fazer();
+  }
+
+  /**
    * POST /api/v1/auth/login + POST /api/v1/me/entidade. Confere entidade_ativa
    * contra idEmpresaEsperado (contracts/hub-api.md — falha aqui é
    * ErroConfiguracaoHub, nunca retry).
@@ -168,9 +214,11 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
     const form = new FormData();
     form.append('tipo', tipo);
     form.append('file', bufferArquivo, { filename: nomeArquivo });
-    const resp = await http.post('/api/v1/importacoes', form, {
-      headers: { ...form.getHeaders(), Cookie: cookieHeader },
-    });
+    const resp = await comRenovacao(() =>
+      http.post('/api/v1/importacoes', form, {
+        headers: { ...form.getHeaders(), Cookie: cookieHeader },
+      })
+    );
     if (resp.status === 201) return { sinal: 'upload_201', id: resp.data.id, status: resp.data.status };
     if (resp.status === 409) return { sinal: 'upload_409', importacaoOriginalId: resp.data.importacaoOriginalId };
     if (resp.status === 422) return { sinal: 'upload_422', motivo: resp.data.motivo };
@@ -188,9 +236,11 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
    */
   async function reprocessarImportacao(id) {
     garantirAutenticado();
-    const resp = await http.post(`/api/v1/importacoes/${id}/reprocessar`, null, {
-      headers: { Cookie: cookieHeader },
-    });
+    const resp = await comRenovacao(() =>
+      http.post(`/api/v1/importacoes/${id}/reprocessar`, null, {
+        headers: { Cookie: cookieHeader },
+      })
+    );
     if (resp.status === 202) return { sinal: 'reprocessar_202', id: resp.data.id, status: resp.data.status };
     if (resp.status === 409) return { sinal: 'reprocessar_409' };
     if (resp.status === 404) return { sinal: 'reprocessar_404' };
@@ -209,7 +259,9 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
     const _agora = agora || Date.now;
     const inicio = _agora();
     for (;;) {
-      const resp = await http.get(`/api/v1/importacoes/${id}`, { headers: { Cookie: cookieHeader } });
+      const resp = await comRenovacao(() =>
+        http.get(`/api/v1/importacoes/${id}`, { headers: { Cookie: cookieHeader } })
+      );
       if (resp.status !== 200) {
         throw new ErroHub(`hub-client: polling — status inesperado ${resp.status}`);
       }
@@ -241,7 +293,9 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
    */
   async function registrarEvento({ acao, detalhes } = {}) {
     garantirAutenticado();
-    const resp = await http.post('/api/v1/robo-entrego/eventos', { acao, detalhes }, { headers: { Cookie: cookieHeader } });
+    const resp = await comRenovacao(() =>
+      http.post('/api/v1/robo-entrego/eventos', { acao, detalhes }, { headers: { Cookie: cookieHeader } })
+    );
     if (resp.status === 201) return { sinal: 'evento_201' };
     if (resp.status >= 500) return { sinal: 'http_5xx_hub', status: resp.status };
     throw new ErroHub(`hub-client: registrarEvento — status inesperado ${resp.status}`, { motivo: resp.data && resp.data.erro });
@@ -258,9 +312,11 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
    */
   async function buscarMotoristasParaEnriquecer(modo) {
     garantirAutenticado();
-    const resp = await http.get(
-      `/api/v1/robo-entrego/motoristas-para-enriquecer?modo=${encodeURIComponent(modo)}`,
-      { headers: { Cookie: cookieHeader } }
+    const resp = await comRenovacao(() =>
+      http.get(
+        `/api/v1/robo-entrego/motoristas-para-enriquecer?modo=${encodeURIComponent(modo)}`,
+        { headers: { Cookie: cookieHeader } }
+      )
     );
     if (resp.status !== 200) {
       throw new ErroHub(`hub-client: motoristas-para-enriquecer — status inesperado ${resp.status}`, {
@@ -290,9 +346,11 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
       if (sinalFalha) corpo.sinalFalha = sinalFalha;
     }
     for (let tentativa = 1; ; tentativa += 1) {
-      const resp = await http.patch(`/api/v1/robo-entrego/motoristas/${id}/entrego-enriquecimento`, corpo, {
-        headers: { Cookie: cookieHeader },
-      });
+      const resp = await comRenovacao(() =>
+        http.patch(`/api/v1/robo-entrego/motoristas/${id}/entrego-enriquecimento`, corpo, {
+          headers: { Cookie: cookieHeader },
+        })
+      );
       if (resp.status === 200) return { sinal: 'enriquecimento_200' };
       if (resp.status === 404) return { sinal: 'enriquecimento_404' };
       if (resp.status >= 500) return { sinal: 'http_5xx_hub', status: resp.status };
@@ -326,9 +384,11 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
   async function consultarErrosImportacao(id, { limite = 200 } = {}) {
     try {
       garantirAutenticado();
-      const resp = await http.get(`/api/v1/importacoes/${id}/erros?limit=${limite}`, {
-        headers: { Cookie: cookieHeader },
-      });
+      const resp = await comRenovacao(() =>
+        http.get(`/api/v1/importacoes/${id}/erros?limit=${limite}`, {
+          headers: { Cookie: cookieHeader },
+        })
+      );
       if (resp.status !== 200) return [];
       const corpo = resp.data;
       return Array.isArray(corpo) ? corpo : (corpo && Array.isArray(corpo.items) ? corpo.items : []);
