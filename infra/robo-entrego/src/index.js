@@ -137,18 +137,45 @@ async function detectarValoresSilenciosos(clienteHub, importacaoId, tipo) {
   try {
     if (!clienteHub || typeof clienteHub.consultarErrosImportacao !== 'function') return [];
     const erros = await clienteHub.consultarErrosImportacao(importacaoId);
-    const monetarios = erros.filter(
-      (e) => e && e.campo === 'valor' && /texto em campo num/i.test(String(e.motivo || ''))
-    );
-    if (monetarios.length === 0) return [];
-    return [{
-      tipo,
-      importacao_id: importacaoId,
-      campo: 'valor',
-      linhas_afetadas: monetarios.length,
-      numeros_de_linha: monetarios.slice(0, 20).map((e) => e.numeroLinha ?? e.numero_linha).filter((n) => n != null),
-      impacto: 'valor gravado como 0 — total do periodo subestimado',
-    }];
+    if (!erros || erros.length === 0) return [];
+
+    // Duas naturezas MUITO diferentes, e a API de erros não as distingue: o
+    // normalizer marca `bloqueante: false` quando a linha ENTRA mesmo assim,
+    // mas essa flag não é persistida em `ImportacaoLinhaErro`. Resta o texto do
+    // motivo, e estes dois marcadores são os que o backend emite
+    // (`lib/hub-import-normalizer.js`):
+    //   "gravado como 0" / "(importado como recebido)" -> a linha ENTROU com
+    //   número suspeito; o total do período está errado e nada mais avisa.
+    // Qualquer outro motivo -> a linha foi DESCARTADA.
+    //
+    // ⚠️ O filtro anterior procurava SÓ `texto em campo numérico`, que em toda a
+    // base tem ZERO ocorrências (medido 2026-10-02) — o portal não manda texto,
+    // manda número fora de faixa ou negativo. O aviso de dinheiro subestimado
+    // nunca disparou, enquanto `valor <= 0 (importado como recebido)` aparecia
+    // em 20 linhas de 15 importações.
+    const entrouTorto = (e) => /gravado como 0|importado como recebido/i.test(String(e.motivo || ''));
+    const numerosDe = (lista) => lista.slice(0, 20).map((e) => e.numeroLinha ?? e.numero_linha).filter((n) => n != null);
+
+    const avisos = [];
+    for (const [grupo, filtro, impacto] of [
+      ['entrou', entrouTorto, 'linha(s) IMPORTADA(s) com número suspeito — o total do período fica errado'],
+      ['descartada', (e) => !entrouTorto(e), 'linha(s) DESCARTADA(s) — não entraram no hub'],
+    ]) {
+      const doGrupo = erros.filter((e) => e && filtro(e));
+      for (const campo of [...new Set(doGrupo.map((e) => e.campo || '(sem campo)'))]) {
+        const doCampo = doGrupo.filter((e) => (e.campo || '(sem campo)') === campo);
+        avisos.push({
+          tipo,
+          importacao_id: importacaoId,
+          campo,
+          grupo,
+          linhas_afetadas: doCampo.length,
+          numeros_de_linha: numerosDe(doCampo),
+          impacto: `${impacto} — ${doCampo[0].motivo || 'motivo não informado'}`,
+        });
+      }
+    }
+    return avisos;
   } catch (_) {
     return [];
   }
@@ -225,7 +252,23 @@ async function aguardarDesfecho({ id, tipo, item, sha256, clienteHub, reprocessa
     const alertas = await detectarValoresSilenciosos(clienteHub, id, tipo);
     return { statusHub: poll.dados.status, importacaoId: id, item, sha256, alertas, reprocessado };
   }
-  // polling_failed | polling_completed_with_errors — Falha do hub (research.md Decision 11)
+  // `completed_with_errors` NÃO é falha retentável (medido 2026-10-02): a
+  // importação processou e as linhas boas entraram; o que sobrou é dado ruim do
+  // portal, e reprocessar o MESMO arquivo dá o MESMO resultado. O log de
+  // execuções tem 10 reprocessamentos, todos terminando igual — as importações
+  // 58, 64 e 66 foram reprocessadas DUAS vezes no mesmo dia, por 1 linha em
+  // ~2800. Esse retry determinístico é o que esticava a rodada para 25-30 min e
+  // estourava os 15 min do token do hub (o 401 do PR #250).
+  //
+  // Então: desfecho com RESSALVA, pelo mesmo caminho dos avisos que "não mudam
+  // o resultado, mas mudam um número" — vai por e-mail e para o log, sem
+  // repetir trabalho que não conserta nada.
+  if (poll.sinal === 'polling_completed_with_errors') {
+    const alertas = await detectarValoresSilenciosos(clienteHub, id, tipo);
+    return { statusHub: poll.dados.status, importacaoId: id, item, sha256, alertas, reprocessado };
+  }
+
+  // polling_failed — aí sim: a importação não processou (research.md Decision 11)
   const erroResumo = poll.dados && poll.dados.erroResumo ? ` — ${poll.dados.erroResumo}` : '';
   const prefixo = reprocessado ? `hub: importação ${id} REPROCESSADA terminou` : 'hub: importação terminou';
   throw comSinal(new Error(`${prefixo} em '${poll.dados.status}'${erroResumo}`), poll.sinal);
@@ -271,6 +314,12 @@ async function processarRelatorio({ tipo, dataAnterior, page, clienteHub, entreg
       sha256: valor.sha256,
       importacao_id: valor.importacaoId,
       status_hub: valor.statusHub,
+      // ⚠️ Sem esta linha, TODO aviso morre aqui. `executarRodada` monta o
+      // e-mail a partir de `relatorios.flatMap((r) => r.alertas)`, e este objeto
+      // é o que vai para `relatorios` — o aviso de valor monetário existia desde
+      // a 0054 e nunca chegou a ninguém, porque `alertas` não era copiado.
+      // Nenhum teste cobria o caminho detecção -> e-mail (medido 2026-10-02).
+      alertas: valor.alertas || [],
       // Rastro de que este dia entrou numa SEGUNDA passada sobre o mesmo
       // arquivo — sem isso, um dia refeito fica indistinguível de um que
       // entrou certo de primeira.
@@ -428,32 +477,40 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
     : soSemDados ? 'sem_dados'
     : 'falha_total';
 
-  // Avisos que NÃO mudam o resultado, mas mudam um NÚMERO. Hoje só o `valor`
-  // monetário gravado como 0. Vão para o log SEMPRE, e por e-mail mesmo quando a
-  // rodada foi 'sucesso' — é justamente no sucesso que passariam despercebidos.
+  // Avisos que NÃO mudam o resultado, mas mudam um NÚMERO ou deixam uma linha de
+  // fora. Vão para o log SEMPRE, e por e-mail mesmo quando a rodada foi
+  // 'sucesso' — é justamente no sucesso que passariam despercebidos.
+  //
+  // O texto é montado a partir do que foi DETECTADO (campo, motivo, linhas), e
+  // não mais fixo em "valor monetário": a redação antiga descrevia um caso que
+  // em 30 dias nunca ocorreu, enquanto os que ocorriam chegariam com o rótulo
+  // errado.
   const avisosValor = relatorios.flatMap((r) => r.alertas || []);
   if (avisosValor.length > 0) {
     const linhas = avisosValor.reduce((acc, a) => acc + a.linhas_afetadas, 0);
+    const descartadas = avisosValor.filter((a) => a.grupo === 'descartada').reduce((acc, a) => acc + a.linhas_afetadas, 0);
     const detalhe = avisosValor
-      .map((a) => `${a.tipo} (importacao ${a.importacao_id}): ${a.linhas_afetadas} linha(s), nº ${a.numeros_de_linha.join(', ')}`)
+      .map((a) => `${a.tipo} (importacao ${a.importacao_id}) campo \`${a.campo}\`: ${a.linhas_afetadas} linha(s), nº ${a.numeros_de_linha.join(', ')} — ${a.impacto}`)
       .join(' | ');
+    const resumo = descartadas > 0
+      ? `AVISO: ${descartadas} linha(s) ficaram de fora da importação`
+      : `AVISO: ${linhas} linha(s) entraram com número suspeito`;
     try {
       await enviarAlerta({
         transportador,
         remetente: config.gmailEmail,
         destinatarios: config.alertaDestinatarios,
         execucaoId,
-        resultado: `AVISO: ${linhas} valor(es) monetário(s) gravado(s) como 0`,
+        resultado: resumo,
         motivoFalha:
-          `A importação concluiu com sucesso, mas ${linhas} lançamento(s) vieram com texto no campo `
-          + `\`valor\` e foram gravados como 0 — o TOTAL DO PERÍODO está subestimado nesse montante. `
-          + `Confira em ImportacaoLinhaErro (valorBruto tem o original). Detalhe: ${detalhe}`,
+          `A importação concluiu, mas ${linhas} linha(s) precisam de atenção. `
+          + `Confira em ImportacaoLinhaErro (linha_bruta tem o original). Detalhe: ${detalhe}`,
         relatorios: [],
       });
     } catch (e) {
       // o aviso é best-effort; nunca pode derrubar uma rodada bem-sucedida —
       // mas o motivo vai para o journal, senão some (mesma lição da porta 465).
-      console.error(`[robo-entrego] aviso de valor por e-mail FALHOU (execucao ${execucaoId}):`, e && e.message);
+      console.error(`[robo-entrego] aviso de ressalva por e-mail FALHOU (execucao ${execucaoId}):`, e && e.message);
     }
   }
 

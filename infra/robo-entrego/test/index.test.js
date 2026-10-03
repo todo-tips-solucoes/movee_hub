@@ -607,3 +607,110 @@ describe('executarPuladoLock (tasks.md 5.1.4, quickstart Scenario 7)', () => {
     assert.equal(JSON.parse(conteudo[1]).resultado, 'pulado_lock');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Linha inválida não é falha retentável (frente de confiabilidade, 2026-10-02).
+//
+// Medido em 30 dias: 6 das 7 importações `completed_with_errors` eram UMA linha
+// de `tempo_disponivel_pct` fora da faixa 0-150, em ~2800 — o portal manda
+// número gigante ou negativo. O robô tratava como falha e retentava a rodada
+// inteira; o log tem 10 reprocessamentos terminando igual, e as importações 58,
+// 64 e 66 foram reprocessadas DUAS vezes no mesmo dia. Esse retry determinístico
+// é o que esticava a rodada para 25-30 min e estourava o token do hub (PR #250).
+// ---------------------------------------------------------------------------
+describe('completed_with_errors — ressalva, não falha', () => {
+  const ERRO_LINHA = {
+    numeroLinha: 1723,
+    campo: 'tempo_disponivel_pct',
+    motivo: 'fora da faixa 0-150',
+  };
+
+  function clienteComErros({ poll, erros = [ERRO_LINHA] } = {}) {
+    const base = criarClienteHubMock({ poll });
+    let consultas = 0;
+    base.consultarErrosImportacao = async () => {
+      consultas += 1;
+      return erros;
+    };
+    Object.defineProperty(base, 'consultas', { get: () => consultas });
+    return base;
+  }
+
+  test('upload novo que termina com erro de linha: rodada é sucesso, sem retentar', async () => {
+    const page = criarPageMock({ sonda: { status: 200 }, urls: { PERFORMANCE: URLS_OK('PERFORMANCE'), FINANCE: URLS_OK('FINANCE') } });
+    const clienteHub = clienteComErros({
+      poll: { sinal: 'polling_completed_with_errors', dados: { status: 'completed_with_errors' } },
+    });
+    const transportador = criarTransportadorMock();
+
+    const r = await index.executarRodada({
+      page, config: config(), clienteHub, obterCodigo: async () => '123456',
+      transportador, dormir: dormirRapido, axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+    });
+
+    assert.equal(r.resultado, 'sucesso', 'uma linha ruim em milhares não derruba o dia');
+    assert.deepEqual(clienteHub.reprocessados, [], 'nada a reprocessar: o arquivo e a regra são os mesmos');
+    assert.ok(r.relatorios.every((rel) => rel.status_hub === 'completed_with_errors'), 'o status real vai para o log, não é mascarado');
+  });
+
+  test('o operador é avisado: a ressalva vira e-mail, nomeando campo e linha', async () => {
+    const page = criarPageMock({ sonda: { status: 200 }, urls: { PERFORMANCE: URLS_OK('PERFORMANCE'), FINANCE: URLS_OK('FINANCE') } });
+    const clienteHub = clienteComErros({
+      poll: { sinal: 'polling_completed_with_errors', dados: { status: 'completed_with_errors' } },
+    });
+    const transportador = criarTransportadorMock();
+
+    await index.executarRodada({
+      page, config: config(), clienteHub, obterCodigo: async () => '123456',
+      transportador, dormir: dormirRapido, axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+    });
+
+    assert.ok(transportador.enviados.length > 0, 'ressalva silenciosa seria pior que a falha que ela substitui');
+    const corpo = JSON.stringify(transportador.enviados);
+    assert.match(corpo, /tempo_disponivel_pct/, 'o e-mail precisa nomear o campo');
+    assert.match(corpo, /1723/, 'e a linha');
+  });
+
+  test('linha que ENTROU com número suspeito é classificada como tal, não como descartada', async () => {
+    // Este é o caso REAL mais frequente da base: `valor <= 0 (importado como
+    // recebido)` — 20 linhas em 15 importações (medido 2026-10-02). A linha
+    // entra e o total do período fica errado; chamar isso de "descartada"
+    // mandaria o operador procurar uma linha que está lá.
+    //
+    // Controle negativo que este teste existe para pegar: com o filtro antigo
+    // (`texto em campo numérico`, ZERO ocorrências na base) este erro cairia em
+    // "descartada" e o e-mail diria a coisa errada.
+    const page = criarPageMock({ sonda: { status: 200 }, urls: { PERFORMANCE: URLS_OK('PERFORMANCE'), FINANCE: URLS_OK('FINANCE') } });
+    const clienteHub = clienteComErros({
+      poll: { sinal: 'polling_completed', dados: { status: 'completed' } },
+      erros: [{ numeroLinha: 88, campo: 'valor', motivo: 'valor <= 0 (importado como recebido)' }],
+    });
+    const transportador = criarTransportadorMock();
+
+    await index.executarRodada({
+      page, config: config(), clienteHub, obterCodigo: async () => '123456',
+      transportador, dormir: dormirRapido, axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+    });
+
+    const corpo = JSON.stringify(transportador.enviados);
+    assert.match(corpo, /n[úu]mero suspeito/i, 'deveria avisar que a linha ENTROU com número suspeito');
+    assert.doesNotMatch(corpo, /ficaram de fora/i, 'não é linha descartada — ela está no hub');
+  });
+
+  test('failed continua sendo falha — a importação não processou', async () => {
+    const page = criarPageMock({ sonda: { status: 200 }, urls: { PERFORMANCE: URLS_OK('PERFORMANCE'), FINANCE: URLS_OK('FINANCE') } });
+    const clienteHub = criarClienteHubMock({ poll: { sinal: 'polling_failed', dados: { status: 'failed' } } });
+    const transportador = criarTransportadorMock();
+
+    const r = await index.executarRodada({
+      page, config: config(), clienteHub, obterCodigo: async () => '123456',
+      transportador, dormir: dormirRapido, axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+    });
+
+    assert.notEqual(r.resultado, 'sucesso', 'failed é falha de verdade e precisa continuar alarmando');
+  });
+});
