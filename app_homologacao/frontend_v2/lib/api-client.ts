@@ -16,13 +16,64 @@ async function fetchWithTimeout(input: RequestInfo, init?: RequestInit, timeout 
   }
 }
 
+/** Uma linha da planilha que o backend recusou, já normalizada para a tela. */
+export interface LinhaInvalida {
+  /** número da linha como aparece no Excel (cabeçalho = 1) */
+  linha: number;
+  motivos: string[];
+}
+
+/**
+ * Erro de API que PRESERVA o detalhe que o backend mandou.
+ *
+ * O `/upload` do envio em massa devolve, junto da mensagem genérica, a lista de
+ * linhas recusadas com o motivo de cada uma — e esse detalhe vinha sendo jogado
+ * fora aqui, no `new Error(body.message)`. Com 982 linhas na planilha, "Erros de
+ * validação encontrados" manda a pessoa caçar à mão o que o servidor já sabia:
+ * em 05/10 eram 4 linhas com texto ("Em andamento", "Não localizado") na coluna
+ * do CNPJ, e as outras 978 não entraram por causa delas.
+ *
+ * NÃO carrega o `preview` (a linha inteira da planilha, com nome e telefone):
+ * para corrigir basta o número da linha e o motivo, e dado pessoal não precisa
+ * circular pela tela nem pela área de transferência.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly linhasInvalidas: LinhaInvalida[];
+
+  constructor(message: string, status: number, linhasInvalidas: LinhaInvalida[] = []) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.linhasInvalidas = linhasInvalidas;
+  }
+}
+
+/** `errors` do backend -> `LinhaInvalida[]`, tolerante a formato inesperado. */
+function extrairLinhasInvalidas(body: unknown): LinhaInvalida[] {
+  const lista = (body as { errors?: unknown })?.errors;
+  if (!Array.isArray(lista)) return [];
+  return lista
+    .map((item) => {
+      const linha = Number((item as { rowIndex?: unknown })?.rowIndex);
+      const motivosBrutos = (item as { errors?: unknown })?.errors;
+      const motivos = Array.isArray(motivosBrutos) ? motivosBrutos.map(String) : [];
+      return Number.isFinite(linha) && motivos.length > 0 ? { linha, motivos } : null;
+    })
+    .filter((x): x is LinhaInvalida => x !== null);
+}
+
 async function handleResponse(res: Response) {
   if (res.status === 401) {
     throw new Error('Não autorizado');
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: 'Erro desconhecido' }));
-    throw new Error(body.message || body.error || `Erro ${res.status}`);
+    throw new ApiError(
+      body.message || body.error || `Erro ${res.status}`,
+      res.status,
+      extrairLinhasInvalidas(body)
+    );
   }
   return res;
 }
