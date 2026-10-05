@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback } from 'react';
-import { Upload, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Upload, Loader2, FileSpreadsheet, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { ApiError, type LinhaInvalida } from '@/lib/api-client';
 
 interface ImportButtonProps {
   onUpload: (file: File, extraFields?: Record<string, string>) => Promise<unknown>;
@@ -28,6 +29,25 @@ function toBackendDate(isoDate: string): string {
   return `${day}/${month}/${year}`;
 }
 
+/**
+ * Agrupa as linhas por motivo. É assim que a informação vira ação: "4 linhas com
+ * CNPJ inválido: 329, 361, 413, 542" diz o que fazer; uma lista de 982 itens,
+ * não. Ordena do motivo mais frequente para o menos.
+ */
+function agruparPorMotivo(linhas: LinhaInvalida[]): { motivo: string; linhas: number[] }[] {
+  const mapa = new Map<string, number[]>();
+  for (const item of linhas) {
+    for (const motivo of item.motivos) {
+      const atual = mapa.get(motivo) ?? [];
+      atual.push(item.linha);
+      mapa.set(motivo, atual);
+    }
+  }
+  return [...mapa.entries()]
+    .map(([motivo, ls]) => ({ motivo, linhas: [...ls].sort((a, b) => a - b) }))
+    .sort((a, b) => b.linhas.length - a.linhas.length);
+}
+
 export function ImportButton({ onUpload }: ImportButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -38,6 +58,8 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [dtInicial, setDtInicial] = useState('');
   const [dtFinal, setDtFinal] = useState('');
+  // Linhas que o backend recusou. Vazio = nenhum erro de validação pendente.
+  const [linhasInvalidas, setLinhasInvalidas] = useState<LinhaInvalida[]>([]);
 
   const resetDialog = useCallback(() => {
     setDialogOpen(false);
@@ -73,7 +95,16 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
       await onUpload(file, { dt_inicial, dt_final });
       toast.success(`"${file.name}" importado com sucesso!`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao importar arquivo');
+      // O backend já sabe QUAIS linhas recusou; antes isso era descartado e a
+      // pessoa só via "Erros de validação encontrados".
+      if (err instanceof ApiError && err.linhasInvalidas.length > 0) {
+        setLinhasInvalidas(err.linhasInvalidas);
+        toast.error(
+          `${err.linhasInvalidas.length} linha(s) precisam de correção — nenhum registro foi inserido.`
+        );
+      } else {
+        toast.error(err instanceof Error ? err.message : 'Erro ao importar arquivo');
+      }
     } finally {
       setUploading(false);
       setPendingFile(null);
@@ -178,6 +209,64 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
             </Button>
             <Button onClick={handleConfirm} disabled={!rangeValido || uploading}>
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enviar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Linhas recusadas pelo backend. Mostra número da linha e motivo — nunca
+          o conteúdo da linha: para corrigir basta saber onde e o quê, e nome e
+          telefone não precisam circular pela tela nem pela área de transferência. */}
+      <Dialog open={linhasInvalidas.length > 0} onOpenChange={(open) => { if (!open) setLinhasInvalidas([]); }}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {linhasInvalidas.length === 1
+                ? '1 linha precisa de correção'
+                : `${linhasInvalidas.length} linhas precisam de correção`}
+            </DialogTitle>
+            <DialogDescription>
+              Nenhum registro foi inserido — a importação é tudo ou nada. Corrija na
+              planilha e envie de novo. Os números são os da linha no Excel.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[50vh] overflow-y-auto pr-1">
+            <ul className="flex flex-col gap-3">
+              {agruparPorMotivo(linhasInvalidas).map(({ motivo, linhas }) => (
+                <li key={motivo} className="rounded-md border border-border p-3">
+                  <p className="text-sm font-medium">
+                    {linhas.length}× {motivo}
+                  </p>
+                  <p className="mt-1 break-words font-mono text-xs text-muted-foreground">
+                    {linhas.length > 40
+                      ? `linhas ${linhas.slice(0, 40).join(', ')} … (+${linhas.length - 40})`
+                      : `linha${linhas.length > 1 ? 's' : ''} ${linhas.join(', ')}`}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="min-h-11 sm:min-h-9"
+              onClick={() => {
+                const texto = agruparPorMotivo(linhasInvalidas)
+                  .map(({ motivo, linhas }) => `${linhas.length}x ${motivo}\n  linhas: ${linhas.join(', ')}`)
+                  .join('\n');
+                navigator.clipboard?.writeText(texto).then(
+                  () => toast.success('Lista copiada'),
+                  () => toast.error('Não foi possível copiar')
+                );
+              }}
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Copiar lista
+            </Button>
+            <Button className="min-h-11 sm:min-h-9" onClick={() => setLinhasInvalidas([])}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
