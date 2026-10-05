@@ -44,6 +44,61 @@ const ACOES_EVENTO = Object.freeze({
 // ---------------------------------------------------------------------------
 
 /** Data de execução − 1 dia, em `yyyy-MM-dd`, no fuso do portal (FR-003, ACHADOS-PORTAL.md §2 usa America/Sao_Paulo). */
+// Recuperação de dias perdidos (frente de confiabilidade, 2026-10-05).
+//
+// O robô importa D-1 e nada volta atrás: se as 3 janelas do dia falham, o dia
+// some. O FATURAMENTO se cura sozinho (o relatório vem por PERÍODO e o dia
+// seguinte cobre o buraco — por isso 14/09 e 01/10 não deixaram falta), mas o
+// PERFORMANCE é dia a dia. Medido: o performance de 13/09 nunca entrou, perdido
+// pelos 3 timeouts de 14/09, e nada no sistema avisou.
+const BACKFILL_JANELA_DIAS = 7;
+// Teto por rodada: recuperar é trabalho extra numa execução que já tem o seu.
+// Com 3 janelas por dia, 2 por rodada dão 6 dias/dia — mais que a janela.
+const BACKFILL_MAX_POR_RODADA = 2;
+// Um dia antigo que o portal não tem devolve lista vazia, e esperar 2 min por
+// ele é desperdício que se repetiria em toda rodada. Para D-1 o relatório pode
+// estar sendo gerado AGORA e a espera longa faz sentido; para um dia de 3 dias
+// atrás, não.
+const BACKFILL_TIMEOUT_GERACAO_MS = 30 * 1000;
+// Importação que entrou com linha ruim continua sendo o dia presente — não é
+// motivo para buscar de novo (seria o retry determinístico de volta, PR #251).
+const STATUS_DIA_PRESENTE = new Set(['completed', 'completed_with_errors']);
+
+/** Os `dias` dias que terminam em `ateISO`, inclusive, em ISO `yyyy-mm-dd`. */
+function janelaDeDias(ateISO, dias) {
+  const fim = new Date(`${ateISO}T12:00:00Z`);
+  const lista = [];
+  for (let i = dias - 1; i >= 0; i -= 1) {
+    const d = new Date(fim.getTime() - i * 24 * 60 * 60 * 1000);
+    lista.push(d.toISOString().slice(0, 10));
+  }
+  return lista;
+}
+
+/**
+ * Quais dias de performance faltam no hub dentro da janela. Best-effort: se a
+ * consulta falhar, devolve [] — recuperar é trabalho EXTRA e não pode derrubar
+ * a rodada que já fez o principal.
+ */
+async function diasDePerformanceFaltando({ clienteHub, ateISO, janelaDias = BACKFILL_JANELA_DIAS }) {
+  try {
+    if (!clienteHub || typeof clienteHub.listarImportacoes !== 'function') return [];
+    // janela de CRIAÇÃO maior que a de referência: um dia antigo importado
+    // ontem precisa contar como presente (o filtro da API é por `criado_em`).
+    const deCriadoEm = new Date(new Date(`${ateISO}T12:00:00Z`).getTime() - (janelaDias + 7) * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10);
+    const itens = await clienteHub.listarImportacoes({ tipo: 'performance', deCriadoEm });
+    const presentes = new Set(
+      (itens || [])
+        .filter((i) => i && STATUS_DIA_PRESENTE.has(i.status))
+        .map((i) => String(i.dataReferencia || i.data_referencia || '').slice(0, 10))
+    );
+    return janelaDeDias(ateISO, janelaDias).filter((dia) => !presentes.has(dia));
+  } catch (_) {
+    return [];
+  }
+}
+
 function dataAnteriorISO(agoraMs = Date.now()) {
   const partes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
     .formatToParts(new Date(agoraMs))
@@ -182,8 +237,14 @@ async function detectarValoresSilenciosos(clienteHub, importacaoId, tipo) {
 }
 
 /** 1 tentativa completa: fetch da URL → download → upload → polling. */
-async function tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance }) {
-  const [item] = await buscarUrlsRelatorio(page, { tipo, dataInicial: dataAnterior, dataFinal: dataAnterior });
+async function tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance, timeoutGeracaoMs, dormir }) {
+  const [item] = await buscarUrlsRelatorio(page, {
+    tipo,
+    dataInicial: dataAnterior,
+    dataFinal: dataAnterior,
+    ...(timeoutGeracaoMs ? { timeoutMs: timeoutGeracaoMs } : {}),
+    ...(dormir ? { dormir } : {}),
+  });
   const { buffer, sha256 } = await baixarCsv(item.url, { axiosInstance });
 
   // CSV só com cabeçalho = movimento ainda não publicado. O hub NÃO pega este
@@ -279,9 +340,9 @@ async function aguardarDesfecho({ id, tipo, item, sha256, clienteHub, reprocessa
  * como tentativa/retry, FR-016) e repete a MESMA tentativa. Se falhar de
  * novo após o relogin, propaga (nunca reloga em loop).
  */
-async function tentativaComRelogin({ tipo, dataAnterior, page, clienteHub, entregoCredenciais, obterCodigo, storageStatePath, axiosInstance }) {
+async function tentativaComRelogin({ tipo, dataAnterior, page, clienteHub, entregoCredenciais, obterCodigo, storageStatePath, axiosInstance, timeoutGeracaoMs, dormir }) {
   try {
-    return await tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance });
+    return await tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance, timeoutGeracaoMs, dormir });
   } catch (e) {
     if (e.sinal !== 'sessao_expirada_401') throw e;
     // Mesmo caminho do início da rodada: refresh primeiro, login completo só
@@ -291,7 +352,7 @@ async function tentativaComRelogin({ tipo, dataAnterior, page, clienteHub, entre
     });
     // eslint-disable-next-line no-console
     console.log(`[robo] sessão expirou no meio de ${tipo} — ${relogou ? 'relogou' : renovada ? 'renovada' : 'reusada'}, retentando`);
-    return tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance });
+    return tentativaUnica({ tipo, dataAnterior, page, clienteHub, axiosInstance, timeoutGeracaoMs, dormir });
   }
 }
 
@@ -300,10 +361,10 @@ async function tentativaComRelogin({ tipo, dataAnterior, page, clienteHub, entre
  * @returns {Promise<object>} entrada de `relatorios[]` (data-model.md) em caso de sucesso
  * @throws {Error} com `.sinal`/`.tentativas` em caso de falha definitiva
  */
-async function processarRelatorio({ tipo, dataAnterior, page, clienteHub, entregoCredenciais, obterCodigo, storageStatePath, dormir, axiosInstance }) {
+async function processarRelatorio({ tipo, dataAnterior, page, clienteHub, entregoCredenciais, obterCodigo, storageStatePath, dormir, axiosInstance, timeoutGeracaoMs }) {
   try {
     const { valor, tentativas } = await comRetryTransitorio(
-      () => tentativaComRelogin({ tipo, dataAnterior, page, clienteHub, entregoCredenciais, obterCodigo, storageStatePath, axiosInstance }),
+      () => tentativaComRelogin({ tipo, dataAnterior, page, clienteHub, entregoCredenciais, obterCodigo, storageStatePath, axiosInstance, timeoutGeracaoMs, dormir }),
       { dormir }
     );
     return {
@@ -400,6 +461,7 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
   const { execucaoId } = iniciarExecucao({ caminhoLog });
   const dataAnterior = dataAnteriorISO(agora ? agora() : Date.now());
   const relatorios = [];
+  const recuperados = [];
   let tentativasTotais = 0;
   const motivosFalha = [];
 
@@ -452,6 +514,42 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
         motivosFalha.push(`${tipo}: ${e.message}`);
         await dispararReacoesFalha({ acao, execucaoId, motivoFalha: e.message, relatorio: relatorioFalho, config, transportador, clienteHub });
         if (acao === ACOES_EVENTO.SUSPEITA_ANTIBOT) break; // FR-011: para a rodada, não tenta o próximo tipo
+      }
+    }
+
+    // 4. RECUPERAÇÃO: dias de performance que faltam na janela.
+    //
+    // Best-effort de ponta a ponta — o trabalho do dia já foi feito acima e
+    // nada aqui pode derrubá-lo. Falha num dia recuperado não entra em
+    // `motivosFalha` nem muda o `resultado`; vira ressalva no log, com o dia.
+    //
+    // Só PERFORMANCE: o faturamento vem por período e se cura sozinho (medido —
+    // 14/09 e 01/10 deram timeout e mesmo assim não ficou buraco de
+    // faturamento), enquanto o performance de 13/09 se perdeu para sempre.
+    const faltantes = (await diasDePerformanceFaltando({ clienteHub, ateISO: dataAnterior }))
+      .filter((dia) => dia !== dataAnterior) // D-1 já foi tratado no laço acima
+      .slice(0, BACKFILL_MAX_POR_RODADA);
+    for (const dia of faltantes) {
+      try {
+        const r = await processarRelatorio({
+          tipo: 'PERFORMANCE',
+          dataAnterior: dia,
+          page,
+          clienteHub,
+          entregoCredenciais,
+          obterCodigo,
+          storageStatePath: config.storageStatePath,
+          dormir,
+          axiosInstance,
+          timeoutGeracaoMs: BACKFILL_TIMEOUT_GERACAO_MS,
+        });
+        recuperados.push({ ...r, recuperado: true });
+        // eslint-disable-next-line no-console
+        console.log(`[robo] dia recuperado: PERFORMANCE ${dia} -> ${r.status_hub}`);
+      } catch (e) {
+        recuperados.push({ tipo_portal: 'PERFORMANCE', data_referencia: dia, status_hub: null, recuperado: true, motivo: e.message });
+        // eslint-disable-next-line no-console
+        console.log(`[robo] dia NÃO recuperado: PERFORMANCE ${dia} — ${e.message}`);
       }
     }
   } catch (e) {
@@ -536,6 +634,7 @@ async function executarRodada({ page, config, clienteHub, obterCodigo, transport
     caminhoLog,
     diagnostico: diagnosticoFalha,
     avisos: avisosValor.length ? avisosValor : null,
+    recuperados: recuperados.length ? recuperados : null,
   });
 }
 
@@ -595,6 +694,10 @@ function lerConfiguracao(env = process.env) {
 
 module.exports = {
   dataAnteriorISO,
+  janelaDeDias,
+  diasDePerformanceFaltando,
+  BACKFILL_JANELA_DIAS,
+  BACKFILL_MAX_POR_RODADA,
   comRetryTransitorio,
   determinarAcao,
   tentativaUnica,

@@ -80,6 +80,7 @@ function finalizarExecucao({
   caminhoLog = LOG_PATH_DEFAULT,
   diagnostico = null,
   avisos = null,
+  recuperados = null,
 }) {
   if (!execucaoId) throw new Error('log-execucao: execucaoId obrigatório');
   if (!RESULTADOS_VALIDOS.includes(resultado)) {
@@ -104,6 +105,11 @@ function finalizarExecucao({
   // monetário gravado como 0). Ficam no log mesmo quando resultado='sucesso' —
   // é no sucesso que passariam despercebidos. O e-mail pode se perder; o log não.
   if (avisos && avisos.length) linha.avisos = avisos;
+  // Dias que faltavam e foram buscados nesta rodada (performance). Ficam no log
+  // SEMPRE que houver tentativa, inclusive quando não deu certo — um dia que o
+  // robô não conseguiu recuperar precisa ser visível, senão some de novo (foi
+  // assim que o performance de 13/09 se perdeu sem ninguém notar).
+  if (recuperados && recuperados.length) linha.recuperados = recuperados;
   escreverLinha(caminhoLog, linha);
   return linha;
 }
