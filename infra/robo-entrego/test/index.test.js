@@ -876,10 +876,21 @@ describe('recuperação de dias de performance faltantes', () => {
     assert.ok(pedidasPerformance.includes('2026-08-26'), 'e o laço principal de fato tentou o D-1');
   });
 
-  test('consulta que falha não derruba nada — recuperar é trabalho extra', async () => {
+  test('consulta que falha não derruba nada — mas DIZ o motivo', async () => {
+    // Best-effort não pode virar falha calada: "a consulta falhou" e "não há
+    // nada a recuperar" produzem a mesma lista vazia, e sem o log um dia
+    // perdido voltaria a sumir em silêncio.
     const clienteHub = criarClienteHubMock();
     clienteHub.listarImportacoes = async () => { throw new Error('hub fora do ar'); };
-    assert.deepEqual(await index.diasDePerformanceFaltando({ clienteHub, ateISO: '2026-10-04' }), []);
+    const erros = [];
+    const original = console.error;
+    console.error = (...a) => erros.push(a.join(' '));
+    try {
+      assert.deepEqual(await index.diasDePerformanceFaltando({ clienteHub, ateISO: '2026-10-04' }), []);
+    } finally {
+      console.error = original;
+    }
+    assert.ok(erros.some((l) => /dias faltantes FALHOU/.test(l) && /hub fora do ar/.test(l)), `nada registrado: ${JSON.stringify(erros)}`);
   });
 
   test('cliente antigo, sem listarImportacoes: nada quebra', async () => {
