@@ -714,3 +714,175 @@ describe('completed_with_errors — ressalva, não falha', () => {
     assert.notEqual(r.resultado, 'sucesso', 'failed é falha de verdade e precisa continuar alarmando');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Recuperação de dias perdidos (frente de confiabilidade, 2026-10-05).
+//
+// O robô importava D-1 e nada voltava atrás. O FATURAMENTO se cura sozinho (vem
+// por período), mas o PERFORMANCE é dia a dia: o de 13/09 nunca entrou, perdido
+// pelos 3 timeouts de 14/09, e nada no sistema avisou. Medido na base: era a
+// única lacuna de performance no período de operação.
+// ---------------------------------------------------------------------------
+describe('recuperação de dias de performance faltantes', () => {
+  function clienteComHistorico(dias, { status = 'completed', aoListar } = {}) {
+    const base = criarClienteHubMock();
+    const importados = [];
+    base.listarImportacoes = async (args) => {
+      if (aoListar) aoListar(args);
+      return dias.map((d) => (typeof d === 'string' ? { dataReferencia: d, status, tipo: 'performance' } : d));
+    };
+    const enviar = base.enviarImportacao;
+    base.enviarImportacao = async (args) => {
+      importados.push(args.nomeArquivo);
+      return enviar(args);
+    };
+    Object.defineProperty(base, 'importados', { get: () => importados });
+    return base;
+  }
+
+  test('janelaDeDias devolve os N dias terminando na data dada', () => {
+    assert.deepEqual(index.janelaDeDias('2026-10-04', 3), ['2026-10-02', '2026-10-03', '2026-10-04']);
+    assert.equal(index.janelaDeDias('2026-10-04', index.BACKFILL_JANELA_DIAS).length, index.BACKFILL_JANELA_DIAS);
+  });
+
+  test('janelaDeDias atravessa a virada de mês sem furo', () => {
+    assert.deepEqual(index.janelaDeDias('2026-10-02', 4), ['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02']);
+  });
+
+  test('aponta o dia que falta no meio da janela', async () => {
+    const clienteHub = clienteComHistorico(['2026-10-01', '2026-10-02', '2026-10-04']);
+    const faltam = await index.diasDePerformanceFaltando({ clienteHub, ateISO: '2026-10-04', janelaDias: 4 });
+    assert.deepEqual(faltam, ['2026-10-03']);
+  });
+
+  test('dia com completed_with_errors conta como PRESENTE — não se busca de novo', async () => {
+    // Senão o retry determinístico voltaria pela porta dos fundos (PR #251):
+    // o dia está no hub, com uma linha a menos; rebuscar não muda nada.
+    const clienteHub = clienteComHistorico(
+      [{ dataReferencia: '2026-10-03', status: 'completed_with_errors' }, { dataReferencia: '2026-10-04', status: 'completed' }]
+    );
+    const faltam = await index.diasDePerformanceFaltando({ clienteHub, ateISO: '2026-10-04', janelaDias: 2 });
+    assert.deepEqual(faltam, []);
+  });
+
+  test('dia que só tem importação FAILED conta como faltando', async () => {
+    const clienteHub = clienteComHistorico([{ dataReferencia: '2026-10-03', status: 'failed' }, '2026-10-04']);
+    const faltam = await index.diasDePerformanceFaltando({ clienteHub, ateISO: '2026-10-04', janelaDias: 2 });
+    assert.deepEqual(faltam, ['2026-10-03']);
+  });
+
+  test('a janela de CRIAÇÃO pedida é maior que a de referência', async () => {
+    // O filtro `de` da API é sobre `criado_em`, não `data_referencia`: um dia
+    // antigo importado ontem precisa contar como presente.
+    let argsRecebidos = null;
+    const clienteHub = clienteComHistorico(['2026-10-04'], { aoListar: (a) => { argsRecebidos = a; } });
+    await index.diasDePerformanceFaltando({ clienteHub, ateISO: '2026-10-04', janelaDias: 7 });
+    assert.equal(argsRecebidos.tipo, 'performance');
+    assert.ok(argsRecebidos.deCriadoEm < '2026-09-27', `janela de criação curta demais: ${argsRecebidos.deCriadoEm}`);
+  });
+
+  test('a rodada busca o dia que faltava, além do D-1', async () => {
+    const datasPedidas = [];
+    const page = criarPageMock({
+      sonda: { status: 200 },
+      urls: {
+        PERFORMANCE: (args) => {
+          datasPedidas.push(args.dataInicial);
+          return { status: 200, contentType: 'application/json', corpo: [{ url: `https://s3.amazonaws.com/bucket/p-${args.dataInicial}.csv`, date: args.dataInicial }] };
+        },
+        FINANCE: URLS_OK('FINANCE'),
+      },
+    });
+    // D-1 da rodada é 2026-08-26 (agora fixo abaixo). A janela de 7 dias é
+    // 20..26; o histórico cobre tudo menos 2026-08-24.
+    const clienteHub = clienteComHistorico(['2026-08-20', '2026-08-21', '2026-08-22', '2026-08-23', '2026-08-25', '2026-08-26']);
+    const transportador = criarTransportadorMock();
+
+    const r = await index.executarRodada({
+      page, config: config(), clienteHub, obterCodigo: async () => '123456',
+      transportador, dormir: dormirRapido, axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+      agora: () => Date.parse('2026-08-27T14:00:00Z'),
+    });
+
+    assert.equal(r.resultado, 'sucesso');
+    assert.ok(datasPedidas.includes('2026-08-26'), 'o D-1 continua sendo buscado');
+    assert.ok(datasPedidas.includes('2026-08-24'), `o dia faltante deveria ter sido buscado; pedidas: ${datasPedidas}`);
+    assert.ok(r.recuperados && r.recuperados.length > 0, 'o dia recuperado precisa aparecer no log — senão some de novo');
+  });
+
+  test('falha ao recuperar não derruba a rodada nem muda o resultado', async () => {
+    const page = criarPageMock({
+      sonda: { status: 200 },
+      urls: {
+        // dia antigo falha no portal. Uso 5xx e não lista vazia de propósito:
+        // lista vazia faz `buscarUrlsRelatorio` esperar o timeout contra o
+        // relógio REAL (o `dormir` injetado só encurta a pausa, não o prazo), e
+        // a suíte ficaria 30 s parada por dia. A espera em si já é testada em
+        // test/entrego-portal.test.js, com `agora` injetável.
+        PERFORMANCE: (args) => (args.dataInicial === '2026-08-26'
+          ? { status: 200, contentType: 'application/json', corpo: [{ url: `https://s3.amazonaws.com/bucket/p-${args.dataInicial}.csv`, date: args.dataInicial }] }
+          : { status: 503, contentType: 'application/json', corpo: {} }),
+        FINANCE: URLS_OK('FINANCE'),
+      },
+    });
+    const clienteHub = clienteComHistorico(['2026-08-20', '2026-08-21', '2026-08-22', '2026-08-23', '2026-08-25', '2026-08-26']);
+    const transportador = criarTransportadorMock();
+
+    const r = await index.executarRodada({
+      page, config: config(), clienteHub, obterCodigo: async () => '123456',
+      transportador, dormir: dormirRapido, axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+      agora: () => Date.parse('2026-08-27T14:00:00Z'),
+    });
+
+    assert.equal(r.resultado, 'sucesso', 'o trabalho do dia foi feito; recuperar é extra');
+    assert.ok(r.recuperados.some((x) => x.status_hub === null), 'o dia NÃO recuperado também precisa ficar visível');
+  });
+
+  test('D-1 que falhou no laço principal NÃO é retentado pelo backfill na mesma rodada', async () => {
+    // Caso real: quando a rodada começa, o D-1 ainda não está no hub. Se ele
+    // falha no laço principal, aparece como "faltante" na consulta logo abaixo
+    // — e retentá-lo aqui seria repetir, no mesmo minuto, o que acabou de
+    // falhar. Quem retenta o D-1 é a próxima janela do dia.
+    const pedidasPerformance = [];
+    const page = criarPageMock({
+      sonda: { status: 200 },
+      urls: {
+        PERFORMANCE: (args) => {
+          pedidasPerformance.push(args.dataInicial);
+          return { status: 503, contentType: 'application/json', corpo: {} };
+        },
+        FINANCE: URLS_OK('FINANCE'),
+      },
+    });
+    // histórico cobre a janela inteira MENOS o D-1 (2026-08-26), que é o estado
+    // real no momento da consulta quando o D-1 falhou.
+    const clienteHub = clienteComHistorico(['2026-08-20', '2026-08-21', '2026-08-22', '2026-08-23', '2026-08-24', '2026-08-25']);
+    const transportador = criarTransportadorMock();
+
+    const r = await index.executarRodada({
+      page, config: config(), clienteHub, obterCodigo: async () => '123456',
+      transportador, dormir: dormirRapido, axiosInstance: csvAxios(),
+      caminhoLog: tmpPath('execucoes.jsonl'),
+      agora: () => Date.parse('2026-08-27T14:00:00Z'),
+    });
+
+    // Contar pedidos não serve: `comRetryTransitorio` repete o D-1 por conta
+    // própria no 5xx, e isso é legítimo. O que o backfill não pode fazer é
+    // tratá-lo como dia a recuperar.
+    const recuperouD1 = (r.recuperados || []).some((x) => x.data_referencia === '2026-08-26');
+    assert.equal(recuperouD1, false, 'o D-1 não pode entrar na recuperação: o laço principal já cuidou dele nesta rodada');
+    assert.ok(pedidasPerformance.includes('2026-08-26'), 'e o laço principal de fato tentou o D-1');
+  });
+
+  test('consulta que falha não derruba nada — recuperar é trabalho extra', async () => {
+    const clienteHub = criarClienteHubMock();
+    clienteHub.listarImportacoes = async () => { throw new Error('hub fora do ar'); };
+    assert.deepEqual(await index.diasDePerformanceFaltando({ clienteHub, ateISO: '2026-10-04' }), []);
+  });
+
+  test('cliente antigo, sem listarImportacoes: nada quebra', async () => {
+    assert.deepEqual(await index.diasDePerformanceFaltando({ clienteHub: criarClienteHubMock(), ateISO: '2026-10-04' }), []);
+  });
+});

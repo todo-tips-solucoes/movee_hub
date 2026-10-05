@@ -249,6 +249,37 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
   }
 
   /**
+   * GET /api/v1/importacoes?tipo=… — quais dias JÁ estão no hub.
+   *
+   * Serve à recuperação de lacunas: o robô importa D-1 e, se uma janela falha,
+   * ninguém volta atrás. O FATURAMENTO se cura sozinho (o relatório vem por
+   * período e o dia seguinte cobre o buraco), mas o PERFORMANCE é dia a dia —
+   * medido: o performance de 13/09 nunca entrou, perdido pelos 3 timeouts de
+   * 14/09, e nada no sistema avisou.
+   *
+   * ⚠️ O filtro `de`/`ate` da API é sobre `criado_em`, NÃO sobre
+   * `data_referencia` (routes/hub-importacoes.js). Por isso pedimos uma janela
+   * generosa de criação e filtramos por `dataReferencia` aqui — um dia antigo
+   * importado hoje precisa contar como presente.
+   */
+  async function listarImportacoes({ tipo, deCriadoEm, pageSize = 100 } = {}) {
+    garantirAutenticado();
+    const params = new URLSearchParams();
+    if (tipo) params.set('tipo', tipo);
+    if (deCriadoEm) params.set('de', deCriadoEm);
+    params.set('pageSize', String(pageSize));
+    const resp = await comRenovacao(() =>
+      http.get(`/api/v1/importacoes?${params.toString()}`, { headers: { Cookie: cookieHeader } })
+    );
+    if (resp.status !== 200) {
+      throw new ErroHub(`hub-client: listar importações — status inesperado ${resp.status}`);
+    }
+    const corpo = resp.data;
+    const itens = Array.isArray(corpo) ? corpo : (corpo && Array.isArray(corpo.items) ? corpo.items : []);
+    return itens;
+  }
+
+  /**
    * GET /api/v1/importacoes/:id em loop até status terminal (contracts/hub-api.md).
    * `dormir`/`agora` injetáveis para teste (sem esperar tempo real nem
    * depender do relógio real para exercitar o timeout).
@@ -398,7 +429,7 @@ function criarClienteHub({ baseURL, idEmpresaEsperado, axiosInstance, dormir }) 
   }
 
   return {
-    login, enviarImportacao, reprocessarImportacao, pollarImportacao, registrarEvento, consultarErrosImportacao,
+    login, enviarImportacao, reprocessarImportacao, pollarImportacao, registrarEvento, consultarErrosImportacao, listarImportacoes,
     buscarMotoristasParaEnriquecer, atualizarEnriquecimento,
   };
 }
