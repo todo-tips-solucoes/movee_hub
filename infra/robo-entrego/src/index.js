@@ -94,7 +94,14 @@ async function diasDePerformanceFaltando({ clienteHub, ateISO, janelaDias = BACK
         .map((i) => String(i.dataReferencia || i.data_referencia || '').slice(0, 10))
     );
     return janelaDeDias(ateISO, janelaDias).filter((dia) => !presentes.has(dia));
-  } catch (_) {
+  } catch (e) {
+    // Best-effort continua: recuperar é trabalho EXTRA e não pode derrubar a
+    // rodada. Mas calar o motivo tornaria "a consulta falhou" indistinguível de
+    // "não há nada a recuperar" — e um dia perdido voltaria a sumir em silêncio,
+    // que é exatamente como o performance de 13/09 se perdeu. Mesma lição do
+    // alerta que nunca disparava (PR #251) e do SMTP que falhava calado.
+    // eslint-disable-next-line no-console
+    console.error(`[robo] consulta de dias faltantes FALHOU (nenhum dia será recuperado nesta rodada): ${e && e.message}`);
     return [];
   }
 }
