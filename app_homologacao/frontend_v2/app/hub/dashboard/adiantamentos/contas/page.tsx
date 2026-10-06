@@ -52,6 +52,7 @@ import { PaginationControls } from '@/components/pagination-controls';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { EmptyState } from '@/components/hub/empty-state';
 import { PageHeader } from '@/components/hub/page-header';
+import { LancarContaDialog } from '@/components/hub/lancar-conta-dialog';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { SelectFiltro } from '@/components/hub/select-filtro';
 import { ContaStatusBadge, STATUS_CONTA_OPCOES } from '@/components/hub/status-badge';
@@ -179,6 +180,9 @@ export default function AdiantamentosContasPage() {
   const h = useContasLista();
   const { permissoes } = useHubAuth();
   const podeRevisar = permissoes.includes('adiantamentos.contas_revisar');
+  // Lançar conta é a porta das exceções (conta PF): mesma permissão de revisar,
+  // porque é a mesma decisão — ver components/hub/lancar-conta-dialog.tsx.
+  const [lancarAberto, setLancarAberto] = useState(false);
   const [confirmandoLote, setConfirmandoLote] = useState(false);
   const [aprovandoLote, setAprovandoLote] = useState(false);
 
@@ -219,8 +223,21 @@ export default function AdiantamentosContasPage() {
 
   return (
     <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
-      <PageHeader titulo="Contas bancárias" subtitulo="Solicitações de cadastro e alteração de dados bancários dos motoristas." />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader titulo="Contas bancárias" subtitulo="Solicitações de cadastro e alteração de dados bancários dos motoristas." />
+        {podeRevisar && (
+          <Button className="min-h-11 sm:min-h-9" onClick={() => setLancarAberto(true)}>
+            Lançar conta
+          </Button>
+        )}
+      </div>
       <AdiantamentosAbas />
+
+      <LancarContaDialog
+        aberto={lancarAberto}
+        onFechar={() => setLancarAberto(false)}
+        onLancada={h.refetch}
+      />
 
       <FilterBar
         gridClassName="grid-cols-1 xs:grid-cols-2 lg:grid-cols-5"
