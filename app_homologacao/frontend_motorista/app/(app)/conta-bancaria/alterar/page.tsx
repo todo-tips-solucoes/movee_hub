@@ -147,10 +147,6 @@ export default function AlterarContaBancariaPage() {
             onChange={(e) => setTitularDocumento(e.target.value)}
             aria-invalid={erroCampo === 'titularDocumento'}
           />
-          <p className="text-xs text-muted-foreground">
-            A conta precisa ser do seu CNPJ. Para usar uma conta de pessoa física,
-            fale com a Movee — a alteração é feita por lá.
-          </p>
         </div>
 
         <div className="space-y-1.5">
