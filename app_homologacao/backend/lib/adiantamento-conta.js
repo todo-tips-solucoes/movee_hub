@@ -26,7 +26,12 @@ const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REGEX_TELEFONE = /^\d{10,11}$/; // DDD + número, só dígitos (sem +55)
 const REGEX_UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIPOS_CHAVE_PIX = ['CPF', 'CNPJ', 'EMAIL', 'TELEFONE', 'ALEATORIA'];
-const TIPOS_CONTA = ['CORRENTE', 'POUPANCA'];
+// Poupança deixou de ser aceita em 2026-10-05, por decisão do operador, e em
+// TODA porta: nem o motorista envia pelo app, nem o operador lança pelo hub. A
+// constraint `contabancariamotorista_sem_poupanca_chk` (migration 0103) é a
+// trava no banco; esta lista é a trava na API. As contas poupança que já
+// existiam ficam como estão.
+const TIPOS_CONTA = ['CORRENTE'];
 
 function somenteDigitos(valor) {
   return String(valor == null ? '' : valor).replace(/\D/g, '');
@@ -181,8 +186,9 @@ const CAMPOS_TIPO_CONTA = new Set(TIPOS_CONTA);
  * vários erros num payload só, seguindo o padrão `{erro:'DADOS_INVALIDOS',
  * motivo}` do resto da API.
  */
-function validarContaBancaria(dados) {
+function validarContaBancaria(dados, opcoes) {
   dados = dados || {};
+  const { exigirPJ = false, documentoEsperado = null } = opcoes || {};
   const erro = (motivo) => ({ valido: false, motivo });
 
   const titularNome = typeof dados.titularNome === 'string' ? dados.titularNome.trim() : '';
@@ -190,6 +196,18 @@ function validarContaBancaria(dados) {
 
   const doc = validarDocumento(dados.titularDocumento);
   if (!doc.valido) return erro('titularDocumento');
+
+  // `exigirPJ`: o APP só aceita CNPJ (decisão do operador, 2026-10-05). PF
+  // existe só pela porta do hub, lançada por quem revisa — por isso é opção, e
+  // não regra fixa aqui: a mesma função serve às duas portas.
+  if (exigirPJ && doc.tipo !== 'PJ') return erro('titularDocumento');
+
+  // `documentoEsperado`: no app, a conta tem de ser do CNPJ de quem está
+  // logado. O valor vem da sessão (`req.motorista.cnpjPrestador`), não do
+  // corpo da requisição — quem envia não escolhe contra o que é comparado.
+  if (documentoEsperado && doc.documento !== somenteDigitos(documentoEsperado)) {
+    return erro('titularDocumento');
+  }
 
   const banco = validarBanco(dados.bancoCodigo);
   if (!banco.valido) return erro('bancoCodigo');

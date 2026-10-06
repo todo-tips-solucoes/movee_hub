@@ -267,6 +267,14 @@ async function fakeHubPostgrestRequest(endpoint, method, body, claims, opts) {
     if (comportamentoRpc.contaAprovar) throw raiseComMensagem(comportamentoRpc.contaAprovar);
     return { id: body.p_id, status: 'APROVADA' };
   }
+  if (caminho === 'rpc/hub_entregador_buscar') {
+    return [{ id: 10, nome: 'Fulano de Tal', documento_mascarado: '**.***.***/0001-81', tem_conta_aprovada: true }];
+  }
+  if (caminho === 'rpc/hub_conta_bancaria_lancar') {
+    if (comportamentoRpc.contaLancar) throw raiseComMensagem(comportamentoRpc.contaLancar);
+    const doc = String((body.p_dados || {}).titularDocumento || '');
+    return { id: 900, status: 'APROVADA', titularTipo: doc.length === 14 ? 'PJ' : 'PF' };
+  }
   if (caminho === 'rpc/hub_conta_bancaria_rejeitar') {
     if (comportamentoRpc.contaRejeitar) throw raiseComMensagem(comportamentoRpc.contaRejeitar);
     return { id: body.p_id, status: 'REJEITADA' };
@@ -856,6 +864,94 @@ describe('4.3 contas bancárias', () => {
     });
     assert.equal(r.status, 200);
     assert.ok(registrosAuditoria.some((e) => e.acao === 'conta_bancaria.aprovada'));
+  });
+
+  // --- POST /contas — o operador lança a conta (porta da exceção PF) --------
+  //
+  // Desde 2026-10-05 o app só aceita CNPJ do próprio motorista. Quem precisa de
+  // conta PESSOA FÍSICA pede ao operador, e esta rota é a única porta. Poupança
+  // não entra nem por aqui.
+  const CONTA_PF = {
+    entregadorId: 10,
+    titularNome: 'Fulano de Tal',
+    titularDocumento: '12345678909',   // CPF
+    bancoCodigo: '260',
+    agencia: '0001',
+    conta: '123456',
+    contaDigito: '7',
+    tipoConta: 'CORRENTE',
+  };
+
+  test('GET /contas/entregadores com menos de 3 letras nem vai ao banco', async () => {
+    const antes = chamadasPostgrest.length;
+    const r = await request('GET', '/api/v1/adiantamentos/contas/entregadores?busca=ab', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.items, []);
+    assert.equal(chamadasPostgrest.length, antes, 'busca curta não deveria consultar o banco');
+  });
+
+  test('GET /contas/entregadores devolve o documento MASCARADO', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/contas/entregadores?busca=Fulano', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.items[0].nome, 'Fulano de Tal');
+    assert.doesNotMatch(JSON.stringify(r.body), /\d{14}/, 'documento completo não pode trafegar na busca');
+  });
+
+  test('GET /contas/entregadores exige a permissão de revisar conta', async () => {
+    permissoesPorEntidade = new Set(['adiantamentos.consultar', 'adiantamentos.contas_consultar']);
+    const r = await request('GET', '/api/v1/adiantamentos/contas/entregadores?busca=Fulano', { cookie: tokenCookie() });
+    assert.equal(r.status, 403);
+  });
+
+  test('POST /contas aceita CPF — é a porta onde PF é legítimo', async () => {
+    const r = await request('POST', '/api/v1/adiantamentos/contas', { body: { ...CONTA_PF }, cookie: tokenCookie() });
+    assert.equal(r.status, 201);
+    assert.ok(
+      registrosAuditoria.some((e) => e.acao === 'conta_bancaria.lancada_pelo_hub'),
+      'lançar conta por exceção precisa deixar trilha'
+    );
+  });
+
+  test('POST /contas NÃO grava o documento na auditoria — só o tipo', async () => {
+    // faz a própria chamada: `beforeEach` zera `registrosAuditoria`, e um teste
+    // que depende do estado do anterior quebra ao reordenar a suíte
+    await request('POST', '/api/v1/adiantamentos/contas', { body: { ...CONTA_PF }, cookie: tokenCookie() });
+    const trilha = registrosAuditoria.find((e) => e.acao === 'conta_bancaria.lancada_pelo_hub');
+    assert.ok(trilha, 'a trilha deveria existir');
+    assert.doesNotMatch(JSON.stringify(trilha.detalhes ?? {}), /12345678909/, 'CPF não pode ir para a trilha');
+    assert.equal(trilha.detalhes.titularTipo, 'PF', 'o tipo basta para auditar a exceção');
+  });
+
+  test('POST /contas recusa poupança — proibida em porta nenhuma', async () => {
+    const r = await request('POST', '/api/v1/adiantamentos/contas', {
+      body: { ...CONTA_PF, tipoConta: 'POUPANCA' }, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'tipoConta');
+  });
+
+  test('POST /contas exige entregadorId', async () => {
+    const semEntregador = { ...CONTA_PF };
+    delete semEntregador.entregadorId;
+    const r = await request('POST', '/api/v1/adiantamentos/contas', { body: semEntregador, cookie: tokenCookie() });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'entregadorId');
+  });
+
+  test('POST /contas recusa documento inválido antes de chamar o banco', async () => {
+    const antes = chamadasPostgrest.length;
+    const r = await request('POST', '/api/v1/adiantamentos/contas', {
+      body: { ...CONTA_PF, titularDocumento: '11111111111' }, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'titularDocumento');
+    assert.equal(chamadasPostgrest.length, antes, 'não deveria ter ido ao banco com documento inválido');
+  });
+
+  test('POST /contas exige a permissão de revisar conta', async () => {
+    permissoesPorEntidade = new Set(['adiantamentos.consultar', 'adiantamentos.contas_consultar']);
+    const r = await request('POST', '/api/v1/adiantamentos/contas', { body: { ...CONTA_PF }, cookie: tokenCookie() });
+    assert.equal(r.status, 403);
   });
 
   test('POST /contas/:id/rejeitar exige motivo', async () => {

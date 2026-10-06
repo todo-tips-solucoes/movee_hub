@@ -53,6 +53,9 @@ const { mesmoGrupoQue } = require('./grupo');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const { buscarEmLotes } = require('../lib/hub-postgrest-lotes');
 const { registrarAuditoria } = require('../lib/hub-auditoria');
+// mesma validação que o app usa — aqui SEM `exigirPJ`/`documentoEsperado`,
+// porque esta é a porta onde PF é legítimo (ver POST /contas).
+const { validarContaBancaria } = require('../lib/adiantamento-conta');
 const {
   dinheiro, formatarSequencial, formatarBancoCodigoNome, pontuarDocumentoMascarado,
   rotuloStatusAdiantamento, mapConfiguracao, mapContaCompleta, mapSolicitacaoResumo,
@@ -683,6 +686,46 @@ router.get('/contas', requireModuloAtivo('adiantamentos'), requirePermission('ad
   }
 });
 
+// --- GET /contas/entregadores — busca para o lançamento ----------------------
+//
+// Vive aqui, e não no módulo de motoristas, de propósito: quem lança conta tem
+// `adiantamentos.contas_revisar` e não necessariamente `motoristas.listar`.
+// O documento volta MASCARADO da RPC — a tela só precisa distinguir pessoas.
+router.get('/contas/entregadores', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.contas_revisar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.contas_revisar');
+    if (!ctx) return;
+    const { claims } = ctx;
+
+    const busca = typeof req.query.busca === 'string' ? req.query.busca.trim() : '';
+    // O piso de 3 caracteres também vive na RPC; aqui é só para não gastar
+    // viagem ao banco com o que já se sabe que volta vazio.
+    if (busca.length < 3) return res.status(200).json({ items: [] });
+
+    let linhas;
+    try {
+      linhas = await hubPostgrestRequest('rpc/hub_entregador_buscar', 'POST', { p_busca: busca }, claims);
+    } catch (e) {
+      const msg = mensagemDeErro(e);
+      if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+      console.error('[hub-adiantamentos] erro em GET /contas/entregadores:', e.message);
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+
+    return res.status(200).json({
+      items: (Array.isArray(linhas) ? linhas : []).map((r) => ({
+        id: r.id,
+        nome: r.nome,
+        documentoMascarado: r.documento_mascarado,
+        temContaAprovada: r.tem_conta_aprovada === true,
+      })),
+    });
+  } catch (e) {
+    console.error('[hub-adiantamentos] erro inesperado em GET /contas/entregadores:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
 router.get('/contas/:id', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.contas_consultar'), async (req, res) => {
   try {
     const completo = req.query.completo === 'true';
@@ -777,6 +820,61 @@ router.post('/contas/:id/aprovar', requireModuloAtivo('adiantamentos'), requireP
     return res.status(200).json(Array.isArray(resultado) ? resultado[0] : resultado);
   } catch (e) {
     console.error('[hub-adiantamentos] erro inesperado em POST /contas/:id/aprovar:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// --- POST /contas — o operador LANÇA a conta do motorista --------------------
+//
+// Única porta para conta PESSOA FÍSICA desde 2026-10-05: o app passou a aceitar
+// só CNPJ do próprio motorista, e quem precisa de PF pede ao operador. Poupança
+// não entra nem por aqui (`validarContaBancaria` recusa, e a constraint
+// `contabancariamotorista_sem_poupanca_chk` da 0103 é a trava no banco).
+//
+// Sem `exigirPJ` nem `documentoEsperado`: é justamente a porta onde PF é
+// legítimo, e o titular pode ser outra pessoa (conta de terceiro autorizada).
+router.post('/contas', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.contas_revisar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.contas_revisar');
+    if (!ctx) return;
+    const { claims, entidadeAtiva, payload } = ctx;
+
+    const entregadorId = req.body && req.body.entregadorId;
+    if (!Number.isInteger(entregadorId) || entregadorId <= 0) {
+      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'entregadorId' });
+    }
+
+    const validacao = validarContaBancaria(req.body);
+    if (!validacao.valido) {
+      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: validacao.motivo });
+    }
+
+    // Só os campos do contrato chegam à RPC — `req.body` cru nunca é repassado
+    // (mesmo cuidado da rota do app, sem mass assignment).
+    const dados = { ...validacao.dados, entregadorId };
+
+    let resultado;
+    try {
+      resultado = await hubPostgrestRequest('rpc/hub_conta_bancaria_lancar', 'POST', { p_dados: dados }, claims);
+    } catch (e) {
+      const msg = mensagemDeErro(e);
+      if (msg.includes('NAO_ENCONTRADA')) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+      if (msg.includes('POUPANCA_NAO_PERMITIDA')) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'tipoConta' });
+      if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+      console.error('[hub-adiantamentos] erro em POST /contas:', e.message);
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+
+    const criada = Array.isArray(resultado) ? resultado[0] : resultado;
+    await registrarAuditoria({
+      idEmpresa: entidadeAtiva, usuarioId: payload.sub, acao: 'conta_bancaria.lancada_pelo_hub',
+      recurso: 'ContaBancariaMotorista', recursoId: criada && criada.id,
+      // o documento NÃO vai para a trilha; o tipo basta para auditar a exceção
+      detalhes: { entregadorId, titularTipo: criada && criada.titularTipo }, claims,
+    });
+    return res.status(201).json(criada);
+  } catch (e) {
+    console.error('[hub-adiantamentos] erro inesperado em POST /contas:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
