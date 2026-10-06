@@ -31,6 +31,9 @@ const {
 const CPF_VALIDO = '12345678909';
 const CPF_VALIDO_MASCARADO = '987.654.321-00';
 const CNPJ_VALIDO = '11222333000181';
+// segundo CNPJ válido (DV conferido) — o caso "documento de outro titular"
+// precisa de um documento VÁLIDO, senão o teste passaria pelo motivo errado.
+const CNPJ_VALIDO_2 = '89000000000529';
 const CNPJ_VALIDO_MASCARADO = '11.222.333/0001-81';
 
 describe('validarDocumento() — DV de CPF/CNPJ (2.2.1)', () => {
@@ -295,9 +298,64 @@ describe('cross-referência FR-016 x FR-055 (2.2.6, security CHK018)', () => {
       agencia: '7',
       conta: '123',
       contaDigito: '4',
-      tipoConta: 'POUPANCA',
+      tipoConta: 'CORRENTE', // era POUPANCA; recusada desde 2026-10-05 (0103) e irrelevante para o que este teste mede
     });
     assert.equal(r.dados.agencia.length, 4); // FR-016 (validação) == FR-055 (exportação)
     assert.equal(r.dados.bancoCodigo.length, 3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Conta tem de ser CNPJ do próprio motorista, e nunca poupança (decisão do
+// operador, 2026-10-05). O app é a porta restrita; o hub é a porta das
+// exceções, e lá PF é permitido — mas poupança não é, em porta nenhuma.
+// ---------------------------------------------------------------------------
+describe('conta bancária — CNPJ obrigatório no app, poupança em lugar nenhum', () => {
+  const base = {
+    titularNome: 'Fulano de Tal',
+    titularDocumento: CNPJ_VALIDO,
+    bancoCodigo: '260',
+    agencia: '0001',
+    conta: '123456',
+    contaDigito: '7',
+    tipoConta: 'CORRENTE',
+  };
+
+  test('app: CNPJ do próprio motorista é aceito', () => {
+    const r = validarContaBancaria(base, { exigirPJ: true, documentoEsperado: CNPJ_VALIDO });
+    assert.equal(r.valido, true);
+  });
+
+  test('app: CPF é recusado — PF só pela porta do hub', () => {
+    const r = validarContaBancaria({ ...base, titularDocumento: CPF_VALIDO }, { exigirPJ: true });
+    assert.deepEqual(r, { valido: false, motivo: 'titularDocumento' });
+  });
+
+  test('app: CNPJ VÁLIDO mas de outro titular é recusado', () => {
+    // o esperado vem da sessão (`req.motorista.cnpjPrestador`), não do corpo —
+    // quem envia não escolhe contra o que é comparado
+    const r = validarContaBancaria(base, { exigirPJ: true, documentoEsperado: CNPJ_VALIDO_2 });
+    assert.deepEqual(r, { valido: false, motivo: 'titularDocumento' });
+  });
+
+  test('poupança é recusada pelo app', () => {
+    const r = validarContaBancaria({ ...base, tipoConta: 'POUPANCA' }, { exigirPJ: true, documentoEsperado: CNPJ_VALIDO });
+    assert.deepEqual(r, { valido: false, motivo: 'tipoConta' });
+  });
+
+  test('poupança é recusada TAMBÉM na porta do hub (sem exigirPJ)', () => {
+    const r = validarContaBancaria({ ...base, tipoConta: 'POUPANCA' });
+    assert.deepEqual(r, { valido: false, motivo: 'tipoConta' });
+  });
+
+  test('hub: CPF é aceito — é a porta da exceção', () => {
+    const r = validarContaBancaria({ ...base, titularDocumento: CPF_VALIDO });
+    assert.equal(r.valido, true);
+    assert.equal(r.dados.titularTipo, 'PF');
+  });
+
+  test('sem opções, o comportamento não restringe — a porta do hub é a padrão', () => {
+    assert.equal(validarContaBancaria({ ...base, titularDocumento: CPF_VALIDO }).valido, true);
+    assert.equal(validarContaBancaria(base).valido, true);
   });
 });

@@ -20,6 +20,7 @@ import {
   validarFormularioContaBancaria,
   type BancoOpcao,
   type DadosFormularioContaBancaria,
+  mascararCnpj,
 } from './conta-bancaria-form.ts';
 
 const BANCOS: BancoOpcao[] = [
@@ -170,4 +171,40 @@ test('validarFormularioContaBancaria: chave PIX opcional inválida aponta chaveP
 test('validarFormularioContaBancaria: chave PIX e e-mail de comprovante ausentes (ambos opcionais) não bloqueiam', () => {
   const r = validarFormularioContaBancaria(dadosValidos(), BANCOS);
   assert.equal(r.valido, true);
+});
+
+// --- Só CNPJ, só corrente (decisão do operador, 2026-10-05) ----------------
+//
+// O app é a porta restrita: conta pessoa física passou a existir só pela porta
+// do hub, lançada por quem revisa. Poupança não existe em porta nenhuma.
+
+test('formulário recusa CPF — conta PF só pelo hub', () => {
+  const r = validarFormularioContaBancaria(
+    { ...dadosValidos(), titularDocumento: '123.456.789-09' }, // CPF com DV válido
+    BANCOS,
+  );
+  assert.deepEqual(r, { valido: false, motivo: 'titularDocumento' });
+});
+
+test('formulário recusa poupança', () => {
+  const r = validarFormularioContaBancaria(
+    { ...dadosValidos(), tipoConta: 'POUPANCA' as unknown as 'CORRENTE' },
+    BANCOS,
+  );
+  assert.deepEqual(r, { valido: false, motivo: 'tipoConta' });
+});
+
+test('CNPJ com ou sem máscara dá o mesmo veredito', () => {
+  assert.equal(validarFormularioContaBancaria({ ...dadosValidos(), titularDocumento: '11222333000181' }, BANCOS).valido, true);
+  assert.equal(validarFormularioContaBancaria({ ...dadosValidos(), titularDocumento: '11.222.333/0001-81' }, BANCOS).valido, true);
+});
+
+test('mascararCnpj formata enquanto a pessoa digita', () => {
+  assert.equal(mascararCnpj('11'), '11');
+  assert.equal(mascararCnpj('11222'), '11.222');
+  assert.equal(mascararCnpj('11222333'), '11.222.333');
+  assert.equal(mascararCnpj('112223330001'), '11.222.333/0001');
+  assert.equal(mascararCnpj('11222333000181'), '11.222.333/0001-81');
+  // não deixa passar de 14 dígitos nem aceita lixo
+  assert.equal(mascararCnpj('abc11222333000181999'), '11.222.333/0001-81');
 });

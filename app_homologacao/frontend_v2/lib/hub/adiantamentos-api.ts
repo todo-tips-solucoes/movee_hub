@@ -445,6 +445,48 @@ export async function rejeitarConta(id: number, motivo: string): Promise<{ id: n
   return request(`/adiantamentos/contas/${id}/rejeitar`, { method: 'POST', body: JSON.stringify({ motivo }) });
 }
 
+// --- Lançamento de conta pelo operador (2026-10-05) -------------------------
+//
+// Desde esta data o app do motorista só aceita conta CNPJ do próprio titular, e
+// nunca poupança. Quem precisa de conta PESSOA FÍSICA pede ao operador — estas
+// duas funções são a porta.
+
+export interface EntregadorBusca {
+  id: number;
+  nome: string;
+  // CNPJ já mascarado pelo backend (formato `**.***.***` + barra + `0001-81`)
+  // ou null se o motorista ainda não tem CNPJ no cadastro.
+  //
+  // Comentário de LINHA de propósito: o exemplo do formato contém a sequência
+  // que fecharia um bloco `/* */` antes da hora — o `tsc` acusa
+  // "Unterminated regular expression literal" 100 linhas abaixo, longe da causa.
+  documentoMascarado: string | null;
+  temContaAprovada: boolean;
+}
+
+/** Busca para o lançamento. Menos de 3 caracteres devolve vazio sem ir ao banco. */
+export async function buscarEntregadores(busca: string): Promise<EntregadorBusca[]> {
+  const r = await request<{ items: EntregadorBusca[] }>(`/adiantamentos/contas/entregadores${query({ busca })}`);
+  return r.items ?? [];
+}
+
+export interface LancarContaPayload {
+  entregadorId: number;
+  titularNome: string;
+  /** CPF (11) ou CNPJ (14) — só dígitos. PF é permitido AQUI, e só aqui. */
+  titularDocumento: string;
+  bancoCodigo: string;
+  agencia: string;
+  conta: string;
+  contaDigito: string;
+  /** Sempre 'CORRENTE': poupança não é aceita em porta nenhuma. */
+  tipoConta: 'CORRENTE';
+}
+
+export async function lancarConta(dados: LancarContaPayload): Promise<{ id: number; status: string; titularTipo: 'PF' | 'PJ' }> {
+  return request('/adiantamentos/contas', { method: 'POST', body: JSON.stringify(dados) });
+}
+
 export interface AprovarLoteContasResponse {
   aprovadas: number;
   ignoradas: { id: number; motivo: string }[];
