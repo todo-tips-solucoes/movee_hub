@@ -27,13 +27,12 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { buscarBancos, solicitarContaBancaria, type Banco } from '@/lib/adiantamento-api';
 import { traduzirErroAdiantamento } from '@/lib/erros-adiantamento';
 import {
-  validarFormularioContaBancaria, type DadosFormularioContaBancaria, type TipoChavePix,
-} from '@/lib/conta-bancaria-form';
+  validarFormularioContaBancaria, type DadosFormularioContaBancaria, type TipoChavePix, mascararCnpj,} from '@/lib/conta-bancaria-form';
 import { ArrowLeft } from '@/components/ui/icons';
 
 const MENSAGEM_CAMPO: Record<string, string> = {
   titularNome: 'Informe o nome ou razão social do titular (até 120 caracteres).',
-  titularDocumento: 'CPF ou CNPJ inválido.',
+  titularDocumento: 'CNPJ inválido, ou não é o CNPJ da sua conta.',
   bancoCodigo: 'Escolha um banco da lista.',
   agencia: 'Agência inválida — use só números (até 4 dígitos).',
   conta: 'Conta inválida — use só números (até 20 dígitos).',
@@ -57,7 +56,8 @@ export default function AlterarContaBancariaPage() {
   const [agencia, setAgencia] = useState('');
   const [conta, setConta] = useState('');
   const [contaDigito, setContaDigito] = useState('');
-  const [tipoConta, setTipoConta] = useState<'CORRENTE' | 'POUPANCA'>('CORRENTE');
+  // sempre corrente — ver o bloco de "Tipo de conta" no formulário
+  const tipoConta = 'CORRENTE' as const;
   const [chavePixTipo, setChavePixTipo] = useState<TipoChavePix | ''>('');
   const [chavePix, setChavePix] = useState('');
   const [emailComprovante, setEmailComprovante] = useState('');
@@ -141,12 +141,16 @@ export default function AlterarContaBancariaPage() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="f-doc">CPF ou CNPJ do titular</Label>
+          <Label htmlFor="f-doc">CNPJ do titular</Label>
           <Input
-            id="f-doc" inputMode="numeric" value={titularDocumento}
+            id="f-doc" inputMode="numeric" value={mascararCnpj(titularDocumento)}
             onChange={(e) => setTitularDocumento(e.target.value)}
             aria-invalid={erroCampo === 'titularDocumento'}
           />
+          <p className="text-xs text-muted-foreground">
+            A conta precisa ser do seu CNPJ. Para usar uma conta de pessoa física,
+            fale com a Movee — a alteração é feita por lá.
+          </p>
         </div>
 
         <div className="space-y-1.5">
@@ -194,19 +198,14 @@ export default function AlterarContaBancariaPage() {
         </div>
         <p className="-mt-2 text-xs text-muted-foreground">Sem o dígito da agência. Zeros à esquerda são mantidos.</p>
 
+        {/* Tipo de conta deixou de ser escolha em 2026-10-05: só conta corrente
+            é aceita, aqui e no hub. Oferecer um botão que o backend recusaria
+            seria desperdiçar o preenchimento inteiro da pessoa. */}
         <div className="space-y-1.5">
           <Label>Tipo de conta</Label>
-          <div role="radiogroup" aria-label="Tipo de conta" className="flex gap-2">
-            {(['CORRENTE', 'POUPANCA'] as const).map((tp) => (
-              <label
-                key={tp}
-                className={`flex-1 rounded-lg border px-3 py-2.5 text-center text-sm font-medium ${tipoConta === tp ? 'border-primary bg-primary/5 text-[color-mix(in_oklab,var(--primary)_70%,var(--foreground)_30%)]' : 'border-input'}`}
-              >
-                <input type="radio" name="tp" className="sr-only" checked={tipoConta === tp} onChange={() => setTipoConta(tp)} />
-                {tp === 'CORRENTE' ? 'Corrente' : 'Poupança'}
-              </label>
-            ))}
-          </div>
+          <p className="rounded-lg border border-input px-3 py-2.5 text-sm">
+            Conta corrente <span className="text-muted-foreground">— poupança não é aceita</span>
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">

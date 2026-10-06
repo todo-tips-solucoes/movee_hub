@@ -638,7 +638,18 @@ router.get('/conta-bancaria', async (req, res) => {
 router.post('/conta-bancaria/solicitacoes', contaBancariaLimiter, async (req, res) => {
   // 3.2.6/S6/CHK019: só os campos do contrato, já validados e normalizados —
   // nunca `req.body` cru repassado para a RPC (sem mass assignment).
-  const validacao = validarContaBancaria(req.body);
+  // Desde 2026-10-05 o app só aceita conta CNPJ do PRÓPRIO motorista, e nunca
+  // poupança (decisão do operador). Quem precisa de conta pessoa física pede ao
+  // operador, que lança pelo hub — `POST /adiantamentos/contas`.
+  //
+  // `documentoEsperado` vem de `req.motorista.cnpjPrestador`, que é o CNPJ com
+  // que a pessoa está logada (routes/motorista.js: o JWT do app carrega isso).
+  // Comparar contra a SESSÃO, e não contra algo do corpo, é o que impede
+  // cadastrar conta em nome de terceiro.
+  const validacao = validarContaBancaria(req.body, {
+    exigirPJ: true,
+    documentoEsperado: req.motorista && req.motorista.cnpjPrestador,
+  });
   if (!validacao.valido) {
     return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: validacao.motivo });
   }

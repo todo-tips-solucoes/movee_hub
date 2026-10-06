@@ -19,7 +19,9 @@ const REGEX_TELEFONE = /^\d{10,11}$/;
 const REGEX_UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type TipoChavePix = 'CPF' | 'CNPJ' | 'EMAIL' | 'TELEFONE' | 'ALEATORIA';
-export type TipoConta = 'CORRENTE' | 'POUPANCA';
+// Poupança deixou de ser aceita em 2026-10-05, por decisão do operador, e em
+// toda porta: nem aqui, nem no lançamento pelo hub. O tipo some do formulário.
+export type TipoConta = 'CORRENTE';
 export type TipoDocumento = 'PF' | 'PJ' | null;
 
 export interface BancoOpcao {
@@ -154,7 +156,11 @@ export function validarFormularioContaBancaria(
   const titularNome = dados.titularNome.trim();
   if (titularNome.length < 1 || titularNome.length > 120) return erro('titularNome');
 
-  if (!validarDocumento(dados.titularDocumento).valido) return erro('titularDocumento');
+  // Só CNPJ, e só o do próprio motorista (2026-10-05). O backend confere o
+  // documento contra a SESSÃO; aqui a trava é de formato, para a pessoa não
+  // preencher o formulário inteiro e levar erro no envio.
+  const doc = validarDocumento(dados.titularDocumento);
+  if (!doc.valido || doc.tipo !== 'PJ') return erro('titularDocumento');
 
   if (!validarBanco(dados.bancoCodigo, bancosDisponiveis)) return erro('bancoCodigo');
 
@@ -164,7 +170,7 @@ export function validarFormularioContaBancaria(
 
   if (!validarDigitoConta(dados.contaDigito)) return erro('contaDigito');
 
-  if (dados.tipoConta !== 'CORRENTE' && dados.tipoConta !== 'POUPANCA') return erro('tipoConta');
+  if (dados.tipoConta !== 'CORRENTE') return erro('tipoConta');
 
   if (dados.chavePixTipo) {
     if (!validarChavePix(dados.chavePixTipo, dados.chavePix ?? '')) return erro('chavePix');
@@ -175,4 +181,19 @@ export function validarFormularioContaBancaria(
   }
 
   return { valido: true };
+}
+
+/**
+ * Máscara de CNPJ enquanto a pessoa digita (`11.222.333/0001-81`).
+ *
+ * Só CNPJ: desde 2026-10-05 o app não aceita CPF. Mostrar a pontuação certa é o
+ * que evita a dúvida de "é o meu CPF ou o CNPJ?" antes do erro aparecer.
+ */
+export function mascararCnpj(valor: string): string {
+  const d = valor.replace(/\D/g, '').slice(0, 14);
+  return d
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }

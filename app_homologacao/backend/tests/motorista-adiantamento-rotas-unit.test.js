@@ -641,9 +641,33 @@ describe('GET /motorista/conta-bancaria', () => {
 
 // --- 3.2 POST /motorista/conta-bancaria/solicitacoes -------------------------
 
+// Desde 2026-10-05 o app só aceita CNPJ do PRÓPRIO motorista logado. O header
+// `x-test-cnpj` é o que vira `req.motorista.cnpjPrestador` (ver o fake de auth
+// no topo), então corpo e sessão têm de carregar o MESMO documento.
+//
+// ⚠️ Cada teste precisa do SEU CNPJ: o `contaBancariaLimiter` conta por
+// `cnpjPrestador` (5 em 15 min), e reusar um único documento em todos os testes
+// faz os últimos receberem 429 — foi o que aconteceu ao escrever estes.
+function cnpjValido(base12) {
+  const calc = (nums, pesos) => {
+    const s = nums.reduce((a, n, i) => a + n * pesos[i], 0) % 11;
+    return s < 2 ? 0 : 11 - s;
+  };
+  const d = String(base12).padStart(12, '0').split('').map(Number);
+  const dv1 = calc(d, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const dv2 = calc([...d, dv1], [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return `${d.join('')}${dv1}${dv2}`;
+}
+let seqCnpj = 0;
+/** Um CNPJ válido diferente a cada chamada — evita colisão no rate limiter. */
+const proximoCnpj = () => cnpjValido(890000000000 + (seqCnpj += 1));
+/** Mesmo documento, com a pontuação que o app manda. */
+const mascararCnpj = (d) => `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`;
+const CNPJ_DO_MOTORISTA = cnpjValido(112223330001);
+const OUTRO_CNPJ_VALIDO = cnpjValido(770000000001);
 const CORPO_CONTA_VALIDO = {
   titularNome: 'Fulano Teste',
-  titularDocumento: '12345678909', // CPF com DV válido (mesmo valor de tests/adiantamento-conta-unit.test.js)
+  titularDocumento: CNPJ_DO_MOTORISTA,
   bancoCodigo: '001',
   agencia: '1234',
   conta: '99998888',
@@ -653,13 +677,14 @@ const CORPO_CONTA_VALIDO = {
 
 describe('POST /motorista/conta-bancaria/solicitacoes', () => {
   test('3.2.2: dados válidos -> 201 com a conta PENDENTE mascarada (releitura via hub_conta_bancaria_motorista)', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_disponibilidade'] = [disponibilidadeRow()];
     mockRespostas['rpc/hub_conta_bancaria_solicitar'] = [{ id: 99, status: 'PENDENTE' }];
     mockRespostas['rpc/hub_conta_bancaria_motorista'] = [{
       aprovada: contaMascaradaSql(), pendente: contaMascaradaSql({ id: 99, status: 'PENDENTE' }), ultima_rejeitada: null,
     }];
     const r = await request('POST', '/motorista/conta-bancaria/solicitacoes', {
-      headers: { 'x-test-cnpj': 'cnpj-cb4' }, body: CORPO_CONTA_VALIDO,
+      headers: { 'x-test-cnpj': cnpjDoTeste }, body: { ...CORPO_CONTA_VALIDO, titularDocumento: cnpjDoTeste },
     });
     assert.equal(r.status, 201);
     assert.equal(r.body.id, 99);
@@ -667,24 +692,75 @@ describe('POST /motorista/conta-bancaria/solicitacoes', () => {
   });
 
   test('3.2.6/S6/CHK019: a RPC recebe só os campos do contrato (normalizados) — sem mass assignment', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_disponibilidade'] = [disponibilidadeRow()];
     mockRespostas['rpc/hub_conta_bancaria_solicitar'] = [{ id: 99, status: 'PENDENTE' }];
     mockRespostas['rpc/hub_conta_bancaria_motorista'] = [{ aprovada: null, pendente: contaMascaradaSql({ id: 99, status: 'PENDENTE' }), ultima_rejeitada: null }];
     await request('POST', '/motorista/conta-bancaria/solicitacoes', {
-      headers: { 'x-test-cnpj': 'cnpj-cb5' },
-      body: { ...CORPO_CONTA_VALIDO, idEmpresa: 999, entregadorId: 1, id: 12345, status: 'APROVADA' },
+      headers: { 'x-test-cnpj': cnpjDoTeste },
+      body: { ...CORPO_CONTA_VALIDO, titularDocumento: cnpjDoTeste, idEmpresa: 999, entregadorId: 1, id: 12345, status: 'APROVADA' },
     });
     const chamada = chamadasPostgrest.find((c) => c.endpoint === 'rpc/hub_conta_bancaria_solicitar');
     assert.deepEqual(Object.keys(chamada.body.p_dados).sort(), [
       'agencia', 'bancoCodigo', 'bancoNome', 'chavePix', 'chavePixTipo', 'conta', 'contaDigito',
       'emailComprovante', 'tipoConta', 'titularDocumento', 'titularNome', 'titularTipo',
     ]);
-    assert.equal(chamada.claims.motoristaCnpj, 'cnpj-cb5'); // identidade sempre do token
+    assert.equal(chamada.claims.motoristaCnpj, cnpjDoTeste); // identidade sempre do token
+  });
+
+  // --- CNPJ próprio e nunca poupança (decisão do operador, 2026-10-05) ------
+  //
+  // O app é a porta restrita: só CNPJ, só do titular logado, só conta corrente.
+  // PF existe pela porta do hub (POST /adiantamentos/contas), e poupança por
+  // porta nenhuma.
+
+  test('CPF é recusado no app — conta PF só pelo hub', async () => {
+    const cnpjDoTeste = proximoCnpj();
+    const r = await request('POST', '/motorista/conta-bancaria/solicitacoes', {
+      headers: { 'x-test-cnpj': cnpjDoTeste },
+      body: { ...CORPO_CONTA_VALIDO, titularDocumento: '12345678909' },
+    });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'titularDocumento');
+    assert.equal(chamadasPostgrest.length, 0, 'não pode ir ao banco com documento recusado');
+  });
+
+  test('CNPJ VÁLIDO de outro titular é recusado — a comparação é contra a SESSÃO', async () => {
+    const cnpjDoTeste = proximoCnpj();
+    const r = await request('POST', '/motorista/conta-bancaria/solicitacoes', {
+      headers: { 'x-test-cnpj': cnpjDoTeste },
+      body: { ...CORPO_CONTA_VALIDO, titularDocumento: OUTRO_CNPJ_VALIDO },
+    });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'titularDocumento');
+  });
+
+  test('poupança é recusada no app', async () => {
+    const cnpjDoTeste = proximoCnpj();
+    const r = await request('POST', '/motorista/conta-bancaria/solicitacoes', {
+      headers: { 'x-test-cnpj': cnpjDoTeste },
+      body: { ...CORPO_CONTA_VALIDO, titularDocumento: cnpjDoTeste, tipoConta: 'POUPANCA' },
+    });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'tipoConta');
+  });
+
+  test('CNPJ com máscara é aceito desde que seja o do motorista', async () => {
+    const cnpjDoTeste = proximoCnpj();
+    mockRespostas['rpc/hub_adiantamento_disponibilidade'] = [disponibilidadeRow()];
+    mockRespostas['rpc/hub_conta_bancaria_solicitar'] = [{ id: 99, status: 'PENDENTE' }];
+    mockRespostas['rpc/hub_conta_bancaria_motorista'] = [{ aprovada: null, pendente: contaMascaradaSql({ id: 99, status: 'PENDENTE' }), ultima_rejeitada: null }];
+    const r = await request('POST', '/motorista/conta-bancaria/solicitacoes', {
+      headers: { 'x-test-cnpj': cnpjDoTeste },
+      body: { ...CORPO_CONTA_VALIDO, titularDocumento: mascararCnpj(cnpjDoTeste) },
+    });
+    assert.equal(r.status, 201, 'a máscara não pode mudar o veredito — o backend normaliza');
   });
 
   test('titularNome ausente -> 400 DADOS_INVALIDOS motivo=titularNome (sem chamar a RPC)', async () => {
+    const cnpjDoTeste = proximoCnpj();
     const r = await request('POST', '/motorista/conta-bancaria/solicitacoes', {
-      headers: { 'x-test-cnpj': 'cnpj-cb6' }, body: { ...CORPO_CONTA_VALIDO, titularNome: '' },
+      headers: { 'x-test-cnpj': cnpjDoTeste }, body: { ...CORPO_CONTA_VALIDO, titularDocumento: cnpjDoTeste, titularNome: '' },
     });
     assert.equal(r.status, 400);
     assert.equal(r.body.motivo, 'titularNome');
@@ -692,10 +768,11 @@ describe('POST /motorista/conta-bancaria/solicitacoes', () => {
   });
 
   test('NOT_LINKED (SQL) -> 409 SOLICITACAO_INDISPONIVEL motivo=NOT_LINKED', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_disponibilidade'] = [disponibilidadeRow()];
     mockRespostas['rpc/hub_conta_bancaria_solicitar'] = erroRpc('NOT_LINKED');
     const r = await request('POST', '/motorista/conta-bancaria/solicitacoes', {
-      headers: { 'x-test-cnpj': 'cnpj-cb7' }, body: CORPO_CONTA_VALIDO,
+      headers: { 'x-test-cnpj': cnpjDoTeste }, body: { ...CORPO_CONTA_VALIDO, titularDocumento: cnpjDoTeste },
     });
     assert.equal(r.status, 409);
     assert.equal(r.body.erro, 'SOLICITACAO_INDISPONIVEL');
@@ -703,10 +780,11 @@ describe('POST /motorista/conta-bancaria/solicitacoes', () => {
   });
 
   test('12.1 (converge onda-044, FR-015): módulo ativo mas empresa FORA do grupo -> 409 SOLICITACAO_INDISPONIVEL/OUTSIDE_GROUP, sem chamar hub_conta_bancaria_solicitar', async () => {
+    const cnpjDoTeste = proximoCnpj();
     grupoIds = [6];
     mockRespostas['rpc/hub_adiantamento_disponibilidade'] = [disponibilidadeRow({ id_empresa: 999 })];
     const r = await request('POST', '/motorista/conta-bancaria/solicitacoes', {
-      headers: { 'x-test-cnpj': 'cnpj-outside-group-cb' }, body: CORPO_CONTA_VALIDO,
+      headers: { 'x-test-cnpj': cnpjDoTeste }, body: { ...CORPO_CONTA_VALIDO, titularDocumento: cnpjDoTeste },
     });
     assert.equal(r.status, 409);
     assert.equal(r.body.erro, 'SOLICITACAO_INDISPONIVEL');
@@ -715,6 +793,7 @@ describe('POST /motorista/conta-bancaria/solicitacoes', () => {
   });
 
   test('3.2.4/PLANO §20: 6ª requisição em 15min no mesmo cnpjPrestador -> 429', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_conta_bancaria_solicitar'] = [{ id: 99, status: 'PENDENTE' }];
     mockRespostas['rpc/hub_conta_bancaria_motorista'] = [{ aprovada: null, pendente: contaMascaradaSql({ id: 99, status: 'PENDENTE' }), ultima_rejeitada: null }];
     const cnpj = 'cnpj-cb-rate-limit';
@@ -734,26 +813,30 @@ describe('POST /motorista/conta-bancaria/solicitacoes', () => {
 
 describe('GET /motorista/bancos', () => {
   test('busca por código', async () => {
-    const r = await request('GET', '/motorista/bancos?q=260', { headers: { 'x-test-cnpj': 'cnpj-b1' } });
+    const cnpjDoTeste = proximoCnpj();
+    const r = await request('GET', '/motorista/bancos?q=260', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.deepEqual(r.body.itens, [{ codigo: '260', nome: 'NU PAGAMENTOS - IP' }]);
   });
 
   test('busca por nome (case-insensitive)', async () => {
-    const r = await request('GET', '/motorista/bancos?q=BRASILIA', { headers: { 'x-test-cnpj': 'cnpj-b2' } });
+    const cnpjDoTeste = proximoCnpj();
+    const r = await request('GET', '/motorista/bancos?q=BRASILIA', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.ok(r.body.itens.some((b) => b.codigo === '070'));
   });
 
   test('sem q -> até 20 itens, nenhuma RPC chamada (fixture local)', async () => {
-    const r = await request('GET', '/motorista/bancos', { headers: { 'x-test-cnpj': 'cnpj-b3' } });
+    const cnpjDoTeste = proximoCnpj();
+    const r = await request('GET', '/motorista/bancos', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.ok(r.body.itens.length <= 20);
     assert.equal(chamadasPostgrest.length, 0);
   });
 
   test('q sem casar nenhum banco -> itens vazio', async () => {
-    const r = await request('GET', '/motorista/bancos?q=zzzznaoexiste', { headers: { 'x-test-cnpj': 'cnpj-b4' } });
+    const cnpjDoTeste = proximoCnpj();
+    const r = await request('GET', '/motorista/bancos?q=zzzznaoexiste', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.deepEqual(r.body.itens, []);
   });
 });
@@ -762,6 +845,7 @@ describe('GET /motorista/bancos', () => {
 
 describe('Rate limit (PLANO §20): 10 req/15min por cnpjPrestador, somando solicitar+cancelar', () => {
   test('11ª requisição (solicitar+cancelar somados) no mesmo cnpjPrestador -> 429', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_cancelar'] = [{ id: 42, status: 'CANCELADA' }];
     mockRespostas['rpc/hub_adiantamento_detalhe_motorista'] = detalheResposta(solicitacaoJsonb({ status: 'CANCELADA' }));
     const cnpj = 'cnpj-rate-limit-unico';
@@ -797,8 +881,9 @@ function notificacaoRow(overrides) {
 
 describe('GET /motorista/notificacoes', () => {
   test('lista com mapeamento camelCase e total da 1ª linha', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_listar'] = [notificacaoRow({ total: 2 }), notificacaoRow({ id: 2, categoria: 'pagamento', total: 2 })];
-    const r = await request('GET', '/motorista/notificacoes', { headers: { 'x-test-cnpj': 'cnpj-n1' } });
+    const r = await request('GET', '/motorista/notificacoes', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.deepEqual(r.body, {
       itens: [
@@ -814,92 +899,103 @@ describe('GET /motorista/notificacoes', () => {
   });
 
   test('sem itens -> total 0, nenhuma linha', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_listar'] = [];
-    const r = await request('GET', '/motorista/notificacoes', { headers: { 'x-test-cnpj': 'cnpj-n2' } });
+    const r = await request('GET', '/motorista/notificacoes', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.deepEqual(r.body, { itens: [], total: 0, pagina: 1, porPagina: 20 });
   });
 
   test('categoria repassada à RPC; categoria inválida -> 400 DADOS_INVALIDOS', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_listar'] = [notificacaoRow()];
-    const ok = await request('GET', '/motorista/notificacoes?categoria=pagamento', { headers: { 'x-test-cnpj': 'cnpj-n3' } });
+    const ok = await request('GET', '/motorista/notificacoes?categoria=pagamento', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(ok.status, 200);
     assert.equal(chamadasPostgrest.at(-1).body.p_categoria, 'pagamento');
 
-    const invalida = await request('GET', '/motorista/notificacoes?categoria=inexistente', { headers: { 'x-test-cnpj': 'cnpj-n3' } });
+    const invalida = await request('GET', '/motorista/notificacoes?categoria=inexistente', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(invalida.status, 400);
     assert.equal(invalida.body.erro, 'DADOS_INVALIDOS');
     assert.equal(invalida.body.motivo, 'categoria');
   });
 
   test('naoLidas=true repassado como true; ausente/qualquer outro valor vira null', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_listar'] = [notificacaoRow()];
-    await request('GET', '/motorista/notificacoes?naoLidas=true', { headers: { 'x-test-cnpj': 'cnpj-n4' } });
+    await request('GET', '/motorista/notificacoes?naoLidas=true', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(chamadasPostgrest.at(-1).body.p_nao_lidas, true);
 
-    await request('GET', '/motorista/notificacoes?naoLidas=false', { headers: { 'x-test-cnpj': 'cnpj-n4' } });
+    await request('GET', '/motorista/notificacoes?naoLidas=false', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(chamadasPostgrest.at(-1).body.p_nao_lidas, null);
   });
 
   test('pagina inválida -> 400 DADOS_INVALIDOS (mesmo padrão de GET /adiantamentos)', async () => {
-    const r = await request('GET', '/motorista/notificacoes?pagina=0', { headers: { 'x-test-cnpj': 'cnpj-n5' } });
+    const cnpjDoTeste = proximoCnpj();
+    const r = await request('GET', '/motorista/notificacoes?pagina=0', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'DADOS_INVALIDOS');
   });
 
   test('5.4.4 defesa em profundidade: link fora da allowlist some da resposta (nunca repassado cru)', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_listar'] = [notificacaoRow({ link: 'https://evil.example/phish' })];
-    const r = await request('GET', '/motorista/notificacoes', { headers: { 'x-test-cnpj': 'cnpj-n6' } });
+    const r = await request('GET', '/motorista/notificacoes', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.equal(r.body.itens[0].link, null);
   });
 
   test('links válidos da allowlist (fixos e com id) passam intactos', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_listar'] = [
       notificacaoRow({ id: 1, link: '/conta-bancaria' }),
       notificacaoRow({ id: 2, link: '/avisos/42' }),
       notificacaoRow({ id: 3, link: null }),
     ];
-    const r = await request('GET', '/motorista/notificacoes', { headers: { 'x-test-cnpj': 'cnpj-n7' } });
+    const r = await request('GET', '/motorista/notificacoes', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.deepEqual(r.body.itens.map((i) => i.link), ['/conta-bancaria', '/avisos/42', null]);
   });
 });
 
 describe('GET /motorista/notificacoes/nao-lidas', () => {
   test('devolve total da RPC', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_nao_lidas'] = [{ total: 3 }];
-    const r = await request('GET', '/motorista/notificacoes/nao-lidas', { headers: { 'x-test-cnpj': 'cnpj-n8' } });
+    const r = await request('GET', '/motorista/notificacoes/nao-lidas', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.deepEqual(r.body, { total: 3 });
   });
 
   test('RPC sem linha -> total 0', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_nao_lidas'] = [];
-    const r = await request('GET', '/motorista/notificacoes/nao-lidas', { headers: { 'x-test-cnpj': 'cnpj-n9' } });
+    const r = await request('GET', '/motorista/notificacoes/nao-lidas', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.deepEqual(r.body, { total: 0 });
   });
 });
 
 describe('POST /motorista/notificacoes/:id/lida', () => {
   test('sucesso -> 204', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_marcar_lida'] = [];
-    const r = await request('POST', '/motorista/notificacoes/7/lida', { headers: { 'x-test-cnpj': 'cnpj-n10' } });
+    const r = await request('POST', '/motorista/notificacoes/7/lida', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 204);
     const chamada = chamadasPostgrest.find((c) => c.endpoint === 'rpc/hub_notificacao_marcar_lida');
     assert.deepEqual(chamada.body, { p_id: 7 });
   });
 
   test('id não numérico/<=0 -> 404 sem chamar a RPC', async () => {
-    const r1 = await request('POST', '/motorista/notificacoes/abc/lida', { headers: { 'x-test-cnpj': 'cnpj-n11' } });
+    const cnpjDoTeste = proximoCnpj();
+    const r1 = await request('POST', '/motorista/notificacoes/abc/lida', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r1.status, 404);
-    const r2 = await request('POST', '/motorista/notificacoes/0/lida', { headers: { 'x-test-cnpj': 'cnpj-n11' } });
+    const r2 = await request('POST', '/motorista/notificacoes/0/lida', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r2.status, 404);
     assert.equal(chamadasPostgrest.length, 0);
   });
 
   test('id de outro CNPJ (RPC recusa) -> 404 NAO_ENCONTRADA', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_marcar_lida'] = erroRpc('NAO_ENCONTRADA');
-    const r = await request('POST', '/motorista/notificacoes/8/lida', { headers: { 'x-test-cnpj': 'cnpj-n12' } });
+    const r = await request('POST', '/motorista/notificacoes/8/lida', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 404);
     assert.equal(r.body.erro, 'NAO_ENCONTRADA');
   });
@@ -907,8 +1003,9 @@ describe('POST /motorista/notificacoes/:id/lida', () => {
 
 describe('POST /motorista/notificacoes/lidas', () => {
   test('sucesso -> 204', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_notificacao_marcar_todas'] = [];
-    const r = await request('POST', '/motorista/notificacoes/lidas', { headers: { 'x-test-cnpj': 'cnpj-n13' } });
+    const r = await request('POST', '/motorista/notificacoes/lidas', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 204);
     assert.ok(chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_notificacao_marcar_todas'));
   });
@@ -957,8 +1054,9 @@ describe('GET /motorista/repasse/extrato', () => {
   });
 
   test('visivel:true -> 200 com o consolidado da semana e o de cada dia', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [extratoRow()];
-    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
+    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.equal(r.body.periodoInicio, '2026-09-22');
     assert.equal(r.body.periodoFim, '2026-09-28');
@@ -976,12 +1074,13 @@ describe('GET /motorista/repasse/extrato', () => {
 
   // F3: estado em que a 0090 deixa produção — ninguém configurou ainda.
   test('sem categorias_nota configurada -> totalNota/totalOutros nulos e nenhum item marcado', async () => {
+    const cnpjDoTeste = proximoCnpj();
     const semNota = extratoRow();
     semNota.total_nota = null;
     semNota.total_outros = null;
     for (const d of semNota.dias) for (const i of d.itens) i.naNota = null;
     mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [semNota];
-    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
+    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.equal(r.body.total, '155.00');   // o total NÃO muda
     assert.equal(r.body.totalNota, null);
@@ -990,15 +1089,17 @@ describe('GET /motorista/repasse/extrato', () => {
   });
 
   test('visivel:false -> 404 NAO_DISPONIVEL (mesma guarda do /repasse)', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [{ visivel: false, periodo_inicio: null, periodo_fim: null, total: null, total_nota: null, total_outros: null, dias: null }];
-    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
+    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 404);
     assert.equal(r.body.erro, 'NAO_DISPONIVEL');
   });
 
   test('semana sem lançamentos -> 200 com total 0,00 e lista vazia (não é erro)', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_extrato_motorista'] = [{ ...extratoRow(), total: '0.00', dias: [] }];
-    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': 'cnpj-extrato' } });
+    const r = await request('GET', '/motorista/repasse/extrato', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.equal(r.body.total, '0.00');
     assert.deepEqual(r.body.dias, []);
@@ -1007,8 +1108,9 @@ describe('GET /motorista/repasse/extrato', () => {
 
 describe('GET /motorista/repasse', () => {
   test('visivel:true -> 200 com previsão mapeada (D-11: 1000 - 129,40 = 870,60)', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow()];
-    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r1' } });
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.deepEqual(r.body, {
       periodoInicio: '2026-09-10',
@@ -1030,10 +1132,11 @@ describe('GET /motorista/repasse', () => {
   // F3 (saldo mínimo carregado): saldo carregado de semana(s) anterior(es) +
   // previsão do total + o efeito do piso (nunca o piso em si).
   test('F3: saldo carregado soma na previsão e sinaliza abaixoDoMinimo', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow({
       creditos: 2, remanescente: 2, saldo_anterior: 3, abaixo_do_minimo: true,
     })];
-    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r-saldo' } });
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.equal(r.body.saldoAnterior, '3.00');
     assert.equal(r.body.previsaoTotal, '5.00'); // 2 (semana) + 3 (saldo)
@@ -1045,13 +1148,14 @@ describe('GET /motorista/repasse', () => {
   // ocorre depois que a semana termina — sem este bloco o motorista NUNCA vê
   // o valor definitivo que vai receber.
   test('ultimoFechado: mapeia a semana fechada com o valor CONGELADO e a data do repasse', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow()];
     mockRespostas['rpc/hub_adiantamento_repasse_motorista_ultimo_fechado'] = [{
       periodo_inicio: '2026-09-03', periodo_fim: '2026-09-09', data_repasse: '2026-09-16',
       fechado_em: '2026-09-10T12:00:00-03:00',
       creditos: 800, adiantamentos: 129.4, debitos: 20, remanescente: 650.6, negativo: false,
     }];
-    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r5' } });
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.deepEqual(r.body.ultimoFechado, {
       periodoInicio: '2026-09-03',
@@ -1074,6 +1178,7 @@ describe('GET /motorista/repasse', () => {
 
   // F3: apuração fechada DEPOIS da 0098 traz os 4 campos novos do congelado.
   test('F3: ultimoFechado retido traz saldoAnterior/aPagar/transportado/retido', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow()];
     mockRespostas['rpc/hub_adiantamento_repasse_motorista_ultimo_fechado'] = [{
       periodo_inicio: '2026-09-03', periodo_fim: '2026-09-09', data_repasse: '2026-09-16',
@@ -1081,7 +1186,7 @@ describe('GET /motorista/repasse', () => {
       creditos: 3, adiantamentos: 0, debitos: 0, remanescente: 3, negativo: false,
       saldo_anterior: 0, valor_pago: 0, valor_transportado: 3, retido: true,
     }];
-    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r-retido' } });
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.equal(r.body.ultimoFechado.saldoAnterior, '0.00');
     assert.equal(r.body.ultimoFechado.aPagar, '0.00');
@@ -1092,32 +1197,36 @@ describe('GET /motorista/repasse', () => {
   // A falha da consulta do congelado é ADICIONAL: não pode derrubar a tela do
   // repasse corrente, que é a informação principal.
   test('ultimoFechado: falha da RPC do congelado NÃO derruba a resposta (fica null)', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow()];
     mockRespostas['rpc/hub_adiantamento_repasse_motorista_ultimo_fechado'] = new Error('indisponivel');
-    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r6' } });
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.equal(r.body.ultimoFechado, null);
     assert.equal(r.body.remanescente, '870.60');
   });
 
   test('visivel:false (repasse_visivel_app=false ou apuração não configurada, D-13) -> 404 NAO_DISPONIVEL', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow({ visivel: false, periodo_inicio: null, adiantamentos: null })];
-    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r2' } });
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 404);
     assert.deepEqual(r.body, { erro: 'NAO_DISPONIVEL' });
   });
 
   test('remanescente negativo -> negativo:true propagado (nunca valor "corrigido")', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow({ remanescente: -50, negativo: true })];
-    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r3' } });
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
     assert.equal(r.body.remanescente, '-50.00');
     assert.equal(r.body.negativo, true);
   });
 
   test('RPC indisponível -> 502 INDISPONIVEL', async () => {
+    const cnpjDoTeste = proximoCnpj();
     mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = new Error('timeout');
-    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': 'cnpj-r4' } });
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 502);
     assert.deepEqual(r.body, { erro: 'INDISPONIVEL' });
   });
