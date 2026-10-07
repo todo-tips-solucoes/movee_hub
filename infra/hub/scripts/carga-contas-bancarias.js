@@ -44,8 +44,18 @@ function main() {
     process.exit(2);
   }
 
-  const wb = xlsx.readFile(arquivo);
-  const linhas = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+  // Aceita .xlsx e .csv. O retorno do setor financeiro vem em CSV com `;` e
+  // latin-1 (é o que o Excel brasileiro exporta) — converter à mão a cada
+  // rodada só adiciona um passo onde dá para errar.
+  let linhas;
+  if (/\.csv$/i.test(arquivo)) {
+    const texto = fs.readFileSync(arquivo, 'latin1');
+    const wbCsv = xlsx.read(texto, { type: 'string', raw: true, FS: ';' });
+    linhas = xlsx.utils.sheet_to_json(wbCsv.Sheets[wbCsv.SheetNames[0]]);
+  } else {
+    const wb = xlsx.readFile(arquivo);
+    linhas = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+  }
 
   const prontas = [];
   const ignoradas = [];
@@ -77,8 +87,11 @@ function main() {
     const digito = String(row['Dígito'] ?? '').trim();
     if (!validarDigitoConta(digito)) return recusa('dígito da conta inválido');
 
-    const tipo = TIPO_PLANILHA[String(row['Tipo Conta'] ?? '').trim().toLowerCase()];
-    if (!tipo) return recusa(`tipo de conta não reconhecido: "${row['Tipo Conta']}"`);
+    // "Tipo Conta" na planilha original, "TipoConta" no retorno do financeiro —
+    // aceitar as duas evita pedir reexportação por causa de um espaço.
+    const tipoBruto = row['Tipo Conta'] ?? row.TipoConta ?? '';
+    const tipo = TIPO_PLANILHA[String(tipoBruto).trim().toLowerCase()];
+    if (!tipo) return recusa(`tipo de conta não reconhecido: "${tipoBruto}"`);
 
     const titular = String(row['Nome titular'] ?? '').trim();
     if (!titular || titular.length > 120) return recusa('nome do titular vazio ou longo demais');
