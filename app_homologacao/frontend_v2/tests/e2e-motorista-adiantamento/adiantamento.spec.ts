@@ -832,3 +832,44 @@ test.describe('6.8.3 — axe-core (escore >= 95) e contraste AA, 2 temas', () =>
     }
   }
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Rótulos da barra inferior cabem na coluna (aparelho de 320px).
+// A barra é uma grade de 4 colunas iguais (80px em 320px) e o rótulo mais
+// longo manda: "Notificações" tem 12 caracteres e, antes de 2026-10-10, passava
+// 0,67px da coluna (80,17 vs 79,5) com `text-[0.8rem]`. A correção foi tipografia
+// (`text-[0.74rem]`) e NÃO renomear, porque "Avisos" já é rótulo de filtro
+// dentro de /notificacoes (dois vocabulários para a mesma coisa).
+// Mede os 4 rótulos, não só o de hoje: trocar outro por um mais longo é pego.
+// Mede o texto com Range (o rótulo é um nó de texto solto no link, sem span) e
+// compara com a largura da coluna; scrollWidth não vê transbordo centralizado.
+// `viewport` escopado ao describe — `launchOptions` derrubaria specs de outros
+// arquivos.
+// ───────────────────────────────────────────────────────────────────────────
+test.describe('rótulos da barra inferior cabem em 320px (medido)', () => {
+  test.use({ viewport: { width: 320, height: 640 } });
+
+  test('nenhum rótulo transborda a coluna', async ({ page }) => {
+    await setup(page, defaultState());
+    await page.goto(`${BASE}/movimento`);
+    await page.waitForLoadState('networkidle');
+
+    const medidas = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('nav[aria-label="Navegação do app"] a')).map((a) => {
+        const texto = Array.from(a.childNodes).find((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim());
+        const range = document.createRange();
+        if (texto) range.selectNodeContents(texto);
+        return {
+          rotulo: (texto?.textContent ?? '').trim(),
+          texto: Math.round(range.getBoundingClientRect().width * 100) / 100,
+          coluna: Math.round(a.getBoundingClientRect().width * 100) / 100,
+        };
+      })
+    );
+    console.log(`ROTULO_NAV ${JSON.stringify(medidas)}`);
+
+    expect(medidas.map((m) => m.rotulo)).toEqual(['Início', 'Adiantar', 'Notificações', 'Conta']);
+    const transbordam = medidas.filter((m) => m.texto > m.coluna);
+    expect(transbordam, `rótulos mais largos que a coluna: ${JSON.stringify(transbordam)}`).toEqual([]);
+  });
+});
