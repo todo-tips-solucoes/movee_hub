@@ -37,6 +37,8 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   USUARIO_NAO_ENCONTRADO: 'Usuário não encontrado no seu escopo.',
   USUARIO_INATIVO: 'Usuário desativado — reative antes de reenviar o convite.',
   EMAIL_NAO_ENVIADO: 'O e-mail não pôde ser enviado agora. Tente de novo em instantes.',
+  LOTE_GRANDE: 'Selecione no máximo 50 usuários por envio.',
+  LIMITE_EXCEDIDO: 'Muitos envios em lote em pouco tempo. Aguarde alguns minutos e tente de novo.',
   ERRO_SERVIDOR: 'Erro no servidor. Tente novamente em instantes.',
 };
 
@@ -94,6 +96,36 @@ export async function editarUsuario(usuarioId: number, payload: EditarUsuarioPay
  *  token NOVO: o link anterior deixa de valer. */
 export async function reenviarConvite(usuarioId: number): Promise<void> {
   await request<unknown>(`/usuarios/${usuarioId}/convite`, { method: 'POST' });
+}
+
+/** Teto por requisição — espelha LOTE_MAX do servidor (cada reenvio é um e-mail). */
+export const LOTE_CONVITES_MAX = 50;
+
+export interface ConviteLoteItem {
+  usuarioId: number;
+  status: 'enviado' | 'pulado';
+  motivo?: string;
+}
+
+export interface ConviteLoteResultado {
+  enviados: number;
+  pulados: number;
+  resultado: ConviteLoteItem[];
+}
+
+/** `POST /usuarios/convites` — reenvia o link para vários de uma vez. Cada
+ *  alvo recebe token NOVO (o link anterior morre). Alvos recusados vêm no
+ *  relatório como `pulado`, a resposta é 200. */
+export async function reenviarConvitesEmLote(usuarioIds: number[]): Promise<ConviteLoteResultado> {
+  const raw = await request<ConviteLoteResultado>('/usuarios/convites', {
+    method: 'POST',
+    body: JSON.stringify({ usuarioIds }),
+  });
+  return {
+    enviados: Number(raw.enviados) || 0,
+    pulados: Number(raw.pulados) || 0,
+    resultado: Array.isArray(raw.resultado) ? raw.resultado : [],
+  };
 }
 
 /** `POST /usuarios/:id/vinculos` — novo vínculo a usuário existente. */

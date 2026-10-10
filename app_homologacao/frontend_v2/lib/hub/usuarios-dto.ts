@@ -57,6 +57,10 @@ export interface UsuarioListItem {
   /** Há um link de senha (convite ou recuperação) emitido e ainda válido —
    *  ou seja, a pessoa recebeu um link e ainda não o usou. */
   linkSenhaPendente: boolean;
+  /** Nenhum login registrado. Fato distinto do link pendente (pode haver os
+   *  dois, um ou nenhum). Vem NULL para quem existia antes da coluna
+   *  `ultimo_login_em` (0105), então no início também marca quem já acessava. */
+  nuncaAcessou: boolean;
   vinculos: UsuarioVinculo[];
 }
 
@@ -81,6 +85,7 @@ export function parseUsuarioListItem(raw: unknown): UsuarioListItem {
     email: isString(r.email) ? r.email : '',
     ativo: r.ativo === true,
     linkSenhaPendente: r.linkSenhaPendente === true,
+    nuncaAcessou: r.nuncaAcessou === true,
     vinculos: Array.isArray(r.vinculos) ? r.vinculos.map(parseUsuarioVinculo) : [],
   };
 }

@@ -14,6 +14,7 @@
 
 const express = require('express');
 const bcrypt = require('bcrypt');
+const rateLimit = require('express-rate-limit');
 
 const { decodificarAccessToken, lerAccessTokenDoRequest } = require('../lib/hub-access-token');
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
@@ -223,7 +224,7 @@ router.get('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.gere
     // UNIQUE(usuario_id, empresa_id) garante NO MÁXIMO 1 vínculo por pessoa
     // nesta entidade — a listagem abaixo é naturalmente 1 linha == 1 pessoa.
     const linhas = await hubPostgrestRequest(
-      `UsuarioEntidade?empresa_id=eq.${entidadeAlvo}&select=id,ativo,papel:Papel(id,nome),usuario:Usuario(id,nome,email,ativo,token_recuperacao_expira)`,
+      `UsuarioEntidade?empresa_id=eq.${entidadeAlvo}&select=id,ativo,papel:Papel(id,nome),usuario:Usuario(id,nome,email,ativo,token_recuperacao_expira,ultimo_login_em)`,
       'GET', null, claims
     );
 
@@ -237,15 +238,19 @@ router.get('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.gere
         nome: v.usuario.nome,
         email: v.usuario.email,
         ativo: v.usuario.ativo,
-        // Quem foi convidado e ainda não criou a senha aparece marcado na
-        // lista — sem isso ninguém sabe a quem reenviar o convite.
-        // ⚠️ O MESMO sinal acende para quem já usava o hub e pediu "esqueci
-        // minha senha": as duas coisas gravam as mesmas colunas. Por isso o
-        // rótulo fala do LINK pendente, não de "nunca acessou" — dizer
-        // "nunca acessou" exigiria uma coluna `ultimo_login_em` que não
-        // existe, e mentiria no segundo caso. A ação certa é a mesma nos
-        // dois: reenviar.
+        // Dois fatos DIFERENTES, que o produto confundia:
+        //  - linkSenhaPendente: há link de senha válido agora. Acende para
+        //    quem foi convidado E para quem já usava o hub e pediu "esqueci
+        //    minha senha" (as duas coisas gravam as mesmas colunas) — por
+        //    isso o rótulo fala do LINK, não de "nunca acessou".
+        //  - nuncaAcessou: nenhum login registrado em `ultimo_login_em`.
+        //    ⚠️ A coluna (0105) é NULL para quem já existia antes dela, então
+        //    nos primeiros dias o selo também acende para quem acessa o hub
+        //    há tempos; ele se corrige no próximo login de cada pessoa.
+        // Uma pessoa pode ter os dois, um ou nenhum; a ação (reenviar) é a
+        // mesma, mas o selo conta a história certa.
         linkSenhaPendente: linkSenhaPendente(v.usuario.token_recuperacao_expira),
+        nuncaAcessou: !v.usuario.ultimo_login_em,
         vinculo: {
           id: v.id,
           entidadeId: entidadeAlvo,
@@ -267,7 +272,7 @@ router.get('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.gere
     const from = (page - 1) * pageSize;
     const pagina = usuarios.slice(from, from + pageSize).map((u) => ({
       id: u.id, nome: u.nome, email: u.email, ativo: u.ativo,
-      linkSenhaPendente: u.linkSenhaPendente, vinculos: [u.vinculo],
+      linkSenhaPendente: u.linkSenhaPendente, nuncaAcessou: u.nuncaAcessou, vinculos: [u.vinculo],
     }));
 
     return res.status(200).json({ usuarios: pagina, total, page, pageSize });
@@ -534,6 +539,44 @@ router.put('/:id', requireModuloAtivo('usuarios'), requirePermission('usuarios.g
 // o que se espera de um reenvio.
 // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Gera token NOVO (o anterior morre), grava, envia o e-mail e audita. Recebe o
+ * `alvo` já carregado e validado (escopo, papel restrito, ativo) por quem chama.
+ * @param {{usuarioId:number, alvo:{email:string,nome:string}, ctx:object, claims:object, ip:*}} p
+ * @returns {Promise<{ok:true}|{ok:false, motivo:'EMAIL_NAO_ENVIADO'}>}
+ */
+async function reenviarConviteDe({ usuarioId, alvo, ctx, claims, ip }) {
+  const tokenBruto = gerarTokenBruto();
+  await hubPostgrestRequest(`Usuario?id=eq.${usuarioId}`, 'PATCH', {
+    token_recuperacao_hash: hashToken(tokenBruto),
+    token_recuperacao_expira: new Date(Date.now() + TTL_CONVITE_MS).toISOString(),
+  });
+
+  const envio = await enviarLinkSenha({
+    para: alvo.email, nome: alvo.nome, tokenBruto, tipo: 'convite',
+  });
+
+  await registrarAuditoria({
+    idEmpresa: ctx.entidadeAtiva,
+    usuarioId: ctx.payload.sub,
+    acao: 'convite_reenviado',
+    recurso: 'Usuario',
+    recursoId: usuarioId,
+    detalhes: { conviteEnviado: envio.ok },
+    ip,
+    claims,
+  });
+
+  if (!envio.ok) {
+    // O token JÁ foi gravado: o link antigo morreu e o novo não chegou.
+    // Dizer isso em voz alta é melhor que um 200 mentiroso — quem opera
+    // tenta de novo, e cada tentativa emite um link novo.
+    console.error('[hub-usuarios] reenvio de convite nao entregue ao usuario', usuarioId, '-', envio.erro);
+    return { ok: false, motivo: 'EMAIL_NAO_ENVIADO' };
+  }
+  return { ok: true };
+}
+
 router.post('/:id/convite', requireModuloAtivo('usuarios'), requirePermission('usuarios.gerenciar'), async (req, res) => {
   try {
     const ctx = await resolverContexto(req, res);
@@ -574,34 +617,8 @@ router.post('/:id/convite', requireModuloAtivo('usuarios'), requirePermission('u
     // pessoa para uma porta trancada.
     if (alvo.ativo === false) return res.status(409).json({ erro: 'USUARIO_INATIVO' });
 
-    const tokenBruto = gerarTokenBruto();
-    await hubPostgrestRequest(`Usuario?id=eq.${usuarioId}`, 'PATCH', {
-      token_recuperacao_hash: hashToken(tokenBruto),
-      token_recuperacao_expira: new Date(Date.now() + TTL_CONVITE_MS).toISOString(),
-    });
-
-    const envio = await enviarLinkSenha({
-      para: alvo.email, nome: alvo.nome, tokenBruto, tipo: 'convite',
-    });
-
-    await registrarAuditoria({
-      idEmpresa: ctx.entidadeAtiva,
-      usuarioId: ctx.payload.sub,
-      acao: 'convite_reenviado',
-      recurso: 'Usuario',
-      recursoId: usuarioId,
-      detalhes: { conviteEnviado: envio.ok },
-      ip: req.ip,
-      claims,
-    });
-
-    if (!envio.ok) {
-      // O token JÁ foi gravado: o link antigo morreu e o novo não chegou.
-      // Dizer isso em voz alta é melhor que um 200 mentiroso — quem opera
-      // tenta de novo, e cada tentativa emite um link novo.
-      console.error('[hub-usuarios] reenvio de convite nao entregue ao usuario', usuarioId, '-', envio.erro);
-      return res.status(502).json({ erro: 'EMAIL_NAO_ENVIADO' });
-    }
+    const r = await reenviarConviteDe({ usuarioId, alvo, ctx, claims, ip: req.ip });
+    if (!r.ok) return res.status(502).json({ erro: r.motivo });
 
     return res.status(200).json({ ok: true, conviteEnviado: true });
   } catch (e) {
@@ -609,6 +626,116 @@ router.post('/:id/convite', requireModuloAtivo('usuarios'), requirePermission('u
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /usuarios/convites — reenvio em lote
+//
+// Mesmo efeito da rota individual, por alvo: token novo (o link anterior morre)
+// e um e-mail. Cada alvo que a individual recusaria é PULADO e relatado, nunca
+// derruba o lote — e a trava de papel restrito vale por alvo, sem afrouxar.
+// ────────────────────────────────────────────────────────────────────────────
+
+const LOTE_MAX = 50;
+
+// 10 req × 50 alvos = teto de 500 e-mails por janela; o caso real (~200
+// pendentes, 4 lotes de 50) cabe com folga. O teto por requisição existe porque cada
+// reenvio é um e-mail (o Resend tem limite de taxa e 200 e-mails numa
+// requisição estourariam o timeout HTTP). A chave é o USUÁRIO autenticado:
+// vários operadores atrás do mesmo IP não podem se bloquear entre si.
+const conviteLoteRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.hubUsuarioId || req.ip),
+  handler: (_req, res) => {
+    res.status(429).json({ erro: 'LIMITE_EXCEDIDO' });
+  },
+});
+
+router.post(
+  '/convites',
+  requireModuloAtivo('usuarios'),
+  requirePermission('usuarios.gerenciar'),
+  conviteLoteRateLimiter,
+  async (req, res) => {
+    try {
+      const ctx = await resolverContexto(req, res);
+      if (!ctx) return;
+
+      // Só `usuarioIds`. A forma "todos os pendentes da entidade" foi
+      // considerada e RECUSADA DE PROPÓSITO: cada reenvio manda e-mail e mata o
+      // link anterior da pessoa, e um caminho sem chamador que faz isso em
+      // massa estrearia em produção sem nunca ter rodado. A tela já cobre o caso
+      // (seleção manual + pendentes da página, uma página por clique). Não é
+      // esquecimento — não reintroduzir sem um chamador real.
+      const bruto = (req.body || {}).usuarioIds;
+      if (!Array.isArray(bruto) || bruto.length === 0 || !bruto.every((n) => Number.isInteger(n) && n > 0)) {
+        return res.status(400).json({ erro: 'DADOS_INVALIDOS' });
+      }
+      if (bruto.length > LOTE_MAX) return res.status(400).json({ erro: 'LOTE_GRANDE', limite: LOTE_MAX });
+      const ids = [...new Set(bruto)];
+      const claims = montarClaims(ctx, ctx.entidadeAtiva);
+
+      const resultado = [];
+      // `in.()` com lista grande estoura o header do PostgREST (já houve
+      // incidente): é o teto de LOTE_MAX que mantém estas duas consultas seguras.
+      const lista = ids.join(',');
+      const filtroEscopo = ctx.isAdminPlataforma ? '' : `&empresa_id=eq.${ctx.entidadeAtiva}`;
+      const [vinculos, usuarios] = await Promise.all([
+        hubPostgrestRequest(`UsuarioEntidade?usuario_id=in.(${lista})${filtroEscopo}&select=usuario_id`, 'GET', null, claims),
+        hubPostgrestRequest(`Usuario?id=in.(${lista})&select=id,nome,email,ativo`),
+      ]);
+      const noEscopo = new Set((vinculos || []).map((v) => v.usuario_id));
+      const porId = new Map((usuarios || []).map((u) => [u.id, u]));
+
+      // E-mails em SEQUÊNCIA, nunca em paralelo: paralelo estoura o limite
+      // de taxa do Resend.
+      for (const usuarioId of ids) {
+        const pular = (motivo) => resultado.push({ usuarioId, status: 'pulado', motivo });
+        if (!noEscopo.has(usuarioId)) { pular('USUARIO_NAO_ENCONTRADO'); continue; }
+
+        // ⚠️ A checagem de papel restrito é POR ALVO DE PROPÓSITO. A leitura
+        // "em qualquer entidade" só é possível impersonando o alvo (RLS de
+        // UsuarioEntidade: sub próprio, escopo do chamador ou admin
+        // plataforma), então não há consulta única para N alvos sem emitir
+        // privilégio de admin para quem não é — e esta é a trava que impede
+        // escalada. O custo é limitado pelo teto de LOTE_MAX (50 leituras
+        // locais, bem menos que os 50 e-mails seguintes: o SMTP é o gargalo).
+        // Quem for "otimizar" com RPC SECURITY DEFINER ou claim nova: não.
+        // (alvoTemPapelRestritoAtivo não tem cache, cada chamada vai ao banco.)
+        if (!ctx.isAdminPlataforma && (await alvoTemPapelRestritoAtivo(usuarioId))) {
+          await auditarPapelRestrito({
+            idEmpresa: ctx.entidadeAtiva, usuarioId: ctx.payload.sub, rota: 'POST /usuarios/convites',
+            usuarioAlvoId: usuarioId, claims, ip: req.ip,
+          });
+          pular('PAPEL_RESTRITO');
+          continue;
+        }
+
+        const alvo = porId.get(usuarioId);
+        if (!alvo) { pular('USUARIO_NAO_ENCONTRADO'); continue; }
+        if (alvo.ativo === false) { pular('USUARIO_INATIVO'); continue; }
+
+        try {
+          const r = await reenviarConviteDe({ usuarioId, alvo, ctx, claims, ip: req.ip });
+          if (r.ok) resultado.push({ usuarioId, status: 'enviado' });
+          else pular(r.motivo);
+        } catch (e) {
+          // Um alvo com falha de infra não pode esconder o relatório dos demais.
+          console.error('[hub-usuarios] erro no convite em lote, usuario', usuarioId, '-', e.message);
+          pular('ERRO_SERVIDOR');
+        }
+      }
+
+      const enviados = resultado.filter((r) => r.status === 'enviado').length;
+      return res.status(200).json({ enviados, pulados: resultado.length - enviados, resultado });
+    } catch (e) {
+      console.error('[hub-usuarios] erro em POST /usuarios/convites:', e.message);
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+  }
+);
 
 // ────────────────────────────────────────────────────────────────────────────
 // POST /usuarios/:id/vinculos (task 4.2.5) — novo vínculo a usuário existente
