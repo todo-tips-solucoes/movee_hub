@@ -50,10 +50,12 @@ done
 echo "=== rito anti-starvation: OK, prosseguindo ==="
 
 BASE_URL="https://$HUB_DOMAIN:$HUB_HTTPS_PORT"
-echo "=== Playwright ($PLAYWRIGHT_IMAGE) contra $BASE_URL (network host + add-host local) ==="
+# Rede do container do Playwright (em vez de `--network host`): ver lib.sh.
+REDE_E2E="$(rede_e2e_ou_falha)" || exit 1
+
+echo "=== Playwright ($PLAYWRIGHT_IMAGE) contra $BASE_URL (rede $REDE_E2E) ==="
 set -o pipefail
-docker run --rm --memory=1g --network host \
-  --add-host "$HUB_DOMAIN:127.0.0.1" \
+docker run --rm --memory=1g --network "$REDE_E2E" \
   -e HUB_E2E_BASE_URL="$BASE_URL" \
   -e HUB_E2E_HUB_EMAIL="${HUB_E2E_HUB_EMAIL:-qa.importacoes@moveelog.local}" \
   -e HUB_E2E_HUB_SENHA="${HUB_E2E_HUB_SENHA:-Teste@Hub2026}" \

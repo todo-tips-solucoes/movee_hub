@@ -237,9 +237,9 @@ services:
     # próprio, dados sintéticos), então não era exposição de dado de cliente,
     # mas também não havia motivo para estar aberta.
     #
-    # Os testes continuam funcionando: `hub-shell-e2e-browser.sh` roda o
-    # container do Playwright com `--network host` e `--add-host
-    # $HUB_DOMAIN:127.0.0.1`, ou seja, já chega pelo loopback.
+    # Os testes continuam funcionando: os drivers `infra/hub/testes/*.sh` rodam
+    # o container do Playwright DENTRO da rede `hub_homolog_edge` (sem
+    # `--network host`) e chegam ao Traefik pelo alias de rede abaixo.
     # Para acessar de fora de novo: túnel SSH
     # (`ssh -L 8443:127.0.0.1:8443 <host>`), não reabrir o bind.
     ports:
@@ -248,7 +248,17 @@ services:
     volumes:
       - ./traefik/dynamic:/dynamic:ro
       - "${HUB_TLS_DIR:?}:/certs:ro"
-    networks: [hub_edge, hub_internal]
+    # Alias (2026-10-10): com o domínio do hub como alias de rede, qualquer
+    # container em `hub_edge` resolve $HUB_DOMAIN direto para o Traefik pelo DNS
+    # do Docker. Isso tira o Playwright do `--network host` (que enxergava cada
+    # veth dos ~50 containers do host e causava ERR_NETWORK_CHANGED), sem
+    # `--add-host` nem IP fixo. O Traefik roteia por Host header, e o nome é o
+    # domínio real.
+    networks:
+      hub_edge:
+        aliases:
+          - "${HUB_DOMAIN}"
+      hub_internal:
 
   backup:
     <<: *hub-common

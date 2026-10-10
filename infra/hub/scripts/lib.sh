@@ -42,3 +42,23 @@ HUB_EXPECTED_NETWORKS="hub_homolog_net hub_homolog_edge"
 # ele passa a checar. Nada afrouxa: um bind para fora continua sendo abortado.
 HUB_HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 HUB_ALLOWED_BIND_PREFIXES="$HUB_HUB_DIR /var/lib/hub_secrets"
+
+# Rede em que o container do Playwright roda. Antes era `--network host`, e o
+# Chromium enxergava cada veth que sobe/desce entre os ~50 containers deste
+# host (de vários clientes) — a navegação morria com ERR_NETWORK_CHANGED, em
+# spec aleatória, ~1 vez por rodada (medido 2026-10-10). Dentro da rede do hub
+# ele só vê o Traefik, que responde por $HUB_DOMAIN via alias de rede
+# (compose.hub.homolog.yml, serviço traefik).
+#
+# Vive aqui porque os 4 drivers de browser precisam do MESMO valor: copiado em
+# cada um, um dia só três mudariam.
+# Uso: REDE_E2E="$(rede_e2e_ou_falha)" || exit 1
+rede_e2e_ou_falha() {
+  local rede="${HUB_E2E_REDE:-hub_homolog_edge}"
+  if ! docker network inspect "$rede" >/dev/null 2>&1; then
+    echo "ERRO: rede '$rede' não existe. O ambiente do hub está no ar?" >&2
+    echo "      (override: HUB_E2E_REDE=<rede>)" >&2
+    return 1
+  fi
+  printf '%s' "$rede"
+}
