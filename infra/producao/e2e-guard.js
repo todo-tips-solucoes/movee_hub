@@ -33,6 +33,12 @@
  *   versão, via bind mount; 1027 linhas em 2026-09-20) e sobrescreve PNGs
  *   versionados. Sem isto o guard sujaria o repo toda noite, e o ruído
  *   ensinaria todo mundo a ignorar `git status`.
+ * - **Distingue `flaky` de `failed`.** Desde 2026-10-10 o config do Playwright
+ *   dá 2 retries por TESTE, então `failed` quer dizer "caiu 3 vezes seguidas" e
+ *   `flaky` quer dizer "passou na retentativa". Antes disso os dois chegavam
+ *   aqui com a mesma cara e o guard alertava sem haver defeito — 8 testes
+ *   distintos falharam em 7 rodadas naquele dia, nenhum duas vezes. Flaky acima
+ *   de `FLAKY_MAX` tem aviso PRÓPRIO: retry sem vigilância é tapete, não rede.
  * - **Repete a execução antes de acusar.** O E2E tem flake medido (5 testes
  *   diferentes falharam uma vez cada em 2026-09-20/21). Alertar na primeira
  *   falha encheria a caixa de flake até o alarme virar ruído ignorado — que é o
@@ -67,6 +73,19 @@ const ESTADO = process.env.E2E_GUARD_ESTADO || '/var/lib/hub_secrets/e2e-guard.e
  */
 const DISCO_MIN_GB = Number(process.env.E2E_GUARD_DISCO_MIN_GB || 23);
 const TIMEOUT_MS = Number(process.env.E2E_GUARD_TIMEOUT_MS || 2_400_000);
+/**
+ * Teto de `flaky` tolerado por rodada. O config do Playwright passou a dar 2
+ * retries por teste (2026-10-10), o que impede o ruído de derrubar o gate — mas
+ * retry sem vigilância vira tapete: o ambiente degrada e ninguém vê. Medido no
+ * dia: ~1 teste flaky por rodada em 142. Acima de 3 não é mais ruído de fundo,
+ * é o ambiente piorando, e isso merece e-mail mesmo sem nenhum `failed`.
+ */
+const FLAKY_MAX = Number(process.env.E2E_GUARD_FLAKY_MAX || 3);
+/** Relatório JSON que o `playwright.config.hub.ts` escreve a cada execução. */
+const RELATORIO_JSON = path.join(
+  RAIZ,
+  'app_homologacao/frontend_v2/tests/e2e-hub-browser/.report.json'
+);
 
 const DRIVER = 'infra/hub/testes/hub-shell-e2e-browser.sh';
 const COMPOSE = 'infra/hub/compose.hub.homolog.yml';
@@ -117,8 +136,90 @@ function gravarEstado(dados) {
 function placarDe(saida) {
   const passed = saida.match(/(\d+) passed/);
   const failed = saida.match(/(\d+) failed/);
-  if (!passed && !failed) return null;
-  return { passed: Number(passed?.[1] || 0), failed: Number(failed?.[1] || 0) };
+  // `flaky` = passou numa retentativa. É o sinal que faltava: antes dos
+  // retries, ruído e regressão chegavam aqui com a mesma cara (`failed`), e o
+  // guard não tinha como distinguir — foi o que o cegou.
+  const flaky = saida.match(/(\d+) flaky/);
+  if (!passed && !failed && !flaky) return null;
+  return {
+    passed: Number(passed?.[1] || 0),
+    failed: Number(failed?.[1] || 0),
+    flaky: Number(flaky?.[1] || 0),
+  };
+}
+
+/**
+ * Nomes dos testes `flaky`, lidos do relatório JSON que o próprio config do
+ * Playwright já escreve (`reporter: [['list'], ['json', …]]`). Preferido ao
+ * regex sobre o texto do `list`: o JSON traz o status por teste, e um dia em
+ * que o reporter mudar de formato não vira "nenhum flaky" em silêncio.
+ *
+ * Devolve `null` quando o relatório não existe ou não é legível — quem chama
+ * decide o que fazer, e nunca lê isso como "zero flaky".
+ */
+function flakyDoRelatorio(arquivo = RELATORIO_JSON) {
+  let dados;
+  try {
+    dados = JSON.parse(fs.readFileSync(arquivo, 'utf8'));
+  } catch {
+    return null;
+  }
+  const nomes = [];
+  const andar = (suites = []) => {
+    for (const s of suites) {
+      for (const spec of s.specs || []) {
+        for (const teste of spec.tests || []) {
+          if (teste.status === 'flaky') nomes.push(`${s.file || spec.file}:${spec.line} › ${spec.title}`);
+        }
+      }
+      andar(s.suites);
+    }
+  };
+  andar(dados.suites);
+  return nomes;
+}
+
+/**
+ * Envia o alerta por e-mail. Extraída quando passou a existir um segundo
+ * motivo de aviso (flaky acima do teto) — duplicar o SMTP em dois lugares é
+ * como se esquece de corrigir um deles.
+ *
+ * Nunca lança: e-mail que não sai é degradação do aviso, não do guard. O
+ * rastro do problema fica no journal e na unidade, que não dependem de SMTP
+ * (ver [[smtp-saida-vpstodo]]: alerta que falha calado parece "sem falha").
+ * Devolve true só quando o `sendMail` completou.
+ */
+async function enviarAlerta(assunto, corpo) {
+  try {
+    const env = Object.fromEntries(
+      fs.readFileSync(ENV_ROBO, 'utf8')
+        .split('\n')
+        .filter((l) => l.includes('=') && !l.trim().startsWith('#'))
+        .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()])
+    );
+    const destinatarios = (process.env.ALERTA_DESTINATARIOS || env.ALERTA_DESTINATARIOS || '')
+      .split(',').map((s) => s.trim()).filter(Boolean);
+    if (!destinatarios.length) {
+      console.error('[e2e-guard] sem ALERTA_DESTINATARIOS — alerta só no journal.');
+      return false;
+    }
+    const { criarTransportador } = require(path.join(RAIZ, 'infra/robo-entrego/src/alerta-email.js'));
+    const transportador = criarTransportador({
+      gmailEmail: env.GMAIL_EMAIL,
+      gmailAppPassword: env.GMAIL_APP_PASSWORD,
+    });
+    await transportador.sendMail({
+      from: env.GMAIL_EMAIL,
+      to: destinatarios.join(', '),
+      subject: `[VPSTodo] ${assunto}`,
+      text: corpo,
+    });
+    console.error(`[e2e-guard] alerta enviado para ${destinatarios.length} destinatário(s)`);
+    return true;
+  } catch (e) {
+    console.error(`[e2e-guard] e-mail não saiu (${e.message}) — alerta fica no journal.`);
+    return false;
+  }
 }
 
 function corpoDoAlerta({ sha, placar, trecho }) {
@@ -135,9 +236,10 @@ function corpoDoAlerta({ sha, placar, trecho }) {
   l.push(`  docker compose -f ${COMPOSE} -p hub-homolog --env-file ${ENV_HUB} up -d frontend`);
   l.push(`  ${DRIVER}`);
   l.push('');
-  l.push('Baseline: 139 passed / 0 failed (2026-09-21). Qualquer falha é regressão.');
-  l.push('O E2E tem flake conhecido: repetir a execução antes de tratar falha isolada');
-  l.push('como real — ver docs/plans/e2e-hub-falhas-herdadas/BRIEFING.md §4.');
+  l.push('Baseline: 142 passed (2026-10-10). Com 2 retries por teste ligados, um');
+  l.push('`failed` aqui significa que o MESMO teste caiu três vezes seguidas — isso');
+  l.push('não é mais flake, trate como regressão. Flake aparece separado, como');
+  l.push('`flaky`, e tem aviso próprio acima do teto (E2E_GUARD_FLAKY_MAX).');
   if (trecho) {
     l.push('');
     l.push('Últimas linhas:');
@@ -224,6 +326,7 @@ async function main() {
 
   let { saida, falhou } = rodar();
   let placar = placarDe(saida);
+  let flaky = flakyDoRelatorio();
   let ok = !falhou && placar && placar.failed === 0;
 
   if (!ok) {
@@ -233,13 +336,63 @@ async function main() {
     );
     ({ saida, falhou } = rodar());
     placar = placarDe(saida);
+    flaky = flakyDoRelatorio();
     ok = !falhou && placar && placar.failed === 0;
     if (ok) console.log('[e2e-guard] 2ª execução passou — 1ª foi flake, sem alerta.');
   }
 
   if (ok) {
-    console.log(`[e2e-guard] main ${sha}: ${placar.passed} passed / 0 failed.`);
-    gravarEstado({ sha, resultado: 'ok', placar, em: new Date().toISOString() });
+    // `failed === 0` com retries ligados quer dizer: nenhum teste caiu três
+    // vezes seguidas. Isso é o veredito do gate, e vale reportar sozinho.
+    console.log(
+      `[e2e-guard] main ${sha}: ${placar.passed} passed / 0 failed` +
+      ` / ${placar.flaky} flaky.`
+    );
+    if (flaky === null) {
+      console.error('[e2e-guard] relatório JSON ilegível — não sei dizer quais foram flaky.');
+    } else if (flaky.length) {
+      for (const nome of flaky) console.log(`[e2e-guard]   flaky: ${nome}`);
+    }
+
+    // O ruído não derruba o gate, mas também não passa calado: acima do teto é
+    // o ambiente degradando, e aí o e-mail sai mesmo com 0 failed. Sem isto o
+    // retry viraria tapete — a suíte poderia apodrecer até o dia em que três
+    // retentativas já não bastassem.
+    const demais = placar.flaky > FLAKY_MAX;
+    if (demais) {
+      const corpoFlaky = [
+        `E2E do hub PASSOU na main ${sha}, mas com ${placar.flaky} testes flaky` +
+        ` (teto: ${FLAKY_MAX}).`,
+        '',
+        'Nenhuma regressão: todos passaram em alguma retentativa. O que isto diz é',
+        'que o ambiente de teste está degradando — e flaky demais acaba virando',
+        'failed quando os 2 retries não bastarem mais.',
+        '',
+        ...(flaky?.length ? ['Testes:', ...flaky.map((n) => `  - ${n}`), ''] : []),
+        'Causas já medidas (2026-10-10), todas do arnês e não do produto:',
+        '  - ERR_NETWORK_CHANGED no page.goto: o Chromium roda sob --network host',
+        '    e enxerga toda mudança de interface deste host (~50 containers, de',
+        '    vários clientes). Correção estrutural seria o container do Playwright',
+        '    numa rede docker do hub, em vez da rede do host.',
+        '  - medição antes do render: ver os comentários nos specs corrigidos.',
+        '',
+        `Ajustar o teto: E2E_GUARD_FLAKY_MAX (hoje ${FLAKY_MAX}).`,
+      ].join('\n');
+      if (dryRun) {
+        console.error('[e2e-guard] --dry-run: e-mail de flaky NÃO enviado. Corpo:\n' + corpoFlaky);
+      } else {
+        console.error(`[e2e-guard] ${placar.flaky} flaky > teto ${FLAKY_MAX} — avisando.`);
+        await enviarAlerta(`E2E do hub: ${placar.flaky} flaky na main ${sha}`, corpoFlaky);
+      }
+    }
+
+    gravarEstado({
+      sha,
+      resultado: demais ? 'ok-flaky-acima-do-teto' : 'ok',
+      placar,
+      flaky: flaky ?? 'relatorio-ilegivel',
+      em: new Date().toISOString(),
+    });
     return 0;
   }
 
@@ -256,34 +409,7 @@ async function main() {
   // fica na unidade `failed`, que não depende de e-mail nenhum.
   gravarEstado({ sha, resultado: 'falhou', placar, em: new Date().toISOString() });
 
-  try {
-    const env = Object.fromEntries(
-      fs.readFileSync(ENV_ROBO, 'utf8')
-        .split('\n')
-        .filter((l) => l.includes('=') && !l.trim().startsWith('#'))
-        .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()])
-    );
-    const destinatarios = (process.env.ALERTA_DESTINATARIOS || env.ALERTA_DESTINATARIOS || '')
-      .split(',').map((s) => s.trim()).filter(Boolean);
-    if (!destinatarios.length) {
-      console.error('[e2e-guard] sem ALERTA_DESTINATARIOS — alerta só no journal.');
-      return 1;
-    }
-    const { criarTransportador } = require(path.join(RAIZ, 'infra/robo-entrego/src/alerta-email.js'));
-    const transportador = criarTransportador({
-      gmailEmail: env.GMAIL_EMAIL,
-      gmailAppPassword: env.GMAIL_APP_PASSWORD,
-    });
-    await transportador.sendMail({
-      from: env.GMAIL_EMAIL,
-      to: destinatarios.join(', '),
-      subject: `[VPSTodo] E2E do hub falhou na main ${sha}`,
-      text: corpo,
-    });
-    console.error(`[e2e-guard] alerta enviado para ${destinatarios.length} destinatário(s)`);
-  } catch (e) {
-    console.error(`[e2e-guard] e-mail não saiu (${e.message}) — alerta fica no journal.`);
-  }
+  await enviarAlerta(`E2E do hub falhou na main ${sha}`, corpo);
   return 1;
 }
 
@@ -296,4 +422,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { placarDe, corpoDoAlerta };
+module.exports = { placarDe, flakyDoRelatorio, corpoDoAlerta };

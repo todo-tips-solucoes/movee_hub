@@ -154,6 +154,16 @@ test.describe('3.2 — validação de white-label simulado (SC-006/US2-AC3, sem 
 
       fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
+      // ⚠️ Medir a sonda antes de a folha do Tailwind aplicar devolve
+      // `rgba(0, 0, 0, 0)` — e o "depois" também, porque a classe segue sem
+      // regra. A asserção `not.toBe` então compara transparente com
+      // transparente e falha dizendo "não refletiu a injeção", acusando o
+      // produto por um defeito de medição (medido em 2026-10-10). Esperar o
+      // token resolver cor de verdade é o que torna o "antes" um valor.
+      await expect
+        .poll(async () => (await coresDosTokens(page)).primary, { timeout: 10_000 })
+        .not.toBe('rgba(0, 0, 0, 0)');
+
       // "Antes" — cores default (EntreGô).
       const antes = await coresDosTokens(page);
       await page.screenshot({ path: path.join(SCREENSHOT_DIR, `${SCREENSHOT_PREFIX}antes-${tema}.png`), fullPage: false });
