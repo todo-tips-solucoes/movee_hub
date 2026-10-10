@@ -14,6 +14,13 @@ test.describe('impeccable rodada 10 — permissões em português', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/hub/dashboard/usuarios/papeis');
     await page.waitForLoadState('networkidle');
+    // ⚠️ `networkidle` diz que a REDE parou, não que a tabela renderizou com
+    // linhas. Sem esta âncora, cada `locator('tbody tr', {hasText: …})`
+    // esperava 30 s pela sua própria linha e estourava o timeout do teste
+    // (medido em 2026-10-10 em `usuarios.gerenciar`). Esperar a primeira linha
+    // uma vez cobre todas as asserções do describe, e o erro passa a apontar o
+    // que de fato faltou.
+    await expect(page.locator('tbody tr').first()).toBeVisible();
   });
 
   test('nenhuma permissão chega ao usuário sem rótulo legível', async ({ page }) => {

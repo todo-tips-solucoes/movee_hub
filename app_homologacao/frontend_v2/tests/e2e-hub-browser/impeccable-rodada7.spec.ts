@@ -39,7 +39,14 @@ const LINHAS = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 async function marcarLinha(page: Page, nome: string) {
-  await page.getByRole('row', { name: new RegExp(nome) }).getByRole('checkbox').click();
+  // ⚠️ Esperar a LINHA antes de procurar o checkbox dentro dela. Sem isso o
+  // Playwright resolve o `getByRole('checkbox')` sobre uma linha que ainda não
+  // existe e espera os 30 s do teste — medido em 2026-10-10 com
+  // "Motorista 001", e o erro culpava o checkbox quando o que faltava era a
+  // tabela ter carregado.
+  const linha = page.getByRole('row', { name: new RegExp(nome) });
+  await expect(linha).toBeVisible();
+  await linha.getByRole('checkbox').click();
 }
 
 test.describe('impeccable rodada 7 — um número, uma verdade', () => {

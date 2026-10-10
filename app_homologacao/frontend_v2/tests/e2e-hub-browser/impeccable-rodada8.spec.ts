@@ -26,6 +26,17 @@ test.describe('impeccable rodada 8 — orientação e alcance', () => {
       // em /usuarios/papeis o conteúdo nunca era alcançado, porque todos os
       // controles de lá são desabilitados por RBAC (leitura para
       // admin_entidade). O skip link é o caminho para os dois casos.
+      // ⚠️ `networkidle` não garante que a hidratação parou de mexer no foco: um
+      // efeito que foca ao montar chega DEPOIS, e então o primeiro Tab sai
+      // daquele elemento em vez de entrar no skip link. Medido em 2026-10-10:
+      // o `:focus` resolvia 24× para o botão "Empresa #… — Administrador da
+      // entidade". Devolver o foco ao body antes de medir torna o Tab
+      // determinístico, sem afrouxar o que o teste afirma.
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await expect
+        .poll(() => page.evaluate(() => document.activeElement?.tagName ?? ''), { timeout: 5_000 })
+        .toBe('BODY');
+
       await page.keyboard.press('Tab');
       const focado = page.locator(':focus');
       await expect(focado).toHaveText(/Pular para o conteúdo/);
