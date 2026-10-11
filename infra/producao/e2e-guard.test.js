@@ -17,7 +17,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { placarDe, flakyDoRelatorio, corpoDoAlerta } = require('./e2e-guard');
+const {
+  placarDe, flakyDoRelatorio, corpoConsolidado, precisaAlarme,
+  migrarEstado, lerEstado, gravarEstadoDoDriver, FLAKY_MAX,
+} = require('./e2e-guard');
 
 describe('placarDe', () => {
   test('lê o placar verde do Playwright', () => {
@@ -61,38 +64,118 @@ describe('placarDe', () => {
   });
 });
 
-describe('corpoDoAlerta', () => {
+const R = (nome, over = {}) => ({
+  nome, caminho: `infra/hub/testes/${nome}.sh`, ok: true,
+  placar: { passed: 10, failed: 0, flaky: 0 }, flaky: [], trecho: '', ...over,
+});
+const FALHOU = (nome, over = {}) => R(nome, {
+  ok: false, placar: { passed: 9, failed: 1, flaky: 0 }, trecho: `log-de-${nome}`, ...over,
+});
+
+describe('corpoConsolidado', () => {
   test('diz o placar e como reproduzir', () => {
-    const c = corpoDoAlerta({ sha: 'abc1234', placar: { passed: 135, failed: 4 }, trecho: '' });
+    const c = corpoConsolidado({ sha: 'abc1234', resultados: [FALHOU('hub-shell', { placar: { passed: 135, failed: 4, flaky: 0 } })], quarentena: [] });
     assert.match(c, /abc1234/);
     assert.match(c, /135 passed \/ 4 failed/);
-    // Reproduzir SEM rebuildar daria teste oco — o corpo tem de ensinar isso,
-    // senão quem for investigar cai na mesma armadilha do driver não buildar.
+    // Reproduzir SEM rebuildar daria teste oco — o corpo tem de ensinar isso.
     assert.match(c, /build --memory=2g frontend/);
     assert.match(c, /o driver não builda/i);
   });
 
   test('sem placar, explica que o driver não chegou a testar', () => {
-    const c = corpoDoAlerta({ sha: 'abc1234', placar: null, trecho: '' });
+    const c = corpoConsolidado({ sha: 'abc1234', resultados: [FALHOU('hub-shell', { placar: null })], quarentena: [] });
     assert.match(c, /não chegou a produzir placar/);
-    // Não pode AFIRMAR um placar desta execução. `/0 failed/` sozinho não
-    // serve: a linha da baseline ("139 passed / 0 failed") casa com ele — foi
-    // o que esta asserção pegou quando estava frouxa demais.
     assert.doesNotMatch(c, /^Placar:/m);
   });
 
-  test('com retries ligados, o corpo diz que failed JÁ é regressão', () => {
-    // Antes dos retries (2026-10-10) este corpo pedia para repetir antes de
-    // acusar — com 2 retries por teste, quem chega aqui já caiu 3 vezes, e
-    // repetir a leitura como "talvez flake" faria o leitor descartar uma
-    // regressão de verdade.
-    const c = corpoDoAlerta({ sha: 'abc1234', placar: { passed: 141, failed: 1, flaky: 0 }, trecho: '' });
-    assert.match(c, /142 passed/); // a baseline nova, para comparar
+  test('failed já é regressão (retries ligados) e aponta onde o flake aparece', () => {
+    const c = corpoConsolidado({ sha: 'abc1234', resultados: [FALHOU('hub-shell')], quarentena: [] });
+    assert.match(c, /142 passed/);
     assert.match(c, /três vezes seguidas/);
     assert.match(c, /trate como regressão/);
-    // E tem de apontar onde o flake aparece agora, senão o leitor procura no
-    // lugar errado.
-    assert.match(c, /E2E_GUARD_FLAKY_MAX/);
+  });
+
+  test('consolidado: cita os que falharam (com trecho) e NÃO cita os que passaram', () => {
+    const c = corpoConsolidado({
+      sha: 'abc1234', quarentena: [],
+      resultados: [R('verde-um'), FALHOU('hub-avisos'), R('verde-dois'), FALHOU('hub-motorista-360')],
+    });
+    assert.match(c, /hub-avisos/);
+    assert.match(c, /log-de-hub-avisos/);
+    assert.match(c, /hub-motorista-360/);
+    assert.match(c, /log-de-hub-motorista-360/);
+    assert.doesNotMatch(c, /verde-um/);
+    assert.doesNotMatch(c, /verde-dois/);
+  });
+
+  test('quarentena: driver em quarentena vai a seção própria, não a FALHARAM', () => {
+    const resultados = [FALHOU('hub-avisos'), FALHOU('motorista-push')];
+    const c = corpoConsolidado({ sha: 'abc1234', resultados, quarentena: ['motorista-push'] });
+    const [falharam, quarentena] = c.split('== EM QUARENTENA');
+    assert.match(falharam, /hub-avisos/);
+    assert.doesNotMatch(falharam, /motorista-push/);
+    assert.match(quarentena, /motorista-push/);
+    assert.doesNotMatch(quarentena, /hub-avisos/);
+  });
+
+  test('FLAKY_MAX por driver: só quem passa do teto entra na seção de flaky', () => {
+    const c = corpoConsolidado({
+      sha: 'abc1234', quarentena: [], flakyMax: 3,
+      resultados: [
+        R('hub-shell', { placar: { passed: 140, failed: 0, flaky: 4 } }),
+        R('hub-avisos', { placar: { passed: 10, failed: 0, flaky: 3 } }),
+      ],
+    });
+    assert.match(c, /hub-shell: 4 flaky/);
+    assert.doesNotMatch(c, /hub-avisos/);
+  });
+});
+
+describe('precisaAlarme', () => {
+  test('tudo verde: não alarma', () => {
+    assert.equal(precisaAlarme([R('a'), R('b')], []), false);
+  });
+  test('falha fora da quarentena alarma; dentro dela não', () => {
+    assert.equal(precisaAlarme([R('a'), FALHOU('b')], []), true);
+    assert.equal(precisaAlarme([R('a'), FALHOU('b')], ['b']), false);
+  });
+  test('flaky acima do teto alarma por driver, no teto não', () => {
+    const f = (n) => R('a', { placar: { passed: 5, failed: 0, flaky: n } });
+    assert.equal(precisaAlarme([f(FLAKY_MAX)], [], FLAKY_MAX), false);
+    assert.equal(precisaAlarme([f(FLAKY_MAX + 1)], [], FLAKY_MAX), true);
+    assert.equal(precisaAlarme([f(FLAKY_MAX + 1)], ['a'], FLAKY_MAX), false);
+  });
+});
+
+describe('estado por driver', () => {
+  const tmp = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-guard-st-')), 'estado.json');
+
+  test('gravar um driver não afeta os outros', () => {
+    const arq = tmp();
+    gravarEstadoDoDriver('hub-shell', { sha: 'aaa', resultado: 'ok' }, arq);
+    gravarEstadoDoDriver('hub-avisos', { sha: 'bbb', resultado: 'falhou' }, arq);
+    gravarEstadoDoDriver('hub-avisos', { sha: 'ccc', resultado: 'ok' }, arq);
+    const e = lerEstado(arq);
+    assert.deepEqual(e['hub-shell'], { sha: 'aaa', resultado: 'ok' });
+    assert.equal(e['hub-avisos'].sha, 'ccc');
+  });
+
+  test('migração: formato antigo (um driver só) vira o estado do hub-shell, sem perder dado', () => {
+    const antigo = { sha: 'abc1234', resultado: 'ok', placar: { passed: 142, failed: 0, flaky: 1 }, flaky: ['x'], em: '2026-10-10T08:00:00Z' };
+    assert.deepEqual(migrarEstado(antigo), { 'hub-shell': antigo });
+    const arq = tmp();
+    fs.writeFileSync(arq, JSON.stringify(antigo));
+    assert.deepEqual(lerEstado(arq), { 'hub-shell': antigo });
+    // gravar outro driver por cima do arquivo antigo preserva o hub-shell
+    gravarEstadoDoDriver('hub-avisos', { sha: 'zzz' }, arq);
+    assert.deepEqual(lerEstado(arq)['hub-shell'], antigo);
+  });
+
+  test('formato novo passa intacto; lixo e ausência viram {}', () => {
+    const novo = { 'hub-shell': { sha: 'a' }, 'hub-avisos': { sha: 'b' } };
+    assert.deepEqual(migrarEstado(novo), novo);
+    assert.deepEqual(migrarEstado(null), {});
+    assert.deepEqual(lerEstado('/nao/existe.json'), {});
   });
 });
 

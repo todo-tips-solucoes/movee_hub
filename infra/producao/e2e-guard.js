@@ -50,9 +50,26 @@
  * - `exit 1` = E2E falhou. `exit 2` = o próprio guard não conseguiu medir
  *   (disco, build, ambiente). Nunca confundir os dois com "E2E ok".
  *
+ * - **Cobre os 8 drivers de E2E de browser, com estado POR DRIVER (2026-10-11).**
+ *   Até então só o `hub-shell` era vigiado, e por isso 7 drivers ficaram
+ *   quebrados sem ninguém ver — um deles desde 15/08. Com um estado único, um
+ *   driver vermelho conhecido cegaria os outros sete (em escala menor, foi
+ *   exatamente o que aconteceu); com estado por driver, cada um tem o seu
+ *   "último sha testado" e o seu próprio anti-spam.
+ * - **Rebuilda o frontend UMA vez, roda os drivers em SEQUÊNCIA.** Nunca em
+ *   paralelo: há incidente de starvation neste host, e duas rodadas simultâneas
+ *   já produziram "browser has been closed". Um driver que cai não interrompe
+ *   os seguintes, e o "repetir antes de acusar" é só do que caiu.
+ * - **Um e-mail só, consolidado.** Oito e-mails numa manhã é o caminho mais
+ *   curto para a caixa ser ignorada.
+ * - **Quarentena declarada** (`QUARENTENA`, vazia por padrão): o driver roda e
+ *   tem o resultado registrado, mas não gera e-mail. É a terceira opção entre
+ *   receber alarme diário que se aprende a ignorar e desligar o guard e ficar
+ *   cego — declarada no código, visível no log e no corpo do e-mail.
+ *
  * Uso: node e2e-guard.js [--dry-run] [--forcar]
  * Env (todas opcionais): E2E_GUARD_ESTADO, E2E_GUARD_DISCO_MIN_GB (23),
- *   E2E_GUARD_TIMEOUT_MS (2_400_000), ALERTA_DESTINATARIOS.
+ *   E2E_GUARD_TIMEOUT_MS (build, 2_400_000), ALERTA_DESTINATARIOS.
  */
 
 'use strict';
@@ -72,6 +89,7 @@ const ESTADO = process.env.E2E_GUARD_ESTADO || '/var/lib/hub_secrets/e2e-guard.e
  * é pior que não ter guard (dá sensação de cobertura).
  */
 const DISCO_MIN_GB = Number(process.env.E2E_GUARD_DISCO_MIN_GB || 23);
+/** Timeout do build do frontend (um só por rodada). */
 const TIMEOUT_MS = Number(process.env.E2E_GUARD_TIMEOUT_MS || 2_400_000);
 /**
  * Teto de `flaky` tolerado por rodada. O config do Playwright passou a dar 2
@@ -87,13 +105,46 @@ const RELATORIO_JSON = path.join(
   'app_homologacao/frontend_v2/tests/e2e-hub-browser/.report.json'
 );
 
-const DRIVER = 'infra/hub/testes/hub-shell-e2e-browser.sh';
+/**
+ * Timeout é POR DRIVER, não do conjunto: um driver travado consome só a
+ * própria janela, nunca a dos outros. A conta (medida em 2026-10-11, 8 drivers
+ * em sequência = 12–14 min):
+ *   - hub-shell: o maior — ~4 min de Playwright + setup/seeds/`npm install`
+ *     no container => ~6 min reais. 20 min = ~3,3x de folga.
+ *   - os 7 restantes: ~1 a 3 min cada (os 4 que fazem `next build` dentro do
+ *     container são os mais lentos). 10 min = >3x o mais lento deles.
+ * Pior caso (todos travam e todos repetem) é longo, mas é o caso patológico; o
+ * normal fecha em ~14 min + o rebuild.
+ */
+const TIMEOUT_SHELL_MS = 1_200_000;
+const TIMEOUT_DEMAIS_MS = 600_000;
+/** Ordem: hub-shell primeiro (o maior e o mais importante), depois os outros. */
+const DRIVERS = [
+  { nome: 'hub-shell', caminho: 'infra/hub/testes/hub-shell-e2e-browser.sh', timeout: TIMEOUT_SHELL_MS, relatorio: true },
+  { nome: 'hub-adiantamentos', caminho: 'infra/hub/testes/hub-adiantamentos-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
+  { nome: 'hub-avisos', caminho: 'infra/hub/testes/hub-avisos-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
+  { nome: 'hub-motorista-360', caminho: 'infra/hub/testes/hub-motorista-360-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
+  { nome: 'motorista-adiantamento', caminho: 'infra/hub/testes/hub-motorista-adiantamento-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
+  { nome: 'motorista-push', caminho: 'infra/hub/testes/hub-motorista-push-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
+  { nome: 'envio-massa-a11y', caminho: 'infra/hub/testes/hub-envio-massa-a11y-smoke.sh', timeout: TIMEOUT_DEMAIS_MS },
+  { nome: 'auditoria-admin-a11y', caminho: 'infra/hub/testes/hub-auditoria-admin-a11y-smoke.sh', timeout: TIMEOUT_DEMAIS_MS },
+];
+/**
+ * Drivers em quarentena: rodam e têm o resultado gravado, mas NÃO geram e-mail.
+ * Vazia por padrão — os 8 estão verdes desde o PR #267. Só entra aqui um driver
+ * vermelho com correção a caminho; tirar da lista quando consertar.
+ */
+const QUARENTENA = [];
 const COMPOSE = 'infra/hub/compose.hub.homolog.yml';
 const ENV_HUB = '/var/lib/hub_secrets/.env.hub.homolog';
 /** O E2E suja estes caminhos por bind mount — restaurados no fim, sempre. */
 const SUJOS = [
   'app_homologacao/frontend_v2/package-lock.json',
   'docs/plans/hub-frota/evidencias/S3',
+  // Os smokes de a11y regravam estes JSONs versionados (medido em 2026-10-11).
+  'docs/specs/hub-envio-massa/evidencias/5.2.1-tab-walk.json',
+  'docs/specs/hub-envio-massa/evidencias/5.2.2-aria-hub-vs-legado.json',
+  'docs/specs/hub-auditoria-admin/evidencias/6.3.1-tab-walk.json',
 ];
 
 function sh(cmd, args, opts = {}) {
@@ -111,21 +162,38 @@ function discoLivreGb() {
   return Number(linha.split(/\s+/)[3]) / 1024 / 1024;
 }
 
-function lerEstado() {
+/**
+ * Normaliza o conteúdo do arquivo de estado para `{ [nomeDoDriver]: {...} }`.
+ * O formato antigo (um driver só: `{sha, resultado, placar, flaky, em}` na raiz)
+ * é o estado do `hub-shell` — migrado sem perder dado. Um guard que perde o
+ * estado volta a testar o que já testou e manda alarme repetido.
+ */
+function migrarEstado(dados) {
+  if (!dados || typeof dados !== 'object' || Array.isArray(dados)) return {};
+  if (typeof dados.sha === 'string') return { 'hub-shell': dados };
+  return dados;
+}
+
+function lerEstado(arquivo = ESTADO) {
   try {
-    return JSON.parse(fs.readFileSync(ESTADO, 'utf8'));
+    return migrarEstado(JSON.parse(fs.readFileSync(arquivo, 'utf8')));
   } catch {
     return {};
   }
 }
 
-function gravarEstado(dados) {
+function gravarEstado(estado, arquivo = ESTADO) {
   try {
-    fs.mkdirSync(path.dirname(ESTADO), { recursive: true });
-    fs.writeFileSync(ESTADO, JSON.stringify(dados, null, 2) + '\n');
+    fs.mkdirSync(path.dirname(arquivo), { recursive: true });
+    fs.writeFileSync(arquivo, JSON.stringify(estado, null, 2) + '\n');
   } catch (e) {
     console.error(`[e2e-guard] não consegui gravar estado: ${e.message}`);
   }
+}
+
+/** Grava o estado de UM driver, preservando os dos outros. */
+function gravarEstadoDoDriver(nome, dados, arquivo = ESTADO) {
+  gravarEstado({ ...lerEstado(arquivo), [nome]: dados }, arquivo);
 }
 
 /**
@@ -222,30 +290,71 @@ async function enviarAlerta(assunto, corpo) {
   }
 }
 
-function corpoDoAlerta({ sha, placar, trecho }) {
+/**
+ * Corpo ÚNICO do alerta. `resultados`: [{nome, caminho, ok, placar, flaky,
+ * trecho}]. Falhas e flaky acima do teto de drivers em `quarentena` vão numa
+ * seção própria (informativa); os demais entram nas seções de alarme. Drivers
+ * que passaram limpos não são citados.
+ */
+function corpoConsolidado({ sha, resultados, quarentena = QUARENTENA, flakyMax = FLAKY_MAX }) {
+  const emQ = (r) => quarentena.includes(r.nome);
+  const falhou = (r) => !r.ok;
+  const flakyDemais = (r) => r.ok && r.placar && r.placar.flaky > flakyMax;
+  const caiu = resultados.filter((r) => falhou(r) && !emQ(r));
+  const instaveis = resultados.filter((r) => flakyDemais(r) && !emQ(r));
+  const quarentenados = resultados.filter((r) => emQ(r) && (falhou(r) || flakyDemais(r)));
+
   const l = [];
-  l.push(`E2E do hub falhou na main ${sha}.`);
-  l.push('');
-  if (placar) l.push(`Placar: ${placar.passed} passed / ${placar.failed} failed.`);
-  else l.push('O driver não chegou a produzir placar — provável falha de build, seed ou ambiente.');
-  l.push('');
-  l.push('Reproduzir (rebuildar o frontend do hub ANTES, o driver não builda):');
-  l.push(`  cd ${RAIZ}`);
-  l.push(`  DOCKER_BUILDKIT=0 docker compose -f ${COMPOSE} -p hub-homolog \\`);
-  l.push(`    --env-file ${ENV_HUB} build --memory=2g frontend`);
-  l.push(`  docker compose -f ${COMPOSE} -p hub-homolog --env-file ${ENV_HUB} up -d frontend`);
-  l.push(`  ${DRIVER}`);
-  l.push('');
-  l.push('Baseline: 142 passed (2026-10-10). Com 2 retries por teste ligados, um');
-  l.push('`failed` aqui significa que o MESMO teste caiu três vezes seguidas — isso');
-  l.push('não é mais flake, trate como regressão. Flake aparece separado, como');
-  l.push('`flaky`, e tem aviso próprio acima do teto (E2E_GUARD_FLAKY_MAX).');
-  if (trecho) {
+  l.push(`E2E do hub na main ${sha}: ${caiu.length} driver(s) falharam, ${instaveis.length} flaky acima do teto.`);
+
+  if (caiu.length) {
+    l.push('', '== FALHARAM ==');
+    for (const r of caiu) {
+      l.push('', `-- ${r.nome} (${r.caminho})`);
+      if (r.placar) l.push(`Placar: ${r.placar.passed} passed / ${r.placar.failed} failed.`);
+      else l.push('O driver não chegou a produzir placar — provável falha de build, seed ou ambiente.');
+      if (r.trecho) l.push('Últimas linhas:', r.trecho);
+    }
+    l.push('', 'Reproduzir (rebuildar o frontend do hub ANTES, o driver não builda):');
+    l.push(`  cd ${RAIZ}`);
+    l.push(`  DOCKER_BUILDKIT=0 docker compose -f ${COMPOSE} -p hub-homolog \\`);
+    l.push(`    --env-file ${ENV_HUB} build --memory=2g frontend`);
+    l.push(`  docker compose -f ${COMPOSE} -p hub-homolog --env-file ${ENV_HUB} up -d frontend`);
+    l.push('  bash <caminho do driver acima>');
     l.push('');
-    l.push('Últimas linhas:');
-    l.push(trecho);
+    l.push('Com 2 retries por teste ligados, um `failed` aqui significa que o MESMO');
+    l.push('teste caiu três vezes seguidas (e o driver inteiro foi repetido) — isso');
+    l.push('não é mais flake, trate como regressão. Baseline do hub-shell: 142 passed');
+    l.push('(2026-10-10).');
+  }
+
+  if (instaveis.length) {
+    l.push('', '== FLAKY ACIMA DO TETO ==', '');
+    l.push('Nenhuma regressão (todos passaram numa retentativa), mas o ambiente de');
+    l.push('teste está degradando — e flaky demais vira failed quando os retries não');
+    l.push('bastarem mais.');
+    for (const r of instaveis) {
+      l.push(`  - ${r.nome}: ${r.placar.flaky} flaky (teto ${flakyMax})`);
+      for (const n of Array.isArray(r.flaky) ? r.flaky : []) l.push(`      ${n}`);
+    }
+    l.push('', `Ajustar o teto: E2E_GUARD_FLAKY_MAX (hoje ${flakyMax}).`);
+  }
+
+  if (quarentenados.length) {
+    l.push('', '== EM QUARENTENA (não geram alarme) ==', '');
+    for (const r of quarentenados) {
+      l.push(`  - ${r.nome}: ${falhou(r) ? 'falhou' : 'flaky acima do teto'}` +
+        (r.placar ? ` (${r.placar.passed} passed / ${r.placar.failed} failed / ${r.placar.flaky} flaky)` : ''));
+    }
+    l.push('', 'Tirar da lista QUARENTENA em e2e-guard.js quando o driver for consertado.');
   }
   return l.join('\n');
+}
+
+/** Há algo que mereça e-mail? Quarentena e drivers limpos não contam. */
+function precisaAlarme(resultados, quarentena = QUARENTENA, flakyMax = FLAKY_MAX) {
+  return resultados.some((r) =>
+    !quarentena.includes(r.nome) && (!r.ok || (r.placar && r.placar.flaky > flakyMax)));
 }
 
 /** Devolve os cookies do repo ao estado do HEAD — o E2E suja por bind mount. */
@@ -266,8 +375,10 @@ async function main() {
   const sha = shaDaMain();
   const estado = lerEstado();
 
-  if (!forcar && estado.sha === sha) {
-    console.log(`[e2e-guard] main ${sha} já testada (${estado.resultado}) — nada a fazer.`);
+  // Só roda o que ainda não foi testado nesta main (estado POR driver).
+  const pendentes = DRIVERS.filter((d) => forcar || estado[d.nome]?.sha !== sha);
+  if (!pendentes.length) {
+    console.log(`[e2e-guard] main ${sha} já testada nos ${DRIVERS.length} drivers — nada a fazer.`);
     return 0;
   }
 
@@ -281,7 +392,10 @@ async function main() {
     return 2;
   }
 
-  console.log(`[e2e-guard] main ${sha} é nova; disco ${livre.toFixed(1)} GB. Rebuildando frontend…`);
+  console.log(
+    `[e2e-guard] main ${sha} é nova para ${pendentes.length}/${DRIVERS.length} driver(s); ` +
+    `disco ${livre.toFixed(1)} GB. Rebuildando frontend…`
+  );
   try {
     sh(
       'docker',
@@ -308,15 +422,13 @@ async function main() {
     /* o driver reclama melhor do que nós se o ambiente estiver fora */
   }
 
-  // Uma execução não basta para acusar. O E2E tem flake medido (`rodada8:21`,
-  // `rodada10:58`, `rodada9:61`, `rodada9:32`, `sidebar-colapso:58` falharam
-  // uma vez cada, em execuções diferentes, em 2026-09-20/21). Alertar na
-  // primeira falha encheria a caixa de e-mail de flake até alguém aprender a
-  // ignorar o alarme — e aí ele deixa de existir na prática. Na 2ª rodada NÃO
-  // se rebuilda: a imagem já é a certa, e repetir o build só gastaria disco.
-  const rodar = () => {
+  // Uma execução não basta para acusar. O E2E tem flake medido (5 testes
+  // diferentes falharam uma vez cada em 2026-09-20/21; o motorista-360 caiu com
+  // "browser has been closed" e passou na rodada seguinte). A 2ª rodada é só do
+  // driver que caiu e NÃO rebuilda: a imagem já é a certa.
+  const rodar = (d) => {
     try {
-      return { saida: sh('bash', [DRIVER], { stdio: 'pipe', timeout: TIMEOUT_MS }), falhou: false };
+      return { saida: sh('bash', [d.caminho], { stdio: 'pipe', timeout: d.timeout }), falhou: false };
     } catch (e) {
       return { saida: `${e.stdout || ''}${e.stderr || ''}`, falhou: true };
     } finally {
@@ -324,93 +436,77 @@ async function main() {
     }
   };
 
-  let { saida, falhou } = rodar();
-  let placar = placarDe(saida);
-  let flaky = flakyDoRelatorio();
-  let ok = !falhou && placar && placar.failed === 0;
+  const resultados = [];
+  // SEQUÊNCIA, nunca paralelo (starvation); um driver que cai não para os outros.
+  for (const d of pendentes) {
+    const quarentena = QUARENTENA.includes(d.nome);
+    console.log(`[e2e-guard] >>> ${d.nome}${quarentena ? ' (EM QUARENTENA)' : ''}`);
+    const t0 = Date.now();
+    let { saida, falhou } = rodar(d);
+    let placar = placarDe(saida);
+    // O relatório JSON só existe para o config do hub-shell; ler logo após a
+    // execução dele, antes que outro driver faça qualquer coisa.
+    let flaky = d.relatorio ? flakyDoRelatorio() : null;
+    let ok = !falhou && !!placar && placar.failed === 0;
 
-  if (!ok) {
-    console.error(
-      `[e2e-guard] 1ª execução: ${placar ? `${placar.passed}/${placar.failed}` : 'sem placar'}` +
-      ' — repetindo antes de acusar (flake conhecido).'
-    );
-    ({ saida, falhou } = rodar());
-    placar = placarDe(saida);
-    flaky = flakyDoRelatorio();
-    ok = !falhou && placar && placar.failed === 0;
-    if (ok) console.log('[e2e-guard] 2ª execução passou — 1ª foi flake, sem alerta.');
-  }
-
-  if (ok) {
-    // `failed === 0` com retries ligados quer dizer: nenhum teste caiu três
-    // vezes seguidas. Isso é o veredito do gate, e vale reportar sozinho.
-    console.log(
-      `[e2e-guard] main ${sha}: ${placar.passed} passed / 0 failed` +
-      ` / ${placar.flaky} flaky.`
-    );
-    if (flaky === null) {
-      console.error('[e2e-guard] relatório JSON ilegível — não sei dizer quais foram flaky.');
-    } else if (flaky.length) {
-      for (const nome of flaky) console.log(`[e2e-guard]   flaky: ${nome}`);
+    if (!ok) {
+      console.error(
+        `[e2e-guard] ${d.nome}: 1ª execução ${placar ? `${placar.passed}/${placar.failed}` : 'sem placar'}` +
+        ' — repetindo SÓ este driver antes de acusar (flake conhecido).'
+      );
+      ({ saida, falhou } = rodar(d));
+      placar = placarDe(saida);
+      flaky = d.relatorio ? flakyDoRelatorio() : null;
+      ok = !falhou && !!placar && placar.failed === 0;
+      if (ok) console.log(`[e2e-guard] ${d.nome}: 2ª execução passou — 1ª foi flake.`);
     }
 
-    // O ruído não derruba o gate, mas também não passa calado: acima do teto é
-    // o ambiente degradando, e aí o e-mail sai mesmo com 0 failed. Sem isto o
-    // retry viraria tapete — a suíte poderia apodrecer até o dia em que três
-    // retentativas já não bastassem.
-    const demais = placar.flaky > FLAKY_MAX;
-    if (demais) {
-      const corpoFlaky = [
-        `E2E do hub PASSOU na main ${sha}, mas com ${placar.flaky} testes flaky` +
-        ` (teto: ${FLAKY_MAX}).`,
-        '',
-        'Nenhuma regressão: todos passaram em alguma retentativa. O que isto diz é',
-        'que o ambiente de teste está degradando — e flaky demais acaba virando',
-        'failed quando os 2 retries não bastarem mais.',
-        '',
-        ...(flaky?.length ? ['Testes:', ...flaky.map((n) => `  - ${n}`), ''] : []),
-        'Causas já medidas (2026-10-10), todas do arnês e não do produto:',
-        '  - ERR_NETWORK_CHANGED no page.goto: o Chromium roda sob --network host',
-        '    e enxerga toda mudança de interface deste host (~50 containers, de',
-        '    vários clientes). Correção estrutural seria o container do Playwright',
-        '    numa rede docker do hub, em vez da rede do host.',
-        '  - medição antes do render: ver os comentários nos specs corrigidos.',
-        '',
-        `Ajustar o teto: E2E_GUARD_FLAKY_MAX (hoje ${FLAKY_MAX}).`,
-      ].join('\n');
-      if (dryRun) {
-        console.error('[e2e-guard] --dry-run: e-mail de flaky NÃO enviado. Corpo:\n' + corpoFlaky);
-      } else {
-        console.error(`[e2e-guard] ${placar.flaky} flaky > teto ${FLAKY_MAX} — avisando.`);
-        await enviarAlerta(`E2E do hub: ${placar.flaky} flaky na main ${sha}`, corpoFlaky);
-      }
+    // Duração por driver no log: é a medição que calibra os timeouts acima.
+    console.log(`[e2e-guard] ${d.nome}: ${((Date.now() - t0) / 60000).toFixed(1)} min`);
+    const demais = ok && placar.flaky > FLAKY_MAX;
+    if (ok) {
+      console.log(`[e2e-guard] ${d.nome}: ${placar.passed} passed / 0 failed / ${placar.flaky} flaky.`);
+      if (Array.isArray(flaky)) for (const n of flaky) console.log(`[e2e-guard]   flaky: ${n}`);
+    } else {
+      console.error(`[e2e-guard] ${d.nome}: FALHOU${quarentena ? ' (quarentena, sem e-mail)' : ''}.`);
     }
 
-    gravarEstado({
-      sha,
-      resultado: demais ? 'ok-flaky-acima-do-teto' : 'ok',
-      placar,
-      flaky: flaky ?? 'relatorio-ilegivel',
-      em: new Date().toISOString(),
+    resultados.push({
+      nome: d.nome, caminho: d.caminho, ok, placar, flaky,
+      trecho: ok ? '' : saida.split('\n').slice(-25).join('\n'),
     });
-    return 0;
+
+    // Em --dry-run, falha não é gravada: marcaria o sha como "avisado" e
+    // suprimiria o e-mail real da próxima execução.
+    if (ok || !dryRun) {
+      gravarEstadoDoDriver(d.nome, {
+        sha,
+        resultado: ok ? (demais ? 'ok-flaky-acima-do-teto' : 'ok') : (quarentena ? 'falhou-quarentena' : 'falhou'),
+        placar,
+        flaky: flaky ?? (d.relatorio ? 'relatorio-ilegivel' : 'sem-relatorio'),
+        em: new Date().toISOString(),
+      });
+    }
   }
 
-  const trecho = saida.split('\n').slice(-25).join('\n');
-  const corpo = corpoDoAlerta({ sha, placar, trecho });
-
-  if (dryRun) {
-    console.error('[e2e-guard] --dry-run: e-mail NÃO enviado. Corpo:\n' + corpo);
-    return 1;
+  if (precisaAlarme(resultados)) {
+    const corpo = corpoConsolidado({ sha, resultados });
+    const nCaiu = resultados.filter((r) => !r.ok && !QUARENTENA.includes(r.nome)).length;
+    if (dryRun) {
+      console.error('[e2e-guard] --dry-run: e-mail NÃO enviado. Corpo:\n' + corpo);
+    } else {
+      // O estado já foi gravado por driver ANTES do envio: se o SMTP falhar, o
+      // sha já está marcado como avisado e a próxima execução não repete.
+      await enviarAlerta(`E2E do hub: ${nCaiu} driver(s) falharam na main ${sha}`, corpo);
+    }
   }
 
-  // Grava ANTES de enviar: se o SMTP falhar, o SHA já está marcado como
-  // avisado e a próxima execução não repete o e-mail. O rastro do problema
-  // fica na unidade `failed`, que não depende de e-mail nenhum.
-  gravarEstado({ sha, resultado: 'falhou', placar, em: new Date().toISOString() });
-
-  await enviarAlerta(`E2E do hub falhou na main ${sha}`, corpo);
-  return 1;
+  const quebrados = resultados.filter((r) => !r.ok && !QUARENTENA.includes(r.nome));
+  console.log(
+    `[e2e-guard] resumo main ${sha}: ` +
+    resultados.map((r) => `${r.nome}=${r.ok ? 'ok' : 'FALHOU'}`).join(' ')
+  );
+  return quebrados.length ? 1 : 0;
 }
 
 if (require.main === module) {
@@ -422,4 +518,7 @@ if (require.main === module) {
     });
 }
 
-module.exports = { placarDe, flakyDoRelatorio, corpoDoAlerta };
+module.exports = {
+  placarDe, flakyDoRelatorio, corpoConsolidado, precisaAlarme,
+  migrarEstado, lerEstado, gravarEstadoDoDriver, FLAKY_MAX,
+};

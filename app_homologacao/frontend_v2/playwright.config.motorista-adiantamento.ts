@@ -17,7 +17,8 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  // Retry só em CI (guard); justificativa completa em playwright.config.hub.ts.
+  retries: process.env.CI ? 2 : 0,
   reporter: [['list']],
   use: {
     baseURL,
