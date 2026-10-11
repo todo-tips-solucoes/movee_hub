@@ -79,10 +79,14 @@ function planejarRecuperacao(conta) {
  * O texto puro continua idêntico ao que já ia em produção: é o fallback de
  * quem lê em texto, e mudar palavra por palavra aqui não traria nada.
  *
- * ⚠️ A marca fica "App do Motorista", que é como este e-mail já se chamava, e
- * não "EntreGô" (nome que o app usa na aba/PWA): o remetente é
- * `Movee <nao-responda@moveelog.com.br>`, e misturar as duas marcas no mesmo
- * e-mail cria um terceiro vocabulário. Trocar é decisão de marca, não técnica.
+ * ⚠️ A marca é "EntreGô" (decisão do operador em 2026-10-10): é o nome que o
+ * motorista vê na aba do navegador e no PWA instalado, então é o que ele
+ * reconhece. O remetente CONTINUA `Movee <nao-responda@moveelog.com.br>` — a
+ * caixa de entrada mostra "Movee" e o corpo mostra "EntreGô". Esse
+ * desalinhamento é conhecido e aceito, não descuido: alinhar o remetente exige
+ * verificar um domínio EntreGô no Resend (SPF/DKIM), trabalho de infra fora do
+ * código, e sem isso o e-mail não sai. A cor segue `COR_APP_MOTORISTA`, que já
+ * é a cor do app.
  *
  * @param {{nome?:string, link:string}} args
  */
@@ -103,7 +107,7 @@ function montarEmailRecuperacao({ nome, link }) {
       'Se não foi você, ignore este e-mail — sua senha atual continua valendo.',
     ].join('\n'),
     html: montarHtmlEmail({
-      marca: 'App do Motorista',
+      marca: 'EntreGô',
       saudacao,
       chamada,
       link,

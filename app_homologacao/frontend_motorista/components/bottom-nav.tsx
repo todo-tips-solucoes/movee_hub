@@ -62,12 +62,19 @@ export function BottomNav() {
             href={href}
             aria-current={ativa ? 'page' : undefined}
             className={cn(
-              // Rótulo: 0.68rem (10.88px) -> 0.8rem (12.8px), os ~2px pedidos.
+              // Rótulo: 0.68rem (10.88px) -> 0.8rem (12.8px), os ~2px pedidos por
+              // legibilidade -> 0.74rem (11.84px), por transbordo medido.
               // A barra é uma grade de 4 colunas iguais, então o rótulo mais
-              // longo é quem manda: a coluna vale 80px num aparelho de 320px.
+              // longo é quem manda: a coluna vale ~80px (79,5px) num aparelho de
+              // 320px. Com 0.8rem, "Notificações" media 80,17px e transbordava
+              // 0,67px (medido no DOM a 320px; o "1px" registrado antes era
+              // arredondamento). Com 0.74rem são 75,45px, folga de ~4px.
               // `tracking-tight` compra alguns px no rótulo longo sem mexer no
-              // corpo da letra. Largura medida no DOM (ver comentário em ITENS).
-              'flex min-h-11 flex-col items-center justify-center gap-0.5 py-1.5 text-[0.8rem] font-medium tracking-tight transition-colors',
+              // corpo da letra. Não renomeei para "Avisos": esse já é rótulo de
+              // filtro DENTRO de /notificacoes — seriam dois vocabulários para a
+              // mesma coisa; ajusta-se a fonte, não o nome. Teste de largura em
+              // e2e-motorista-adiantamento/adiantamento.spec.ts.
+              'flex min-h-11 flex-col items-center justify-center gap-0.5 py-1.5 text-[0.74rem] font-medium tracking-tight transition-colors',
               ativa ? 'text-primary' : 'text-muted-foreground'
             )}
           >

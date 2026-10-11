@@ -98,6 +98,12 @@ test.describe('montarEmailRecuperacao() — o que chega na caixa do motorista', 
     assert.equal(assunto, 'Recuperação de senha — app do motorista');
   });
 
+  test('o cabeçalho do HTML leva a marca EntreGô, não "App do Motorista"', () => {
+    const { html } = montarEmailRecuperacao({ nome: 'João', link: LINK });
+    assert.match(html, /EntreGô/);
+    assert.ok(!html.includes('App do Motorista'));
+  });
+
   test('saudação usa o primeiro nome; sem nome não vira "Olá, ."', () => {
     assert.match(montarEmailRecuperacao({ nome: 'João Silva', link: LINK }).html, /Olá, João\./);
     assert.match(montarEmailRecuperacao({ link: LINK }).html, /Olá\./);
