@@ -66,7 +66,14 @@ async function tabWalk(page: Page, maxTabs = 60): Promise<FocoInfo[]> {
 async function temaESnapshot(page: Page) {
   return page.evaluate(() => {
     const root = document.documentElement;
-    const banner = document.querySelector('[role="status"][aria-live="polite"]');
+    // O banner é achado pelo TEXTO, não por role: o `role="status"` saiu de
+    // propósito na rodada 17 do impeccable (região viva para texto estático não
+    // anuncia nada). O que este teste prova é que a pessoa VÊ o aviso de
+    // ambiente — por isso casa o que ela lê, e não um atributo/testid que
+    // continuaria passando mesmo se a copy virasse outra coisa.
+    const banner = Array.from(document.querySelectorAll('div')).find(
+      (el) => el.children.length === 0 && /HOMOLOGAÇÃO/.test(el.textContent || '') && (el as HTMLElement).offsetHeight > 0
+    );
     const botoesSemNome = Array.from(document.querySelectorAll('button')).filter((b) => {
       const nome = b.getAttribute('aria-label') || (b.textContent || '').trim() || b.getAttribute('title');
       return !nome;
@@ -139,10 +146,35 @@ test.describe('6.3 — smoke a11y das telas /auditoria, /usuarios, /usuarios/pap
       const visitadosAdmin = await tabWalk(pageAdmin, 40);
       expect(visitadosAdmin.length, '/hub/dashboard/admin: tab-walk deve mover o foco pelo menos 2 vezes').toBeGreaterThanOrEqual(2);
 
-      // ID da entidade -> Enter no botão Consultar exercita o fluxo por teclado.
-      await pageAdmin.getByLabel('ID da entidade').fill(ENTIDADE_ID);
-      await pageAdmin.getByRole('button', { name: 'Consultar' }).focus();
+      // A tela /admin trocou "digitar ID + botão Consultar" por um combobox de
+      // entidade (EntidadeCombobox, Base UI). O fluxo por teclado agora é:
+      // chegar ao combobox por TAB (nunca por clique/focus() — é a operabilidade
+      // por teclado que este teste mede), abrir com Enter, filtrar, escolher com
+      // seta+Enter. A seleção dispara a consulta direto (não há mais "Consultar").
+      await pageAdmin.locator('body').click({ position: { x: 4, y: 4 } });
+      let alcancouCombobox = false;
+      for (let i = 0; i < 40 && !alcancouCombobox; i++) {
+        await pageAdmin.keyboard.press('Tab');
+        alcancouCombobox = await pageAdmin.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          return !!el && el.getAttribute('role') === 'combobox' && el.getAttribute('aria-labelledby') === 'admin-entidade-label';
+        });
+      }
+      expect(alcancouCombobox, '/hub/dashboard/admin: o combobox "Entidade" deve ser alcançável por Tab').toBe(true);
+      const gatilho = pageAdmin.getByRole('combobox', { name: 'Entidade', exact: true });
+      await expect(gatilho).toBeFocused();
       await pageAdmin.keyboard.press('Enter');
+      await expect(gatilho).toHaveAttribute('aria-expanded', 'true');
+      // Digita no campo de busca (o foco deve cair nele ao abrir) e escolhe a
+      // opção por teclado.
+      await pageAdmin.keyboard.type(ENTIDADE_ID);
+      const opcao = pageAdmin.getByRole('option').filter({ hasText: `#${ENTIDADE_ID}` }).first();
+      await expect(opcao).toBeVisible({ timeout: 5_000 });
+      await pageAdmin.keyboard.press('ArrowDown');
+      await pageAdmin.keyboard.press('Enter');
+      // Efeito da seleção: popover fecha e o gatilho passa a mostrar a entidade.
+      await expect(gatilho).toHaveAttribute('aria-expanded', 'false');
+      await expect(gatilho).toContainText(`#${ENTIDADE_ID}`);
       // Spinner "Carregando módulos..." some quando a resposta chega (ok ou erro).
       await expect(pageAdmin.getByText('Carregando módulos...')).not.toBeVisible({ timeout: 10_000 });
       // catálogo de módulos (botão Habilitado/Desabilitado) OU alerta de erro
@@ -150,7 +182,8 @@ test.describe('6.3 — smoke a11y das telas /auditoria, /usuarios, /usuarios/pap
       // chegou até o handler (não trava a UI). Escopado ao container de
       // resultado (evita casar o role="alert" vazio do route-announcer do
       // Next.js e o link "Painel Geral" da navegação).
-      const resultadoModulos = pageAdmin.getByRole('button', { name: /Habilitado|Desabilitado/ }).first();
+      // O catálogo de módulos virou lista de `switch` (não mais `button`).
+      const resultadoModulos = pageAdmin.getByRole('switch', { name: /Habilitado|Desabilitado/ }).first();
       const resultadoErro = pageAdmin.locator('[role="alert"]').filter({ hasText: /.+/ });
       await expect(resultadoModulos.or(resultadoErro)).toBeVisible({ timeout: 10_000 });
 

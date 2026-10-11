@@ -530,7 +530,12 @@ test.describe('US5 — confirmação de pagamento e transições de falha', () =
 
     await page.goto('/hub/dashboard/adiantamentos/lotes/9002');
     await expect(page.getByText('Exportado')).toBeVisible();
-    await page.getByRole('button', { name: 'Confirmar resultado' }).click();
+    // Dois botões, dois papéis — a confusão entre eles foi o que quebrou o teste:
+    //  - "Confirmar na mão" = botão de ABERTURA, na página do lote (o PR #241
+    //    renomeou; antes se chamava "Confirmar resultado");
+    //  - "Confirmar resultado" = título do DIÁLOGO e botão de CONFIRMAÇÃO dentro
+    //    dele (continua com esse nome), usado mais abaixo via `dialog`.
+    await page.getByRole('button', { name: 'Confirmar na mão' }).click();
 
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('checkbox', { name: 'Marcar ADV-0201 como falha' }).check();
