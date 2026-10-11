@@ -325,6 +325,7 @@ interface EditarUsuarioDialogProps {
 }
 
 function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onSalvo }: EditarUsuarioDialogProps) {
+  const { usuario: eu } = useHubAuth();
   const [nome, setNome] = useState('');
   const [ativo, setAtivo] = useState(true);
   const [novaSenha, setNovaSenha] = useState('');
@@ -496,6 +497,13 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
               {erroSenha && (
                 <p id="editar-usuario-senha-erro" role="alert" className="text-xs text-destructive">
                   {erroSenha}
+                </p>
+              )}
+              {/* O backend encerra todas as sessões do alvo ao trocar a senha, sem
+                  exceção para o próprio chamador: o aviso evita que o logout pareça bug. */}
+              {novaSenha && usuario && eu?.id === usuario.id && (
+                <p className="text-xs text-muted-foreground">
+                  Ao redefinir a sua própria senha, a sua sessão será encerrada e você precisará entrar novamente.
                 </p>
               )}
             </div>
@@ -770,7 +778,10 @@ export default function UsuariosPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{u.nome}</span>
                   {!u.ativo && <AtivoBadge ativo={false} />}
-                  {u.ativo && u.linkSenhaPendente && <SenhaPendenteBadge />}
+                  {/* Link em aberto só é pendência para quem nunca acessou; quem já entra
+                      normalmente (ex.: pediu "esqueci a senha") não ganha selo. O botão
+                      segue o fato cru (linkSenhaPendente). */}
+                  {u.ativo && u.linkSenhaPendente && u.nuncaAcessou && <SenhaPendenteBadge />}
                   {u.ativo && u.nuncaAcessou && (
                     <StatusBadge variant="outline" icon={UserX}>
                       Nunca acessou

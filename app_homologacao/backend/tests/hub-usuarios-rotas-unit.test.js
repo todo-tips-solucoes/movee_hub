@@ -284,3 +284,78 @@ describe('POST /usuarios/convites — lote', () => {
     assert.equal((await chamar('POST', '/usuarios/convites', { usuarioIds: [1] }, sub + 1)).status, 200);
   });
 });
+
+describe('PUT /usuarios/:id — troca de senha', () => {
+  const rotas = (revogacao) => async (endpoint, method) => {
+    if (endpoint.startsWith('UsuarioEntidade')) return [{ id: 1, ativo: true, papel: { nome: 'financeiro' } }];
+    if (endpoint.startsWith('SessaoRefresh') && revogacao) return revogacao();
+    if (endpoint.startsWith('Usuario?id=eq.7') && method === 'PATCH') return [{ id: 7, nome: 'Ana', email: 'a@x.com', ativo: true }];
+    return [];
+  };
+  const patchUsuario = () => chamadas.postgrest.find((c) => c.endpoint === 'Usuario?id=eq.7' && c.method === 'PATCH');
+  const revogacoes = () => chamadas.postgrest.filter((c) => c.endpoint.startsWith('SessaoRefresh'));
+
+  test('com senha: invalida token, zera bloqueio e revoga as sessões', async () => {
+    estado.postgrest = rotas();
+    const r = await chamar('PUT', '/usuarios/7', { senha: 'Senha1x' });
+    assert.equal(r.status, 200);
+    const b = patchUsuario().body;
+    assert.ok(b.senha_hash);
+    assert.equal(b.token_recuperacao_hash, null);
+    assert.equal(b.token_recuperacao_expira, null);
+    assert.equal(b.tentativas_login, 0);
+    assert.equal(b.bloqueado_ate, null);
+    assert.equal(revogacoes().length, 1);
+    assert.equal(revogacoes()[0].endpoint, 'SessaoRefresh?usuario_id=eq.7&revogado_em=is.null');
+    assert.equal(revogacoes()[0].method, 'PATCH');
+    assert.ok(revogacoes()[0].body.revogado_em);
+  });
+
+  for (const corpo of [{ nome: 'Ana B' }, { ativo: false }]) {
+    test(`sem senha (${Object.keys(corpo)[0]}): não toca token, bloqueio nem sessões`, async () => {
+      estado.postgrest = rotas();
+      const r = await chamar('PUT', '/usuarios/7', corpo);
+      assert.equal(r.status, 200);
+      const b = patchUsuario().body;
+      for (const k of ['token_recuperacao_hash', 'token_recuperacao_expira', 'tentativas_login', 'bloqueado_ate']) {
+        assert.ok(!(k in b), k);
+      }
+      assert.equal(revogacoes().length, 0);
+    });
+  }
+
+  test('revogação falha: a troca de senha ainda responde 200', async () => {
+    estado.postgrest = rotas(() => { throw new Error('postgrest fora'); });
+    const r = await chamar('PUT', '/usuarios/7', { senha: 'Senha1x' });
+    assert.equal(r.status, 200);
+    assert.equal(r.corpo.usuario.id, 7);
+  });
+
+  const auditoriaEditado = () => chamadas.auditoria.find((a) => a.acao === 'usuario_editado').detalhes;
+
+  test('auditoria da troca de senha diz o ato, sem campos derivados', async () => {
+    estado.postgrest = rotas();
+    await chamar('PUT', '/usuarios/7', { senha: 'Senha1x' });
+    const d = auditoriaEditado();
+    assert.equal(d.senhaRedefinida, true);
+    assert.equal(d.sessoesRevogadas, true);
+    assert.deepEqual(d.camposAlterados, []);
+  });
+
+  test('auditoria com revogação falhando: sessoesRevogadas=false e resposta 200', async () => {
+    estado.postgrest = rotas(() => { throw new Error('postgrest fora'); });
+    const r = await chamar('PUT', '/usuarios/7', { senha: 'Senha1x' });
+    assert.equal(r.status, 200);
+    const d = auditoriaEditado();
+    assert.equal(d.senhaRedefinida, true);
+    assert.strictEqual(d.sessoesRevogadas, false);
+  });
+
+  test('auditoria só com nome: camposAlterados=[nome] e sem senhaRedefinida', async () => {
+    estado.postgrest = rotas();
+    await chamar('PUT', '/usuarios/7', { nome: 'Ana B' });
+    const d = auditoriaEditado();
+    assert.deepEqual(d.camposAlterados, ['nome']);
+    assert.ok(!('senhaRedefinida' in d) && !('sessoesRevogadas' in d));
+  });
+});

@@ -440,6 +440,10 @@ router.post('/', requireModuloAtivo('usuarios'), requirePermission('usuarios.ger
 // é `ativo:false`, JAMAIS DELETE de linha)
 // ────────────────────────────────────────────────────────────────────────────
 
+const CAMPOS_DERIVADOS_DA_SENHA = [
+  'senha_hash', 'token_recuperacao_hash', 'token_recuperacao_expira', 'tentativas_login', 'bloqueado_ate',
+];
+
 router.put('/:id', requireModuloAtivo('usuarios'), requirePermission('usuarios.gerenciar'), async (req, res) => {
   try {
     const ctx = await resolverContexto(req, res);
@@ -473,6 +477,18 @@ router.put('/:id', requireModuloAtivo('usuarios'), requirePermission('usuarios.g
     if (senha !== undefined) {
       if (!isStrongPassword(senha)) return res.status(400).json({ erro: 'SENHA_FRACA' });
       patch.senha_hash = await bcrypt.hash(senha, 10);
+      // Os dois caminhos de troca de senha (aqui e `POST /auth/redefinir` em
+      // hub-auth.js) fazem a MESMA coisa: a divergência entre eles deixou 5
+      // links de troca VÁLIDOS circulando em produção para contas cuja senha
+      // já tinha sido trocada (quem tem aquele e-mail troca a senha e entra).
+      // Também zera o bloqueio: sem isso o admin define a senha, avisa a
+      // pessoa, e ela segue tomando 423 até `bloqueado_ate` vencer — não há
+      // outro caminho de desbloqueio —, e "redefinir senha" não devolveria
+      // acesso. Desbloquear é poder menor que o que o admin já tem.
+      patch.token_recuperacao_hash = null;
+      patch.token_recuperacao_expira = null;
+      patch.tentativas_login = 0;
+      patch.bloqueado_ate = null;
     }
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ erro: 'DADOS_INVALIDOS' });
@@ -505,13 +521,42 @@ router.put('/:id', requireModuloAtivo('usuarios'), requirePermission('usuarios.g
 
     invalidarUsuario(usuarioId);
 
+    let sessoesRevogadas = false;
+    if (senha !== undefined) {
+      // Trocar a senha encerra TODAS as sessões do alvo, sem exceção — inclusive
+      // se o alvo é o próprio chamador (o admin precisa entrar de novo; a tela
+      // avisa). Sem isso a troca não expulsa quem já estava logado, e se a conta
+      // foi comprometida a troca seria ineficaz. Preservar só a sessão atual
+      // exigiria identificá-la pelo hash do refresh token: mais código num
+      // caminho de segurança para evitar um relogin.
+      // Falha parcial: a senha JÁ mudou neste ponto, então a falha da revogação
+      // não derruba a resposta (um erro aqui mentiria que a troca falhou). Fica
+      // só o log: sessões antigas sobrevivem até o refresh expirar (6 h de
+      // inatividade, teto 24 h). Sem rollback da senha.
+      try {
+        await hubPostgrestRequest(`SessaoRefresh?usuario_id=eq.${usuarioId}&revogado_em=is.null`, 'PATCH', {
+          revogado_em: new Date().toISOString(),
+        });
+        sessoesRevogadas = true;
+      } catch (e) {
+        console.error('[hub-usuarios] senha trocada mas sessoes NAO revogadas, usuario', usuarioId, '-', e.message);
+      }
+    }
+
     await registrarAuditoria({
       idEmpresa: ctx.entidadeAtiva,
       usuarioId: ctx.payload.sub,
       acao: 'usuario_editado',
       recurso: 'Usuario',
       recursoId: usuarioId,
-      detalhes: { camposAlterados: Object.keys(patch).filter((k) => k !== 'senha_hash') },
+      // A auditoria diz o ATO, não a mecânica: os campos de token/bloqueio são
+      // consequência da troca de senha (não escolha de quem chamou) e listá-los
+      // faria a linha parecer que o admin mexeu neles, escondendo a senha.
+      // `sessoesRevogadas` distingue a falha parcial (senha trocada, sessões vivas).
+      detalhes: {
+        camposAlterados: Object.keys(patch).filter((k) => !CAMPOS_DERIVADOS_DA_SENHA.includes(k)),
+        ...(senha !== undefined && { senhaRedefinida: true, sessoesRevogadas }),
+      },
       ip: req.ip,
       claims: claimsLeitura,
     });
