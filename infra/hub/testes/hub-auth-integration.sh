@@ -97,6 +97,10 @@ UID_RESET_BLOQ="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-rese
 UID_INATIVA="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-inativa@example.test'" | tr -d '[:space:]')"
 UID_MULTIDEV="$(psql_t -tAc "SELECT id FROM \"Usuario\" WHERE email='auth-multidev@example.test'" | tr -d '[:space:]')"
 
+# 0105 — o selo "Nunca acessou" da lista de usuários depende desta coluna. Parte
+# de NULL para que o assert pós-login prove que foi o LOGIN que a preencheu.
+check "ultimo_login_em começa NULL (conta nunca logou)" "$(psql_t -tAc "SELECT ultimo_login_em IS NULL FROM \"Usuario\" WHERE id = $UID_PRINCIPAL" | tr -d '[:space:]')" "t"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Cenário 1 — conta `auth-teste`: login/refresh/logout + anti-enumeração
 # Script Node único (fetch nativo do Node 20) para stitching de cookies entre
@@ -177,6 +181,9 @@ check "login senha errada -> 401" "$(jget login_wrong_status)" "401"
 check "login e-mail inexistente -> 401" "$(jget login_noemail_status)" "401"
 check "FR-015: corpos idênticos (senha errada == email inexistente)" "$(jget login_bodies_iguais)" "true"
 check "login correto -> 200" "$(jget login_ok_status)" "200"
+# Se o PATCH do login deixar de gravar a coluna, o selo "Nunca acessou" mente
+# para sempre e nada mais acusaria — por isso o assert é no banco, não na resposta.
+check "login correto grava ultimo_login_em (0105)" "$(psql_t -tAc "SELECT ultimo_login_em IS NOT NULL FROM \"Usuario\" WHERE id = $UID_PRINCIPAL" | tr -d '[:space:]')" "t"
 check "login correto -> usuario.email correto" "$(jget login_ok_email)" "auth-teste@example.test"
 check "login correto -> cookie hub_accessToken setado" "$(jget login_ok_tem_access)" "true"
 check "login correto -> cookie hub_refreshToken setado" "$(jget login_ok_tem_refresh)" "true"

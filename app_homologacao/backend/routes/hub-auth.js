@@ -387,6 +387,9 @@ router.post('/login', authRateLimiter, async (req, res) => {
     await hubPostgrestRequest(`Usuario?id=eq.${usuario.id}`, 'PATCH', {
       tentativas_login: 0,
       bloqueado_ate: null,
+      // Entra neste PATCH (e não numa chamada própria) para não custar uma ida
+      // extra ao PostgREST a cada login.
+      ultimo_login_em: agora.toISOString(),
       atualizado_em: agora.toISOString(),
     });
 

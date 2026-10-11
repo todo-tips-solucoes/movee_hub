@@ -16,14 +16,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, Loader2, Mail, Plus, UserCog, Users as UsersIcon } from 'lucide-react';
+import { AlertCircle, Loader2, Mail, Plus, UserCog, UserX, Users as UsersIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
-import { AtivoBadge, SenhaPendenteBadge } from '@/components/hub/status-badge';
-import { Checkbox } from '@/components/ui/checkbox';
+import { AtivoBadge, SenhaPendenteBadge, StatusBadge } from '@/components/hub/status-badge';
+import { Checkbox, CHECKBOX_ALVO_44 } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -63,6 +63,9 @@ import {
   listarUsuarios,
   UsuariosApiError,
   reenviarConvite,
+  reenviarConvitesEmLote,
+  LOTE_CONVITES_MAX,
+  type ConviteLoteResultado,
 } from '@/lib/hub/usuarios-api';
 import type { UsuarioListItem, UsuarioVinculo } from '@/lib/hub/usuarios-dto';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -571,6 +574,14 @@ function EditarUsuarioDialog({ usuario, onOpenChange, entidadeAtiva, papeis, onS
   );
 }
 
+const MOTIVOS_PULO: Record<string, string> = {
+  USUARIO_NAO_ENCONTRADO: 'Fora do seu escopo',
+  USUARIO_INATIVO: 'Conta desativada',
+  PAPEL_RESTRITO: 'Papel restrito (só admin da plataforma)',
+  EMAIL_NAO_ENVIADO: 'E-mail não entregue — tente de novo',
+  ERRO_SERVIDOR: 'Erro no servidor',
+};
+
 export default function UsuariosPage() {
   const { entidadeAtiva, permissoes } = useHubAuth();
   // Mesmo proxy documentado em app/hub/dashboard/auditoria/page.tsx:
@@ -582,6 +593,10 @@ export default function UsuariosPage() {
   const [criarAberto, setCriarAberto] = useState(false);
   const [editando, setEditando] = useState<UsuarioListItem | null>(null);
   const [reenviando, setReenviando] = useState<number | null>(null);
+  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+  const [confirmarPendentes, setConfirmarPendentes] = useState(false);
+  const [enviandoLote, setEnviandoLote] = useState(false);
+  const [relatorio, setRelatorio] = useState<ConviteLoteResultado | null>(null);
 
   const entidade = entidadeAtiva ?? 0;
 
@@ -603,6 +618,37 @@ export default function UsuariosPage() {
     [h]
   );
 
+  // "Todos os pendentes" = os da PÁGINA que o operador está vendo: é o único
+  // N que a tela conhece, e o diálogo promete exatamente esse número de e-mails.
+  const pendentesDaPagina = h.usuarios.filter((u) => u.ativo && u.linkSenhaPendente);
+
+  const alternar = (id: number, marcado: boolean) =>
+    setSelecionados((atual) => {
+      const novo = new Set(atual);
+      if (marcado) novo.add(id);
+      else novo.delete(id);
+      return novo;
+    });
+
+  const enviarLote = async (ids: number[]) => {
+    setEnviandoLote(true);
+    try {
+      const r = await reenviarConvitesEmLote(ids);
+      setRelatorio(r);
+      setSelecionados(new Set());
+      if (r.enviados > 0) toast.success(`${r.enviados} link(s) enviado(s). Os links anteriores deixaram de valer.`);
+      else toast.warning('Nenhum link foi enviado. Veja o relatório.');
+      h.refetch();
+    } catch (e) {
+      toast.error(e instanceof UsuariosApiError ? e.message : 'Não foi possível enviar os links agora.');
+    } finally {
+      setEnviandoLote(false);
+      setConfirmarPendentes(false);
+    }
+  };
+
+  const excedeTeto = selecionados.size > LOTE_CONVITES_MAX;
+
   return (
     <div className={`mx-auto flex ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
       <PageHeader titulo="Usuários" subtitulo="Gestão de usuários, vínculos e papéis da sua entidade.">
@@ -610,6 +656,18 @@ export default function UsuariosPage() {
           <Plus className="size-4" aria-hidden="true" />
           Novo usuário
         </Button>
+        {pendentesDaPagina.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="min-h-11 gap-1.5 sm:min-h-8"
+            onClick={() => setConfirmarPendentes(true)}
+            disabled={enviandoLote}
+          >
+            <Mail className="size-4" aria-hidden="true" />
+            Reenviar a todos os pendentes ({pendentesDaPagina.length})
+          </Button>
+        )}
       </PageHeader>
 
       <FilterBar
@@ -657,19 +715,74 @@ export default function UsuariosPage() {
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-2">
+          {selecionados.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/50 p-3">
+              {/* role=status: o leitor de tela anuncia a contagem a cada marcação */}
+              <p role="status" className="text-sm font-medium">
+                {selecionados.size} {selecionados.size === 1 ? 'selecionado' : 'selecionados'}
+              </p>
+              {excedeTeto && (
+                <p className="text-xs text-destructive">
+                  Máximo de {LOTE_CONVITES_MAX} por envio — desmarque {selecionados.size - LOTE_CONVITES_MAX}.
+                </p>
+              )}
+              <div className="ml-auto flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="min-h-11 sm:min-h-8"
+                  disabled={excedeTeto || enviandoLote}
+                  onClick={() => enviarLote([...selecionados])}
+                >
+                  {enviandoLote ? (
+                    <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Mail className="size-4" aria-hidden="true" />
+                  )}
+                  Reenviar convite
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="min-h-11 sm:min-h-8"
+                  disabled={enviandoLote}
+                  onClick={() => setSelecionados(new Set())}
+                >
+                  Limpar seleção
+                </Button>
+              </div>
+            </div>
+          )}
           {h.usuarios.map((u) => (
             <div key={u.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+              <div className="flex min-w-0 items-start gap-3">
+                {/* Inativo não recebe convite: sem caixa, e o espaço é mantido para alinhar. */}
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center md:h-8 md:w-8">
+                  {u.ativo && (
+                    <Checkbox
+                      className={CHECKBOX_ALVO_44}
+                      checked={selecionados.has(u.id)}
+                      onCheckedChange={(v) => alternar(u.id, v === true)}
+                      aria-label={`Selecionar ${u.nome}`}
+                    />
+                  )}
+                </span>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{u.nome}</span>
                   {!u.ativo && <AtivoBadge ativo={false} />}
                   {u.ativo && u.linkSenhaPendente && <SenhaPendenteBadge />}
+                  {u.ativo && u.nuncaAcessou && (
+                    <StatusBadge variant="outline" icon={UserX}>
+                      Nunca acessou
+                    </StatusBadge>
+                  )}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                 <p className="text-xs text-muted-foreground">
                   {u.vinculos.map((v) => (v.papel ? labelPapel(v.papel) : '—')).join(', ') ||
                     'Sem vínculo visível'}
                 </p>
+              </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {u.ativo && (
@@ -709,6 +822,53 @@ export default function UsuariosPage() {
         </div>
       )}
 
+      <Dialog open={confirmarPendentes} onOpenChange={(v) => !enviandoLote && setConfirmarPendentes(v)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reenviar a todos os pendentes</DialogTitle>
+            <DialogDescription>
+              Isto invalida os links atuais e envia {pendentesDaPagina.length}{' '}
+              {pendentesDaPagina.length === 1 ? 'e-mail' : 'e-mails'}. Quem ainda tem o link antigo
+              em mãos precisará usar o novo.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmarPendentes(false)} disabled={enviandoLote}>
+              Cancelar
+            </Button>
+            <Button onClick={() => enviarLote(pendentesDaPagina.map((u) => u.id))} disabled={enviandoLote}>
+              {enviandoLote && <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />}
+              Enviar {pendentesDaPagina.length} {pendentesDaPagina.length === 1 ? 'e-mail' : 'e-mails'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={relatorio !== null} onOpenChange={(v) => !v && setRelatorio(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resultado do reenvio</DialogTitle>
+            <DialogDescription>
+              {relatorio?.enviados ?? 0} enviado(s), {relatorio?.pulados ?? 0} pulado(s).
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto text-sm">
+            {relatorio?.resultado.map((r) => {
+              const nome = h.usuarios.find((u) => u.id === r.usuarioId)?.nome ?? `Usuário ${r.usuarioId}`;
+              return (
+                <li key={r.usuarioId} className="flex justify-between gap-2">
+                  <span className="truncate">{nome}</span>
+                  <span className={r.status === 'enviado' ? '' : 'text-destructive'}>
+                    {r.status === 'enviado' ? 'Enviado' : MOTIVOS_PULO[r.motivo ?? ''] ?? 'Não enviado'}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <DialogFooter>
+            <Button onClick={() => setRelatorio(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <CriarUsuarioDialog
         open={criarAberto}
         onOpenChange={setCriarAberto}

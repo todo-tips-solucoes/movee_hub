@@ -14,6 +14,7 @@ const mockListarUsuarios = vi.fn();
 const mockListarPapeisMatriz = vi.fn();
 const mockCriarUsuario = vi.fn();
 const mockReenviarConvite = vi.fn();
+const mockReenviarLote = vi.fn();
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -28,6 +29,7 @@ vi.mock('@/lib/hub/usuarios-api', async () => {
     listarUsuarios: (...args: unknown[]) => mockListarUsuarios(...args),
     criarUsuario: (...args: unknown[]) => mockCriarUsuario(...args),
     reenviarConvite: (...args: unknown[]) => mockReenviarConvite(...args),
+    reenviarConvitesEmLote: (...args: unknown[]) => mockReenviarLote(...args),
   };
 });
 
@@ -146,6 +148,7 @@ describe('UsuariosPage — senha pendente e reenvio do link', () => {
   const USUARIO = (extra: Record<string, unknown> = {}) => ({
     id: 7, nome: 'Ana Financeiro', email: 'ana@exemplo.com', ativo: true,
     linkSenhaPendente: true,
+    nuncaAcessou: false,
     vinculos: [{ id: 1, entidadeId: 6, entidadeNome: 'Movee', papelId: 3, papel: 'financeiro', ativo: true }],
     ...extra,
   });
@@ -187,6 +190,22 @@ describe('UsuariosPage — senha pendente e reenvio do link', () => {
     expect(screen.getByRole('button', { name: /Enviar link de senha/i })).toBeInTheDocument();
   });
 
+  // Fatos diferentes: o selo "Nunca acessou" depende só de nuncaAcessou, não
+  // do link; e conta inativa não ganha selo (não há ação possível).
+  it('"Nunca acessou" aparece só para ativo sem login, independente do link', async () => {
+    mockListarUsuarios.mockResolvedValue({
+      usuarios: [
+        USUARIO({ id: 1, nome: 'Sem Login', linkSenhaPendente: false, nuncaAcessou: true }),
+        USUARIO({ id: 2, nome: 'Com Login', linkSenhaPendente: true, nuncaAcessou: false }),
+        USUARIO({ id: 3, nome: 'Inativo', ativo: false, linkSenhaPendente: false, nuncaAcessou: true }),
+      ],
+      total: 3, page: 1, pageSize: 20,
+    });
+    render(<UsuariosPage />);
+    await waitFor(() => expect(screen.getByText('Sem Login')).toBeInTheDocument());
+    expect(screen.getAllByText('Nunca acessou')).toHaveLength(1);
+  });
+
   it('falha no envio vira erro visível, não sucesso silencioso', async () => {
     mockListarUsuarios.mockResolvedValue({ usuarios: [USUARIO()], total: 1, page: 1, pageSize: 20 });
     mockReenviarConvite.mockRejectedValue(new UsuariosApiError(502, 'O e-mail não pôde ser enviado agora.', 'EMAIL_NAO_ENVIADO'));
@@ -196,5 +215,100 @@ describe('UsuariosPage — senha pendente e reenvio do link', () => {
     fireEvent.click(screen.getByRole('button', { name: /Reenviar link/i }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(toast.success).not.toHaveBeenCalled();
+  });
+});
+
+// Reenvio em lote: cada envio mata o link anterior, então o que a tela diz
+// (quantos e-mails, quem foi pulado) tem de bater com o que o servidor faz.
+describe('UsuariosPage — reenvio em lote', () => {
+  const U = (id: number, extra: Record<string, unknown> = {}) => ({
+    id, nome: `Pessoa ${id}`, email: `p${id}@x.com`, ativo: true,
+    linkSenhaPendente: false, nuncaAcessou: false,
+    vinculos: [{ id, entidadeId: 6, entidadeNome: 'Movee', papelId: 3, papel: 'financeiro', ativo: true }],
+    ...extra,
+  });
+  const lista = (usuarios: unknown[]) => mockListarUsuarios.mockResolvedValue({ usuarios, total: usuarios.length, page: 1, pageSize: 100 });
+
+  beforeEach(() => {
+    mockUseHubAuth.mockReset();
+    mockListarUsuarios.mockReset();
+    mockListarPapeisMatriz.mockReset();
+    mockReenviarLote.mockReset();
+    vi.mocked(toast.success).mockReset();
+    vi.mocked(toast.error).mockReset();
+    vi.mocked(toast.warning).mockReset();
+    mockUseHubAuth.mockReturnValue({ entidadeAtiva: 6, permissoes: ['usuarios.gerenciar'] });
+    mockListarPapeisMatriz.mockResolvedValue({ papeis: [], permissoes: [], matriz: [], podeEditar: false });
+  });
+
+  it('seleção manual: só ativo tem caixa, barra mostra a contagem e envia os ids marcados', async () => {
+    lista([U(1), U(2), U(3, { ativo: false })]);
+    mockReenviarLote.mockResolvedValue({
+      enviados: 1, pulados: 1,
+      resultado: [{ usuarioId: 1, status: 'enviado' }, { usuarioId: 2, status: 'pulado', motivo: 'USUARIO_INATIVO' }],
+    });
+    render(<UsuariosPage />);
+    await waitFor(() => expect(screen.getByText('Pessoa 1')).toBeInTheDocument());
+
+    expect(screen.queryByRole('checkbox', { name: 'Selecionar Pessoa 3' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/selecionados?$/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar Pessoa 1' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar Pessoa 2' }));
+    expect(screen.getByRole('status')).toHaveTextContent('2 selecionados');
+
+    fireEvent.click(screen.getByRole('button', { name: /Reenviar convite/i }));
+    await waitFor(() => expect(mockReenviarLote).toHaveBeenCalledWith([1, 2]));
+    // relatório por usuário, com o motivo do pulo
+    await waitFor(() => expect(screen.getByText('Conta desativada')).toBeInTheDocument());
+    expect(screen.getByText('Enviado')).toBeInTheDocument();
+    // a seleção é limpa depois do envio
+    expect(screen.queryByText(/selecionados?$/)).not.toBeInTheDocument();
+  });
+
+  it('"Limpar seleção" zera a barra', async () => {
+    lista([U(1)]);
+    render(<UsuariosPage />);
+    await waitFor(() => expect(screen.getByText('Pessoa 1')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar Pessoa 1' }));
+    fireEvent.click(screen.getByRole('button', { name: /Limpar seleção/i }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('acima de 50 selecionados o botão desabilita COM a razão visível', async () => {
+    lista(Array.from({ length: 51 }, (_, i) => U(i + 1)));
+    render(<UsuariosPage />);
+    await waitFor(() => expect(screen.getByText('Pessoa 1')).toBeInTheDocument());
+    for (let i = 1; i <= 50; i += 1) fireEvent.click(screen.getByLabelText(`Selecionar Pessoa ${i}`));
+    expect(screen.getByRole('button', { name: /Reenviar convite/i })).toBeEnabled();
+
+    fireEvent.click(screen.getByLabelText('Selecionar Pessoa 51'));
+    expect(screen.getByRole('button', { name: /Reenviar convite/i })).toBeDisabled();
+    expect(screen.getByText(/Máximo de 50 por envio — desmarque 1/)).toBeInTheDocument();
+  }, 20000);
+
+  it('"a todos os pendentes": confirma com o N real e avisa que invalida os links', async () => {
+    lista([U(1, { linkSenhaPendente: true }), U(2, { linkSenhaPendente: true }), U(3), U(4, { ativo: false, linkSenhaPendente: true })]);
+    mockReenviarLote.mockResolvedValue({
+      enviados: 2, pulados: 0,
+      resultado: [{ usuarioId: 1, status: 'enviado' }, { usuarioId: 2, status: 'enviado' }],
+    });
+    render(<UsuariosPage />);
+    await waitFor(() => expect(screen.getByText('Pessoa 1')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Reenviar a todos os pendentes \(2\)/ }));
+    expect(screen.getByText(/invalida os links atuais e envia 2 e-mails/)).toBeInTheDocument();
+    // abrir o diálogo não envia nada
+    expect(mockReenviarLote).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Enviar 2 e-mails/ }));
+    await waitFor(() => expect(mockReenviarLote).toHaveBeenCalledWith([1, 2]));
+  });
+
+  it('sem pendentes o botão "a todos" não aparece', async () => {
+    lista([U(1)]);
+    render(<UsuariosPage />);
+    await waitFor(() => expect(screen.getByText('Pessoa 1')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /a todos os pendentes/ })).not.toBeInTheDocument();
   });
 });
