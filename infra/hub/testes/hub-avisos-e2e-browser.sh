@@ -136,7 +136,17 @@ done
 echo "df -h / antes do build do backend:"; df -h /
 DOCKER_BUILDKIT=0 dc build --memory=2g backend >"$TMP/build.log" 2>&1 || { echo "FAIL: build do backend (Dockerfile.hub)"; tail -100 "$TMP/build.log"; exit 1; }
 dc up -d --wait backend
-sleep 2
+# Espera pela CONDIÇÃO, não por tempo: o server.js dispara hubPushVapid.inicializar()
+# sem esperá-la, então o evento de auditoria da chave VAPID pode aparecer depois
+# que o container já está "healthy". Um `sleep 2` apostava que a inicialização
+# assíncrona terminava a tempo (falhou 1 de 2 execuções); repetir a consulta até
+# o evento existir MEDE que terminou. Mesma lição das correções de flake do PR #262.
+AUDITORIA_CHAVE=0
+for _ in $(seq 1 30); do
+  AUDITORIA_CHAVE="$(psql_val "SELECT count(*) FROM \"Auditoria\" WHERE acao IN ('push_chave_registrada','push_chave_substituida');")"
+  [ "$AUDITORIA_CHAVE" != "0" ] && break
+  sleep 1
+done
 echo "--- boot log (linhas 'push:'/'boot'/AUDITORIA_PERDIDA) ---"
 dc logs backend 2>&1 | grep -iE "push|boot|AUDITORIA_PERDIDA" || echo "(nenhuma linha push/boot/auditoria-perdida no log de boot)"
 
@@ -144,9 +154,8 @@ dc logs backend 2>&1 | grep -iE "push|boot|AUDITORIA_PERDIDA" || echo "(nenhuma 
 # dec-123 (onda-023): confirma que a chave VAPID foi auditada SEM cair em
 # AUDITORIA_PERDIDA — prova viva da migration 0063 + claims.hubPushWorker.
 # ─────────────────────────────────────────────────────────────────────────────
-AUDITORIA_CHAVE="$(psql_val "SELECT count(*) FROM \"Auditoria\" WHERE acao IN ('push_chave_registrada','push_chave_substituida');")"
 if [ "$AUDITORIA_CHAVE" = "0" ]; then
-  echo "FAIL: dec-123 — nenhum evento push_chave_registrada/substituida na Auditoria (RLS ainda bloqueando?)"
+  echo "FAIL: dec-123 — esperei 30 s pelo evento push_chave_registrada/substituida na Auditoria e ele não veio (RLS ainda bloqueando, ou hubPushVapid.inicializar() falhou?)"
   exit 1
 fi
 echo "PASS: dec-123 — $AUDITORIA_CHAVE evento(s) de chave VAPID auditado(s) com sucesso (migration 0063 confirmada em ambiente vivo)"

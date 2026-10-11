@@ -73,7 +73,12 @@ test.describe('FASE 8.2 — detalhe do motorista: busca EntreGô + RBAC de campo
     await expect(botaoBuscar).toBeEnabled();
     await botaoBuscar.click();
 
-    await expect(page.getByText('Busca solicitada — aguardando o processamento.')).toBeVisible({ timeout: 15_000 });
+    // Regex parcial de propósito: a redação depois do travessão já mudou duas
+    // vezes. O que o teste prova é que a CONFIRMAÇÃO aparece, não a copy dela —
+    // prender o texto inteiro faz o teste quebrar a cada ajuste de redação.
+    // `.first()`: a confirmação aparece em DOIS lugares (o parágrafo da seção e o
+    // toast) e o regex parcial casa os dois — sem isso o modo estrito reprova.
+    await expect(page.getByText(/Busca solicitada/).first()).toBeVisible({ timeout: 15_000 });
 
     // ── parte B: motorista JÁ enriquecido -> campos preenchidos ─────────────
     await page.goto(`/hub/dashboard/motoristas/${ENT_ENRIQUECIDO_ID}`);

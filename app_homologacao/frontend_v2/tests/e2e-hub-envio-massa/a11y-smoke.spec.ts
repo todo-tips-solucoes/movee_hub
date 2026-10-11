@@ -111,7 +111,11 @@ test.describe('5.2 — smoke a11y da montagem /hub/dashboard/envio_massa', () =>
       exportacao_xml: alcanca('Download XML'),
       fechamento: alcanca('Fechar Movimento'),
       edicao: alcanca('Editar registro'),
-      validacao_xml: alcanca('upload de arquivos XML') || alcanca('Selecionar arquivos XML'),
+      // DÍVIDA REGISTRADA (não resolvida): o alvo `validacao_xml` saiu daqui
+      // porque o XmlValidationCard deixou de morar nesta tela — vive em
+      // /hub/dashboard/validacao_xml (módulo próprio, PR #85); aqui só resta o
+      // link "Validação XML" no menu. A a11y de teclado dessa tela NÃO tem
+      // cobertura nenhuma hoje: o que saiu daqui não foi coberto em outro lugar.
     };
     fs.mkdirSync(EVID_DIR, { recursive: true });
     fs.writeFileSync(
@@ -191,8 +195,10 @@ test.describe('5.2 — smoke a11y da montagem /hub/dashboard/envio_massa', () =>
       snapHub.botoes_sem_nome_acessivel,
       'hub não pode ter MAIS botões sem nome acessível que o legado'
     ).toBeLessThanOrEqual(snapLegado.botoes_sem_nome_acessivel);
-    // A montagem hub agrega o XmlValidationCard (no legado é rota separada) —
-    // a área de upload XML acessível deve existir no hub.
-    expect(snapHub.upload_xml_area).toBeGreaterThanOrEqual(1);
+    // DÍVIDA REGISTRADA (não resolvida): aqui havia a exigência de
+    // `upload_xml_area >= 1`, mas o XmlValidationCard saiu desta tela e vive em
+    // /hub/dashboard/validacao_xml (PR #85). A a11y daquela tela NÃO tem
+    // cobertura nenhuma hoje — a cobertura sumiu junto com o card e não foi
+    // reposta em outro lugar. Fica para outra entrega.
   });
 });

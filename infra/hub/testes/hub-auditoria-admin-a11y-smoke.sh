@@ -55,8 +55,21 @@ echo "=== rito anti-starvation: OK, prosseguindo ==="
 # exercitar /admin com permissão real — desativado de novo no final
 # (trap), nunca DELETE (Auditoria.usuario_id é FK, trilha imutável).
 echo "=== reativando usuário admin_plataforma temporário (id=58/65) para a suíte ==="
+# O seed também CRAVA a senha (senha_hash) e zera tentativas/bloqueio: o driver
+# não pode depender de um estado que alguém mudou fora dele. O último login do
+# id=58 foi em 15/08 — este teste ficou vermelho por quase dois meses porque o
+# `senha_hash` ficou à deriva (login 401 "E-mail ou senha inválidos") e
+# `tentativas_login` acumulou. O seed existe para tornar a execução
+# independente do passado.
+# Não adiciona exposição: a senha JÁ está neste driver em texto claro (abaixo,
+# HUB_E2E_ADMIN_PLATAFORMA_SENHA) e o banco é o hub_homolog ISOLADO, nunca
+# produção — o hash correspondente não revela nada novo. Gerado com o bcrypt do
+# próprio backend (rounds 10, os mesmos do login):
+#   docker exec hub_homolog_backend node -e "require('bcrypt').hash('<senha>',10).then(console.log)"
+# Se mudar a senha padrão abaixo, regere este hash.
+HASH_ADMIN_PLATAFORMA='$2b$10$S76GityARWtfw2aFeNUBTecLdytwmTd7npeUZag0sA3.MS39.iNtK'
 docker exec hub_homolog_db psql -U hub_homolog -d hub_homolog -c \
-  "UPDATE \"Usuario\" SET ativo=true WHERE id=58; UPDATE \"UsuarioEntidade\" SET ativo=true WHERE id=65;" \
+  "UPDATE \"Usuario\" SET ativo=true, senha_hash='$HASH_ADMIN_PLATAFORMA', tentativas_login=0, bloqueado_ate=NULL WHERE id=58; UPDATE \"UsuarioEntidade\" SET ativo=true WHERE id=65;" \
   || { echo "ABORTADO: falha ao reativar usuário admin_plataforma de teste" >&2; exit 2; }
 
 cleanup() {

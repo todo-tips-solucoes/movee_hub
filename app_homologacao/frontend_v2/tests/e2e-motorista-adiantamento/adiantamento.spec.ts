@@ -29,6 +29,12 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { computeAxeScore, AXE_SCORE_GATE } from '../e2e-hub-browser/axe-score';
 
+// CNPJ do motorista da sessão stubada. Precisa ter DÍGITO VERIFICADOR válido:
+// desde o PR #257 a tela só aceita o CNPJ do PRÓPRIO motorista, e o formulário
+// confere o DV antes de enviar. O antigo '90000000000401' tinha DV inválido, o
+// que impediria o cenário "dados válidos" de usar o CNPJ da sessão.
+const CNPJ_MOTORISTA = '90000000000427';
+
 const BASE = process.env.MOTORISTA_E2E_BASE_URL || 'http://127.0.0.1:3006';
 
 // ── Fixtures — shapes sourced de lib/adiantamento-api.ts (tasks.md 6.1.1) ──
@@ -233,12 +239,12 @@ async function installApiStubs(page: Page, state: StubState): Promise<void> {
 
     if (path === '/motorista/verify-auth' && method === 'GET') {
       return state.authenticated
-        ? json(200, { authenticated: true, cnpjPrestador: '90000000000401', nome: 'Motorista E2E' })
+        ? json(200, { authenticated: true, cnpjPrestador: CNPJ_MOTORISTA, nome: 'Motorista E2E' })
         : json(200, { authenticated: false });
     }
     if (path === '/motorista/login' && method === 'POST') {
       state.authenticated = true;
-      return json(200, { cnpjPrestador: '90000000000401', nome: 'Motorista E2E' });
+      return json(200, { cnpjPrestador: CNPJ_MOTORISTA, nome: 'Motorista E2E' });
     }
     if (path === '/motorista/logout' && method === 'POST') {
       state.authenticated = false;
@@ -486,7 +492,8 @@ test.describe('US2 — dados bancários', () => {
     await page.waitForURL((u) => u.pathname === '/conta-bancaria/alterar');
 
     await page.getByLabel('Nome ou razão social do titular').fill('Motorista E2E');
-    await page.getByLabel('CPF ou CNPJ do titular').fill('123.456.789-09');
+    // Regra do PR #257: só CNPJ do próprio motorista e só conta corrente.
+    await expect(page.getByText('poupança não é aceita')).toBeVisible(); // tipo de conta não é mais escolha
     // duas labels casam "Banco" (Label do input de busca + aria-label do
     // <select>) — getByRole restringe ao <select> (role combobox nativo).
     await page.getByRole('combobox', { name: 'Banco' }).selectOption('341');
@@ -495,6 +502,16 @@ test.describe('US2 — dados bancários', () => {
     // "Tipo de conta".
     await page.getByLabel('Conta', { exact: true }).fill('56789');
     await page.getByLabel('Dígito').fill('0');
+
+    // CPF virou caminho de ERRO: com todo o resto válido, o formulário recusa
+    // por causa do documento e a pessoa continua na tela (nada é enviado).
+    await page.getByLabel('CNPJ do titular').fill('123.456.789-09');
+    await page.getByRole('button', { name: 'Enviar para análise' }).click();
+    await expect(page.getByText('CNPJ inválido, ou não é o CNPJ da sua conta.')).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/conta-bancaria/alterar');
+
+    // Caminho feliz: o CNPJ do próprio motorista (o da sessão).
+    await page.getByLabel('CNPJ do titular').fill(CNPJ_MOTORISTA);
     await page.getByRole('button', { name: 'Enviar para análise' }).click();
 
     await page.waitForURL((u) => u.pathname === '/conta-bancaria', { timeout: 15_000 });
