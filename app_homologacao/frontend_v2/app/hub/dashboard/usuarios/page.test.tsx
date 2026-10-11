@@ -164,8 +164,29 @@ describe('UsuariosPage — senha pendente e reenvio do link', () => {
     mockListarPapeisMatriz.mockResolvedValue({ papeis: [], permissoes: [], matriz: [], podeEditar: false });
   });
 
+  // Medido em produção (2026-10-11): 6 de 6 usuários com link vivo já tinham
+  // logado — o selo era falso positivo. "Senha pendente" só vale para quem
+  // nunca acessou; o botão segue o fato cru (há link em aberto).
+  describe.each([
+    { nunca: true, link: true, pendente: true, nuncaSelo: true, botao: /Reenviar link/i },
+    { nunca: true, link: false, pendente: false, nuncaSelo: true, botao: /Enviar link de senha/i },
+    { nunca: false, link: true, pendente: false, nuncaSelo: false, botao: /Reenviar link/i },
+    { nunca: false, link: false, pendente: false, nuncaSelo: false, botao: /Enviar link de senha/i },
+  ])('nuncaAcessou=$nunca + link=$link', ({ nunca, link, pendente, nuncaSelo, botao }) => {
+    it(`selos: pendente=${pendente}, nunca acessou=${nuncaSelo}`, async () => {
+      mockListarUsuarios.mockResolvedValue({
+        usuarios: [USUARIO({ nuncaAcessou: nunca, linkSenhaPendente: link })], total: 1, page: 1, pageSize: 20,
+      });
+      render(<UsuariosPage />);
+      await waitFor(() => expect(screen.getByText('Ana Financeiro')).toBeInTheDocument());
+      expect(screen.queryByText('Senha pendente') !== null).toBe(pendente);
+      expect(screen.queryByText('Nunca acessou') !== null).toBe(nuncaSelo);
+      expect(screen.getByRole('button', { name: botao })).toBeInTheDocument();
+    });
+  });
+
   it('quem tem link pendente aparece marcado, e o botão reenvia', async () => {
-    mockListarUsuarios.mockResolvedValue({ usuarios: [USUARIO()], total: 1, page: 1, pageSize: 20 });
+    mockListarUsuarios.mockResolvedValue({ usuarios: [USUARIO({ nuncaAcessou: true })], total: 1, page: 1, pageSize: 20 });
     mockReenviarConvite.mockResolvedValue(undefined);
     render(<UsuariosPage />);
 
@@ -310,5 +331,43 @@ describe('UsuariosPage — reenvio em lote', () => {
     render(<UsuariosPage />);
     await waitFor(() => expect(screen.getByText('Pessoa 1')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /a todos os pendentes/ })).not.toBeInTheDocument();
+  });
+});
+
+// Trocar a própria senha derruba a sessão (o backend revoga todas, sem exceção
+// para o chamador): o aviso só existe para esse caso, para o logout não parecer bug.
+describe('UsuariosPage — aviso ao redefinir a própria senha', () => {
+  const AVISO = /sua sessão será encerrada/i;
+  const U = (id: number) => ({
+    id, nome: `Pessoa ${id}`, email: `p${id}@x.com`, ativo: true, linkSenhaPendente: false, nuncaAcessou: false,
+    vinculos: [{ id, entidadeId: 6, entidadeNome: 'Movee', papelId: 3, papel: 'financeiro', ativo: true }],
+  });
+
+  async function abrirEdicao(alvo: number) {
+    mockUseHubAuth.mockReset();
+    mockUseHubAuth.mockReturnValue({ entidadeAtiva: 6, permissoes: ['usuarios.gerenciar'], usuario: { id: 1 } });
+    mockListarUsuarios.mockResolvedValue({ usuarios: [U(alvo)], total: 1, page: 1, pageSize: 20 });
+    mockListarPapeisMatriz.mockResolvedValue({ papeis: [], permissoes: [], matriz: [], podeEditar: false });
+    render(<UsuariosPage />);
+    await waitFor(() => expect(screen.getByText(`Pessoa ${alvo}`)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^Editar$/ }));
+    return screen.findByLabelText(/Redefinir senha/i);
+  }
+
+  it('próprio usuário + senha preenchida: avisa', async () => {
+    const campo = await abrirEdicao(1);
+    fireEvent.change(campo, { target: { value: 'Abc123' } });
+    expect(screen.getByText(AVISO)).toBeInTheDocument();
+  });
+
+  it('próprio usuário sem senha: não avisa', async () => {
+    await abrirEdicao(1);
+    expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+  });
+
+  it('outro usuário com senha preenchida: não avisa', async () => {
+    const campo = await abrirEdicao(2);
+    fireEvent.change(campo, { target: { value: 'Abc123' } });
+    expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
   });
 });
