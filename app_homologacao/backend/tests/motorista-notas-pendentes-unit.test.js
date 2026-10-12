@@ -24,6 +24,8 @@ let Empresa = [];
 let trilha = []; // ApuracaoRepasseMovimento
 let chamadasAxios = [];
 let axiosImpl;
+let patches = [];
+let patchFalha = false;
 
 // Lista de valores de um filtro in.(...), com ou sem aspas e URL-decodificada
 const listaIn = (v) => decodeURIComponent(v).slice(4, -1).split(',').map((x) => x.trim().replace(/^"|"$/g, ''));
@@ -31,7 +33,14 @@ const listaIn = (v) => decodeURIComponent(v).slice(4, -1).split(',').map((x) => 
 async function mockPostgrest(path, method = 'GET', body = null) {
   const [tabela, qs] = path.split('?');
   const p = new URLSearchParams(qs || '');
-  if (method === 'PATCH') return {};
+  if (method === 'PATCH') {
+    patches.push({ path, body });
+    if (patchFalha && body && 'regularizada_em' in body) throw new Error('PostgREST fora');
+    // Interpreta o filtro, como o PostgREST: regularizada_em=is.null só atinge quem está nulo
+    const alvo = EnvioMassa.find((r) => String(r.id) === p.get('id').replace(/^eq\./, ''));
+    if (alvo && !(p.get('regularizada_em') === 'is.null' && alvo.regularizada_em != null)) Object.assign(alvo, body);
+    return {};
+  }
   if (tabela === 'Empresa') {
     const ids = listaIn(p.get('id')).map(String);
     return Empresa.filter((e) => ids.includes(String(e.id)));
@@ -124,7 +133,7 @@ const mov = (id, extra = {}) => ({
 
 beforeEach(() => {
   EnvioMassa = []; Empresa = [{ id: 6, nome_empresa: 'Movee Ltda' }, { id: 9, nome_empresa: 'Outra' }];
-  trilha = []; chamadasAxios = []; axiosImpl = async () => ({ data: [{}] });
+  trilha = []; chamadasAxios = []; patches = []; patchFalha = false; axiosImpl = async () => ({ data: [{}] });
 });
 
 describe('GET /motorista/notas-pendentes', () => {
@@ -260,5 +269,47 @@ describe('POST /motorista/notas-pendentes/:id/validar', () => {
     assert.equal((await req('POST', '/motorista/notas-pendentes/7/validar', { multipart: mp(XML('11111111000100')) })).status, 422);
     axiosImpl = async () => { throw new Error('timeout'); };
     assert.equal((await req('POST', '/motorista/notas-pendentes/7/validar', { multipart: mp(XML('11111111000100')) })).status, 502);
+  });
+  describe('marca regularizada_em (movimento fechado)', () => {
+    const envia = (id) => req('POST', `/motorista/notas-pendentes/${id}/validar`, { multipart: mp(XML('11111111000100')) });
+
+    test('movimento FECHADO + validação ok → grava regularizada_em', async () => {
+      EnvioMassa = [mov(7, { mov_fechado: true })];
+      axiosImpl = fastapiGrava(7);
+      assert.equal((await envia(7)).status, 200);
+      assert.ok(EnvioMassa[0].regularizada_em, 'deveria ter gravado a marca');
+    });
+
+    test('movimento ABERTO + validação ok → NÃO grava', async () => {
+      EnvioMassa = [mov(7, { mov_fechado: false })];
+      axiosImpl = fastapiGrava(7);
+      assert.equal((await envia(7)).status, 200);
+      assert.equal(EnvioMassa[0].regularizada_em, undefined);
+      assert.equal(patches.filter((x) => 'regularizada_em' in x.body).length, 0);
+    });
+
+    test('regularizada_em já preenchido → não sobrescreve', async () => {
+      const antes = '2026-10-01T10:00:00.000Z';
+      EnvioMassa = [mov(7, { mov_fechado: true, nota_ok: 'u', erro_validacao: 'valid_valor', regularizada_em: antes })];
+      axiosImpl = fastapiGrava(7);
+      assert.equal((await envia(7)).status, 200);
+      assert.equal(EnvioMassa[0].regularizada_em, antes);
+    });
+
+    test('falha ao gravar a marca → a resposta continua de sucesso', async () => {
+      EnvioMassa = [mov(7, { mov_fechado: true })];
+      axiosImpl = fastapiGrava(7);
+      patchFalha = true;
+      const r = await envia(7);
+      assert.equal(r.status, 200);
+      assert.equal(r.body.valid, true);
+    });
+
+    test('validação reprovada em movimento fechado → não grava a marca', async () => {
+      EnvioMassa = [mov(7, { mov_fechado: true })];
+      axiosImpl = async () => { EnvioMassa[0].nota_ok = 'u'; EnvioMassa[0].erro_validacao = 'valid_valor'; return { data: [{}] }; };
+      await envia(7);
+      assert.equal(EnvioMassa[0].regularizada_em, undefined);
+    });
   });
 });
