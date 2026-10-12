@@ -8,7 +8,7 @@ import { ValidacaoXmlApiError, type NotaRegularizada } from '@/lib/hub/validacao
 import ValidacaoXmlHubPage, { SELECIONAR_ENTIDADE_ROUTE } from './page';
 
 const mockReplace = vi.fn();
-let mockAuth: { entidadeAtiva: number | null; carregando: boolean };
+let mockAuth: { entidadeAtiva: number | null; carregando: boolean; permissoes: string[] };
 
 vi.mock('@/contexts/hub-auth-context', () => ({
   useHubAuth: () => mockAuth,
@@ -44,7 +44,7 @@ describe('ValidacaoXmlHubPage', () => {
   });
 
   it('com entidade ativa: renderiza título e o XmlValidationCard, sem redirect', () => {
-    mockAuth = { entidadeAtiva: 9001, carregando: false };
+    mockAuth = { entidadeAtiva: 9001, carregando: false, permissoes: [] };
     render(<ValidacaoXmlHubPage />);
     expect(screen.getByRole('heading', { name: 'Validação XML' })).toBeInTheDocument();
     expect(screen.getByTestId('xml-validation-card')).toBeInTheDocument();
@@ -52,14 +52,14 @@ describe('ValidacaoXmlHubPage', () => {
   });
 
   it('sem entidade ativa: redireciona para /selecionar-entidade (guard FR-004)', () => {
-    mockAuth = { entidadeAtiva: null, carregando: false };
+    mockAuth = { entidadeAtiva: null, carregando: false, permissoes: [] };
     render(<ValidacaoXmlHubPage />);
     expect(mockReplace).toHaveBeenCalledWith(SELECIONAR_ENTIDADE_ROUTE);
   });
 
   describe('seção de notas enviadas após o fechamento', () => {
     beforeEach(() => {
-      mockAuth = { entidadeAtiva: 9001, carregando: false };
+      mockAuth = { entidadeAtiva: 9001, carregando: false, permissoes: [] };
     });
 
     it('lista vazia: não renderiza nada da seção (nem título, nem "nenhuma")', async () => {
@@ -68,6 +68,19 @@ describe('ValidacaoXmlHubPage', () => {
       await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
       expect(screen.queryByRole('heading', { name: /pagamentos retidos/i })).not.toBeInTheDocument();
       expect(screen.queryByText(/nenhuma/i)).not.toBeInTheDocument();
+    });
+
+    it('link para gerar o lote na aba Repasse: só com permissão de consultar pagamentos', async () => {
+      mockListar.mockResolvedValue({ itens: [nota(1)], total: 1, limite: 100 });
+      const { unmount } = render(<ValidacaoXmlHubPage />);
+      await screen.findByRole('heading', { name: 'Pagamentos retidos aguardando liberação' });
+      expect(screen.queryByRole('link', { name: /aba Repasse/ })).not.toBeInTheDocument();
+      unmount();
+
+      mockAuth = { entidadeAtiva: 9001, carregando: false, permissoes: ['adiantamentos.pagamentos_consultar'] };
+      render(<ValidacaoXmlHubPage />);
+      const link = await screen.findByRole('link', { name: /aba Repasse/ });
+      expect(link).toHaveAttribute('href', '/hub/dashboard/adiantamentos/repasse');
     });
 
     it('renderiza os campos de cada item e diz o que o operador precisa fazer', async () => {

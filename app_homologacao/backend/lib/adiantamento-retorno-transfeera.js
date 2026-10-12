@@ -6,8 +6,10 @@
  * 2026-09-18, dec-129); Spec §FR-031..FR-036; data-model.md
  * AdiantamentoLoteItem.origem_situacao.
  *
- * Casamento é SEMPRE por `ID de integração` (padrão `ADV-<id>` do nosso
- * exportador, `formatarSequencial` em lib/adiantamento-dto.js) — nunca por
+ * Casamento é SEMPRE por `ID de integração` (padrão `<PREFIXO>-<id>` do nosso
+ * exportador; prefixo `ADV` = adiantamento, default, via `formatarSequencial`
+ * em lib/adiantamento-dto.js; `REP` = repasse — o chamador passa
+ * `{ prefixo }`) — nunca por
  * nome ou valor (decisão do operador, risco de marcar o adiantamento de
  * outra pessoa). Nenhuma coluna do CSV é inventada: o `motivo` de uma falha
  * é sempre o texto LITERAL da coluna `Motivo da falha` (ou, na ausência
@@ -35,7 +37,27 @@ const CABECALHO_ESPERADO = [
 ];
 
 const STATUS_CONHECIDOS = new Set(['Finalizada', 'Devolvida']);
-const REGEX_ID_INTEGRACAO = /^ADV-(\d+)$/;
+const PREFIXO_PADRAO = 'ADV';
+
+/** Regex `^<PREFIXO>-(\d+)$`. O prefixo nunca vem de input de cliente, mas um
+ * malformado falha alto (TypeError) em vez de casar errado ou injetar regex. */
+const REGEX_POR_PREFIXO = new Map();
+
+function regexIdIntegracao(prefixo) {
+  if (typeof prefixo !== 'string' || !/^[A-Z]{2,8}$/.test(prefixo)) {
+    throw new TypeError(`prefixo de ID de integração inválido: ${String(prefixo)}`);
+  }
+  // Memoizado: esta função roda 2x por linha do CSV e um lote vai a 5000
+  // linhas — sem o cache seriam 10 mil `new RegExp` por importação de retorno.
+  // O Map tem no máximo um punhado de entradas (os prefixos são constantes do
+  // nosso próprio exportador), então não cresce sem limite.
+  let re = REGEX_POR_PREFIXO.get(prefixo);
+  if (!re) {
+    re = new RegExp(`^${prefixo}-(\\d+)$`);
+    REGEX_POR_PREFIXO.set(prefixo, re);
+  }
+  return re;
+}
 
 class RetornoTransfeeraParseError extends Error {
   constructor(message, motivo) {
@@ -144,10 +166,11 @@ function normalizarLinha(cabecalho, linha) {
   };
 }
 
-/** `ADV-000123` -> `123`; `null` se não casa o padrão do nosso exportador
- * (vazio, texto livre ou qualquer outro formato). */
-function extrairIdSolicitacao(idIntegracao) {
-  const m = REGEX_ID_INTEGRACAO.exec(String(idIntegracao ?? '').trim());
+/** `ADV-000123` -> `123` (com `{ prefixo: 'REP' }`, `REP-000123` -> `123`);
+ * `null` se não casa o padrão do nosso exportador para o prefixo (default
+ * `ADV`; vazio, texto livre ou qualquer outro formato). */
+function extrairIdSolicitacao(idIntegracao, { prefixo = PREFIXO_PADRAO } = {}) {
+  const m = regexIdIntegracao(prefixo).exec(String(idIntegracao ?? '').trim());
   return m ? Number(m[1]) : null;
 }
 
@@ -161,7 +184,7 @@ function motivoLiteral(linha) {
 /** Remove linhas repetidas do MESMO `ID de integração` e recusa o arquivo
  * quando as repetições não dizem a mesma coisa.
  *
- * Sem isso, duas linhas `ADV-<id>` entravam as duas em `aplicaveis`: como a
+ * Sem isso, duas linhas `<PREFIXO>-<id>` entravam as duas em `aplicaveis`: como a
  * `situacao` comparada no laço é a do snapshot em memória (que não muda
  * dentro do laço), nenhuma das duas era vista como `JA_APLICADO`. Rio
  * abaixo, a RPC aplica as falhas antes de marcar "o que sobrou" como pago,
@@ -171,14 +194,14 @@ function motivoLiteral(linha) {
  * Repetições idênticas (mesmo status, valor e motivo) são só ruído do
  * arquivo: deduplica. Repetições que divergem em qualquer um desses campos
  * são ambíguas e NUNCA são resolvidas por escolha nossa — o arquivo inteiro
- * é recusado com `LINHA_DUPLICADA`. Linhas sem id no padrão `ADV-<id>`
+ * é recusado com `LINHA_DUPLICADA`. Linhas sem id no padrão `<PREFIXO>-<id>`
  * passam intactas (várias em branco são normais; todas viram
  * `ID_INTEGRACAO_INVALIDO`). */
-function deduplicarPorIdIntegracao(linhas) {
+function deduplicarPorIdIntegracao(linhas, opcoes) {
   const assinaturaPorId = new Map();
   const unicas = [];
   for (const linha of linhas) {
-    if (extrairIdSolicitacao(linha.idIntegracao) === null) {
+    if (extrairIdSolicitacao(linha.idIntegracao, opcoes) === null) {
       unicas.push(linha);
       continue;
     }
@@ -202,12 +225,14 @@ function deduplicarPorIdIntegracao(linhas) {
  * Casa as linhas normalizadas do CSV com os itens de UM lote (9.1.2).
  * `itensLote`: [{solicitacaoId, colIdIntegracao, situacao, valorCentavos}]
  * (situacao ∈ AdiantamentoLoteItem.situacao).
+ * `opcoes.prefixo` (default `'ADV'`; `'REP'` para lotes de repasse) define o
+ * padrão `<PREFIXO>-<id>` aceito no `ID de integração`.
  *
  * Devolve:
  *  - `aplicaveis`: linhas que podem ser aplicadas — `{solicitacaoId, status, motivo}`
  *    (`motivo` só preenchido quando `status==='Devolvida'`)
  *  - `ignoradas`: `{idIntegracao, motivo}` — nunca aplicadas; motivos:
- *    `ID_INTEGRACAO_INVALIDO` (vazio/texto livre/fora do padrão ADV-<id>),
+ *    `ID_INTEGRACAO_INVALIDO` (vazio/texto livre/fora do padrão <PREFIXO>-<id>),
  *    `NAO_PERTENCE_AO_LOTE` (id válido mas não é item deste lote),
  *    `JA_APLICADO` (item já saiu de `incluido` — idempotência, 9.1.5),
  *    `STATUS_DESCONHECIDO:<valor>` (nem Finalizada nem Devolvida — nunca
@@ -220,14 +245,15 @@ function deduplicarPorIdIntegracao(linhas) {
  *    confirmação marca "tudo que não é falha" como pago — aplicar com
  *    faltantes marcaria item sem retorno como pago por omissão)
  */
-function casarComItensDoLote(linhasNormalizadas, itensLote) {
+function casarComItensDoLote(linhasNormalizadas, itensLote, { prefixo = PREFIXO_PADRAO } = {}) {
+  const opcoes = { prefixo };
   const porIdIntegracao = new Map(itensLote.map((it) => [it.colIdIntegracao, it]));
   const aplicaveis = [];
   const ignoradas = [];
 
   // Lança `RetornoTransfeeraParseError('LINHA_DUPLICADA')` — ver acima.
-  for (const linha of deduplicarPorIdIntegracao(linhasNormalizadas)) {
-    const idSolicitacao = extrairIdSolicitacao(linha.idIntegracao);
+  for (const linha of deduplicarPorIdIntegracao(linhasNormalizadas, opcoes)) {
+    const idSolicitacao = extrairIdSolicitacao(linha.idIntegracao, opcoes);
     if (idSolicitacao === null) {
       ignoradas.push({ idIntegracao: linha.idIntegracao, motivo: 'ID_INTEGRACAO_INVALIDO' });
       continue;

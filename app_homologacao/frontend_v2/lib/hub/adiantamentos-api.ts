@@ -49,6 +49,7 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   VERSAO_DESATUALIZADA: 'Os dados foram alterados por outra pessoa. Recarregue e tente novamente.',
   PREVIA_DESATUALIZADA: 'A prévia mudou desde a última consulta. Gere uma nova prévia.',
   SOLICITACOES_EM_OUTRO_LOTE: 'Uma ou mais solicitações já estão em outro lote.',
+  ITENS_EM_OUTRO_LOTE: 'Um ou mais pagamentos já entraram em outro lote. Atualize a lista.',
   LOTE_ACIMA_DO_LIMITE: 'O lote excede o limite de 5.000 solicitações.',
   ARQUIVO_INDISPONIVEL: 'O arquivo deste lote não está disponível.',
   // Importador de retorno (FASE 9 / Q-B1 respondida em 2026-09-18). O motivo
@@ -743,5 +744,102 @@ export async function gerarMovimentos(periodo: string): Promise<GerarMovimentosR
   return request<GerarMovimentosResponse>(`/adiantamentos/repasse/${periodo}/movimentos`, {
     method: 'POST',
     body: JSON.stringify({ confirmacao: true }),
+  });
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Lote de pagamento do repasse (`routes/hub-repasse-lotes.js`). Mesmo formato
+// de `Lote`/`LoteItemDetalhe` do adiantamento — por isso os dialogs de lote
+// são reusados passando estas funções. `LoteItemDetalhe.id` aqui é o id do
+// ITEM do lote (é o que `/confirmacao` espera em `falhas[].id`).
+// ────────────────────────────────────────────────────────────────────────
+
+const REPASSE_LOTES = '/adiantamentos/repasse/lotes';
+
+/** Chave de um pagamento candidato: uma apuração fechada × um motorista. */
+export interface RepasseLoteChave {
+  apuracaoId: number;
+  entregadorId: number;
+}
+
+export interface RepasseLotePreviaLinha extends RepasseLoteChave {
+  motorista: string;
+  periodoInicio: string;
+  periodoFim: string;
+  valor: string;
+}
+
+export interface RepasseLotePreviaBloqueada extends RepasseLotePreviaLinha {
+  /** `JA_EM_LOTE` · `APURACAO_ABERTA` · `VALOR_INVALIDO` · `NOTA_REPROVADA` · `NOTA_PENDENTE` · `SEM_CONTA`. */
+  motivo: string;
+}
+
+export interface RepasseLotePreviaResponse {
+  aptas: RepasseLotePreviaLinha[];
+  bloqueadas: RepasseLotePreviaBloqueada[];
+  quantidadeApta: number;
+  totalApto: string;
+}
+
+export interface CriarRepasseLoteInput {
+  /** Dois arrays POSICIONAIS (índice i de um casa com o i do outro), não `itens: [{…}]`:
+   *  5000 pares no formato de objetos dão ~210 KB e estouram o `express.json()` global
+   *  (100 KB, 413 antes da rota); assim dão ~54 KB. */
+  apuracoes: number[];
+  entregadores: number[];
+  quantidadeEsperada: number;
+  /** "123.45" — o que a prévia mostrou; o servidor recusa se mudou (`PREVIA_DESATUALIZADA`). */
+  totalEsperado: string;
+  chaveIdempotencia: string;
+}
+
+export interface LoteRepasseDetalhe extends Lote {
+  itens: LoteItemDetalhe[];
+}
+
+/** Sem argumento = todas as aptas do escopo. Com pares, dois arrays POSICIONAIS (mesmo formato do `POST /lotes`). */
+export async function previaLoteRepasse(pares?: { apuracoes: number[]; entregadores: number[] }): Promise<RepasseLotePreviaResponse> {
+  return request<RepasseLotePreviaResponse>(`${REPASSE_LOTES}/previa`, {
+    method: 'POST',
+    body: JSON.stringify(pares ?? {}),
+  });
+}
+
+export async function criarLoteRepasse(dados: CriarRepasseLoteInput): Promise<Lote> {
+  return request<Lote>(REPASSE_LOTES, { method: 'POST', body: JSON.stringify(dados) });
+}
+
+/** O backend do repasse só honra `status`, `page` e `pageSize` (`de`/`ate` seriam ignorados). */
+export type LotesRepasseFiltros = Pick<LotesFiltros, 'status' | 'page' | 'pageSize'>;
+
+export async function listarLotesRepasse(filtros: LotesRepasseFiltros = {}): Promise<LotesListResponse> {
+  return request<LotesListResponse>(`${REPASSE_LOTES}${query(filtros)}`);
+}
+
+export async function obterLoteRepasse(id: number): Promise<LoteRepasseDetalhe> {
+  return request<LoteRepasseDetalhe>(`${REPASSE_LOTES}/${id}`);
+}
+
+export async function baixarArquivoLoteRepasse(id: number, numero: string): Promise<void> {
+  return baixarBlob(`${REPASSE_LOTES}/${id}/arquivo`, `transfeera_repasse_lote-${numero}.xlsx`);
+}
+
+export async function cancelarLoteRepasse(id: number, motivo: string, naoEnviadoATransfeera = false): Promise<Lote> {
+  return request<Lote>(`${REPASSE_LOTES}/${id}/cancelar`, {
+    method: 'POST',
+    body: JSON.stringify({ motivo, naoEnviadoATransfeera }),
+  });
+}
+
+export async function confirmarLoteRepasse(id: number, dados: ConfirmarLoteInput = { falhas: [] }): Promise<Lote> {
+  return request<Lote>(`${REPASSE_LOTES}/${id}/confirmacao`, { method: 'POST', body: JSON.stringify(dados) });
+}
+
+/** CSV cru (`text/csv`), pelo mesmo motivo de `importarRetornoLote`. */
+export async function importarRetornoLoteRepasse(id: number, csv: string): Promise<ImportarRetornoResponse> {
+  return request<ImportarRetornoResponse>(`${REPASSE_LOTES}/${id}/retorno`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/csv' },
+    body: csv,
   });
 }

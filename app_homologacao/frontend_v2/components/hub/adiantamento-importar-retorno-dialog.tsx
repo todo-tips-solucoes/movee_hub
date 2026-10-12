@@ -39,6 +39,7 @@ import {
 import {
   AdiantamentosApiError,
   importarRetornoLote,
+  type ImportarRetornoResponse,
   type RetornoIgnoradaPorMotivo,
 } from '@/lib/hub/adiantamentos-api';
 
@@ -51,12 +52,12 @@ const CSV_MAX_BYTES = 12 * 1024 * 1024;
 /** Tradução dos motivos técnicos do backend
  *  (lib/adiantamento-retorno-transfeera.js#casarComItensDoLote). Não invento
  *  motivo: código desconhecido aparece cru, para o operador poder relatar. */
-const MOTIVO_IGNORADA: Record<string, string> = {
+const MOTIVO_IGNORADA = (produto: string): Record<string, string> => ({
   ID_INTEGRACAO_INVALIDO: 'Linhas de outros pagamentos (sem ID de integração do hub)',
   NAO_PERTENCE_AO_LOTE: 'Pagamentos de outro lote',
   JA_APLICADO: 'Já conciliados numa importação anterior',
-  VALOR_DIVERGENTE: 'Valor do arquivo diferente do valor do adiantamento',
-};
+  VALOR_DIVERGENTE: `Valor do arquivo diferente do valor do ${produto}`,
+});
 
 /** Motivos de recusa do arquivo inteiro (`RetornoTransfeeraParseError`). */
 const MOTIVO_ARQUIVO: Record<string, string> = {
@@ -68,30 +69,37 @@ const MOTIVO_ARQUIVO: Record<string, string> = {
   ARQUIVO_MUITO_GRANDE: 'O arquivo tem mais de 10.000 linhas. Exporte um período menor.',
 };
 
-function rotuloIgnorada(motivo: string): string {
+function rotuloIgnorada(motivo: string, produto: string): string {
   // `STATUS_DESCONHECIDO:<valor>` carrega o valor cru vindo do arquivo.
   if (motivo.startsWith('STATUS_DESCONHECIDO:')) {
     return `Status que não sabemos interpretar (${motivo.slice('STATUS_DESCONHECIDO:'.length)})`;
   }
-  return MOTIVO_IGNORADA[motivo] ?? motivo;
+  return MOTIVO_IGNORADA(produto)[motivo] ?? motivo;
 }
 
 /** Traduz os motivos que o backend já devolve agregados. A agregação saiu do
  *  cliente em 2026-10-01: ela existia porque a resposta trazia linha a linha —
  *  com nome de pessoas no `ID de integração`. Agora o servidor manda só as
  *  contagens, e aqui é só rótulo. */
-export function rotularIgnoradas(ignoradas: RetornoIgnoradaPorMotivo[]): { rotulo: string; total: number }[] {
-  return ignoradas.map((i) => ({ rotulo: rotuloIgnorada(i.motivo), total: i.total }));
+export function rotularIgnoradas(
+  ignoradas: RetornoIgnoradaPorMotivo[],
+  produto = 'adiantamento'
+): { rotulo: string; total: number }[] {
+  return ignoradas.map((i) => ({ rotulo: rotuloIgnorada(i.motivo, produto), total: i.total }));
 }
 
 export interface UseImportarRetornoDialogArgs {
   loteId: number;
   onSucesso: () => void;
+  /** Endpoint do retorno — o default é o do adiantamento; o repasse passa o dele. */
+  importar?: (id: number, csv: string) => Promise<ImportarRetornoResponse>;
+  /** Nome do produto nas frases que o citam ("valor do adiantamento" / "valor do repasse"). */
+  produto?: string;
 }
 
 type Resultado = { aplicadas: number; grupos: { rotulo: string; total: number }[] };
 
-export function useImportarRetornoDialog({ loteId, onSucesso }: UseImportarRetornoDialogArgs) {
+export function useImportarRetornoDialog({ loteId, onSucesso, importar = importarRetornoLote, produto = 'adiantamento' }: UseImportarRetornoDialogArgs) {
   const [open, setOpen] = useState(false);
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -125,8 +133,8 @@ export function useImportarRetornoDialog({ loteId, onSucesso }: UseImportarRetor
       // `File.text()` decodifica como UTF-8 — o mesmo que o backend assume ao
       // ler o corpo. Sem base64 desde 2026-10-01 (ver `importarRetornoLote`).
       const csv = await arquivo.text();
-      const r = await importarRetornoLote(loteId, csv);
-      setResultado({ aplicadas: r.aplicadas, grupos: rotularIgnoradas(r.ignoradasPorMotivo) });
+      const r = await importar(loteId, csv);
+      setResultado({ aplicadas: r.aplicadas, grupos: rotularIgnoradas(r.ignoradasPorMotivo, produto) });
       onSucesso();
     } catch (e) {
       if (e instanceof AdiantamentosApiError) {
@@ -154,7 +162,7 @@ export function useImportarRetornoDialog({ loteId, onSucesso }: UseImportarRetor
     } finally {
       setEnviando(false);
     }
-  }, [arquivo, loteId, onSucesso]);
+  }, [arquivo, loteId, onSucesso, importar, produto]);
 
   return { open, setOpen, abrir, arquivo, escolher, enviar, enviando, erro, resultado, inputRef };
 }
@@ -163,9 +171,11 @@ interface Props {
   /** Nome `d` por consistência com `CancelarLoteDialog`/`ConfirmarLoteDialog`
    *  desta mesma tela. */
   d: ReturnType<typeof useImportarRetornoDialog>;
+  /** Prefixo do ID de integração que casa o pagamento com o lote (adiantamento `ADV-`, repasse `REP-`). */
+  prefixoId?: string;
 }
 
-export function ImportarRetornoDialog({ d }: Props) {
+export function ImportarRetornoDialog({ d, prefixoId = 'ADV-' }: Props) {
   const inputId = useId();
   const { open, setOpen, arquivo, escolher, enviar, enviando, erro, resultado } = d;
 
@@ -176,7 +186,7 @@ export function ImportarRetornoDialog({ d }: Props) {
           <DialogTitle>Importar retorno da Transfeera</DialogTitle>
           <DialogDescription>
             Exporte o relatório de movimentações em CSV e envie aqui. Cada pagamento é casado pelo ID de integração
-            (ADV-…), nunca por nome ou valor. Linhas de outros pagamentos são ignoradas.
+            ({prefixoId}…), nunca por nome ou valor. Linhas de outros pagamentos são ignoradas.
           </DialogDescription>
         </DialogHeader>
 
