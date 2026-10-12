@@ -1005,6 +1005,264 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// nota-pendente-motorista (F2) — o motorista regulariza notas de movimentos
+// ANTERIORES ao aberto. Via NOVA e paralela: `/movimento-aberto` e `/validar-nota`
+// (acima) seguem intocadas até o operador validar esta. Ver
+// docs/plans/nota-pendente-motorista/BRIEFING.md.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Recorte da lista (decisão do operador) e teto de itens. O teto é GUARDA, não
+// paginação: o máximo medido em 90 dias é 11 por motorista. Ele também mantém
+// seguro o `id=in.(...)` abaixo — lista grande estoura o header do PostgREST
+// (incidente do upload de motorista, PR #50).
+const NOTAS_PENDENTES_DIAS = 90;
+const NOTAS_PENDENTES_TETO = 50;
+
+// ROTA: GET /motorista/notas-pendentes  (autenticado)
+// Pendência = EnvioMassa sem `nota_ok`, ABERTA ou FECHADA (para o motorista a
+// distinção é interna). `nota_ok` guarda a URL do XML mesmo de nota reprovada;
+// aqui "pendente" é quem nem chegou a ter nota, então reprovada NÃO entra.
+router.get('/notas-pendentes', authenticateMotorista, async (req, res) => {
+  try {
+    // Escopo sempre pela SESSÃO — query/body são ignorados (Constituição II)
+    const cnpj = req.motorista.cnpjPrestador;
+    const desde = new Date(Date.now() - NOTAS_PENDENTES_DIAS * 24 * 60 * 60 * 1000).toISOString();
+    const linhas = (await _postgrestRequest(
+      `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}` +
+      `&created_at=gte.${encodeURIComponent(desde)}` +
+      `&or=${encodeURIComponent('(nota_ok.is.null,nota_ok.eq.)')}` +
+      '&select=id,created_at,valor,dt_inicial,dt_final,cnpj_tomador,id_empresa' +
+      `&order=created_at.desc&limit=${NOTAS_PENDENTES_TETO}`
+    )) || [];
+
+    // Tomador (razão social) numa consulta só, como /movimento-aberto faz por item.
+    // Tolerante a falha: nunca bloqueia a lista.
+    const nomes = new Map();
+    const idsEmpresa = [...new Set(linhas.map((m) => m.id_empresa).filter((v) => v != null))];
+    if (idsEmpresa.length > 0) {
+      try {
+        const empresas = await _postgrestRequest(
+          `Empresa?id=in.(${idsEmpresa.map(encodeURIComponent).join(',')})&select=id,nome_empresa`
+        );
+        for (const e of empresas || []) nomes.set(String(e.id), e.nome_empresa || null);
+      } catch (e) {
+        console.error('[motorista/notas-pendentes] busca do tomador falhou:', e.message);
+      }
+    }
+
+    // Origem INFERIDA, sem coluna nova (a EnvioMassa não tem): id presente em
+    // ApuracaoRepasseMovimento = 'REPASSE', senão 'MOVIMENTO'.
+    // ⚠️ Hoje essa tabela está VAZIA (o "Gerar notas" nunca gerou movimento), então
+    // TODO item sai 'MOVIMENTO'. É o esperado — não é inferência quebrada.
+    // Tabela do hub tem RLS por `escopo` (empresas): o JWT legado não tem essa claim
+    // e enxergaria 0 linhas, mascarando todo REPASSE. Por isso vai pelo cliente do
+    // hub, com escopo = só as empresas dos movimentos DESTE motorista (derivadas do
+    // banco, nunca do cliente). Uma consulta só, no máximo 50 ids.
+    const idsRepasse = new Set();
+    if (linhas.length > 0) {
+      try {
+        const trilha = await hubPostgrestRequest(
+          `ApuracaoRepasseMovimento?select=envio_massa_id&envio_massa_id=in.(${linhas.map((m) => encodeURIComponent(m.id)).join(',')})`,
+          'GET', null, { escopo: idsEmpresa.map(Number).filter(Number.isFinite) }
+        );
+        for (const t of trilha || []) idsRepasse.add(String(t.envio_massa_id));
+      } catch (e) {
+        console.error('[motorista/notas-pendentes] busca da origem falhou:', e.message);
+      }
+    }
+
+    return res.json({
+      notas: linhas.map((m) => ({
+        id: m.id,
+        criadoEm: m.created_at,
+        valor: m.valor,
+        dtInicial: m.dt_inicial,
+        dtFinal: m.dt_final,
+        cnpjTomador: m.cnpj_tomador,
+        tomador: nomes.get(String(m.id_empresa)) || null,
+        origem: idsRepasse.has(String(m.id)) ? 'REPASSE' : 'MOVIMENTO',
+      })),
+    });
+  } catch (err) {
+    console.error('[motorista/notas-pendentes] Erro:', err.message);
+    return res.status(500).json({ error: 'Erro no servidor.' });
+  }
+});
+
+// ROTA: POST /motorista/notas-pendentes/:id/validar  (autenticado, multipart)
+// Mesmo comportamento de POST /validar-nota, com duas diferenças: (1) o movimento
+// vem da URL e é conferido contra o CNPJ da sessão; (2) `id_movimento` vai à
+// FastAPI, que então grava NAQUELE registro (F1) em vez de achar pelo CNPJ do XML.
+router.post('/notas-pendentes/:id/validar', authenticateMotorista, uploadSingle, async (req, res) => {
+  try {
+    const cnpj = req.motorista.cnpjPrestador;
+
+    // Trava central, ANTES de qualquer outra coisa: a pendência tem que ser do CNPJ
+    // da sessão. 404 (não 403) para não revelar que o movimento de outro existe.
+    const idMov = String(req.params.id);
+    const movimentos = /^\d+$/.test(idMov)
+      ? await _postgrestRequest(`EnvioMassa?id=eq.${idMov}&${cnpjEnvioMassaFilter(cnpj)}&limit=1`)
+      : [];
+    if (!movimentos || movimentos.length === 0) {
+      return res.status(404).json({ error: 'Pendência não encontrada.' });
+    }
+    const movimento = movimentos[0];
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Arquivo XML não enviado.' });
+    }
+
+    // XML bem-formado (FR-011). xml2js não resolve entidades externas (XXE).
+    const xmlContent = req.file.buffer.toString('utf-8');
+    try {
+      await xml2js.parseStringPromise(xmlContent, { strict: true, explicitCharkey: false });
+    } catch (_parseErr) {
+      return res.status(400).json({ error: 'Arquivo inválido: envie um XML de NFS-e válido.' });
+    }
+
+    // Mesmo com o destino explícito (id_movimento), XML de outro prestador não é a
+    // nota desta pendência — a recusa continua sendo a defesa certa.
+    const cnpjMotorista = String(cnpj).replace(/\D/g, '');
+    const prestBloco = xmlContent.match(/<prest\b[^>]*>([\s\S]*?)<\/prest>/i);
+    const cnpjXmlMatch = prestBloco && prestBloco[1].match(/<CNPJ\b[^>]*>\s*([\d./-]+)\s*<\/CNPJ>/i);
+    const cnpjXml = cnpjXmlMatch ? cnpjXmlMatch[1].replace(/\D/g, '') : '';
+    if (cnpjXml && cnpjXml !== cnpjMotorista) {
+      return res.status(400).json({
+        error: 'Este XML não pertence ao seu CNPJ. Envie a nota fiscal emitida com o seu CNPJ de prestador.',
+      });
+    }
+
+    // "Aprovada" = nota_ok preenchido E erro_validacao vazio (nota reprovada pode reenviar).
+    const temNotaOk = movimento.nota_ok != null && String(movimento.nota_ok).trim() !== '';
+    if (temNotaOk && !((movimento.erro_validacao || '').trim())) {
+      return res.status(409).json({ error: 'Nota já aprovada. Reenvio bloqueado.', notaOk: true });
+    }
+
+    // Aditivo e best-effort, igual à rota antiga (hub-motorista-canonico 6.3).
+    if (req.motorista.entregadorUuid) {
+      try {
+        await _postgrestRequest(
+          `EnvioMassa?id=eq.${movimento.id}`,
+          'PATCH',
+          { entregador_uuid: req.motorista.entregadorUuid }
+        );
+      } catch (gravaErr) {
+        console.error('[motorista/notas-pendentes] Falha ao gravar entregador_uuid (não bloqueia):', gravaErr.message);
+      }
+    }
+
+    const xmlInput = JSON.stringify({ filename: req.file.originalname, data: xmlContent });
+
+    // Grupo Movee (empresa 6 + filiais) → FastAPI não-nexus; demais → nexus.
+    // Nunca `=== 6` estrito (a Movee terá filiais).
+    let url, payload;
+    const _grupoCache = {};
+    if (await mesmoGrupoQue(Number(movimento.id_empresa), 6, _grupoCache)) {
+      url = 'https://fastapihomologacao.todo-tips.com/validade_nfse';
+      payload = new URLSearchParams({
+        xml_input: xmlInput,
+        id_empresa: '6',
+        validar_descricao_servico: 'false',
+        id_movimento: String(movimento.id),
+      });
+    } else {
+      url = 'https://fastapihomologacaonexus.todo-tips.com/validade_nfse';
+      payload = new URLSearchParams({
+        xml_input: xmlInput,
+        nexus: 'true',
+        validar_descricao_servico: 'false',
+        id_movimento: String(movimento.id),
+      });
+    }
+
+    try {
+      await axios.post(url, payload.toString(), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: process.env.FASTAPI_VALIDATION_TOKEN,
+        },
+        timeout: 30000,
+      });
+    } catch (apiErr) {
+      let respBody;
+      try {
+        respBody = typeof apiErr.response?.data === 'object'
+          ? JSON.stringify(apiErr.response.data)
+          : String(apiErr.response?.data);
+      } catch {
+        respBody = '<não serializável>';
+      }
+      console.error(
+        '[motorista/notas-pendentes] Serviço externo falhou:',
+        apiErr.message, '| status:', apiErr.response?.status, '| body:', respBody
+      );
+      // Negócio (4xx com `detail`) propaga a mensagem real; infra (timeout/5xx) vira 502.
+      const extStatus = apiErr.response?.status;
+      const extDetail = apiErr.response?.data?.detail;
+      const detailMsg = typeof extDetail === 'string' ? extDetail.trim() : '';
+      if (extStatus >= 400 && extStatus < 500 && detailMsg) {
+        return res.status(422).json({ error: detailMsg });
+      }
+      return res.status(502).json({
+        error: 'Serviço de validação indisponível. Tente novamente em instantes.',
+      });
+    }
+
+    const FIELD_MESSAGES = {
+      valid_cnpj_prestador: 'CNPJ do prestador (você) está incorreto na nota.',
+      valid_cnpj: 'CNPJ do tomador está incorreto na nota.',
+      valid_descricao_servico: 'Descrição do serviço está incorreta.',
+      valid_valor: 'Valor da nota não confere com o valor do movimento.',
+      valid_trib_nac: 'Tributação nacional (TribNac) está incorreta.',
+      valid_trib_mun: 'Tributação municipal está incorreta.',
+      valid_dCompet: 'Data de competência (dCompet) está incorreta.',
+    };
+
+    // Fonte de verdade: a FastAPI grava direto na EnvioMassa; relemos e decidimos
+    // por erro_validacao (o backend não regrava nota_ok/erro_validacao).
+    let registro;
+    try {
+      const refreshed = await _postgrestRequest(
+        `EnvioMassa?id=eq.${movimento.id}&select=nota_ok,erro_validacao`
+      );
+      registro = refreshed && refreshed[0];
+    } catch (_e) {
+      registro = null;
+    }
+
+    const notaOkGravado =
+      registro && registro.nota_ok != null && String(registro.nota_ok).trim() !== '';
+    const erroValidacao = ((registro && registro.erro_validacao) || '').trim();
+
+    if (notaOkGravado && !erroValidacao) {
+      return res.json({ valid: true, notaOk: true, mensagem: 'Nota ok! Validação aprovada.' });
+    }
+
+    if (erroValidacao) {
+      const camposInvalidos = erroValidacao
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(campo => ({ campo, mensagem: FIELD_MESSAGES[campo] || 'Campo inválido na nota.' }));
+      return res.json({
+        valid: false,
+        notaOk: false,
+        camposInvalidos,
+        instrucao: 'Cancele esta nota e emita uma nova com os campos corrigidos.',
+      });
+    }
+
+    console.error('[motorista/notas-pendentes] Sem resultado gravado na EnvioMassa pós-validação. id:', movimento.id);
+    return res.status(503).json({
+      error: 'Serviço de validação indisponível. Tente novamente em instantes.',
+    });
+  } catch (err) {
+    console.error('[motorista/notas-pendentes] Erro inesperado:', err.message);
+    return res.status(500).json({ error: 'Erro no servidor.' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Exportar router + função init (injeção de dependências)
 // ──────────────────────────────────────────────────────────────────────────────
 module.exports = { router, init, authenticateMotorista };
