@@ -27,6 +27,7 @@ const {
   executarTick,
   processarPendentes,
   cancelarLotesOrfaos,
+  cancelarRepasseLotesOrfaos,
   expurgarArquivos,
   LIMITE_PROCESSAR,
   MINUTOS_ORFAOS,
@@ -218,6 +219,24 @@ describe('lib/adiantamento-worker — lote_orfaos (3.3.2/3.3.7)', () => {
   });
 });
 
+describe('lib/adiantamento-worker — repasse_lote_orfaos', () => {
+  test('chama hub_repasse_lote_orfaos com p_minutos e a claim do worker; loga a contagem', async () => {
+    const deps = criarDepsBase({ hubPostgrestRequest: async () => [{ id: 1 }, { id: 2 }] });
+    await cancelarRepasseLotesOrfaos(deps);
+    const [endpoint, metodo, body, claims] = deps._chamadas[0];
+    assert.equal(endpoint, 'rpc/hub_repasse_lote_orfaos');
+    assert.equal(metodo, 'POST');
+    assert.deepEqual(body, { p_minutos: MINUTOS_ORFAOS });
+    assert.deepEqual(claims, { adiantamentoWorker: true });
+    assert.match(deps._logs.info[0], /2 lote\(s\)/);
+  });
+  test('falha é best-effort: não propaga, só loga', async () => {
+    const deps = criarDepsBase({ hubPostgrestRequest: async () => { throw new Error('boom'); } });
+    await assert.doesNotReject(() => cancelarRepasseLotesOrfaos(deps));
+    assert.equal(deps._logs.erro.length, 1);
+  });
+});
+
 describe('lib/adiantamento-worker — expurgo de arquivos (3.3.3/FR-052)', () => {
   test('chama hub_adiantamento_expurgo_arquivos com p_dias e a claim do worker', async () => {
     const deps = criarDepsBase({ hubPostgrestRequest: async () => [{ id: 601, id_empresa: 6 }] });
@@ -237,7 +256,7 @@ describe('lib/adiantamento-worker — expurgo de arquivos (3.3.3/FR-052)', () =>
 });
 
 describe('lib/adiantamento-worker — executarTick / iniciarTick', () => {
-  test('executarTick roda as três etapas na ordem: processar, órfãos, expurgo', async () => {
+  test('executarTick roda as etapas na ordem: processar, órfãos (adiantamento e repasse), expurgo', async () => {
     const ordem = [];
     const deps = criarDepsBase({
       hubPostgrestRequest: async (endpoint) => { ordem.push(endpoint); return []; },
@@ -246,6 +265,7 @@ describe('lib/adiantamento-worker — executarTick / iniciarTick', () => {
     assert.deepEqual(ordem, [
       'rpc/hub_adiantamento_processar',
       'rpc/hub_adiantamento_lote_orfaos',
+      'rpc/hub_repasse_lote_orfaos',
       'rpc/hub_adiantamento_expurgo_arquivos',
     ]);
   });
@@ -263,6 +283,7 @@ describe('lib/adiantamento-worker — executarTick / iniciarTick', () => {
     assert.deepEqual(ordem, [
       'rpc/hub_adiantamento_processar',
       'rpc/hub_adiantamento_lote_orfaos',
+      'rpc/hub_repasse_lote_orfaos',
       'rpc/hub_adiantamento_expurgo_arquivos',
     ]);
   });

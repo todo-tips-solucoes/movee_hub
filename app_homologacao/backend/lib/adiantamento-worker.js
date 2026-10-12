@@ -148,6 +148,20 @@ async function cancelarLotesOrfaos(deps) {
   }
 }
 
+/** Mesma varredura para os lotes do repasse (`hub_repasse_lote_orfaos`, migration 0108): `POST /lotes` commita em `GERANDO` antes de o Node gerar o xlsx; se o processo morrer na janela (deploy, OOM), sem isto o par (apuração, entregador) fica preso em `JA_EM_LOTE` para sempre. Best-effort. */
+async function cancelarRepasseLotesOrfaos(deps) {
+  try {
+    const lotes = await deps.hubPostgrestRequest(
+      'rpc/hub_repasse_lote_orfaos', 'POST', { p_minutos: MINUTOS_ORFAOS }, claimsWorker,
+    );
+    if (Array.isArray(lotes) && lotes.length > 0) {
+      deps.logInfo(`repasse_lote_orfaos: ${lotes.length} lote(s) GERANDO há mais de ${MINUTOS_ORFAOS}min cancelado(s)`);
+    }
+  } catch (err) {
+    deps.logErro('hub_repasse_lote_orfaos falhou (best-effort — próximo tick tenta de novo)', err);
+  }
+}
+
 /** 3.3.3/FR-052 — expurga arquivo de lotes concluídos/cancelados há mais de `DIAS_EXPURGO`. Best-effort, mesmo padrão de `cancelarLotesOrfaos`. */
 async function expurgarArquivos(deps) {
   try {
@@ -162,10 +176,11 @@ async function expurgarArquivos(deps) {
   }
 }
 
-/** Um tick completo: processar -> órfãos -> expurgo (ordem do plan.md §Regras). */
+/** Um tick completo: processar -> órfãos (adiantamento, repasse) -> expurgo (ordem do plan.md §Regras). */
 async function executarTick(deps = DEFAULT_DEPS) {
   await processarPendentes(deps);
   await cancelarLotesOrfaos(deps);
+  await cancelarRepasseLotesOrfaos(deps);
   await expurgarArquivos(deps);
 }
 
@@ -189,6 +204,7 @@ module.exports = {
   executarTick,
   processarPendentes,
   cancelarLotesOrfaos,
+  cancelarRepasseLotesOrfaos,
   expurgarArquivos,
   chamarProcessarComRetry,
   auditarResultado,

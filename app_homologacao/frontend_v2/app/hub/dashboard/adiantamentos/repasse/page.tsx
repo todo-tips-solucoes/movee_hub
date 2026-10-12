@@ -42,6 +42,7 @@ import { PageHeader } from '@/components/hub/page-header';
 import { FilterBar } from '@/components/hub/filter-bar';
 import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { AdiantamentosAbas } from '@/components/hub/adiantamentos-abas';
+import { RepasseLotesSection } from '@/components/hub/repasse-lotes-section';
 import { FecharApuracaoDialog, useFecharApuracaoDialog } from '@/components/hub/adiantamento-fechar-apuracao-dialog';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -364,6 +365,8 @@ export default function AdiantamentosRepassePage() {
           )}
         </>
       )}
+
+      <RepasseLotesSection />
 
       <FecharApuracaoDialog d={fecharDialog} />
     </div>

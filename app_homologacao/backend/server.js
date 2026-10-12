@@ -113,6 +113,7 @@ const hubPerformanceRoutes = require('./routes/hub-performance');
 // repasse. Arquivo 100% novo (routes/hub-adiantamentos.js).
 // requireModuloAtivo/requirePermission aplicados dentro do próprio router.
 const hubAdiantamentosRoutes = require('./routes/hub-adiantamentos');
+const hubRepasseLotesRoutes = require('./routes/hub-repasse-lotes');
 
 // hub-auditoria-admin (S9 do hub de frota, FASE 4.2) — GET/POST/PUT
 // /api/v1/usuarios + POST/PUT /api/v1/usuarios/:id/vinculos (gestão de
@@ -2953,6 +2954,8 @@ app.use('/api/v1/avisos', hubAvisosRoutes.router);
 // bancárias, lotes, repasse). requireModuloAtivo/requirePermission
 // aplicados dentro do próprio router (mesmo padrão do bloco acima).
 app.use('/api/v1/adiantamentos', hubAdiantamentosRoutes.router);
+// F5 — lote de pagamento do repasse: mesmo prefixo de GET /repasse (módulo adiantamentos).
+app.use('/api/v1/adiantamentos/repasse', hubRepasseLotesRoutes.router);
 
 // hub-importacoes (pós-review PR #57, F1.3) — recuperação de lock órfão no
 // boot: um restart no meio de uma importação (deploy) deixa o registro

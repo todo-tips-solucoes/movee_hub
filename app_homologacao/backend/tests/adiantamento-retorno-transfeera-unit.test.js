@@ -380,3 +380,39 @@ describe('lerCsv — leitor RFC4180 próprio', () => {
     assert.equal(lerCsv(csv).length, 1);
   });
 });
+
+// --- prefixo parametrizável (ADV default; REP = repasse) ----------------------
+
+describe('prefixo do ID de integração', () => {
+  const csvRep = montarCsv([linhaCsv({ 'ID de integração': 'REP-000123', Status: 'Finalizada', Valor: '10.00' })]);
+  const csvAdv = montarCsv([linhaCsv({ 'ID de integração': 'ADV-000123', Status: 'Finalizada', Valor: '10.00' })]);
+  const item = (col) => [{ solicitacaoId: 123, colIdIntegracao: col, situacao: 'incluido', valorCentavos: 1000 }];
+
+  test('REP-000123 casa com { prefixo: "REP" }', () => {
+    const r = casarComItensDoLote(lerCsv(csvRep), item('REP-000123'), { prefixo: 'REP' });
+    assert.deepEqual(r.aplicaveis.map((a) => a.solicitacaoId), [123]);
+    assert.deepEqual(r.ignoradas, []);
+  });
+  test('o MESMO REP-000123 NÃO casa com o default ADV (ID_INTEGRACAO_INVALIDO)', () => {
+    const r = casarComItensDoLote(lerCsv(csvRep), item('REP-000123'));
+    assert.deepEqual(r.aplicaveis, []);
+    assert.equal(r.ignoradas[0].motivo, 'ID_INTEGRACAO_INVALIDO');
+  });
+  test('ADV-000123 continua casando com o default', () => {
+    const r = casarComItensDoLote(lerCsv(csvAdv), item('ADV-000123'));
+    assert.deepEqual(r.aplicaveis.map((a) => a.solicitacaoId), [123]);
+  });
+  test('ADV-000123 NÃO casa com { prefixo: "REP" }', () => {
+    const r = casarComItensDoLote(lerCsv(csvAdv), item('ADV-000123'), { prefixo: 'REP' });
+    assert.equal(r.ignoradas[0].motivo, 'ID_INTEGRACAO_INVALIDO');
+  });
+  test('extrairIdSolicitacao respeita o prefixo', () => {
+    assert.equal(extrairIdSolicitacao('REP-000123', { prefixo: 'REP' }), 123);
+    assert.equal(extrairIdSolicitacao('REP-000123'), null);
+  });
+  test('prefixo malformado falha alto', () => {
+    for (const p of ['rep', 'R', 'A.*', 'ABCDEFGHI', '', null]) {
+      assert.throws(() => extrairIdSolicitacao('X-1', { prefixo: p }), TypeError);
+    }
+  });
+});

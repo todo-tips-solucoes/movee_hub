@@ -9,9 +9,11 @@
 // operador fazer, e um "nenhuma regularização" fixo viraria ruído permanente.
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useHubAuth } from '@/contexts/hub-auth-context';
 import { formatBRL, formatDateBR } from '@/lib/utils';
 import {
   ValidacaoXmlApiError,
@@ -26,6 +28,7 @@ function formatarQuando(iso: string): string {
 }
 
 export function NotasRegularizadasSection() {
+  const { permissoes } = useHubAuth();
   const [dados, setDados] = useState<RegularizadasResponse | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -78,6 +81,13 @@ export function NotasRegularizadasSection() {
           Estes motoristas enviaram a nota depois que o movimento foi fechado. O pagamento deles segue retido até
           você liberá-lo manualmente: o sistema não libera sozinho.
         </p>
+        {permissoes.includes('adiantamentos.pagamentos_consultar') && (
+          <p className="mt-1 text-sm">
+            <Link href="/hub/dashboard/adiantamentos/repasse" className="font-medium text-primary underline underline-offset-4">
+              Gerar o lote de pagamento na aba Repasse
+            </Link>
+          </p>
+        )}
         {dados.total > dados.limite && (
           <p className="mt-1 text-sm text-muted-foreground">
             Mostrando as {dados.itens.length} mais recentes de {dados.total} no total.

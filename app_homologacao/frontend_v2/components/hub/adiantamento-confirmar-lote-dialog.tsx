@@ -54,6 +54,8 @@ export interface UseConfirmarLoteDialogArgs {
   /** Todos os itens do lote — o hook filtra os `incluido` (únicos elegíveis). */
   itens: LoteItemDetalhe[];
   onSucesso: (lote: Lote) => void;
+  /** Endpoint da confirmação — o default é o do adiantamento; o repasse passa o dele. */
+  confirmarFn?: typeof confirmarLote;
 }
 
 function estadoInicial(incluidos: LoteItemDetalhe[]): Record<number, FalhaState> {
@@ -61,7 +63,7 @@ function estadoInicial(incluidos: LoteItemDetalhe[]): Record<number, FalhaState>
 }
 
 /** Lógica isolada do JSX (mesmo padrão de `useAdiantamentoAcaoDialog`). */
-export function useConfirmarLoteDialog({ loteId, itens, onSucesso }: UseConfirmarLoteDialogArgs) {
+export function useConfirmarLoteDialog({ loteId, itens, onSucesso, confirmarFn = confirmarLote }: UseConfirmarLoteDialogArgs) {
   const incluidos = useMemo(() => itens.filter((i) => i.situacao === 'incluido'), [itens]);
   const [open, setOpenState] = useState(false);
   const [falhas, setFalhas] = useState<Record<number, FalhaState>>(() => estadoInicial(incluidos));
@@ -96,7 +98,7 @@ export function useConfirmarLoteDialog({ loteId, itens, onSucesso }: UseConfirma
     setConfirmando(true);
     setErro(null);
     try {
-      const lote = await confirmarLote(loteId, {
+      const lote = await confirmarFn(loteId, {
         falhas: marcados.map((f) => ({ id: f.id, motivo: f.motivo.trim() })),
       });
       onSucesso(lote);
@@ -107,7 +109,7 @@ export function useConfirmarLoteDialog({ loteId, itens, onSucesso }: UseConfirma
       setConfirmando(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todosMotivosOk, JSON.stringify(marcados), loteId, onSucesso]);
+  }, [todosMotivosOk, JSON.stringify(marcados), loteId, onSucesso, confirmarFn]);
 
   return {
     open, setOpen, abrir, fechar, incluidos, falhas, marcarFalha, setMotivo,

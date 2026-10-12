@@ -35,10 +35,12 @@ export interface UseCancelarLoteDialogArgs {
    * exige a declaração, mesmo comportamento seguro de "ainda não sei". */
   status: string;
   onSucesso: (lote: Lote) => void;
+  /** Endpoint do cancelamento — o default é o do adiantamento; o repasse passa o dele. */
+  cancelar?: typeof cancelarLote;
 }
 
 /** Lógica isolada do JSX (mesmo padrão de `useEncerrarFalhaDialog`). */
-export function useCancelarLoteDialog({ loteId, status, onSucesso }: UseCancelarLoteDialogArgs) {
+export function useCancelarLoteDialog({ loteId, status, onSucesso, cancelar = cancelarLote }: UseCancelarLoteDialogArgs) {
   const [open, setOpenState] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [naoEnviado, setNaoEnviado] = useState(false);
@@ -69,7 +71,7 @@ export function useCancelarLoteDialog({ loteId, status, onSucesso }: UseCancelar
     setConfirmando(true);
     setErro(null);
     try {
-      const atualizado = await cancelarLote(loteId, motivo.trim(), naoEnviado);
+      const atualizado = await cancelar(loteId, motivo.trim(), naoEnviado);
       onSucesso(atualizado);
       setOpenState(false);
       setMotivo('');
@@ -79,12 +81,19 @@ export function useCancelarLoteDialog({ loteId, status, onSucesso }: UseCancelar
     } finally {
       setConfirmando(false);
     }
-  }, [podeConfirmar, loteId, motivo, naoEnviado, onSucesso]);
+  }, [podeConfirmar, loteId, motivo, naoEnviado, onSucesso, cancelar]);
 
   return { open, setOpen, abrir, fechar, motivo, setMotivo, naoEnviado, setNaoEnviado, exigeDeclaracao, confirmando, erro, podeConfirmar, confirmar };
 }
 
-export function CancelarLoteDialog({ d }: { d: ReturnType<typeof useCancelarLoteDialog> }) {
+export function CancelarLoteDialog({
+  d,
+  descricao = 'As solicitações voltam a liberadas e podem entrar num próximo lote. Esta ação é auditada.',
+}: {
+  d: ReturnType<typeof useCancelarLoteDialog>;
+  /** Texto do que acontece com os itens — o default descreve o adiantamento. */
+  descricao?: string;
+}) {
   const inputId = useId();
 
   return (
@@ -92,9 +101,7 @@ export function CancelarLoteDialog({ d }: { d: ReturnType<typeof useCancelarLote
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Cancelar lote?</DialogTitle>
-          <DialogDescription>
-            As solicitações voltam a liberadas e podem entrar num próximo lote. Esta ação é auditada.
-          </DialogDescription>
+          <DialogDescription>{descricao}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
