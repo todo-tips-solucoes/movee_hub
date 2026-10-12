@@ -1,0 +1,24 @@
+-- 0107 — "EnvioMassa".regularizada_em: marca "nota enviada DEPOIS do fechamento".
+--
+-- POR QUE EXISTE: a tela "notas pendentes" do app motorista deixa regularizar a
+-- nota de um movimento que já foi fechado. Quem libera o pagamento retido é uma
+-- PESSOA (não há gate automático: nota_ok não aparece em nenhuma rota do hub), e
+-- ela precisa ser avisada. A EnvioMassa só tem o boolean mov_fechado, sem o
+-- instante do fechamento — então `mov_fechado AND nota_ok IS NOT NULL` casa com
+-- todas as notas normais e não serve de aviso. Esta coluna é a única marca.
+-- Se ela não existir quando as primeiras regularizações acontecerem, a
+-- informação se perde e não há como reconstruí-la depois.
+--
+-- SEMÂNTICA: NULL = "não veio por esta via". É verdade para todo o histórico e
+-- NÃO significa "não foi regularizada". Só é preenchida quando mov_fechado era
+-- verdadeiro no momento do envio (POST /motorista/notas-pendentes/:id/validar);
+-- nota enviada com movimento aberto é o fluxo normal e não vira aviso. A rota
+-- grava só no primeiro envio bem-sucedido pós-fechamento (não sobrescreve).
+--
+-- PERMISSÃO: a EnvioMassa tem GRANT na tabela inteira (0033: SELECT, INSERT,
+-- UPDATE, DELETE → authenticated), não por coluna; a coluna nova herda. Nada a
+-- conceder aqui.
+--
+-- Aditiva e idempotente. Depois de aplicar: SIGUSR1 no PostgREST (cache de schema).
+
+ALTER TABLE "EnvioMassa" ADD COLUMN IF NOT EXISTS regularizada_em timestamptz;

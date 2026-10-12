@@ -1235,6 +1235,24 @@ router.post('/notas-pendentes/:id/validar', authenticateMotorista, uploadSingle,
     const erroValidacao = ((registro && registro.erro_validacao) || '').trim();
 
     if (notaOkGravado && !erroValidacao) {
+      // Marca "regularizada após o fechamento" para o operador liberar o pagamento
+      // retido. Só quando o movimento JÁ estava fechado (aberto é o fluxo normal).
+      // `regularizada_em=is.null` no filtro: não sobrescreve a marca do primeiro
+      // envio pós-fechamento (nota reprovada pode ser reenviada).
+      // Best-effort, como o entregador_uuid: a nota já foi validada e gravada, então
+      // falhar aqui só loga — responder erro a um envio que deu certo é pior que
+      // perder o aviso.
+      if (movimento.mov_fechado === true) {
+        try {
+          await _postgrestRequest(
+            `EnvioMassa?id=eq.${movimento.id}&regularizada_em=is.null`,
+            'PATCH',
+            { regularizada_em: new Date().toISOString() }
+          );
+        } catch (marcaErr) {
+          console.error('[motorista/notas-pendentes] Falha ao gravar regularizada_em (não bloqueia):', marcaErr.message);
+        }
+      }
       return res.json({ valid: true, notaOk: true, mensagem: 'Nota ok! Validação aprovada.' });
     }
 
