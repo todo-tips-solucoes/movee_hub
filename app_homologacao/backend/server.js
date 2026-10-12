@@ -86,6 +86,10 @@ const hubRoboEntregoRoutes = require('./routes/hub-robo-entrego');
 // interno. Arquivo 100% novo (routes/hub-motoristas.js).
 const hubMotoristasRoutes = require('./routes/hub-motoristas');
 
+// hub-validacao-xml (F4b nota-pendente-motorista) — GET /api/v1/validacao-xml/regularizadas:
+// notas enviadas após o fechamento do movimento. Arquivo novo (routes/hub-validacao-xml.js).
+const hubValidacaoXmlRoutes = require('./routes/hub-validacao-xml');
+
 // hub-faturamento (S6 do hub de frota, FASE 3) — GET /api/v1/faturamento
 // (lista paginada + export CSV) e GET /api/v1/faturamento/resumo (cards/
 // agregados), requirePermission interno. Arquivo 100% novo
@@ -2905,6 +2909,9 @@ app.use('/api/v1/robo-entrego', hubRoboEntregoRoutes.router);
 // requirePermission('motoristas.listar'|'motoristas.consultar') é aplicado
 // dentro do próprio router (mesmo padrão do bloco /api/v1/importacoes acima).
 app.use('/api/v1/motoristas', hubMotoristasRoutes.router);
+
+// hub-validacao-xml (F4b) — requireModuloAtivo + requirePermission aplicados no próprio router.
+app.use('/api/v1/validacao-xml', hubValidacaoXmlRoutes.router);
 
 // hub-faturamento (S6, FASE 3) — /api/v1/faturamento (lista/resumo/export,
 // leitura). requirePermission('faturamento.listar'|'faturamento.consultar')

@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { XmlValidationCard } from '@/components/xml-validation-card';
 import { PageHeader } from '@/components/hub/page-header';
+import { NotasRegularizadasSection } from '@/components/hub/notas-regularizadas-section';
 
 export const SELECIONAR_ENTIDADE_ROUTE = '/selecionar-entidade';
 
@@ -37,6 +38,7 @@ export default function ValidacaoXmlHubPage() {
         subtitulo="Valide arquivos XML de NFSe em lote contra os movimentos abertos."
       />
       <XmlValidationCard />
+      <NotasRegularizadasSection />
     </div>
   );
 }
