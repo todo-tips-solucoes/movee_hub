@@ -21,7 +21,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { cn } from '@/lib/utils';
 import { buscarContaBancaria, type ContaBancariaItem, type ContaBancariaResumo } from '@/lib/adiantamento-api';
-import { AlertCircle, AlertTriangle, Block, Edit, EventRepeat, Rule as RuleIcon, ShieldCheck } from '@/components/ui/icons';
+import { AlertCircle, AlertTriangle, Block, Edit, EventRepeat, Help, Rule as RuleIcon, ShieldCheck } from '@/components/ui/icons';
 
 function CartaoConta({ item, pillVariant, pillLabel, nota }: {
   item: ContaBancariaItem;
@@ -152,6 +152,10 @@ export default function ContaBancariaPage() {
               <Link href="/repasse" className="flex items-center gap-3 p-4 text-sm font-medium">
                 <EventRepeat className="h-4 w-4 text-muted-foreground" />
                 Previsão do repasse
+              </Link>
+              <Link href="/ajuda" className="flex min-h-11 items-center gap-3 p-4 text-sm font-medium">
+                <Help className="h-4 w-4 text-muted-foreground" />
+                Ajuda
               </Link>
             </div>
           </>

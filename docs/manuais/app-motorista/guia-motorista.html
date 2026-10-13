@@ -1,0 +1,268 @@
+<title>Guia do App do Motorista</title>
+<meta name="description" content="O que o motorista faz no app, o que o app nao aceita, e o que fazer quando algo da errado.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: coluna de leitura única com os prints em molduras de celular à direita quando há espaço. */
+:root{
+  --bg:#f9f2e8; --surface:#fffdfa; --surface-2:#efe6d6;
+  --fg:#0f1849; --fg-soft:#52618a; --line:#e0d4bf;
+  --brand:#2c66e9; --brand-soft:#e7eefc;
+  --ok:#0f5d3f; --ok-bg:#e2f6ec; --warn:#8a4b00; --warn-bg:#fdf0d8;
+  --no:#9b1c2e; --no-bg:#fbe9eb; --phone:#0f1849;
+  --font:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:12px; --shadow:0 1px 2px rgba(15,24,73,.06),0 10px 30px -18px rgba(15,24,73,.25);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a1130; --surface:#101a3f; --surface-2:#18234d; --fg:#e9eefb; --fg-soft:#9fb0d8; --line:#263264;
+  --brand:#5b8df2; --brand-soft:#17254f; --ok:#9fe8c4; --ok-bg:#0e3626; --warn:#ffcf8a; --warn-bg:#3a2a0f;
+  --no:#ffb3bd; --no-bg:#3d1620; --phone:#000; color-scheme:dark;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -18px rgba(0,0,0,.7);
+}}
+:root[data-theme="dark"]{
+  --bg:#0a1130; --surface:#101a3f; --surface-2:#18234d; --fg:#e9eefb; --fg-soft:#9fb0d8; --line:#263264;
+  --brand:#5b8df2; --brand-soft:#17254f; --ok:#9fe8c4; --ok-bg:#0e3626; --warn:#ffcf8a; --warn-bg:#3a2a0f;
+  --no:#ffb3bd; --no-bg:#3d1620; --phone:#000; color-scheme:dark;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -18px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.65;margin:0}
+.wrap{max-width:820px;margin:0 auto;padding:0 16px;padding-block:0 72px}
+h1{font-size:clamp(2rem,5.2vw,2.8rem);line-height:1.08;letter-spacing:-.025em;margin:0 0 12px;font-weight:800;text-wrap:balance}
+.sub{font-size:1.1rem;color:var(--fg-soft);max-width:60ch;margin:0 0 24px}
+h2{font-size:1.52rem;letter-spacing:-.018em;margin:64px 0 6px;font-weight:750;text-wrap:balance;scroll-margin-top:20px}
+h2 .n{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--brand);color:#fff;font-size:1rem;font-weight:700;margin-right:.6rem;vertical-align:3px}
+:root[data-theme="dark"] h2 .n{color:#0a1130}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) h2 .n{color:#0a1130}}
+h3{font-size:1.14rem;margin:34px 0 6px;font-weight:700;text-wrap:balance}
+h4{font-size:1rem;margin:0 0 4px;font-weight:700}
+p{margin:.7rem 0;max-width:66ch}
+.lede{color:var(--fg-soft);font-size:1.03rem;max-width:62ch;margin:.2rem 0 1rem}
+.nota-min{font-size:.92rem;color:var(--fg-soft);margin:.5rem 0 0}
+ul,ol{max-width:66ch}
+a{color:var(--brand)}
+hr{border:0;border-top:1px solid var(--line);margin:56px 0}
+header.top{padding-block:44px 0}
+.kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--brand);font-weight:800;margin:0 0 10px}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2)}
+
+/* índice */
+.toc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 22px;margin:28px 0 8px;box-shadow:var(--shadow)}
+.toc h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--fg-soft);margin:0 0 10px;font-weight:800}
+.toc ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:2px 18px}
+.toc a{display:block;padding:5px 0;text-decoration:none;color:var(--fg)}
+.toc a:hover{color:var(--brand)}
+
+/* pode / não pode */
+.pnp{margin:22px 0}
+.pnp .bloco{border-radius:var(--r);padding:20px 22px;margin:14px 0;border:1px solid var(--line)}
+.pnp .sim{background:var(--ok-bg);border-color:var(--ok)}
+.pnp .nao{background:var(--no-bg);border-color:var(--no)}
+.pnp h3{margin:0 0 10px;font-size:1.06rem}
+.pnp .sim h3{color:var(--ok)} .pnp .nao h3{color:var(--no)}
+ul.checks,ul.simlist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+ul.checks li,ul.simlist li{position:relative;padding-left:28px}
+ul.checks li::before,ul.simlist li::before{content:"✓";position:absolute;left:0;top:-1px;font-weight:800;color:var(--ok)}
+.np{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:10px 0}
+.np h4{position:relative;padding-left:26px;color:var(--no)}
+.np h4::before{content:"✕";position:absolute;left:0;top:0;font-weight:800}
+.np .porque{margin:.3rem 0;font-size:.95rem;color:var(--fg-soft)}
+.np .saida{margin:.4rem 0 0;font-size:.95rem}
+
+/* prints em moldura de celular */
+.shot{margin:20px 0;display:flex;flex-direction:column;align-items:center;gap:8px}
+.phone{background:var(--phone);border-radius:30px;padding:9px;box-shadow:var(--shadow);max-width:100%}
+.phone img{display:block;width:276px;max-width:100%;height:auto;border-radius:22px}
+.shot figcaption{font-size:.88rem;color:var(--fg-soft);text-align:center;max-width:40ch}
+@media (min-width:720px){
+  .shot{float:right;margin:4px 0 18px 28px;max-width:300px}
+  .shot+*{clear:none}
+  h2,h3,hr{clear:both}
+}
+
+/* passos */
+ol.steps{list-style:none;padding:0;counter-reset:s;max-width:62ch}
+ol.steps>li{counter-increment:s;position:relative;padding-left:42px;margin:13px 0}
+ol.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--brand-soft);color:var(--brand);border:1.5px solid var(--brand);font-size:13.5px;font-weight:700;display:grid;place-items:center}
+
+/* avisos */
+.note{border-left:3px solid var(--brand);background:var(--brand-soft);border-radius:0 10px 10px 0;padding:13px 17px;margin:16px 0;max-width:66ch}
+.note.importante{border-left-color:var(--brand);background:var(--brand-soft)}
+.note.atencao{border-left-color:var(--warn);background:var(--warn-bg)}
+.note.dica{border-left-color:var(--ok);background:var(--ok-bg)}
+.note .tag{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:800;margin-bottom:3px}
+.note.importante .tag{color:var(--brand)} .note.atencao .tag{color:var(--warn)} .note.dica .tag{color:var(--ok)}
+.note p{margin:0;max-width:none}
+
+/* resultado aprovado / recusado */
+.res{border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:16px 0;background:var(--surface)}
+.res.ok{border-left:4px solid var(--ok)} .res.erro{border-left:4px solid var(--no)}
+.res h4{color:var(--fg)} .res.ok h4{color:var(--ok)} .res.erro h4{color:var(--no)}
+.res .shot{float:none;margin:14px auto 0;max-width:300px}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin:18px 0;box-shadow:var(--shadow);max-width:66ch}
+
+/* tabelas */
+.tw{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);max-width:66ch}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:420px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--surface-2);font-weight:700;font-size:12.5px;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600}
+
+.theme{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;z-index:9;background:var(--surface);color:var(--fg-soft);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;box-shadow:var(--shadow)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<button class="theme" id="themeBtn" type="button">tema</button>
+<div class="wrap">
+<header class="top">
+  <p class="kicker">App do motorista</p>
+  <h1>Guia do App do Motorista</h1>
+  <p class="sub">O que você faz no app, o que o app não aceita, e o que fazer quando algo dá errado.</p>
+  <p><span class="pill">Atualizado em 12/10/2026</span> <span class="pill">app.motorista.moveelog.com.br</span></p>
+</header>
+
+<div class="toc"><h2>Neste guia</h2><ol>
+<li><a href="#entrar">1 · Entrar no app</a></li>
+<li><a href="#quanto">2 · Ver quanto você vai receber</a></li>
+<li><a href="#nota">3 · Enviar sua nota fiscal</a></li>
+<li><a href="#pendentes">4 · Notas de semanas anteriores</a></li>
+<li><a href="#conta">5 · Sua conta bancária</a></li>
+<li><a href="#adiantamento">6 · Pedir adiantamento</a></li>
+<li><a href="#avisos">7 · Avisos no celular</a></li>
+<li><a href="#problemas">Quando algo dá errado</a></li>
+</ol></div>
+
+<h2 id="pode-nao-pode"><span class="n">★</span>O que você pode e o que não pode</h2>
+<p class="lede">Esta é a parte que resolve a maioria das dúvidas. Se o app recusou algo seu, provavelmente está aqui.</p>
+<div class="pnp">
+  <div class="bloco sim"><h3>O que você pode fazer</h3><ul class="simlist"><li>Ver quanto você vai receber na semana, separado em valor da nota e gorjeta</li>
+<li>Enviar o XML da sua nota fiscal e saber na hora se ela foi aceita</li>
+<li>Enviar a nota de semanas anteriores que ficaram sem nota, pelos últimos 90 dias</li>
+<li>Cadastrar uma conta corrente no CNPJ da sua empresa</li>
+<li>Pedir adiantamento de parte do que você produziu ontem, nos dias e horários liberados</li>
+<li>Cancelar o pedido de adiantamento até o horário de corte do mesmo dia</li>
+<li>Receber avisos da equipe no celular, se você ativar as notificações</li></ul></div>
+  <div class="bloco nao"><h3>O que o app não aceita</h3><div class="np"><h4>Enviar nota emitida por outro CNPJ</h4><p class="porque">O app compara o CNPJ de quem emitiu a nota com o CNPJ do seu login. Nota de colega, ou emitida no seu CPF, é recusada antes da conferência.</p><p class="saida"><strong>O que fazer:</strong> Emita a nota com o CNPJ da sua empresa — o mesmo com que você entra no app.</p></div>
+<div class="np"><h4>Cadastrar conta no seu CPF</h4><p class="porque">Pelo app, só entra conta no CNPJ da sua própria empresa.</p><p class="saida"><strong>O que fazer:</strong> Peça ao escritório. Eles cadastram conta de pessoa física por você.</p></div>
+<div class="np"><h4>Cadastrar conta de outra pessoa</h4><p class="porque">O documento do titular tem que ser o mesmo CNPJ do seu login.</p><p class="saida"><strong>O que fazer:</strong> Use uma conta no CNPJ da sua empresa.</p></div>
+<div class="np"><h4>Cadastrar conta poupança</h4><p class="porque">O sistema só aceita conta corrente, em qualquer caminho.</p><p class="saida"><strong>O que fazer:</strong> Use uma conta corrente, ou fale com o escritório.</p></div>
+<div class="np"><h4>Usar dígito de conta com a letra X</h4><p class="porque">O campo aceita só um número de 0 a 9.</p><p class="saida"><strong>O que fazer:</strong> Fale com o escritório para cadastrar a conta por você.</p></div>
+<div class="np"><h4>Pedir dois adiantamentos no mesmo dia</h4><p class="porque">O limite é um por dia, e dias sem pedido não acumulam.</p><p class="saida"><strong>O que fazer:</strong> Espere o próximo dia liberado.</p></div>
+<div class="np"><h4>Reenviar uma nota que já foi aprovada</h4><p class="porque">Depois de aprovada, o envio é bloqueado para não duplicar.</p><p class="saida"><strong>O que fazer:</strong> Nada a fazer. Está tudo certo.</p></div>
+<div class="np"><h4>Enviar PDF ou foto da nota</h4><p class="porque">O app precisa do arquivo XML, que é o que tem os dados conferíveis.</p><p class="saida"><strong>O que fazer:</strong> Baixe o arquivo .xml no portal onde você emitiu a nota.</p></div>
+<div class="np"><h4>Receber o pagamento na hora em que a nota é aprovada</h4><p class="porque">A aprovação avisa o escritório. Uma pessoa confere e libera o pagamento.</p><p class="saida"><strong>O que fazer:</strong> Acompanhe com o escritório. Não há prazo automático.</p></div></div>
+</div>
+
+<h2 id="entrar"><span class="n">1</span>Entrar no app</h2>
+<p class="lede">Você entra com o CNPJ da sua empresa — nunca com CPF.</p>
+<figure class="shot"><div class="phone"><img src="img/01-login.png" alt="Tela de entrada do app, com os campos CNPJ do Prestador e Senha" loading="lazy" width="390" height="844"></div></figure>
+<ol class="steps"><li>Abra o app e digite o CNPJ do Prestador (14 números). Pode digitar sem pontos.</li>
+<li>Digite sua senha e toque em Entrar.</li></ol>
+<h3>É a sua primeira vez?</h3>
+<ol class="steps"><li>Toque em &quot;Primeira vez? Criar conta&quot;.</li>
+<li>Digite o CNPJ, seu nome e crie uma senha de pelo menos 8 caracteres.</li>
+<li>Toque em Criar conta e entre com o CNPJ e a senha.</li></ol>
+<div class="note dica"><span class="tag">Dica</span><p>Se aparecer que o CNPJ não está liberado, fale com o escritório: seu cadastro ainda não foi incluído.</p></div>
+<h3>Esqueceu a senha?</h3>
+<ol class="steps"><li>Toque em &quot;Esqueci minha senha&quot; e digite o CNPJ.</li>
+<li>Abra o link que chega no seu e-mail. Ele vale 60 minutos e funciona uma vez só.</li>
+<li>Crie a senha nova e volte para entrar.</li></ol>
+<div class="note dica"><span class="tag">Dica</span><p>Se você não tem e-mail cadastrado, o link não chega. Peça ao escritório para cadastrar seu e-mail.</p></div>
+<div class="note atencao"><span class="tag">Atenção</span><p>Depois de 10 tentativas erradas, o app bloqueia por 15 minutos. Espere — não é problema no seu cadastro.</p></div>
+<div class="note dica"><span class="tag">Dica</span><p>Vale instalar o app na tela inicial do celular. No iPhone, isso é obrigatório para receber avisos.</p></div>
+<h2 id="quanto"><span class="n">2</span>Ver quanto você vai receber</h2>
+<p class="lede">A tela Início mostra o movimento em aberto: é o que você vai faturar.</p>
+<figure class="shot"><div class="phone"><img src="img/02-inicio.png" alt="Tela inicial com o card do movimento, mostrando valor da nota fiscal, gorjeta e total produzido" loading="lazy" width="390" height="844"></div></figure>
+<div class="tw"><table class=""><thead><tr><th>O que aparece</th><th>O que significa</th></tr></thead><tbody><tr><td>Valor da nota fiscal</td><td>O valor exato que deve sair na sua nota. Nem mais, nem menos.</td></tr><tr><td>Gorjeta</td><td>Valor que você recebe mas que não entra na nota. Só aparece quando existe.</td></tr><tr><td>Total produzido</td><td>A soma dos dois. É o que você recebe no total.</td></tr></tbody></table></div>
+<h3>Dados Fiscais</h3>
+<p>Mais abaixo na mesma tela estão os dados de quem você precisa colocar na nota: o Tomador, o CNPJ dele, o endereço, o e-mail e o código de Tributação Nacional. Cada um tem um botão de copiar — use-os para não errar ao digitar.</p>
+<figure class="shot"><div class="phone"><img src="img/03-dados-fiscais.png" alt="Seção Dados Fiscais com tomador, CNPJ, tributação nacional e status da nota" loading="lazy" width="390" height="844"></div></figure>
+<div class="tw"><table class=""><thead><tr><th>Status</th><th>O que significa</th></tr></thead><tbody><tr><td>Pendente</td><td>Você ainda não enviou uma nota aprovada para esta semana.</td></tr><tr><td>Aprovada</td><td>Sua nota já foi aceita. Não precisa enviar de novo.</td></tr></tbody></table></div>
+<div class="note importante"><span class="tag">Importante</span><p>A nota tem que sair com o Valor da nota fiscal, não com o Total produzido. Se você emitir pelo total, a nota é recusada por valor divergente.</p></div>
+<h2 id="nota"><span class="n">3</span>Enviar sua nota fiscal</h2>
+<p class="lede">Você emite a nota no portal e manda o arquivo XML pelo app. A conferência é na hora.</p>
+<figure class="shot"><div class="phone"><img src="img/05-validar.png" alt="Tela de validação com a área para escolher o arquivo XML" loading="lazy" width="390" height="844"></div></figure>
+<ol class="steps"><li>Na tela Início, copie os dados do Tomador e veja o Valor da nota fiscal.</li>
+<li>Emita sua NFS-e no Portal NFS-e Nacional, com o seu CNPJ e esse valor exato.</li>
+<li>Baixe o arquivo .xml da nota no celular.</li>
+<li>No app, toque em Validar minha NFS-e.</li>
+<li>Toque na caixa, escolha o arquivo .xml e toque em Enviar para validação.</li>
+<li>Aguarde alguns segundos pelo resultado.</li></ol>
+<div class="res ok"><h4>Nota aprovada</h4><p>Pronto. O status na Início vira Aprovada e o envio fica bloqueado para não duplicar.</p><figure class="shot"><div class="phone"><img src="img/06-validar-aprovada.png" alt="Resultado aprovado, com a mensagem Nota ok" loading="lazy" width="390" height="844"></div></figure></div>
+<div class="res erro"><h4>Nota recusada</h4><p>O app mostra exatamente quais campos estão errados. Cancele essa nota, emita uma nova com os campos corrigidos e envie de novo.</p><figure class="shot"><div class="phone"><img src="img/07-validar-reprovada.png" alt="Resultado reprovado, listando os campos incorretos" loading="lazy" width="390" height="844"></div></figure></div>
+<h3>Os campos que mais dão erro</h3>
+<div class="tw"><table class=""><thead><tr><th>O app diz</th><th>Corrija isto na nota</th></tr></thead><tbody><tr><td>Valor da nota não confere com o valor do movimento</td><td>O valor tem que ser igual ao Valor da nota fiscal da tela Início</td></tr><tr><td>CNPJ do tomador está incorreto</td><td>Use o CNPJ do Tomador que aparece em Dados Fiscais</td></tr><tr><td>CNPJ do prestador (você) está incorreto</td><td>A nota tem que ser emitida com o CNPJ do seu login</td></tr><tr><td>Tributação nacional está incorreta</td><td>Use o código de Tributação Nacional que aparece na tela</td></tr><tr><td>Data de competência está incorreta</td><td>Ajuste a competência da nota</td></tr><tr><td>Descrição do serviço está incorreta</td><td>A descrição precisa seguir o que foi combinado</td></tr></tbody></table></div>
+<div class="note atencao"><span class="tag">Atenção</span><p>O arquivo precisa ser .xml e ter no máximo 2 MB. Foto e PDF não servem.</p></div>
+<h2 id="pendentes"><span class="n">4</span>Notas de semanas anteriores</h2>
+<p class="lede">Se você deixou alguma semana sem nota, o app avisa na Início com o card Notas pendentes.</p>
+<figure class="shot"><div class="phone"><img src="img/04-card-pendentes.png" alt="Card de notas pendentes na tela inicial, com o botão Enviar notas" loading="lazy" width="390" height="844"></div></figure>
+<ol class="steps"><li>Toque no card Notas pendentes e depois em Enviar notas.</li>
+<li>Em cada item, veja o período, o valor e para quem emitir.</li>
+<li>Emita a nota daquele período, com o seu CNPJ, para o tomador indicado.</li>
+<li>Toque em Escolher XML e depois em Enviar nota.</li></ol>
+<figure class="shot"><div class="phone"><img src="img/08-notas-pendentes.png" alt="Lista de notas pendentes, cada uma com período, valor e botão para escolher o arquivo" loading="lazy" width="390" height="844"></div></figure>
+<div class="note importante"><span class="tag">Importante</span><p>A lista mostra os últimos 90 dias. Semanas mais antigas que isso não aparecem — fale com o escritório.</p></div>
+<div class="note importante"><span class="tag">Importante</span><p>Depois que sua nota é aprovada, o escritório confere e libera o pagamento. Não é automático e não tem prazo definido.</p></div>
+<div class="note atencao"><span class="tag">Atenção</span><p>Se sua nota foi recusada e o item saiu da lista, fale com o escritório. Hoje o app não deixa reenviar nesse caso.</p></div>
+<h2 id="conta"><span class="n">5</span>Sua conta bancária</h2>
+<p class="lede">É a conta onde você recebe o adiantamento. Toda conta nova passa pela análise do financeiro.</p>
+<figure class="shot"><div class="phone"><img src="img/09-conta.png" alt="Cartão Conta para pagamentos, com o selo de situação" loading="lazy" width="390" height="844"></div></figure>
+<ol class="steps"><li>Abra a aba Conta e toque em Cadastrar dados bancários.</li>
+<li>Preencha o nome do titular e o seu CNPJ.</li>
+<li>Busque o banco pelo nome ou pelo código e escolha na lista.</li>
+<li>Informe a agência (sem o dígito), a conta e o dígito da conta.</li>
+<li>Toque em Enviar para análise.</li></ol>
+<div class="card"><h4>As três regras da conta</h4><ul class="checks"><li>Tem que ser conta corrente. Poupança não é aceita.</li>
+<li>Tem que estar no CNPJ da sua empresa — o mesmo do seu login.</li>
+<li>Conta no seu CPF só pode ser cadastrada pelo escritório.</li></ul>
+</div>
+<figure class="shot"><div class="phone"><img src="img/10-conta-form.png" alt="Formulário de dados bancários, indicando que só conta corrente é aceita" loading="lazy" width="390" height="844"></div></figure>
+<div class="note dica"><span class="tag">Dica</span><p>Enquanto a conta nova está Em análise, seus pagamentos continuam indo para a conta aprovada anterior, se você já tinha uma.</p></div>
+<div class="note atencao"><span class="tag">Atenção</span><p>Se o app disser &quot;CNPJ inválido, ou não é o CNPJ da sua conta&quot;, a conta não está no seu CNPJ. Se ela for no seu CPF, fale com o escritório.</p></div>
+<h2 id="adiantamento"><span class="n">6</span>Pedir adiantamento</h2>
+<p class="lede">Você antecipa parte do que produziu ontem. O valor é descontado do seu repasse da semana.</p>
+<figure class="shot"><div class="phone"><img src="img/11-adiantamento.png" alt="Tela de adiantamento com a estimativa do valor a receber" loading="lazy" width="390" height="844"></div></figure>
+<ol class="steps"><li>Abra a aba Adiantar. Se estiver aberto, aparece até que hora e quanto você recebe.</li>
+<li>Confira a conta de destino.</li>
+<li>Toque em Solicitar adiantamento.</li>
+<li>Marque que você leu os termos e confirme.</li></ol>
+<div class="card"><h4>Para pedir, você precisa de três coisas</h4><ul class="checks"><li>Hoje ser um dia liberado para adiantamento</li>
+<li>Estar dentro do horário do dia</li>
+<li>Ter uma conta bancária aprovada</li></ul>
+<p class="nota-min">Os dias, o horário, o percentual e a taxa são definidos pela empresa. A tela Como funciona sempre mostra os valores que estão valendo hoje.</p>
+</div>
+<h3>Por que o app pode não deixar pedir</h3>
+<div class="tw"><table class=""><thead><tr><th>O app diz</th><th>O que fazer</th></tr></thead><tbody><tr><td>Hoje não é um dia habilitado</td><td>A tela mostra a próxima data liberada</td></tr><tr><td>O horário ainda não abriu</td><td>Volte dentro da janela do dia</td></tr><tr><td>O horário já encerrou</td><td>Tente no próximo dia liberado</td></tr><tr><td>Você já tem uma solicitação hoje</td><td>É uma por dia</td></tr><tr><td>Cadastre uma conta bancária</td><td>Cadastre na aba Conta</td></tr><tr><td>Sua conta bancária ainda está em análise</td><td>Espere a aprovação do financeiro</td></tr><tr><td>Não houve produção suficiente</td><td>A produção de ontem não dá valor para liberar</td></tr></tbody></table></div>
+<div class="note dica"><span class="tag">Dica</span><p>Dá para cancelar até o horário de corte do mesmo dia. Depois disso o pedido segue para o cálculo.</p></div>
+<div class="note importante"><span class="tag">Importante</span><p>A taxa é descontada do valor que você recebe. O valor bruto do adiantamento é abatido do repasse da semana.</p></div>
+<h2 id="avisos"><span class="n">7</span>Avisos no celular</h2>
+<p class="lede">A equipe pode mandar avisos direto para o seu celular. Para receber, você precisa ativar.</p>
+<figure class="shot"><div class="phone"><img src="img/12-notificacoes.png" alt="Lista de notificações do app" loading="lazy" width="390" height="844"></div></figure>
+<ol class="steps"><li>Na tela Início, toque em Ativar notificações quando o app pedir.</li>
+<li>Aceite a permissão que o celular mostra.</li></ol>
+<div class="note importante"><span class="tag">Importante</span><p>No iPhone, você precisa instalar o app na tela inicial: toque em Compartilhar e depois em &quot;Adicionar à Tela de Início&quot;. Sem isso o iPhone não entrega os avisos.</p></div>
+<div class="note atencao"><span class="tag">Atenção</span><p>Se você negou a permissão antes, o app não consegue pedir de novo. É preciso liberar nas configurações do navegador ou do celular.</p></div>
+
+<hr>
+<h2 id="problemas"><span class="n">?</span>Quando algo dá errado</h2>
+<p class="lede">As mensagens que mais aparecem e o que fazer em cada uma.</p>
+<h3>Ao entrar</h3><div class="tw"><table class=""><thead><tr><th>Se aparecer</th><th>O que fazer</th></tr></thead><tbody><tr><td>CNPJ ou senha incorretos</td><td>Confira os números. Se é a primeira vez, toque em Criar conta. Se esqueceu, use Esqueci minha senha.</td></tr><tr><td>Conta inativa</td><td>Seu acesso foi desativado. Fale com o escritório.</td></tr><tr><td>Muitas tentativas de login</td><td>Espere 15 minutos.</td></tr><tr><td>Este link não vale mais</td><td>O link de senha passou de 60 minutos ou já foi usado. Peça outro.</td></tr></tbody></table></div>
+<h3>Ao enviar a nota</h3><div class="tw"><table class=""><thead><tr><th>Se aparecer</th><th>O que fazer</th></tr></thead><tbody><tr><td>Este XML não pertence ao seu CNPJ</td><td>A nota foi emitida por outro CNPJ. Emita com o seu.</td></tr><tr><td>Arquivo muito grande</td><td>O limite é 2 MB. Envie o XML original da nota, que é pequeno.</td></tr><tr><td>Arquivo inválido</td><td>O arquivo não é um XML de nota. Baixe de novo no portal.</td></tr><tr><td>Nenhum movimento em aberto para validar</td><td>Não há semana esperando nota. Se você acha que deveria ter, fale com o escritório.</td></tr><tr><td>Nota já aprovada</td><td>Está tudo certo. Não precisa enviar de novo.</td></tr><tr><td>Serviço de validação indisponível</td><td>O sistema de conferência está fora do ar. Tente daqui a pouco.</td></tr></tbody></table></div>
+<h3>Na conta bancária</h3><div class="tw"><table class=""><thead><tr><th>Se aparecer</th><th>O que fazer</th></tr></thead><tbody><tr><td>CNPJ inválido, ou não é o CNPJ da sua conta</td><td>A conta precisa estar no CNPJ do seu login. Se for no seu CPF, fale com o escritório.</td></tr><tr><td>Agência inválida</td><td>Digite só números, sem o dígito da agência.</td></tr><tr><td>Dígito da conta inválido</td><td>Use um único número. Se o seu dígito é X, fale com o escritório.</td></tr><tr><td>Escolha um banco da lista</td><td>Busque o banco e toque nele na lista.</td></tr></tbody></table></div>
+<h3>No adiantamento</h3><div class="tw"><table class=""><thead><tr><th>Se aparecer</th><th>O que fazer</th></tr></thead><tbody><tr><td>As regras foram atualizadas</td><td>Atualize a tela e tente de novo.</td></tr><tr><td>Essa ação não é mais possível</td><td>Passou o horário de cancelar, ou a situação do pedido mudou.</td></tr><tr><td>Muitas tentativas em pouco tempo</td><td>Espere alguns minutos.</td></tr></tbody></table></div>
+
+<hr>
+<p class="lede">Este guia descreve o app como ele funciona hoje. Se algo na tela não corresponder ao que está aqui, fale com o escritório.</p>
+<p class="nota-min">Este guia e a tela <strong>Ajuda</strong> dentro do app saem do mesmo arquivo de conteúdo
+(<code>lib/ajuda-conteudo.json</code>), então as duas versões nunca divergem.</p>
+</div>
+<script>
+(function(){var b=document.getElementById('themeBtn');
+function cur(){var a=document.documentElement.getAttribute('data-theme');if(a)return a;
+return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}
+function lab(){b.textContent=cur()==='dark'?'tema claro':'tema escuro';}
+try{var s=localStorage.getItem('guia-tema');if(s==='dark'||s==='light')document.documentElement.setAttribute('data-theme',s);}catch(e){}
+lab();b.addEventListener('click',function(){var n=cur()==='dark'?'light':'dark';
+document.documentElement.setAttribute('data-theme',n);try{localStorage.setItem('guia-tema',n);}catch(e){}lab();});})();
+</script>

@@ -24,7 +24,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { Wordmark } from '@/components/brand/wordmark';
 import { Aurora } from '@/components/brand/aurora';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { LogOut, RefreshCw, Calendar, FileText, AlertTriangle, ArrowUpRight, Inbox, MapPin, Mail, Info } from '@/components/ui/icons';
+import { LogOut, RefreshCw, Calendar, FileText, AlertTriangle, ArrowUpRight, Inbox, MapPin, Mail, Info, Help } from '@/components/ui/icons';
 import { buscarDisponibilidade, type Disponibilidade } from '@/lib/adiantamento-api';
 import { mensagemMotivo } from '@/lib/erros-adiantamento';
 
@@ -468,6 +468,12 @@ export default function MovimentoPage() {
             </div>
           </div>
         )}
+
+        {/* Ajuda — fora dos ramos acima para aparecer também sem movimento ou com erro. */}
+        <Link href="/ajuda" className={cn(buttonVariants({ variant: 'ghost' }), 'w-full text-muted-foreground')}>
+          <Help className="h-4 w-4" />
+          Precisa de ajuda?
+        </Link>
       </div>
 
       <BottomNav />
