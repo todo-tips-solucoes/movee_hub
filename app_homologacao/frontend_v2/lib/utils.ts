@@ -69,7 +69,7 @@ export function applyFilters(data: EnvioMassa[], filters: FilterState): EnvioMas
     if (filters.numero && !item.number?.toLowerCase().includes(filters.numero.toLowerCase())) return false;
     if (filters.nome && !item.nome?.toLowerCase().includes(filters.nome.toLowerCase())) return false;
     if (filters.valor && !String(item.valor).includes(filters.valor)) return false;
-    if (filters.numNota && !(item.numnota || '').toLowerCase().includes(filters.numNota.toLowerCase())) return false;
+    if (filters.numNota && !String(item.numnota ?? '').toLowerCase().includes(filters.numNota.toLowerCase())) return false;
 
     if (filters.dataEmissao) {
       if (!item.data_emissao) return false;

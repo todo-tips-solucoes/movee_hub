@@ -2,7 +2,7 @@
 // SUBSTITUI os filtros precisa avisar. Errar para menos cala um aviso quando
 // havia trabalho a perder; errar para mais enche a tela de aviso sobre nada.
 import { describe, expect, it } from 'vitest';
-import { formatBRL, formatDateBR, initialFilters, ordenarDados, proximaOrdenacao, temFiltroAtivo } from './utils';
+import { applyFilters, formatBRL, formatDateBR, initialFilters, ordenarDados, proximaOrdenacao, temFiltroAtivo } from './utils';
 import type { EnvioMassa } from '@/types';
 
 describe('temFiltroAtivo', () => {
@@ -152,5 +152,28 @@ describe('formatBRL', () => {
 
   it('texto não numérico continua caindo no zero (comportamento antigo preservado)', () => {
     expect(semNbsp(formatBRL('abc'))).toBe('R$ 0,00');
+  });
+});
+
+describe('applyFilters — filtro "Núm. nota"', () => {
+  // `numnota` é bigint no banco e chega do PostgREST como NÚMERO, embora o tipo diga string.
+  const linha = (numnota: unknown) => ({ id: 1, number: '001', nome: 'Ana', valor: 10, numnota }) as unknown as EnvioMassa;
+  const busca = (numNota: string) => ({ ...initialFilters, numNota });
+
+  it('numnota numérico casa por trecho sem lançar', () => {
+    expect(applyFilters([linha(123456)], busca('1234'))).toHaveLength(1);
+    expect(applyFilters([linha(123456)], busca('999'))).toHaveLength(0);
+  });
+
+  it('numnota string continua funcionando', () => {
+    expect(applyFilters([linha('123456')], busca('1234'))).toHaveLength(1);
+  });
+
+  it('numnota nulo/ausente não quebra e é excluído quando há filtro', () => {
+    expect(applyFilters([linha(null), linha(undefined)], busca('1'))).toHaveLength(0);
+  });
+
+  it('filtro vazio não exclui ninguém', () => {
+    expect(applyFilters([linha(123456), linha('9'), linha(null)], initialFilters)).toHaveLength(3);
   });
 });
