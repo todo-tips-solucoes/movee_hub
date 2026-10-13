@@ -778,7 +778,7 @@ export interface RepasseLotePreviaLinha extends RepasseLoteChave {
 }
 
 export interface RepasseLotePreviaBloqueada extends RepasseLotePreviaLinha {
-  /** `JA_EM_LOTE` · `APURACAO_ABERTA` · `VALOR_INVALIDO` · `NOTA_REPROVADA` · `NOTA_PENDENTE` · `SEM_CONTA`. */
+  /** `JA_EM_LOTE` · `JA_PAGO_CONCILIADO` · `APURACAO_ABERTA` · `VALOR_INVALIDO` · `NOTA_REPROVADA` · `NOTA_PENDENTE` · `SEM_CONTA`. */
   motivo: string;
 }
 

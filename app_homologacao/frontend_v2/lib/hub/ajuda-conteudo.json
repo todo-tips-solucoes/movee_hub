@@ -208,6 +208,12 @@
               "Concluir ou cancelar aquele lote"
             ],
             [
+              "Já pago fora da plataforma (conciliado)",
+              "`JA_PAGO_CONCILIADO`",
+              "Um movimento da semana já foi conferido e pago fora do sistema (planilha UneCont)",
+              "Nada a fazer — pagar de novo seria pagamento em duplicidade"
+            ],
+            [
               "Sem valor a pagar",
               "`VALOR_INVALIDO`",
               "O valor da semana ficou zero",

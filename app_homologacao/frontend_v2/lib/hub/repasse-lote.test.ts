@@ -8,7 +8,7 @@ const linha = (apuracaoId: number, entregadorId: number, valor = '10.00') => ({
 const bloq = (entregadorId: number, motivo: string): RepasseLotePreviaBloqueada => ({ ...linha(1, entregadorId), motivo });
 
 describe('rotuloBloqueio', () => {
-  it.each(['JA_EM_LOTE', 'APURACAO_ABERTA', 'VALOR_INVALIDO', 'NOTA_REPROVADA', 'NOTA_PENDENTE', 'SEM_CONTA'])(
+  it.each(['JA_EM_LOTE', 'JA_PAGO_CONCILIADO', 'APURACAO_ABERTA', 'VALOR_INVALIDO', 'NOTA_REPROVADA', 'NOTA_PENDENTE', 'SEM_CONTA'])(
     '%s vira frase em português com instrução, nunca o código cru',
     (m) => {
       const r = rotuloBloqueio(m);
@@ -17,6 +17,9 @@ describe('rotuloBloqueio', () => {
       expect(r.acao.length).toBeGreaterThan(10);
     }
   );
+  it('JA_PAGO_CONCILIADO tem o rótulo combinado', () => {
+    expect(rotuloBloqueio('JA_PAGO_CONCILIADO').rotulo).toBe('Já pago fora da plataforma (conciliado)');
+  });
   it('código desconhecido aparece cru, sem frase inventada', () => {
     expect(rotuloBloqueio('NOVO_MOTIVO')).toEqual({ rotulo: 'NOVO_MOTIVO', acao: '' });
   });
