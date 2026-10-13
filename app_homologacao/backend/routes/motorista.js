@@ -32,6 +32,7 @@ const { hubPostgrestRequest } = require('../lib/hub-postgrest');
 const crypto = require('node:crypto');
 const { enviarEmail } = require('../lib/resend-email');
 const { planejarRecuperacao, montarEmailRecuperacao } = require('../lib/motorista-recuperacao-senha');
+const { camposInvalidosDe } = require('../lib/motorista-validacao-campos');
 const { hubMotoristaLoginHabilitado } = require('../lib/hub-motorista-app-login');
 // hub-motorista-360 (FASE 3) — vínculo automático de credencial (FR-009),
 // chamado dentro de POST /register em try/catch isolado (ver o handler).
@@ -935,17 +936,6 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
       });
     }
 
-    // Mapeamento campo → mensagem pt-BR (data-model.md §ResultadoValidacao / FR-009)
-    const FIELD_MESSAGES = {
-      valid_cnpj_prestador: 'CNPJ do prestador (você) está incorreto na nota.',
-      valid_cnpj: 'CNPJ do tomador está incorreto na nota.',
-      valid_descricao_servico: 'Descrição do serviço está incorreta.',
-      valid_valor: 'Valor da nota não confere com o valor do movimento.',
-      valid_trib_nac: 'Tributação nacional (TribNac) está incorreta.',
-      valid_trib_mun: 'Tributação municipal está incorreta.',
-      valid_dCompet: 'Data de competência (dCompet) está incorreta.',
-    };
-
     // Fonte de verdade: o serviço de validação grava o resultado DIRETO na
     // EnvioMassa (nota_ok = URL do XML salvo; erro_validacao = campos reprovados,
     // ex.: "valid_valor,valid_cnpj"). Relemos o registro do movimento e
@@ -976,11 +966,7 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
 
     if (erroValidacao) {
       // Reprovada — campos vêm de erro_validacao gravado na EnvioMassa
-      const camposInvalidos = erroValidacao
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-        .map(campo => ({ campo, mensagem: FIELD_MESSAGES[campo] || 'Campo inválido na nota.' }));
+      const camposInvalidos = camposInvalidosDe(erroValidacao);
 
       return res.json({
         valid: false,
@@ -1045,7 +1031,7 @@ router.get('/notas-pendentes', authenticateMotorista, async (req, res) => {
       `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}` +
       `&created_at=gte.${encodeURIComponent(desde)}` +
       `&or=${encodeURIComponent(NOTAS_PENDENTES_OR)}` +
-      '&select=id,created_at,valor,dt_inicial,dt_final,cnpj_tomador,id_empresa' +
+      '&select=id,created_at,valor,dt_inicial,dt_final,cnpj_tomador,id_empresa,erro_validacao' +
       `&order=created_at.desc&limit=${NOTAS_PENDENTES_TETO}`
     )) || [];
 
@@ -1086,7 +1072,11 @@ router.get('/notas-pendentes', authenticateMotorista, async (req, res) => {
     }
 
     return res.json({
-      notas: linhas.map((m) => ({
+      notas: linhas.map((m) => {
+        // Nota já recusada: devolve os campos reprovados para o motorista corrigir.
+        // Item nunca enviado não ganha a chave.
+        const camposInvalidos = camposInvalidosDe(m.erro_validacao);
+        return {
         id: m.id,
         criadoEm: m.created_at,
         valor: m.valor,
@@ -1095,7 +1085,9 @@ router.get('/notas-pendentes', authenticateMotorista, async (req, res) => {
         cnpjTomador: m.cnpj_tomador,
         tomador: nomes.get(String(m.id_empresa)) || null,
         origem: idsRepasse.has(String(m.id)) ? 'REPASSE' : 'MOVIMENTO',
-      })),
+        ...(camposInvalidos.length > 0 && { camposInvalidos }),
+        };
+      }),
     });
   } catch (err) {
     console.error('[motorista/notas-pendentes] Erro:', err.message);
@@ -1223,16 +1215,6 @@ router.post('/notas-pendentes/:id/validar', authenticateMotorista, uploadSingle,
       });
     }
 
-    const FIELD_MESSAGES = {
-      valid_cnpj_prestador: 'CNPJ do prestador (você) está incorreto na nota.',
-      valid_cnpj: 'CNPJ do tomador está incorreto na nota.',
-      valid_descricao_servico: 'Descrição do serviço está incorreta.',
-      valid_valor: 'Valor da nota não confere com o valor do movimento.',
-      valid_trib_nac: 'Tributação nacional (TribNac) está incorreta.',
-      valid_trib_mun: 'Tributação municipal está incorreta.',
-      valid_dCompet: 'Data de competência (dCompet) está incorreta.',
-    };
-
     // Fonte de verdade: a FastAPI grava direto na EnvioMassa; relemos e decidimos
     // por erro_validacao (o backend não regrava nota_ok/erro_validacao).
     let registro;
@@ -1272,11 +1254,7 @@ router.post('/notas-pendentes/:id/validar', authenticateMotorista, uploadSingle,
     }
 
     if (erroValidacao) {
-      const camposInvalidos = erroValidacao
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-        .map(campo => ({ campo, mensagem: FIELD_MESSAGES[campo] || 'Campo inválido na nota.' }));
+      const camposInvalidos = camposInvalidosDe(erroValidacao);
       return res.json({
         valid: false,
         notaOk: false,

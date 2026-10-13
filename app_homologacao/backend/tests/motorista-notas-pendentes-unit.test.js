@@ -196,6 +196,20 @@ describe('GET /motorista/notas-pendentes', () => {
     assert.equal(n.tomador, 'Movee Ltda');
   });
 
+  test('item RECUSADO traz camposInvalidos traduzidos; item nunca enviado NÃO ganha a chave', async () => {
+    EnvioMassa = [
+      mov(1, { nota_ok: 'https://x/1.xml', erro_validacao: 'valid_cnpj, valid_valor' }),
+      mov(2),
+      mov(3, { nota_ok: 'https://x/3.xml', erro_validacao: '' }),
+    ];
+    const notas = (await req('GET', '/motorista/notas-pendentes')).body.notas;
+    assert.deepEqual(notas.find((n) => n.id === 1).camposInvalidos, [
+      { campo: 'valid_cnpj', mensagem: 'CNPJ do tomador está incorreto na nota.' },
+      { campo: 'valid_valor', mensagem: 'Valor da nota não confere com o valor do movimento.' },
+    ]);
+    assert.ok(!('camposInvalidos' in notas.find((n) => n.id === 2)));
+  });
+
   test("origem: 'MOVIMENTO' fora da trilha, 'REPASSE' dentro", async () => {
     EnvioMassa = [mov(1), mov(2)];
     trilha = [{ envio_massa_id: 2 }];
