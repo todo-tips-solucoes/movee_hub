@@ -33,6 +33,7 @@ const VIGENTE_BASE = {
   descricaoPixModelo: 'Antecipação {nome}', apuracaoDiaInicio: 1, apuracaoDiasAteRepasse: 7, apuracaoDataBase: null,
   categoriasExtrato: null, descontoAdiantamentos: true, descontoDebitos: false, repasseVisivelApp: false,
   repasseValorMinimo: '5.50',
+  notasPendentesCorteModo: 'data', notasPendentesCorteDias: 90, notasPendentesCorteData: '2026-07-20',
   completa: true,
 };
 
@@ -144,6 +145,38 @@ describe('ConfiguracoesAdiantamentoPage', () => {
       expect.objectContaining({ versaoEsperada: 3, horarioAbertura: '06:00', horarioCorte: '11:00' })
     ));
     await waitFor(() => expect(screen.getByText(/Versão 4/)).toBeInTheDocument());
+  });
+
+  it('0111: card de notas pendentes — modo data mostra só a data; trocar para dias mostra só os dias e salva o modo', async () => {
+    mockObterConfiguracoes.mockResolvedValue(RESPOSTA_BASE);
+    mockSalvarConfiguracao.mockResolvedValueOnce({ ...VIGENTE_BASE, versao: 4 });
+    render(<ConfiguracoesAdiantamentoPage />);
+    await waitFor(() => expect(screen.getByText(/Versão 3/)).toBeInTheDocument());
+
+    expect(screen.getByRole('heading', { name: 'Notas pendentes do motorista' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Semanas a partir de')).toHaveValue('2026-07-20');
+    expect(screen.queryByLabelText('Quantidade de dias')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Últimos N dias' }));
+    expect(screen.queryByLabelText('Semanas a partir de')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Quantidade de dias'), { target: { value: '45' } });
+    expect(screen.getByText(/Hoje equivale a semanas a partir de \d{2}\/\d{2}\/\d{4}/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+    await waitFor(() => expect(mockSalvarConfiguracao).toHaveBeenCalledWith(
+      expect.objectContaining({ notasPendentesCorteModo: 'dias', notasPendentesCorteDias: 45, notasPendentesCorteData: '2026-07-20' })
+    ));
+  });
+
+  it('0111: dias fora de 1..3650 bloqueia o salvar sem chamar a API', async () => {
+    mockObterConfiguracoes.mockResolvedValueOnce(RESPOSTA_BASE);
+    render(<ConfiguracoesAdiantamentoPage />);
+    await waitFor(() => expect(screen.getByText(/Versão 3/)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('radio', { name: 'Últimos N dias' }));
+    fireEvent.change(screen.getByLabelText('Quantidade de dias'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/1 a 3650 dias/);
+    expect(mockSalvarConfiguracao).not.toHaveBeenCalled();
   });
 
   it('0087: família vira um item só; marcá-la salva o TOKEN, e o valor já salvo fora da lista continua lá', async () => {

@@ -511,6 +511,7 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
       'apuracaoDiasAteRepasse', 'apuracaoDataBase', 'categoriasExtrato', 'categoriasNota',
       'mensagem1Modelo', 'mensagem2Modelo', 'descontoAdiantamentos', 'descontoDebitos',
       'repasseVisivelApp', 'repasseValorMinimo',
+      'notasPendentesCorteModo', 'notasPendentesCorteDias', 'notasPendentesCorteData',
     ];
     const dados = {};
     for (const campo of CAMPOS) {
@@ -540,6 +541,26 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
         if (!permsPiso.has('adiantamentos.pagamento_confirmar')) {
           return res.status(403).json({ erro: 'PERMISSAO_NEGADA_PISO' });
         }
+      }
+    }
+
+    // 0111: corte das notas pendentes do motorista. Validado aqui (o CHECK do banco
+    // só daria erro genérico): modo ∈ {dias,data}; dias inteiro 1..3650; data real, não futura.
+    if (dados.notasPendentesCorteModo !== undefined && !['dias', 'data'].includes(dados.notasPendentesCorteModo)) {
+      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'notasPendentesCorteModo' });
+    }
+    if (dados.notasPendentesCorteDias !== undefined) {
+      const n = dados.notasPendentesCorteDias;
+      if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 3650) {
+        return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'notasPendentesCorteDias' });
+      }
+    }
+    if (dados.notasPendentesCorteData !== undefined) {
+      const d = dados.notasPendentesCorteData;
+      const hojeSp = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+      const real = typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+      if (!real || d > hojeSp) {
+        return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'notasPendentesCorteData' });
       }
     }
 
@@ -609,6 +630,7 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
       'apuracao_dias_ate_repasse', 'apuracao_data_base', 'categorias_extrato', 'categorias_nota',
       'mensagem1_modelo', 'mensagem2_modelo', 'desconto_adiantamentos', 'desconto_debitos',
       'repasse_visivel_app', 'repasse_valor_minimo',
+      'notas_pendentes_corte_modo', 'notas_pendentes_corte_dias', 'notas_pendentes_corte_data',
     ];
     // 12.2 (converge onda-044, FR-024): quando a leitura de `linhaAntes`
     // falhou, não há "antes" real para comparar — gravar `null` para os 19

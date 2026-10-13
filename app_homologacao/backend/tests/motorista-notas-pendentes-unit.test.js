@@ -26,6 +26,8 @@ let chamadasAxios = [];
 let axiosImpl;
 let patches = [];
 let patchFalha = false;
+let configCorte; // linha de AdiantamentoConfiguracao devolvida ao app; Error = leitura falha; [] = sem linha
+let leiturasConfig = [];
 
 // Lista de valores de um filtro in.(...), com ou sem aspas e URL-decodificada
 const listaIn = (v) => decodeURIComponent(v).slice(4, -1).split(',').map((x) => x.trim().replace(/^"|"$/g, ''));
@@ -80,7 +82,12 @@ Module._load = function (request) {
   }
   if (request === '../lib/hub-postgrest') {
     return {
-      hubPostgrestRequest: async (endpoint) => {
+      hubPostgrestRequest: async (endpoint, method, body, claims) => {
+        if (endpoint.startsWith('AdiantamentoConfiguracao?')) {
+          leiturasConfig.push({ endpoint, claims });
+          if (configCorte instanceof Error) throw configCorte;
+          return configCorte;
+        }
         const ids = listaIn(endpoint.split('envio_massa_id=')[1]).map(String);
         return trilha.filter((t) => ids.includes(String(t.envio_massa_id)));
       },
@@ -143,6 +150,8 @@ const mov = (id, extra = {}) => ({
 
 beforeEach(() => {
   EnvioMassa = []; Empresa = [{ id: 6, nome_empresa: 'Movee Ltda' }, { id: 9, nome_empresa: 'Outra' }];
+  configCorte = [{ notas_pendentes_corte_modo: 'data', notas_pendentes_corte_dias: 90, notas_pendentes_corte_data: '2026-07-20' }];
+  leiturasConfig = [];
   trilha = []; chamadasAxios = []; patches = []; patchFalha = false; axiosImpl = async () => ({ data: [{}] });
 });
 
@@ -160,10 +169,40 @@ describe('GET /motorista/notas-pendentes', () => {
     assert.deepEqual(r.body.notas.map((n) => n.id), [1]);
   });
 
-  test('respeita os 90 dias', async () => {
-    EnvioMassa = [mov(1), mov(2, { created_at: new Date(Date.now() - 91 * DIA).toISOString() }), mov(3, { created_at: new Date(Date.now() - 89 * DIA).toISOString() })];
+  test('created_at não filtra mais: movimento antigo de semana recente aparece', async () => {
+    EnvioMassa = [mov(1, { created_at: new Date(Date.now() - 400 * DIA).toISOString() })];
+    const r = await req('GET', '/motorista/notas-pendentes');
+    assert.deepEqual(r.body.notas.map((n) => n.id), [1]);
+  });
+
+  test('modo dias: só semanas dos últimos N dias (dt_inicial)', async () => {
+    configCorte = [{ notas_pendentes_corte_modo: 'dias', notas_pendentes_corte_dias: 30, notas_pendentes_corte_data: '2026-07-20' }];
+    const dia = (n) => new Date(Date.now() - n * DIA).toISOString().slice(0, 10);
+    EnvioMassa = [mov(1, { dt_inicial: dia(10) }), mov(2, { dt_inicial: dia(60) }), mov(3, { dt_inicial: dia(29) })];
     const r = await req('GET', '/motorista/notas-pendentes');
     assert.deepEqual(r.body.notas.map((n) => n.id).sort(), [1, 3]);
+  });
+
+  test('modo data: usa a data configurada (e lê escopo [6] pelo cliente do hub)', async () => {
+    configCorte = [{ notas_pendentes_corte_modo: 'data', notas_pendentes_corte_dias: 90, notas_pendentes_corte_data: '2026-09-15' }];
+    EnvioMassa = [mov(1, { dt_inicial: '2026-09-15 03:00:00' }), mov(2, { dt_inicial: '2026-09-08 03:00:00' })];
+    const r = await req('GET', '/motorista/notas-pendentes');
+    assert.deepEqual(r.body.notas.map((n) => n.id), [1]);
+    assert.deepEqual(leiturasConfig[0].claims, { escopo: [6] });
+  });
+
+  test('falha ao ler a config → padrão 2026-07-20, não bloqueia o motorista', async () => {
+    configCorte = new Error('PostgREST fora');
+    EnvioMassa = [mov(1, { dt_inicial: '2026-07-20 03:00:00' }), mov(2, { dt_inicial: '2026-07-13 03:00:00' })];
+    const r = await req('GET', '/motorista/notas-pendentes');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.notas.map((n) => n.id), [1]);
+  });
+
+  test('config sem linha → padrão 2026-07-20', async () => {
+    configCorte = [];
+    EnvioMassa = [mov(1, { dt_inicial: '2026-07-20 03:00:00' }), mov(2, { dt_inicial: '2026-07-13 03:00:00' })];
+    assert.deepEqual((await req('GET', '/motorista/notas-pendentes')).body.notas.map((n) => n.id), [1]);
   });
 
   test('corte 20/07/2026: semana anterior ou sem data não aparece', async () => {
@@ -258,6 +297,13 @@ describe('POST /motorista/notas-pendentes/:id/validar', () => {
     EnvioMassa = [mov(7, { dt_inicial: '2026-07-13 03:00:00' }), mov(8, { dt_inicial: null })];
     assert.equal((await req('POST', '/motorista/notas-pendentes/7/validar', { multipart: mp(XML('11111111000100')) })).status, 404);
     assert.equal((await req('POST', '/motorista/notas-pendentes/8/validar', { multipart: mp(XML('11111111000100')) })).status, 404);
+    assert.equal(chamadasAxios.length, 0);
+  });
+
+  test('POST respeita o corte configurado (data mais recente recusa o que o padrão aceitaria)', async () => {
+    configCorte = [{ notas_pendentes_corte_modo: 'data', notas_pendentes_corte_dias: 90, notas_pendentes_corte_data: '2026-09-15' }];
+    EnvioMassa = [mov(7, { dt_inicial: '2026-08-03 03:00:00' })];
+    assert.equal((await req('POST', '/motorista/notas-pendentes/7/validar', { multipart: mp(XML('11111111000100')) })).status, 404);
     assert.equal(chamadasAxios.length, 0);
   });
 

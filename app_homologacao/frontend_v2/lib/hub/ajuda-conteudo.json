@@ -974,8 +974,16 @@
             [
               "Repasse semanal",
               "Dia de início da semana, dia do repasse, categorias que entram no repasse, **quais entram na nota**, descontos considerados e o **valor mínimo**"
+            ],
+            [
+              "Notas pendentes do motorista",
+              "O corte da lista de notas pendentes no app: **últimos N dias** ou **a partir de uma data**"
             ]
           ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "**Notas pendentes do motorista:** movimentos com semana anterior ao corte não aparecem para o motorista em *Notas pendentes* e não aceitam envio de nota. O corte olha a **semana do movimento**, não a data em que ele foi criado. No modo *últimos N dias* a tela mostra a data que isso dá hoje. Não muda notas já enviadas."
         },
         {
           "bloco": "aviso",
