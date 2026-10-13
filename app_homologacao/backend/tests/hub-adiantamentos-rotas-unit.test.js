@@ -114,7 +114,9 @@ function resetFixtures() {
     previsao_pagamento_texto: 'entre 17h e 18h de hoje', descricao_pix_modelo: 'Adiantamento {nome}',
     apuracao_dia_inicio: 1, apuracao_dias_ate_repasse: 3, apuracao_data_base: 'data_lancamento',
     categorias_extrato: ['Frete'], desconto_adiantamentos: true, desconto_debitos: false,
-    repasse_visivel_app: false, motivo: null, criado_por: 9, criador: { nome: 'Admin' },
+    repasse_visivel_app: false,
+    notas_pendentes_corte_modo: 'dias', notas_pendentes_corte_dias: 45, notas_pendentes_corte_data: '2026-07-20',
+    motivo: null, criado_por: 9, criador: { nome: 'Admin' },
   };
   contaJsonbFixture = {
     id: 500, status: 'PENDENTE', origem: 'CARGA_INICIAL', titularNome: 'Fulano de Tal',
@@ -694,6 +696,13 @@ describe('4.2 configuração', () => {
     assert.equal(r.body.historico.length, 1);
   });
 
+  test('0111: GET /configuracoes expõe o corte das notas pendentes (mapeado da coluna)', async () => {
+    const r = await request('GET', '/api/v1/adiantamentos/configuracoes', { cookie: tokenCookie() });
+    assert.equal(r.body.vigente.notasPendentesCorteModo, 'dias');
+    assert.equal(r.body.vigente.notasPendentesCorteDias, 45);
+    assert.equal(r.body.vigente.notasPendentesCorteData, '2026-07-20');
+  });
+
   test('GET /configuracoes/categorias', async () => {
     const r = await request('GET', '/api/v1/adiantamentos/configuracoes/categorias?fonte=financeiro_lancamento', { cookie: tokenCookie() });
     assert.equal(r.status, 200);
@@ -752,6 +761,28 @@ describe('4.2 configuração', () => {
   });
 
   // F3 (repasse-saldo-minimo, FR-025/FR-026): piso do repasse semanal.
+  test('0111: PUT /configuracoes valida o corte das notas pendentes', async () => {
+    const put = (corpo) => request('PUT', '/api/v1/adiantamentos/configuracoes', { body: { versaoEsperada: 3, ...corpo }, cookie: tokenCookie() });
+    const futuro = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+    const ruins = [
+      [{ notasPendentesCorteModo: 'semana' }, 'notasPendentesCorteModo'],
+      [{ notasPendentesCorteDias: 0 }, 'notasPendentesCorteDias'],
+      [{ notasPendentesCorteDias: 3651 }, 'notasPendentesCorteDias'],
+      [{ notasPendentesCorteDias: 1.5 }, 'notasPendentesCorteDias'],
+      [{ notasPendentesCorteDias: '30' }, 'notasPendentesCorteDias'],
+      [{ notasPendentesCorteData: '2026-02-30' }, 'notasPendentesCorteData'],
+      [{ notasPendentesCorteData: '20/07/2026' }, 'notasPendentesCorteData'],
+      [{ notasPendentesCorteData: futuro }, 'notasPendentesCorteData'],
+    ];
+    for (const [corpo, motivo] of ruins) {
+      const r = await put(corpo);
+      assert.equal(r.status, 400, JSON.stringify(corpo));
+      assert.deepEqual(r.body, { erro: 'DADOS_INVALIDOS', motivo });
+    }
+    assert.equal((await put({ notasPendentesCorteModo: 'dias', notasPendentesCorteDias: 45 })).status, 201);
+    assert.equal((await put({ notasPendentesCorteModo: 'data', notasPendentesCorteData: '2026-08-03' })).status, 201);
+  });
+
   test('F3: PUT /configuracoes repasseValorMinimo <= 0 -> 400 DADOS_INVALIDOS', async () => {
     const r = await request('PUT', '/api/v1/adiantamentos/configuracoes', {
       body: { versaoEsperada: 3, repasseValorMinimo: '0' }, cookie: tokenCookie(),

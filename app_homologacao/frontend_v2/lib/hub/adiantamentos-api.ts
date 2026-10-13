@@ -322,6 +322,11 @@ export interface Configuracao {
    *  dinheiro (mesmo formato de `taxaFixa`). Só quem tem
    *  `adiantamentos.pagamento_confirmar` pode alterar (403 `PERMISSAO_NEGADA_PISO`). */
   repasseValorMinimo: string;
+  /** 0111: corte das notas pendentes do motorista — compara com a semana (dt_inicial)
+   *  do movimento. 'dias' = janela móvel; 'data' = a partir de uma data fixa (YYYY-MM-DD). */
+  notasPendentesCorteModo: 'dias' | 'data';
+  notasPendentesCorteDias: number;
+  notasPendentesCorteData: string;
   completa: boolean;
 }
 
@@ -382,6 +387,9 @@ export interface SalvarConfiguracaoInput {
   repasseVisivelApp?: boolean;
   /** F3: exige `adiantamentos.pagamento_confirmar` — 403 `PERMISSAO_NEGADA_PISO` senão. */
   repasseValorMinimo?: string;
+  notasPendentesCorteModo?: 'dias' | 'data';
+  notasPendentesCorteDias?: number;
+  notasPendentesCorteData?: string;
 }
 
 export async function obterConfiguracoes(): Promise<ConfiguracaoResponse> {

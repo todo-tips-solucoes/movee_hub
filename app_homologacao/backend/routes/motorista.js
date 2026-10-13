@@ -29,6 +29,7 @@ const { mesmoGrupoQue } = require('./grupo');
 // EXERCITADO quando HUB_MOTORISTA_LOGIN_CONTA_ATIVA=true (nunca definida em
 // produção hoje) — o require em si não tem efeito colateral.
 const { hubPostgrestRequest } = require('../lib/hub-postgrest');
+const { calcularCorte, CORTE_PADRAO } = require('../lib/notas-pendentes-corte');
 const crypto = require('node:crypto');
 const { enviarEmail } = require('../lib/resend-email');
 const { planejarRecuperacao, montarEmailRecuperacao } = require('../lib/motorista-recuperacao-senha');
@@ -1001,13 +1002,28 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
 // paginação: o máximo medido em 90 dias é 11 por motorista. Ele também mantém
 // seguro o `id=in.(...)` abaixo — lista grande estoura o header do PostgREST
 // (incidente do upload de motorista, PR #50).
-const NOTAS_PENDENTES_DIAS = 90;
 const NOTAS_PENDENTES_TETO = 50;
-// Corte fixo (decisão do operador, 2026-10-13): movimento com semana anterior a
-// 20/07/2026 está fora da regularização — nem aparece, nem aceita envio. Vale para
-// listagem E envio (sem ele no envio, quem tem o id ainda mandaria). dt_inicial
-// nulo ou de data inválida (1982) também fica de fora: `gte` não casa nulo.
-const NOTAS_PENDENTES_CORTE = '2026-07-20';
+// Corte configurável no hub (AdiantamentoConfiguracao, card "Notas pendentes do
+// motorista"): movimento com semana (dt_inicial) anterior ao corte está fora da
+// regularização — nem aparece, nem aceita envio. Vale para listagem E envio (sem ele
+// no envio, quem tem o id ainda mandaria). dt_inicial nulo ou de data inválida (1982)
+// também fica de fora: `gte` não casa nulo. Falha ao ler a config → padrão 2026-07-20,
+// sem bloquear o motorista.
+// ⚠️ Tabela do hub com RLS: o cliente legado voltaria vazio sem erro — vai pelo hubPostgrestRequest.
+async function corteNotasPendentes() {
+  try {
+    const linhas = await hubPostgrestRequest(
+      `AdiantamentoConfiguracao?id_empresa=eq.6&vigente_desde=lte.${encodeURIComponent(new Date().toISOString())}` +
+      '&order=versao.desc&limit=1&select=notas_pendentes_corte_modo,notas_pendentes_corte_dias,notas_pendentes_corte_data',
+      'GET', null, { escopo: [6] }
+    );
+    if (Array.isArray(linhas) && linhas[0]) return calcularCorte(linhas[0]);
+    console.error('[motorista/notas-pendentes] config do corte não encontrada; usando', CORTE_PADRAO);
+  } catch (e) {
+    console.error('[motorista/notas-pendentes] leitura da config do corte falhou; usando', CORTE_PADRAO, '-', e.message);
+  }
+  return CORTE_PADRAO;
+}
 
 // Chave de liga/desliga da funcionalidade (listagem E envio). Default LIGADO: só o
 // valor explícito false/off/0 desliga. Lida a CADA requisição (não no boot) para o
@@ -1031,11 +1047,10 @@ router.get('/notas-pendentes', authenticateMotorista, async (req, res) => {
     if (!notasPendentesAtivo()) return res.json({ notas: [] });
     // Escopo sempre pela SESSÃO — query/body são ignorados (Constituição II)
     const cnpj = req.motorista.cnpjPrestador;
-    const desde = new Date(Date.now() - NOTAS_PENDENTES_DIAS * 24 * 60 * 60 * 1000).toISOString();
+    const corte = await corteNotasPendentes();
     const linhas = (await _postgrestRequest(
       `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}` +
-      `&created_at=gte.${encodeURIComponent(desde)}` +
-      `&dt_inicial=gte.${NOTAS_PENDENTES_CORTE}` +
+      `&dt_inicial=gte.${corte}` +
       `&or=${encodeURIComponent(NOTAS_PENDENTES_OR)}` +
       '&select=id,created_at,valor,dt_inicial,dt_final,cnpj_tomador,id_empresa,erro_validacao' +
       `&order=created_at.desc&limit=${NOTAS_PENDENTES_TETO}`
@@ -1114,7 +1129,7 @@ router.post('/notas-pendentes/:id/validar', authenticateMotorista, uploadSingle,
     // da sessão. 404 (não 403) para não revelar que o movimento de outro existe.
     const idMov = String(req.params.id);
     const movimentos = /^\d+$/.test(idMov)
-      ? await _postgrestRequest(`EnvioMassa?id=eq.${idMov}&${cnpjEnvioMassaFilter(cnpj)}&dt_inicial=gte.${NOTAS_PENDENTES_CORTE}&limit=1`)
+      ? await _postgrestRequest(`EnvioMassa?id=eq.${idMov}&${cnpjEnvioMassaFilter(cnpj)}&dt_inicial=gte.${await corteNotasPendentes()}&limit=1`)
       : [];
     if (!movimentos || movimentos.length === 0) {
       return res.status(404).json({ error: 'Pendência não encontrada.' });

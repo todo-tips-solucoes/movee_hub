@@ -89,7 +89,23 @@ interface FormState {
   /** F3 (repasse-saldo-minimo): piso do repasse semanal — só quem tem
    *  `adiantamentos.pagamento_confirmar` pode alterar (ver `podePiso` abaixo). */
   repasseValorMinimo: string;
+  /** 0111: corte das notas pendentes do motorista. Dias fica como texto (input number). */
+  notasPendentesCorteModo: 'dias' | 'data';
+  notasPendentesCorteDias: string;
+  notasPendentesCorteData: string;
   motivo: string;
+}
+
+// Hoje no fuso do negócio, 'YYYY-MM-DD' (mesmo cálculo do backend).
+function hojeSP(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+}
+
+/** Semana a partir da qual o motorista enxerga/regulariza notas, hoje, no modo 'dias'. */
+function corteDeHoje(dias: number): string {
+  const d = new Date(`${hojeSP()}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
 }
 
 function formDe(c: Configuracao | null): FormState {
@@ -117,6 +133,9 @@ function formDe(c: Configuracao | null): FormState {
     descontoDebitos: c?.descontoDebitos ?? false,
     repasseVisivelApp: c?.repasseVisivelApp ?? false,
     repasseValorMinimo: c?.repasseValorMinimo ?? '',
+    notasPendentesCorteModo: c?.notasPendentesCorteModo ?? 'data',
+    notasPendentesCorteDias: String(c?.notasPendentesCorteDias ?? 90),
+    notasPendentesCorteData: c?.notasPendentesCorteData ?? '2026-07-20',
     motivo: '',
   };
 }
@@ -142,6 +161,13 @@ function primeiraViolacao(f: FormState): string | null {
   // F3: mesma CHECK de infra/hub/migrations/0098 (`repasse_valor_minimo > 0`).
   const piso = Number(f.repasseValorMinimo.replace(',', '.'));
   if (!Number.isFinite(piso) || piso <= 0) return 'O valor mínimo para repasse precisa ser maior que zero.';
+  // 0111: mesmas CHECKs da migration 0111 (dias 1..3650) + data não futura (rota).
+  if (f.notasPendentesCorteModo === 'dias') {
+    const dias = Number(f.notasPendentesCorteDias);
+    if (!Number.isInteger(dias) || dias < 1 || dias > 3650) return 'Notas pendentes: informe de 1 a 3650 dias.';
+  } else if (!f.notasPendentesCorteData || f.notasPendentesCorteData > hojeSP()) {
+    return 'Notas pendentes: informe uma data que não seja futura.';
+  }
   return null;
 }
 
@@ -234,6 +260,9 @@ function useConfiguracaoAdiantamento() {
         // — compara com o vigente antes de checar), então reenviar o valor
         // carregado sem alteração nunca é recusado.
         repasseValorMinimo: form.repasseValorMinimo.replace(',', '.'),
+        notasPendentesCorteModo: form.notasPendentesCorteModo,
+        notasPendentesCorteDias: Number(form.notasPendentesCorteDias),
+        notasPendentesCorteData: form.notasPendentesCorteData,
         motivo: form.motivo.trim() || undefined,
       });
       setVigente(nova);
@@ -696,6 +725,62 @@ export default function ConfiguracoesAdiantamentoPage() {
                     </p>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle as="h2" className="text-base">Notas pendentes do motorista</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 px-4">
+                <p className="text-xs text-muted-foreground">
+                  Movimentos com semana anterior a este corte não aparecem para o motorista em Notas pendentes e não
+                  aceitam envio de nota. Não muda notas já enviadas.
+                </p>
+                <div role="radiogroup" aria-label="Regra do corte" className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
+                  {([['dias', 'Últimos N dias'], ['data', 'A partir de uma data']] as const).map(([valor, rotulo]) => (
+                    <label key={valor} className="flex cursor-pointer items-center gap-2 rounded-lg border border-input px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name={`${inputId}-corte-modo`}
+                        checked={c.form.notasPendentesCorteModo === valor}
+                        onChange={() => c.setForm((f) => ({ ...f, notasPendentesCorteModo: valor }))}
+                      />
+                      {rotulo}
+                    </label>
+                  ))}
+                </div>
+                {c.form.notasPendentesCorteModo === 'dias' ? (
+                  <div className="flex flex-col gap-1 sm:w-64">
+                    <label htmlFor={`${inputId}-corte-dias`} className="text-sm font-medium">Quantidade de dias</label>
+                    <Input
+                      id={`${inputId}-corte-dias`}
+                      type="number"
+                      min={1}
+                      max={3650}
+                      step={1}
+                      inputMode="numeric"
+                      value={c.form.notasPendentesCorteDias}
+                      onChange={(e) => c.setForm((f) => ({ ...f, notasPendentesCorteDias: e.target.value }))}
+                    />
+                    {Number.isInteger(Number(c.form.notasPendentesCorteDias)) && Number(c.form.notasPendentesCorteDias) >= 1 && (
+                      <span className="text-xs text-muted-foreground">
+                        Hoje equivale a semanas a partir de {formatDateBR(corteDeHoje(Number(c.form.notasPendentesCorteDias)))}.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1 sm:w-64">
+                    <label htmlFor={`${inputId}-corte-data`} className="text-sm font-medium">Semanas a partir de</label>
+                    <Input
+                      id={`${inputId}-corte-data`}
+                      type="date"
+                      max={hojeSP()}
+                      value={c.form.notasPendentesCorteData}
+                      onChange={(e) => c.setForm((f) => ({ ...f, notasPendentesCorteData: e.target.value }))}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 

@@ -132,6 +132,10 @@ function mapConfiguracao(row) {
     repasseVisivelApp: row.repasse_visivel_app,
     // F3 (repasse-saldo-minimo, FR-025): piso do repasse semanal, por empresa.
     repasseValorMinimo: dinheiro(row.repasse_valor_minimo),
+    // 0111: corte das notas pendentes do motorista (modo 'dias' | 'data'; data = 'YYYY-MM-DD').
+    notasPendentesCorteModo: row.notas_pendentes_corte_modo ?? 'data',
+    notasPendentesCorteDias: row.notas_pendentes_corte_dias ?? 90,
+    notasPendentesCorteData: row.notas_pendentes_corte_data ? String(row.notas_pendentes_corte_data).slice(0, 10) : '2026-07-20',
     completa: configuracaoCompleta(row),
   };
 }

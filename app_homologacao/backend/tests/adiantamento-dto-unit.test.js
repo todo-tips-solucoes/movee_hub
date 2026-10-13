@@ -127,6 +127,9 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
     repasse_visivel_app: false,
     // F3 (repasse-saldo-minimo, FR-025): piso do repasse semanal.
     repasse_valor_minimo: '5.50',
+    notas_pendentes_corte_modo: 'data',
+    notas_pendentes_corte_dias: 90,
+    notas_pendentes_corte_data: '2026-07-20',
   };
 
   test('roundtrip: campos camelCase batem 1:1 com contracts/hub-api.md §Configuração', () => {
@@ -148,6 +151,9 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
       'horarioCorte',
       'mensagem1Modelo',
       'mensagem2Modelo',
+      'notasPendentesCorteData',
+      'notasPendentesCorteDias',
+      'notasPendentesCorteModo',
       'percentual',
       'previsaoPagamentoTexto',
       'repasseValorMinimo',
@@ -164,6 +170,7 @@ describe('mapConfiguracao() — Configuracao (hub-api.md §Configuração, FR-02
     assert.match(dto.taxaFixa, REGEX_DINHEIRO);
     assert.equal(dto.repasseValorMinimo, '5.50');
     assert.match(dto.repasseValorMinimo, REGEX_DINHEIRO);
+    assert.equal(dto.notasPendentesCorteData, '2026-07-20');
     assert.equal(dto.completa, true);
   });
 
