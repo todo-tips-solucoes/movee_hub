@@ -12,7 +12,7 @@ export interface EnvioMassa {
   retorno_envio_msg_2: string | null;
   tribnac: string | null;
   dCompet: string | null;
-  numnota: string | null;
+  numnota: string | number | null;
   nota_ok: string | null;
   data_emissao: string | null;
   erro_validacao: string | null;
