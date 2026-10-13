@@ -1,0 +1,320 @@
+{
+  "titulo": "Guia do App do Motorista",
+  "subtitulo": "O que você faz no app, o que o app não aceita, e o que fazer quando algo dá errado.",
+  "atualizadoEm": "2026-10-12",
+  "podeNaoPode": {
+    "titulo": "O que você pode e o que não pode",
+    "nota": "Esta é a parte que resolve a maioria das dúvidas. Se o app recusou algo seu, provavelmente está aqui.",
+    "pode": [
+      "Ver quanto você vai receber na semana, separado em valor da nota e gorjeta",
+      "Enviar o XML da sua nota fiscal e saber na hora se ela foi aceita",
+      "Enviar a nota de semanas anteriores que ficaram sem nota, pelos últimos 90 dias",
+      "Cadastrar uma conta corrente no CNPJ da sua empresa",
+      "Pedir adiantamento de parte do que você produziu ontem, nos dias e horários liberados",
+      "Cancelar o pedido de adiantamento até o horário de corte do mesmo dia",
+      "Receber avisos da equipe no celular, se você ativar as notificações"
+    ],
+    "naoPode": [
+      {
+        "o": "Enviar nota emitida por outro CNPJ",
+        "porque": "O app compara o CNPJ de quem emitiu a nota com o CNPJ do seu login. Nota de colega, ou emitida no seu CPF, é recusada antes da conferência.",
+        "saida": "Emita a nota com o CNPJ da sua empresa — o mesmo com que você entra no app."
+      },
+      {
+        "o": "Cadastrar conta no seu CPF",
+        "porque": "Pelo app, só entra conta no CNPJ da sua própria empresa.",
+        "saida": "Peça ao escritório. Eles cadastram conta de pessoa física por você."
+      },
+      {
+        "o": "Cadastrar conta de outra pessoa",
+        "porque": "O documento do titular tem que ser o mesmo CNPJ do seu login.",
+        "saida": "Use uma conta no CNPJ da sua empresa."
+      },
+      {
+        "o": "Cadastrar conta poupança",
+        "porque": "O sistema só aceita conta corrente, em qualquer caminho.",
+        "saida": "Use uma conta corrente, ou fale com o escritório."
+      },
+      {
+        "o": "Usar dígito de conta com a letra X",
+        "porque": "O campo aceita só um número de 0 a 9.",
+        "saida": "Fale com o escritório para cadastrar a conta por você."
+      },
+      {
+        "o": "Pedir dois adiantamentos no mesmo dia",
+        "porque": "O limite é um por dia, e dias sem pedido não acumulam.",
+        "saida": "Espere o próximo dia liberado."
+      },
+      {
+        "o": "Reenviar uma nota que já foi aprovada",
+        "porque": "Depois de aprovada, o envio é bloqueado para não duplicar.",
+        "saida": "Nada a fazer. Está tudo certo."
+      },
+      {
+        "o": "Enviar PDF ou foto da nota",
+        "porque": "O app precisa do arquivo XML, que é o que tem os dados conferíveis.",
+        "saida": "Baixe o arquivo .xml no portal onde você emitiu a nota."
+      },
+      {
+        "o": "Receber o pagamento na hora em que a nota é aprovada",
+        "porque": "A aprovação avisa o escritório. Uma pessoa confere e libera o pagamento.",
+        "saida": "Acompanhe com o escritório. Não há prazo automático."
+      }
+    ]
+  },
+  "secoes": [
+    {
+      "id": "entrar",
+      "titulo": "Entrar no app",
+      "img": "01-login.png",
+      "imgAlt": "Tela de entrada do app, com os campos CNPJ do Prestador e Senha",
+      "intro": "Você entra com o CNPJ da sua empresa — nunca com CPF.",
+      "passos": [
+        "Abra o app e digite o CNPJ do Prestador (14 números). Pode digitar sem pontos.",
+        "Digite sua senha e toque em Entrar."
+      ],
+      "primeiraVez": {
+        "titulo": "É a sua primeira vez?",
+        "passos": [
+          "Toque em \"Primeira vez? Criar conta\".",
+          "Digite o CNPJ, seu nome e crie uma senha de pelo menos 8 caracteres.",
+          "Toque em Criar conta e entre com o CNPJ e a senha."
+        ],
+        "nota": "Se aparecer que o CNPJ não está liberado, fale com o escritório: seu cadastro ainda não foi incluído."
+      },
+      "esqueciSenha": {
+        "titulo": "Esqueceu a senha?",
+        "passos": [
+          "Toque em \"Esqueci minha senha\" e digite o CNPJ.",
+          "Abra o link que chega no seu e-mail. Ele vale 60 minutos e funciona uma vez só.",
+          "Crie a senha nova e volte para entrar."
+        ],
+        "nota": "Se você não tem e-mail cadastrado, o link não chega. Peça ao escritório para cadastrar seu e-mail."
+      },
+      "avisos": [
+        { "tipo": "atencao", "texto": "Depois de 10 tentativas erradas, o app bloqueia por 15 minutos. Espere — não é problema no seu cadastro." },
+        { "tipo": "dica", "texto": "Vale instalar o app na tela inicial do celular. No iPhone, isso é obrigatório para receber avisos." }
+      ]
+    },
+    {
+      "id": "quanto",
+      "titulo": "Ver quanto você vai receber",
+      "img": "02-inicio.png",
+      "imgAlt": "Tela inicial com o card do movimento, mostrando valor da nota fiscal, gorjeta e total produzido",
+      "intro": "A tela Início mostra o movimento em aberto: é o que você vai faturar.",
+      "tabela": {
+        "cabecalho": ["O que aparece", "O que significa"],
+        "linhas": [
+          ["Valor da nota fiscal", "O valor exato que deve sair na sua nota. Nem mais, nem menos."],
+          ["Gorjeta", "Valor que você recebe mas que não entra na nota. Só aparece quando existe."],
+          ["Total produzido", "A soma dos dois. É o que você recebe no total."]
+        ]
+      },
+      "avisos": [
+        { "tipo": "importante", "texto": "A nota tem que sair com o Valor da nota fiscal, não com o Total produzido. Se você emitir pelo total, a nota é recusada por valor divergente." }
+      ],
+      "extra": {
+        "titulo": "Dados Fiscais",
+        "img": "03-dados-fiscais.png",
+        "imgAlt": "Seção Dados Fiscais com tomador, CNPJ, tributação nacional e status da nota",
+        "texto": "Mais abaixo na mesma tela estão os dados de quem você precisa colocar na nota: o Tomador, o CNPJ dele, o endereço, o e-mail e o código de Tributação Nacional. Cada um tem um botão de copiar — use-os para não errar ao digitar.",
+        "statusNota": [
+          ["Pendente", "Você ainda não enviou uma nota aprovada para esta semana."],
+          ["Aprovada", "Sua nota já foi aceita. Não precisa enviar de novo."]
+        ]
+      }
+    },
+    {
+      "id": "nota",
+      "titulo": "Enviar sua nota fiscal",
+      "img": "05-validar.png",
+      "imgAlt": "Tela de validação com a área para escolher o arquivo XML",
+      "intro": "Você emite a nota no portal e manda o arquivo XML pelo app. A conferência é na hora.",
+      "passos": [
+        "Na tela Início, copie os dados do Tomador e veja o Valor da nota fiscal.",
+        "Emita sua NFS-e no Portal NFS-e Nacional, com o seu CNPJ e esse valor exato.",
+        "Baixe o arquivo .xml da nota no celular.",
+        "No app, toque em Validar minha NFS-e.",
+        "Toque na caixa, escolha o arquivo .xml e toque em Enviar para validação.",
+        "Aguarde alguns segundos pelo resultado."
+      ],
+      "resultados": [
+        {
+          "tipo": "ok",
+          "titulo": "Nota aprovada",
+          "img": "06-validar-aprovada.png",
+          "imgAlt": "Resultado aprovado, com a mensagem Nota ok",
+          "texto": "Pronto. O status na Início vira Aprovada e o envio fica bloqueado para não duplicar."
+        },
+        {
+          "tipo": "erro",
+          "titulo": "Nota recusada",
+          "img": "07-validar-reprovada.png",
+          "imgAlt": "Resultado reprovado, listando os campos incorretos",
+          "texto": "O app mostra exatamente quais campos estão errados. Cancele essa nota, emita uma nova com os campos corrigidos e envie de novo."
+        }
+      ],
+      "errosCampos": {
+        "titulo": "Os campos que mais dão erro",
+        "cabecalho": ["O app diz", "Corrija isto na nota"],
+        "linhas": [
+          ["Valor da nota não confere com o valor do movimento", "O valor tem que ser igual ao Valor da nota fiscal da tela Início"],
+          ["CNPJ do tomador está incorreto", "Use o CNPJ do Tomador que aparece em Dados Fiscais"],
+          ["CNPJ do prestador (você) está incorreto", "A nota tem que ser emitida com o CNPJ do seu login"],
+          ["Tributação nacional está incorreta", "Use o código de Tributação Nacional que aparece na tela"],
+          ["Data de competência está incorreta", "Ajuste a competência da nota"],
+          ["Descrição do serviço está incorreta", "A descrição precisa seguir o que foi combinado"]
+        ]
+      },
+      "avisos": [
+        { "tipo": "atencao", "texto": "O arquivo precisa ser .xml e ter no máximo 2 MB. Foto e PDF não servem." }
+      ]
+    },
+    {
+      "id": "pendentes",
+      "titulo": "Notas de semanas anteriores",
+      "img": "04-card-pendentes.png",
+      "imgAlt": "Card de notas pendentes na tela inicial, com o botão Enviar notas",
+      "intro": "Se você deixou alguma semana sem nota, o app avisa na Início com o card Notas pendentes.",
+      "passos": [
+        "Toque no card Notas pendentes e depois em Enviar notas.",
+        "Em cada item, veja o período, o valor e para quem emitir.",
+        "Emita a nota daquele período, com o seu CNPJ, para o tomador indicado.",
+        "Toque em Escolher XML e depois em Enviar nota."
+      ],
+      "img2": "08-notas-pendentes.png",
+      "img2Alt": "Lista de notas pendentes, cada uma com período, valor e botão para escolher o arquivo",
+      "avisos": [
+        { "tipo": "importante", "texto": "A lista mostra os últimos 90 dias. Semanas mais antigas que isso não aparecem — fale com o escritório." },
+        { "tipo": "importante", "texto": "Depois que sua nota é aprovada, o escritório confere e libera o pagamento. Não é automático e não tem prazo definido." },
+        { "tipo": "atencao", "texto": "Se sua nota foi recusada e o item saiu da lista, fale com o escritório. Hoje o app não deixa reenviar nesse caso." }
+      ]
+    },
+    {
+      "id": "conta",
+      "titulo": "Sua conta bancária",
+      "img": "09-conta.png",
+      "imgAlt": "Cartão Conta para pagamentos, com o selo de situação",
+      "intro": "É a conta onde você recebe o adiantamento. Toda conta nova passa pela análise do financeiro.",
+      "regras": {
+        "titulo": "As três regras da conta",
+        "itens": [
+          "Tem que ser conta corrente. Poupança não é aceita.",
+          "Tem que estar no CNPJ da sua empresa — o mesmo do seu login.",
+          "Conta no seu CPF só pode ser cadastrada pelo escritório."
+        ]
+      },
+      "passos": [
+        "Abra a aba Conta e toque em Cadastrar dados bancários.",
+        "Preencha o nome do titular e o seu CNPJ.",
+        "Busque o banco pelo nome ou pelo código e escolha na lista.",
+        "Informe a agência (sem o dígito), a conta e o dígito da conta.",
+        "Toque em Enviar para análise."
+      ],
+      "img2": "10-conta-form.png",
+      "img2Alt": "Formulário de dados bancários, indicando que só conta corrente é aceita",
+      "avisos": [
+        { "tipo": "dica", "texto": "Enquanto a conta nova está Em análise, seus pagamentos continuam indo para a conta aprovada anterior, se você já tinha uma." },
+        { "tipo": "atencao", "texto": "Se o app disser \"CNPJ inválido, ou não é o CNPJ da sua conta\", a conta não está no seu CNPJ. Se ela for no seu CPF, fale com o escritório." }
+      ]
+    },
+    {
+      "id": "adiantamento",
+      "titulo": "Pedir adiantamento",
+      "img": "11-adiantamento.png",
+      "imgAlt": "Tela de adiantamento com a estimativa do valor a receber",
+      "intro": "Você antecipa parte do que produziu ontem. O valor é descontado do seu repasse da semana.",
+      "requisitos": {
+        "titulo": "Para pedir, você precisa de três coisas",
+        "itens": [
+          "Hoje ser um dia liberado para adiantamento",
+          "Estar dentro do horário do dia",
+          "Ter uma conta bancária aprovada"
+        ],
+        "nota": "Os dias, o horário, o percentual e a taxa são definidos pela empresa. A tela Como funciona sempre mostra os valores que estão valendo hoje."
+      },
+      "passos": [
+        "Abra a aba Adiantar. Se estiver aberto, aparece até que hora e quanto você recebe.",
+        "Confira a conta de destino.",
+        "Toque em Solicitar adiantamento.",
+        "Marque que você leu os termos e confirme."
+      ],
+      "avisos": [
+        { "tipo": "dica", "texto": "Dá para cancelar até o horário de corte do mesmo dia. Depois disso o pedido segue para o cálculo." },
+        { "tipo": "importante", "texto": "A taxa é descontada do valor que você recebe. O valor bruto do adiantamento é abatido do repasse da semana." }
+      ],
+      "motivos": {
+        "titulo": "Por que o app pode não deixar pedir",
+        "cabecalho": ["O app diz", "O que fazer"],
+        "linhas": [
+          ["Hoje não é um dia habilitado", "A tela mostra a próxima data liberada"],
+          ["O horário ainda não abriu", "Volte dentro da janela do dia"],
+          ["O horário já encerrou", "Tente no próximo dia liberado"],
+          ["Você já tem uma solicitação hoje", "É uma por dia"],
+          ["Cadastre uma conta bancária", "Cadastre na aba Conta"],
+          ["Sua conta bancária ainda está em análise", "Espere a aprovação do financeiro"],
+          ["Não houve produção suficiente", "A produção de ontem não dá valor para liberar"]
+        ]
+      }
+    },
+    {
+      "id": "avisos",
+      "titulo": "Avisos no celular",
+      "img": "12-notificacoes.png",
+      "imgAlt": "Lista de notificações do app",
+      "intro": "A equipe pode mandar avisos direto para o seu celular. Para receber, você precisa ativar.",
+      "passos": [
+        "Na tela Início, toque em Ativar notificações quando o app pedir.",
+        "Aceite a permissão que o celular mostra."
+      ],
+      "avisos": [
+        { "tipo": "importante", "texto": "No iPhone, você precisa instalar o app na tela inicial: toque em Compartilhar e depois em \"Adicionar à Tela de Início\". Sem isso o iPhone não entrega os avisos." },
+        { "tipo": "atencao", "texto": "Se você negou a permissão antes, o app não consegue pedir de novo. É preciso liberar nas configurações do navegador ou do celular." }
+      ]
+    }
+  ],
+  "problemas": {
+    "titulo": "Quando algo dá errado",
+    "intro": "As mensagens que mais aparecem e o que fazer em cada uma.",
+    "grupos": [
+      {
+        "grupo": "Ao entrar",
+        "itens": [
+          ["CNPJ ou senha incorretos", "Confira os números. Se é a primeira vez, toque em Criar conta. Se esqueceu, use Esqueci minha senha."],
+          ["Conta inativa", "Seu acesso foi desativado. Fale com o escritório."],
+          ["Muitas tentativas de login", "Espere 15 minutos."],
+          ["Este link não vale mais", "O link de senha passou de 60 minutos ou já foi usado. Peça outro."]
+        ]
+      },
+      {
+        "grupo": "Ao enviar a nota",
+        "itens": [
+          ["Este XML não pertence ao seu CNPJ", "A nota foi emitida por outro CNPJ. Emita com o seu."],
+          ["Arquivo muito grande", "O limite é 2 MB. Envie o XML original da nota, que é pequeno."],
+          ["Arquivo inválido", "O arquivo não é um XML de nota. Baixe de novo no portal."],
+          ["Nenhum movimento em aberto para validar", "Não há semana esperando nota. Se você acha que deveria ter, fale com o escritório."],
+          ["Nota já aprovada", "Está tudo certo. Não precisa enviar de novo."],
+          ["Serviço de validação indisponível", "O sistema de conferência está fora do ar. Tente daqui a pouco."]
+        ]
+      },
+      {
+        "grupo": "Na conta bancária",
+        "itens": [
+          ["CNPJ inválido, ou não é o CNPJ da sua conta", "A conta precisa estar no CNPJ do seu login. Se for no seu CPF, fale com o escritório."],
+          ["Agência inválida", "Digite só números, sem o dígito da agência."],
+          ["Dígito da conta inválido", "Use um único número. Se o seu dígito é X, fale com o escritório."],
+          ["Escolha um banco da lista", "Busque o banco e toque nele na lista."]
+        ]
+      },
+      {
+        "grupo": "No adiantamento",
+        "itens": [
+          ["As regras foram atualizadas", "Atualize a tela e tente de novo."],
+          ["Essa ação não é mais possível", "Passou o horário de cancelar, ou a situação do pedido mudou."],
+          ["Muitas tentativas em pouco tempo", "Espere alguns minutos."]
+        ]
+      }
+    ]
+  },
+  "rodape": "Este guia descreve o app como ele funciona hoje. Se algo na tela não corresponder ao que está aqui, fale com o escritório."
+}

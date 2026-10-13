@@ -73,3 +73,6 @@ export const EventRepeat = makeIcon('event_repeat');
 export const Edit = makeIcon('edit');
 export const DoneAll = makeIcon('done_all');
 export const Rule = makeIcon('rule');
+// Tela de Ajuda — seção recolhível e aviso do tipo "dica".
+export const ExpandMore = makeIcon('expand_more');
+export const Lightbulb = makeIcon('lightbulb');
