@@ -43,6 +43,7 @@ const EXIGEM_AMBIENTE = new Set([
   'tests/hub-papeis.test.js',
   'tests/hub-performance.test.js',
   'tests/hub-repasse-lote.test.js', // integração do lote de repasse: exige o ambiente efêmero hub-test-* (PR #272)
+  'tests/hub-repasse-lote-planilha.test.js', // integração da 0109: exige o ambiente hub_homolog no ar (container hub_homolog_db)
   'tests/hub-rls-integration.test.js',
   'tests/hub-usuarios.test.js',
 ]);
