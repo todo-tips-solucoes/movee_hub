@@ -24,6 +24,8 @@ export interface NotaPendente {
   cnpjTomador: string | null;
   tomador: string | null;
   origem: OrigemNota;
+  /** Só vem quando a nota já foi enviada e recusada; item nunca enviado não tem a chave. */
+  camposInvalidos?: CampoInvalido[];
 }
 
 export interface CampoInvalido {
@@ -95,4 +97,9 @@ export function mensagemErroEnvio(err: unknown): string {
 export function motivosReprovacao(r: ResultadoEnvio): string[] {
   const campos = (r.camposInvalidos ?? []).map((c) => c.mensagem);
   return r.instrucao ? [...campos, r.instrucao] : campos;
+}
+
+/** Mensagens da recusa anterior (nota já enviada e não aceita); [] se nunca foi enviada. */
+export function motivosRecusaAnterior(n: Pick<NotaPendente, 'camposInvalidos'>): string[] {
+  return (n.camposInvalidos ?? []).map((c) => c.mensagem);
 }

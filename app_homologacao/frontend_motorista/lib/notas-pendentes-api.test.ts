@@ -16,6 +16,7 @@ import {
   listarNotasPendentes,
   mensagemErroEnvio,
   mostrarCardPendentes,
+  motivosRecusaAnterior,
   motivosReprovacao,
   periodoDaPendencia,
   rotuloOrigem,
@@ -103,4 +104,13 @@ test('nota reprovada (200 valid:false) lista campos e instrução', () => {
     'Valor da nota não confere com o valor do movimento.',
     'Cancele esta nota e emita uma nova com os campos corrigidos.',
   ]);
+});
+
+test('motivosRecusaAnterior: item recusado devolve as mensagens; nunca enviado devolve []', () => {
+  assert.deepEqual(
+    motivosRecusaAnterior({ camposInvalidos: [{ campo: 'valid_valor', mensagem: 'Valor errado.' }, { campo: 'valid_cnpj', mensagem: 'CNPJ errado.' }] }),
+    ['Valor errado.', 'CNPJ errado.'],
+  );
+  assert.deepEqual(motivosRecusaAnterior({}), []);
+  assert.deepEqual(motivosRecusaAnterior({ camposInvalidos: [] }), []);
 });

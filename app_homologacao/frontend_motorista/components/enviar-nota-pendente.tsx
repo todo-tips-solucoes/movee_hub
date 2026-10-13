@@ -15,11 +15,12 @@
 
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, CheckCircle, UploadCloud } from '@/components/ui/icons';
+import { AlertCircle, AlertTriangle, CheckCircle, UploadCloud } from '@/components/ui/icons';
 import {
   ariaLabelEnvio,
   enviarNotaPendente,
   mensagemErroEnvio,
+  motivosRecusaAnterior,
   motivosReprovacao,
   type NotaPendente,
 } from '@/lib/notas-pendentes-api';
@@ -38,6 +39,7 @@ export function EnviarNotaPendente({ nota }: { nota: NotaPendente }) {
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [estado, setEstado] = useState<Estado>({ fase: 'inicial' });
   const rotulo = ariaLabelEnvio(nota);
+  const recusaAnterior = motivosRecusaAnterior(nota);
 
   function escolher(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
@@ -87,6 +89,21 @@ export function EnviarNotaPendente({ nota }: { nota: NotaPendente }) {
 
   return (
     <div className="space-y-2.5">
+      {/* Recusa de um envio anterior (vem da listagem). Some assim que há um resultado novo na linha. */}
+      {recusaAnterior.length > 0 && estado.fase !== 'recusado' && (
+        <div className="rounded-xl border border-warm-2/30 bg-warm-2/10 px-3.5 py-2.5 text-warm-3">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Sua nota anterior não foi aceita
+          </p>
+          <ul className="mt-1.5 space-y-1 text-xs">
+            {recusaAnterior.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-xs font-medium">Emita uma nota nova com isso corrigido e envie o XML dela.</p>
+        </div>
+      )}
       <input
         ref={inputRef}
         type="file"
