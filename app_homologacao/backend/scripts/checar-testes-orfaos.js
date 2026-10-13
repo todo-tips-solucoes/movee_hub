@@ -42,6 +42,7 @@ const EXIGEM_AMBIENTE = new Set([
   'tests/hub-motoristas.test.js',
   'tests/hub-papeis.test.js',
   'tests/hub-performance.test.js',
+  'tests/hub-repasse-lote.test.js', // integração do lote de repasse: exige o ambiente efêmero hub-test-* (PR #272)
   'tests/hub-rls-integration.test.js',
   'tests/hub-usuarios.test.js',
 ]);

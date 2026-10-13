@@ -1018,19 +1018,33 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
 const NOTAS_PENDENTES_DIAS = 90;
 const NOTAS_PENDENTES_TETO = 50;
 
+// Chave de liga/desliga da funcionalidade (listagem E envio). Default LIGADO: só o
+// valor explícito false/off/0 desliga. Lida a CADA requisição (não no boot) para o
+// operador alternar só reiniciando o serviço, sem deploy de imagem.
+function notasPendentesAtivo() {
+  return !['false', 'off', '0'].includes(String(process.env.MOTORISTA_NOTAS_PENDENTES || '').trim().toLowerCase());
+}
+const NOTAS_PENDENTES_DESLIGADO = 'O envio de notas pendentes está temporariamente indisponível.';
+
+// "Não aprovada" = nota_ok vazio OU erro_validacao preenchido — negação de
+// notaAprovada() (routes/hub-validacao-xml.js). Em PostgREST: `and(...)` aninhado
+// dentro do `or`; o `neq.` exclui o erro_validacao '' (que não é erro).
+const NOTAS_PENDENTES_OR = '(nota_ok.is.null,nota_ok.eq.,and(erro_validacao.not.is.null,erro_validacao.neq.))';
+
 // ROTA: GET /motorista/notas-pendentes  (autenticado)
-// Pendência = EnvioMassa sem `nota_ok`, ABERTA ou FECHADA (para o motorista a
-// distinção é interna). `nota_ok` guarda a URL do XML mesmo de nota reprovada;
-// aqui "pendente" é quem nem chegou a ter nota, então reprovada NÃO entra.
+// Pendência = EnvioMassa com nota NÃO aprovada, ABERTA ou FECHADA (para o motorista
+// a distinção é interna). `nota_ok` guarda a URL do XML mesmo de nota reprovada, então
+// reprovada (nota_ok E erro_validacao preenchidos) TAMBÉM é pendente: precisa de reenvio.
 router.get('/notas-pendentes', authenticateMotorista, async (req, res) => {
   try {
+    if (!notasPendentesAtivo()) return res.json({ notas: [] });
     // Escopo sempre pela SESSÃO — query/body são ignorados (Constituição II)
     const cnpj = req.motorista.cnpjPrestador;
     const desde = new Date(Date.now() - NOTAS_PENDENTES_DIAS * 24 * 60 * 60 * 1000).toISOString();
     const linhas = (await _postgrestRequest(
       `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}` +
       `&created_at=gte.${encodeURIComponent(desde)}` +
-      `&or=${encodeURIComponent('(nota_ok.is.null,nota_ok.eq.)')}` +
+      `&or=${encodeURIComponent(NOTAS_PENDENTES_OR)}` +
       '&select=id,created_at,valor,dt_inicial,dt_final,cnpj_tomador,id_empresa' +
       `&order=created_at.desc&limit=${NOTAS_PENDENTES_TETO}`
     )) || [];
@@ -1095,6 +1109,7 @@ router.get('/notas-pendentes', authenticateMotorista, async (req, res) => {
 // FastAPI, que então grava NAQUELE registro (F1) em vez de achar pelo CNPJ do XML.
 router.post('/notas-pendentes/:id/validar', authenticateMotorista, uploadSingle, async (req, res) => {
   try {
+    if (!notasPendentesAtivo()) return res.status(503).json({ error: NOTAS_PENDENTES_DESLIGADO });
     const cnpj = req.motorista.cnpjPrestador;
 
     // Trava central, ANTES de qualquer outra coisa: a pendência tem que ser do CNPJ
