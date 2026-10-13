@@ -1,0 +1,215 @@
+<title>Entregas da Semana — Movee</title>
+<meta name="description" content="O que mudou no sistema entre 6 e 13 de outubro de 2026, e o que isso resolve na operação.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: coluna de leitura única; os blocos de entrega são cartões com o "antes" e o "depois" lado a lado. */
+:root{
+  --bg:#f9f2e8; --surface:#fffdfa; --surface-2:#efe6d6;
+  --fg:#0f1849; --fg-soft:#52618a; --line:#e0d4bf;
+  --brand:#2c66e9; --brand-soft:#e7eefc;
+  --ok:#0f5d3f; --ok-bg:#e2f6ec; --warn:#8a4b00; --warn-bg:#fdf0d8; --no:#9b1c2e; --no-bg:#fbe9eb;
+  --font:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:12px; --shadow:0 1px 2px rgba(15,24,73,.06),0 10px 30px -18px rgba(15,24,73,.25);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a1130; --surface:#101a3f; --surface-2:#18234d; --fg:#e9eefb; --fg-soft:#9fb0d8; --line:#263264;
+  --brand:#5b8df2; --brand-soft:#17254f; --ok:#9fe8c4; --ok-bg:#0e3626; --warn:#ffcf8a; --warn-bg:#3a2a0f;
+  --no:#ffb3bd; --no-bg:#3d1620; color-scheme:dark;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -18px rgba(0,0,0,.7);
+}}
+:root[data-theme="dark"]{
+  --bg:#0a1130; --surface:#101a3f; --surface-2:#18234d; --fg:#e9eefb; --fg-soft:#9fb0d8; --line:#263264;
+  --brand:#5b8df2; --brand-soft:#17254f; --ok:#9fe8c4; --ok-bg:#0e3626; --warn:#ffcf8a; --warn-bg:#3a2a0f;
+  --no:#ffb3bd; --no-bg:#3d1620; color-scheme:dark;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -18px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.65;margin:0}
+.wrap{max-width:780px;margin:0 auto;padding:0 16px;padding-block:0 72px}
+h1{font-size:clamp(1.9rem,5vw,2.6rem);line-height:1.1;letter-spacing:-.025em;margin:0 0 12px;font-weight:800;text-wrap:balance}
+.sub{font-size:1.08rem;color:var(--fg-soft);max-width:58ch;margin:0 0 10px}
+h2{font-size:1.4rem;letter-spacing:-.015em;margin:56px 0 8px;font-weight:750;text-wrap:balance}
+h3{font-size:1.08rem;margin:0 0 6px;font-weight:700}
+p{margin:.7rem 0;max-width:64ch}
+.lede{color:var(--fg-soft);max-width:62ch;margin:.2rem 0 1rem}
+ul{max-width:64ch;padding-left:1.2rem}
+li{margin:.35rem 0}
+a{color:var(--brand)}
+hr{border:0;border-top:1px solid var(--line);margin:52px 0}
+header.top{padding-block:44px 0}
+.kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--brand);font-weight:800;margin:0 0 10px}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;margin:16px 0;box-shadow:var(--shadow)}
+.card>:first-child{margin-top:0}.card>:last-child{margin-bottom:0}
+.tag{display:inline-block;font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:800;color:var(--brand);margin:0 0 6px}
+
+.ad{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+@media (max-width:560px){.ad{grid-template-columns:1fr}}
+.ad>div{border-radius:10px;padding:12px 14px;font-size:14.5px}
+.ad .antes{background:var(--no-bg);border:1px solid var(--no)}
+.ad .depois{background:var(--ok-bg);border:1px solid var(--ok)}
+.ad b{display:block;font-size:11px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px}
+.ad .antes b{color:var(--no)} .ad .depois b{color:var(--ok)}
+
+.num{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.num div{background:var(--surface-2);border-radius:10px;padding:10px 16px;min-width:120px}
+.num strong{display:block;font-size:1.5rem;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
+.num span{font-size:12.5px;color:var(--fg-soft)}
+
+.note{border-left:3px solid var(--brand);background:var(--brand-soft);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0;max-width:64ch}
+.note.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+.note>:first-child{margin-top:0}.note>:last-child{margin-bottom:0}
+.note .t{display:block;font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:800;margin-bottom:4px;color:var(--brand)}
+.note.warn .t{color:var(--warn)}
+
+.links{display:flex;flex-direction:column;gap:10px;margin:18px 0}
+.links a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;text-decoration:none;color:var(--fg);box-shadow:var(--shadow)}
+.links a:hover{border-color:var(--brand)}
+.links strong{display:block;color:var(--brand)}
+.links span{font-size:14px;color:var(--fg-soft)}
+
+ol.passos{list-style:none;padding:0;counter-reset:p;max-width:62ch}
+ol.passos>li{counter-increment:p;position:relative;padding-left:40px;margin:12px 0}
+ol.passos>li::before{content:counter(p);position:absolute;left:0;top:0;width:27px;height:27px;border-radius:50%;background:var(--brand);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center}
+:root[data-theme="dark"] ol.passos>li::before{color:#0a1130}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) ol.passos>li::before{color:#0a1130}}
+.theme{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;z-index:9;background:var(--surface);color:var(--fg-soft);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;box-shadow:var(--shadow)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+</style>
+<button class="theme" id="t" type="button">tema</button>
+<div class="wrap">
+<header class="top">
+  <p class="kicker">Comunicado · 13 de outubro de 2026</p>
+  <h1>O que mudou no sistema esta semana</h1>
+  <p class="sub">Vinte entregas entre 6 e 13 de outubro. A maior delas fecha um ciclo que estava aberto desde sempre: o pagamento do motorista que envia a nota fiscal atrasada.</p>
+  <p><span class="pill">20 entregas</span> <span class="pill">Painel · Hub · App do motorista</span></p>
+</header>
+
+<h2>O destaque: pagar quem envia a nota depois</h2>
+<p class="lede">Até esta semana, o motorista que não enviava a nota fiscal no prazo simplesmente ficava sem receber, e não havia caminho de volta. Agora existe.</p>
+
+<div class="card">
+  <span class="tag">O ciclo completo, agora</span>
+  <ol class="passos">
+    <li><strong>O motorista vê o que está pendente.</strong> O app mostra as semanas sem nota dos últimos 90 dias e permite enviar o XML de cada uma.</li>
+    <li><strong>O escritório é avisado.</strong> Quem regularizou aparece na tela de Validação XML, em "Pagamentos retidos aguardando liberação".</li>
+    <li><strong>O pagamento é gerado.</strong> Na aba Repasse, um lote com todos os que têm nota aprovada e conta bancária aprovada.</li>
+    <li><strong>A Transfeera paga.</strong> O sistema gera a planilha; depois do pagamento, o arquivo de retorno é importado e cada pagamento é confirmado.</li>
+  </ol>
+  <div class="ad">
+    <div class="antes"><b>Antes</b>Nota atrasada = pagamento perdido. Sem lote, sem confirmação, sem comprovante — tudo por fora do sistema.</div>
+    <div class="depois"><b>Agora</b>A nota chega quando chegar e o motorista entra no próximo lote. Nenhum pagamento se repete.</div>
+  </div>
+</div>
+
+<div class="note"><span class="t">Por que isso importa agora</span>
+<p>Na semana de 5 a 11 de outubro, <strong>57 motoristas já têm nota aprovada e conta em dia</strong> — cerca de <strong>R$ 40 mil</strong> que o sistema não conseguia pagar. Esse número cresce sozinho conforme as notas chegam.</p></div>
+
+<h2>Central de ajuda dentro do app</h2>
+<p class="lede">O motorista passou a ter onde consultar o que o app aceita e o que recusa, sem precisar ligar.</p>
+
+<div class="card">
+  <h3>Onde o motorista encontra</h3>
+  <ul>
+    <li>Botão <strong>"Precisa de ajuda?"</strong> no fim da tela inicial;</li>
+    <li>Link <strong>"Ajuda"</strong> na aba Conta, seção "Mais".</li>
+  </ul>
+  <p>A ajuda abre com <strong>"O que você pode e o que não pode"</strong>, com nove situações que o app recusa — e, em cada uma, o motivo e o que fazer. São justamente as que mais geram ligação: conta no CPF, conta poupança, nota emitida por outro CNPJ.</p>
+  <div class="ad">
+    <div class="antes"><b>Antes</b>O app dizia só "CNPJ inválido, ou não é o CNPJ da sua conta". O motorista ligava sem saber o que fazer.</div>
+    <div class="depois"><b>Agora</b>Ele lê que conta de pessoa física precisa ser cadastrada pelo escritório — e já sabe o que pedir.</div>
+  </div>
+</div>
+
+<h2>Correções que a operação sentia</h2>
+
+<div class="card">
+  <h3>O filtro que derrubava a tela</h3>
+  <p>No Envio em Massa, digitar qualquer coisa no filtro <strong>"Núm. nota"</strong> quebrava a página inteira. Corrigido.</p>
+</div>
+
+<div class="card">
+  <h3>Notas recusadas que sumiam</h3>
+  <p>Quando a nota do motorista era <strong>recusada</strong>, o item desaparecia da lista dele e não havia como reenviar a corrigida.</p>
+  <div class="num">
+    <div><strong>71</strong><span>movimentos invisíveis</span></div>
+    <div><strong>62</strong><span>motoristas afetados</span></div>
+  </div>
+  <p>Todos voltaram a aparecer e já podem reenviar sozinhos, sem passar pelo escritório.</p>
+</div>
+
+<div class="card">
+  <h3>Conta bancária com regra clara</h3>
+  <ul>
+    <li>Pelo app, só conta <strong>corrente</strong> no <strong>CNPJ do próprio motorista</strong>;</li>
+    <li>Conta de pessoa física e correções passam pelo hub, em "Lançar conta";</li>
+    <li>Poupança é recusada em todos os caminhos.</li>
+  </ul>
+  <p>Isso evita pagamento indo para conta de terceiro e devolução por tipo de conta.</p>
+</div>
+
+<div class="card">
+  <h3>Convites e acessos</h3>
+  <p>O usuário novo recebe por e-mail um link para criar a própria senha; ninguém define senha por ele. A lista mostra quem <strong>nunca acessou</strong> e quem está com <strong>senha pendente</strong>, e o convite pode ser reenviado em lote.</p>
+</div>
+
+<h2>Bastidores: o que sustenta o resto</h2>
+<p class="lede">Cinco das vinte entregas não mudam nenhuma tela — elas existem para que os problemas cheguem ao nosso radar antes de chegarem a você.</p>
+
+<div class="card">
+  <h3>Testes automatizados que estavam falhando em silêncio</h3>
+  <p>O sistema roda uma bateria de testes que simula uma pessoa usando as telas. Descobrimos que <strong>7 dos 8 conjuntos estavam vermelhos</strong> — um deles desde agosto — e ninguém era avisado, porque o monitor diário só olhava um deles.</p>
+  <div class="ad">
+    <div class="antes"><b>Antes</b>Sete conjuntos quebrados sem alarme. Um defeito podia atravessar semanas até alguém esbarrar nele em produção.</div>
+    <div class="depois"><b>Agora</b>Os oito zerados, e o monitor diário cobre todos. Qualquer coisa que quebre dispara aviso no mesmo dia.</div>
+  </div>
+  <p>Também separamos "falha de verdade" de "instabilidade do teste": antes, um teste instável era indistinguível de um defeito real, e isso fazia o time ignorar os avisos.</p>
+</div>
+
+<div class="card">
+  <h3>Segurança das bibliotecas</h3>
+  <p>Os três sistemas usam bibliotecas de terceiros, que publicam correções de segurança com frequência. Zeramos os alertas pendentes nos três — painel, hub e app do motorista.</p>
+</div>
+
+<div class="card">
+  <h3>Conferência automática de cada publicação</h3>
+  <p>Toda vez que uma versão nova vai ao ar, há uma lista de conferências a fazer: se a versão certa subiu, se o código novo está mesmo rodando, se as telas respondem. Isso era feito à mão, comando por comando.</p>
+  <p>Agora é um comando só, com resultado em uma tela. E ele foi construído para <strong>falhar quando a conferência não vale</strong> — não para dar "tudo certo" por omissão, que é o jeito mais fácil de um alarme enganar.</p>
+</div>
+
+<hr>
+
+<h2>Manuais</h2>
+<p class="lede">Dois documentos, para públicos diferentes.</p>
+<div class="links">
+  <a href="https://claude.ai/artifact/XfF2THKUm8TKzBTvTfBK6T"><strong>Guia do App do Motorista</strong><span>Ilustrado, com 12 telas reais. O mesmo conteúdo que está dentro do app, para o time acompanhar o que o motorista lê.</span></a>
+  <a href="https://claude.ai/artifact/ThqQPxkJuamRW6AiA2qpu8"><strong>Manual do painel, do hub e do app</strong><span>Completo: o ciclo do pagamento, papéis e permissões, formatos de planilha e o que fazer em cada mensagem de erro.</span></a>
+</div>
+<div class="note warn"><span class="t">Sobre as imagens do guia</span>
+<p>Todas as telas do guia levam o selo <strong>"EXEMPLO · dados fictícios"</strong>. Os nomes e valores foram inventados: nenhum dado de motorista real aparece ali.</p></div>
+
+<h2>O que falta para o dinheiro sair</h2>
+<p class="lede">O sistema está pronto. Faltam dois passos que são da operação.</p>
+<div class="card">
+  <ol class="passos">
+    <li><strong>Fechar a apuração</strong> da semana em Adiantamentos › Repasse. Antes disso, a tela mostra zero pagamentos aptos — e isso é esperado, não é falha.</li>
+    <li><strong>Gerar o lote, baixar o arquivo</strong> e subir na Transfeera. Depois do pagamento, importar o retorno para confirmar.</li>
+  </ol>
+  <div class="note warn"><span class="t">Dois pontos que travam na primeira vez</span>
+  <p><strong>Baixar o arquivo é obrigatório</strong> antes de confirmar o pagamento — o botão de confirmar só aparece depois do download.</p>
+  <p><strong>Fechar apuração e confirmar pagamento exigem o perfil de aprovador.</strong> Quem tem perfil financeiro comum gera e baixa o lote, mas trava no último passo.</p></div>
+</div>
+
+<hr>
+<p class="lede">Dúvidas sobre qualquer ponto deste documento podem ser tratadas direto com a equipe técnica.</p>
+</div>
+<script>
+(function(){var b=document.getElementById('t');
+function c(){var a=document.documentElement.getAttribute('data-theme');if(a)return a;
+return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}
+function l(){b.textContent=c()==='dark'?'tema claro':'tema escuro';}
+try{var s=localStorage.getItem('com-tema');if(s==='dark'||s==='light')document.documentElement.setAttribute('data-theme',s);}catch(e){}
+l();b.addEventListener('click',function(){var n=c()==='dark'?'light':'dark';
+document.documentElement.setAttribute('data-theme',n);try{localStorage.setItem('com-tema',n);}catch(e){}l();});})();
+</script>

@@ -53,5 +53,7 @@ describe('AccountMenu', () => {
     expect(screen.getAllByText('Pessoa Exemplo').length).toBeGreaterThan(0);
     expect(screen.getByText('pessoa@exemplo.com')).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Meu perfil/i })).toBeInTheDocument();
+    // Central de Ajuda: um link de verdade (abre em nova aba, ctrl+clique).
+    expect(screen.getByRole('menuitem', { name: /Central de Ajuda/i })).toHaveAttribute('href', '/hub/dashboard/ajuda');
   });
 });

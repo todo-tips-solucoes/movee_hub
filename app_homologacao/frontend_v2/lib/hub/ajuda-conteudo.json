@@ -1,0 +1,1832 @@
+{
+  "subtitulo": "Como operar o Envio em Massa, apurar e pagar o repasse semanal no Movee Hub, e o que o motorista faz no celular. Escrito a partir do comportamento real do sistema, incluindo o que ele recusa e por quê.",
+  "atualizadoEm": "2026-10-12",
+  "secoes": [
+    {
+      "id": "inicio",
+      "titulo": "Antes de começar",
+      "grupo": "Começar",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "São três sistemas diferentes, com logins diferentes. Saber qual você está usando evita metade das dúvidas.",
+          "destaque": true
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Sistema",
+            "Endereço",
+            "Quem usa",
+            "Login"
+          ],
+          "linhas": [
+            [
+              "**Painel Envio em Massa**",
+              "`app.moveelog.com.br`",
+              "Operação: carrega a planilha e dispara as mensagens",
+              "E-mail e senha **da empresa**"
+            ],
+            [
+              "**Movee Hub**",
+              "`app.moveelog.com.br/hub`",
+              "Financeiro e administração: apuração, pagamentos, cadastros",
+              "E-mail e senha **da pessoa**, com papel"
+            ],
+            [
+              "**App do motorista**",
+              "`app.motorista.moveelog.com.br`",
+              "O entregador, no celular",
+              "**CNPJ do prestador** e senha"
+            ]
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "A diferença que mais importa",
+          "texto": "No **painel legado** o login é da empresa: quem entra pode fazer tudo que o painel oferece, sem controle por pessoa. No **hub** o login é por pessoa e cada ação depende do papel dela. Se um botão não aparece para você no hub, quase sempre é o papel — veja [Papéis e permissões](#papeis)."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Quanto tempo a sessão dura"
+        },
+        {
+          "bloco": "lista",
+          "itens": [
+            "**Painel e hub:** o acesso vale 15 minutos e renova sozinho enquanto a aba está aberta. Sem uso, você volta ao login em algumas horas.",
+            "**App do motorista:** renova sozinho por até 7 dias. Depois disso, pede login de novo.",
+            "O painel legado **não tem** \"esqueci minha senha\". A recuperação existe só no hub e no app do motorista."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "acessos",
+      "titulo": "Como cada pessoa entra",
+      "grupo": "Começar",
+      "blocos": [
+        {
+          "bloco": "subtitulo",
+          "texto": "Painel Envio em Massa"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Abra `app.moveelog.com.br` e informe **Email** e **Senha** da empresa.",
+            "Clique **Entrar**."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Se a sua empresa é uma **filial** e o grupo usa login único, a tela responde *\"Acesse o painel usando o login do grupo\"*. Entre com o login da empresa administradora e use o seletor **Selecionar filial**, no alto da tela de Envio."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Limite de tentativas",
+          "texto": "São 10 tentativas de login por conexão a cada 15 minutos. Num escritório, todos saem pelo mesmo endereço de internet e **dividem essa cota** — se várias pessoas erram a senha, as outras ficam bloqueadas junto. Espere 15 minutos."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Movee Hub"
+        },
+        {
+          "bloco": "texto",
+          "texto": "O acesso é criado por um administrador, que envia um **convite por e-mail**. O link do convite serve para você definir sua própria senha. Se ele expirou, peça o reenvio — na lista de usuários existe a ação de reenviar."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Ao entrar, se você tem acesso a mais de uma empresa, o hub pede para **selecionar a entidade**. Essa escolha define o que você vê em todas as telas."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "App do motorista"
+        },
+        {
+          "bloco": "texto",
+          "texto": "O motorista entra com o **CNPJ do prestador** (14 dígitos) e senha. No primeiro acesso ele toca em **\"Primeira vez? Criar conta\"** e define a senha — isso só funciona se o CNPJ já estiver na base de motoristas, que é alimentada pela importação do movimento."
+        }
+      ]
+    },
+    {
+      "id": "ciclo",
+      "titulo": "O ciclo do pagamento",
+      "grupo": "Começar",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Esta é a sequência que paga o motorista pelo repasse semanal. A ordem é obrigatória: cada passo depende do anterior. Dois passos são os que mais confundem, e estão marcados.",
+          "destaque": true
+        },
+        {
+          "bloco": "trilha",
+          "passos": [
+            {
+              "titulo": "Fechar apuração",
+              "quem": "Hub › Adiantamentos › Repasse — exige papel que confirma pagamento",
+              "texto": "Grava um retrato permanente do que cada motorista produziu na semana. Depois disso o valor não muda mais, mesmo que a origem seja corrigida."
+            },
+            {
+              "titulo": "Gerar notas da semana",
+              "quem": "Hub › Adiantamentos › Repasse — exige papel que confirma pagamento",
+              "texto": "**Este passo não paga ninguém.** Ele cria, para cada motorista, um movimento no Envio em Massa com o valor que ele precisa faturar — é o que *pede a nota fiscal* ao motorista."
+            },
+            {
+              "titulo": "O motorista envia a nota",
+              "quem": "App do motorista",
+              "texto": "Ele emite a NFS-e no Portal Nacional com o CNPJ dele e envia o XML pelo app. O sistema confere valor, CNPJ e tributação na hora."
+            },
+            {
+              "titulo": "Gerar lote de pagamento",
+              "quem": "Hub › Adiantamentos › Repasse › seção \"Pagamento do repasse\"",
+              "texto": "Entram só os motoristas com **nota aprovada** e **conta bancária aprovada**. Quem falta algum dos dois fica retido e entra no lote seguinte."
+            },
+            {
+              "titulo": "Baixar o arquivo e pagar na Transfeera",
+              "quem": "Botão \"Baixar arquivo Transfeera\"",
+              "texto": "O sistema gera a planilha; você a sobe no portal da Transfeera e faz o pagamento lá. O hub **não** paga sozinho."
+            },
+            {
+              "titulo": "Importar o retorno",
+              "quem": "Botão \"Importar retorno\" ou \"Confirmar na mão\"",
+              "texto": "O CSV da Transfeera diz quem recebeu e quem foi devolvido. Quem não vier marcado como devolvido é registrado como **pago**."
+            }
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "A regra que trava todo mundo na primeira vez",
+          "texto": "Os botões **Importar retorno** e **Confirmar na mão** só aparecem depois que você **baixa o arquivo**. O lote nasce como **Gerado** e só vira **Exportado** no primeiro download. Tentar confirmar antes devolve \"Essa ação não é permitida no status atual\".\n\nA lógica é: não se confirma um pagamento que nunca foi enviado ao banco."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "\"Gerar notas\" e \"Gerar lote\" não são a mesma coisa",
+          "texto": "**Gerar notas da semana** pede a nota ao motorista. **Gerar lote de pagamento** paga quem já entregou a nota. São os passos 2 e 4, e há um motorista no meio deles."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Por que um motorista não aparece no lote"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Na seção \"Pagamento do repasse\", o bloco **Não entram no lote** agrupa os bloqueados por motivo. Cada um tem uma saída:"
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "O que a tela mostra",
+            "Código",
+            "Significa",
+            "O que fazer"
+          ],
+          "linhas": [
+            [
+              "Nota fiscal ainda não enviada ou não validada",
+              "`NOTA_PENDENTE`",
+              "O motorista não mandou a nota, ou ela não passou pela validação",
+              "Esperar o envio. O pagamento fica retido até lá"
+            ],
+            [
+              "Nota fiscal reprovada",
+              "`NOTA_REPROVADA`",
+              "A nota foi enviada mas tem campo errado",
+              "O motorista precisa cancelar e emitir a nota corrigida"
+            ],
+            [
+              "Sem conta bancária aprovada",
+              "`SEM_CONTA`",
+              "Não há conta aprovada para ele",
+              "Aprovar em **Contas bancárias**, ou lançar a conta pelo hub"
+            ],
+            [
+              "Já está em outro lote",
+              "`JA_EM_LOTE`",
+              "Ele foi incluído num lote que não terminou",
+              "Concluir ou cancelar aquele lote"
+            ],
+            [
+              "Sem valor a pagar",
+              "`VALOR_INVALIDO`",
+              "O valor da semana ficou zero",
+              "Nada a fazer — não há o que pagar"
+            ],
+            [
+              "A apuração da semana ainda não foi fechada",
+              "`APURACAO_ABERTA`",
+              "A semana do pagamento ainda não teve a apuração fechada",
+              "Use **Fechar apuração** no topo da tela"
+            ]
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Quando mais de um motivo se aplica, a tela mostra o mais bloqueante. E todos se resolvem sozinhos quando a condição muda: ao enviar a nota, ao aprovar a conta ou ao concluir o outro lote, o motorista volta a aparecer como apto."
+        }
+      ]
+    },
+    {
+      "id": "papeis",
+      "titulo": "Papéis e permissões",
+      "grupo": "Começar",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "No hub, cada ação depende do papel do usuário. Esta é a causa mais comum de \"o botão não aparece para mim\".",
+          "destaque": true
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "Leia isto antes de distribuir papéis",
+          "texto": "O papel **financeiro** *não* consegue fechar apuração, gerar notas da semana nem confirmar pagamento. Ele gera o lote e baixa o arquivo, mas não conclui o ciclo. Essas cinco ações pertencem apenas a **financeiro_aprovador** e **admin_plataforma**.\n\nQuem cuida do pagamento de ponta a ponta precisa do papel **financeiro_aprovador**, e só um administrador da plataforma pode concedê-lo."
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Ação",
+            "admin_plataforma",
+            "admin_entidade",
+            "financeiro",
+            "financeiro_aprovador",
+            "operador / leitura"
+          ],
+          "linhas": [
+            [
+              "Ver solicitações e configurações",
+              "sim",
+              "sim",
+              "sim",
+              "sim",
+              "não"
+            ],
+            [
+              "Ver repasse, lotes e pagamentos",
+              "sim",
+              "sim",
+              "sim",
+              "sim",
+              "não"
+            ],
+            [
+              "Gerar lote de pagamento",
+              "sim",
+              "sim",
+              "sim",
+              "sim",
+              "não"
+            ],
+            [
+              "Baixar o arquivo Transfeera",
+              "sim",
+              "sim",
+              "sim",
+              "sim",
+              "não"
+            ],
+            [
+              "Cancelar lote e reprocessar",
+              "sim",
+              "sim",
+              "sim",
+              "sim",
+              "não"
+            ],
+            [
+              "Aprovar e rejeitar contas bancárias",
+              "sim",
+              "sim",
+              "sim",
+              "sim",
+              "não"
+            ],
+            [
+              "**Fechar apuração**",
+              "sim",
+              "não",
+              "não",
+              "sim",
+              "não"
+            ],
+            [
+              "**Gerar notas da semana**",
+              "sim",
+              "não",
+              "não",
+              "sim",
+              "não"
+            ],
+            [
+              "**Importar retorno / confirmar na mão**",
+              "sim",
+              "não",
+              "não",
+              "sim",
+              "não"
+            ],
+            [
+              "**Alterar o valor mínimo do repasse**",
+              "sim",
+              "não",
+              "não",
+              "sim",
+              "não"
+            ]
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Os papéis **financeiro** e **financeiro_aprovador** também têm acesso de *leitura* ao Envio em Massa, à Validação XML e a Motoristas. Eles não criam nem editam movimento, não iniciam disparo e não excluem registro."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Para quem administra permissões",
+          "texto": "**financeiro_aprovador** foi criado como uma cópia do **financeiro** num momento específico, e os dois não estão ligados entre si. Uma permissão nova dada ao **financeiro** hoje *não* chega ao **financeiro_aprovador** — precisa ser dada aos dois. Se um aprovador reclamar que perdeu acesso a algo que o financeiro tem, é isto."
+        }
+      ]
+    },
+    {
+      "id": "em-movimento",
+      "titulo": "Movimento e planilha",
+      "grupo": "Painel Envio em Massa",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Painel Envio em Massa › **Envio**. O \"movimento aberto\" é o conjunto de linhas que você importou e ainda não fechou. A tela só trabalha com ele.",
+          "destaque": true
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Importar a planilha"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Clique em **Importar XLSX** (ou arraste o arquivo sobre o botão).",
+            "Informe **Data inicial** e **Data final** do período. Esse período vale para *todas* as linhas da planilha.",
+            "Confirme. A tabela recarrega com as linhas importadas."
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Tudo ou nada",
+          "texto": "Se **qualquer** linha tiver problema, **nenhuma** é importada. A tela abre a janela \"N linhas precisam de correção\", agrupada por motivo, com o número da linha como aparece no Excel e um botão **Copiar lista**. Corrija a planilha e reenvie."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Só a **primeira aba** é lida, e a linha 1 é o cabeçalho. As colunas obrigatórias são `number`, `nome`, `valor`, `cnpj_tomador` e `cnpj_prestador`. O layout completo está em [Formatos de arquivo](#arquivos)."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "O erro mais comum da planilha",
+          "texto": "O Excel transforma telefone e CNPJ longos em notação científica (`9,99E+09`) e corta os zeros à esquerda do CNPJ. **Formate essas colunas como texto antes de digitar.** O sistema recusa CNPJ que não tenha 14 dígitos."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Corrigir uma linha"
+        },
+        {
+          "bloco": "texto",
+          "texto": "O ícone de lápis abre \"Editar\". **Mas atenção:** só o **CNPJ do Prestador** é realmente salvo. Os campos Número, Nome, Valor, CNPJ Tomador e Mensagens aparecem editáveis, a tela confirma \"Registro atualizado com sucesso!\", e nada é gravado. Veja [Limitações conhecidas](#limitacoes)."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Para corrigir esses outros campos: **exclua a linha e reimporte**."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Trocar o CNPJ do prestador tem efeito amplo: atualiza **todos** os movimentos da empresa com aquele CNPJ antigo, não só a linha editada. No grupo Movee, também migra o cadastro de login do motorista no app."
+        }
+      ]
+    },
+    {
+      "id": "em-disparo",
+      "titulo": "Disparo das mensagens",
+      "grupo": "Painel Envio em Massa",
+      "blocos": [
+        {
+          "bloco": "passos",
+          "itens": [
+            "Clique **Iniciar**. O selo ao lado do título vira **Processando**.",
+            "A tela se atualiza a cada 13 segundos e mostra quem já recebeu.",
+            "Para interromper, clique **Parar**. O envio para antes da próxima linha."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Só as linhas ainda pendentes são enviadas — quem já recebeu ou já deu erro **não** é tentado de novo. Entre um envio e outro há uma pausa de 1 a 5 segundos."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "dica",
+          "titulo": "Sobre a coluna \"Erro\"",
+          "texto": "Quando uma linha fica com **Erro**, a mensagem não chegou ao destinatário — e o **motivo não aparece nesta tela**. Se precisar investigar, acione o suporte."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Se aparecer \"Tempo limite excedido\"",
+          "texto": "O navegador desiste de esperar após 10 segundos, mas o envio pode ter continuado no servidor. **Confira a tabela antes de clicar em Iniciar de novo**, para não disparar duas vezes para as mesmas pessoas.\n\nVale o mesmo para a importação: se der tempo limite, olhe se as linhas entraram antes de reenviar o arquivo."
+        },
+        {
+          "bloco": "texto",
+          "texto": "As caixas de seleção na tabela **não** limitam o disparo no painel legado: o botão envia todas as linhas pendentes. A seleção por linha funciona no hub."
+        }
+      ]
+    },
+    {
+      "id": "em-fechar",
+      "titulo": "Fechar movimento",
+      "grupo": "Painel Envio em Massa",
+      "blocos": [
+        {
+          "bloco": "passos",
+          "itens": [
+            "Pare o disparo, se estiver ativo — o botão fica bloqueado durante um envio.",
+            "Clique **Fechar movimento**. A janela mostra o resumo: quantos registros, quantos já receberam mensagem e quantos não.",
+            "Confirme."
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "Não há como reabrir",
+          "texto": "Fechar é **permanente**. As linhas saem da tela, não podem mais ser editadas e não recebem mais disparo. Não existe botão de reabrir. Confira o resumo antes de confirmar."
+        }
+      ]
+    },
+    {
+      "id": "em-xml",
+      "titulo": "Validação de XML em lote",
+      "grupo": "Painel Envio em Massa",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Serve para conferir de uma vez vários XMLs de nota que os motoristas enviaram por fora, vinculando cada um ao movimento aberto. Existe no painel legado e no hub (menu **Validação XML**).",
+          "destaque": true
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Clique na área **\"Clique ou arraste arquivos XML aqui\"** e escolha os arquivos `.xml`.",
+            "Marque **Validar descrição do serviço** se quiser essa conferência.",
+            "Clique **Validar** e aguarde.",
+            "Leia os contadores e a tabela **Detalhes da Validação**. **Exportar CSV** salva o resultado."
+          ]
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Status",
+            "O que aconteceu"
+          ],
+          "linhas": [
+            [
+              "**Validada**",
+              "Primeira validação do movimento, nota aprovada"
+            ],
+            [
+              "**Revalidada**",
+              "O movimento tinha nota recusada e agora passou"
+            ],
+            [
+              "**Já validada**",
+              "O movimento já tinha nota aprovada; nada foi refeito"
+            ],
+            [
+              "**Duplicada no lote**",
+              "Dois XMLs do mesmo envio casaram com o mesmo movimento"
+            ],
+            [
+              "**Sem movimento**",
+              "Nenhuma linha aberta da empresa corresponde a esse XML"
+            ],
+            [
+              "**Erro**",
+              "Falha ao processar; a coluna Mensagem diz o motivo"
+            ]
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "A coluna **Criterio** mostra como o arquivo foi casado: por **Chave NF-e** (caso de reenvio) ou por **CNPJ do prestador**, usando o movimento aberto mais recente."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Limites que aparecem como \"serviço indisponível\"",
+          "texto": "O sistema aceita até **100 arquivos por lote** e **2 MB por XML**. Se você passar de qualquer um dos dois, a tela mostra *\"Serviço de validação indisponível\"* em vez de explicar o limite — então não é instabilidade, é tamanho. Divida o lote.\n\nUm lote de 100 arquivos leva alguns minutos, porque há uma pausa de 2 segundos entre as notas. Não feche a aba."
+        }
+      ]
+    },
+    {
+      "id": "em-motoristas",
+      "titulo": "Motoristas do app",
+      "grupo": "Painel Envio em Massa",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Painel legado › **Motoristas**. É a base de quem pode entrar no app. **Não existe botão de cadastrar**: os motoristas entram pela importação do movimento — e isso só vale para o grupo Movee.",
+          "destaque": true
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Coluna",
+            "Significa"
+          ],
+          "linhas": [
+            [
+              "**Cadastrado**",
+              "O motorista já criou a senha e usa o app"
+            ],
+            [
+              "**Pré-cadastro**",
+              "O CNPJ está liberado, mas ele ainda não criou a senha"
+            ],
+            [
+              "**Ativo** / **Inativo**",
+              "Se ele consegue entrar no app"
+            ]
+          ]
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "As três ações"
+        },
+        {
+          "bloco": "lista",
+          "itens": [
+            "**Editar** — muda o nome e liga/desliga o acesso. O CNPJ não muda: ele é a identidade do motorista.",
+            "**Resetar senha** — remove a senha. O motorista volta ao estado de pré-cadastro e precisa **criar conta novamente** no app. *Nenhuma senha temporária é gerada*, então não há nada para repassar a ele.",
+            "**Desativar** — ele perde o acesso, mas o registro e o histórico ficam. Dá para reativar depois. Não é exclusão."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "em-grupo",
+      "titulo": "Grupo de CNPJs e Aparência",
+      "grupo": "Painel Envio em Massa",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Os menus **Grupo** e **Aparência** aparecem apenas para a empresa que administra um grupo. Se você não os vê, peça ao suporte para habilitar sua empresa como administradora.",
+          "destaque": true
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Cadastrar uma filial"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Menu **Grupo**, seção **Cadastrar filial**.",
+            "Preencha Nome, E-mail, Senha e CNPJ (14 dígitos). Os dados fiscais são opcionais.",
+            "Clique **Cadastrar filial**. Ela ganha login próprio com o e-mail e a senha que você definiu."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Depois de ter filiais, aparece o seletor **Selecionar filial** na tela de Envio. Ele troca a empresa de que você está vendo e alterando os dados."
+        },
+        {
+          "bloco": "texto",
+          "texto": "**Desvincular** tira a filial do grupo, mas *não* exclui a empresa. O limite é de **100 filiais** por grupo."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Aparência"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Define nome, cores e logotipo do painel para todo o grupo, com pré-visualização ao vivo do cabeçalho."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "O limite do logotipo está errado na tela",
+          "texto": "A tela diz \"máx. 512 KB\", mas o sistema aceita no máximo **256 KB**. Um arquivo entre os dois falha com um erro genérico. Use imagens de até 256 KB (PNG, JPEG ou SVG)."
+        }
+      ]
+    },
+    {
+      "id": "hub-repasse",
+      "titulo": "Repasse semanal",
+      "grupo": "Movee Hub",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Hub › Adiantamentos › **Repasse**. Mostra, por motorista, quanto sobrou da semana depois dos descontos — e é daqui que sai o pagamento.",
+          "destaque": true
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Coluna",
+            "O que é"
+          ],
+          "linhas": [
+            [
+              "Créditos",
+              "O que o motorista produziu no período, nas categorias configuradas"
+            ],
+            [
+              "Adiantamentos",
+              "O que ele já recebeu antecipado na semana (valor bruto), se o desconto estiver ligado"
+            ],
+            [
+              "Débitos",
+              "Descontos vindos do extrato da EntreGô, se estiverem ligados"
+            ],
+            [
+              "Remanescente",
+              "Créditos − Adiantamentos − Débitos"
+            ],
+            [
+              "Saldo anterior",
+              "O que ficou retido numa semana anterior por ser abaixo do mínimo"
+            ],
+            [
+              "**A pagar**",
+              "**O valor que o motorista recebe de fato**"
+            ]
+          ]
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Como \"A pagar\" é calculado"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Soma-se a produção e descontam-se os adiantamentos já pagos e os débitos. O resultado é o **remanescente**.",
+            "Se o remanescente for **negativo**, nada é pago e o saldo anterior continua retido. O valor negativo *não* é levado para a semana seguinte.",
+            "Caso contrário, soma-se o saldo anterior.",
+            "Se o total ficar **abaixo do valor mínimo**, nada é pago nesta semana e o total inteiro passa para a próxima (a tela marca \"Passou para a próxima semana\").",
+            "Se ficar igual ou acima do mínimo, paga-se o total — inclusive o que estava acumulado."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "O valor mínimo é configurável e só quem confirma pagamento pode alterá-lo."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Fechar a apuração"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Grava o retrato definitivo da semana. O botão só funciona quando o período está **Em apuração**."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "O que impede o fechamento",
+          "itens": [
+            "**Semanas fora de ordem.** Só dá para fechar a semana seguinte à última já fechada. Se faltou uma, feche-a primeiro.",
+            "**Período ainda aberto para pedidos.** É preciso esperar passar o horário de corte do dia seguinte ao último dia da semana.",
+            "**Adiantamentos em andamento no período.** A tela lista quantos e em que situação. Resolva cada um (pagar, cancelar, rejeitar ou encerrar) antes de fechar."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hub-lote",
+      "titulo": "Lote de pagamento",
+      "grupo": "Movee Hub",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Na mesma aba Repasse, abaixo do extrato, está a seção **Pagamento do repasse**. É ali que o dinheiro sai.",
+          "destaque": true
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Confira o resumo: \"**N pagamentos aptos · A pagar R$ X**\". Se houver bloqueados, o bloco **Não entram no lote** explica cada motivo.",
+            "Clique **Gerar lote de pagamento**. Ele gera na hora, sem janela de confirmação.",
+            "Na tabela **Lotes gerados**, clique **Baixar arquivo Transfeera**.",
+            "Suba essa planilha no portal da Transfeera e faça o pagamento lá."
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "O hub não paga sozinho",
+          "texto": "Não há integração automática com a Transfeera. O sistema **gera a planilha**; quem executa o pagamento é você, no portal do parceiro."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "Baixar é obrigatório para seguir",
+          "texto": "O lote nasce **Gerado**. O **primeiro download** muda para **Exportado**, e é só aí que aparecem **Importar retorno** e **Confirmar na mão**."
+        },
+        {
+          "bloco": "texto",
+          "texto": "**Clicar duas vezes não gera dois lotes** — o sistema reconhece o clique repetido. E se o lote travar em \"Gerando\" por alguma falha, uma rotina automática o cancela em cerca de um minuto e devolve os motoristas à fila."
+        },
+        {
+          "bloco": "texto",
+          "texto": "O teto é de **5.000 pagamentos por lote**. Acima disso, a tela inclui as 5.000 apurações **mais antigas** e avisa quantas ficaram para o próximo lote — basta gerar outro em seguida."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Cancelar um lote"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Devolve os pagamentos à fila. Exige um motivo. Se o lote já estiver **Exportado**, você precisa marcar a declaração **\"Confirmo que este arquivo não foi enviado à Transfeera\"** — justamente para não cancelar algo que já foi pago. Depois de concluído, não dá mais para cancelar."
+        }
+      ]
+    },
+    {
+      "id": "hub-retorno",
+      "titulo": "Confirmar o pagamento",
+      "grupo": "Movee Hub",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Duas formas, as duas exigindo o lote **Exportado**. Quem não for marcado como falha é registrado como **pago**.",
+          "destaque": true
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Importar retorno (recomendado)"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "No portal da Transfeera, vá em **Transferências** e use **Exportar CSV**.",
+            "No hub, clique **Importar retorno** e escolha esse arquivo.",
+            "Confira o resultado: quantos foram conciliados e quantas linhas foram ignoradas, agrupadas por motivo."
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "O texto da tela indica o arquivo errado",
+          "texto": "O diálogo diz \"exporte o relatório de movimentações\". **Esse arquivo não funciona** — ele tem 22 colunas e é recusado. O que o sistema aceita é o CSV da tela **Transferências** (23 colunas). O \"Extrato\" também não serve."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "O arquivo precisa cobrir o lote inteiro",
+          "texto": "Se o CSV não traz o resultado de **todos** os pagamentos daquele lote, **nada é aplicado** e a tela diz quantos faltaram. Como a exportação da Transfeera é por período, escolha um período que cubra todos os pagamentos do lote."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Importar o mesmo arquivo duas vezes é inofensivo: o que já foi conciliado é ignorado. Linhas de outros pagamentos (outros lotes, promoções) também são ignoradas, e a tela as agrupa para você ver."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Confirmar na mão"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Use quando o pagamento foi fechado no portal e você não tem o CSV. **Marque apenas as exceções** — quem você não marcar vira pago automaticamente. Cada falha exige um motivo."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Um item marcado como falha **volta para a fila** e pode entrar num lote novo. Isso é proposital: devolução significa que o dinheiro voltou."
+        }
+      ]
+    },
+    {
+      "id": "hub-adiant",
+      "titulo": "Adiantamentos",
+      "grupo": "Movee Hub",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "O motorista pede pelo app uma parte da produção do dia anterior; o valor é descontado do repasse da semana.",
+          "destaque": true
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "As abas e o que fazer em cada uma"
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Aba",
+            "Para que serve"
+          ],
+          "linhas": [
+            [
+              "**Solicitações**",
+              "Todos os pedidos, com cálculo e situação. É aqui que se recalcula, rejeita ou encerra um pedido"
+            ],
+            [
+              "**Aguardando lote**",
+              "Os pedidos já liberados, esperando entrar num lote de pagamento"
+            ],
+            [
+              "**Lotes**",
+              "Histórico dos lotes de *adiantamento*. Os lotes de *repasse* ficam na aba Repasse"
+            ],
+            [
+              "**Contas bancárias**",
+              "Aprovar ou recusar os dados bancários que os motoristas cadastram"
+            ],
+            [
+              "**Configurações**",
+              "Janela, percentual, taxa, categorias e o valor mínimo do repasse"
+            ]
+          ]
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Gerar o lote de adiantamento"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Na aba **Aguardando lote**, marque as solicitações.",
+            "Clique **Revisar lote** e confira: a prévia separa as aptas das que têm pendência.",
+            "Clique **Gerar arquivo Transfeera** e confirme.",
+            "Vá à aba **Lotes** para baixar o arquivo e, depois, importar o retorno."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "As pendências mais comuns são: a solicitação já está em outro lote, o valor calculado ficou inválido, ou a **conta bancária foi alterada** depois da liberação — nesse último caso, use \"Atualizar conta\" na solicitação antes de incluí-la."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "O que fazer com uma solicitação travada"
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Situação",
+            "Ação disponível",
+            "O que acontece"
+          ],
+          "linhas": [
+            [
+              "Aguardando produção",
+              "**Recalcular**",
+              "Refaz o cálculo com a produção mais recente"
+            ],
+            [
+              "Aguardando produção",
+              "**Encerrar**",
+              "Sai da fila de vez, sem pagamento"
+            ],
+            [
+              "Liberado",
+              "**Atualizar conta**",
+              "Troca a conta congelada pela conta aprovada atual"
+            ],
+            [
+              "Liberado ou Aguardando produção",
+              "**Rejeitar**",
+              "Não entra em lote. O motorista é notificado com o motivo"
+            ],
+            [
+              "Falha no pagamento",
+              "**Reprocessar**",
+              "Volta para Liberado e pode entrar em novo lote"
+            ],
+            [
+              "Falha no pagamento",
+              "**Encerrar sem pagamento**",
+              "Estado final. O motorista pode ver o motivo"
+            ]
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Todas essas ações exigem um motivo de 3 a 500 caracteres, que fica registrado."
+        }
+      ]
+    },
+    {
+      "id": "hub-contas",
+      "titulo": "Contas bancárias",
+      "grupo": "Movee Hub",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Só conta **Aprovada** recebe pagamento. Enquanto uma alteração está em análise, o dinheiro continua indo para a conta aprovada anterior.",
+          "destaque": true
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Filtre por **Situação** (Pendente) e confira os **Alertas**.",
+            "Clique **Revisar** para ver os dados e confirmar o entregador.",
+            "**Aprovar conta** ou **Rejeitar** (com motivo — o motorista é notificado)."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Dois alertas merecem atenção antes de aprovar: **\"Titular diferente\"** e **\"CPF não conferido\"**. O botão **Aprovar selecionadas** (em lote) ignora de propósito tudo que tem alerta — ele só passa contas da carga inicial sem pendência."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "O que o motorista pode e não pode fazer sozinho",
+          "texto": "O app *não* explica isso ao motorista: ele só vê \"CNPJ inválido, ou não é o CNPJ da sua conta\". Se ele ligar reclamando disso, a resposta é: a conta é de CPF ou poupança, e o escritório precisa lançá-la.",
+          "itens": [
+            "**Pode:** cadastrar conta **corrente** de **CNPJ próprio** (o mesmo CNPJ com que ele entra no app).",
+            "**Não pode:** conta de **CPF** (pessoa física), conta de **terceiro**, ou **poupança** — o sistema recusa os três.",
+            "**Nesses casos**, o operador lança a conta pelo hub, no botão **Lançar conta**. Ela entra já aprovada e substitui a anterior."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hub-config",
+      "titulo": "Configurações do adiantamento",
+      "grupo": "Movee Hub",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Salvar cria uma **nova versão**; as solicitações já feitas continuam com as regras antigas. A tela mostra o histórico de versões.",
+          "destaque": true
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Grupo",
+            "O que você define"
+          ],
+          "linhas": [
+            [
+              "Quando o motorista pode pedir",
+              "Dias da semana, horário de abertura e horário de corte"
+            ],
+            [
+              "Cálculo",
+              "Categorias que contam como produção, percentual antecipável e taxa fixa por solicitação"
+            ],
+            [
+              "Pagamento",
+              "Texto da previsão mostrada no app, modelo da descrição do PIX e as mensagens 1 e 2 do movimento gerado"
+            ],
+            [
+              "Repasse semanal",
+              "Dia de início da semana, dia do repasse, categorias que entram no repasse, **quais entram na nota**, descontos considerados e o **valor mínimo**"
+            ]
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "Dois ajustes que mudam o que o motorista vê",
+          "texto": "**1. Se nenhuma categoria estiver marcada em \"quais entram na nota\"**, o app mostra só o total e não separa nota de gorjeta — e a geração de notas da semana recusa os motoristas por falta dessa divisão.\n\n**2. O modelo da descrição do PIX é o mesmo para adiantamento e repasse.** O padrão de fábrica contém a palavra \"Antecipação\", então o PIX do *repasse* chega ao motorista descrito como antecipação. Se isso incomodar, ajuste o modelo aqui."
+        }
+      ]
+    },
+    {
+      "id": "hub-outros",
+      "titulo": "Importações, Motoristas e os outros módulos",
+      "grupo": "Movee Hub",
+      "blocos": [
+        {
+          "bloco": "subtitulo",
+          "texto": "Importações"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Sobe os arquivos de **Faturamento** e **Performance** vindos do portal da EntreGô. Aceita `.csv` ou `.zip` (com um único CSV dentro), até **20 MB**, separado por **ponto e vírgula**, em UTF-8. O cabeçalho precisa bater **exatamente** — nome e ordem das colunas. O layout está em [Formatos de arquivo](#arquivos)."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Como o sistema trata linha com problema",
+          "texto": "**Reimportar não duplica.** O sistema reconhece o arquivo repetido e oferece o link para a importação original.",
+          "itens": [
+            "**Erro grave na linha** (falta campo obrigatório, identificador inválido, número ilegível): a linha é descartada e listada nos erros.",
+            "**Mais de metade das linhas com erro**: a importação inteira é recusada e **nada** é gravado.",
+            "**Menos da metade**: resultado \"Concluída com erros\" — as linhas boas entram e você baixa o CSV de erros para corrigir.",
+            "**Cabeçalho errado**: falha inteira, nenhuma linha gravada."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Cancelar uma importação no meio **não desfaz** o que já entrou. As linhas gravadas ficam, e você pode reprocessar para completar."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Motoristas"
+        },
+        {
+          "bloco": "texto",
+          "texto": "O cadastro das pessoas entregadoras, alimentado pelas importações. Cada motorista é identificado pelo **identificador (uuid)**, que é o mesmo \"id da pessoa entregadora\" das planilhas."
+        },
+        {
+          "bloco": "lista",
+          "itens": [
+            "**Vincular conta de acesso** liga o motorista ao login do app, em dois passos, com sugestões por semelhança de nome.",
+            "**Credencial de acesso** cria o login do app a partir do CNPJ do prestador. Se você não definir senha, o sistema gera uma temporária que aparece **uma só vez** — copie e repasse na hora, porque não há e-mail nesse fluxo.",
+            "**Redefinir senha** invalida a senha atual **imediatamente**: o motorista fica sem acesso até você definir a nova.",
+            "**Buscar dados EntreGô** enfileira a busca; o robô atende em até 5 minutos e a página se atualiza sozinha."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Ver documentos e dados pessoais exige permissão própria, e cada consulta fica registrada na auditoria."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Avisos"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Clique **Novo aviso** e escreva o título (até 60 caracteres) e a mensagem (até 180).",
+            "Escolha quem recebe: todos com notificação ativa, empresas do grupo, ou motoristas específicos.",
+            "Confira o **alcance** calculado e dispare."
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "\"Aceito\" não é \"visto\"",
+          "texto": "O número de **aceitos** diz que o serviço de notificação recebeu a mensagem — não que o motorista leu. \"Inscrição morta\" é aparelho que deixou de existir e não é mais tentado.\n\nSe um motorista diz que não recebeu: ele precisa ter **ativado as notificações** no app. No iPhone, só funciona com o app **instalado na tela inicial**. O cartão de cobertura, no topo da tela, mostra quantos estão nessa situação."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Não escreva dado pessoal no aviso: o texto passa por um serviço de terceiro."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Faturamento e Performance"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Duas telas de consulta sobre o que foi importado. Em ambas, o filtro de período é o ponto de atenção:"
+        },
+        {
+          "bloco": "lista",
+          "itens": [
+            "**Faturamento** filtra pela **data de lançamento** — não pela competência nem pela data de importação. Cada linha mostra as três datas em \"Ciclo do lançamento\". Sem filtro, mostra os últimos 30 dias.",
+            "**Performance** filtra pela **data do turno**. As metas, quando cadastradas, são comparadas uma vez por turno."
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "O \"tempo disponível\" não bate com o portal, e está certo",
+          "texto": "A tela calcula o tempo online sobre a **duração inteira do turno**. O portal de origem calcula sobre a escala, e dá sempre um número maior. O mesmo turno pode aparecer como 53% no arquivo e 1,3% na tela — não é erro de importação, são contas diferentes."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Usuários"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "**Novo usuário**: informe nome, e-mail e papel.",
+            "A pessoa recebe o e-mail \"Seu acesso ao Movee Hub\" com o botão **Criar minha senha**. O link vale **7 dias** e serve uma vez.",
+            "Ninguém define senha por ela. Se o link expirar, use **Reenviar link** na lista."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Os selos da lista: **Senha pendente** significa que há um link válido em aberto e a pessoa nunca entrou; **Nunca acessou** significa que não há nenhum login registrado. Quem já usava o hub e pediu \"esqueci minha senha\" **não** ganha o selo de pendente."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Reenviar gera um link novo e **invalida o anterior**. Em lote, o teto é de 50 por envio. Usuários desativados e os de papel restrito são pulados, e o resultado diz o motivo de cada um."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Não existe exclusão de usuário: o que há é **desativar**, que preserva o histórico."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Auditoria"
+        },
+        {
+          "bloco": "texto",
+          "texto": "A trilha de quem fez o quê e quando, e ela é **imutável** — nem o administrador apaga. Filtre por ação, recurso, usuário e período, e abra o detalhe de cada evento. Dados sensíveis já vêm filtrados."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "O robô da EntreGô"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Não é uma tela: é uma rotina que entra no portal da EntreGô e importa sozinha os relatórios do **dia anterior**, às **11h, 13h e 14h**. O resultado aparece em Importações, com o usuário de serviço como responsável."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Se o import do dia não aconteceu",
+          "itens": [
+            "**O portal pode não ter publicado o relatório ainda** — isso não é falha, e o robô tenta de novo na próxima janela. Se as três passarem sem relatório, o dia precisa ser importado à mão.",
+            "Em caso de falha, o sistema **envia e-mail de alerta** e registra na Auditoria.",
+            "Uma rodada longa de \"buscar dados EntreGô\" pode fazer o import daquele horário ser **pulado**, porque as duas rotinas disputam a mesma trava."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "app-entrar",
+      "titulo": "App do motorista: entrar",
+      "grupo": "App do motorista",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Esta parte é escrita para o motorista. Se você atende o suporte, é o roteiro do que dizer a ele.",
+          "destaque": true
+        },
+        {
+          "bloco": "texto",
+          "texto": "O app fica em `app.motorista.moveelog.com.br` e abre no navegador do celular. Dá para instalar na tela inicial, e no iPhone **isso é obrigatório** para receber avisos."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Primeiro acesso"
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Na tela de entrada, toque em **\"Primeira vez? Criar conta\"**.",
+            "Digite o **CNPJ do Prestador** (o CNPJ da sua empresa, 14 números), seu nome e crie uma senha de pelo menos 8 caracteres.",
+            "Toque em **Criar conta** e entre com o CNPJ e a senha."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Se aparecer *\"CNPJ não elegível para cadastro ou já possui conta\"*: ou você já tem conta (use **Esqueci minha senha**), ou seu CNPJ ainda não foi liberado — nesse caso fale com o escritório."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Esqueci minha senha"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Toque em **Esqueci minha senha**, digite o CNPJ e abra o link que chega no seu e-mail. O link **vale 60 minutos** e só funciona uma vez."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Se você não tem e-mail cadastrado, o link não chega — e a tela diz isso de forma genérica, de propósito. Peça ao escritório para cadastrar seu e-mail."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Errou a senha várias vezes?",
+          "texto": "Depois de 10 tentativas o app bloqueia por **15 minutos**. Espere e tente de novo — não é problema de cadastro."
+        }
+      ]
+    },
+    {
+      "id": "app-nota",
+      "titulo": "App: enviar a nota fiscal",
+      "grupo": "App do motorista",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Na tela **Início**, o card do movimento mostra o que você precisa faturar:"
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Campo",
+            "O que é"
+          ],
+          "linhas": [
+            [
+              "**Valor da nota fiscal**",
+              "O valor que deve sair na sua NFS-e"
+            ],
+            [
+              "**Gorjeta**",
+              "Valor que você recebe mas *não* entra na nota (aparece só quando existe)"
+            ],
+            [
+              "**Total produzido**",
+              "A soma dos dois"
+            ]
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Abaixo, em **Dados Fiscais**, estão o **Tomador** (para quem emitir), o CNPJ dele, o endereço, o e-mail e o código de **Tributação Nacional**. Cada um tem botão de copiar."
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Copie os dados do Tomador e emita sua NFS-e no **Portal NFS-e Nacional** (há um botão que abre o portal), com o valor exato que aparece em \"Valor da nota fiscal\".",
+            "Baixe o arquivo **.xml** da nota no celular.",
+            "No app, toque em **Validar minha NFS-e**.",
+            "Toque na caixa, escolha o arquivo `.xml` e toque em **Enviar para validação**.",
+            "Em alguns segundos aparece o resultado."
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "A nota tem de ser do seu CNPJ",
+          "texto": "O sistema lê o CNPJ de quem emitiu **dentro do arquivo** e compara com o CNPJ do seu login. Nota emitida por outro CNPJ — de um colega, ou pelo seu CPF — é recusada antes mesmo da conferência."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Se a nota for **recusada**, o app lista exatamente quais campos estão errados. Os mais comuns:"
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "O que o app diz",
+            "O que corrigir na nota"
+          ],
+          "linhas": [
+            [
+              "Valor da nota não confere com o valor do movimento",
+              "O valor tem de ser igual ao \"Valor da nota fiscal\" do card"
+            ],
+            [
+              "CNPJ do tomador está incorreto",
+              "Use o CNPJ do Tomador que aparece no card"
+            ],
+            [
+              "CNPJ do prestador (você) está incorreto",
+              "A nota precisa ser emitida com o seu CNPJ"
+            ],
+            [
+              "Tributação nacional está incorreta",
+              "Use o código de Tributação Nacional mostrado no card"
+            ],
+            [
+              "Data de competência está incorreta",
+              "Ajuste a competência da nota"
+            ],
+            [
+              "Descrição do serviço está incorreta",
+              "A descrição precisa seguir o combinado"
+            ]
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Para corrigir, **cancele a nota e emita uma nova** com os campos certos, depois envie de novo. O arquivo pode ter até **2 MB** e precisa ser `.xml` — foto ou PDF não servem."
+        }
+      ]
+    },
+    {
+      "id": "app-pendentes",
+      "titulo": "App: notas pendentes",
+      "grupo": "App do motorista",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Quando você tem semanas sem nota enviada, a Início mostra o card **Notas pendentes** com o aviso \"O pagamento depende do envio da nota\".",
+          "destaque": true
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Toque no card e depois em **Enviar notas**.",
+            "Para cada item, veja o **período**, o **valor** e para quem emitir (\"Emitir nota para\").",
+            "Emita a nota daquele período, com o seu CNPJ, para o tomador indicado.",
+            "Toque em **Escolher XML** e depois em **Enviar nota**."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "A lista traz os movimentos dos **últimos 90 dias** que nunca tiveram nota enviada, do mais recente para o mais antigo."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Depois de enviar, o pagamento não sai na hora",
+          "texto": "Quando sua nota é aprovada, o sistema avisa o escritório. **Uma pessoa confere e libera o pagamento** — não é automático e não há prazo prometido."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "Se sua nota foi recusada e o item desapareceu",
+          "texto": "Hoje, um movimento cuja nota foi **recusada** sai desta lista e não há como reenviar pelo app. **Fale com o escritório** — isso está sendo corrigido."
+        }
+      ]
+    },
+    {
+      "id": "app-conta",
+      "titulo": "App: conta bancária",
+      "grupo": "App do motorista",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Aba **Conta**. É a conta onde você recebe o adiantamento.",
+          "destaque": true
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "O que dá e o que não dá para cadastrar pelo app",
+          "texto": "Se o app disser \"CNPJ inválido, ou não é o CNPJ da sua conta\", é isto: a conta não é do seu CNPJ.",
+          "itens": [
+            "**Dá:** conta **corrente** no **CNPJ da sua empresa** — o mesmo CNPJ com que você entra no app.",
+            "**Não dá:** conta no seu **CPF**, conta de **outra pessoa**, ou **poupança**.",
+            "**Nesses casos, fale com o escritório**: eles cadastram a conta por você."
+          ]
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Toque em **Cadastrar dados bancários**.",
+            "Preencha o titular, o **seu** CNPJ, busque o banco pelo nome ou código, e informe agência (sem dígito), conta e o dígito.",
+            "Toque em **Enviar para análise**."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "A conta fica **Em análise** até o financeiro aprovar. Nesse meio-tempo, se você já tinha uma conta aprovada, os pagamentos continuam indo para ela."
+        },
+        {
+          "bloco": "texto",
+          "texto": "O dígito tem de ser **um único número**. Se o seu dígito é a letra X, o app não aceita — fale com o escritório."
+        }
+      ]
+    },
+    {
+      "id": "app-adiant",
+      "titulo": "App: pedir adiantamento",
+      "grupo": "App do motorista",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Aba **Adiantar**. Você antecipa parte do que produziu **ontem**; o valor é descontado do seu repasse da semana.",
+          "destaque": true
+        },
+        {
+          "bloco": "texto",
+          "texto": "Para pedir, três coisas precisam ser verdade: hoje é um **dia liberado**, você está **dentro do horário**, e tem uma **conta bancária aprovada**. Os dias, o horário, o percentual e a taxa são definidos pela empresa — a tela **Como funciona** sempre mostra os valores que estão valendo."
+        },
+        {
+          "bloco": "passos",
+          "itens": [
+            "Abra a aba **Adiantar**. Se estiver aberto, aparece até que horas e a estimativa do que você recebe.",
+            "Confira a **conta de destino**.",
+            "Toque em **Solicitar adiantamento**, marque o aceite dos termos e confirme."
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Você pode **cancelar** até o horário de corte do mesmo dia. Depois disso o pedido segue para o cálculo."
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Se o app disser",
+            "Significa"
+          ],
+          "linhas": [
+            [
+              "Hoje não é um dia habilitado",
+              "Não tem adiantamento hoje. A tela mostra a próxima data"
+            ],
+            [
+              "O horário ainda não abriu / já encerrou",
+              "Volte dentro da janela do dia"
+            ],
+            [
+              "Você já tem uma solicitação hoje",
+              "É uma por dia"
+            ],
+            [
+              "Cadastre uma conta bancária",
+              "Falta cadastrar a conta (aba Conta)"
+            ],
+            [
+              "Sua conta bancária ainda está em análise",
+              "Espere o financeiro aprovar"
+            ],
+            [
+              "Não houve produção suficiente",
+              "A produção de ontem não dá valor suficiente para liberar"
+            ]
+          ]
+        },
+        {
+          "bloco": "texto",
+          "texto": "Depois de pedir, acompanhe o andamento na própria tela. \"Pago\" significa que o dinheiro foi enviado; a taxa já foi descontada ali e o valor bruto será abatido do repasse da semana."
+        }
+      ]
+    },
+    {
+      "id": "arquivos",
+      "titulo": "Formatos de arquivo",
+      "grupo": "Referência",
+      "blocos": [
+        {
+          "bloco": "subtitulo",
+          "texto": "Planilha do movimento (Envio em Massa)"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Excel `.xlsx` ou `.xls`, primeira aba, cabeçalho na linha 1."
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Coluna",
+            "Obrigatória",
+            "Observação"
+          ],
+          "linhas": [
+            [
+              "`number`",
+              "sim",
+              "Telefone com DDD. Formate como **texto** no Excel"
+            ],
+            [
+              "`nome`",
+              "sim",
+              "Não pode ficar vazio"
+            ],
+            [
+              "`valor`",
+              "sim",
+              "Aceita \"1.234,56\" e \"R$ 22,00\""
+            ],
+            [
+              "`cnpj_tomador`",
+              "sim",
+              "14 dígitos. Formate como **texto** para não perder zeros"
+            ],
+            [
+              "`cnpj_prestador`",
+              "sim",
+              "14 dígitos"
+            ],
+            [
+              "`mensagem1`, `mensagem2`",
+              "não",
+              "Texto da mensagem enviada"
+            ],
+            [
+              "`gorjeta`",
+              "não",
+              "Vazio, \"-\" ou zero = sem gorjeta"
+            ],
+            [
+              "`enviado`",
+              "não",
+              "Deixe vazio ou `off`"
+            ],
+            [
+              "`uuid`, `tribnac`",
+              "não",
+              "Gravadas se vierem"
+            ]
+          ]
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Planilha que o sistema gera para a Transfeera"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Uma aba. A **linha 1 é um aviso** da Transfeera e deve ser mantida; o cabeçalho está na linha 2 e os dados começam na linha 3. As 12 colunas, nesta ordem:"
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "#",
+            "Coluna",
+            "Conteúdo"
+          ],
+          "linhas": [
+            [
+              "1",
+              "Nome ou Razão Social",
+              "Titular da conta"
+            ],
+            [
+              "2",
+              "CPF ou CNPJ",
+              "Documento do titular"
+            ],
+            [
+              "3",
+              "Email (opcional)",
+              "Para o comprovante"
+            ],
+            [
+              "4",
+              "Banco",
+              "Código do banco"
+            ],
+            [
+              "5",
+              "Agência",
+              ""
+            ],
+            [
+              "6",
+              "Conta",
+              ""
+            ],
+            [
+              "7",
+              "Dígito da conta",
+              ""
+            ],
+            [
+              "8",
+              "Tipo de Conta",
+              "\"Conta Corrente\" ou \"Conta Poupança\""
+            ],
+            [
+              "9",
+              "Valor",
+              "Único campo numérico"
+            ],
+            [
+              "10",
+              "ID integração",
+              "`ADV-…` (adiantamento) ou `REP-…` (repasse)"
+            ],
+            [
+              "11",
+              "Data de agendamento",
+              "Sempre vazia"
+            ],
+            [
+              "12",
+              "Descrição Pix",
+              "O que o motorista vê no extrato"
+            ]
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Não edite esta planilha",
+          "texto": "A coluna **ID integração** é o que liga cada linha ao pagamento no sistema. Se ela for alterada, o retorno não casa e a conciliação falha."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "CSV de retorno da Transfeera"
+        },
+        {
+          "bloco": "lista",
+          "itens": [
+            "**De onde:** portal da Transfeera › **Transferências** › **Exportar CSV**.",
+            "**Não servem:** o \"Relatório de movimentações\" (.xlsx) nem o \"Extrato\" — têm colunas diferentes e são recusados.",
+            "**23 colunas**, na ordem original. Não edite o arquivo.",
+            "Até **10.000 linhas** e **12 MB**.",
+            "O sistema usa **ID de integração**, **Status**, **Valor**, **Código de erro** e **Motivo da falha**. Status \"Finalizada\" vira pago; \"Devolvida\" vira falha."
+          ]
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Importações do hub (Faturamento e Performance)"
+        },
+        {
+          "bloco": "lista",
+          "itens": [
+            "`.csv` ou `.zip` com **um único** CSV dentro; até **20 MB**.",
+            "Separador **ponto e vírgula**, codificação UTF-8, decimal com vírgula.",
+            "**Faturamento: 20 colunas**, começando em `data_do_lancamento_financeiro`.",
+            "**Performance: 19 colunas**, começando em `data_do_periodo`.",
+            "O cabeçalho precisa bater em **nome e ordem**. Faltar, sobrar ou trocar de lugar faz a importação falhar inteira."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "erros",
+      "titulo": "Mensagens de erro",
+      "grupo": "Referência",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "As que mais aparecem, com a saída de cada uma.",
+          "destaque": true
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Mensagem",
+            "Código",
+            "O que fazer"
+          ],
+          "linhas": [
+            [
+              "Essa ação não é permitida no status atual",
+              "`TRANSICAO_INVALIDA`",
+              "No lote: **baixe o arquivo primeiro**. O lote precisa estar Exportado para confirmar ou importar retorno"
+            ],
+            [
+              "A prévia mudou desde a última consulta",
+              "`PREVIA_DESATUALIZADA`",
+              "Alguém alterou o conjunto (uma nota foi recusada, outro lote foi gerado). A tela recarrega sozinha; gere de novo"
+            ],
+            [
+              "Um ou mais pagamentos já entraram em outro lote",
+              "`ITENS_EM_OUTRO_LOTE`",
+              "Atualize a lista. Conclua ou cancele o outro lote"
+            ],
+            [
+              "O arquivo não traz o resultado de todos os pagamentos deste lote",
+              "`RETORNO_INCOMPLETO`",
+              "Exporte da Transfeera um período que cubra todos os pagamentos. Nada foi aplicado"
+            ],
+            [
+              "O cabeçalho não é o do retorno da Transfeera",
+              "`CABECALHO_INVALIDO`",
+              "Use **Transferências › Exportar CSV**, sem editar as colunas"
+            ],
+            [
+              "Você não tem permissão para esta ação",
+              "`PERMISSAO_NEGADA`",
+              "Veja [Papéis e permissões](#papeis). Para confirmar pagamento é preciso ser **financeiro_aprovador**"
+            ],
+            [
+              "Só é possível fechar a próxima semana em ordem",
+              "`APURACAO_FORA_DE_ORDEM`",
+              "Existe uma semana anterior em aberto; feche-a primeiro"
+            ],
+            [
+              "Há solicitações pendentes neste período",
+              "`APURACAO_COM_PENDENCIAS`",
+              "Resolva os adiantamentos listados (pagar, cancelar, rejeitar ou encerrar)"
+            ],
+            [
+              "O período ainda está em aberto para solicitações",
+              "`PERIODO_EM_ABERTO`",
+              "Espere passar o horário de corte do dia seguinte ao último dia da semana"
+            ],
+            [
+              "Serviço de validação indisponível",
+              "—",
+              "Na validação em lote, confira primeiro se passou de 100 arquivos ou 2 MB por arquivo"
+            ],
+            [
+              "Limite de tentativas excedido",
+              "`LIMITE_EXCEDIDO`",
+              "Espere alguns minutos. Veja [Limites](#limites)"
+            ],
+            [
+              "Sua sessão expirou",
+              "`NAO_AUTENTICADO`",
+              "Entre de novo. No hub a sessão cai após 6 horas sem uso, ou 24 horas desde o login"
+            ],
+            [
+              "Tempo limite excedido (no painel legado)",
+              "—",
+              "**Confira a tabela antes de repetir a ação** — ela pode ter sido concluída no servidor"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "limites",
+      "titulo": "Limites do sistema",
+      "grupo": "Referência",
+      "blocos": [
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "O quê",
+            "Limite"
+          ],
+          "linhas": [
+            [
+              "Pagamentos por lote",
+              "5.000"
+            ],
+            [
+              "XMLs por lote na validação",
+              "100"
+            ],
+            [
+              "Tamanho de cada XML",
+              "2 MB"
+            ],
+            [
+              "CSV de retorno",
+              "10.000 linhas · 12 MB"
+            ],
+            [
+              "Arquivo de importação do hub",
+              "20 MB"
+            ],
+            [
+              "Reenvio de convite em lote",
+              "50 por envio"
+            ],
+            [
+              "Filiais por grupo",
+              "100"
+            ],
+            [
+              "Logotipo da Aparência",
+              "256 KB"
+            ],
+            [
+              "Título e mensagem do aviso",
+              "60 e 180 caracteres"
+            ],
+            [
+              "Adiantamento por motorista",
+              "1 por dia"
+            ],
+            [
+              "Link de convite do hub",
+              "7 dias"
+            ],
+            [
+              "Link de recuperação de senha",
+              "60 minutos"
+            ],
+            [
+              "Tentativas de login (painel / app)",
+              "10 por 15 min"
+            ],
+            [
+              "Tentativas de login (hub)",
+              "5 erros bloqueiam por 15 min"
+            ],
+            [
+              "Disparos de aviso",
+              "30 por 15 min"
+            ],
+            [
+              "Importações de retorno",
+              "10 por 15 min"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "limitacoes",
+      "titulo": "Limitações conhecidas",
+      "grupo": "Referência",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "Coisas que o sistema faz hoje de um jeito que surpreende. Estão aqui para você não perder tempo investigando.",
+          "destaque": true
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "1 · Editar movimento salva só o CNPJ do prestador",
+          "texto": "No painel legado, a janela \"Editar\" mostra Número, Nome, Valor, CNPJ Tomador e Mensagens como se fossem editáveis, confirma \"Registro atualizado com sucesso!\" e **não grava** nenhum deles. Só o **CNPJ do Prestador** é salvo. Para corrigir os outros, exclua a linha e reimporte."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "2 · Nota recusada desaparece das notas pendentes",
+          "texto": "No app, se a nota de uma semana anterior for **recusada**, aquele item sai da lista e o motorista não tem como reenviar a nota corrigida. Oriente-o a procurar o escritório. **Em correção.**"
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "3 · O diálogo de importar retorno indica o arquivo errado",
+          "texto": "O texto pede o \"relatório de movimentações\", que o sistema recusa. O correto é **Transferências › Exportar CSV**."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "4 · O PIX do repasse pode sair como \"Antecipação\"",
+          "texto": "A descrição do PIX usa um modelo único para adiantamento e repasse, e o padrão de fábrica diz \"Antecipação\". Ajuste em **Configurações › Pagamento › Modelo da Descrição Pix** se quiser que o repasse apareça com outro texto no extrato do motorista."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "5 · Limites que viram \"serviço indisponível\"",
+          "texto": "Na validação de XML, passar de 100 arquivos ou de 2 MB por arquivo mostra \"serviço de validação indisponível\" em vez do limite real."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "6 · O logotipo aceita menos do que a tela promete",
+          "texto": "A tela diz 512 KB; o sistema aceita 256 KB."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "7 · O motorista não é avisado quando o repasse é pago",
+          "texto": "O adiantamento gera notificação; o repasse ainda não. Se o motorista precisa saber, avise por fora."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "8 · Seleção de linhas não limita o disparo no painel legado",
+          "texto": "As caixas existem, mas \"Iniciar\" envia para todas as linhas pendentes."
+        },
+        {
+          "bloco": "texto",
+          "texto": "Manual gerado a partir do comportamento real do sistema em 12 de outubro de 2026. Onde o texto da tela e o comportamento divergem, este manual descreve **o comportamento** — e aponta a divergência.",
+          "destaque": true
+        }
+      ]
+    }
+  ]
+}

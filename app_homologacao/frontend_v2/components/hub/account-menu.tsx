@@ -14,7 +14,8 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, LogOut, User } from 'lucide-react';
+import Link from 'next/link';
+import { CircleHelp, Loader2, LogOut, User } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,6 +76,10 @@ export function AccountMenu() {
           <DropdownMenuItem onClick={perfilDialog.abrir}>
             <User aria-hidden="true" />
             Meu perfil
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/hub/dashboard/ajuda" />}>
+            <CircleHelp aria-hidden="true" />
+            Central de Ajuda
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" disabled={saindo} onClick={sair}>
