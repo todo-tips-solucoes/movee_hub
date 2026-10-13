@@ -53,6 +53,10 @@ async function mockPostgrest(path, method = 'GET', body = null) {
     const min = new Date(p.get('created_at').replace(/^gte\./, '')).getTime();
     rows = rows.filter((r) => new Date(r.created_at).getTime() >= min);
   }
+  if (p.get('dt_inicial')) {
+    const min = p.get('dt_inicial').replace(/^gte\./, '');
+    rows = rows.filter((r) => r.dt_inicial != null && r.dt_inicial >= min);
+  }
   if (p.get('or')) {
     // Interpreta o `or`: cada termo só vale se estiver NA query (sintaxe provada contra o PostgREST real)
     const or = p.get('or');
@@ -162,6 +166,12 @@ describe('GET /motorista/notas-pendentes', () => {
     assert.deepEqual(r.body.notas.map((n) => n.id).sort(), [1, 3]);
   });
 
+  test('corte 20/07/2026: semana anterior ou sem data não aparece', async () => {
+    EnvioMassa = [mov(1, { dt_inicial: '2026-07-20 03:00:00' }), mov(2, { dt_inicial: '2026-07-13 03:00:00' }), mov(3, { dt_inicial: null }), mov(4, { dt_inicial: '1982-01-01' })];
+    const r = await req('GET', '/motorista/notas-pendentes');
+    assert.deepEqual(r.body.notas.map((n) => n.id), [1]);
+  });
+
   test('inclui aberto e fechado; exclui só a nota APROVADA (nota_ok cheio e erro vazio)', async () => {
     EnvioMassa = [
       mov(1, { mov_fechado: false }), mov(2, { mov_fechado: true }),
@@ -241,6 +251,13 @@ describe('POST /motorista/notas-pendentes/:id/validar', () => {
     EnvioMassa = [mov(7, { cnpj_prestador: '22222222000100' })];
     const r = await req('POST', '/motorista/notas-pendentes/7/validar', { multipart: mp(XML('11111111000100')) });
     assert.equal(r.status, 404);
+    assert.equal(chamadasAxios.length, 0);
+  });
+
+  test('movimento anterior ao corte de 20/07/2026 → 404 e a FastAPI nem é chamada', async () => {
+    EnvioMassa = [mov(7, { dt_inicial: '2026-07-13 03:00:00' }), mov(8, { dt_inicial: null })];
+    assert.equal((await req('POST', '/motorista/notas-pendentes/7/validar', { multipart: mp(XML('11111111000100')) })).status, 404);
+    assert.equal((await req('POST', '/motorista/notas-pendentes/8/validar', { multipart: mp(XML('11111111000100')) })).status, 404);
     assert.equal(chamadasAxios.length, 0);
   });
 
