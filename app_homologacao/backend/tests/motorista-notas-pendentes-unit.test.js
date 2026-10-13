@@ -53,7 +53,13 @@ async function mockPostgrest(path, method = 'GET', body = null) {
     const min = new Date(p.get('created_at').replace(/^gte\./, '')).getTime();
     rows = rows.filter((r) => new Date(r.created_at).getTime() >= min);
   }
-  if (p.get('or')) rows = rows.filter((r) => r.nota_ok == null || r.nota_ok === '');
+  if (p.get('or')) {
+    // Interpreta o `or`: cada termo só vale se estiver NA query (sintaxe provada contra o PostgREST real)
+    const or = p.get('or');
+    const vazio = (v) => v == null || v === '';
+    const comErro = or.includes('and(erro_validacao.not.is.null,erro_validacao.neq.)');
+    rows = rows.filter((r) => vazio(r.nota_ok) || (comErro && !vazio(r.erro_validacao)));
+  }
   rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   if (p.get('limit')) rows = rows.slice(0, Number(p.get('limit')));
   return rows;
@@ -156,14 +162,23 @@ describe('GET /motorista/notas-pendentes', () => {
     assert.deepEqual(r.body.notas.map((n) => n.id).sort(), [1, 3]);
   });
 
-  test('inclui aberto e fechado; exclui quem tem nota_ok (aprovada ou reprovada)', async () => {
+  test('inclui aberto e fechado; exclui só a nota APROVADA (nota_ok cheio e erro vazio)', async () => {
     EnvioMassa = [
       mov(1, { mov_fechado: false }), mov(2, { mov_fechado: true }),
       mov(3, { nota_ok: 'https://x/3.xml' }), mov(4, { nota_ok: 'https://x/4.xml', erro_validacao: 'valid_valor' }),
-      mov(5, { nota_ok: '' }),
+      mov(5, { nota_ok: '' }), mov(6, { nota_ok: 'https://x/6.xml', erro_validacao: '' }),
     ];
     const r = await req('GET', '/motorista/notas-pendentes');
-    assert.deepEqual(r.body.notas.map((n) => n.id).sort(), [1, 2, 5]);
+    assert.deepEqual(r.body.notas.map((n) => n.id).sort(), [1, 2, 4, 5]);
+  });
+
+  test('nota REPROVADA (nota_ok e erro_validacao preenchidos) aparece; APROVADA não', async () => {
+    EnvioMassa = [
+      mov(1, { nota_ok: 'https://x/1.xml', erro_validacao: 'valid_valor' }),
+      mov(2, { nota_ok: 'https://x/2.xml', erro_validacao: null }),
+    ];
+    const r = await req('GET', '/motorista/notas-pendentes');
+    assert.deepEqual(r.body.notas.map((n) => n.id), [1]);
   });
 
   test('ordem created_at decrescente e teto de 50', async () => {
@@ -311,5 +326,57 @@ describe('POST /motorista/notas-pendentes/:id/validar', () => {
       await envia(7);
       assert.equal(EnvioMassa[0].regularizada_em, undefined);
     });
+  });
+});
+
+
+describe('chave MOTORISTA_NOTAS_PENDENTES', () => {
+  const ORIG = process.env.MOTORISTA_NOTAS_PENDENTES;
+  const restaura = () => { if (ORIG === undefined) delete process.env.MOTORISTA_NOTAS_PENDENTES; else process.env.MOTORISTA_NOTAS_PENDENTES = ORIG; };
+  const XML = '<?xml version="1.0"?><CompNfse><prest><CNPJ>11111111000100</CNPJ></prest></CompNfse>';
+  const upload = () => {
+    const b = '----x';
+    return { contentType: `multipart/form-data; boundary=${b}`,
+      body: `--${b}\r\nContent-Disposition: form-data; name="file"; filename="n.xml"\r\nContent-Type: text/xml\r\n\r\n${XML}\r\n--${b}--\r\n` };
+  };
+
+  test('ausente = LIGADO: lista normalmente', async () => {
+    delete process.env.MOTORISTA_NOTAS_PENDENTES;
+    EnvioMassa = [mov(1)];
+    try { assert.deepEqual((await req('GET', '/motorista/notas-pendentes')).body.notas.map((n) => n.id), [1]); } finally { restaura(); }
+  });
+
+  for (const v of ['false', 'off', '0', 'FALSE']) {
+    test(`${v}: listagem devolve 200 com lista vazia`, async () => {
+      process.env.MOTORISTA_NOTAS_PENDENTES = v;
+      EnvioMassa = [mov(1)];
+      try {
+        const r = await req('GET', '/motorista/notas-pendentes');
+        assert.equal(r.status, 200);
+        assert.deepEqual(r.body, { notas: [] });
+      } finally { restaura(); }
+    });
+  }
+
+  test('desligada: envio recusa com 503 e não chama a FastAPI', async () => {
+    process.env.MOTORISTA_NOTAS_PENDENTES = 'false';
+    EnvioMassa = [mov(1)];
+    try {
+      const r = await req('POST', '/motorista/notas-pendentes/1/validar', { multipart: upload() });
+      assert.equal(r.status, 503);
+      assert.match(r.body.error, /indispon/);
+      assert.equal(chamadasAxios.length, 0);
+    } finally { restaura(); }
+  });
+
+  test('ligada explicitamente (true): envio segue o fluxo normal', async () => {
+    process.env.MOTORISTA_NOTAS_PENDENTES = 'true';
+    EnvioMassa = [mov(1)];
+    axiosImpl = async () => { EnvioMassa[0].nota_ok = 'https://fake/nota.xml'; EnvioMassa[0].erro_validacao = ''; return { data: [{}] }; };
+    try {
+      const r = await req('POST', '/motorista/notas-pendentes/1/validar', { multipart: upload() });
+      assert.equal(r.status, 200);
+      assert.equal(chamadasAxios.length, 1);
+    } finally { restaura(); }
   });
 });
