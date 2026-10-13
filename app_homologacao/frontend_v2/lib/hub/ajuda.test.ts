@@ -94,7 +94,7 @@ describe('filtrarSecoes', () => {
     for (const c of ['ITENS_EM_OUTRO_LOTE', 'RETORNO_INCOMPLETO', 'CABECALHO_INVALIDO', 'PERMISSAO_NEGADA', 'APURACAO_FORA_DE_ORDEM', 'APURACAO_COM_PENDENCIAS', 'PERIODO_EM_ABERTO', 'LIMITE_EXCEDIDO', 'NAO_AUTENTICADO']) {
       expect(achou(c), c).toContain('erros');
     }
-    for (const c of ['JA_EM_LOTE', 'NOTA_PENDENTE', 'SEM_CONTA', 'VALOR_INVALIDO']) expect(achou(c), c).toContain('ciclo');
+    for (const c of ['JA_EM_LOTE', 'JA_PAGO_CONCILIADO', 'NOTA_PENDENTE', 'SEM_CONTA', 'VALOR_INVALIDO']) expect(achou(c), c).toContain('ciclo');
   });
 
   it('a busca não casa com a marcação, só com o texto', () => {

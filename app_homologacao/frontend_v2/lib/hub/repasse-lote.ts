@@ -11,6 +11,10 @@ const BLOQUEIO: Record<string, { rotulo: string; acao: string }> = {
     rotulo: 'Já está em outro lote',
     acao: 'Conclua ou cancele o lote em que ele está para poder incluí-lo de novo.',
   },
+  JA_PAGO_CONCILIADO: {
+    rotulo: 'Já pago fora da plataforma (conciliado)',
+    acao: 'Um movimento desta semana foi conciliado pela planilha UneCont; pagar de novo seria pagamento em duplicidade.',
+  },
   APURACAO_ABERTA: {
     rotulo: 'A apuração da semana ainda não foi fechada',
     acao: 'Use "Fechar apuração" no topo da tela.',
