@@ -1297,4 +1297,4 @@ router.post('/notas-pendentes/:id/validar', authenticateMotorista, uploadSingle,
 // ──────────────────────────────────────────────────────────────────────────────
 // Exportar router + função init (injeção de dependências)
 // ──────────────────────────────────────────────────────────────────────────────
-module.exports = { router, init, authenticateMotorista };
+module.exports = { router, init, authenticateMotorista, corteNotasPendentes };
