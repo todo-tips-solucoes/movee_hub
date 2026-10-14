@@ -527,6 +527,36 @@
           "tipo": "atencao",
           "titulo": "Limites que aparecem como \"serviço indisponível\"",
           "texto": "O sistema aceita até **100 arquivos por lote** e **2 MB por XML**. Se você passar de qualquer um dos dois, a tela mostra *\"Serviço de validação indisponível\"* em vez de explicar o limite — então não é instabilidade, é tamanho. Divida o lote.\n\nUm lote de 100 arquivos leva alguns minutos, porque há uma pausa de 2 segundos entre as notas. Não feche a aba."
+        },
+        {
+          "bloco": "texto",
+          "texto": "No hub, a mesma tela mostra **Pagamentos retidos aguardando liberação**: motoristas que enviaram a nota pelo app *depois* que o movimento fechou. Quem tem a permissão de confirmar pagamento (papel **financeiro_aprovador**) resolve cada um pela própria lista."
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Botão",
+            "Quando usar",
+            "O que acontece"
+          ],
+          "linhas": [
+            [
+              "**Já foi pago**",
+              "O financeiro já pagou essa nota por fora (ex.: pela UneCont)",
+              "O item sai da lista e o lote do repasse não deixa pagá-lo de novo. Fica em **Marcados como já pagos**, com **Desfazer**"
+            ],
+            [
+              "**Apagar nota**",
+              "A nota não serve (errada, duplicada, de outro movimento)",
+              "A nota sai do movimento e ele volta a ficar pendente no app do motorista. Pede motivo"
+            ]
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Apagar nota não tem Desfazer",
+          "texto": "A confirmação diz se o motorista vai conseguir reenviar: se a semana estiver **antes do corte** de notas pendentes (Adiantamentos › Configurações), ele não consegue. O XML não é apagado do servidor; o estado anterior fica guardado para recuperação pelo suporte."
         }
       ]
     },
