@@ -2,4 +2,4 @@
 # Tag no ar diferente da registrada = FALHA (a prova seria do deploy anterior).
 # Acento não casa no docker exec.
 backend|retidos-acoes-3e936a7|camposInvalidosDe
-frontend_v2|retidos-acoes-3e936a7|Central de Ajuda
+frontend_v2|ajuda-atual-eaf82cb|Criar credencial do motorista e resetar a senha dele
