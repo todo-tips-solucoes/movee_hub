@@ -15,6 +15,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { ApiError, type LinhaInvalida } from '@/lib/api-client';
+import {
+  ROTULOS_RESUMO,
+  ROTULO_PULO,
+  descreverInterrompida,
+  type ResultadoImportacao,
+} from '@/lib/correcao-movimento';
 
 interface ImportButtonProps {
   onUpload: (file: File, extraFields?: Record<string, string>) => Promise<unknown>;
@@ -60,12 +66,20 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
   const [dtFinal, setDtFinal] = useState('');
   // Linhas que o backend recusou. Vazio = nenhum erro de validação pendente.
   const [linhasInvalidas, setLinhasInvalidas] = useState<LinhaInvalida[]>([]);
+  // corrigir-movimento: motivo do lote (exigido só se a planilha altera existentes)
+  // e o resultado discriminado da importação.
+  const [motivo, setMotivo] = useState('');
+  const [erroMotivo, setErroMotivo] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<ResultadoImportacao | null>(null);
+  const [interrompida, setInterrompida] = useState<string | null>(null);
 
   const resetDialog = useCallback(() => {
     setDialogOpen(false);
     setPendingFile(null);
     setDtInicial('');
     setDtFinal('');
+    setMotivo('');
+    setErroMotivo(null);
     if (inputRef.current) inputRef.current.value = '';
   }, []);
 
@@ -89,15 +103,32 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
     const dt_inicial = toBackendDate(dtInicial);
     const dt_final = toBackendDate(dtFinal);
     const file = pendingFile;
+    let manter = false;
     try {
       setUploading(true);
       setDialogOpen(false);
-      await onUpload(file, { dt_inicial, dt_final });
-      toast.success(`"${file.name}" importado com sucesso!`);
+      setErroMotivo(null);
+      const extra: Record<string, string> = { dt_inicial, dt_final };
+      if (motivo.trim()) extra.motivo = motivo.trim();
+      const res = (await onUpload(file, extra)) as ResultadoImportacao | undefined;
+      if (res?.resumo) {
+        // Planilha que casa com movimentos existentes: mostrar o desfecho real, não só um toast.
+        setResultado(res);
+        toast.success(`"${file.name}" processado — veja o resumo.`);
+      } else {
+        toast.success(`"${file.name}" importado com sucesso!`);
+      }
     } catch (err) {
-      // O backend já sabe QUAIS linhas recusou; antes isso era descartado e a
-      // pessoa só via "Erros de validação encontrados".
-      if (err instanceof ApiError && err.linhasInvalidas.length > 0) {
+      const parcial = descreverInterrompida(err);
+      if (parcial) {
+        setInterrompida(parcial);
+      } else if (err instanceof ApiError && err.status === 400 && /^Informe o motivo/.test(err.message)) {
+        // Nada foi alterado: volta ao diálogo com arquivo e datas preservados.
+        manter = true;
+        setErroMotivo(err.message);
+        setDialogOpen(true);
+      } else if (err instanceof ApiError && err.linhasInvalidas.length > 0) {
+        // O backend já sabe QUAIS linhas recusou; antes isso era descartado.
         setLinhasInvalidas(err.linhasInvalidas);
         toast.error(
           `${err.linhasInvalidas.length} linha(s) precisam de correção — nenhum registro foi inserido.`
@@ -107,12 +138,15 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
       }
     } finally {
       setUploading(false);
-      setPendingFile(null);
-      setDtInicial('');
-      setDtFinal('');
-      if (inputRef.current) inputRef.current.value = '';
+      if (!manter) {
+        setPendingFile(null);
+        setDtInicial('');
+        setDtFinal('');
+        setMotivo('');
+        if (inputRef.current) inputRef.current.value = '';
+      }
     }
-  }, [pendingFile, rangeValido, dtInicial, dtFinal, onUpload]);
+  }, [pendingFile, rangeValido, dtInicial, dtFinal, motivo, onUpload]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -196,6 +230,18 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
                 className="h-11 sm:h-9"
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="import-motivo">Motivo (se a planilha corrigir movimentos já existentes)</Label>
+              <Input
+                id="import-motivo"
+                value={motivo}
+                maxLength={500}
+                onChange={(e) => setMotivo(e.target.value)}
+                aria-invalid={erroMotivo !== null}
+                className="h-11 sm:h-9"
+              />
+              {erroMotivo && <p role="alert" className="text-sm text-destructive">{erroMotivo}</p>}
+            </div>
             {dtInicial !== '' && dtFinal !== '' && dtInicial > dtFinal && (
               <p className="text-sm text-destructive">
                 A data inicial deve ser anterior ou igual à data final.
@@ -266,6 +312,71 @@ export function ImportButton({ onUpload }: ImportButtonProps) {
               Copiar lista
             </Button>
             <Button className="min-h-11 sm:min-h-9" onClick={() => setLinhasInvalidas([])}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* corrigir-movimento: desfecho discriminado da reimportação. Pulados e ambíguos
+          NÃO ficam escondidos num "pronto": são o que o operador precisa tratar. */}
+      <Dialog
+        open={resultado !== null || interrompida !== null}
+        onOpenChange={(open) => { if (!open) { setResultado(null); setInterrompida(null); } }}
+      >
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{interrompida ? 'Importação interrompida' : 'Resultado da importação'}</DialogTitle>
+            <DialogDescription>
+              {interrompida ?? (resultado?.resumo ? `${resultado.resumo.total_linhas} linha(s) na planilha.` : '')}
+            </DialogDescription>
+          </DialogHeader>
+          {resultado?.resumo && !interrompida && (
+            <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
+              <ul className="flex flex-col gap-1.5">
+                {ROTULOS_RESUMO.map(({ chave, rotulo, destaque }) => (
+                  <li
+                    key={chave}
+                    className={`flex justify-between gap-3 text-sm ${destaque && resultado.resumo![chave] > 0 ? 'font-semibold text-destructive' : ''}`}
+                  >
+                    <span>{rotulo}</span>
+                    <span className="tabular-nums">{resultado.resumo![chave]}</span>
+                  </li>
+                ))}
+              </ul>
+              {resultado.resumo.mensagem_valor_antigo > 0 && (
+                <p role="note" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {resultado.resumo.mensagem_valor_antigo} movimento(s) corrigido(s) já tinham a mensagem enviada ao motorista com o valor antigo.
+                </p>
+              )}
+              {resultado.resumo.mensagem_divergente > 0 && (
+                <p role="note" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {resultado.resumo.mensagem_divergente} movimento(s) tiveram o valor corrigido, mas o texto da mensagem na planilha cita outro valor e não pôde ser ajustado — revise a mensagem antes de enviar.
+                </p>
+              )}
+              {(resultado.pulados?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-sm font-medium">Pulados (valor mantido)</p>
+                  <ul className="mt-1 font-mono text-xs text-muted-foreground">
+                    {resultado.pulados!.map((p) => (
+                      <li key={`${p.linha}-${p.id}`}>linha {p.linha} · movimento {p.id} · {ROTULO_PULO[p.motivo]}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {(resultado.ambiguos?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-sm font-medium">Ambíguos — resolver manualmente</p>
+                  <ul className="mt-1 font-mono text-xs text-muted-foreground">
+                    {resultado.ambiguos!.map((a) => (
+                      <li key={a.linha}>linha {a.linha} · CNPJ {a.cnpj_prestador} · movimentos {a.candidatos.join(', ')}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button className="min-h-11 sm:min-h-9" onClick={() => { setResultado(null); setInterrompida(null); }}>
               Fechar
             </Button>
           </DialogFooter>

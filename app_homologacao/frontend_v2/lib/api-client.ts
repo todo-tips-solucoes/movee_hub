@@ -40,12 +40,20 @@ export interface LinhaInvalida {
 export class ApiError extends Error {
   readonly status: number;
   readonly linhasInvalidas: LinhaInvalida[];
+  /** corrigir-movimento: corpo da resposta (`resultado`, `parcial`...). */
+  readonly corpo: Record<string, unknown>;
 
-  constructor(message: string, status: number, linhasInvalidas: LinhaInvalida[] = []) {
+  constructor(message: string, status: number, linhasInvalidas: LinhaInvalida[] = [], corpo: Record<string, unknown> = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.linhasInvalidas = linhasInvalidas;
+    this.corpo = corpo;
+  }
+
+  /** Desfecho nomeado pelo backend (ex.: `pulado_nota_enviada`), ou null. */
+  get resultado(): string | null {
+    return typeof this.corpo.resultado === 'string' ? this.corpo.resultado : null;
   }
 }
 
@@ -72,7 +80,8 @@ async function handleResponse(res: Response) {
     throw new ApiError(
       body.message || body.error || `Erro ${res.status}`,
       res.status,
-      extrairLinhasInvalidas(body)
+      extrairLinhasInvalidas(body),
+      body && typeof body === 'object' ? body : {}
     );
   }
   return res;

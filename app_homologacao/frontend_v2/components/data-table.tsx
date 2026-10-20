@@ -30,7 +30,7 @@ interface DataTableProps {
   onToggleSelectAll: () => void;
   onToggleSelect: (id: number) => void;
   onDelete: (id: number) => Promise<void>;
-  onUpdate: (id: number, data: Record<string, unknown>) => Promise<void>;
+  onUpdate: (id: number, data: Record<string, unknown>) => Promise<unknown>;
   /** impeccable rodada 15 (h7): ordenação da tabela. Opcionais — o painel
    *  legado renderiza o mesmo componente e não passa nenhuma das duas, então
    *  ali os cabeçalhos seguem texto puro, sem virar botão sem função. */

@@ -88,3 +88,67 @@ describe('ImportButton — linhas recusadas', () => {
     await waitFor(() => expect(screen.queryByText(/correção/)).not.toBeInTheDocument());
   });
 });
+
+describe('ImportButton — reimportação (corrigir-movimento)', () => {
+  const resumo = {
+    total_linhas: 10, criados: 2, atualizados: 3, inalterados: 1, pulados_nota_enviada: 2,
+    pulados_mov_fechado: 0, ambiguos: 1, sem_identificador: 1, mensagem_valor_antigo: 1, mensagem_divergente: 0,
+  };
+
+  it('mostra pulados e ambíguos no resumo em vez de só "sucesso"', async () => {
+    const onUpload = vi.fn().mockResolvedValue({
+      success: true, resumo,
+      pulados: [{ linha: 4, id: 55, motivo: 'nota_enviada' }, { linha: 9, id: 56, motivo: 'nota_enviada' }],
+      ambiguos: [{ linha: 6, cnpj_prestador: '12345678000199', candidatos: [70, 71] }],
+    });
+    await enviar(onUpload);
+    expect(await screen.findByText('Resultado da importação')).toBeInTheDocument();
+    expect(screen.getByText('Pulados — nota já enviada').nextSibling).toHaveTextContent('2');
+    expect(screen.getByText(/linha 4 · movimento 55 · nota já enviada/)).toBeInTheDocument();
+    expect(screen.getByText(/linha 6 · CNPJ 12345678000199 · movimentos 70, 71/)).toBeInTheDocument();
+    expect(screen.getByText(/já tinham a mensagem enviada/)).toBeInTheDocument();
+  });
+
+  it('avisa quando a mensagem da planilha ficou com valor divergente', async () => {
+    const onUpload = vi.fn().mockResolvedValue({ success: true, resumo: { ...resumo, mensagem_divergente: 2 }, pulados: [], ambiguos: [] });
+    await enviar(onUpload);
+    expect(await screen.findByText(/cita outro valor e não pôde ser ajustado/)).toHaveTextContent(/^2 movimento/);
+  });
+
+  it('sem divergência não mostra o aviso', async () => {
+    const onUpload = vi.fn().mockResolvedValue({ success: true, resumo: { ...resumo, mensagem_divergente: 0 }, pulados: [], ambiguos: [] });
+    await enviar(onUpload);
+    await screen.findByText('Resultado da importação');
+    expect(screen.queryByText(/cita outro valor/)).not.toBeInTheDocument();
+  });
+
+  it('envia o motivo digitado junto das datas', async () => {
+    const onUpload = vi.fn().mockResolvedValue({});
+    render(<ImportButton onUpload={onUpload} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [ARQUIVO] });
+    fireEvent.change(input);
+    fireEvent.change(screen.getByLabelText('Data inicial'), { target: { value: '2026-10-01' } });
+    fireEvent.change(screen.getByLabelText('Data final'), { target: { value: '2026-10-05' } });
+    fireEvent.change(screen.getByLabelText(/Motivo/), { target: { value: 'valor errado na planilha' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+    await waitFor(() => expect(onUpload).toHaveBeenCalled());
+    expect(onUpload.mock.calls[0][1]).toMatchObject({ motivo: 'valor errado na planilha' });
+  });
+
+  it('400 "Informe o motivo": reabre o diálogo com o aviso, sem declarar sucesso', async () => {
+    const onUpload = vi.fn().mockRejectedValue(new ApiError('Informe o motivo: esta importação altera movimentos já existentes. Nada foi alterado.', 400));
+    await enviar(onUpload);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Informe o motivo/);
+    expect(screen.queryByText('Resultado da importação')).toBeNull();
+  });
+
+  it('500 com parcial: diz o que foi e o que não foi aplicado', async () => {
+    const onUpload = vi.fn().mockRejectedValue(
+      new ApiError('Importação interrompida. Veja o que foi e o que não foi aplicado.', 500, [],
+        { parcial: { atualizacoes_confirmadas: 5, linhas_novas_criadas: false } }));
+    await enviar(onUpload);
+    expect(await screen.findByText('Importação interrompida')).toBeInTheDocument();
+    expect(screen.getAllByText(/Atualizações já confirmadas: 5/).length).toBeGreaterThan(0);
+  });
+});

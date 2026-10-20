@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,18 @@ import {
 } from '@/components/ui/dialog';
 import { EnvioMassa } from '@/types';
 import { toast } from 'sonner';
+import {
+  descreverCorrecao,
+  descreverErroCorrecao,
+  type Feedback,
+  type RespostaCorrecao,
+} from '@/lib/correcao-movimento';
+
+// Valor exibido/aceito em pt-BR ("1234,50"); o backend parseia com toNumberBR.
+const valorParaTela = (v: unknown) =>
+  v === null || v === undefined || v === ''
+    ? ''
+    : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
 
 // Retorna apenas os dígitos de uma string (FR-014 / contrato §Convenções de Borda)
 const onlyDigits = (v: string) => v.replace(/\D/g, '');
@@ -34,12 +46,16 @@ interface EditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   record: EnvioMassa | null;
-  onSave: (id: number, data: Record<string, unknown>) => Promise<void>;
+  onSave: (id: number, data: Record<string, unknown>) => Promise<unknown>;
 }
 
 export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogProps) {
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  // corrigir-movimento: desfecho REAL fica visível no diálogo até o operador dispensar.
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const [valorOriginal, setValorOriginal] = useState('');
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // cnpjPrestador armazena apenas dígitos; exibição usa maskCNPJ (FR-014)
   const [cnpjPrestador, setCnpjPrestador] = useState('');
@@ -57,12 +73,15 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
       setForm({
         number: record.number || '',
         nome: record.nome || '',
-        valor: String(record.valor || ''),
+        valor: valorParaTela(record.valor),
         cnpj_tomador: record.cnpj_tomador || '',
         mensagem1: record.mensagem1 || '',
         mensagem2: record.mensagem2 || '',
       });
       setCnpjPrestador(onlyDigits(record.cnpj_prestador || ''));
+      setValorOriginal(valorParaTela(record.valor));
+      setMotivo('');
+      setFeedback(null);
     }
   }, [record]);
 
@@ -72,6 +91,7 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
   useEffect(() => {
     if (open) {
       setSaved(false);
+      setFeedback(null);
     } else if (closeTimer.current) {
       clearTimeout(closeTimer.current);
       closeTimer.current = null;
@@ -84,27 +104,51 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
 
   // CNPJ válido = 14 dígitos exatos (FR-008)
   const cnpjValido = cnpjPrestador.length === 14;
+  // Só o VALOR e o CNPJ do prestador são gravados por esta tela; os demais campos
+  // são exibidos somente-leitura (antes pareciam editáveis e o "sucesso" mentia).
+  const valorMudou = form.valor.trim() !== valorOriginal;
+  const motivoOk = !valorMudou || motivo.trim().length > 0;
 
   const handleSave = async () => {
     if (!record) return;
-    // Payload inclui cnpj_prestador somente com dígitos (FR-014, contrato §Convenções de Borda)
-    const payload: Record<string, unknown> = { ...form, cnpj_prestador: cnpjPrestador };
+    setFeedback(null);
+    // Payload mínimo: valor+motivo só quando o valor mudou (FR-011); CNPJ como antes (FR-014).
+    const payload: Record<string, unknown> = { cnpj_prestador: cnpjPrestador };
+    if (valorMudou) {
+      payload.valor = form.valor.trim();
+      payload.motivo = motivo.trim();
+    }
     try {
       setLoading(true);
-      await onSave(record.id, payload);
-      toast.success('Registro atualizado com sucesso!');
-      // Confirmação visual breve antes de fechar (U011)
-      setSaved(true);
-      closeTimer.current = setTimeout(() => onOpenChange(false), 900);
+      const resposta = (await onSave(record.id, payload)) as RespostaCorrecao | undefined;
+      if (!valorMudou) {
+        toast.success('Registro atualizado com sucesso!');
+        setSaved(true);
+        closeTimer.current = setTimeout(() => onOpenChange(false), 900);
+        return;
+      }
+      const fb = descreverCorrecao(resposta);
+      if (fb.tom === 'sucesso') {
+        toast.success(fb.texto);
+        // Confirmação visual breve antes de fechar (U011)
+        setSaved(true);
+        closeTimer.current = setTimeout(() => onOpenChange(false), 900);
+      } else {
+        // aviso/info: o diálogo fica aberto — não se fecha sobre algo que exige leitura.
+        setFeedback(fb);
+        // valor já gravado: o novo "original" evita reenviar a mesma correção.
+        if (resposta?.resultado === 'atualizado') setValorOriginal(form.valor.trim());
+      }
     } catch (err) {
-      // Tratar erros específicos do backend (4.2 — FR-008/FR-014)
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('409') || msg.toLowerCase().includes('já cadastrado') || msg.toLowerCase().includes('conflict')) {
+      if (valorMudou) {
+        setFeedback({ tom: 'erro', texto: descreverErroCorrecao(err) });
+      } else if (msg.includes('409') || msg.toLowerCase().includes('já cadastrado') || msg.toLowerCase().includes('conflict')) {
         toast.error('CNPJ já cadastrado para outro motorista. Verifique e tente novamente.');
       } else if (msg.includes('400') || msg.toLowerCase().includes('inválido') || msg.toLowerCase().includes('invalid')) {
         toast.error('CNPJ inválido. Verifique e tente novamente.');
       } else {
-        toast.error(err instanceof Error ? err.message : 'Erro ao atualizar registro');
+        toast.error(msg || 'Erro ao atualizar registro');
       }
     } finally {
       setLoading(false);
@@ -113,12 +157,12 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
 
   // cnpj_prestador é tratado em bloco dedicado (máscara + aviso + validação)
   const fields = [
-    { key: 'number', label: 'Numero' },
-    { key: 'nome', label: 'Nome' },
-    { key: 'valor', label: 'Valor' },
-    { key: 'cnpj_tomador', label: 'CNPJ Tomador' },
-    { key: 'mensagem1', label: 'Mensagem 1' },
-    { key: 'mensagem2', label: 'Mensagem 2' },
+    { key: 'number', label: 'Numero', editavel: false },
+    { key: 'nome', label: 'Nome', editavel: false },
+    { key: 'valor', label: 'Valor', editavel: true },
+    { key: 'cnpj_tomador', label: 'CNPJ Tomador', editavel: false },
+    { key: 'mensagem1', label: 'Mensagem 1', editavel: false },
+    { key: 'mensagem2', label: 'Mensagem 2', editavel: false },
   ] as const;
 
   return (
@@ -143,7 +187,7 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
               >
                 <CheckCircle2 className="h-12 w-12 text-success" aria-hidden="true" />
               </motion.div>
-              <p className="text-sm font-medium">Registro atualizado</p>
+              <p className="text-sm font-medium">{valorMudou ? 'Valor corrigido' : 'Registro atualizado'}</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -158,16 +202,39 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 py-4 max-h-[60vh] overflow-y-auto pr-1">
-          {fields.map(({ key, label }) => (
-            <div key={key} className="grid gap-1.5">
+          {fields.map(({ key, label, editavel }) => (
+            <Fragment key={key}>
+            <div className="grid gap-1.5">
               <Label htmlFor={key} className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</Label>
               <Input
                 id={key}
                 value={form[key]}
                 onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                className="h-11 sm:h-9 md:h-8"
+                readOnly={!editavel}
+                aria-readonly={!editavel}
+                inputMode={key === 'valor' ? 'decimal' : undefined}
+                className={`h-11 sm:h-9 md:h-8 ${editavel ? '' : 'bg-muted/40 text-muted-foreground'}`}
               />
+              {key === 'valor' && (
+                <p className="text-xs text-muted-foreground">Use vírgula nos centavos (ex.: 1234,50). Os demais campos são somente leitura.</p>
+              )}
             </div>
+            {/* Motivo aparece só quando o valor muda — e então é obrigatório (FR-011) */}
+            {key === 'valor' && valorMudou && (
+              <div className="grid gap-1.5">
+                <Label htmlFor="motivo" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Motivo da correção</Label>
+                <Input
+                  id="motivo"
+                  value={motivo}
+                  maxLength={500}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  aria-required="true"
+                  placeholder="Obrigatório: por que o valor está sendo corrigido"
+                  className="h-11 sm:h-9 md:h-8"
+                />
+              </div>
+            )}
+            </Fragment>
           ))}
 
           {/* Bloco dedicado CNPJ Prestador — máscara, aviso de impacto e validação (FR-008, FR-014, US4) */}
@@ -209,12 +276,26 @@ export function EditDialog({ open, onOpenChange, record, onSave }: EditDialogPro
             </div>
           </div>
         </div>
+        {feedback && (
+          <div
+            role={feedback.tom === 'erro' ? 'alert' : 'status'}
+            className={`rounded-md border px-3 py-2 text-sm ${
+              feedback.tom === 'erro'
+                ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                : feedback.tom === 'aviso'
+                  ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+                  : 'border-border bg-muted text-foreground'
+            }`}
+          >
+            {feedback.texto}
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading || saved}>
             Cancelar
           </Button>
           {/* Salvar desabilitado se CNPJ incompleto ou durante loading/saved (CHK043) */}
-          <Button onClick={handleSave} disabled={loading || saved || !cnpjValido}>
+          <Button onClick={handleSave} disabled={loading || saved || !cnpjValido || !motivoOk}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Salvar
           </Button>
