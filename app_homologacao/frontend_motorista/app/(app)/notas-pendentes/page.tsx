@@ -2,8 +2,8 @@
 
 /**
  * Notas pendentes — o motorista envia o XML de cada nota que ficou em aberto
- * (últimos 90 dias), uma por pendência. A tela /validar segue intacta; as duas
- * vias convivem (BRIEFING decisão B).
+ * (dentro do corte configurado no hub), uma por pendência. A tela /validar segue
+ * intacta; as duas vias convivem (BRIEFING decisão B).
  */
 
 import { useCallback, useEffect, useState } from 'react';

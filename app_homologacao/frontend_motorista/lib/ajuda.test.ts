@@ -32,8 +32,8 @@ test('secaoDoHash: abre só id existente', () => {
   assert.equal(secaoDoHash('#a[href]', ids), null);
 });
 
-test('conteúdo: pode/não pode tem 7 e 9 itens, com o,porque,saida', () => {
-  assert.equal(conteudo.podeNaoPode.pode.length, 7);
+test('conteúdo: pode/não pode tem 8 e 9 itens, com o,porque,saida', () => {
+  assert.equal(conteudo.podeNaoPode.pode.length, 8);
   assert.equal(conteudo.podeNaoPode.naoPode.length, 9);
   for (const n of conteudo.podeNaoPode.naoPode) {
     assert.ok(n.o && n.porque && n.saida);

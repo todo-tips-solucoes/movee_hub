@@ -1,14 +1,15 @@
 {
   "titulo": "Guia do App do Motorista",
   "subtitulo": "O que você faz no app, o que o app não aceita, e o que fazer quando algo dá errado.",
-  "atualizadoEm": "2026-10-12",
+  "atualizadoEm": "2026-10-19",
   "podeNaoPode": {
     "titulo": "O que você pode e o que não pode",
     "nota": "Esta é a parte que resolve a maioria das dúvidas. Se o app recusou algo seu, provavelmente está aqui.",
     "pode": [
       "Ver quanto você vai receber na semana, separado em valor da nota e gorjeta",
       "Enviar o XML da sua nota fiscal e saber na hora se ela foi aceita",
-      "Enviar a nota de semanas anteriores que ficaram sem nota, pelos últimos 90 dias",
+      "Enviar a nota de semanas anteriores que ficaram sem nota, dentro do período que o escritório liberou",
+      "Reenviar a nota que foi recusada, corrigindo o que o app apontou",
       "Cadastrar uma conta corrente no CNPJ da sua empresa",
       "Pedir adiantamento de parte do que você produziu ontem, nos dias e horários liberados",
       "Cancelar o pedido de adiantamento até o horário de corte do mesmo dia",
@@ -185,9 +186,9 @@
       "img2": "08-notas-pendentes.png",
       "img2Alt": "Lista de notas pendentes, cada uma com período, valor e botão para escolher o arquivo",
       "avisos": [
-        { "tipo": "importante", "texto": "A lista mostra os últimos 90 dias. Semanas mais antigas que isso não aparecem — fale com o escritório." },
+        { "tipo": "importante", "texto": "A lista não volta indefinidamente: o escritório define a partir de qual semana as notas podem ser regularizadas. Semanas mais antigas que esse limite não aparecem — fale com o escritório." },
         { "tipo": "importante", "texto": "Depois que sua nota é aprovada, o escritório confere e libera o pagamento. Não é automático e não tem prazo definido." },
-        { "tipo": "atencao", "texto": "Se sua nota foi recusada e o item saiu da lista, fale com o escritório. Hoje o app não deixa reenviar nesse caso." }
+        { "tipo": "dica", "texto": "Se sua nota foi recusada, o item **volta para esta lista** e o app mostra o que estava errado. Cancele a nota recusada, emita outra com os campos corrigidos e envie de novo aqui mesmo." }
       ]
     },
     {

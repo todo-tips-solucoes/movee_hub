@@ -1,6 +1,6 @@
 {
   "subtitulo": "Como operar o Envio em Massa, apurar e pagar o repasse semanal no Movee Hub, e o que o motorista faz no celular. Escrito a partir do comportamento real do sistema, incluindo o que ele recusa e por quê.",
-  "atualizadoEm": "2026-10-12",
+  "atualizadoEm": "2026-10-19",
   "secoes": [
     {
       "id": "inicio",
@@ -246,8 +246,8 @@
         {
           "bloco": "aviso",
           "tipo": "importante",
-          "titulo": "Leia isto antes de distribuir papéis",
-          "texto": "O papel **financeiro** *não* consegue fechar apuração, gerar notas da semana nem confirmar pagamento. Ele gera o lote e baixa o arquivo, mas não conclui o ciclo. Essas cinco ações pertencem apenas a **financeiro_aprovador** e **admin_plataforma**.\n\nQuem cuida do pagamento de ponta a ponta precisa do papel **financeiro_aprovador**, e só um administrador da plataforma pode concedê-lo."
+          "titulo": "Os dois papéis do financeiro ficaram iguais",
+          "texto": "Até 19/10/2026 o papel **financeiro** não fechava apuração, não gerava notas da semana e não confirmava pagamento — isso era só do **financeiro_aprovador**. Agora **todo financeiro faz o ciclo completo**: os dois papéis têm hoje exatamente as mesmas permissões.\n\nO **financeiro_aprovador** continua existindo de propósito, reservado para quando a aprovação de pagamento na Transfeera por API existir — será uma permissão nova e exclusiva dele. Enquanto ela não existir, escolher um papel ou o outro **não muda nada**."
         },
         {
           "bloco": "tabela",
@@ -312,7 +312,7 @@
               "**Fechar apuração**",
               "sim",
               "não",
-              "não",
+              "sim",
               "sim",
               "não"
             ],
@@ -320,7 +320,7 @@
               "**Gerar notas da semana**",
               "sim",
               "não",
-              "não",
+              "sim",
               "sim",
               "não"
             ],
@@ -328,7 +328,7 @@
               "**Importar retorno / confirmar na mão**",
               "sim",
               "não",
-              "não",
+              "sim",
               "sim",
               "não"
             ],
@@ -336,7 +336,23 @@
               "**Alterar o valor mínimo do repasse**",
               "sim",
               "não",
+              "sim",
+              "sim",
+              "não"
+            ],
+            [
+              "**\"Já foi pago\" e \"Apagar nota\"** (pagamentos retidos)",
+              "sim",
               "não",
+              "sim",
+              "sim",
+              "não"
+            ],
+            [
+              "Criar credencial do motorista e resetar a senha dele",
+              "sim",
+              "sim",
+              "sim",
               "sim",
               "não"
             ]
@@ -344,13 +360,13 @@
         },
         {
           "bloco": "texto",
-          "texto": "Os papéis **financeiro** e **financeiro_aprovador** também têm acesso de *leitura* ao Envio em Massa, à Validação XML e a Motoristas. Eles não criam nem editam movimento, não iniciam disparo e não excluem registro."
+          "texto": "Os papéis **financeiro** e **financeiro_aprovador** também alcançam o Envio em Massa, a Validação XML e Motoristas. No Envio em Massa e na Validação XML o acesso é de *leitura*: eles não criam nem editam movimento, não iniciam disparo e não excluem registro. Em **Motoristas** eles vão além da leitura — **criam a credencial de acesso ao app e resetam a senha** do motorista (desde 19/10/2026), mas continuam sem editar o cadastro e sem ver dados sensíveis."
         },
         {
           "bloco": "aviso",
           "tipo": "atencao",
           "titulo": "Para quem administra permissões",
-          "texto": "**financeiro_aprovador** foi criado como uma cópia do **financeiro** num momento específico, e os dois não estão ligados entre si. Uma permissão nova dada ao **financeiro** hoje *não* chega ao **financeiro_aprovador** — precisa ser dada aos dois. Se um aprovador reclamar que perdeu acesso a algo que o financeiro tem, é isto."
+          "texto": "**financeiro_aprovador** foi criado como uma cópia do **financeiro** num momento específico, e os dois **não estão ligados** entre si. Uma permissão nova dada a um deles *não* chega ao outro — precisa ser dada aos dois, sempre. Hoje eles estão iguais porque cada mudança foi aplicada nos dois de propósito, não porque o sistema os mantenha em sincronia."
         }
       ]
     },
@@ -1338,7 +1354,7 @@
         },
         {
           "bloco": "texto",
-          "texto": "A lista traz os movimentos dos **últimos 90 dias** que nunca tiveram nota enviada, do mais recente para o mais antigo."
+          "texto": "A lista traz os movimentos que estão sem nota aprovada — tanto os que nunca receberam nota quanto os que tiveram a nota **recusada** —, do mais recente para o mais antigo. Até onde ela volta no tempo é o corte configurado em [Configurações do adiantamento](#hub-config)."
         },
         {
           "bloco": "aviso",
