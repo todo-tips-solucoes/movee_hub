@@ -38,6 +38,7 @@ const {
 } = require('../lib/adiantamento-dto');
 const { validarContaBancaria } = require('../lib/adiantamento-conta');
 const bancosFixture = require('../lib/fixtures/bancos-compe.json');
+const { buscarBancos } = require('../lib/bancos-busca');
 
 const router = express.Router();
 
@@ -731,10 +732,9 @@ router.post('/conta-bancaria/solicitacoes', contaBancariaLimiter, async (req, re
 // --- 3.2.3 GET /bancos --------------------------------------------------------
 
 router.get('/bancos', (req, res) => {
-  const q = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
-  const todos = bancosFixture.bancos || [];
-  const filtrados = q ? todos.filter((b) => b.codigo.startsWith(q) || b.nome.toLowerCase().includes(q)) : todos;
-  res.json({ itens: filtrados.slice(0, 20).map((b) => ({ codigo: b.codigo, nome: b.nome })) });
+  const q = typeof req.query.q === 'string' ? req.query.q : '';
+  const itens = buscarBancos(bancosFixture.bancos || [], q).map((b) => ({ codigo: b.codigo, nome: b.nome }));
+  res.json({ itens });
 });
 
 // --- FASE 5 (5.4) — central de notificações ---------------------------------
