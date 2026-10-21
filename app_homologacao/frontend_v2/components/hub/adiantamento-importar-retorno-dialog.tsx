@@ -1,7 +1,7 @@
 'use client';
 
 // adiantamento-motorista — components/hub/adiantamento-importar-retorno-dialog.tsx
-// (FASE 9, Q-B1): importa o CSV de retorno da Transfeera e concilia o lote de
+// (FASE 9, Q-B1): importa o XLSX de retorno da Transfeera e concilia o lote de
 // uma vez, em lugar de marcar falha por falha no diálogo manual.
 //
 // O backend já fazia tudo isso desde 2026-09-18 (`POST /lotes/:id/retorno` +
@@ -14,7 +14,7 @@
 // Duas coisas que o arquivo real ensinou e que moldaram esta tela:
 //
 //   1. Um export de PERÍODO traz todos os pagamentos da conta — repasse
-//      semanal, promoções, antecipações. Só as linhas com `ADV-<id>` no "ID de
+//      semanal, promoções, antecipações. Só as linhas com `ADV-<id>` no "ID
 //      integração" pertencem a um lote nosso; as outras milhares voltam como
 //      `ignoradas` com motivo `ID_INTEGRACAO_INVALIDO`. Listar 3.800 linhas
 //      seria ruído, então agregamos por motivo.
@@ -36,18 +36,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { XLSX_MAX_BYTES, XLSX_MIME } from '@/lib/hub/retorno-xlsx';
 import {
   AdiantamentosApiError,
   importarRetornoLote,
   type ImportarRetornoResponse,
   type RetornoIgnoradaPorMotivo,
 } from '@/lib/hub/adiantamentos-api';
-
-/** Teto de transporte da rota (`express.text({ limit: '12mb' })`). Desde
- *  2026-10-01 o CSV vai cru, sem base64, então o limite é o próprio tamanho do
- *  arquivo — não mais 3/4 dele. O export real de um mês tem 3,4 MB; a checagem
- *  existe para o caso de alguém exportar o ano inteiro. */
-const CSV_MAX_BYTES = 12 * 1024 * 1024;
 
 /** Tradução dos motivos técnicos do backend
  *  (lib/adiantamento-retorno-transfeera.js#casarComItensDoLote). Não invento
@@ -62,17 +57,28 @@ const MOTIVO_IGNORADA = (produto: string): Record<string, string> => ({
 /** Motivos de recusa do arquivo inteiro (`RetornoTransfeeraParseError`). */
 const MOTIVO_ARQUIVO: Record<string, string> = {
   CABECALHO_INVALIDO:
-    'O cabeçalho não é o do retorno da Transfeera. Exporte o relatório em CSV, sem editar as colunas.',
+    'O cabeçalho não é o do retorno da Transfeera. Envie a planilha XLSX baixada de lá, sem editar as colunas.',
+  FORMATO_INVALIDO:
+    'O arquivo não é uma planilha XLSX válida. Envie o .xlsx baixado da Transfeera.',
   ARQUIVO_VAZIO: 'O arquivo está vazio.',
   LINHA_DUPLICADA:
     'O arquivo traz o mesmo pagamento duas vezes, com resultados diferentes. Exporte de novo — nada foi aplicado.',
   ARQUIVO_MUITO_GRANDE: 'O arquivo tem mais de 10.000 linhas. Exporte um período menor.',
 };
 
+/** Motivos de linha que PERTENCE ao lote mas foi recusada — a causa acionável do
+ *  `RETORNO_INCOMPLETO`. Os demais (outro lote, ID inválido, já aplicado) são
+ *  ruído de export de período e não explicam a falta. */
+const MOTIVOS_DA_LINHA = /^(VALOR_AMBIGUO|VALOR_DIVERGENTE|STATUS_DESCONHECIDO)(:|$)/;
+
 function rotuloIgnorada(motivo: string, produto: string): string {
   // `STATUS_DESCONHECIDO:<valor>` carrega o valor cru vindo do arquivo.
   if (motivo.startsWith('STATUS_DESCONHECIDO:')) {
     return `Status que não sabemos interpretar (${motivo.slice('STATUS_DESCONHECIDO:'.length)})`;
+  }
+  // `VALOR_AMBIGUO:<texto>`: célula sem casas decimais com ponto (milhar ou decimal?).
+  if (motivo.startsWith('VALOR_AMBIGUO:')) {
+    return `Valor sem casas decimais que pode ser milhar ou decimal (${motivo.slice('VALOR_AMBIGUO:'.length)}) — o sistema não adivinha. Reexporte o arquivo com vírgula e duas casas (ex.: 1.234,00)`;
   }
   return MOTIVO_IGNORADA(produto)[motivo] ?? motivo;
 }
@@ -92,7 +98,7 @@ export interface UseImportarRetornoDialogArgs {
   loteId: number;
   onSucesso: () => void;
   /** Endpoint do retorno — o default é o do adiantamento; o repasse passa o dele. */
-  importar?: (id: number, csv: string) => Promise<ImportarRetornoResponse>;
+  importar?: (id: number, xlsx: ArrayBuffer) => Promise<ImportarRetornoResponse>;
   /** Nome do produto nas frases que o citam ("valor do adiantamento" / "valor do repasse"). */
   produto?: string;
 }
@@ -117,9 +123,9 @@ export function useImportarRetornoDialog({ loteId, onSucesso, importar = importa
   const escolher = useCallback((f: File | null) => {
     setErro(null);
     setResultado(null);
-    if (f && f.size > CSV_MAX_BYTES) {
+    if (f && f.size > XLSX_MAX_BYTES) {
       setArquivo(null);
-      setErro('Arquivo grande demais (máximo 12 MB). Exporte um período menor.');
+      setErro('Arquivo grande demais (máximo 10 MB). Exporte um período menor.');
       return;
     }
     setArquivo(f);
@@ -130,23 +136,31 @@ export function useImportarRetornoDialog({ loteId, onSucesso, importar = importa
     setEnviando(true);
     setErro(null);
     try {
-      // `File.text()` decodifica como UTF-8 — o mesmo que o backend assume ao
-      // ler o corpo. Sem base64 desde 2026-10-01 (ver `importarRetornoLote`).
-      const csv = await arquivo.text();
-      const r = await importar(loteId, csv);
+      // BINÁRIO: `arrayBuffer()`, nunca `text()` — decodificar o ZIP como UTF-8 o
+      // corrompe. Sem base64 (ver `importarRetornoLote`).
+      const xlsx = await arquivo.arrayBuffer();
+      const r = await importar(loteId, xlsx);
       setResultado({ aplicadas: r.aplicadas, grupos: rotularIgnoradas(r.ignoradasPorMotivo, produto) });
       onSucesso();
     } catch (e) {
       if (e instanceof AdiantamentosApiError) {
         // `RETORNO_INCOMPLETO` não é erro de arquivo: é arquivo que não cobre
-        // este lote. Dizer quantos faltam é o que permite ao operador agir
-        // (exportar o período em que o pagamento saiu).
+        // este lote. Diz quantos faltam E, se houver linha recusada, por quê —
+        // sem a causa, o operador reexportava o período quando o problema era
+        // a célula (ex.: valor `1.234`).
         if (e.codigo === 'RETORNO_INCOMPLETO') {
           const n = e.faltantes?.length ?? 0;
+          const causas = rotularIgnoradas(
+            (e.ignoradasPorMotivo ?? []).filter((i) => MOTIVOS_DA_LINHA.test(i.motivo)),
+            produto
+          );
+          const base = `Este arquivo não traz o resultado de ${n} ${n === 1 ? 'pagamento' : 'pagamentos'} deste lote. Nada foi aplicado.`;
           setErro(
-            n > 0
-              ? `Este arquivo não traz o resultado de ${n} ${n === 1 ? 'pagamento' : 'pagamentos'} deste lote. Nada foi aplicado — exporte o período em que esses pagamentos saíram.`
-              : e.message
+            n === 0
+              ? e.message
+              : causas.length > 0
+                ? `${base} Linhas recusadas: ${causas.map((g) => `${g.total.toLocaleString('pt-BR')} — ${g.rotulo}`).join('; ')}. Corrija e reenvie.`
+                : `${base} Exporte o período em que esses pagamentos saíram.`
           );
         } else if (e.codigo === 'ARQUIVO_INVALIDO') {
           // O `motivo` diz QUAL defeito o leitor achou — instrução útil em vez
@@ -185,20 +199,20 @@ export function ImportarRetornoDialog({ d, prefixoId = 'ADV-' }: Props) {
         <DialogHeader>
           <DialogTitle>Importar retorno da Transfeera</DialogTitle>
           <DialogDescription>
-            Exporte o relatório de movimentações em CSV e envie aqui. Cada pagamento é casado pelo ID de integração
-            ({prefixoId}…), nunca por nome ou valor. Linhas de outros pagamentos são ignoradas.
+            Envie o arquivo .xlsx baixado da Transfeera, sem editar as colunas. Cada pagamento é casado pelo ID de
+            integração ({prefixoId}…), nunca por nome ou valor. Linhas de outros pagamentos são ignoradas.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <label htmlFor={inputId} className="text-sm font-medium">
-              Arquivo CSV
+              Arquivo XLSX
             </label>
             <input
               id={inputId}
               type="file"
-              accept=".csv,text/csv"
+              accept={`.xlsx,${XLSX_MIME}`}
               disabled={enviando}
               onChange={(e) => escolher(e.target.files?.[0] ?? null)}
               className="min-h-11 rounded-md border border-input bg-background px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm sm:min-h-10"

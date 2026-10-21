@@ -31,7 +31,11 @@ function iso(d) {
  * nunca diminuí-lo. Sinal aplicado por último (arredonda pela magnitude, igual
  * ao `round()` numeric do Postgres usado em `hub_adiantamento_processar`). */
 function paraCentavos(valor) {
-  const str = String(valor).trim();
+  let str = String(valor).trim();
+  // Milhar brasileiro (`1.234,56`): único padrão que antes dava NaN — o XLSX da
+  // Transfeera traz o valor como TEXTO formatado. Estrito de propósito: `1.234`
+  // (só ponto) segue decimal (123 centavos) e `54,57`/`54.57` ficam inalterados.
+  if (/^-?\d{1,3}(?:\.\d{3})+,\d+$/.test(str)) str = str.replace(/\./g, '');
   const casado = str.match(/^(-?)(\d+)(?:[.,](\d+))?$/);
   if (!casado) return Math.round(Number(valor) * 100); // fallback: formato não-decimal (ex.: notação científica)
   const [, sinal, inteiro, decimais = ''] = casado;

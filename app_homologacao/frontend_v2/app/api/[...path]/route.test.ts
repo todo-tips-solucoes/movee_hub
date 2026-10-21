@@ -121,3 +121,127 @@ describe('proxy — renovação silenciosa da sessão do hub', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+// retorno-transfeera-xlsx (2026-10-21): o retorno da Transfeera passou a ser um
+// XLSX (ZIP) enviado em BINÁRIO. O proxy fazia `await req.text()` para todo
+// content-type que não fosse multipart: decodificava UTF-8 e todo byte >= 0x80
+// inválido virava U+FFFD — o arquivo bom chegava ao backend corrompido e
+// nenhum teste do backend pegaria, porque o proxy é Next. Estes testes falam
+// com o handler REAL.
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const DEZ_MB = 10 * 1024 * 1024;
+
+/** Bytes que NÃO sobrevivem a `text()`: assinatura ZIP + 0x80..0xFF + NUL. */
+function bytesXlsx() {
+  const b = new Uint8Array(4 + 256 + 2);
+  b.set([0x50, 0x4b, 0x03, 0x04]);
+  for (let i = 0; i < 128; i += 1) b[4 + i] = 0x80 + i;
+  for (let i = 0; i < 128; i += 1) b[4 + 128 + i] = 0xff - i;
+  b[260] = 0x00;
+  b[261] = 0xc3; // lead byte UTF-8 sem continuação: inválido
+  return b;
+}
+
+function reqBin(
+  cookie: string,
+  corpo: Uint8Array,
+  { contentType = XLSX_MIME, contentLength }: { contentType?: string; contentLength?: string | null } = {},
+) {
+  const headers = new Headers({ cookie, 'content-type': contentType });
+  const cl = contentLength === undefined ? String(corpo.byteLength) : contentLength;
+  if (cl !== null) headers.set('content-length', cl);
+  return new NextRequest('http://front/api/v1/adiantamentos/lotes/900/retorno', { method: 'POST', headers, body: corpo as BodyInit });
+}
+const COOKIE_OK = () => `hub_accessToken=${accessValido}; hub_refreshToken=1757.r1`;
+
+describe('proxy — corpo binário do retorno XLSX (FR-016/017/018)', () => {
+  it('bytes 0x80..0xFF e PK\\x03\\x04 chegam ao backend byte a byte idênticos (sem U+FFFD)', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(200, { aplicadas: 1 }));
+    const original = bytesXlsx();
+    const res = await POST(reqBin(COOKIE_OK(), original));
+    expect(res.status).toBe(200);
+    const body = chamadas()[0].body as unknown;
+    expect(typeof body).not.toBe('string');
+    expect(Buffer.from(body as Uint8Array).equals(Buffer.from(original))).toBe(true);
+  });
+
+  it('mime com parâmetro (; charset) ainda entra no ramo binário', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(200));
+    const original = bytesXlsx();
+    await POST(reqBin(COOKIE_OK(), original, { contentType: `${XLSX_MIME}; charset=binary` }));
+    expect(Buffer.from(chamadas()[0].body as Uint8Array).equals(Buffer.from(original))).toBe(true);
+  });
+
+  it('mime só PARECIDO (substring no meio do valor) NÃO entra no ramo binário', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(200));
+    await POST(reqBin(COOKIE_OK(), new TextEncoder().encode('abc'), { contentType: 'text/plain; x=spreadsheetml.sheet' }));
+    expect(chamadas()[0].body).toBe('abc'); // caminho de texto de sempre
+  });
+
+  it('content-length ausente -> 411 sem ler o corpo nem chamar o backend', async () => {
+    const r = reqBin(COOKIE_OK(), bytesXlsx(), { contentLength: null });
+    const lido = vi.spyOn(r, 'arrayBuffer');
+    const res = await POST(r);
+    expect(res.status).toBe(411);
+    expect(lido).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('content-length inválido -> 411 sem ler o corpo', async () => {
+    const r = reqBin(COOKIE_OK(), bytesXlsx(), { contentLength: 'abc' });
+    const lido = vi.spyOn(r, 'arrayBuffer');
+    expect((await POST(r)).status).toBe(411);
+    expect(lido).not.toHaveBeenCalled();
+  });
+
+  it('content-length acima de 10 MB -> 413 ARQUIVO_MUITO_GRANDE sem ler o corpo', async () => {
+    const r = reqBin(COOKIE_OK(), bytesXlsx(), { contentLength: String(DEZ_MB + 1) });
+    const lido = vi.spyOn(r, 'arrayBuffer');
+    const res = await POST(r);
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ erro: 'ARQUIVO_INVALIDO', motivo: 'ARQUIVO_MUITO_GRANDE' });
+    expect(lido).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('exatamente 10 MB ainda é aceito', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(200));
+    const res = await POST(reqBin(COOKIE_OK(), new Uint8Array(DEZ_MB).fill(0x50)));
+    expect(res.status).toBe(200);
+    expect((chamadas()[0].body as Uint8Array).byteLength).toBe(DEZ_MB);
+  });
+
+  it('CHK012 (a): 401 com corpo binário -> renova a sessão e REENVIA os mesmos bytes', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(resposta(401, { erro: 'NAO_AUTENTICADO' }))
+      .mockResolvedValueOnce(resposta(200, {}, COOKIES_NOVOS)) // /v1/auth/refresh
+      .mockResolvedValueOnce(resposta(200, { aplicadas: 1 }));
+    const original = bytesXlsx();
+    const res = await POST(reqBin(COOKIE_OK(), original));
+    expect(res.status).toBe(200);
+    const c = chamadas();
+    expect(c.map((x) => x.url)).toEqual([
+      'http://localhost:3000/v1/adiantamentos/lotes/900/retorno',
+      'http://localhost:3000/v1/auth/refresh',
+      'http://localhost:3000/v1/adiantamentos/lotes/900/retorno',
+    ]);
+    expect(Buffer.from(c[0].body as Uint8Array).equals(Buffer.from(original))).toBe(true);
+    expect(Buffer.from(c[2].body as Uint8Array).equals(Buffer.from(original))).toBe(true);
+    expect(c[2].cookie).toBe('hub_accessToken=a2; hub_refreshToken=1757.r2');
+  });
+
+  it('CHK012 (b): 401 com corpo multipart (stream) continua NÃO reenviável — uma única chamada', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(401, {}));
+    const res = await POST(
+      req('/api/v1/importacoes', COOKIE_OK(), { method: 'POST', body: '--x\r\n', contentType: 'multipart/form-data; boundary=x' })
+    );
+    expect(res.status).toBe(401);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('endpoint JSON segue recebendo `init.body` string (regressão do caminho existente)', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(200));
+    await POST(req('/api/v1/me/entidade', COOKIE_OK(), { method: 'POST', body: '{"empresa_id":9}', contentType: 'application/json' }));
+    expect(chamadas()[0].body).toBe('{"empresa_id":9}');
+  });
+});

@@ -2,9 +2,9 @@
  * hub — routes/hub-repasse-lotes.js (PLANO-F5-LOTE-REPASSE §3.2)
  *
  * Ciclo de pagamento do repasse semanal: prévia -> lote -> arquivo Transfeera
- * -> confirmação (CSV de retorno ou manual) -> concluído. Espelha o bloco
+ * -> confirmação (XLSX de retorno ou manual) -> concluído. Espelha o bloco
  * "Lotes de pagamento" de routes/hub-adiantamentos.js (mesma cadeia de guarda,
- * mesmo transporte `text/csv` no retorno, mesmo mapeamento de erro das RPCs);
+ * mesmo transporte XLSX binário no retorno, mesmo mapeamento de erro das RPCs);
  * as RPCs são `hub_repasse_lote_*` (migration 0108).
  *
  * Montado em `/api/v1/adiantamentos/repasse` (server.js) — o mesmo prefixo de
@@ -37,7 +37,7 @@ const { montarPlanilhaTransfeera, validarPlanilhaTransfeera, renderizarDescricao
 const { paraCentavos } = require('../lib/adiantamento-remanescente');
 const { partesNoFuso, dataISO } = require('../lib/adiantamento-regras');
 const {
-  RetornoTransfeeraParseError, lerCsv: lerRetornoTransfeeraCsv, casarComItensDoLote,
+  RetornoTransfeeraParseError, XLSX_MIME, lerXlsx, casarComItensDoLote,
 } = require('../lib/adiantamento-retorno-transfeera');
 const contratoTransfeera = require('../lib/fixtures/transfeera-contrato.json');
 const { resolverContextoAdiantamentos } = require('./hub-adiantamentos');
@@ -200,9 +200,9 @@ function itensParaCasamento(itensRaw) {
   }));
 }
 
-/** Casa o CSV com os itens do lote. `aplicaveis[].solicitacaoId` = id do item. */
-function casarRetornoRepasse(linhasCsv, itensRaw) {
-  return casarComItensDoLote(linhasCsv, itensParaCasamento(itensRaw), { prefixo: PREFIXO_ID_INTEGRACAO });
+/** Casa o retorno (XLSX) com os itens do lote. `aplicaveis[].solicitacaoId` = id do item. */
+function casarRetornoRepasse(linhasRetorno, itensRaw) {
+  return casarComItensDoLote(linhasRetorno, itensParaCasamento(itensRaw), { prefixo: PREFIXO_ID_INTEGRACAO });
 }
 
 /** Ponto único de escrita de situação: UMA chamada atômica. A RPC marca as
@@ -516,11 +516,12 @@ router.post('/lotes/:id/confirmacao', requireModuloAtivo('adiantamentos'), requi
   }
 });
 
-// O corpo chega como `text/csv`, não JSON+base64: o `express.json()` global
-// (100 KB) roda ANTES do router e daria 413 a qualquer CSV real (incidente de
-// 2026-10-01, ver hub-adiantamentos.js). NUNCA subir o limite global — o parser
-// de texto fica AQUI, depois de módulo+permissão.
-router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), retornoRateLimiter, express.text({ limit: '12mb', type: ['text/csv', 'text/plain'] }), async (req, res) => {
+// O corpo chega como XLSX BINÁRIO (`express.raw`), não JSON: o `express.json()`
+// global (100 KB) roda ANTES do router e daria 413 a qualquer arquivo real
+// (incidente de 2026-10-01, ver hub-adiantamentos.js). NUNCA subir o limite
+// global — o parser fica AQUI, depois de módulo+permissão. Outro Content-Type
+// (inclusive `text/csv`) não casa o parser e vira 400 FORMATO_INVALIDO.
+router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), retornoRateLimiter, express.raw({ limit: '10mb', type: [XLSX_MIME] }), async (req, res) => {
   try {
     const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamento_confirmar');
     if (!ctx) return;
@@ -528,16 +529,18 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = Number(req.params.id);
     // Outro content-type cai aqui como `{}` (o parser não casou) e vira 400, nunca 500.
-    const csv = typeof req.body === 'string' ? req.body : '';
-    if (!csv) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'csv' });
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
+    }
 
-    let linhasCsv;
+    let linhasRetorno;
     try {
-      linhasCsv = lerRetornoTransfeeraCsv(csv);
+      linhasRetorno = lerXlsx(req.body);
     } catch (e) {
       if (e instanceof RetornoTransfeeraParseError) return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
-      console.error('[hub-repasse-lotes] erro ao ler CSV em POST /lotes/:id/retorno:', e.message);
-      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'csv' });
+      // Só mensagem constante + e.name: o `message` do SheetJS pode ecoar conteúdo do arquivo.
+      console.error('[hub-repasse-lotes] erro ao ler o XLSX em POST /lotes/:id/retorno:', e && e.name);
+      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
     }
 
     const itensRaw = await hubPostgrestRequest(
@@ -548,7 +551,7 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
 
     let casamento;
     try {
-      casamento = casarRetornoRepasse(linhasCsv, itensRaw);
+      casamento = casarRetornoRepasse(linhasRetorno, itensRaw);
     } catch (e) {
       // LINHA_DUPLICADA conflitante: o arquivo inteiro é recusado.
       if (e instanceof RetornoTransfeeraParseError) return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
@@ -556,7 +559,13 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
     }
     const { aplicaveis, ignoradas, faltantes } = casamento;
     // Nunca aplica parcialmente: item `incluido` sem resolução no arquivo seria pago por omissão.
-    if (faltantes.length > 0) return res.status(409).json({ erro: 'RETORNO_INCOMPLETO', faltantes });
+    // `ignoradas` cruas carregam nomes de terceiros do arquivo do parceiro: só a contagem por motivo sai.
+    const ignoradasPorMotivo = [...ignoradas.reduce((acc, i) => {
+      acc.set(i.motivo, (acc.get(i.motivo) || 0) + 1);
+      return acc;
+    }, new Map())].map(([motivo, total]) => ({ motivo, total })).sort((a, b) => b.total - a.total);
+    // O 409 leva o diagnóstico: linha ignorada de item `incluido` (VALOR_AMBIGUO etc.) vira faltante.
+    if (faltantes.length > 0) return res.status(409).json({ erro: 'RETORNO_INCOMPLETO', faltantes, ignoradasPorMotivo });
 
     const falhas = aplicaveis.filter((a) => a.status === 'Devolvida')
       .map((a) => ({ id: a.solicitacaoId, motivo: sanearMotivoDoArquivo(a.motivo) }));
@@ -575,12 +584,6 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
       recurso: 'RepasseLote', recursoId: id,
       detalhes: { aplicadas: aplicaveis.length, falhas: falhas.length, ignoradas: ignoradas.length }, claims,
     });
-
-    // `ignoradas` cruas carregam nomes de terceiros do arquivo do parceiro: só a contagem por motivo sai.
-    const ignoradasPorMotivo = [...ignoradas.reduce((acc, i) => {
-      acc.set(i.motivo, (acc.get(i.motivo) || 0) + 1);
-      return acc;
-    }, new Map())].map(([motivo, total]) => ({ motivo, total })).sort((a, b) => b.total - a.total);
 
     return res.status(200).json({ aplicadas: aplicaveis.length, ignoradas: ignoradas.length, ignoradasPorMotivo });
   } catch (e) {

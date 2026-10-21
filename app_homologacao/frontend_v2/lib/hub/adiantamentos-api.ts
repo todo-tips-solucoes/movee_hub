@@ -34,6 +34,9 @@
 // Ref: docs/specs/adiantamento-motorista/contracts/hub-api.md §Parte 2.
 
 import { HUB_API_BASE, HubApiError, criarRequest, mensagemPorCodigo, codigoDoErro, query } from './api';
+import { XLSX_MIME } from './retorno-xlsx';
+
+export { XLSX_MIME };
 
 const MENSAGENS_CODIGO: Record<string, string> = {
   NAO_AUTENTICADO: 'Sua sessão expirou. Faça login novamente.',
@@ -96,7 +99,10 @@ export class AdiantamentosApiError extends HubApiError {
      * encontrou (`CABECALHO_INVALIDO`, `ARQUIVO_VAZIO`, `LINHA_DUPLICADA`,
      * `ARQUIVO_MUITO_GRANDE`) — é o que permite dar instrução útil na tela em
      * vez de "arquivo inválido". */
-    public readonly motivo?: string
+    public readonly motivo?: string,
+    /** Só em `RETORNO_INCOMPLETO`: por que as linhas PRESENTES no arquivo foram
+     * recusadas (ex.: `VALOR_AMBIGUO:1.234`). Só contagem por motivo — nunca linhas. */
+    public readonly ignoradasPorMotivo?: RetornoIgnoradaPorMotivo[]
   ) {
     super(status, message, codigo);
   }
@@ -112,12 +118,20 @@ function faltantesDoErro(body: Record<string, unknown>): number[] | undefined {
   return Array.isArray(f) && f.every((x) => typeof x === 'number') ? (f as number[]) : undefined;
 }
 
+function ignoradasDoErro(body: Record<string, unknown>): RetornoIgnoradaPorMotivo[] | undefined {
+  const g = body.ignoradasPorMotivo;
+  return Array.isArray(g) && g.every((x) => x && typeof x.motivo === 'string' && typeof x.total === 'number')
+    ? (g as RetornoIgnoradaPorMotivo[])
+    : undefined;
+}
+
 const request = criarRequest(
   (status, body) =>
     new AdiantamentosApiError(
       status, mensagemPorCodigo(MENSAGENS_CODIGO, body, status), codigoDoErro(body),
       detalheDoErro(body), faltantesDoErro(body),
-      typeof body.motivo === 'string' ? body.motivo : undefined
+      typeof body.motivo === 'string' ? body.motivo : undefined,
+      ignoradasDoErro(body)
     )
 );
 
@@ -632,24 +646,26 @@ export interface ImportarRetornoResponse {
   ignoradasPorMotivo: RetornoIgnoradaPorMotivo[];
 }
 
-/** `POST /adiantamentos/lotes/:id/retorno` — concilia o lote a partir do CSV de
- *  retorno da Transfeera. O casamento é por `ID de integração` (`ADV-<id>`),
- *  nunca por nome ou valor; o backend recusa o arquivo inteiro (409
- *  `RETORNO_INCOMPLETO`) se faltar o retorno de algum item do lote, em vez de
- *  aplicar pela metade.
- *
- *  ⚠️ O corpo vai como **`text/csv` cru**, não como JSON com base64. O
- *  `express.json()` global do backend tem o default de 100 KB e está montado
- *  antes de toda autenticação: um JSON de 4 MB levava `413` em HTML antes de
- *  chegar na rota, e a importação simplesmente não funcionava com arquivo real
- *  (gate owasp-security, 2026-10-01). Com `text/csv` o parser global não toca
- *  no corpo, e de quebra cai 25% do tamanho. */
-export async function importarRetornoLote(id: number, csv: string): Promise<ImportarRetornoResponse> {
-  return request<ImportarRetornoResponse>(`/adiantamentos/lotes/${id}/retorno`, {
+/** `POST` do retorno em XLSX BINÁRIO — helper único das duas rotas (adiantamento
+ *  e repasse). Corpo cru (`ArrayBuffer`) em `XLSX_MIME`, nunca JSON com base64:
+ *  o `express.json()` global do backend tem o default de 100 KB e está montado
+ *  antes de toda autenticação — um JSON de 4 MB levava `413` em HTML antes de
+ *  chegar na rota (gate owasp-security, 2026-10-01). E nunca `text()`: decodificar
+ *  o ZIP como UTF-8 o corrompe (o proxy também lê o corpo como binário). */
+function postarRetorno(path: string, xlsx: ArrayBuffer): Promise<ImportarRetornoResponse> {
+  return request<ImportarRetornoResponse>(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/csv' },
-    body: csv,
+    headers: { 'Content-Type': XLSX_MIME },
+    body: xlsx,
   });
+}
+
+/** `POST /adiantamentos/lotes/:id/retorno` — concilia o lote a partir do XLSX de
+ *  retorno da Transfeera. O casamento é por `ID integração` (`ADV-<id>`), nunca
+ *  por nome ou valor; o backend recusa o arquivo inteiro (409 `RETORNO_INCOMPLETO`)
+ *  se faltar o retorno de algum item do lote, em vez de aplicar pela metade. */
+export async function importarRetornoLote(id: number, xlsx: ArrayBuffer): Promise<ImportarRetornoResponse> {
+  return postarRetorno(`/adiantamentos/lotes/${id}/retorno`, xlsx);
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -843,11 +859,7 @@ export async function confirmarLoteRepasse(id: number, dados: ConfirmarLoteInput
   return request<Lote>(`${REPASSE_LOTES}/${id}/confirmacao`, { method: 'POST', body: JSON.stringify(dados) });
 }
 
-/** CSV cru (`text/csv`), pelo mesmo motivo de `importarRetornoLote`. */
-export async function importarRetornoLoteRepasse(id: number, csv: string): Promise<ImportarRetornoResponse> {
-  return request<ImportarRetornoResponse>(`${REPASSE_LOTES}/${id}/retorno`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/csv' },
-    body: csv,
-  });
+/** XLSX binário, pelo mesmo motivo de `importarRetornoLote`. */
+export async function importarRetornoLoteRepasse(id: number, xlsx: ArrayBuffer): Promise<ImportarRetornoResponse> {
+  return postarRetorno(`${REPASSE_LOTES}/${id}/retorno`, xlsx);
 }

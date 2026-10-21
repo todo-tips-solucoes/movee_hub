@@ -437,13 +437,15 @@ function request(method, path, { body, cookie, raw, contentType } = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, baseUrl);
     // `raw` + `contentType`: corpo que NÃO é JSON. A importação de retorno
-    // recebe `text/csv` justamente para escapar do `express.json()` global de
-    // 100 KB (gate owasp-security 2026-10-01) — o teste tem de falar a mesma
-    // língua, senão exercita um caminho que não existe em produção.
+    // recebe XLSX binário (`Buffer`) justamente para escapar do
+    // `express.json()` global de 100 KB (gate owasp-security 2026-10-01) — o
+    // teste tem de falar a mesma língua, senão exercita um caminho que não
+    // existe em produção.
     const bodyStr = raw !== undefined ? raw : (body !== undefined ? JSON.stringify(body) : undefined);
     const headers = {};
     if (bodyStr !== undefined) {
-      headers['Content-Type'] = contentType || 'application/json';
+      // `contentType: null` = sem cabeçalho nenhum (caso "ausente" do retorno).
+      if (contentType !== null) headers['Content-Type'] = contentType || 'application/json';
       headers['Content-Length'] = Buffer.byteLength(bodyStr);
     }
     if (cookie) headers.Cookie = cookie;
@@ -1343,29 +1345,29 @@ describe('4.4 lotes de pagamento', () => {
 // FASE 9 — Importador de retorno da Transfeera (9.1.3)
 // ════════════════════════════════════════════════════════════════════════
 
-const { CABECALHO_ESPERADO: CABECALHO_RETORNO } = require('../lib/adiantamento-retorno-transfeera');
+const { CABECALHO_ESPERADO: CABECALHO_RETORNO, XLSX_MIME } = require('../lib/adiantamento-retorno-transfeera');
+const XLSX = require('xlsx');
 
 const LINHA_RETORNO_PADRAO = {
-  'ID da transferência': 'tr_teste', 'ID de integração': '', Status: 'Finalizada', Valor: '250.00',
-  'Pago em': '17/09/2026 10:00:00', 'Criado em': '16/09/2026 09:00:00', 'Método de pagamento': 'pix',
-  'Código Bancário': '001', 'Nome do recebedor': 'Fulano de Tal Sintetico', 'CPF/CNPJ do recebedor': '00000000000',
-  'Tipo de chave Pix do recebedor': 'cpf', 'Chave Pix': '00000000000', 'Número da conta': '00012345',
-  'Número da agência': '1234', 'Tipo de conta': 'conta_corrente', 'Código do banco': '001',
-  'Nome do banco': 'Banco Sintetico', 'ID do lote': 'lote_teste', 'Nome do lote': 'lote teste',
-  'Recibo bancário': '', 'Recibo Transfeera': 'rec_teste', 'Código de erro': '', 'Motivo da falha': '',
+  Valor: '250,00', Favorecido: 'Fulano de Tal Sintetico', 'Comprovante Transfeera': 'COMPROV_TESTE',
+  'Comprovante Banco': '', Status: 'FINALIZADO', 'ID integração': '', Motivo: '',
+  'CPF ou CNPJ': '00000000000', Email: '', Banco: '001', Agência: '1234', Conta: '00012345',
+  'Dígito da conta': '0', 'Tipo de Conta (Corrente ou Poupança)': 'Conta Corrente', 'Nome do lote': 'lote teste',
+  'Data transferido': '20/10/2026 10:00:00', 'Banco de saída': '', 'Data de agendamento': '',
+  'Tentativas de pagamento': '1', 'Tipo da chave PIX': '', 'Chave PIX': '',
 };
 
-function csvRetornoTexto(linhasOverrides) {
-  const cab = CABECALHO_RETORNO.join(',');
-  const corpo = linhasOverrides
-    .map((over) => CABECALHO_RETORNO.map((c) => ({ ...LINHA_RETORNO_PADRAO, ...over }[c])).join(','))
-    .join('\n');
-  return `${cab}\n${corpo}\n`;
+/** XLSX (Buffer) de retorno no contrato de 21 colunas. */
+function xlsxRetorno(linhasOverrides, cabecalho = CABECALHO_RETORNO) {
+  const aoa = [cabecalho, ...linhasOverrides.map((over) => CABECALHO_RETORNO.map((c) => ({ ...LINHA_RETORNO_PADRAO, ...over }[c])))];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Transferências');
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
-/** Atalho para o corpo da rota de retorno: texto cru em `text/csv`. */
+/** Atalho para o corpo da rota de retorno: binário em `XLSX_MIME`. */
 function corpoRetorno(linhasOverrides) {
-  return { raw: csvRetornoTexto(linhasOverrides), contentType: 'text/csv' };
+  return { raw: xlsxRetorno(linhasOverrides), contentType: XLSX_MIME };
 }
 
 function itemLote({
@@ -1384,17 +1386,70 @@ function itemLote({
 describe('FASE 9 — POST /lotes/:id/retorno', () => {
   beforeEach(resetFixtures);
 
-  test('corpo ausente -> 400 DADOS_INVALIDOS', async () => {
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { raw: '', contentType: 'text/csv', cookie: tokenCookie() });
+  test('corpo ausente -> 400 ARQUIVO_INVALIDO/FORMATO_INVALIDO', async () => {
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { raw: Buffer.alloc(0), contentType: XLSX_MIME, cookie: tokenCookie() });
     assert.equal(r.status, 400);
-    assert.equal(r.body.erro, 'DADOS_INVALIDOS');
+    assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
+    assert.equal(r.body.motivo, 'FORMATO_INVALIDO');
   });
 
   test('cabeçalho fora do contrato -> 400 ARQUIVO_INVALIDO/CABECALHO_INVALIDO', async () => {
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { raw: 'a,b,c\n1,2,3\n', contentType: 'text/csv', cookie: tokenCookie() });
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', {
+      raw: xlsxRetorno([{ 'ID integração': 'ADV-000100' }], ['a', 'b', 'c']), contentType: XLSX_MIME, cookie: tokenCookie(),
+    });
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
     assert.equal(r.body.motivo, 'CABECALHO_INVALIDO');
+  });
+
+  // FR-002/FR-019: o CSV deixou de existir — só o mime XLSX entra no parser.
+  for (const [rotulo, contentType] of [
+    ['text/csv', 'text/csv'], ['text/plain', 'text/plain'],
+    ['application/octet-stream', 'application/octet-stream'], ['ausente', null],
+  ]) {
+    test(`Content-Type ${rotulo} -> 400 ARQUIVO_INVALIDO/FORMATO_INVALIDO`, async () => {
+      const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', {
+        raw: xlsxRetorno([{ 'ID integração': 'ADV-000100' }]), contentType, cookie: tokenCookie(),
+      });
+      assert.equal(r.status, 400);
+      assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
+      assert.equal(r.body.motivo, 'FORMATO_INVALIDO');
+      assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
+    });
+  }
+
+  test('bytes que não são XLSX (texto renomeado) -> 400 FORMATO_INVALIDO', async () => {
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', {
+      raw: Buffer.from('ID integração,Status\nADV-000100,Finalizada\n'), contentType: XLSX_MIME, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'FORMATO_INVALIDO');
+  });
+
+  test('corpo acima de 10 MB -> 413 (paridade com a rota CSV anterior)', async () => {
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', {
+      raw: Buffer.alloc(10 * 1024 * 1024 + 1024, 0x50), contentType: XLSX_MIME, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 413);
+  });
+
+  test('erro inesperado do parser não vaza e.message no log (só mensagem constante + e.name)', async () => {
+    loteItensFixture = [itemLote({ id: 1, solicitacaoId: 100, valor: '250.00', colIdIntegracao: 'ADV-000100' })];
+    const logs = [];
+    const orig = console.error;
+    const origSheet = XLSX.utils.sheet_to_json;
+    console.error = (...a) => { logs.push(a.map(String).join(' ')); };
+    XLSX.utils.sheet_to_json = () => { throw new TypeError('SEGREDO-NA-MENSAGEM-DO-PARSER'); };
+    let r;
+    try {
+      r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([{ 'ID integração': 'ADV-000100' }]), cookie: tokenCookie() });
+    } finally {
+      console.error = orig;
+      XLSX.utils.sheet_to_json = origSheet;
+    }
+    assert.equal(r.status, 400);
+    assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
+    assert.ok(!logs.some((l) => l.includes('SEGREDO-NA-MENSAGEM-DO-PARSER')), `log vazou a mensagem: ${logs.join(' | ')}`);
   });
 
   // Revisão PR #182: duas linhas do mesmo ADV-<id> entravam as duas em
@@ -1403,9 +1458,9 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
   test('mesmo ADV-<id> repetido com status conflitante -> 400 ARQUIVO_INVALIDO/LINHA_DUPLICADA, RPC nunca chamada', async () => {
     loteItensFixture = [itemLote({ id: 1, solicitacaoId: 100, valor: '250.00', colIdIntegracao: 'ADV-000100' })];
     const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
-      { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
+      { 'ID integração': 'ADV-000100', Status: 'FINALIZADO', Valor: '250,00' },
       {
-        'ID de integração': 'ADV-000100', Status: 'Devolvida', Valor: '250.00', 'Código de erro': 'DBA_20', 'Motivo da falha': 'Conta ou dígito verificador da conta inválido.',
+        'ID integração': 'ADV-000100', Status: 'Devolvida', Valor: '250.00', Motivo: 'Conta ou dígito verificador da conta inválido.',
       },
     ]), cookie: tokenCookie() });
     assert.equal(r.status, 400);
@@ -1420,9 +1475,9 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
       itemLote({ id: 2, solicitacaoId: 101, valor: '80.00', colIdIntegracao: 'ADV-000101' }),
     ];
     const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
-      { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
+      { 'ID integração': 'ADV-000100', Status: 'FINALIZADO', Valor: '250,00' },
       {
-        'ID de integração': 'ADV-000101', Status: 'Devolvida', Valor: '80.00', 'Código de erro': 'DBA_20', 'Motivo da falha': 'Conta ou dígito verificador da conta inválido.',
+        'ID integração': 'ADV-000101', Status: 'Devolvida', Valor: '80.00', Motivo: 'Conta ou dígito verificador da conta inválido.',
       },
     ]), cookie: tokenCookie() });
     assert.equal(r.status, 200);
@@ -1449,7 +1504,7 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
       itemLote({ id: 2, solicitacaoId: 101, valor: '80.00', colIdIntegracao: 'ADV-000101' }),
     ];
     const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
-      { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
+      { 'ID integração': 'ADV-000100', Status: 'FINALIZADO', Valor: '250,00' },
     ]), cookie: tokenCookie() });
     assert.equal(r.status, 409);
     assert.equal(r.body.erro, 'RETORNO_INCOMPLETO');
@@ -1457,10 +1512,26 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
     assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
   });
 
+  // Defeito 2026-10-21: VALOR_AMBIGUO nunca chegava à tela — item `incluido` com linha
+  // ignorada vira faltante -> 409, que descartava `ignoradasPorMotivo`. Atravessa a ROTA
+  // com XLSX real (a linha montada à mão não tem `valorAmbiguoTexto`).
+  test('célula de valor ambígua (1.234) -> 409 RETORNO_INCOMPLETO COM ignoradasPorMotivo VALOR_AMBIGUO, sem linhas cruas', async () => {
+    loteItensFixture = [itemLote({ id: 1, solicitacaoId: 100, valor: '1.23', colIdIntegracao: 'ADV-000100' })];
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
+      { 'ID integração': 'ADV-000100', Status: 'FINALIZADO', Valor: '1.234' },
+    ]), cookie: tokenCookie() });
+    assert.equal(r.status, 409);
+    assert.equal(r.body.erro, 'RETORNO_INCOMPLETO');
+    assert.deepEqual(r.body.faltantes, [100]);
+    assert.deepEqual(r.body.ignoradasPorMotivo, [{ motivo: 'VALOR_AMBIGUO:1.234', total: 1 }]);
+    assert.equal(r.body.ignoradas, undefined, 'linhas cruas (idIntegracao com nome de pessoa) nunca saem');
+    assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
+  });
+
   test('reimportação (item já pago) -> 200 aplicadas:0, ignoradas JA_APLICADO, RPC não chamada de novo', async () => {
     loteItensFixture = [itemLote({ id: 1, solicitacaoId: 100, valor: '250.00', colIdIntegracao: 'ADV-000100', situacao: 'pago' })];
     const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([
-      { 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' },
+      { 'ID integração': 'ADV-000100', Status: 'FINALIZADO', Valor: '250,00' },
     ]), cookie: tokenCookie() });
     assert.equal(r.status, 200);
     assert.equal(r.body.aplicadas, 0);
@@ -1476,9 +1547,39 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
     assert.deepEqual(auditoriaReimport.detalhes, { aplicadas: 0, falhas: 0, ignoradas: 1 });
   });
 
+  // Roundtrip pela borda real: os BYTES do arquivo da Transfeera (fixture
+  // anonimizada) atravessam HTTP + `express.raw` + `lerXlsx` — nada de planilha
+  // montada em memória, nada de parser mockado.
+  test('fixture real da Transfeera via HTTP: 58 de 58 aplicados e o reenvio vira JA_APLICADO x58', async () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const bytes = fs.readFileSync(path.join(__dirname, 'fixtures', 'retorno-transfeera-21col-exemplo.xlsx'));
+    const { lerXlsx } = require('../lib/adiantamento-retorno-transfeera');
+    const linhas = lerXlsx(bytes);
+    const itens = (situacao) => linhas.map((l, i) => itemLote({
+      id: i + 1, solicitacaoId: Number(l.idIntegracao.slice(4)), valor: (l.valorCentavos / 100).toFixed(2), colIdIntegracao: l.idIntegracao, situacao,
+    }));
+
+    loteItensFixture = itens('incluido');
+    const r1 = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { raw: bytes, contentType: XLSX_MIME, cookie: tokenCookie() });
+    assert.equal(r1.status, 200, JSON.stringify(r1.body));
+    assert.equal(r1.body.aplicadas, 58);
+    assert.equal(r1.body.ignoradas, 0);
+    const confirmar = chamadasPostgrest.find((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar');
+    assert.deepEqual(confirmar.body.p_falhas, []);
+
+    chamadasPostgrest.length = 0;
+    loteItensFixture = itens('pago');
+    const r2 = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { raw: bytes, contentType: XLSX_MIME, cookie: tokenCookie() });
+    assert.equal(r2.status, 200);
+    assert.equal(r2.body.aplicadas, 0);
+    assert.deepEqual(r2.body.ignoradasPorMotivo, [{ motivo: 'JA_APLICADO', total: 58 }]);
+    assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
+  });
+
   test('lote sem itens no escopo -> 404 NAO_ENCONTRADO', async () => {
     loteItensFixture = [];
-    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([{ 'ID de integração': 'ADV-000100', Status: 'Finalizada', Valor: '250.00' }]), cookie: tokenCookie() });
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([{ 'ID integração': 'ADV-000100', Status: 'FINALIZADO', Valor: '250,00' }]), cookie: tokenCookie() });
     assert.equal(r.status, 404);
     assert.equal(r.body.erro, 'NAO_ENCONTRADO');
   });
@@ -1818,9 +1919,9 @@ describe('4.7.3/1.4.4 — 403 sem nenhuma das 10 permissões em toda rota nova d
     ['GET', '/api/v1/adiantamentos/lotes/900/arquivo'],
     ['POST', '/api/v1/adiantamentos/lotes/900/cancelar', { motivo: 'x'.repeat(10) }],
     ['POST', '/api/v1/adiantamentos/lotes/900/confirmacao', { falhas: [] }],
-    // `null` de body + `raw`: esta rota recebe `text/csv`, não JSON — e o que
+    // `null` de body + `raw`: esta rota recebe XLSX binário, não JSON — e o que
     // o caso mede (403/401 antes de qualquer leitura de corpo) não depende dele.
-    ['POST', '/api/v1/adiantamentos/lotes/900/retorno', null, { raw: 'x', contentType: 'text/csv' }],
+    ['POST', '/api/v1/adiantamentos/lotes/900/retorno', null, { raw: Buffer.from('x'), contentType: XLSX_MIME }],
     ['GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08'],
     ['GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08'],
     ['POST', '/api/v1/adiantamentos/repasse/2026-09-08/fechar', { confirmacao: true }],
@@ -1833,10 +1934,17 @@ describe('4.7.3/1.4.4 — 403 sem nenhuma das 10 permissões em toda rota nova d
 
   for (const [method, path, body, extra] of ROTAS) {
     test(`${method} ${path} -> 403 PERMISSAO_NEGADA`, async () => {
-      // `extra` só existe para a rota de retorno, que recebe `text/csv`.
+      // `extra` só existe para a rota de retorno, que recebe XLSX binário.
       const r = await request(method, path, { body: body ?? undefined, ...extra, cookie: tokenCookie() });
       assert.equal(r.status, 403);
       assert.equal(r.body && r.body.erro, 'PERMISSAO_NEGADA');
     });
   }
+
+  test('retorno: sem permissão a recusa vem ANTES do parser (corpo de 10 MB+ não vira 413)', async () => {
+    const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', {
+      raw: Buffer.alloc(10 * 1024 * 1024 + 1024, 0x50), contentType: XLSX_MIME, cookie: tokenCookie(),
+    });
+    assert.equal(r.status, 403);
+  });
 });

@@ -59,7 +59,8 @@ Module._load = function (request, parent, isMain) {
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const repasse = require('../routes/hub-repasse-lotes.js');
-const { CABECALHO_ESPERADO } = require('../lib/adiantamento-retorno-transfeera');
+const { CABECALHO_ESPERADO, XLSX_MIME } = require('../lib/adiantamento-retorno-transfeera');
+const XLSX = require('xlsx');
 
 Module._load = originalLoad;
 
@@ -78,7 +79,8 @@ function request(method, path, { body, cookie, raw, contentType } = {}) {
     const bodyStr = raw !== undefined ? raw : (body !== undefined ? JSON.stringify(body) : undefined);
     const headers = {};
     if (bodyStr !== undefined) {
-      headers['Content-Type'] = contentType || 'application/json';
+      // `contentType: null` = sem cabeçalho nenhum.
+      if (contentType !== null) headers['Content-Type'] = contentType || 'application/json';
       headers['Content-Length'] = Buffer.byteLength(bodyStr);
     }
     if (cookie) headers.Cookie = cookie;
@@ -150,7 +152,7 @@ describe('sanearMotivoDoArquivo', () => {
 });
 
 describe('casarRetornoRepasse (prefixo REP)', () => {
-  const linha = (id, status, valor) => ({ idIntegracao: id, status, statusConhecido: true, valorCentavos: valor, motivoFalha: '', codigoErro: '' });
+  const linha = (id, status, valor) => ({ idIntegracao: id, status, statusConhecido: true, valorCentavos: valor, motivoFalha: '' });
   const itens = [
     { id: 41, col_id_integracao: 'REP-000041', situacao: 'incluido', valor: '100.00' },
     { id: 42, col_id_integracao: 'REP-000042', situacao: 'incluido', valor: '200.00' },
@@ -159,6 +161,12 @@ describe('casarRetornoRepasse (prefixo REP)', () => {
     const r = repasse.casarRetornoRepasse([linha('REP-000041', 'Finalizada', 10000), linha('REP-000042', 'Finalizada', 20000)], itens);
     assert.deepEqual(r.aplicaveis.map((a) => a.solicitacaoId).sort(), [41, 42]);
     assert.equal(r.faltantes.length, 0);
+  });
+  test('valor ambíguo (1.234) é recusado mesmo se o valor lido bater com o item', () => {
+    const ambigua = { ...linha('REP-000041', 'Finalizada', 123), valorAmbiguoTexto: '1.234' };
+    const r = repasse.casarRetornoRepasse([ambigua], [{ id: 41, col_id_integracao: 'REP-000041', situacao: 'incluido', valor: '1.23' }]);
+    assert.equal(r.aplicaveis.length, 0);
+    assert.equal(r.ignoradas[0].motivo, 'VALOR_AMBIGUO:1.234');
   });
   test('linha ADV-<id> não casa (ID_INTEGRACAO_INVALIDO) e o item vira faltante', () => {
     const r = repasse.casarRetornoRepasse([linha('ADV-000041', 'Finalizada', 10000)], itens);
@@ -214,6 +222,14 @@ describe('guarda e validação de id', () => {
     const r = await request('GET', `${BASE}/lotes/77/arquivo`, { cookie: cookie() });
     assert.equal(r.status, 403);
     assert.equal(r.body.erro, 'PERMISSAO_NEGADA');
+  });
+  test('retorno: sem módulo ou sem permissão a recusa vem ANTES do parser (10 MB+ não vira 413)', async () => {
+    const grande = { raw: Buffer.alloc(10 * 1024 * 1024 + 1024, 0x50), contentType: XLSX_MIME };
+    modulosAtivos = new Set();
+    assert.equal((await request('POST', `${BASE}/lotes/77/retorno`, { ...grande, cookie: cookie() })).status, 403);
+    modulosAtivos = new Set(['adiantamentos']);
+    permissoes = new Set(['adiantamentos.pagamentos_consultar']);
+    assert.equal((await request('POST', `${BASE}/lotes/77/retorno`, { ...grande, cookie: cookie() })).status, 403);
   });
   test('id não numérico -> 404 sem tocar o banco', async () => {
     const r = await request('GET', `${BASE}/lotes/abc`, { cookie: cookie() });
@@ -279,44 +295,108 @@ describe('POST /lotes', () => {
 describe('POST /lotes/:id/retorno', () => {
   const linha = (over) => {
     const base = Object.fromEntries(CABECALHO_ESPERADO.map((c) => [c, '']));
-    return { ...base, 'ID de integração': 'REP-000041', Status: 'Finalizada', Valor: '100.00', ...over };
+    return { ...base, 'ID integração': 'REP-000041', Status: 'FINALIZADO', Valor: '100,00', ...over };
   };
-  const csv = (linhas) => `${CABECALHO_ESPERADO.join(',')}\n${linhas.map((l) => CABECALHO_ESPERADO.map((c) => l[c]).join(',')).join('\n')}\n`;
+  /** XLSX (Buffer) no contrato de 21 colunas; `cabecalho` permite quebrá-lo. */
+  const xlsx = (linhas, cabecalho = CABECALHO_ESPERADO) => {
+    const aoa = [cabecalho, ...linhas.map((l) => CABECALHO_ESPERADO.map((c) => l[c]))];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Transferências');
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  };
+  const corpo = (linhas) => ({ raw: xlsx(linhas), contentType: XLSX_MIME });
   const itens = [
     { id: 41, col_id_integracao: 'REP-000041', situacao: 'incluido', valor: '100.00' },
     { id: 42, col_id_integracao: 'REP-000042', situacao: 'incluido', valor: '200.00' },
   ];
 
-  test('content-type JSON (corpo não é texto) -> 400, nunca 500', async () => {
+  test('content-type JSON (corpo não é XLSX) -> 400 FORMATO_INVALIDO, nunca 500', async () => {
     const r = await request('POST', `${BASE}/lotes/77/retorno`, { body: { csv: 'x' }, cookie: cookie() });
     assert.equal(r.status, 400);
-    assert.equal(r.body.erro, 'DADOS_INVALIDOS');
+    assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
+    assert.equal(r.body.motivo, 'FORMATO_INVALIDO');
   });
-  test('CSV sem o cabeçalho esperado -> 400 ARQUIVO_INVALIDO', async () => {
-    const r = await request('POST', `${BASE}/lotes/77/retorno`, { raw: 'a,b\n1,2\n', contentType: 'text/csv', cookie: cookie() });
+  for (const [rotulo, contentType] of [
+    ['text/csv', 'text/csv'], ['text/plain', 'text/plain'],
+    ['application/octet-stream', 'application/octet-stream'], ['ausente', null],
+  ]) {
+    test(`Content-Type ${rotulo} -> 400 ARQUIVO_INVALIDO/FORMATO_INVALIDO`, async () => {
+      respostas.RepasseLoteItem = itens;
+      const r = await request('POST', `${BASE}/lotes/77/retorno`, { raw: xlsx([linha({})]), contentType, cookie: cookie() });
+      assert.equal(r.status, 400);
+      assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
+      assert.equal(r.body.motivo, 'FORMATO_INVALIDO');
+      assert.ok(!chamadas.some((c) => c.endpoint.includes('hub_repasse_lote_confirmar')));
+    });
+  }
+  test('corpo vazio com o mime XLSX -> 400 FORMATO_INVALIDO', async () => {
+    const r = await request('POST', `${BASE}/lotes/77/retorno`, { raw: Buffer.alloc(0), contentType: XLSX_MIME, cookie: cookie() });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.motivo, 'FORMATO_INVALIDO');
+  });
+  test('XLSX sem o cabeçalho esperado -> 400 ARQUIVO_INVALIDO/CABECALHO_INVALIDO', async () => {
+    const r = await request('POST', `${BASE}/lotes/77/retorno`, {
+      raw: xlsx([linha({})], ['a', 'b']), contentType: XLSX_MIME, cookie: cookie(),
+    });
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
+    assert.equal(r.body.motivo, 'CABECALHO_INVALIDO');
   });
-  test('CSV acima de 100 KB chega à rota (parser de texto próprio; o JSON global não se aplica)', async () => {
+  test('corpo acima de 10 MB -> 413 (paridade com a rota CSV anterior)', async () => {
+    const r = await request('POST', `${BASE}/lotes/77/retorno`, {
+      raw: Buffer.alloc(10 * 1024 * 1024 + 1024, 0x50), contentType: XLSX_MIME, cookie: cookie(),
+    });
+    assert.equal(r.status, 413);
+  });
+  test('XLSX acima de 100 KB chega à rota (parser binário próprio; o JSON global não se aplica)', async () => {
     respostas.RepasseLoteItem = [];
-    const grande = csv([linha({ 'Motivo da falha': 'x'.repeat(300 * 1024) })]);
-    const r = await request('POST', `${BASE}/lotes/77/retorno`, { raw: grande, contentType: 'text/csv', cookie: cookie() });
+    // hex aleatório: não comprime, então o arquivo passa mesmo de 100 KB.
+    const aleatorio = () => require('node:crypto').randomBytes(15_000).toString('hex');
+    const grande = xlsx(Array.from({ length: 12 }, (_, i) => linha({ 'ID integração': `REP-9${i}`, Motivo: aleatorio() })));
+    assert.ok(grande.length > 100 * 1024, `fixture de teste com ${grande.length} bytes`);
+    const r = await request('POST', `${BASE}/lotes/77/retorno`, { raw: grande, contentType: XLSX_MIME, cookie: cookie() });
     assert.equal(r.status, 404); // passou o parse e parou no "lote sem itens no escopo"
+  });
+  test('ID ADV-... em lote de repasse -> nenhuma linha aplicada (US2-AS2)', async () => {
+    respostas.RepasseLoteItem = [{ id: 41, col_id_integracao: 'REP-000041', situacao: 'incluido', valor: '100.00' }];
+    const r = await request('POST', `${BASE}/lotes/77/retorno`, { ...corpo([linha({ 'ID integração': 'ADV-000041' })]), cookie: cookie() });
+    assert.equal(r.status, 409); // o item REP-41 ficou sem cobertura: RETORNO_INCOMPLETO
+    assert.deepEqual(r.body.faltantes, [41]);
+    assert.ok(!chamadas.some((c) => c.endpoint.includes('hub_repasse_lote_confirmar')));
+  });
+  test('fixture real (IDs ADV-...) em lote de repasse via HTTP: nada aplicado, itens REP ficam faltantes', async () => {
+    const bytes = require('node:fs').readFileSync(require('node:path').join(__dirname, 'fixtures', 'retorno-transfeera-21col-exemplo.xlsx'));
+    respostas.RepasseLoteItem = itens;
+    const r = await request('POST', `${BASE}/lotes/77/retorno`, { raw: bytes, contentType: XLSX_MIME, cookie: cookie() });
+    assert.equal(r.status, 409);
+    assert.deepEqual(r.body.faltantes, [41, 42]);
+    assert.ok(!chamadas.some((c) => c.endpoint.includes('hub_repasse_lote_confirmar')));
   });
   test('faltante -> 409 RETORNO_INCOMPLETO com o id do item e nenhuma RPC de escrita', async () => {
     respostas.RepasseLoteItem = itens;
-    const r = await request('POST', `${BASE}/lotes/77/retorno`, { raw: csv([linha({})]), contentType: 'text/csv', cookie: cookie() });
+    const r = await request('POST', `${BASE}/lotes/77/retorno`, { ...corpo([linha({})]), cookie: cookie() });
     assert.equal(r.status, 409);
     assert.equal(r.body.erro, 'RETORNO_INCOMPLETO');
     assert.deepEqual(r.body.faltantes, [42]);
+    assert.ok(!chamadas.some((c) => c.endpoint.includes('hub_repasse_lote_confirmar')));
+  });
+  // Mesmo defeito do adiantamento: o diagnóstico precisa atravessar o 409 por HTTP.
+  test('célula de valor ambígua (1.234) -> 409 RETORNO_INCOMPLETO COM ignoradasPorMotivo VALOR_AMBIGUO, sem linhas cruas', async () => {
+    respostas.RepasseLoteItem = [{ id: 41, col_id_integracao: 'REP-000041', situacao: 'incluido', valor: '1.23' }];
+    const r = await request('POST', `${BASE}/lotes/77/retorno`, { ...corpo([linha({ Valor: '1.234' })]), cookie: cookie() });
+    assert.equal(r.status, 409);
+    assert.equal(r.body.erro, 'RETORNO_INCOMPLETO');
+    assert.deepEqual(r.body.faltantes, [41]);
+    assert.deepEqual(r.body.ignoradasPorMotivo, [{ motivo: 'VALOR_AMBIGUO:1.234', total: 1 }]);
+    assert.equal(r.body.ignoradas, undefined, 'linhas cruas nunca saem');
     assert.ok(!chamadas.some((c) => c.endpoint.includes('hub_repasse_lote_confirmar')));
   });
   test('UMA só chamada atômica: p_falhas com as devoluções (motivo saneado, id do ITEM) e p_origem retorno', async () => {
     respostas.RepasseLoteItem = itens;
     respostas['rpc/hub_repasse_lote_confirmar'] = [{ id: 77, status: 'CONCLUIDO_COM_FALHAS' }];
     const r = await request('POST', `${BASE}/lotes/77/retorno`, {
-      raw: csv([linha({}), linha({ 'ID de integração': 'REP-000042', Status: 'Devolvida', Valor: '200.00', 'Motivo da falha': 'XY' })]),
-      contentType: 'text/csv', cookie: cookie(),
+      ...corpo([linha({}), linha({ 'ID integração': 'REP-000042', Status: 'Devolvida', Valor: '200,00', Motivo: 'XY' })]),
+      cookie: cookie(),
     });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     assert.equal(r.body.aplicadas, 2);
@@ -331,11 +411,28 @@ describe('POST /lotes/:id/retorno', () => {
   });
   test('ITEM_FORA_DO_LOTE -> 400 e TRANSICAO_INVALIDA -> 409', async () => {
     respostas.RepasseLoteItem = itens;
-    const csvOk = csv([linha({}), linha({ 'ID de integração': 'REP-000042', Valor: '200.00' })]);
+    const xlsxOk = corpo([linha({}), linha({ 'ID integração': 'REP-000042', Valor: '200,00' })]);
     respostas['rpc/hub_repasse_lote_confirmar'] = raise('ITEM_FORA_DO_LOTE');
-    assert.equal((await request('POST', `${BASE}/lotes/77/retorno`, { raw: csvOk, contentType: 'text/csv', cookie: cookie() })).status, 400);
+    assert.equal((await request('POST', `${BASE}/lotes/77/retorno`, { ...xlsxOk, cookie: cookie() })).status, 400);
     respostas['rpc/hub_repasse_lote_confirmar'] = raise('TRANSICAO_INVALIDA');
-    assert.equal((await request('POST', `${BASE}/lotes/77/retorno`, { raw: csvOk, contentType: 'text/csv', cookie: cookie() })).status, 409);
+    assert.equal((await request('POST', `${BASE}/lotes/77/retorno`, { ...xlsxOk, cookie: cookie() })).status, 409);
+  });
+  test('erro inesperado do parser não vaza e.message no log', async () => {
+    respostas.RepasseLoteItem = itens;
+    const logs = [];
+    const orig = console.error;
+    const origSheet = XLSX.utils.sheet_to_json;
+    console.error = (...a) => { logs.push(a.map(String).join(' ')); };
+    XLSX.utils.sheet_to_json = () => { throw new TypeError('SEGREDO-NA-MENSAGEM-DO-PARSER'); };
+    let r;
+    try {
+      r = await request('POST', `${BASE}/lotes/77/retorno`, { ...corpo([linha({})]), cookie: cookie() });
+    } finally {
+      console.error = orig;
+      XLSX.utils.sheet_to_json = origSheet;
+    }
+    assert.equal(r.status, 400);
+    assert.ok(!logs.some((l) => l.includes('SEGREDO-NA-MENSAGEM-DO-PARSER')), `log vazou: ${logs.join(' | ')}`);
   });
 });
 

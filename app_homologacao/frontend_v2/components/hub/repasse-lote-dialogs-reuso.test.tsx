@@ -64,14 +64,22 @@ describe('confirmar na mão', () => {
 });
 
 describe('importar retorno', () => {
-  const arquivo = new File(['a;b'], 'r.csv', { type: 'text/csv' });
+  const BYTES = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x80, 0xff, 0x00]);
+  const arquivo = new File([BYTES], 'r.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  /** `ArrayBuffer` com os MESMOS bytes do arquivo (e não `string`). */
+  const bytesIguais = (buf: unknown) =>
+    Object.prototype.toString.call(buf) === '[object ArrayBuffer]'
+    && (buf as ArrayBuffer).byteLength === arquivo.size
+    && Array.from(new Uint8Array(buf as ArrayBuffer)).join() === Array.from(BYTES).join();
   const resp = { aplicadas: 1, ignoradas: 0, ignoradasPorMotivo: [] };
-  it('com `importar` do repasse envia o CSV por ele', async () => {
+  it('com `importar` do repasse envia o XLSX (ArrayBuffer) por ele', async () => {
     const meu = vi.fn().mockResolvedValue(resp);
     const { result } = renderHook(() => useImportarRetornoDialog({ loteId: 5, onSucesso: vi.fn(), importar: meu }));
     act(() => result.current.escolher(arquivo));
     await act(() => result.current.enviar());
-    expect(meu).toHaveBeenCalledWith(5, 'a;b');
+    expect(meu).toHaveBeenCalledTimes(1);
+    expect(meu.mock.calls[0][0]).toBe(5);
+    expect(bytesIguais(meu.mock.calls[0][1])).toBe(true);
     expect(padrao.importar).not.toHaveBeenCalled();
   });
   it('sem `importar` mantém o endpoint do adiantamento', async () => {
@@ -79,7 +87,9 @@ describe('importar retorno', () => {
     const { result } = renderHook(() => useImportarRetornoDialog({ loteId: 5, onSucesso: vi.fn() }));
     act(() => result.current.escolher(arquivo));
     await act(() => result.current.enviar());
-    expect(padrao.importar).toHaveBeenCalledWith(5, 'a;b');
+    expect(padrao.importar).toHaveBeenCalledTimes(1);
+    expect(padrao.importar.mock.calls[0][0]).toBe(5);
+    expect(bytesIguais(padrao.importar.mock.calls[0][1])).toBe(true);
   });
 });
 
@@ -94,7 +104,7 @@ describe('frases do dialog de retorno que citam o produto', () => {
   it('o hook leva `produto` até o resultado mostrado', async () => {
     const importar = vi.fn().mockResolvedValue({ aplicadas: 1, ignoradas: 2, ignoradasPorMotivo: lista });
     const { result } = renderHook(() => useImportarRetornoDialog({ loteId: 5, onSucesso: vi.fn(), importar, produto: 'repasse' }));
-    act(() => result.current.escolher(new File(['a;b'], 'r.csv', { type: 'text/csv' })));
+    act(() => result.current.escolher(new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04])], 'r.xlsx')));
     await act(() => result.current.enviar());
     expect(result.current.resultado?.grupos[0].rotulo).toBe('Valor do arquivo diferente do valor do repasse');
   });
