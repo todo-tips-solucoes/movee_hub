@@ -147,6 +147,10 @@ const { COOKIE_ACCESS } = require('./lib/hub-access-token');
 const { hubEnvioMassaRequirePermission } = require('./middleware/hub-envio-massa-permission');
 // hub-envio-massa FASE 4 (tasks.md 4.1.6) — histórico leve de importação,
 // fire-and-forget, chamado só dentro de POST /upload (ver guard viaHub lá).
+// corrigir-movimento: parser numerico unico (importacao + correcao pela tela, FR-012)
+const { toNumberBR } = require('./lib/numero-br');
+const { corrigirPelaTela, reimportar, celulaSemNumero, criarDepsCorrecao } = require('./lib/envio-massa-correcao');
+const { buscarEmLotes } = require('./lib/hub-postgrest-lotes');
 const { registrarImportacaoEnvioMassa } = require('./lib/hub-envio-massa-import-log');
 // hub-auditoria-admin FASE 2.2 (tasks.md 2.2.3) — trilha unificada `Auditoria`
 // nas escritas legadas do módulo envio_massa (diff mínimo, best-effort, só
@@ -1093,6 +1097,29 @@ app.patch('/update-envio-massa/:id', authenticateTokenCompartilhado, hubEnvioMas
     const hasCnpjChange = cnpjRaw !== undefined && cnpjRaw !== null && cnpjRaw !== '';
 
     try {
+        // corrigir-movimento: correcao de valor/gorjeta pela tela. Corpo lido por ALLOWLIST dentro de
+        // corrigirPelaTela (SEC-1: nunca repassar req.body); idEmp so de resolveEmpresaAlvo (SEC-3).
+        // Roda ANTES das demais escritas: pulado/404 devolve o desfecho real sem efeito colateral.
+        // Premissa (CHK019): EnvioMassa nao tem RLS — o filtro por id_empresa e a UNICA protecao de tenant.
+        const hasValor = req.body.valor !== undefined;
+        let correcao = null;
+        if (hasValor) {
+            if (hasCnpjChange && !isCNPJ14(onlyDigits(cnpjRaw))) {
+                return res.status(400).json({ error: 'CNPJ inválido — deve conter 14 dígitos.' });
+            }
+            const usuarioIdHub = req.hubContext && req.hubContext.viaHub === true ? Number(req.hubContext.usuarioId) : NaN;
+            try {
+                correcao = await corrigirPelaTela({
+                    id, idEmp, body: req.body, usuarioId: Number.isInteger(usuarioIdHub) ? usuarioIdHub : null,
+                }, criarDepsCorrecao(postgrestRequest));
+            } catch (errCorrecao) {
+                // Falha de infra: nunca devolver mensagem de sucesso nem detalhe interno (inclui motivo/mensagem).
+                console.error('[PATCH /update-envio-massa] falha ao corrigir valor:', errCorrecao && errCorrecao.status);
+                return res.status(500).json({ error: 'Não foi possível corrigir o valor. Nada foi confirmado.' });
+            }
+            if (correcao.status !== 200) return res.status(correcao.status).json(correcao.body);
+        }
+
         if (hasCnpjChange) {
             // [B] Validar cnpjNovo
             const cnpjNovo = onlyDigits(cnpjRaw);
@@ -1155,7 +1182,14 @@ app.patch('/update-envio-massa/:id', authenticateTokenCompartilhado, hubEnvioMas
             // CNPJ igual (idempotência) ou já processado: cai para [G]
         }
 
-        // [G] PATCH demais campos do movimento editado (enviado/men1/men2/tipo) — não-regressão
+        // [G] PATCH demais campos do movimento editado (enviado/men1/men2/tipo) — não-regressão.
+        // Edição só de valor (sem men1/men2): não há o que gravar aqui — a resposta é a da correção.
+        if (hasValor && tipo !== 'men1' && tipo !== 'men2') {
+            if (hasCnpjChange) {
+                await auditarEnvioMassaSeViaHub(req, { acao: 'movimento_editado', recurso: 'EnvioMassa', recursoId: id, detalhes: { tipo, cnpjAlterado: true } });
+            }
+            return res.json(correcao.body);
+        }
         const result = await updateEnvioMassa(id, enviado, mensagem, tipo, idEmp);
 
         // hub-auditoria-admin 2.2.3 — chegou aqui sem exceção: escrita OK (cnpj e/ou campos).
@@ -1175,6 +1209,7 @@ app.patch('/update-envio-massa/:id', authenticateTokenCompartilhado, hubEnvioMas
         }
 
         // [H] Resposta 200
+        if (hasValor) return res.json({ ...correcao.body, data: result });
         res.json({ message: 'Registro atualizado com sucesso!', data: result });
     } catch (error) {
         console.error('Erro ao atualizar o registro:', error.message);
@@ -1206,25 +1241,6 @@ app.delete('/envio-massa/:id', authenticateTokenCompartilhado, hubEnvioMassaClai
         res.status(500).json({ error: error.message });
     }
 });
-
-function toNumberBR(input) {
-  if (typeof input === 'number' && Number.isFinite(input)) return input;
-  const raw = String(input ?? '').trim();
-  if (!raw) return NaN;
-
-  const cleaned = raw.replace(/[^\d.,-]/g, '').replace(/\s+/g, '');
-  const hasComma = cleaned.includes(',');
-  const hasDot = cleaned.includes('.');
-
-  let normalized = cleaned;
-  if (hasComma && hasDot) {
-    normalized = cleaned.replace(/\./g, '').replace(',', '.'); // ponto = milhar, vírgula = decimal
-  } else if (hasComma) {
-    normalized = cleaned.replace(',', '.'); // vírgula como decimal
-  }
-  const n = Number(normalized);
-  return Number.isFinite(n) ? n : NaN;
-}
 
 // parseGorjeta — converte valor bruto da planilha em número ou null.
 // "R$ 22,00" → 22.00 | "R$ -" / vazio / undefined / 0 → null
@@ -1894,6 +1910,9 @@ app.post('/upload', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, h
 
     const sheet = workbook.Sheets[sheetName];
     const rows = xlsx.utils.sheet_to_json(sheet);
+    // sheet_to_json omite celula vazia: so o CABECALHO diz se a coluna gorjeta existe (ausente != vazia).
+    const cabecalho = (xlsx.utils.sheet_to_json(sheet, { header: 1 })[0] || []).map((c) => String(c ?? '').trim());
+    const temColunaGorjeta = cabecalho.includes('gorjeta');
     console.error('[UPLOAD] Linhas lidas da planilha:', rows.length);
 
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -1935,7 +1954,8 @@ app.post('/upload', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, h
       }
 
       // valor — obrigatório e numérico
-      const valorNum = toNumberBR(row.valor);
+      // corrigir-movimento: #REF!/#VALOR!/texto sem digito viraria 0 em toNumberBR — linha invalida, nunca R$ 0,00.
+      const valorNum = celulaSemNumero(row.valor) ? NaN : toNumberBR(row.valor);
       if (!Number.isFinite(valorNum)) {
         rowErrors.push('valor é obrigatório e deve ser numérico.');
       }
@@ -1954,9 +1974,13 @@ app.post('/upload', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, h
       }
       const cnpj_prestador = cnpjPrestDigits;
 
-      // gorjeta — opcional, não bloqueia upload (FR-003 / CL-004)
+      // gorjeta — coluna e celula vazia sao opcionais (FR-003 / CL-004); celula com texto SEM digito bloqueia a linha.
+      // Coluna ausente na reimportacao NAO apaga a gorjeta gravada (temColunaGorjeta).
       // "R$ 22,00" → 22.00 | "R$ -" / vazio / undefined → null
       const gorjeta = parseGorjeta(row.gorjeta);
+      if (celulaSemNumero(row.gorjeta)) {
+        rowErrors.push('gorjeta deve ser numérica (ou vazia).');
+      }
 
       // Se essa linha deu erro, acumula e NÃO adiciona pra inserir
       if (rowErrors.length) {
@@ -2030,22 +2054,29 @@ app.post('/upload', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, h
       });
     }
 
-    // ---- Insert no PostgREST ----
-    console.error(`[UPLOAD] Inserindo ${dataToInsert.length} registro(s) em EnvioMassa…`);
-    console.error('[UPLOAD] Primeira linha preparada:', JSON.stringify(dataToInsert[0], null, 2));
-
-    const response = await postgrestRequest('EnvioMassa', 'POST', dataToInsert);
-
-    console.error('[UPLOAD] Resposta postgrestRequest:', JSON.stringify(response, null, 2));
-
-    if (response?.error) {
-      console.error('[UPLOAD] PostgREST retornou erro explícito:', response.error);
-      return res.status(500).json({
-        success: false,
-        message: 'Erro ao inserir dados.',
-        detail: response.error
-      });
-    }
+    // ---- Reimportação (corrigir-movimento): reconhece o que já existe antes de inserir ----
+    console.error(`[UPLOAD] Processando ${dataToInsert.length} linha(s) em EnvioMassa…`);
+    const usuarioIdHub = req.hubContext && req.hubContext.viaHub === true ? Number(req.hubContext.usuarioId) : NaN;
+    const resultado = await reimportar({
+      linhas: dataToInsert, idEmp, dtIni: dtIniTS, dtFim: dtFimTS,
+      motivo: req.body.motivo, temColunaGorjeta, usuarioId: Number.isInteger(usuarioIdHub) ? usuarioIdHub : null,
+    }, {
+      buscarExistentes: ({ idEmp: emp, cnpjs, iniI, iniF, fimI, fimF }) => buscarEmLotes(
+        `EnvioMassa?id_empresa=eq.${emp}`
+        + `&dt_inicial=gte.${encodeURIComponent(iniI)}&dt_inicial=lt.${encodeURIComponent(iniF)}`
+        + `&dt_final=gte.${encodeURIComponent(fimI)}&dt_final=lt.${encodeURIComponent(fimF)}`
+        + '&select=id,uuid,cnpj_prestador,valor,gorjeta,mensagem1',
+        cnpjs, { campoId: 'cnpj_prestador', tamanhoLote: 100, fetcher: (url) => postgrestRequest(url) }
+      ),
+      corrigir: ({ idEmp: emp, movimentos, motivo, origem, usuarioId }) => postgrestRequest(
+        'rpc/hub_envio_massa_corrigir_valor', 'POST',
+        { p_id_empresa: emp, p_movimentos: movimentos, p_motivo: motivo, p_origem: origem, p_usuario_id: usuarioId }
+      ),
+      inserir: (rows) => postgrestRequest('EnvioMassa', 'POST', rows),
+    });
+    if (resultado.status !== 200) return res.status(resultado.status).json(resultado.body);
+    const { resumo, ambiguos, pulados } = resultado.body;
+    const insertedCount = resultado.body.inserted;
 
     // cadastro-motorista-base-validada (frente A): popular/curar a base "Motorista"
     // a partir deste lote (best-effort — não derruba o upload se falhar).
@@ -2067,31 +2098,14 @@ app.post('/upload', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, h
     // hub-auditoria-admin 2.2.3 — POST /upload passou do check de erro do
     // PostgREST: a escrita OCORREU (bulk insert em EnvioMassa), independente
     // de conseguirmos ou não inferir a contagem de linhas logo abaixo.
-    await auditarEnvioMassaSeViaHub(req, { acao: 'envio_massa_importado', recurso: 'EnvioMassa', recursoId: null, detalhes: { totalLinhas: dataToInsert.length } });
-
-    // Tenta inferir quantas linhas foram inseridas
-    let insertedRows = null;
-    if (Array.isArray(response)) {
-      insertedRows = response;
-    } else if (Array.isArray(response?.data)) {
-      insertedRows = response.data;
-    }
-
-    if (!insertedRows) {
-      console.error('[UPLOAD] Não consegui confirmar linhas inseridas. Response não reconhecido.');
-      return res.status(200).json({
-        success: true,
-        warning: 'Upload processado, mas não consegui confirmar retorno do PostgREST.',
-        inserted_attempted: dataToInsert.length,
-        ...(motoristaWarning ? { motorista_warning: motoristaWarning } : {})
-      });
-    }
-
-    console.error(`[UPLOAD] Inseridas ${insertedRows.length} linha(s) pelo PostgREST.`);
+    await auditarEnvioMassaSeViaHub(req, { acao: 'envio_massa_importado', recurso: 'EnvioMassa', recursoId: null, detalhes: { totalLinhas: dataToInsert.length, resumo } });
 
     return res.json({
       success: true,
-      inserted: insertedRows.length,
+      inserted: insertedCount,
+      resumo,
+      ambiguos,
+      pulados,
       ...(motoristaWarning ? { motorista_warning: motoristaWarning } : {})
     });
 

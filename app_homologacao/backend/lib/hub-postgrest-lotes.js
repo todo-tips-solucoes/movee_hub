@@ -19,6 +19,7 @@ const { hubPostgrestRequest } = require('./hub-postgrest');
  * @param {{campoId: string, tamanhoLote?: number, claims?: object}} opts -
  *   `claims` é repassado a `hubPostgrestRequest` (necessário quando a tabela
  *   tem RLS por escopo, ex. `Entregador` — migration 0015).
+ * `fetcher(url)` opcional: cliente injetado (ex.: postgrestRequest do legado); default = hub.
  * @returns {Promise<any[]>} linhas agregadas de todos os lotes (`[]` se
  *   nenhum id válido em `ids`).
  *
@@ -26,7 +27,7 @@ const { hubPostgrestRequest } = require('./hub-postgrest');
  * imediatamente — nenhum resultado de lotes já buscados é devolvido. A rota
  * chamadora decide o formato do erro (ex.: `502 { erro: 'ERRO_SERVIDOR' }`).
  */
-async function buscarEmLotes(caminho, ids, { campoId, tamanhoLote = 100, claims = {} } = {}) {
+async function buscarEmLotes(caminho, ids, { campoId, tamanhoLote = 100, claims = {}, fetcher } = {}) {
   if (!campoId) throw new Error('buscarEmLotes: opts.campoId é obrigatório');
 
   const unicos = [...new Set((ids || []).filter((id) => id !== null && id !== undefined))];
@@ -36,7 +37,8 @@ async function buscarEmLotes(caminho, ids, { campoId, tamanhoLote = 100, claims 
   const resultado = [];
   for (let i = 0; i < unicos.length; i += tamanhoLote) {
     const fatia = unicos.slice(i, i + tamanhoLote);
-    const parte = await hubPostgrestRequest(`${caminho}${separador}${campoId}=in.(${fatia.join(',')})`, 'GET', null, claims);
+    const url = `${caminho}${separador}${campoId}=in.(${fatia.join(',')})`;
+    const parte = fetcher ? await fetcher(url) : await hubPostgrestRequest(url, 'GET', null, claims);
     resultado.push(...(parte || []));
   }
   return resultado;

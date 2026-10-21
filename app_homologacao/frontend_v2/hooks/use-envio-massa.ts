@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { EnvioMassa, FilterState, StatsData } from '@/types';
 import { api } from '@/lib/api-client';
+import type { RespostaCorrecao, ResultadoImportacao } from '@/lib/correcao-movimento';
 import type { MovimentoFechado } from '@/components/hub/fechamento-recibo';
 import {
   applyFilters,
@@ -96,8 +97,11 @@ export function useEnvioMassa(empresaId?: number | null) {
 
   const updateRecord = useCallback(async (id: number, body: Record<string, unknown>) => {
     const payload = empresaId != null ? { ...body, empresa_id: empresaId } : body;
-    await api.patch(`/update-envio-massa/${id}`, payload);
+    // Devolve o desfecho REAL do backend (nunca void): quem chama decide o que
+    // dizer ao operador. Em 409/404/500 o api-client lança e NÃO há refetch.
+    const resposta = await api.patch<RespostaCorrecao>(`/update-envio-massa/${id}`, payload);
     await fetchData();
+    return resposta;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData, empresaId]);
 
@@ -106,7 +110,7 @@ export function useEnvioMassa(empresaId?: number | null) {
     if (empresaId != null) {
       extra.empresa_id = String(empresaId);
     }
-    const result = await api.uploadFile('/upload', file, Object.keys(extra).length > 0 ? extra : undefined);
+    const result = await api.uploadFile<ResultadoImportacao>('/upload', file, Object.keys(extra).length > 0 ? extra : undefined);
     await fetchData();
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
