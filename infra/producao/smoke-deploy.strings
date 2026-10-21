@@ -1,5 +1,5 @@
 # serviço|tag para a qual a string vale|string ASCII que só existe nessa entrega.
 # Tag no ar diferente da registrada = FALHA (a prova seria do deploy anterior).
 # Acento não casa no docker exec.
-backend|corrigir-valor-ede8fa6|temColunaGorjeta
+backend|filtro-banco-194b626|APELIDOS_BANCOS
 frontend_v2|corrigir-valor-ede8fa6|mensagem_divergente
