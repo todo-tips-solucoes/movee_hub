@@ -1496,7 +1496,7 @@ check "10.2.1: authenticated continua sem SELECT direto em ContaBancariaMotorist
 # (0066/0067), e que a solicitação que falhou continua reprocessável pelo
 # fluxo já existente (D-23, hub_adiantamento_reprocessar) — 9.1.4. Roda o
 # lib no HOST (Node puro, sem I/O de rede — não precisa do container
-# `backend`) para computar `p_falhas` a partir de um CSV sintético com o
+# `backend`) para computar `p_falhas` a partir de um XLSX sintético com o
 # MESMO shape usado no unit test, e alimenta esse JSON na RPC real. --------
 echo ""
 echo "--- FASE 9 (9.1.7): retorno da Transfeera — lib + hub_adiantamento_lote_confirmar sobre lote real ---"
@@ -1580,7 +1580,7 @@ check "10.5.19 edge#19: 2º download -> mesmo sha256+nome do 1º" \
   "$(echo "$DOWNLOAD2_LINE" | cut -d'|' -f2,3)" "$(echo "$DOWNLOAD1_LINE" | cut -d'|' -f2,3)"
 
 # `lib/adiantamento-retorno-transfeera.js` roda no HOST (puro, sem I/O de
-# rede) contra um CSV sintético com o MESMO shape/contrato do unit test —
+# rede) contra um XLSX sintético com o MESMO shape/contrato do unit test —
 # nenhuma linha do arquivo real do operador entra aqui.
 BACKEND_DIR="$HUB_DIR/../../app_homologacao/backend"
 cat >"$TMP/calc_falhas_fase9.js" <<'JS'
@@ -1589,20 +1589,31 @@ cat >"$TMP/calc_falhas_fase9.js" <<'JS'
 // (este script vive em $TMP, não em backend/) — por isso o caminho é
 // montado a partir de process.cwd() (backend/, setado pelo `cd` do bash
 // abaixo), nunca um `./lib/...` relativo a este arquivo.
-const { lerCsv, casarComItensDoLote } = require(`${process.cwd()}/lib/adiantamento-retorno-transfeera`);
+const { lerXlsx, casarComItensDoLote, CABECALHO_ESPERADO } = require(`${process.cwd()}/lib/adiantamento-retorno-transfeera`);
+const XLSX = require(`${process.cwd()}/node_modules/xlsx`);
 
-const csv = [
-  'ID da transferência,ID de integração,Status,Valor,Pago em,Criado em,Método de pagamento,Código Bancário,Nome do recebedor,CPF/CNPJ do recebedor,Tipo de chave Pix do recebedor,Chave Pix,Número da conta,Número da agência,Tipo de conta,Código do banco,Nome do banco,ID do lote,Nome do lote,Recibo bancário,Recibo Transfeera,Código de erro,Motivo da falha',
-  'tr_9_1_7_a,ADV-000601,Finalizada,129.40,17/09/2026 10:00:00,16/09/2026 09:00:00,pix,001,Fulano Sintetico,00000000000,cpf,00000000000,00098765,4321,conta_corrente,001,Banco Sintetico,lote_teste,lote teste,,rec_9_1_7_a,,',
-  'tr_9_1_7_b,ADV-000602,Devolvida,80.00,,16/09/2026 09:00:00,pix,001,Fulano Sintetico,00000000000,cpf,00000000000,00098765,4321,conta_corrente,001,Banco Sintetico,lote_teste,lote teste,,rec_9_1_7_b,receiver_account_closed,Conta do recebedor não existe ou foi encerrada.',
-].join('\n') + '\n';
+// XLSX sintético em memória no contrato real de 21 colunas (a Transfeera
+// deixou de entregar CSV). Só ID integração, Status, Valor e Motivo importam.
+const linhaRetorno = (over) => CABECALHO_ESPERADO.map((c) => ({
+  Valor: '', Favorecido: 'Fulano Sintetico', 'Comprovante Transfeera': 'rec_9_1_7', 'Comprovante Banco': '', Status: '', 'ID integração': '',
+  Motivo: '', 'CPF ou CNPJ': '00000000000', Email: '', Banco: '001', Agência: '4321', Conta: '00098765', 'Dígito da conta': '0',
+  'Tipo de Conta (Corrente ou Poupança)': 'Conta Corrente', 'Nome do lote': 'lote teste', 'Data transferido': '', 'Banco de saída': '',
+  'Data de agendamento': '', 'Tentativas de pagamento': '1', 'Tipo da chave PIX': '', 'Chave PIX': '', ...over,
+}[c]));
+const wb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+  CABECALHO_ESPERADO,
+  linhaRetorno({ 'ID integração': 'ADV-000601', Status: 'FINALIZADO', Valor: '129,40' }),
+  linhaRetorno({ 'ID integração': 'ADV-000602', Status: 'Devolvida', Valor: '80,00', Motivo: 'Conta do recebedor não existe ou foi encerrada.' }),
+]), 'Transferências');
+const xlsx = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
 const itensLote = [
   { solicitacaoId: 601, colIdIntegracao: 'ADV-000601', situacao: 'incluido', valorCentavos: 12940 },
   { solicitacaoId: 602, colIdIntegracao: 'ADV-000602', situacao: 'incluido', valorCentavos: 8000 },
 ];
 
-const linhas = lerCsv(csv);
+const linhas = lerXlsx(xlsx);
 const { aplicaveis, ignoradas, faltantes } = casarComItensDoLote(linhas, itensLote);
 if (faltantes.length) { console.error('FALTANTES:' + JSON.stringify(faltantes)); process.exit(1); }
 if (ignoradas.length) { console.error('IGNORADAS:' + JSON.stringify(ignoradas)); process.exit(1); }
@@ -1682,17 +1693,17 @@ check "9.1.7/9.1.4: solicitação falhada (via retorno) fica reprocessável — 
 cat >"$TMP/calc_reimport_fase9.js" <<'JS'
 'use strict';
 const { casarComItensDoLote } = require(`${process.cwd()}/lib/adiantamento-retorno-transfeera`);
-const linhasCsvReimportadas = [
-  { idIntegracao: 'ADV-000601', status: 'Finalizada', statusConhecido: true, valorCentavos: 12940, codigoErro: '', motivoFalha: '' },
+const linhasReimportadas = [
+  { idIntegracao: 'ADV-000601', status: 'Finalizada', statusConhecido: true, valorCentavos: 12940, motivoFalha: '' },
   {
-    idIntegracao: 'ADV-000602', status: 'Devolvida', statusConhecido: true, valorCentavos: 8000, codigoErro: 'receiver_account_closed', motivoFalha: 'Conta do recebedor não existe ou foi encerrada.',
+    idIntegracao: 'ADV-000602', status: 'Devolvida', statusConhecido: true, valorCentavos: 8000, motivoFalha: 'Conta do recebedor não existe ou foi encerrada.',
   },
 ];
 const itensLoteAgora = [
   { solicitacaoId: 601, colIdIntegracao: 'ADV-000601', situacao: 'pago', valorCentavos: 12940 },
   { solicitacaoId: 602, colIdIntegracao: 'ADV-000602', situacao: 'falhou', valorCentavos: 8000 },
 ];
-const { aplicaveis, ignoradas, faltantes } = casarComItensDoLote(linhasCsvReimportadas, itensLoteAgora);
+const { aplicaveis, ignoradas, faltantes } = casarComItensDoLote(linhasReimportadas, itensLoteAgora);
 process.stdout.write(JSON.stringify({
   aplicaveisLen: aplicaveis.length, faltantesLen: faltantes.length,
   motivos: ignoradas.map((i) => i.motivo).sort(),

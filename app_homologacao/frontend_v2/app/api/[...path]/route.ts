@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { XLSX_MIME, XLSX_MAX_BYTES } from '@/lib/hub/retorno-xlsx';
 import {
   COOKIE_ACCESS,
   COOKIE_REFRESH,
@@ -99,6 +100,21 @@ async function proxyRequest(req: NextRequest) {
         init.body = req.body;
         (init as Record<string, unknown>).duplex = 'half';
         // Keep original Content-Type header with boundary intact
+      } else if (contentType.split(';')[0].trim() === XLSX_MIME) {
+        // retorno-transfeera-xlsx: o XLSX (ZIP) é BINÁRIO — `req.text()` decodifica
+        // UTF-8 e todo byte >= 0x80 inválido vira U+FFFD, corrompendo o arquivo
+        // antes do backend. Mime comparado por IGUALDADE (não `includes`): só este
+        // endpoint entra no ramo. O proxy bufferiza o corpo ANTES de qualquer
+        // autenticação do backend, então o teto vem antes da leitura: sem
+        // `content-length` válido -> 411; acima de 10 MB -> 413.
+        const tamanho = Number(req.headers.get('content-length'));
+        if (!req.headers.get('content-length') || !Number.isSafeInteger(tamanho) || tamanho < 0) {
+          return NextResponse.json({ erro: 'ARQUIVO_INVALIDO', motivo: 'TAMANHO_AUSENTE' }, { status: 411 });
+        }
+        if (tamanho > XLSX_MAX_BYTES) {
+          return NextResponse.json({ erro: 'ARQUIVO_INVALIDO', motivo: 'ARQUIVO_MUITO_GRANDE' }, { status: 413 });
+        }
+        init.body = new Uint8Array(await req.arrayBuffer());
       } else {
         init.body = await req.text();
       }
@@ -106,7 +122,8 @@ async function proxyRequest(req: NextRequest) {
 
     let backendRes = await fetch(target, init);
 
-    const corpoReenviavel = init.body === undefined || typeof init.body === 'string';
+    // `string` e `Uint8Array` são reutilizáveis; o stream multipart não é.
+    const corpoReenviavel = init.body === undefined || typeof init.body === 'string' || init.body instanceof Uint8Array;
     if (backendRes.status === 401 && renovar && !jaRenovou && corpoReenviavel) {
       const r = await renovar();
       cookiesRenovacao = r.setCookies;

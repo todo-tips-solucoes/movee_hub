@@ -13,6 +13,9 @@ import {
   criarLote,
   encerrarSemPagamento,
   fecharRepasse,
+  importarRetornoLote,
+  importarRetornoLoteRepasse,
+  XLSX_MIME,
   listarContas,
   listarSolicitacoes,
   obterConfiguracoes,
@@ -273,4 +276,31 @@ describe('MARCADORES_MENSAGEM x whitelist do backend', () => {
 
     expect([...MARCADORES_MENSAGEM].sort()).toEqual([...doBackend].sort());
   });
+});
+
+describe('adiantamentos-api — retorno da Transfeera em XLSX (binário)', () => {
+  for (const [nome, chamar, caminho] of [
+    ['adiantamento', importarRetornoLote, '/adiantamentos/lotes/7/retorno'],
+    ['repasse', importarRetornoLoteRepasse, '/adiantamentos/repasse/lotes/7/retorno'],
+  ] as const) {
+    it(`${nome}: POST com Content-Type XLSX e o MESMO ArrayBuffer no corpo (nunca JSON/base64)`, async () => {
+      const fetchMock = vi.fn().mockResolvedValue(respostaFake({ aplicadas: 1, ignoradas: 0, ignoradasPorMotivo: [] }));
+      vi.stubGlobal('fetch', fetchMock);
+      const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x80, 0xff]).buffer;
+      await chamar(7, bytes);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(String(url)).toContain(caminho);
+      expect(init.method).toBe('POST');
+      expect(init.headers['Content-Type']).toBe(XLSX_MIME);
+      expect(init.body).toBe(bytes);
+    });
+
+    it(`${nome}: 409 RETORNO_INCOMPLETO preserva faltantes E ignoradasPorMotivo no erro`, async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaFake({
+        erro: 'RETORNO_INCOMPLETO', faltantes: [3], ignoradasPorMotivo: [{ motivo: 'VALOR_AMBIGUO:1.234', total: 1 }],
+      }, 409)));
+      const e = await chamar(7, new ArrayBuffer(4)).catch((x: unknown) => x);
+      expect(e).toMatchObject({ codigo: 'RETORNO_INCOMPLETO', faltantes: [3], ignoradasPorMotivo: [{ motivo: 'VALOR_AMBIGUO:1.234', total: 1 }] });
+    });
+  }
 });

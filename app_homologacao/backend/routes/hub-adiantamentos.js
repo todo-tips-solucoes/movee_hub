@@ -68,7 +68,7 @@ const {
 } = require('../lib/adiantamento-transfeera-xlsx');
 const { serializarCsvRemanescente, paraCentavos, formatarCentavos } = require('../lib/adiantamento-remanescente');
 const {
-  RetornoTransfeeraParseError, lerCsv: lerRetornoTransfeeraCsv, casarComItensDoLote,
+  RetornoTransfeeraParseError, XLSX_MIME, lerXlsx, casarComItensDoLote,
 } = require('../lib/adiantamento-retorno-transfeera');
 const { partesNoFuso, dataISO } = require('../lib/adiantamento-regras');
 const contratoTransfeera = require('../lib/fixtures/transfeera-contrato.json');
@@ -1420,13 +1420,12 @@ router.post('/lotes/:id/confirmacao', requireModuloAtivo('adiantamentos'), requi
 
 /**
  * `POST /lotes/:id/retorno` — aplica o arquivo de retorno da Transfeera
- * sobre UM lote: casa cada linha pelo `ID de integração` (nunca por nome ou
+ * sobre UM lote: casa cada linha pelo `ID integração` (nunca por nome ou
  * valor, 9.1.2) e reusa a MESMA RPC de confirmação manual
  * (`hub_adiantamento_lote_confirmar`, já usada por `/lotes/:id/confirmacao`
- * acima) para aplicar `Finalizada` -> paga e `Devolvida` -> falhou (motivo
- * literal do arquivo, sem tradução — 9.1.4). Corpo: `{csvBase64}` (mesma
- * convenção de transporte binário/texto em JSON já usada por
- * `hub_adiantamento_lote_arquivo` acima, `p_arquivo` base64).
+ * acima) para aplicar `FINALIZADO`/`Finalizada` -> paga e `Devolvida` ->
+ * falhou (motivo literal do arquivo, sem tradução — 9.1.4). Corpo: o XLSX de
+ * retorno em binário (`Content-Type` = `XLSX_MIME`), lido por `express.raw`.
  *
  * Nunca aplica parcialmente: se sobrar item `incluido` do lote sem
  * resolução no arquivo (sem linha, status desconhecido ou valor
@@ -1447,46 +1446,49 @@ router.post('/lotes/:id/confirmacao', requireModuloAtivo('adiantamentos'), requi
  * desta FASE (nenhuma migration está listada em 9.1.1-9.1.8). Registrado
  * como acompanhamento, não bloqueia a aplicação.
  */
-// O CORPO CHEGA COMO `text/csv`, não como JSON com base64 — e isto é o que
-// faz a rota existir de verdade.
+// O CORPO CHEGA COMO XLSX BINÁRIO (`express.raw`), não como JSON com base64 —
+// e isto é o que faz a rota existir de verdade.
 //
 // Gate owasp-security de 2026-10-01: a rota era INALCANÇÁVEL com arquivo real.
 // O `express.json()` global (server.js:220) usa o default de 100 KB e está
-// montado ANTES do router (server.js:2948), então todo CSV real (3,4 MB → 4,32
-// MiB em base64) levava `413 Payload Too Large` em HTML antes de qualquer
-// autenticação — medido em produção: 200 KB sem cookie devolvia 413, enquanto
-// um corpo pequeno devolvia 401. O teto próprio da rota nunca era alcançado, e
-// a tela mostrava um erro genérico porque 413 não vem em JSON.
+// montado ANTES do router (server.js:2948), então todo arquivo real levava
+// `413 Payload Too Large` em HTML antes de qualquer autenticação — medido em
+// produção: 200 KB sem cookie devolvia 413, enquanto um corpo pequeno
+// devolvia 401.
 //
 // Subir o global NÃO é opção: ele roda antes da auth, e aumentá-lo daria a
 // qualquer um na internet o direito de fazer o processo parsear corpos
 // grandes. A saída é não ser JSON: `express.json()` só toca
-// `application/json`, então um corpo `text/csv` passa direto por ele e é lido
-// AQUI, depois de `requireModuloAtivo` + `requirePermission` — que é onde o
-// comentário de 18/09 queria o limite desde o começo.
+// `application/json`, então um corpo XLSX passa direto por ele e é lido AQUI,
+// depois de `requireModuloAtivo` + `requirePermission`. Outro Content-Type
+// (inclusive `text/csv`, que deixou de existir) não casa o parser: `req.body`
+// fica `{}` e a rota responde 400 FORMATO_INVALIDO.
 //
-// Bônus: sem base64 o payload cai 25% (3,24 MiB em vez de 4,32 MiB para o
-// mesmo arquivo). O teto de LINHAS (`MAX_LINHAS_RETORNO` = 10000) continua
-// sendo a trava de verdade contra arquivo adulterado; 12 MB é só transporte.
-router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), retornoRateLimiter, express.text({ limit: '12mb', type: ['text/csv', 'text/plain'] }), async (req, res) => {
+// 10 MB é só transporte (o XLSX de 10.000 linhas cabe em ~8,2 MB sem
+// compressão). Os tetos de verdade — 32 MiB descomprimidos, 100 entradas,
+// 10.000 linhas (`MAX_LINHAS_RETORNO`) — vivem em `lerXlsx`. Acima de 10 MB o
+// próprio `express.raw` devolve 413 (HTML, como a rota CSV anterior).
+router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), retornoRateLimiter, express.raw({ limit: '10mb', type: [XLSX_MIME] }), async (req, res) => {
   try {
     const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamento_confirmar');
     if (!ctx) return;
     const { claims, entidadeAtiva, payload } = ctx;
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = Number(req.params.id);
-    // `express.text()` entrega string; qualquer outro content-type cai aqui
-    // como `{}` (o parser não casou) e vira 400 — nunca 500.
-    const csv = typeof req.body === 'string' ? req.body : '';
-    if (!csv) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'csv' });
+    // `express.raw()` entrega Buffer; qualquer outro content-type cai aqui como
+    // `{}` (o parser não casou) e vira 400 — nunca 500.
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
+    }
 
-    let linhasCsv;
+    let linhasRetorno;
     try {
-      linhasCsv = lerRetornoTransfeeraCsv(csv);
+      linhasRetorno = lerXlsx(req.body);
     } catch (e) {
       if (e instanceof RetornoTransfeeraParseError) return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
-      console.error('[hub-adiantamentos] erro ao ler CSV em POST /lotes/:id/retorno:', e.message);
-      return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'csv' });
+      // Só mensagem constante + e.name: o `message` do SheetJS pode ecoar conteúdo do arquivo.
+      console.error('[hub-adiantamentos] erro ao ler o XLSX em POST /lotes/:id/retorno:', e && e.name);
+      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
     }
 
     const itensRaw = await hubPostgrestRequest(
@@ -1504,7 +1506,7 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
 
     let casamento;
     try {
-      casamento = casarComItensDoLote(linhasCsv, itensLote);
+      casamento = casarComItensDoLote(linhasRetorno, itensLote);
     } catch (e) {
       // `LINHA_DUPLICADA`: o mesmo ADV-<id> veio duas vezes com conteúdo
       // conflitante — o arquivo inteiro é recusado, nunca se escolhe uma das
@@ -1514,8 +1516,22 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
       throw e;
     }
     const { aplicaveis, ignoradas, faltantes } = casamento;
+    // Gate owasp-security 2026-10-01: a resposta devolvia `ignoradas` CRUAS —
+    // e `idIntegracao` é texto livre do arquivo do parceiro, que no export
+    // real traz NOME COMPLETO de pessoas ("Repasse Semanal Pendente_<nome>").
+    // Eram até 10.000 desses, de gente sem relação alguma com este lote,
+    // atravessando proxy, browser e logs. A tela só usa a contagem por motivo
+    // — então é só isso que sai daqui.
+    const ignoradasPorMotivo = [...ignoradas.reduce((acc, i) => {
+      acc.set(i.motivo, (acc.get(i.motivo) || 0) + 1);
+      return acc;
+    }, new Map())].map(([motivo, total]) => ({ motivo, total })).sort((a, b) => b.total - a.total);
+
+    // O 409 também leva a contagem por motivo: item `incluido` cuja linha foi
+    // ignorada (ex.: VALOR_AMBIGUO) vira faltante — sem isto a tela mandava
+    // reexportar o período quando o problema era a célula.
     if (faltantes.length > 0) {
-      return res.status(409).json({ erro: 'RETORNO_INCOMPLETO', faltantes });
+      return res.status(409).json({ erro: 'RETORNO_INCOMPLETO', faltantes, ignoradasPorMotivo });
     }
 
     // Revisão de segurança 2026-09-18: o `motivo` aqui vem do texto livre do
@@ -1561,17 +1577,6 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
       recurso: 'AdiantamentoLote', recursoId: id,
       detalhes: { aplicadas: aplicaveis.length, falhas: falhas.length, ignoradas: ignoradas.length }, claims,
     });
-
-    // Gate owasp-security 2026-10-01: a resposta devolvia `ignoradas` CRUAS —
-    // e `idIntegracao` é texto livre do arquivo do parceiro, que no export
-    // real traz NOME COMPLETO de pessoas ("Repasse Semanal Pendente_<nome>").
-    // Eram até 10.000 desses, de gente sem relação alguma com este lote,
-    // atravessando proxy, browser e logs. A tela só usa a contagem por motivo
-    // — então é só isso que sai daqui.
-    const ignoradasPorMotivo = [...ignoradas.reduce((acc, i) => {
-      acc.set(i.motivo, (acc.get(i.motivo) || 0) + 1);
-      return acc;
-    }, new Map())].map(([motivo, total]) => ({ motivo, total })).sort((a, b) => b.total - a.total);
 
     return res.status(200).json({
       aplicadas: aplicaveis.length,

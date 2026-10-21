@@ -1,6 +1,6 @@
 {
   "subtitulo": "Como operar o Envio em Massa, apurar e pagar o repasse semanal no Movee Hub, e o que o motorista faz no celular. Escrito a partir do comportamento real do sistema, incluindo o que ele recusa e por quê.",
-  "atualizadoEm": "2026-10-19",
+  "atualizadoEm": "2026-10-21",
   "secoes": [
     {
       "id": "inicio",
@@ -150,7 +150,7 @@
             {
               "titulo": "Importar o retorno",
               "quem": "Botão \"Importar retorno\" ou \"Confirmar na mão\"",
-              "texto": "O CSV da Transfeera diz quem recebeu e quem foi devolvido. Quem não vier marcado como devolvido é registrado como **pago**."
+              "texto": "O arquivo **XLSX** de retorno da Transfeera diz quem recebeu e quem foi devolvido. Quem não vier marcado como devolvido é registrado como **pago**."
             }
           ]
         },
@@ -814,7 +814,7 @@
         {
           "bloco": "passos",
           "itens": [
-            "No portal da Transfeera, vá em **Transferências** e use **Exportar CSV**.",
+            "Use o arquivo **.xlsx** de retorno que a Transfeera devolve para o lote (21 colunas), sem editar as colunas.",
             "No hub, clique **Importar retorno** e escolha esse arquivo.",
             "Confira o resultado: quantos foram conciliados e quantas linhas foram ignoradas, agrupadas por motivo."
           ]
@@ -822,14 +822,14 @@
         {
           "bloco": "aviso",
           "tipo": "importante",
-          "titulo": "O texto da tela indica o arquivo errado",
-          "texto": "O diálogo diz \"exporte o relatório de movimentações\". **Esse arquivo não funciona** — ele tem 22 colunas e é recusado. O que o sistema aceita é o CSV da tela **Transferências** (23 colunas). O \"Extrato\" também não serve."
+          "titulo": "Só o arquivo .xlsx de retorno é aceito",
+          "texto": "O sistema lê só o arquivo **.xlsx** de retorno da Transfeera, com **21 colunas**. O **CSV** de 23 colunas que a Transfeera entregava antes **não é mais aceito**, e qualquer arquivo com colunas diferentes é recusado."
         },
         {
           "bloco": "aviso",
           "tipo": "atencao",
           "titulo": "O arquivo precisa cobrir o lote inteiro",
-          "texto": "Se o CSV não traz o resultado de **todos** os pagamentos daquele lote, **nada é aplicado** e a tela diz quantos faltaram. Como a exportação da Transfeera é por período, escolha um período que cubra todos os pagamentos do lote."
+          "texto": "Se o arquivo não traz o resultado de **todos** os pagamentos daquele lote, **nada é aplicado** e a tela diz quantos faltaram. Envie um arquivo que cubra todos os pagamentos do lote."
         },
         {
           "bloco": "texto",
@@ -841,7 +841,7 @@
         },
         {
           "bloco": "texto",
-          "texto": "Use quando o pagamento foi fechado no portal e você não tem o CSV. **Marque apenas as exceções** — quem você não marcar vira pago automaticamente. Cada falha exige um motivo."
+          "texto": "Use quando o pagamento foi fechado no portal e você não tem o arquivo de retorno. **Marque apenas as exceções** — quem você não marcar vira pago automaticamente. Cada falha exige um motivo."
         },
         {
           "bloco": "texto",
@@ -1624,20 +1624,20 @@
           "bloco": "aviso",
           "tipo": "atencao",
           "titulo": "Não edite esta planilha",
-          "texto": "A coluna **ID integração** é o que liga cada linha ao pagamento no sistema. Se ela for alterada, o retorno não casa e a conciliação falha."
+          "texto": "A coluna **ID integração** é o que liga cada linha ao pagamento no sistema. Se ela for alterada, o retorno não casa e a conciliação falha — inclusive se for sobrescrita no arquivo de envio antes de subi-lo na Transfeera: a Transfeera devolve o texto trocado."
         },
         {
           "bloco": "subtitulo",
-          "texto": "CSV de retorno da Transfeera"
+          "texto": "XLSX de retorno da Transfeera"
         },
         {
           "bloco": "lista",
           "itens": [
-            "**De onde:** portal da Transfeera › **Transferências** › **Exportar CSV**.",
-            "**Não servem:** o \"Relatório de movimentações\" (.xlsx) nem o \"Extrato\" — têm colunas diferentes e são recusados.",
-            "**23 colunas**, na ordem original. Não edite o arquivo.",
-            "Até **10.000 linhas** e **12 MB**.",
-            "O sistema usa **ID de integração**, **Status**, **Valor**, **Código de erro** e **Motivo da falha**. Status \"Finalizada\" vira pago; \"Devolvida\" vira falha."
+            "**Arquivo:** o **.xlsx** de retorno que a Transfeera devolve para o lote enviado.",
+            "**Não servem:** o CSV antigo nem qualquer arquivo com colunas diferentes das esperadas — são recusados.",
+            "**21 colunas**, na ordem original, com a coluna **ID integração** preenchida com o `ADV-…`/`REP-…` do hub. Não edite o arquivo.",
+            "Até **10.000 linhas** e **10 MB**.",
+            "O sistema usa **ID integração**, **Status**, **Valor** e **Motivo**. Status \"FINALIZADO\" (ou \"Finalizada\") vira pago; \"Devolvida\" vira falha, com o motivo da própria coluna."
           ]
         },
         {
@@ -1692,12 +1692,12 @@
             [
               "O arquivo não traz o resultado de todos os pagamentos deste lote",
               "`RETORNO_INCOMPLETO`",
-              "Exporte da Transfeera um período que cubra todos os pagamentos. Nada foi aplicado"
+              "Envie o arquivo que cubra todos os pagamentos do lote. Se o pagamento está no arquivo, a tela diz o motivo da linha recusada (ex.: valor sem casas decimais, status que não sabemos interpretar): corrija a célula e reenvie. Nada foi aplicado"
             ],
             [
               "O cabeçalho não é o do retorno da Transfeera",
               "`CABECALHO_INVALIDO`",
-              "Use **Transferências › Exportar CSV**, sem editar as colunas"
+              "Envie o **.xlsx** de retorno da Transfeera, sem editar as colunas"
             ],
             [
               "Você não tem permissão para esta ação",
@@ -1768,8 +1768,8 @@
               "2 MB"
             ],
             [
-              "CSV de retorno",
-              "10.000 linhas · 12 MB"
+              "XLSX de retorno",
+              "10.000 linhas · 10 MB"
             ],
             [
               "Arquivo de importação do hub",
@@ -1848,8 +1848,8 @@
         {
           "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "3 · O diálogo de importar retorno indica o arquivo errado",
-          "texto": "O texto pede o \"relatório de movimentações\", que o sistema recusa. O correto é **Transferências › Exportar CSV**."
+          "titulo": "3 · O retorno da Transfeera só aceita .xlsx",
+          "texto": "O sistema lê só o **.xlsx** de retorno da Transfeera (21 colunas). O CSV antigo e arquivos com outras colunas são recusados com a mensagem de cabeçalho ou de formato inválido."
         },
         {
           "bloco": "aviso",
