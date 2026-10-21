@@ -1,164 +1,109 @@
-# Project Briefing: Corrigir o valor de um movimento antes do envio da nota
+# Project Briefing: busca de banco no app do motorista
 
-> Briefing da frente corrente. O briefing da frente anterior (push no app do
-> motorista, concluída em 14/09) foi preservado em
-> `docs/plans/push-motorista/BRIEFING-DISCOVERY.md`.
+> Briefing da frente corrente. O da frente anterior (corrigir o valor de um movimento,
+> em produção desde 21/10) está no git, no commit do PR #287, e o plano completo em
+> `docs/plans/corrigir-movimento/`.
 >
-> Detalhe completo, com as medições, em `docs/plans/corrigir-movimento/BRIEFING.md`.
+> Detalhe desta frente, com as medições, em `docs/plans/filtro-banco-motorista/BRIEFING.md`.
 
 ## 1. Visão e Propósito
 
-**Hoje não existe caminho para corrigir o valor de um movimento**, e a tela mente
-sobre isso.
+O motorista cadastra a conta bancária pelo app e **não encontra o banco dele** a menos
+que saiba o código COMPE ou a razão social exata.
 
-O operador fecha a semana importando uma planilha para a `EnvioMassa`. Quando um
-evento é lançado errado ou falta no cálculo, o valor do movimento sai errado — e é
-esse valor que o motorista usa para emitir a nota fiscal. Corrigir deveria ser
-trivial. Medido:
+Pedido do operador (21/10): *"caso ele queira a conta nubank, seria interessante que ao
+digitar `nu` o banco já retornasse."*
 
-| Tentativa | O que acontece |
+⚠️ **A hipótese inicial era que o filtro só casava o começo do texto. Medido, isso é
+falso.** `routes/motorista-adiantamento.js:734-736` já normaliza o termo para minúsculas
+e já usa `includes` no nome. Rodado contra a fixture real (463 bancos):
+
+| Busca | Hoje |
 |---|---|
-| Editar pela tela | O diálogo mostra **Valor** como editável, responde *"Registro atualizado com sucesso!"* e **não grava**. O `PATCH /update-envio-massa/:id` (`server.js:1079`) lê apenas `cnpj_prestador`, `enviado`, `mensagem` e `tipo`. |
-| Reimportar a planilha corrigida | **Duplica** as linhas — o `POST /upload` não tem checagem de repetição. |
-| Excluir e reimportar | Único caminho real hoje, linha a linha. É o que esta frente elimina. |
+| `nu` | ✅ acha `260 NU PAGAMENTOS - IP` (o Nubank) |
+| **`nubank`** | ❌ **nada** — a fixture traz a razão social, não a marca |
+| **`itau`** | ⚠️ acha `BCO ITAUBANK`, mas **não** `341 ITAÚ UNIBANCO` |
+| `itaú` | ✅ acha |
+| `260` | ✅ acha pelo código |
 
-A confirmação falsa é a parte mais grave: o operador corrige, recebe "sucesso", e o
-motorista emite a nota pelo valor antigo.
-
-**O propósito é permitir a correção antes do envio da nota**, em dois caminhos, com
-registro de quem alterou, quando e por quê.
+**As duas causas reais são acento e nome comercial**, não o operador de comparação.
 
 ## 2. Usuários e Stakeholders
 
 | Quem | Como usa |
 |---|---|
-| **Operação** (painel Envio em Massa, `app.moveelog.com.br`) | Importa a planilha da semana e corrige o que saiu errado. Login é **da empresa** — sem controle por pessoa no painel legado. |
-| **Financeiro** (Movee Hub) | Acompanha o repasse e os pagamentos retidos. Papéis `financeiro` e `financeiro_aprovador` hoje têm permissões idênticas. |
-| **Motorista** (app, `app.motorista.moveelog.com.br`) | Emite a nota pelo valor que o movimento mostra. É quem sofre o erro: nota emitida com valor divergente é recusada na validação. |
+| **Motorista**, no celular (`app.motorista.moveelog.com.br`) | digita o nome do banco ao cadastrar a conta para receber adiantamento e repasse. É quem sofre o problema. |
+| **Financeiro** (hub) | lança conta de pessoa física pelo hub; não usa esta busca. |
+
+O motorista digita no teclado do celular, com pressa e sem acento. A busca precisa
+funcionar para a marca que ele conhece.
 
 ## 3. Escopo
 
 ### MVP (Essencial)
 
-1. **Reimportação que atualiza em vez de duplicar** — o arquivo corrigido reconhece
-   as linhas que já existem e atualiza o valor, em lote.
-2. **Edição do valor pela tela** — fazer o botão Editar **gravar o que já mostra**,
-   com motivo obrigatório. Hoje ele responde sucesso e não grava.
-3. **Movimento com nota já enviada NÃO é alterado** — o valor fica como está e a
-   tela informa **quantos foram pulados**.
-4. **Registro de auditoria nos dois caminhos** — quem alterou, quando, por quê, de
-   qual valor para qual.
+1. **Ignorar acento** nos dois lados da comparação (`itau` acha `ITAÚ UNIBANCO`).
+2. **Mapa de nomes comerciais** para os bancos mais usados pelo motorista:
+   Nubank → NU PAGAMENTOS, PicPay, Inter, C6, Mercado Pago.
+3. **Ranking**: o banco pedido vem **no topo**, não na posição 19 — o teto de 20 itens
+   da tela permanece.
 
-### Fora de Escopo (decisão explícita do operador)
+### Fora de Escopo
 
-- **Reabrir apuração do repasse** (`ApuracaoRepasse`). Foi levantado, desenhado e
-  **descartado** em conversa: o objeto é o movimento da semana corrente, antes do
-  motorista emitir a nota. Reforço: **não existe nenhuma apuração fechada em
-  produção** (medido em 19/10: `ApuracaoRepasse` = 0 linhas) — o fluxo real é 100%
-  planilha.
-- **Alterar movimento cuja nota já foi enviada.** Ver decisão D2 abaixo.
-- Mudar o cálculo do valor, a origem da planilha ou o layout do arquivo.
+- Reescrever a fixture COMPE: apelido é camada de **busca**, não renomeação. O motorista
+  precisa ver o nome real do banco escolhido, porque é o que aparece no comprovante.
+- Trocar o `startsWith` do **código**: código é numérico e prefixo é o comportamento
+  esperado (`260` → banco 260).
+- Casar pedaços quaisquer do termo: digitar `banco` devolveria dezenas e pioraria a tela.
 
 ## 4. Prioridades e Trade-offs
 
-**Decisões já tomadas pelo operador — o clarify NÃO deve reabrir nenhuma delas:**
+Decisão do operador (21/10): **acento + apelidos comuns**, e não apenas acento — porque
+sem o mapa de apelidos o `nubank` do próprio exemplo continua sem resultado.
 
-### D1 — Os dois caminhos, não um
-
-Reimportar a planilha (lote) **e** editar na tela (caso a caso). Não é "ou": a
-correção em massa e a pontual têm donos e momentos diferentes.
-
-### D2 — Nota já enviada: não alterar, e avisar
-
-Quando o motorista já enviou a nota daquele movimento, o valor **não muda**; a tela
-diz quantos foram pulados.
-
-**Por quê:** a nota fiscal já emitida carrega o valor antigo. Alterar o movimento
-faria a nota divergir e **ser recusada na validação** — criando um problema pior que
-o original. Para esses casos a nota precisa ser cancelada antes.
-
-Definição operacional de "nota enviada": `nota_ok` preenchido **e** `erro_validacao`
-vazio. ⚠️ `nota_ok` é gravado mesmo em nota **reprovada** (ver `notaAprovada()` em
-`routes/hub-validacao-xml.js`) — testar só `nota_ok` classificaria errado.
-
-### D3 — Reabertura de apuração (guardada, não implementar)
-
-Se algum dia voltar à mesa: só a **última** apuração fechada poderia ser reaberta,
-porque a apuração de uma semana alimenta a seguinte pelo saldo transportado.
-**Registrado para memória. Não é para implementar agora.**
+Trade-off aceito: o mapa de apelidos é uma lista a manter. Mantém-se pequena e coberta
+por teste, limitada aos bancos de fato usados pelos motoristas.
 
 ## 5. Restrições
 
-### Produto
-
-- O ambiente chamado "homologação" **é produção**: clientes usam. Não há ambiente
-  separado.
-- O painel legado tem login **por empresa**, não por pessoa — não há como atribuir a
-  correção a um indivíduo ali. A auditoria registra o que o sistema sabe, sem inventar
-  autoria.
-- Volume atual: ~980 linhas por semana, e cresce.
-
-### Técnicas (cada uma veio de um incidente real)
-
-- ⚠️ **`express.json()` global de 100 KB roda ANTES do router** — qualquer rota JSON
-  com corpo grande fica inalcançável. Usar `express.text({type})` na própria rota;
-  **nunca** subir o limite global.
-- ⚠️ **A `EnvioMassa` tem RLS com policy `USING (true)`** — ela **não filtra nada**.
-  O escopo por empresa é responsabilidade **explícita** da query.
-- ⚠️ O navegador aborta em **10 s** nas chamadas do painel legado; a importação já
-  esbarra nisso.
-- ⚠️ `{/* */}` imediatamente após `return (` quebra o build do turbopack — usar `//`
-  na linha acima.
-- Persistência é por **PostgREST**, sem ORM. Migrations em série única
-  `infra/hub/migrations/NNNN_*.sql`; nunca editar migration já aplicada.
-- O `POST /upload` é **tudo ou nada**: uma linha inválida impede todas. O modelo tem
-  coluna `uuid`, hoje **não usada** para casar linha.
+- A busca é **server-side sobre fixture em memória** (`lib/fixtures/bancos-compe.json`,
+  463 bancos). **Não há banco, PostgREST nem migration** no caminho — nada de índice,
+  nada de RLS.
+- Teto de **20 itens** no retorno: tela de celular.
+- `lib/conta-bancaria-form.ts` recebe a lista por **injeção de dependência** e já tem
+  teste — reusar, não duplicar.
+- O app motorista roda `node --test` (**não** vitest) e **não tem arquivo de config de
+  eslint** (baseline conhecida: `npm run lint` sai com erro de configuração ausente).
+- ⚠️ `{/* */}` logo após `return (` quebra o build do turbopack.
 
 ## 6. Stack Técnica
 
-- **Backend**: Express (`app_homologacao/backend/`), Node 20, porta 3000. Lógica pura
-  testável em `lib/`, suíte `node --test`.
-- **Painel legado**: Next.js App Router em `app_homologacao/frontend_v2/`
-  (`app/{login,dashboard,…}`), Tailwind 4 + **Base UI** (não Radix) + shadcn, testes
-  em vitest.
-- **Banco**: PostgreSQL via PostgREST. Tabela central desta frente: `EnvioMassa`.
-- **Permissões do Envio em Massa**: `.consultar`, `.criar`, `.enviar`, `.aprovar`,
-  `.gerenciar`.
+- **Backend**: Express, Node 20. Rota `GET /bancos` em
+  `routes/motorista-adiantamento.js:733`. Testes com `node --test`.
+- **App motorista**: Next.js (PWA). Cliente em `lib/adiantamento-api.ts:230`
+  (`buscarBancos`), form em `lib/conta-bancaria-form.ts`.
 
 ## 7. Qualidade e Padrões
 
-Exigências explícitas do operador para esta frente:
-
-- **Deduplicação** — o repositório já teve o mesmo mapa duplicado 3× (corrigido em
-  #278). **Antes de escrever qualquer helper, procurar o que já existe.**
-- **Segurança** — alterar valor de movimento é alterar **o que o motorista vai
-  faturar**. Exige permissão explícita, escopo por empresa na query (a RLS não
-  protege) e registro em auditoria.
-- **Performance** — a reimportação precisa casar ~950 linhas sem varredura por linha.
-  ⚠️ `::date` numa coluna de data **impede o planner de usar o índice**; usar faixa
-  (`>= d AND < d+1`).
-- **Escalabilidade** — dimensionar para crescimento do volume semanal.
-
-### Gates do ciclo git (cláusula pétrea do repo)
-
-Branch própria · `tsc --noEmit` · suíte unit · `next build` se tocou frontend · lint
-comparado com a **baseline** (erro pré-existente não bloqueia; erro novo bloqueia) ·
-`git add` **sempre por caminho explícito** · merge **antes** do deploy · prova de
-bundle por string servida.
-
-**Controle negativo é obrigatório** em todo teste que afirma correção: rodar a suíte
-nova **contra o código antigo** e conferir **quais** falham, não apenas que alguma
-falhou. Um teste que passa nos dois lados não prova nada — já houve teste neste repo
-que **afirmava o defeito**, e foi por isso que a suíte verde nunca o pegou.
+- **Deduplicação**: a normalização de acento provavelmente já existe no repositório —
+  **procurar antes de escrever** (`normalize('NFD')`, helpers de string). O repo já teve
+  o mesmo mapa duplicado 3×.
+- **Controle negativo obrigatório**: `nubank`, `itau` e `mercado pago` devem **falhar
+  hoje** e passar depois; `nu` e `260` devem passar nos dois lados — e isso vai
+  declarado como guarda de não-regressão, não como prova da correção.
+- **Smoke agêntico em laço** (pedido explícito do operador): ver §6 de
+  `docs/plans/filtro-banco-motorista/BRIEFING.md`. Como a rota não depende de banco, o
+  smoke funcional roda **inteiro antes do merge**; reprovado ⇒ ajusta, roda a suíte
+  completa de novo e repete o portão do zero. Só com tudo verde é que promove.
+- Gates com números: `node --test` no backend e no app motorista; `next build` se tocar
+  o app.
 
 ## 8. Visão de Futuro
 
-- Unificar os dois caminhos de correção numa única porta de escrita, se a duplicação
-  de regra entre `/upload` e o PATCH se mostrar custosa.
-- Trazer o cadastro/movimento do painel legado para o hub, onde o login é por pessoa
-  e a auditoria tem autor real.
+Se a lista de apelidos crescer, movê-la para configuração por tenant (como o molde de
+mensagem do adiantamento), em vez de constante no código.
 
 ## Itens a Definir
 
-Nenhum. As decisões de produto estão fechadas em §4 (D1, D2, D3) e foram tomadas
-pelo operador antes do início do desenvolvimento, a pedido dele.
+Nenhum. As decisões foram tomadas pelo operador em 21/10, antes do início do
+desenvolvimento: acento **mais** apelidos comerciais; o `startsWith` do código fica.
