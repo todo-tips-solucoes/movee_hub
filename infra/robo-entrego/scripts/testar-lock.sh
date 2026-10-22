@@ -24,31 +24,76 @@
 # (fora do container) e prova o mesmo fato sem depender desse mount.
 #
 # Uso: infra/robo-entrego/scripts/testar-lock.sh
+#
+# ⚠️ REESCRITO em 2026-10-22: até aqui este teste AFIRMAVA o comportamento que
+# causou o incidente — ele exigia que 1 das 2 invocações recebesse "lock
+# ocupado", o que era verdade com `flock -n` (desistir na hora). Desde a troca
+# para `flock -w`, a 2ª invocação ESPERA e roda, e é isso que os cenários abaixo
+# provam. Um teste que exige o defeito reprova a correção: por isso ele mudou
+# junto, e não depois.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH="$(mktemp -d)"
 export ROBO_ENTREGO_SECRETS_DIR="$SCRATCH/hub_secrets/robo-entrego"
+LOCKFILE="$ROBO_ENTREGO_SECRETS_DIR/robo-entrego.lock"
 trap 'rm -rf "$SCRATCH"' EXIT
+FALHAS=0
 
 echo "=== testar-lock: ROBO_ENTREGO_SECRETS_DIR=$ROBO_ENTREGO_SECRETS_DIR ==="
 
-"$SCRIPT_DIR/scripts/docker-run.sh" >"$SCRATCH/saida-1.log" 2>&1 &
+# ---------------------------------------------------------------- cenário A
+# Duas invocações quase simultâneas: a 2ª tem de ESPERAR a 1ª e rodar. Com o
+# antigo `-n` ela pularia, que é exatamente o defeito de 22/10 (3 de 3 ticks
+# perdidos porque o enriquecimento ganhou a corrida por segundos).
+echo
+echo "--- A: concorrência normal -> ninguem pula (a 2a espera) ---"
+"$SCRIPT_DIR/scripts/docker-run.sh" >"$SCRATCH/a1.log" 2>&1 &
 PID1=$!
 sleep 0.3
-"$SCRIPT_DIR/scripts/docker-run.sh" >"$SCRATCH/saida-2.log" 2>&1 &
+"$SCRIPT_DIR/scripts/docker-run.sh" >"$SCRATCH/a2.log" 2>&1 &
 PID2=$!
-
 wait "$PID1"; RC1=$?
 wait "$PID2"; RC2=$?
+PULOU_A=$(grep -l 'lock ocupado' "$SCRATCH"/a[12].log 2>/dev/null | wc -l | tr -d ' ')
+echo "    rc: $RC1 / $RC2 | invocacoes que pularam: $PULOU_A (esperado 0)"
+if [ "${PULOU_A:-0}" -eq 0 ]; then
+  echo "    OK — as duas rodaram; a 2a esperou o lock em vez de desistir"
+else
+  echo "    FALHOU — alguma invocacao ainda desistiu na hora (o -w nao esta valendo)" >&2
+  sed -n '1,5p' "$SCRATCH"/a[12].log >&2
+  FALHAS=$((FALHAS+1))
+fi
 
-echo "--- saida-1 (rc=$RC1) ---"; cat "$SCRATCH/saida-1.log"
-echo "--- saida-2 (rc=$RC2) ---"; cat "$SCRATCH/saida-2.log"
+# ---------------------------------------------------------------- cenário B
+# O timeout CONTINUA protegendo: com o lock preso por mais tempo que a espera,
+# a invocação desiste e registra `pulado_lock`. Usa ROBO_ENTREGO_LOCK_WAIT=2
+# para provar em segundos o que o default (60 s) levaria um minuto para mostrar.
+echo
+echo "--- B: lock preso por 6s e espera de 2s -> pula com pulado_lock ---"
+mkdir -p "$ROBO_ENTREGO_SECRETS_DIR"
+flock "$LOCKFILE" sleep 6 &
+SEGURADOR=$!
+sleep 0.5
+INICIO=$(date +%s)
+ROBO_ENTREGO_LOCK_WAIT=2 "$SCRIPT_DIR/scripts/docker-run.sh" >"$SCRATCH/b.log" 2>&1
+RCB=$?
+DUR=$(( $(date +%s) - INICIO ))
+wait "$SEGURADOR" 2>/dev/null || :
+echo "    rc=$RCB | duracao ${DUR}s (esperado >= 2s: ele ESPEROU antes de desistir)"
+if grep -q 'lock ocupado' "$SCRATCH/b.log" && [ "$DUR" -ge 2 ]; then
+  echo "    OK — esperou os 2s, nao conseguiu o lock e registrou pulado_lock"
+  grep -m1 'lock ocupado' "$SCRATCH/b.log" | sed 's/^/      /'
+else
+  echo "    FALHOU — nao registrou pulado_lock, ou nao esperou o timeout" >&2
+  sed -n '1,5p' "$SCRATCH/b.log" >&2
+  FALHAS=$((FALHAS+1))
+fi
 
-CONFLITOS=$(grep -l 'lock ocupado' "$SCRATCH"/saida-*.log 2>/dev/null | wc -l | tr -d ' ')
-if [ "${CONFLITOS:-0}" -eq 1 ]; then
-  echo "TESTAR-LOCK: OK — exatamente 1 das 2 invocacoes encontrou flock -n ocupado e caiu no ramo --pulado-lock (a outra rodou sem interferencia)"
+echo
+if [ "$FALHAS" -eq 0 ]; then
+  echo "TESTAR-LOCK: OK — 2 cenarios, 0 falhas (espera na concorrencia normal; desiste no timeout)"
   exit 0
 fi
-echo "TESTAR-LOCK: FALHOU — esperava exatamente 1 invocacao com lock ocupado, obteve $CONFLITOS" >&2
+echo "TESTAR-LOCK: FALHOU — $FALHAS de 2 cenarios" >&2
 exit 1
