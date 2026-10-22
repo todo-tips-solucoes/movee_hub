@@ -2,8 +2,17 @@
 // automático (PR #252). Nasceu para o `performance` de 2026-09-13, perdido
 // pelos 3 timeouts de 14/09.
 //
-//   node scripts/recuperar-dia-pontual.js 2026-09-13            # só consulta
-//   node scripts/recuperar-dia-pontual.js 2026-09-13 --importar # consulta e importa
+//   node scripts/recuperar-dia-pontual.js 2026-09-13                        # consulta PERFORMANCE
+//   node scripts/recuperar-dia-pontual.js 2026-09-13 --importar             # importa PERFORMANCE
+//   node scripts/recuperar-dia-pontual.js 2026-10-21 FINANCE --importar     # importa FATURAMENTO
+//
+// O tipo é o 3º argumento (default PERFORMANCE, retrocompatível com as duas
+// primeiras formas). ⚠️ Até 2026-10-22 o tipo era HARDCODED em PERFORMANCE e
+// este script só recuperava METADE do trabalho do robô. Isso bastava quando o
+// faturamento era só relatório — ele vem por PERÍODO e o dia seguinte cobre o
+// buraco. Mas os ADIANTAMENTOS dependem do faturamento para acontecer, então
+// "espera até amanhã" não é resposta: o dia tem de poder ser recuperado AGORA,
+// nos dois tipos (incidente de 22/10, 3 ticks perdidos por colisão de lock).
 //
 // Rodar SEMPRE pelo mesmo flock do robô, senão colide com o import/enriquecimento.
 'use strict';
@@ -15,10 +24,18 @@ const { criarClienteHub } = require('../src/hub-client.js');
 (async () => {
   const dia = process.argv[2];
   const importar = process.argv.includes('--importar');
+  // Os mesmos dois tipos que a rodada normal percorre (src/index.js:494).
+  const TIPOS = ['PERFORMANCE', 'FINANCE'];
+  const tipo = (process.argv.slice(3).find((a) => !a.startsWith('--')) || 'PERFORMANCE').toUpperCase();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dia || '')) {
-    console.error('uso: node scripts/recuperar-dia-pontual.js <yyyy-mm-dd> [--importar]');
+    console.error('uso: node scripts/recuperar-dia-pontual.js <yyyy-mm-dd> [PERFORMANCE|FINANCE] [--importar]');
     process.exit(2);
   }
+  if (!TIPOS.includes(tipo)) {
+    console.error(`tipo invalido: ${tipo} — use ${TIPOS.join(' ou ')}`);
+    process.exit(2);
+  }
+  console.log(`tipo: ${tipo}`);
 
   index.carregarEnv();
   const config = index.lerConfiguracao();
@@ -52,7 +69,7 @@ const { criarClienteHub } = require('../src/hub-client.js');
     let itens = [];
     try {
       itens = await buscarUrlsRelatorio(page, {
-        tipo: 'PERFORMANCE', dataInicial: dia, dataFinal: dia, timeoutMs: 45_000,
+        tipo, dataInicial: dia, dataFinal: dia, timeoutMs: 45_000,
       });
     } catch (e) {
       console.log(`portal: NÃO entregou o relatório de ${dia} — ${e.message}`);
@@ -70,7 +87,7 @@ const { criarClienteHub } = require('../src/hub-client.js');
     const clienteHub = criarClienteHub({ baseURL: config.hubBaseURL, idEmpresaEsperado: config.hubIdEmpresa });
     await clienteHub.login(config.hubServicoEmail, config.hubServicoSenha);
     const r = await index.processarRelatorio({
-      tipo: 'PERFORMANCE', dataAnterior: dia, page, clienteHub,
+      tipo, dataAnterior: dia, page, clienteHub,
       entregoCredenciais: { email: config.entregoEmail, senha: config.entregoSenha },
       obterCodigo, storageStatePath: config.storageStatePath,
       dormir: (ms) => new Promise((r2) => setTimeout(r2, ms)),
