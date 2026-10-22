@@ -4,7 +4,7 @@ import json, html, pathlib, sys
 
 FONTE = pathlib.Path('/var/lib/envioMassa_homologacao/app_homologacao/frontend_motorista/lib/ajuda-conteudo.json')
 IMGDIR = pathlib.Path('/var/lib/envioMassa_homologacao/docs/manuais/app-motorista/img')
-SAIDA = pathlib.Path('/root/.claude/jobs/bb227b0e/tmp/guia/guia-motorista.html')
+SAIDA = pathlib.Path('/var/lib/envioMassa_homologacao/docs/manuais/app-motorista/guia-motorista.html')
 
 d = json.loads(FONTE.read_text(encoding='utf-8'))
 e = lambda s: html.escape(str(s), quote=True)

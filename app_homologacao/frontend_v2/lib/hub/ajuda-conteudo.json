@@ -414,11 +414,11 @@
         },
         {
           "bloco": "texto",
-          "texto": "O ícone de lápis abre \"Editar\". **Mas atenção:** só o **CNPJ do Prestador** é realmente salvo. Os campos Número, Nome, Valor, CNPJ Tomador e Mensagens aparecem editáveis, a tela confirma \"Registro atualizado com sucesso!\", e nada é gravado. Veja [Limitações conhecidas](#limitacoes)."
+          "texto": "O ícone de lápis abre \"Editar\". Dois campos são editáveis: o **CNPJ do Prestador** e o **Valor**. Ao mudar o Valor, o campo **Motivo da correção** aparece e é **obrigatório** — a correção fica auditada. Número, Nome, CNPJ Tomador e as Mensagens aparecem na janela **somente para leitura**. Se a mensagem do movimento cita o valor, o sistema a reescreve com o valor novo; se não conseguir reescrever com segurança, grava o valor mas **avisa** para você revisar o texto antes de enviar. Um movimento cuja **nota já foi enviada** (nota aprovada) ou que já está **fechado** **recusa a alteração**; nota recusada ainda pode ser corrigida."
         },
         {
           "bloco": "texto",
-          "texto": "Para corrigir esses outros campos: **exclua a linha e reimporte**."
+          "texto": "Reimportar a planilha corrigida **atualiza** as linhas que já existem, sem duplicar — mas atualiza **só três coisas**: o **Valor**, a **Gorjeta** e a **Mensagem**. Se o arquivo vai alterar movimentos existentes, o sistema **exige o motivo** e nada é alterado sem ele. Planilha **sem a coluna gorjeta** preserva a gorjeta já gravada.\n\nPara corrigir **Número, Nome ou CNPJ Tomador** de uma linha que já existe, a reimportação **não resolve**: é preciso **excluir a linha e reimportar**, porque a linha nova entra com todos os campos do arquivo."
         },
         {
           "bloco": "texto",
@@ -1364,9 +1364,9 @@
         },
         {
           "bloco": "aviso",
-          "tipo": "importante",
-          "titulo": "Se sua nota foi recusada e o item desapareceu",
-          "texto": "Hoje, um movimento cuja nota foi **recusada** sai desta lista e não há como reenviar pelo app. **Fale com o escritório** — isso está sendo corrigido."
+          "tipo": "atencao",
+          "titulo": "Se sua nota foi recusada, o item continua na lista",
+          "texto": "Um movimento cuja nota foi **recusada** **continua** nesta lista, e o motorista pode **reenviar sozinho** pelo app: a lista mostra quais campos estavam errados, ele emite outra nota e envia de novo. O recurso pode ser desligado pela operação (chave `MOTORISTA_NOTAS_PENDENTES`); desligado, a lista vem vazia."
         }
       ]
     },
@@ -1835,50 +1835,38 @@
         },
         {
           "bloco": "aviso",
-          "tipo": "importante",
-          "titulo": "1 · Editar movimento salva só o CNPJ do prestador",
-          "texto": "No painel legado, a janela \"Editar\" mostra Número, Nome, Valor, CNPJ Tomador e Mensagens como se fossem editáveis, confirma \"Registro atualizado com sucesso!\" e **não grava** nenhum deles. Só o **CNPJ do Prestador** é salvo. Para corrigir os outros, exclua a linha e reimporte."
-        },
-        {
-          "bloco": "aviso",
-          "tipo": "importante",
-          "titulo": "2 · Nota recusada desaparece das notas pendentes",
-          "texto": "No app, se a nota de uma semana anterior for **recusada**, aquele item sai da lista e o motorista não tem como reenviar a nota corrigida. Oriente-o a procurar o escritório. **Em correção.**"
-        },
-        {
-          "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "3 · O retorno da Transfeera só aceita .xlsx",
+          "titulo": "1 · O retorno da Transfeera só aceita .xlsx",
           "texto": "O sistema lê só o **.xlsx** de retorno da Transfeera (21 colunas). O CSV antigo e arquivos com outras colunas são recusados com a mensagem de cabeçalho ou de formato inválido."
         },
         {
           "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "4 · O PIX do repasse pode sair como \"Antecipação\"",
+          "titulo": "2 · O PIX do repasse pode sair como \"Antecipação\"",
           "texto": "A descrição do PIX usa um modelo único para adiantamento e repasse, e o padrão de fábrica diz \"Antecipação\". Ajuste em **Configurações › Pagamento › Modelo da Descrição Pix** se quiser que o repasse apareça com outro texto no extrato do motorista."
         },
         {
           "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "5 · Limites que viram \"serviço indisponível\"",
+          "titulo": "3 · Limites que viram \"serviço indisponível\"",
           "texto": "Na validação de XML, passar de 100 arquivos ou de 2 MB por arquivo mostra \"serviço de validação indisponível\" em vez do limite real."
         },
         {
           "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "6 · O logotipo aceita menos do que a tela promete",
+          "titulo": "4 · O logotipo aceita menos do que a tela promete",
           "texto": "A tela diz 512 KB; o sistema aceita 256 KB."
         },
         {
           "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "7 · O motorista não é avisado quando o repasse é pago",
+          "titulo": "5 · O motorista não é avisado quando o repasse é pago",
           "texto": "O adiantamento gera notificação; o repasse ainda não. Se o motorista precisa saber, avise por fora."
         },
         {
           "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "8 · Seleção de linhas não limita o disparo no painel legado",
+          "titulo": "6 · Seleção de linhas não limita o disparo no painel legado",
           "texto": "As caixas existem, mas \"Iniciar\" envia para todas as linhas pendentes."
         },
         {
