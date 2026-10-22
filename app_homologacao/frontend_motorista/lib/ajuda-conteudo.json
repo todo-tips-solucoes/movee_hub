@@ -208,7 +208,7 @@
       "passos": [
         "Abra a aba Conta e toque em Cadastrar dados bancários.",
         "Preencha o nome do titular e o seu CNPJ.",
-        "Busque o banco pelo nome ou pelo código e escolha na lista.",
+        "Busque o banco pelo nome que você conhece (por exemplo, digite nu para achar o Nubank) ou pelo código, com ou sem acento, e escolha na lista.",
         "Informe a agência (sem o dígito), a conta e o dígito da conta.",
         "Toque em Enviar para análise."
       ],
@@ -304,7 +304,7 @@
           ["CNPJ inválido, ou não é o CNPJ da sua conta", "A conta precisa estar no CNPJ do seu login. Se for no seu CPF, fale com o escritório."],
           ["Agência inválida", "Digite só números, sem o dígito da agência."],
           ["Dígito da conta inválido", "Use um único número. Se o seu dígito é X, fale com o escritório."],
-          ["Escolha um banco da lista", "Busque o banco e toque nele na lista."]
+          ["Escolha um banco da lista", "Busque o banco pelo nome que você conhece (como Nubank ou PicPay) ou pelo código, e toque nele na lista."]
         ]
       },
       {
