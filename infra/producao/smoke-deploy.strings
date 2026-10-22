@@ -2,4 +2,5 @@
 # Tag no ar diferente da registrada = FALHA (a prova seria do deploy anterior).
 # Acento não casa no docker exec.
 backend|retorno-xlsx-8c51e36|VALOR_AMBIGUO
-frontend_v2|retorno-xlsx-8c51e36|Valor sem casas decimais
+frontend_v2|ajuda-3-entregas-f3ffeba|sem duplicar
+frontend_motorista|ajuda-3-entregas-f3ffeba|digite nu
