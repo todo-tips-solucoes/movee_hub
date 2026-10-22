@@ -122,14 +122,27 @@ N_ORDEM="$(psql_t -tAc "SELECT ordem FROM \"Modulo\" WHERE codigo='adiantamentos
 check "1.4.1: módulo adiantamentos ordem 35" "$N_ORDEM" "35"
 N_PERMISSOES="$(psql_t -tAc "SELECT count(*) FROM \"Permissao\" perm JOIN \"Modulo\" m ON m.id=perm.modulo_id WHERE m.codigo='adiantamentos';")"
 check "1.4.1: módulo adiantamentos com 10 permissões distintas" "$N_PERMISSOES" "10"
-# Pós-0097 (repasse-saldo-minimo F2, 2.5.3/2.5.6): `pagamento_confirmar`
-# saiu de `financeiro`/`admin_entidade` (9/10 permissões) e só sobra em
-# `admin_plataforma`/`financeiro_aprovador` (10/10) — furo fechado
-# (EVIDENCIA-F2-CONTROLE-NEGATIVO.md).
+# Pós-0115 (2026-10-19). Histórico, porque a asserção já mudou de sentido uma
+# vez: a 0097 (repasse-saldo-minimo F2, 2.5.3/2.5.6) tirou
+# `pagamento_confirmar` de `financeiro`/`admin_entidade`, deixando-o só em
+# `admin_plataforma`/`financeiro_aprovador` — e este check afirmava isso
+# (EVIDENCIA-F2-CONTROLE-NEGATIVO.md). A **0115 DEVOLVEU a permissão ao
+# `financeiro`** por decisão do operador: "todos do financeiro podem fazer o
+# que o perfil aprovador faz; o aprovador só se diferencia quando existir
+# aprovação de pagamento na Transfeera por API". A própria migration avisa que
+# os dois papéis ficam IDÊNTICOS e que isso é INTENCIONAL.
+#
+# Logo: `financeiro` volta a 10, e `admin_entidade` continua em 9 — a 0115 não
+# o tocou (seu INSERT filtra `WHERE p.nome = 'financeiro'`).
+#
+# ⚠️ Esta asserção ficou VERMELHA de 19/10 a 22/10 afirmando o contrário do
+# comportamento correto, e qualquer um que rodasse o driver nesse período leria
+# a falha como regressão da própria entrega. Mudança de matriz papel×permissão
+# tem de passar por aqui no mesmo PR da migration.
 GRANTS="$(psql_t -tAc "SELECT p.nome || '=' || count(*) FROM \"Papel\" p JOIN \"PapelPermissao\" pp ON pp.papel_id=p.id JOIN \"Permissao\" perm ON perm.id=pp.permissao_id JOIN \"Modulo\" m ON m.id=perm.modulo_id WHERE m.codigo='adiantamentos' GROUP BY p.nome ORDER BY p.nome;")"
-check "1.4.2: pós-0097 — pagamento_confirmar só em admin_plataforma/financeiro_aprovador (10); financeiro/admin_entidade ficam com 9" "$GRANTS" "admin_entidade=9
+check "1.4.2: pós-0115 — pagamento_confirmar em admin_plataforma/financeiro/financeiro_aprovador (10); admin_entidade fica com 9" "$GRANTS" "admin_entidade=9
 admin_plataforma=10
-financeiro=9
+financeiro=10
 financeiro_aprovador=10"
 N_OUTROS="$(psql_t -tAc "SELECT count(*) FROM \"PapelPermissao\" pp JOIN \"Permissao\" perm ON perm.id=pp.permissao_id JOIN \"Modulo\" m ON m.id=perm.modulo_id WHERE m.codigo='adiantamentos' AND pp.papel_id NOT IN (SELECT id FROM \"Papel\" WHERE nome IN ('financeiro','admin_plataforma','admin_entidade','financeiro_aprovador'));")"
 check "1.4.2: fail-closed — nenhum outro papel (inclui operador/leitura) recebe permissão" "$N_OUTROS" "0"
