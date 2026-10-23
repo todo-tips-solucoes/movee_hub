@@ -10,9 +10,9 @@ const secoes = conteudo.secoes;
 const blocos = secoes.flatMap((s) => s.blocos);
 
 describe('conteúdo', () => {
-  it('tem as 26 seções do manual, com id único', () => {
-    expect(secoes).toHaveLength(26);
-    expect(new Set(secoes.map((s) => s.id)).size).toBe(26);
+  it('tem as 27 seções do manual, com id único', () => {
+    expect(secoes).toHaveLength(27);
+    expect(new Set(secoes.map((s) => s.id)).size).toBe(27);
   });
 
   it('todo bloco é de um tipo que a tela sabe renderizar, com campos conhecidos', () => {
@@ -66,8 +66,8 @@ describe('partirInline', () => {
 
 describe('filtrarSecoes', () => {
   it('busca vazia devolve todas', () => {
-    expect(filtrarSecoes(secoes, '')).toHaveLength(26);
-    expect(filtrarSecoes(secoes, '   ')).toHaveLength(26);
+    expect(filtrarSecoes(secoes, '')).toHaveLength(27);
+    expect(filtrarSecoes(secoes, '   ')).toHaveLength(27);
   });
 
   it('ignora acento e caixa', () => {
@@ -108,13 +108,13 @@ describe('indice', () => {
   it('agrupa na ordem do manual e conta todas as seções', () => {
     const g = indice(secoes);
     expect(g.map((x) => x.grupo)).toEqual(['Começar', 'Painel Envio em Massa', 'Movee Hub', 'App do motorista', 'Referência']);
-    expect(g.flatMap((x) => x.itens)).toHaveLength(26);
+    expect(g.flatMap((x) => x.itens)).toHaveLength(27);
   });
 
   it('o número é a posição no manual mesmo com o filtro ativo', () => {
     const filtradas = filtrarSecoes(secoes, 'antecipacao'); // hub-config e limitacoes
     const itens = indice(filtradas, secoes).flatMap((x) => x.itens);
     expect(itens.map((i) => i.id)).toEqual(['hub-config', 'limitacoes']);
-    expect(itens.map((i) => i.numero)).toEqual([16, 26]);
+    expect(itens.map((i) => i.numero)).toEqual([17, 27]);
   });
 });
