@@ -172,7 +172,7 @@ describe('soma em centavos inteiros — correção dec-063 (2.7.1-2.7.3)', () =>
     // F3: 3 colunas novas no fim, vazias quando a linha não traz saldoAnterior/
     // aPagar/transportado (fixture sem os campos — mesmo shape de semana
     // pré-regra).
-    assert.equal(serializarCsvRemanescente([linha]).split('\r\n')[1], ',X,2.68,0.00,0.00,2.68,,,,,,');
+    assert.equal(serializarCsvRemanescente([linha]).split('\r\n')[1], ',X,2.68,0.00,0.00,2.68,,,,,,,');
   });
 
   test('300 linhas de 0,07 somam exatamente 2100 centavos (21.00) — reduce() de floats acumulava ruído (21.000000000000064)', () => {
@@ -235,8 +235,34 @@ describe('serializarCsvRemanescente() — proteção de injeção de fórmula (2
       { idExterno: 'uuid-1', nome: 'Fulano de Tal', creditos: 1000, adiantamentos: 129.4, debitos: 0, remanescente: 870.6 },
     ]);
     const linhas = csv.split('\r\n');
-    assert.equal(linhas[0], 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana');
-    assert.equal(linhas[1], 'uuid-1,Fulano de Tal,1000.00,129.40,0.00,870.60,,,,,,');
+    assert.equal(linhas[0], 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana,Pago por fora (líquido)');
+    assert.equal(linhas[1], 'uuid-1,Fulano de Tal,1000.00,129.40,0.00,870.60,,,,,,,');
+  });
+
+  test('0117 (A1): a coluna "Pago por fora (líquido)" leva o sinal e a conta do CSV fecha', () => {
+    const csv = serializarCsvRemanescente([
+      { idExterno: 'u', nome: 'X', creditos: 100, adiantamentos: 0, debitos: 0, lancamentosExternos: -30, remanescente: 70 },
+    ]);
+    const c = csv.split('\r\n')[1].split(',');
+    assert.equal(c[5], '70.00');
+    // número puro, SEM apóstrofo: com ele o Excel lê TEXTO e a coluna não soma. Texto livre segue escapado.
+    assert.equal(c[12], '-30.00');
+    assert.equal(100 - 0 - 0 + Number(c[12]), Number(c[5]));
+    const injecao = serializarCsvRemanescente([{ idExterno: '=1+1', nome: 'X', creditos: 0, adiantamentos: 0, debitos: 0, remanescente: 0 }]);
+    assert.ok(injecao.split('\r\n')[1].startsWith("'=1+1,"));
+  });
+
+  // MEDIUM 8 (rodada 3): `celulaNumero` valia para a coluna nova, mas `celulaMoeda`/`celulaMoedaOuVazia` passaram a usá-la
+  // nas DOZE colunas pré-existentes. Antes um valor NEGATIVO saía `'-5.00` (apóstrofo: o Excel lia TEXTO); agora sai
+  // `-5.00` (número, soma). É melhoria, mas é mudança de formato de um export consumido por planilha — registrada na
+  // emenda da FR-021 e FIXADA aqui, para não mudar de novo sem querer.
+  test('MEDIUM 8: remanescente/saldo/valores NEGATIVOS saem como número puro (-5.00), e texto livre segue escapado', () => {
+    const csv = serializarCsvRemanescente([
+      { idExterno: 'u', nome: '-cmd', creditos: 0, adiantamentos: 5, debitos: 0, remanescente: -5, saldoAnterior: -2, aPagar: 0, transportado: 0 },
+    ]);
+    const c = csv.split('\r\n')[1].split(',');
+    assert.equal(c[1], "'-cmd", 'texto livre que começa com - continua escapado');
+    assert.deepEqual([c[5], c[6]], ['-5.00', '-2.00']);
   });
 
   // F3 (repasse-saldo-minimo, FR-024): motorista retido NUNCA é omitido —
@@ -245,7 +271,7 @@ describe('serializarCsvRemanescente() — proteção de injeção de fórmula (2
     const csv = serializarCsvRemanescente([
       { idExterno: 'uuid-2', nome: 'Retido', creditos: 3, adiantamentos: 0, debitos: 0, remanescente: 3, saldoAnterior: 0, aPagar: 0, transportado: 3 },
     ]);
-    assert.equal(csv.split('\r\n')[1], 'uuid-2,Retido,3.00,0.00,0.00,3.00,0.00,0.00,3.00,,,');
+    assert.equal(csv.split('\r\n')[1], 'uuid-2,Retido,3.00,0.00,0.00,3.00,0.00,0.00,3.00,,,,');
   });
 
   // F3: semana fechada ANTES da regra do saldo mínimo (Decision 7) — as três
@@ -254,7 +280,7 @@ describe('serializarCsvRemanescente() — proteção de injeção de fórmula (2
     const csv = serializarCsvRemanescente([
       { idExterno: 'uuid-3', nome: 'PreRegra', creditos: 10, adiantamentos: 0, debitos: 0, remanescente: 10 },
     ]);
-    assert.equal(csv.split('\r\n')[1], 'uuid-3,PreRegra,10.00,0.00,0.00,10.00,,,,,,');
+    assert.equal(csv.split('\r\n')[1], 'uuid-3,PreRegra,10.00,0.00,0.00,10.00,,,,,,,');
   });
 
   // F1 (repasse-saldo-minimo, spec.md FR-004): Identificador é sempre a
@@ -286,7 +312,7 @@ test('conferência: CNPJ, valor da nota e gorjeta no fim, sem mexer nas 9 de ant
   const [cab, linha] = csv.split('\r\n');
   assert.deepEqual(cab.split(',').slice(0, 9), ['Identificador', 'Entregador', 'Créditos', 'Adiantamentos', 'Débitos',
     'Remanescente', 'Saldo anterior', 'A pagar', 'Passou para a próxima semana']);
-  assert.equal(linha, 'uuid-9,Conf,100.00,20.00,0.00,80.00,0.00,80.00,0.00,12.345.678/0001-99,90.00,10.00');
+  assert.equal(linha, 'uuid-9,Conf,100.00,20.00,0.00,80.00,0.00,80.00,0.00,12.345.678/0001-99,90.00,10.00,');
 });
 
 test('conferência: sem categorias_nota configurada, valor da nota e gorjeta saem vazios (não 0,00)', () => {

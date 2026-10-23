@@ -71,9 +71,11 @@ psql_t() { dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@
 node_e() { dc exec -T backend node -e "$1" "${@:2}"; }
 
 fails=0
+passes=0
 check() { # check <descricao> <valor-obtido> <valor-esperado>
   if [ "$2" = "$3" ]; then
     echo "PASS: $1"
+    passes=$((passes + 1))
   else
     echo "FAIL: $1 (obtido='$2' esperado='$3')"
     fails=$((fails + 1))
@@ -229,7 +231,7 @@ function parseSetCookie(res) {
 }
 function cookieHeader(jar) { return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '); }
 
-const CABECALHO_CSV_ESPERADO = 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana';
+const CABECALHO_CSV_ESPERADO = 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana,Pago por fora (líquido)';
 
 async function main() {
   const senhaHub = process.argv[2];
@@ -273,13 +275,13 @@ async function main() {
   const textoExportarAberta = await rExportarAberta.text();
   out.hub_exportar_aberta_status = rExportarAberta.status;
   out.hub_exportar_aberta_header_ok = textoExportarAberta.split('\r\n')[0] === CABECALHO_CSV_ESPERADO ? 'true' : 'false';
-  // 0100 (conferência com a planilha): as 3 últimas colunas da linha do
+  // 0100 (conferência com a planilha): CNPJ|nota|gorjeta (as 3 colunas ANTES da última, "Pago por fora", 0117/A1) da linha do
   // motorista retido na semana ABERTA (prévia) — comparadas depois com a
   // mesma linha na semana FECHADA (congelado).
   const linhaAberta = textoExportarAberta.split('\r\n').find((l) => l.startsWith(idExterno + ','));
-  out.conf_aberta_tail = linhaAberta ? linhaAberta.split(',').slice(-3).join('|') : null;
+  out.conf_aberta_tail = linhaAberta ? linhaAberta.split(',').slice(-4, -1).join('|') : null;
   const linhaDivAberta = textoExportarAberta.split('\r\n').find((l) => l.includes(',08.888.888/0001-06,'));
-  out.conf_div_aberta_tail = linhaDivAberta ? linhaDivAberta.split(',').slice(-3).join('|') : null;
+  out.conf_div_aberta_tail = linhaDivAberta ? linhaDivAberta.split(',').slice(-4, -1).join('|') : null;
 
   // --- fechar semana 1 + GET pós-fechamento ---------------------------------
   const rFechar = await fetch(`http://localhost:3000/api/v1/adiantamentos/repasse/${periodo}/fechar`, {
@@ -320,9 +322,9 @@ async function main() {
   out.hub_exportar_fechada_status = rExportarFechada.status;
   out.hub_exportar_fechada_header_ok = textoExportarFechada.split('\r\n')[0] === CABECALHO_CSV_ESPERADO ? 'true' : 'false';
   const linhaFechada = textoExportarFechada.split('\r\n').find((l) => l.startsWith(idExterno + ','));
-  out.conf_fechada_tail = linhaFechada ? linhaFechada.split(',').slice(-3).join('|') : null;
+  out.conf_fechada_tail = linhaFechada ? linhaFechada.split(',').slice(-4, -1).join('|') : null;
   const linhaDivFechada = textoExportarFechada.split('\r\n').find((l) => l.includes(',08.888.888/0001-06,'));
-  out.conf_div_fechada_tail = linhaDivFechada ? linhaDivFechada.split(',').slice(-3).join('|') : null;
+  out.conf_div_fechada_tail = linhaDivFechada ? linhaDivFechada.split(',').slice(-4, -1).join('|') : null;
 
   // --- 3.3.7 resto: POST /repasse/:periodo1/movimentos — motorista retido
   //     é RECUSADO com motivo RETIDO, sem gerar movimento nenhum. ----------
@@ -524,7 +526,7 @@ GRANT_OK="$(psql_t -tAc "SELECT has_function_privilege('authenticated','hub_adia
 check "0100: GRANT EXECUTE refeito nas 2 funções" "$GRANT_OK" "t"
 
 echo "===================================================================="
-echo "RESULTADO: $fails falha(s)"
+echo "RESULTADO: $passes PASS / $fails falha(s)"
 echo "===================================================================="
 echo "$SMOKE_JSON"
 exit $([ "$fails" -eq 0 ] && echo 0 || echo 1)

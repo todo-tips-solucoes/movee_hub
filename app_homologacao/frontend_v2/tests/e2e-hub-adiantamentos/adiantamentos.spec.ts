@@ -99,6 +99,9 @@ interface StubState {
   proximoLoteId: number;
   repasse: Record<string, { itens: unknown[]; totais: Record<string, unknown>; naoPagosNoPeriodo: number; fechavel: boolean }>;
   apuracoesFechadas: Set<string>;
+  // lancamento-externo (rodada 3): listagem/exclusão — o stub reflete a regra (semana fechada => 409).
+  lancamentosExternos: { id: number; motorista: string; tipo: string; sinal: number; dataPagamento: string; valor: string; observacao: string | null; criadoEm: string; criadoPor: string | null; excluivel: boolean }[];
+  exclusoes: number[];
 }
 
 function solicitacaoBase(over: Partial<Solicitacao>): Solicitacao {
@@ -182,6 +185,11 @@ function defaultState(): StubState {
       },
     },
     apuracoesFechadas: new Set<string>(),
+    lancamentosExternos: [
+      { id: 701, motorista: 'Motorista Dois', tipo: 'ADIANTAMENTO', sinal: -1, dataPagamento: '2026-09-10', valor: '30.00', observacao: 'pix', criadoEm: '2026-09-11T10:00:00Z', criadoPor: 'Financeiro', excluivel: true },
+      { id: 702, motorista: 'Motorista Três', tipo: 'AJUSTE_CREDITO', sinal: 1, dataPagamento: '2026-09-09', valor: '5.00', observacao: null, criadoEm: '2026-09-11T10:01:00Z', criadoPor: 'Financeiro', excluivel: false },
+    ],
+    exclusoes: [],
   };
 }
 
@@ -385,6 +393,23 @@ async function installApiStubs(page: Page, state: StubState): Promise<void> {
     }
 
     // ── repasse ──
+    // lancamento-externo (FR-049): o aviso do fechamento lê o resumo da semana. Sem este stub o `default` devolve 404 e a
+    // página renderiza o banner de falha em TODO spec de repasse (H6, rodada 2: o gate do E2E estava vermelho por isso).
+    if (path === '/adiantamentos/repasse/lancamentos-externos' && method === 'GET') {
+      return json(200, { total: state.lancamentosExternos.length, itens: state.lancamentosExternos });
+    }
+    const delExt = /^\/adiantamentos\/repasse\/lancamentos-externos\/(\d+)$/.exec(path);
+    if (delExt && method === 'DELETE') {
+      const alvo = state.lancamentosExternos.find((l) => l.id === Number(delExt[1]));
+      if (!alvo) return json(404, { erro: 'LANCAMENTO_NAO_ENCONTRADO' });
+      if (!alvo.excluivel) return json(409, { erro: 'SEMANA_JA_FECHADA' }); // fail-closed, igual ao servidor
+      state.lancamentosExternos = state.lancamentosExternos.filter((l) => l.id !== alvo.id);
+      state.exclusoes.push(alvo.id);
+      return json(200, { excluido: true, id: alvo.id });
+    }
+    if (path === '/adiantamentos/repasse/lancamentos-externos/resumo' && method === 'GET') {
+      return json(200, { qtdDeducao: 0, totalDeducao: 0, qtdCredito: 0, totalCredito: 0, flagDescontoLigada: true });
+    }
     if (path === '/adiantamentos/repasse' && method === 'GET') {
       const periodo = url.searchParams.get('periodo') ?? '';
       const dados = state.repasse[periodo];
@@ -621,6 +646,49 @@ test.describe('US6 — repasse e fechamento', () => {
     // motorista no período) — `.first()` porque ambos são o dado correto.
     await expect(page.getByText('R$ 350,00').first()).toBeVisible(); // remanescente
     await expect(page.getByText('Em apuração')).toBeVisible();
+  });
+
+  // lancamento-externo FR-049 (H6): o aviso lê o resumo da semana. O stub DEVE conhecer a rota; sem ele o `default`
+  // devolve 404 e a página mostra o banner de falha em toda tela de repasse. Os demais testes não olham esse banner,
+  // então ficavam verdes com o stub ausente (controle negativo da rodada 2) — este é quem trava.
+  test('lancamento-externo FR-049: o resumo da semana carrega e a página NÃO mostra o banner de falha do aviso', async ({ page }) => {
+    const state = defaultState();
+    await setup(page, state);
+
+    const resumo = page.waitForResponse((r) => r.url().includes('/adiantamentos/repasse/lancamentos-externos/resumo'));
+    await page.goto('/hub/dashboard/adiantamentos/repasse');
+    await page.getByLabel('Período de apuração (início)').fill('2026-09-08');
+    await expect(page.getByText('Motorista Dois')).toBeVisible();
+    expect((await resumo).status()).toBe(200);
+    await expect(page.getByText(/Não foi possível verificar se há valores pagos por fora/)).toHaveCount(0);
+  });
+
+  // lancamento-externo (rodada 3, FR-056/FR-057): listar e EXCLUIR. Semana fechada não oferece o botão; a exclusão pede confirmação,
+  // chega à rota DELETE, a lista atualiza e o aviso/prévia reconsultam (nona superfície: a exclusão tem de chegar às duas pontas).
+  test('lancamento-externo: lista os pagos por fora, exclui um (com confirmação) e a prévia + o aviso reconsultam; semana fechada não exclui', async ({ page }) => {
+    const state = defaultState();
+    await setup(page, state);
+
+    await page.goto('/hub/dashboard/adiantamentos/repasse');
+    await page.getByLabel('Período de apuração (início)').fill('2026-09-08');
+    await expect(page.getByText('Motorista Dois').first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'Ver pagos por fora' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByText('Pagos por fora da semana')).toBeVisible();
+    await expect(dialog.getByText('Semana fechada')).toBeVisible(); // 702: sem botão
+    await expect(dialog.getByRole('button', { name: /Excluir lançamento/ })).toHaveCount(1);
+
+    // um clique NÃO exclui
+    await dialog.getByRole('button', { name: 'Excluir lançamento de Motorista Dois' }).click();
+    expect(state.exclusoes).toEqual([]);
+
+    const resumo = page.waitForResponse((r) => r.url().includes('/lancamentos-externos/resumo') && r.request().method() === 'GET');
+    await dialog.getByRole('button', { name: 'Confirmar exclusão' }).click();
+    await expect.poll(() => state.exclusoes).toEqual([701]);
+    expect((await resumo).status()).toBe(200); // o aviso de FR-049 reconsultou
+    await expect(dialog.getByText('Motorista Dois')).toHaveCount(0);
+    await expect(dialog.getByText('Motorista Três')).toBeVisible();
   });
 
   test('fechar apuração com pendências é recusado e mostra a contagem por status (D-23/7.8.4)', async ({ page }) => {

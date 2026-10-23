@@ -17,17 +17,11 @@
 
 'use strict';
 
-const XLSX = require('xlsx');
+const { lerPlanilha } = require('./xlsx-import-core');
 const { paraCentavos } = require('./adiantamento-remanescente');
 
 /** Mime do corpo da rota de retorno — constante ÚNICA (as duas rotas importam). */
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-/** Tetos do ZIP, conferidos no diretório central ANTES de o SheetJS tocar nos
- * bytes: deflate chega a ~1000:1, então 10 MB comprimidos podem ser GB. 32 MiB
- * = 4x o pior caso legítimo (10.000 linhas sem compressão ≈ 8,2 MB). */
-const MAX_BYTES_DESCOMPRIMIDOS = 32 * 1024 * 1024;
-const MAX_ENTRADAS_ZIP = 100;
 
 /** Teto de linhas do arquivo de retorno (revisão de segurança 2026-09-18).
  * Um lote vai a `LOTE_LIMITE_IDS` = 5000 itens; o dobro cobre reenvio e
@@ -84,41 +78,6 @@ class RetornoTransfeeraParseError extends Error {
 
 const parseErro = (motivo, msg) => new RetornoTransfeeraParseError(msg || motivo, motivo);
 
-/** Confere o diretório central do ZIP (EOCD nos últimos 65.557 bytes) SEM
- * descomprimir nada: soma os tamanhos *declarados* e recusa bomba de
- * descompressão antes de o SheetJS tocar nos bytes. ZIP64 e EOCD ausente são
- * `FORMATO_INVALIDO` (um retorno de ~1 MB nunca precisa de ZIP64). */
-function conferirTetoZip(buf) {
-  const SIG_EOCD = 0x06054b50;
-  const SIG_CENTRAL = 0x02014b50;
-  const inicio = Math.max(0, buf.length - 65557);
-  const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-  if (eocd < inicio || eocd + 22 > buf.length || buf.readUInt32LE(eocd) !== SIG_EOCD) {
-    throw parseErro('FORMATO_INVALIDO', 'ZIP sem diretório central');
-  }
-  const entradas = buf.readUInt16LE(eocd + 10);
-  const tamanhoDir = buf.readUInt32LE(eocd + 12);
-  const offsetDir = buf.readUInt32LE(eocd + 16);
-  if (entradas === 0xffff || tamanhoDir === 0xffffffff || offsetDir === 0xffffffff) {
-    throw parseErro('FORMATO_INVALIDO', 'ZIP64 não suportado');
-  }
-  if (entradas > MAX_ENTRADAS_ZIP) throw parseErro('ARQUIVO_MUITO_GRANDE', 'Entradas demais no ZIP');
-  if (offsetDir + tamanhoDir > eocd) throw parseErro('FORMATO_INVALIDO', 'Diretório central fora do arquivo');
-
-  let pos = offsetDir;
-  let total = 0;
-  for (let i = 0; i < entradas; i += 1) {
-    if (pos + 46 > eocd || buf.readUInt32LE(pos) !== SIG_CENTRAL) {
-      throw parseErro('FORMATO_INVALIDO', 'Entrada de ZIP corrompida');
-    }
-    const tamanho = buf.readUInt32LE(pos + 24);
-    if (tamanho === 0xffffffff) throw parseErro('FORMATO_INVALIDO', 'ZIP64 não suportado');
-    total += tamanho;
-    if (total > MAX_BYTES_DESCOMPRIMIDOS) throw parseErro('ARQUIVO_MUITO_GRANDE', 'Conteúdo descomprimido acima do teto');
-    pos += 46 + buf.readUInt16LE(pos + 28) + buf.readUInt16LE(pos + 30) + buf.readUInt16LE(pos + 32);
-  }
-}
-
 /** Lê o XLSX do retorno (primeira aba) e devolve as linhas normalizadas.
  * Lança `RetornoTransfeeraParseError` — o cabeçalho (21 colunas, nome e ordem)
  * é conferido ANTES de interpretar qualquer linha. Ordem barato -> caro: só um
@@ -126,43 +85,10 @@ function conferirTetoZip(buf) {
  * XML de terceiro (a razão do leitor CSV próprio de 2026-09-18). Nada é
  * executado: sem fórmula, sem HTML, sem estilos; célula é sempre `String(v)`. */
 function lerXlsx(buffer) {
-  if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw parseErro('FORMATO_INVALIDO', 'Corpo vazio');
-  if (buffer.length < 4 || buffer.readUInt32LE(0) !== 0x04034b50) throw parseErro('FORMATO_INVALIDO', 'Não é um ZIP');
-  conferirTetoZip(buffer);
-
-  let wb;
-  try {
-    wb = XLSX.read(buffer, {
-      type: 'buffer', sheetRows: MAX_LINHAS_RETORNO + 2, cellFormula: false, cellHTML: false, cellStyles: false, cellDates: false, bookDeps: false, bookProps: false,
-    });
-  } catch {
-    // A mensagem do SheetJS pode ecoar conteúdo de terceiro: nunca propagar.
-    throw parseErro('FORMATO_INVALIDO', 'Planilha ilegível');
-  }
-  const ws = wb.SheetNames && wb.SheetNames.length ? wb.Sheets[wb.SheetNames[0]] : null;
-  if (!ws) throw parseErro('FORMATO_INVALIDO', 'Planilha sem aba');
-
-  // `sheetRows` corta a leitura; `!fullref` guarda o tamanho REAL (cobre linhas
-  // em branco que empurram dados para além do corte).
-  const ref = ws['!fullref'] || ws['!ref'];
-  if (ref && XLSX.utils.decode_range(ref).e.r > MAX_LINHAS_RETORNO) {
-    throw parseErro('ARQUIVO_MUITO_GRANDE', `Arquivo com mais de ${MAX_LINHAS_RETORNO} linhas`);
-  }
-
-  // `blankrows:false` não descarta linha de células "" (o `defval` as conta como
-  // preenchidas), então a linha em branco é filtrada aqui, depois da leitura.
-  const linhas = XLSX.utils.sheet_to_json(ws, {
-    header: 1, raw: true, defval: '', blankrows: false,
-  }).filter((l) => l.some((c) => String(c).trim() !== ''));
-  if (!linhas.length) throw parseErro('ARQUIVO_VAZIO', 'Planilha vazia');
-
-  const cabecalho = linhas[0].map((c) => String(c).trim());
-  if (JSON.stringify(cabecalho) !== JSON.stringify(CABECALHO_ESPERADO)) {
-    throw parseErro('CABECALHO_INVALIDO', 'Cabeçalho não confere com o contrato observado');
-  }
-  if (linhas.length === 1) throw parseErro('ARQUIVO_VAZIO', 'Planilha só com cabeçalho');
-
-  return linhas.slice(1).map(normalizarLinha);
+  const { linhas } = lerPlanilha(buffer, {
+    cabecalhoEsperado: CABECALHO_ESPERADO, maxLinhas: MAX_LINHAS_RETORNO, erro: parseErro,
+  });
+  return linhas.map(normalizarLinha);
 }
 
 /** Posicional: a coluna existe pelo cabeçalho, nunca pelo conteúdo da linha

@@ -295,6 +295,8 @@ export interface RepasseFechado {
   creditos: string;
   adiantamentos: string;
   debitos: string;
+  /** 0117: valor pago por fora, LÍQUIDO (negativo = já recebido fora do app). "0.00" = nenhum. */
+  lancamentosExternos: string;
   remanescente: string;
   negativo: boolean;
   /** F3 (saldo mínimo carregado) — `null` numa apuração fechada antes da regra. */
@@ -314,6 +316,8 @@ export interface Repasse {
   creditos: string;
   adiantamentos: RepasseAdiantamentoItem[];
   debitos: string;
+  /** 0117: valor pago por fora, LÍQUIDO (negativo = já recebido fora do app). "0.00" = nenhum. */
+  lancamentosExternos: string;
   remanescente: string;
   negativo: boolean;
   /** F3: saldo carregado de semana(s) anterior(es) somado à previsão. `null`

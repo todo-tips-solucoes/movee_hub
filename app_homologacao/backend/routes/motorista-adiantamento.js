@@ -907,6 +907,8 @@ router.get('/repasse', async (req, res) => {
       emProcessamento: a.emProcessamento,
     })),
     debitos: dinheiro(row.debitos),
+    // 0117: parcela "pago por fora" (líquida, negativo = dedução) — a conta mostrada fecha.
+    lancamentosExternos: dinheiro(row.lancamentos_externos),
     remanescente: dinheiro(row.remanescente),
     negativo: row.negativo,
     saldoAnterior: dinheiro(saldoAnterior),
@@ -922,6 +924,7 @@ router.get('/repasse', async (req, res) => {
       creditos: dinheiro(fechado.creditos),
       adiantamentos: dinheiro(fechado.adiantamentos),
       debitos: dinheiro(fechado.debitos),
+      lancamentosExternos: dinheiro(fechado.lancamentos_externos),
       remanescente: dinheiro(fechado.remanescente),
       negativo: fechado.negativo,
       // F3: NULL numa apuração fechada antes da regra (Decision 7).

@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { buscarExtrato, buscarRepasse, type Extrato, type Repasse } from '@/lib/adiantamento-api';
-import { classificarErroRepasse } from '@/lib/repasse-estado';
+import { classificarErroRepasse, parcelaPagoPorFora } from '@/lib/repasse-estado';
 import { AlertCircle, AlertTriangle, ArrowLeft, EventRepeat, Info } from '@/components/ui/icons';
 
 type Estado = Repasse | null | undefined | 'indisponivel';
@@ -119,6 +119,14 @@ export default function RepassePage() {
                 <div className="flex items-center justify-between">
                   <dt className="text-muted-foreground">Outros débitos</dt>
                   <dd className="tabular font-medium">− {formatCurrency(repasse.debitos)}</dd>
+                </div>
+              )}
+              {parcelaPagoPorFora(repasse.lancamentosExternos) && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Pago por fora</dt>
+                  <dd className="tabular font-medium">
+                    {parcelaPagoPorFora(repasse.lancamentosExternos)!.sinal} {formatCurrency(parcelaPagoPorFora(repasse.lancamentosExternos)!.valor)}
+                  </dd>
                 </div>
               )}
               <div className="flex items-center justify-between border-t border-border/60 pt-1.5 font-semibold">
@@ -237,6 +245,14 @@ export default function RepassePage() {
                 <div className="flex items-center justify-between">
                   <dt className="text-muted-foreground">Outros débitos</dt>
                   <dd className="tabular font-medium">− {formatCurrency(repasse.ultimoFechado.debitos)}</dd>
+                </div>
+              )}
+              {parcelaPagoPorFora(repasse.ultimoFechado.lancamentosExternos) && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted-foreground">Pago por fora</dt>
+                  <dd className="tabular font-medium">
+                    {parcelaPagoPorFora(repasse.ultimoFechado.lancamentosExternos)!.sinal} {formatCurrency(parcelaPagoPorFora(repasse.ultimoFechado.lancamentosExternos)!.valor)}
+                  </dd>
                 </div>
               )}
               <div className="flex items-center justify-between border-t border-border/60 pt-1.5 font-semibold">

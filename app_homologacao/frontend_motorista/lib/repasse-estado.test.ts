@@ -22,3 +22,14 @@ test('classificarErroRepasse: 502/infra mantém o estado de erro (com "tentar de
 test('classificarErroRepasse: erro não-ApiError (ex.: timeout de rede) cai em "erro"', () => {
   assert.equal(classificarErroRepasse(new Error('network')), 'erro');
 });
+
+import { parcelaPagoPorFora } from './repasse-estado.ts';
+
+test('parcelaPagoPorFora: dedução vira − em módulo, crédito vira +, zero/ausente/inválido some', () => {
+  assert.deepEqual(parcelaPagoPorFora('-30.00'), { sinal: '−', valor: 30 });
+  assert.deepEqual(parcelaPagoPorFora('13.00'), { sinal: '+', valor: 13 });
+  assert.equal(parcelaPagoPorFora('0.00'), null);
+  assert.equal(parcelaPagoPorFora(null), null);
+  assert.equal(parcelaPagoPorFora(undefined), null);
+  assert.equal(parcelaPagoPorFora('abc'), null);
+});

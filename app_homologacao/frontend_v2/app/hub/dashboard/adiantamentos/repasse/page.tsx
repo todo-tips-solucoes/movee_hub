@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, Download, FileText, Inbox, Lock } from 'lucide-react';
+import { AlertCircle, Download, FileText, FileUp, Inbox, ListChecks, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +44,10 @@ import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { AdiantamentosAbas } from '@/components/hub/adiantamentos-abas';
 import { RepasseLotesSection } from '@/components/hub/repasse-lotes-section';
 import { FecharApuracaoDialog, useFecharApuracaoDialog } from '@/components/hub/adiantamento-fechar-apuracao-dialog';
+import { LancamentoExternoDialog, useLancamentoExternoDialog } from '@/components/hub/lancamento-externo-dialog';
+import { AvisoLancamentoExterno } from '@/components/hub/lancamento-externo-aviso';
+import { LancamentoExternoListaDialog, useLancamentoExternoListaDialog } from '@/components/hub/lancamento-externo-lista-dialog';
+import { formatarParcelaExterna } from '@/lib/hub/lancamento-externo';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { useDebounce } from '@/hooks/use-debounce';
 import { paraISO, inicioDaSemanaApuracao } from '@/lib/hub/periodo';
@@ -159,6 +163,12 @@ export default function AdiantamentosRepassePage() {
     },
   });
 
+  // Depois de importar, a prévia recarrega E o aviso de FR-049 reconsulta (versão nova).
+  const [versaoResumo, setVersaoResumo] = useState(0);
+  const externoDialog = useLancamentoExternoDialog({ onSucesso: () => { h.refetch(); setVersaoResumo((v) => v + 1); } });
+  // Excluir um lançamento também muda a prévia e o aviso: mesma reconsulta da importação.
+  const listaExternoDialog = useLancamentoExternoListaDialog({ periodo: h.periodo, onMudou: () => { h.refetch(); setVersaoResumo((v) => v + 1); } });
+
   const [exportando, setExportando] = useState(false);
   const exportar = useCallback(async () => {
     setExportando(true);
@@ -211,6 +221,18 @@ export default function AdiantamentosRepassePage() {
             Exportar CSV
           </Button>
           {podeFechar && (
+            <Button variant="outline" size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={externoDialog.abrir}>
+              <FileUp className="size-4" aria-hidden="true" />
+              Importar pagos por fora
+            </Button>
+          )}
+          {h.periodo && (
+            <Button variant="outline" size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={listaExternoDialog.abrir}>
+              <ListChecks className="size-4" aria-hidden="true" />
+              Ver pagos por fora
+            </Button>
+          )}
+          {podeFechar && (
             <Button
               size="sm"
               className="min-h-11 gap-1.5 sm:min-h-8"
@@ -237,6 +259,7 @@ export default function AdiantamentosRepassePage() {
         </div>
       </PageHeader>
       <AdiantamentosAbas />
+      {h.periodo && <AvisoLancamentoExterno periodo={h.periodo} versao={versaoResumo} />}
 
       <FilterBar gridClassName="grid-cols-1 xs:grid-cols-2 lg:grid-cols-4">
         <div className="flex flex-col gap-1">
@@ -306,6 +329,7 @@ export default function AdiantamentosRepassePage() {
                   <TableHead className="text-right">Créditos</TableHead>
                   <TableHead className="text-right">Adiantamentos</TableHead>
                   <TableHead className="text-right">Débitos</TableHead>
+                  <TableHead className="text-right">Pago por fora</TableHead>
                   <TableHead className="text-right">Remanescente</TableHead>
                   <TableHead className="text-right">Saldo anterior</TableHead>
                   <TableHead className="text-right">A pagar</TableHead>
@@ -322,6 +346,7 @@ export default function AdiantamentosRepassePage() {
                     <TableCell className="text-right font-mono">{formatBRL(item.creditos)}</TableCell>
                     <TableCell className="text-right font-mono">− {formatBRL(item.adiantamentos)}</TableCell>
                     <TableCell className="text-right font-mono">{item.debitos !== '0.00' ? `− ${formatBRL(item.debitos)}` : '—'}</TableCell>
+                    <TableCell className="text-right font-mono">{formatarParcelaExterna(item.lancamentosExternos)}</TableCell>
                     <TableCell className={`text-right font-mono font-semibold ${item.negativo ? 'text-destructive' : ''}`}>
                       {formatBRL(item.remanescente)}
                     </TableCell>
@@ -343,6 +368,7 @@ export default function AdiantamentosRepassePage() {
                   <TableCell className="text-right font-mono font-semibold">{formatBRL(h.dados.totais.creditos)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">− {formatBRL(h.dados.totais.adiantamentos)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">− {formatBRL(h.dados.totais.debitos)}</TableCell>
+                  <TableCell className="text-right font-mono font-semibold">{formatarParcelaExterna(h.dados.totais.lancamentosExternos)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">{formatBRL(h.dados.totais.remanescente)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">{formatBRL(h.dados.totais.saldoAnterior)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">{formatBRL(h.dados.totais.aPagar)}</TableCell>
@@ -369,6 +395,8 @@ export default function AdiantamentosRepassePage() {
       <RepasseLotesSection />
 
       <FecharApuracaoDialog d={fecharDialog} />
+      <LancamentoExternoDialog d={externoDialog} />
+      <LancamentoExternoListaDialog d={listaExternoDialog} />
     </div>
   );
 }
