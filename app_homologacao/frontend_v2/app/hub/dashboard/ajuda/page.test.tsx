@@ -12,7 +12,7 @@ describe('AjudaPage', () => {
   it('um h1, um h2 por seção, e todos os blocos do JSON aparecem', () => {
     const { container } = render(<AjudaPage />);
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(26);
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(27);
     expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(conta('subtitulo'));
     expect(container.querySelectorAll('table')).toHaveLength(conta('tabela'));
     // avisos: cada um carrega o rótulo textual do tipo, não só cor
@@ -41,7 +41,7 @@ describe('AjudaPage', () => {
     const { container } = render(<AjudaPage />);
     const navs = screen.getAllByRole('navigation', { hidden: true, name: /Índice/ });
     expect(navs).toHaveLength(2);
-    for (const nav of navs) expect(within(nav).getAllByRole('link', { hidden: true })).toHaveLength(26);
+    for (const nav of navs) expect(within(nav).getAllByRole('link', { hidden: true })).toHaveLength(27);
     for (const s of conteudo.secoes) expect(container.querySelector(`section#${s.id}`)).not.toBeNull();
   });
 
@@ -50,12 +50,12 @@ describe('AjudaPage', () => {
     const campo = screen.getByLabelText('Buscar no manual');
     fireEvent.change(campo, { target: { value: 'antecipacao' } });
     expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(2);
-    expect(screen.getByRole('status')).toHaveTextContent('2 de 26 seções');
+    expect(screen.getByRole('status')).toHaveTextContent('2 de 27 seções');
     fireEvent.change(campo, { target: { value: 'zzzinexistentezzz' } });
     expect(screen.queryAllByRole('heading', { level: 2 })).toHaveLength(0);
     expect(screen.getByText(/Nenhuma seção encontrada/)).toBeInTheDocument();
     fireEvent.change(campo, { target: { value: '' } });
-    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(26);
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(27);
   });
 
   it('não injeta HTML: marcação do texto vira elemento só para negrito/código/link', () => {

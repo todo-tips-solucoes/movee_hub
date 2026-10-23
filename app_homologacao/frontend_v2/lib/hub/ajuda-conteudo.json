@@ -1,6 +1,6 @@
 {
   "subtitulo": "Como operar o Envio em Massa, apurar e pagar o repasse semanal no Movee Hub, e o que o motorista faz no celular. Escrito a partir do comportamento real do sistema, incluindo o que ele recusa e por quê.",
-  "atualizadoEm": "2026-10-21",
+  "atualizadoEm": "2026-10-23",
   "secoes": [
     {
       "id": "inicio",
@@ -697,8 +697,12 @@
               "Descontos vindos do extrato da EntreGô, se estiverem ligados"
             ],
             [
+              "Pago por fora",
+              "O que o financeiro movimentou fora do sistema e subiu pela planilha de [Pagos por fora](#hub-pagos-fora). A coluna mostra o sinal: **−** quando foi pago ao motorista e é descontado, **+** quando é um crédito a favor dele"
+            ],
+            [
               "Remanescente",
-              "Créditos − Adiantamentos − Débitos"
+              "Créditos − Adiantamentos − Débitos, mais a parcela de Pagos por fora **com o sinal que aparece na coluna** (− desconta, + soma)"
             ],
             [
               "Saldo anterior",
@@ -717,7 +721,7 @@
         {
           "bloco": "passos",
           "itens": [
-            "Soma-se a produção e descontam-se os adiantamentos já pagos e os débitos. O resultado é o **remanescente**.",
+            "Soma-se a produção e descontam-se os adiantamentos já pagos, os débitos e o que foi pago por fora. O resultado é o **remanescente**.",
             "Se o remanescente for **negativo**, nada é pago e o saldo anterior continua retido. O valor negativo *não* é levado para a semana seguinte.",
             "Caso contrário, soma-se o saldo anterior.",
             "Se o total ficar **abaixo do valor mínimo**, nada é pago nesta semana e o total inteiro passa para a próxima (a tela marca \"Passou para a próxima semana\").",
@@ -745,6 +749,178 @@
             "**Período ainda aberto para pedidos.** É preciso esperar passar o horário de corte do dia seguinte ao último dia da semana.",
             "**Adiantamentos em andamento no período.** A tela lista quantos e em que situação. Resolva cada um (pagar, cancelar, rejeitar ou encerrar) antes de fechar."
           ]
+        }
+      ]
+    },
+    {
+      "id": "hub-pagos-fora",
+      "titulo": "Pagos por fora",
+      "grupo": "Movee Hub",
+      "blocos": [
+        {
+          "bloco": "texto",
+          "texto": "O financeiro às vezes paga valores ao motorista fora do sistema (adiantamento na mão, vale, acerto). Para não pagar duas vezes, suba uma planilha com esses valores: eles são **descontados do repasse da semana**.",
+          "destaque": true
+        },
+        {
+          "bloco": "texto",
+          "texto": "Caminho: Hub › Adiantamentos › **Repasse** › botão **Ver pagos por fora**."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "O prazo é o fechamento, não o pagamento",
+          "texto": "A dedução entra no **fechamento da apuração**, que grava um retrato imutável da semana. Fechada a semana, o valor **não deduz mais**. Lance antes de fechar."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "O arquivo"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Formato **XLSX**, com 5 colunas nesta ordem, cabeçalho na primeira linha:"
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "#",
+            "Coluna",
+            "Observação"
+          ],
+          "linhas": [
+            [
+              "1",
+              "`CNPJ`",
+              "Do motorista. É a **única** coluna usada para identificá-lo"
+            ],
+            [
+              "2",
+              "`Data do pagamento`",
+              ""
+            ],
+            [
+              "3",
+              "`Valor`",
+              "Escreva `1.234,00` ou `1234`"
+            ],
+            [
+              "4",
+              "`Nome`",
+              "Exigida no arquivo, mas **não** é usada para casar o motorista"
+            ],
+            [
+              "5",
+              "`Observação`",
+              "Opcional, até 500 caracteres"
+            ]
+          ]
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Limites"
+        },
+        {
+          "bloco": "lista",
+          "itens": [
+            "Até **10.000 linhas** por arquivo.",
+            "Até **R$ 5.000** por linha.",
+            "**Um lançamento por motorista, por dia, por tipo.** Reenviar o mesmo arquivo responde `JA_APLICADO` e **não duplica**."
+          ]
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "O que acontece com as linhas"
+        },
+        {
+          "bloco": "texto",
+          "texto": "A recusa é **por linha, não do arquivo**: as válidas entram e as inválidas voltam com o motivo e a contagem."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "A resposta nunca mostra CNPJ nem nome",
+          "texto": "É proteção de dados, não falta de informação. Para achar a linha recusada, use o motivo e a contagem para conferir a planilha."
+        },
+        {
+          "bloco": "tabela",
+          "cabecalho": [
+            "Motivo",
+            "O que fazer"
+          ],
+          "linhas": [
+            [
+              "`CNPJ_SEM_MOTORISTA`",
+              "O CNPJ não tem motorista vinculado na empresa. Confira o CNPJ ou o cadastro"
+            ],
+            [
+              "`DATA_INVALIDA`",
+              "Corrija a data do pagamento"
+            ],
+            [
+              "`VALOR_INVALIDO`",
+              "Corrija o valor"
+            ],
+            [
+              "`VALOR_AMBIGUO`",
+              "Ex.: `1.234` pode ser mil duzentos e trinta e quatro ou um e vinte e três. Escreva `1.234,00` ou `1234`"
+            ],
+            [
+              "`VALOR_ACIMA_DO_TETO`",
+              "Acima de R$ 5.000 por linha. Divida em mais de um dia ou confira o valor"
+            ],
+            [
+              "`VALOR_FRACAO_DE_CENTAVO`",
+              "O valor tem fração de centavo. Use no máximo 2 casas decimais"
+            ],
+            [
+              "`OBSERVACAO_MUITO_LONGA`",
+              "Reduza a observação para até 500 caracteres"
+            ],
+            [
+              "`VALOR_EXCEDE_LIQUIDO`",
+              "A dedução é maior do que o motorista tem a receber na semana. Veja o aviso abaixo"
+            ],
+            [
+              "`JA_APLICADO`",
+              "Já existe esse lançamento (motorista, dia e tipo). Nada foi duplicado"
+            ],
+            [
+              "`SEMANA_JA_FECHADA`",
+              "A semana já foi fechada e não aceita mais lançamentos"
+            ]
+          ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Todas as linhas voltaram VALOR_EXCEDE_LIQUIDO?",
+          "texto": "Quase certamente **o faturamento da semana ainda não foi importado**. A dedução é limitada pelo que o motorista tem a receber; sem faturamento o líquido é zero e tudo excede. **Importe o faturamento antes** e envie de novo."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Listar, buscar e excluir"
+        },
+        {
+          "bloco": "texto",
+          "texto": "A lista mostra os lançamentos da semana, com busca por nome que ignora acento e maiúsculas. Dá para **excluir** enquanto a semana está aberta. Não existe editar: para corrigir um lançamento errado, **exclua e reenvie**."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "A exclusão pode ser recusada",
+          "texto": "De propósito: se apagar um **crédito** deixaria o motorista com saldo negativo, o sistema recusa e pede para **apagar a dedução primeiro**. Depois de fechada a semana, nada mais pode ser excluído."
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "No fechamento"
+        },
+        {
+          "bloco": "texto",
+          "texto": "Se algum motorista ficar com remanescente negativo, o diálogo de fechar mostra **quantos e quanto** e só libera o botão depois de você **marcar uma confirmação**. Se o número não puder ser verificado (erro ou ainda carregando), a confirmação é exigida **do mesmo jeito**, por segurança."
+        },
+        {
+          "bloco": "texto",
+          "texto": "**Permissão:** `adiantamentos.pagamento_confirmar`, a mesma do financeiro."
         }
       ]
     },
@@ -1653,6 +1829,18 @@
             "**Performance: 19 colunas**, começando em `data_do_periodo`.",
             "O cabeçalho precisa bater em **nome e ordem**. Faltar, sobrar ou trocar de lugar faz a importação falhar inteira."
           ]
+        },
+        {
+          "bloco": "subtitulo",
+          "texto": "Planilha de pagos por fora (Hub)"
+        },
+        {
+          "bloco": "lista",
+          "itens": [
+            "**.xlsx**, 5 colunas, nesta ordem, na primeira linha: `CNPJ`, `Data do pagamento`, `Valor`, `Nome`, `Observação`.",
+            "O motorista é identificado só pelo **CNPJ**; `Nome` é exigida mas não é usada.",
+            "Até **10.000 linhas**. Detalhes em [Pagos por fora](#hub-pagos-fora)."
+          ]
         }
       ]
     },
@@ -1738,6 +1926,36 @@
               "Tempo limite excedido (no painel legado)",
               "—",
               "**Confira a tabela antes de repetir a ação** — ela pode ter sido concluída no servidor"
+            ],
+            [
+              "Recusa de linha em Pagos por fora",
+              "`VALOR_EXCEDE_LIQUIDO`",
+              "Se são todas as linhas, importe o faturamento da semana antes"
+            ],
+            [
+              "Recusa de linha em Pagos por fora",
+              "`VALOR_AMBIGUO`",
+              "Escreva `1.234,00` ou `1234`"
+            ],
+            [
+              "Recusa de linha em Pagos por fora",
+              "`CNPJ_SEM_MOTORISTA`",
+              "O CNPJ não tem motorista vinculado na empresa"
+            ],
+            [
+              "Recusa de linha em Pagos por fora",
+              "`SEMANA_JA_FECHADA`",
+              "A semana fechou; o lançamento não deduz mais"
+            ],
+            [
+              "Recusa de linha em Pagos por fora",
+              "`JA_APLICADO`",
+              "Já lançado; nada foi duplicado"
+            ],
+            [
+              "Demais motivos de Pagos por fora",
+              "`DATA_INVALIDA`, `VALOR_INVALIDO`, `VALOR_ACIMA_DO_TETO`, `VALOR_FRACAO_DE_CENTAVO`, `OBSERVACAO_MUITO_LONGA`",
+              "Veja a tabela em [Pagos por fora](#hub-pagos-fora)"
             ]
           ]
         }
@@ -1766,6 +1984,18 @@
             [
               "Tamanho de cada XML",
               "2 MB"
+            ],
+            [
+              "Pagos por fora: linhas por arquivo",
+              "10.000"
+            ],
+            [
+              "Pagos por fora: valor por linha",
+              "R$ 5.000"
+            ],
+            [
+              "Pagos por fora: lançamentos",
+              "1 por motorista, por dia, por tipo"
             ],
             [
               "XLSX de retorno",
@@ -1868,6 +2098,12 @@
           "tipo": "atencao",
           "titulo": "6 · Seleção de linhas não limita o disparo no painel legado",
           "texto": "As caixas existem, mas \"Iniciar\" envia para todas as linhas pendentes."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "7 · Planilha de pagos por fora muito grande pode perder linhas sem aviso",
+          "texto": "Em planilhas muito pesadas (acima de 2 MiB de conteúdo) em que o tamanho declarado no arquivo é menor que o real, linhas podem ser descartadas sem aviso. Medido: 10.500 lançamentos viraram 9.999, com 501 descartados. Na prática só acontece com mais de 10.002 linhas; nos volumes de uso normal não ocorre. Se for enviar algo desse tamanho, divida em arquivos menores e confira o total lançado."
         },
         {
           "bloco": "texto",

@@ -1,7 +1,7 @@
 {
   "titulo": "Guia do App do Motorista",
   "subtitulo": "O que você faz no app, o que o app não aceita, e o que fazer quando algo dá errado.",
-  "atualizadoEm": "2026-10-19",
+  "atualizadoEm": "2026-10-23",
   "podeNaoPode": {
     "titulo": "O que você pode e o que não pode",
     "nota": "Esta é a parte que resolve a maioria das dúvidas. Se o app recusou algo seu, provavelmente está aqui.",
@@ -112,7 +112,8 @@
         ]
       },
       "avisos": [
-        { "tipo": "importante", "texto": "A nota tem que sair com o Valor da nota fiscal, não com o Total produzido. Se você emitir pelo total, a nota é recusada por valor divergente." }
+        { "tipo": "importante", "texto": "A nota tem que sair com o Valor da nota fiscal, não com o Total produzido. Se você emitir pelo total, a nota é recusada por valor divergente." },
+        { "tipo": "dica", "texto": "No extrato do repasse da semana pode aparecer a linha \"Pago por fora\": é o que você já recebeu em mãos nessa semana, e por isso é descontado do repasse." }
       ],
       "extra": {
         "titulo": "Dados Fiscais",
