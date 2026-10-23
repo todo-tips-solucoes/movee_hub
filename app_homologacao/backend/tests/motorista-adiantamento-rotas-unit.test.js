@@ -1023,6 +1023,7 @@ function repasseRow(overrides) {
       situacao: 'EM_APURACAO',
       creditos: 1000,
       debitos: 0,
+      lancamentos_externos: 0,
       remanescente: 870.6,
       negativo: false,
       adiantamentos: [{ id: 42, dataProducao: '2026-09-16', valorBruto: 129.4, emProcessamento: false }],
@@ -1120,6 +1121,7 @@ describe('GET /motorista/repasse', () => {
       creditos: '1000.00',
       adiantamentos: [{ id: 42, integrationId: 'ADV-000042', dataProducao: '2026-09-16', valorBruto: '129.40', emProcessamento: false }],
       debitos: '0.00',
+      lancamentosExternos: '0.00',
       remanescente: '870.60',
       negativo: false,
       saldoAnterior: null,
@@ -1127,6 +1129,16 @@ describe('GET /motorista/repasse', () => {
       abaixoDoMinimo: false,
       ultimoFechado: null,
     });
+  });
+
+  // 0117: a parcela "pago por fora" da semana EM CURSO chega ao motorista (conta fecha: 1000 - 129,40 - 30 = 840,60).
+  test('0117: lancamentosExternos da semana em curso é mapeado (líquido, negativo = dedução)', async () => {
+    const cnpjDoTeste = proximoCnpj();
+    mockRespostas['rpc/hub_adiantamento_repasse_motorista'] = [repasseRow({ lancamentos_externos: -30, remanescente: 840.6 })];
+    const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.lancamentosExternos, '-30.00');
+    assert.equal(r.body.remanescente, '840.60');
   });
 
   // F3 (saldo mínimo carregado): saldo carregado de semana(s) anterior(es) +
@@ -1153,7 +1165,7 @@ describe('GET /motorista/repasse', () => {
     mockRespostas['rpc/hub_adiantamento_repasse_motorista_ultimo_fechado'] = [{
       periodo_inicio: '2026-09-03', periodo_fim: '2026-09-09', data_repasse: '2026-09-16',
       fechado_em: '2026-09-10T12:00:00-03:00',
-      creditos: 800, adiantamentos: 129.4, debitos: 20, remanescente: 650.6, negativo: false,
+      creditos: 800, adiantamentos: 129.4, debitos: 20, lancamentos_externos: -15, remanescente: 635.6, negativo: false,
     }];
     const r = await request('GET', '/motorista/repasse', { headers: { 'x-test-cnpj': cnpjDoTeste } });
     assert.equal(r.status, 200);
@@ -1165,7 +1177,8 @@ describe('GET /motorista/repasse', () => {
       creditos: '800.00',
       adiantamentos: '129.40',
       debitos: '20.00',
-      remanescente: '650.60',
+      lancamentosExternos: '-15.00',
+      remanescente: '635.60',
       negativo: false,
       saldoAnterior: null,
       aPagar: null,

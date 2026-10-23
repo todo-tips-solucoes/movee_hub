@@ -69,3 +69,6 @@ __pycache__/
 # fica fora do git: em 2026-10-01 o gitleaks achou 3812 JWTs de comprovante e
 # 7574 linhas de PII financeira aqui, e o repo é PÚBLICO.
 arquivos_complementares/
+
+# ferramenta local de code review (BMAD) — não versionar
+_bmad/

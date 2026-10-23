@@ -1631,6 +1631,23 @@ describe('4.6 repasse', () => {
     assert.equal(r.body.totais.transportado, '3.00');
   });
 
+  // 0117: a parcela "pago por fora" (líquida, negativo = dedução) é mapeada por item e no total
+  // do PERÍODO — sem ela a decomposição créditos − adiantamentos − débitos não soma o remanescente.
+  test('0117: GET /repasse traz lancamentosExternos por item e o total do período', async () => {
+    repasseRowsFixture = [{
+      entregador_id: 10, nome: 'Fulano', creditos: '100.00', adiantamentos: '0.00', debitos: '0.00',
+      lancamentos_externos: '-30.00', remanescente: '70.00', em_processamento: false, total: 1,
+      total_creditos: '100.00', total_adiantamentos: '0.00', total_debitos: '0.00', total_remanescente: '70.00',
+      total_lancamentos_externos: '-30.00',
+      saldo_anterior: '0.00', valor_pago: '70.00', valor_transportado: '0.00', retido: false,
+      total_saldo_anterior: '0.00', total_a_pagar: '70.00', total_transportado: '0.00',
+    }];
+    const r = await request('GET', '/api/v1/adiantamentos/repasse?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.itens[0].lancamentosExternos, '-30.00');
+    assert.equal(r.body.totais.lancamentosExternos, '-30.00');
+  });
+
   // F3: semana fechada ANTES da regra (Decision 7) — as colunas novas do RPC
   // vêm ausentes/NULL, e a resposta tem de propagar `null`, nunca "0.00".
   test('F3: item pré-regra devolve saldoAnterior/aPagar/transportado nulos', async () => {
@@ -1794,8 +1811,22 @@ describe('4.6 repasse', () => {
     assert.equal(r.status, 200);
     const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
     const linhas = texto.split('\r\n');
-    assert.equal(linhas[0], 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana');
-    assert.equal(linhas[1], 'uuid-entregador-10,Fulano,3.00,0.00,0.00,3.00,0.00,0.00,3.00,99.000.000/0010-10,,');
+    assert.equal(linhas[0], 'Identificador,Entregador,Créditos,Adiantamentos,Débitos,Remanescente,Saldo anterior,A pagar,Passou para a próxima semana,CNPJ do prestador,Valor da nota fiscal da semana,Gorjeta da semana,Pago por fora (líquido)');
+    assert.equal(linhas[1], 'uuid-entregador-10,Fulano,3.00,0.00,0.00,3.00,0.00,0.00,3.00,99.000.000/0010-10,,,');
+  });
+
+  test('0117 (A1): GET /repasse/exportar leva lancamentos_externos do RPC para a última coluna do CSV', async () => {
+    repasseRowsFixture = [{
+      entregador_id: 10, nome: 'Fulano', creditos: '100.00', adiantamentos: '0.00', debitos: '0.00',
+      lancamentos_externos: '-30.00', remanescente: '70.00', em_processamento: false, total: 1,
+      total_creditos: '100.00', total_adiantamentos: '0.00', total_debitos: '0.00', total_remanescente: '70.00',
+      saldo_anterior: '0.00', valor_pago: '70.00', valor_transportado: '0.00', retido: false,
+      total_saldo_anterior: '0.00', total_a_pagar: '70.00', total_transportado: '0.00',
+    }];
+    const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
+    assert.equal(r.status, 200);
+    const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
+    assert.ok(texto.split('\r\n')[1].endsWith(',-30.00'), texto); // número puro: com apóstrofo o Excel lê TEXTO e a coluna não soma
   });
 
   // Conferência com a planilha (2026-09-28): CNPJ completo do cadastro do hub
@@ -1812,7 +1843,7 @@ describe('4.6 repasse', () => {
     const r = await request('GET', '/api/v1/adiantamentos/repasse/exportar?periodo=2026-09-08', { cookie: tokenCookie() });
     assert.equal(r.status, 200);
     const texto = Buffer.isBuffer(r.body) ? r.body.toString('utf8') : String(r.body);
-    assert.equal(texto.split('\r\n')[1], 'uuid-entregador-10,Fulano,100.00,20.00,0.00,80.00,0.00,80.00,0.00,99.000.000/0010-10,90.00,10.00');
+    assert.equal(texto.split('\r\n')[1], 'uuid-entregador-10,Fulano,100.00,20.00,0.00,80.00,0.00,80.00,0.00,99.000.000/0010-10,90.00,10.00,');
   });
 
   test('conferência: falha ao resolver o CNPJ -> 502, nunca CSV sem a coluna-chave', async () => {

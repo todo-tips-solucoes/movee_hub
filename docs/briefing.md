@@ -1,124 +1,143 @@
-# Project Briefing: importar o retorno da Transfeera em XLSX
+# Project Briefing: importar lançamentos pagos por fora do sistema
 
-> Briefing da frente corrente. As duas anteriores desta sessão estão em produção
-> (correção de valor do movimento, PR #287; busca de banco no app, PR #289) e os planos
-> em `docs/plans/`. Detalhe desta frente, com as medições, em
-> `docs/plans/retorno-transfeera-xlsx/BRIEFING.md`.
+> Frente corrente, aberta em 2026-10-22 a pedido do financeiro. Detalhe e decisões
+> em `docs/plans/lancamento-externo/BRIEFING.md`.
 
 ## 1. Visão e Propósito
 
-O financeiro importa o retorno da Transfeera para confirmar quais pagamentos foram
-efetivados — vale para **repasse** e **adiantamento**. Hoje o importador aceita **só CSV
-de 23 colunas**, e a Transfeera passou a entregar o retorno em **XLSX de 21 colunas**.
+O financeiro paga valores aos motoristas **por fora do sistema** (adiantamento feito na
+mão, vale, acerto) e hoje **não tem como informar isso ao hub**. O resultado é que o
+repasse semanal paga o valor cheio, sem descontar o que já saiu do caixa.
 
-Pedido do operador (21/10): *"o arquivo de retorno será com esse layout. Hoje está
-pedindo o csv."*
+Pedido do operador (22/10): *"o pessoal do financeiro gostaria de um layout de arquivo e
+uma forma de subir os adiantamentos que foram feitos de forma manual… para que os
+adiantamentos possam ser deduzidos do repasse semanal da semana que vem"*.
 
-Sem isso, o financeiro não tem como dar baixa nos pagamentos: a tela recusa o arquivo que
-a Transfeera fornece. Medido na rota em produção: `express.text({ type: ['text/csv',
-'text/plain'] })` — um XLSX chega com mime binário, **não casa o `type`**, e o corpo chega
-**vazio**, produzindo erro sem relação com a causa.
+⚠️ **A feature não é só de adiantamento.** Decisão do operador na mesma conversa: *"posso
+usar essa feature para inputar outros valores pagos por fora"*. Por isso o modelo nasce
+genérico, com **tipo** e **sinal derivado do tipo**, e `ADIANTAMENTO` é o primeiro tipo.
+
+### 🔴 O prazo real é o FECHAMENTO, não o pagamento
+
+O pagamento da semana 19–25/10 sai na **quarta, 28/10**. Mas a dedução acontece no
+**fechamento da apuração**, que grava um retrato **imutável** em `ApuracaoRepasseItem`
+(`0098:218-222`). Fechada a semana, o valor está congelado e **não deduz mais**.
+
+O fechamento só é liberado depois do corte do dia seguinte ao fim da semana, então a
+janela real para lançar é **26/10 (segunda) até o fechamento**, antes de 28/10.
 
 ## 2. Usuários e Stakeholders
 
 | Quem | Como usa |
 |---|---|
-| **Financeiro** (Movee Hub) | baixa o retorno na Transfeera e importa pela tela, para confirmar pagamento. Precisa de `adiantamentos.pagamento_confirmar`. |
-| **Motorista** | é o efeito final: pagamento confirmado (ou devolvido, com o motivo) depende desta importação. |
+| **Financeiro** | sobe a planilha dos valores pagos por fora antes de fechar a apuração. Já tem a permissão `adiantamentos.pagamento_confirmar` (migration 0115). |
+| **Motorista** | é o efeito final: o repasse dele passa a descontar o que já recebeu, em vez de pagar duas vezes. |
 
 ## 3. Escopo
 
 ### MVP (Essencial)
 
-1. **Ler XLSX de 21 colunas** no lugar do CSV, com o cabeçalho conferido contra contrato.
-2. **Casar por `ID integração`** (coluna F) → `ADV-000123`/`REP-000123`, com o mesmo
-   `extrairIdSolicitacao` de hoje. **Determinístico, nada de heurística.**
-3. **Vale para repasse E adiantamento** (mesmo importador, prefixos `REP`/`ADV`).
-4. **Recusar status desconhecido em voz alta**, nomeando o valor encontrado.
+1. **Planilha XLSX de 5 colunas** (contrato fechado em §7), com cabeçalho conferido.
+2. **Tabela nova** de lançamento externo, genérica (tipo + sinal), sem tocar nos CHECKs
+   do fluxo vivo do app.
+3. **A dedução passa a somar as duas fontes** no fechamento (`0098`) e na prévia (`0100`).
+4. **Botão + diálogo na aba Repasse** que já existe (aprovado pelo operador).
+5. **Idempotência** por `empresa + CNPJ + data do pagamento + tipo`.
+6. **Recusa por linha**, nomeando o motivo, com contagem agregada.
 
 ### Fora de Escopo
 
-- Inventar o rótulo de devolução (ver §5).
-- Casar por CPF+valor+lote: desnecessário, agora que o ID volta.
-- Mudar o cálculo do que é confirmado, ou a tela além do necessário.
+- Página nova ou aba nova (o operador aprovou **só** o botão + diálogo, na aba Repasse
+  que já existe).
+- **Editar** lançamento pela tela — corrige-se excluindo e reenviando, com a semana aberta.
+- Reabrir semana fechada (`ApuracaoRepasse` é imutável por desenho).
+- Lançar valor para empresa fora do grupo Movee (o fechamento é `id_empresa = 6`).
+
+⚠️ **Emenda de 2026-10-23 (rodada 3).** A **listagem** dos lançamentos importados e a
+**exclusão** de um lançamento **deixaram de estar fora de escopo**: o operador autorizou
+as duas como diálogo da aba Repasse (FR-056/FR-057), e o código as entrega. O motivo é
+operacional — sem listar não há como achar o lançamento errado antes do fechamento, e
+sem excluir não há como corrigi-lo, já que editar continua fora. Quem conferir o escopo
+por este arquivo tem de ler esta emenda junto: a lista acima é o escopo de 22/10.
 
 ## 4. Prioridades e Trade-offs
 
-**Decisão do operador (21/10): substituir o CSV, aceitar só XLSX.** Essa decisão era
-condicional ao ID de integração voltar — e voltou (§5), então deixa de ser arriscada: o
-casamento permanece tão seguro quanto o de hoje.
-
-Trade-off aceito: quem exportar CSV passa a receber recusa. O operador optou por um
-caminho só, em vez de manter dois formatos.
+**Prazo manda, mas não acima do dinheiro.** A entrega toca a função que calcula o repasse
+(`hub_adiantamento_repasse_fechar`), que é o caminho do dinheiro. O trade-off aceito pelo
+operador: mexer nessa função em vez de afrouxar os CHECKs de `AdiantamentoSolicitacao` —
+porque afrouxar enfraqueceria o fluxo do app para sempre, e a função pode ser alterada
+com teste e controle negativo.
 
 ## 5. Restrições
 
-### O que foi medido, e muda o escopo
+### Medido no código (não supor)
 
-- O layout real é o de **21 colunas** (`Valor · Favorecido · Comprovante Transfeera ·
-  Comprovante Banco · Status · ID integração · Motivo · CPF ou CNPJ · Email · Banco ·
-  Agência · Conta · Dígito da conta · Tipo de Conta · Nome do lote · Data transferido ·
-  Banco de saída · Data de agendamento · Tentativas de pagamento · Tipo da chave PIX ·
-  Chave PIX`), com **cabeçalho na linha 1**.
-- A coluna **F (`ID integração`) traz o nosso `ADV-xxx`** quando o arquivo enviado está
-  correto. O texto livre da amostra veio de a coluna J do arquivo de **envio** ter sido
-  sobrescrita à mão — medido: **idêntica à coluna L (`Descrição Pix`) em 58 de 58
-  linhas**. A Transfeera devolve o que recebeu.
-- ⚠️ **O rótulo de DEVOLUÇÃO é desconhecido.** A amostra tem `FINALIZADO` em 58 de 58. O
-  CSV usa `Finalizada`/`Devolvida`. **Não inventar**: cobrir `FINALIZADO` e **recusar**
-  qualquer outro, nomeando-o. Quando a primeira devolução real aparecer, o enum cresce
-  numa linha.
-- ⚠️ **`express.text` não serve** — XLSX é binário. Precisa de `express.raw` com os mimes
-  de XLSX. ⚠️ E **nunca** subir o `express.json()` global (100 KB, roda antes do router):
-  o parser vai **na própria rota**, como o atual já faz.
-- ⚠️ **`paraCentavos('1.234,56')` devolve `NaN`** — separador de milhar em formato BR
-  quebra. A amostra não tem valor acima de mil, mas vai haver. O XLSX traz valor com
-  vírgula decimal (`54,57`).
-- O motivo da devolução é **literal do arquivo**, nunca fabricado (hoje: `Motivo da
-  falha`, caindo para `Código de erro`; no XLSX existe só `Motivo`).
+- **A dedução hoje**: CTE `pagas` em `0098:218-222` soma `valor_bruto` de
+  `AdiantamentoSolicitacao` com `status IN ('PAGA','EXPORTADA')` e
+  `data_producao BETWEEN inicio AND inicio+6`. A prévia é `0100:81-89`.
+- **`remanescente = creditos - adiantamentos - debitos`**, e a flag
+  `desconto_adiantamentos` é `DEFAULT true` (`0066:69`).
+- ⚠️ **`debitos` NÃO serve** para isto: vem de `FaturamentoLancamento` com
+  `tipo='Debito'` (lançamentos da EntreGô) e a flag `desconto_debitos` é `DEFAULT false`.
+- **Saldo mínimo** `repasse_valor_minimo` `DEFAULT 5.50` (`0098:87`), com a regra **paga
+  tudo ou retém tudo** e o CHECK `apuracaorepasseitem_saldo_conserva` (`0098:71-81`)
+  garantindo `remanescente + saldo_anterior = valor_pago + valor_transportado`.
+- **Obstáculos que levaram à tabela nova**: `AdiantamentoSolicitacao` tem NOT NULL em
+  `conta_motorista_id`, `aceite_texto_sha256`, `configuracao_id`; CHECK
+  `data_producao = data_solicitacao - 1`; CHECK de `PAGA` exigindo `conta_bancaria_id` e
+  `valor_liquido > 0`; e UNIQUE de 1 por motorista/dia.
+- **RLS**: `AdiantamentoSolicitacao` tem RLS com policy só de SELECT por escopo
+  (`0066:366`); escrita passa por `SECURITY DEFINER`. A tabela nova segue o mesmo padrão.
+- **A semana é configurável**: `apuracao_dia_inicio` (0-6, `0066:92`), fim sempre
+  `inicio + 6`, e o trigger `hub_apuracao_repasse_valida_janela` (`0086:35-68`) recusa
+  `PERIODO_DESALINHADO`. ⚠️ O valor vigente em produção **só o banco sabe** — pendência
+  do operador (§8).
 
 ### Técnicas
 
-- `xlsx` **já é dependência** do backend (o exportador a usa) — nada a instalar.
-- Fixture de teste **no repo**: `tests/fixtures/retorno-transfeera-21col-exemplo.xlsx`
-  (21 colunas, 58 linhas, coluna F de `ADV-000015` a `ADV-000074`). Não depender de
-  `/root`.
-- A deduplicação de linhas repetidas do mesmo ID (hoje `dedupePorId`) precisa de
-  equivalente, ou de decisão explícita de que não se aplica.
-- Backend roda `node --test`; o `npm test` **lista os arquivos um a um** — teste novo que
-  não entre no script **não roda**.
+- **Modelo mais próximo**: o retorno da Transfeera (`lib/adiantamento-retorno-transfeera.js`),
+  entregue hoje. Reusar `lerXlsx`, `conferirTetoZip`, `paraCentavos`, o padrão
+  `express.raw` com mime de XLSX, e o diálogo `adiantamento-importar-retorno-dialog.tsx`
+  como molde. ⚠️ **Ele está acoplado a `loteId`** — o molde serve, o componente não é
+  reutilizável como está.
+- ⚠️ **`express.json()` global de 100 KB roda antes do router**: o parser vai na rota.
+- ⚠️ **`paraCentavos('1.234,56')` dava NaN** e ganhou ramo para milhar BR hoje; `"1.234"`
+  (ponto sem decimais) é **ambíguo** e recusado com `VALOR_AMBIGUO`.
+- ⚠️ A resposta **nunca** devolve CNPJ nem nome: só contagem por motivo (gate owasp de
+  01/10, comentário em `hub-adiantamentos.js:1517-1523`).
 
 ## 6. Stack Técnica
 
-- **Backend** Express/Node 20. Parser atual: `lib/adiantamento-retorno-transfeera.js`
-  (`CABECALHO_ESPERADO` de 23 colunas, `lerCsv`, `extrairIdSolicitacao`,
-  `casarComItensDoLote`). Rota: `routes/hub-adiantamentos.js:1471`
-  (`POST /lotes/:id/retorno`).
-- **Frontend_v2** (hub): a tela que envia o arquivo.
-- Persistência por **PostgREST**, sem ORM.
+Node 20 + Express (sem ORM) · PostgreSQL via **PostgREST** com função `SECURITY DEFINER` ·
+**SheetJS (`xlsx`)**, já dependência · Next.js 16 App Router + React · Tailwind 4 + Base UI
++ shadcn · testes `node --test` (backend), **vitest** (frontend), **Playwright** (E2E).
+
+Skills de consulta à documentação oficial, a usar durante o desenvolvimento: `xlsx`,
+`postgresql` / `postgres-best-practices`, `nodejs-backend-patterns`,
+`nextjs-app-router-patterns`, `tailwind-patterns`, `vitest-skill`, `typescript-pro`.
 
 ## 7. Qualidade e Padrões
 
-- **Deduplicação**: reusar `extrairIdSolicitacao`, `casarComItensDoLote`, `dedupePorId` e
-  `paraCentavos`. **Procurar antes de escrever** — este repositório já teve o mesmo mapa
-  duplicado 3×. O leitor de XLSX é a única peça realmente nova.
-- **Controle negativo obrigatório**: a fixture XLSX deve **falhar** contra o parser atual
-  (que só lê CSV) e passar depois. Dizer **quais** testes falham, nome por nome.
-- **Segurança**: o arquivo vem de fora. Conferir cabeçalho por contrato, limitar tamanho e
-  número de linhas (hoje `MAX_LINHAS_RETORNO = 10000`), e não confiar em tipo de célula.
-- **Smoke agêntico em laço** (regra do operador): o portão roda antes do merge; reprovado
-  ⇒ ajusta, roda a suíte **completa** de novo e repete do zero. Só com tudo verde promove.
-- Gates com números: `node --test` do backend (baseline atual **1956 pass / 0 fail**),
-  `package-lock.json` sem diff. Se tocar o hub: `tsc`, `vitest`, `next build`, lint contra
-  a baseline (28 problemas: 5 erros, 23 avisos).
+- **Deduplicação acima de tudo**: procurar antes de escrever. O leitor de XLSX, o teto de
+  ZIP e a conversão de valor **já existem** e devem ser reusados, não reimplementados.
+- **Escalabilidade e performance**: a dedução entra numa função que roda sobre a semana
+  inteira da empresa; o join novo precisa de índice e de `EXPLAIN` medido.
+- **Segurança**: arquivo vem de fora (cabeçalho por contrato, tetos de bytes/linhas/ZIP);
+  `SECURITY DEFINER` com `REVOKE` antes do `GRANT`; RLS por escopo; nenhum dado de
+  terceiro na resposta.
+- **Controle negativo obrigatório** em cada correção, com os testes **nomeados** e a
+  prova de que a reversão foi aplicada **antes** de medir.
+- **Gates com números**: backend `node --test` (baseline a medir no início), `tsc`,
+  `vitest`, `next build`, lint contra a baseline, driver
+  `hub-adiantamentos-integration.sh` (hoje **231 PASS / 0 FAIL**).
 
 ## 8. Visão de Futuro
 
-Se a Transfeera mudar o layout outra vez, o contrato de cabeçalho já falha alto e
-nomeia a divergência — o custo de adaptar fica em um lugar só.
+Com `tipo` e sinal no modelo, o segundo tipo de valor pago por fora entra por migration de
+uma linha, sem redesenho — era a razão de o operador recusar uma tabela só de adiantamento.
 
 ## Itens a Definir
 
-Nenhum que bloqueie. O único desconhecido é o **rótulo de devolução no XLSX**, e a
-decisão sobre ele já está tomada: **recusar status desconhecido nomeando-o**, em vez de
-adivinhar. Quando a primeira devolução real chegar, o operador envia a amostra.
+**Um só, e não bloqueia o desenho** (a função lê da config; só a validação do período
+depende dele): o valor vigente de `apuracao_dia_inicio` em produção. Se for `1` (segunda),
+a semana 19–25/10 está alinhada. O agente **não acessa produção** — pendência do operador.

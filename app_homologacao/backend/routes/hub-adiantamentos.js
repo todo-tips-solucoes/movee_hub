@@ -70,6 +70,7 @@ const { serializarCsvRemanescente, paraCentavos, formatarCentavos } = require('.
 const {
   RetornoTransfeeraParseError, XLSX_MIME, lerXlsx, casarComItensDoLote,
 } = require('../lib/adiantamento-retorno-transfeera');
+const { lerLancamentos, contarPorMotivo, LancamentoExternoParseError, CABECALHO_ESPERADO, TIPOS: TIPOS_LANCAMENTO_EXTERNO } = require('../lib/lancamento-externo');
 const { partesNoFuso, dataISO } = require('../lib/adiantamento-regras');
 const contratoTransfeera = require('../lib/fixtures/transfeera-contrato.json');
 
@@ -363,6 +364,12 @@ const exportarRepasseRateLimiter = limiterPorUsuario(30);
 // Balde próprio e mais estreito que os outros: conciliar um lote é ato raro
 // (uma vez por lote pago), não fluxo contínuo como prévia ou export.
 const retornoRateLimiter = limiterPorUsuario(10);
+// lancamento-externo: balde PRÓPRIO (mesma lição de 11.28 — instância compartilhada soma os
+// baldes). Importar pagos por fora e conciliar um lote são atos raros e independentes: um não
+// pode gastar a cota do outro.
+const lancamentoExternoRateLimiter = limiterPorUsuario(10);
+// A exclusão é correção manual, uma a uma: balde PRÓPRIO e mais folgado que o da importação.
+const lancamentoExternoExclusaoRateLimiter = limiterPorUsuario(60);
 
 // ════════════════════════════════════════════════════════════════════════
 // 4.1 — Solicitações
@@ -1590,6 +1597,241 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// Lançamento externo — valores pagos POR FORA (feature lancamento-externo)
+// ════════════════════════════════════════════════════════════════════════
+// Importa o XLSX de 5 colunas (CNPJ | Data do pagamento | Valor | Nome | Observação).
+// Transporte igual ao do retorno da Transfeera: `express.raw` NA ROTA, nunca subir
+// o teto do `express.json()` global. O tipo vai na QUERYSTRING (o corpo é o arquivo)
+// e vale para o arquivo todo. O escopo vem do token, nunca do corpo (Constitution II).
+//
+// ⚠️ A resposta NUNCA devolve CNPJ, nome ou id: só a contagem por motivo (FR-031).
+// O motivo é um token fechado; o conteúdo da célula não sai daqui.
+// P6: a RPC já commitou quando a auditoria roda. Falha aqui NÃO pode virar 500 sobre uma importação
+// que deu certo (o operador reenviaria e confundiria JA_APLICADO com "nada aconteceu"): loga e segue.
+const EXCEDENTES_MAX = 50;
+async function auditarImportacao({ idEmpresa, usuarioId, claims, detalhes }) {
+  try {
+    await registrarAuditoria({
+      idEmpresa, usuarioId, acao: 'adiantamento.lancamento_externo_importado',
+      recurso: 'LancamentoExterno', recursoId: null, detalhes, claims,
+    });
+  } catch (e) {
+    console.error('[hub-adiantamentos] auditoria da importação de lançamentos externos falhou (a importação JÁ foi gravada):', e && e.message);
+  }
+}
+
+router.post('/repasse/lancamentos-externos', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), lancamentoExternoRateLimiter, express.raw({ limit: '10mb', type: [XLSX_MIME] }), async (req, res) => {
+  try {
+    const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamento_confirmar');
+    if (!ctx) return;
+    const { claims, entidadeAtiva, payload } = ctx;
+    const tipo = typeof req.query.tipo === 'string' ? req.query.tipo : '';
+    if (!TIPOS_LANCAMENTO_EXTERNO.includes(tipo)) {
+      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'TIPO_INVALIDO' });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
+    }
+
+    let lido;
+    try {
+      lido = lerLancamentos(req.body);
+    } catch (e) {
+      if (e instanceof LancamentoExternoParseError) {
+        const corpo = { erro: 'ARQUIVO_INVALIDO', motivo: e.motivo };
+        if (e.motivo === 'CABECALHO_INVALIDO') corpo.esperado = CABECALHO_ESPERADO;
+        return res.status(400).json(corpo);
+      }
+      console.error('[hub-adiantamentos] erro ao ler o XLSX em POST /repasse/lancamentos-externos:', e && e.name);
+      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
+    }
+
+    const motivos = lido.recusadas.map((r) => r.motivo);
+    const excedentes = [];
+    let aplicadas = 0;
+    if (lido.validas.length > 0) {
+      let situacoes;
+      try {
+        situacoes = await hubPostgrestRequest(
+          'rpc/hub_lancamento_externo_aplicar', 'POST',
+          { p_tipo: tipo, p_linhas: lido.validas.map((v) => ({ i: v.i, cnpj: v.cnpj, data: v.data, valor: v.valor, obs: v.obs })) },
+          claims,
+        );
+      } catch (e) {
+        const msg = mensagemDeErro(e);
+        if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+        if (msg.includes('FORA_DE_ESCOPO')) return res.status(403).json({ erro: 'FORA_DE_ESCOPO' });
+        if (msg.includes('TIPO_INVALIDO')) return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'TIPO_INVALIDO' });
+        if (msg.includes('APURACAO_NAO_CONFIGURADA')) return res.status(409).json({ erro: 'APURACAO_NAO_CONFIGURADA' });
+        console.error('[hub-adiantamentos] erro em POST /repasse/lancamentos-externos:', e.message);
+        return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+      }
+      // P5: enviadas × respondidas. Os INSERTs JÁ commitaram quando a resposta chega; uma resposta
+      // que não é array (ou de outro tamanho) reportada como `aplicadas: 0` com 200 esconde dinheiro
+      // gravado. Divergência => 500 e rastro; reenviar é seguro (JA_APLICADO, FR-027).
+      if (!Array.isArray(situacoes) || situacoes.length !== lido.validas.length) {
+        console.error('[hub-adiantamentos] POST /repasse/lancamentos-externos: respostas da RPC não batem com as linhas enviadas',
+          { enviadas: lido.validas.length, respondidas: Array.isArray(situacoes) ? situacoes.length : null });
+        await auditarImportacao({ idEmpresa: entidadeAtiva, usuarioId: payload.sub, claims, detalhes: { tipo, divergente: true, enviadas: lido.validas.length } });
+        return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+      }
+      const valorPorLinha = new Map(lido.validas.map((v) => [v.i, v.valor]));
+      const linhaPlanilha = new Map(lido.validas.map((v) => [v.i, v.linha]));
+      for (const r of situacoes) {
+        if (r.situacao === 'APLICADA') { aplicadas += 1; continue; }
+        motivos.push(String(r.situacao));
+        // ALTO 2: a recusa por exceder o líquido PRECISA dizer quanto cabe. Só número da linha (da planilha:
+        // cabeçalho = 1) e dois valores — nada identificável (FR-031). Limitado, para o corpo não crescer.
+        if (r.situacao === 'VALOR_EXCEDE_LIQUIDO' && excedentes.length < EXCEDENTES_MAX) {
+          excedentes.push({ linha: linhaPlanilha.get(Number(r.idx)) ?? Number(r.idx) + 2, valor: valorPorLinha.get(Number(r.idx)) ?? null, liquido: String(r.liquido) });
+        }
+      }
+    }
+
+    // Toda tentativa que chega aqui deixa rastro (inclusive `aplicadas: 0`), só com contagens.
+    await auditarImportacao({ idEmpresa: entidadeAtiva, usuarioId: payload.sub, claims, detalhes: { tipo, aplicadas, ignoradas: motivos.length } });
+
+    return res.status(200).json({ aplicadas, ignoradas: motivos.length, ignoradasPorMotivo: contarPorMotivo(motivos), excedentes });
+  } catch (e) {
+    console.error('[hub-adiantamentos] erro inesperado em POST /repasse/lancamentos-externos:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// Listagem dos lançamentos da semana + exclusão (autorizadas pelo operador em 2026-10-23).
+// Gate da listagem = `pagamentos_consultar` (a mesma do resumo/prévia); da exclusão = `pagamento_confirmar` (a
+// mesma da importação). Semana FECHADA não se exclui — quem decide é a RPC (409 SEMANA_JA_FECHADA); o `excluivel`
+// da listagem é só dica de tela. Nada aqui devolve CNPJ (o motorista aparece pelo nome).
+const dinheiroStr = (v) => (v === null || v === undefined ? null : String(v));
+router.get('/repasse/lancamentos-externos', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamentos_consultar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamentos_consultar');
+    if (!ctx) return;
+    const { claims } = ctx;
+    const periodo = typeof req.query.periodo === 'string' ? req.query.periodo : '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodo)) return res.status(400).json({ erro: 'PERIODO_INVALIDO' });
+    const busca = typeof req.query.busca === 'string' && req.query.busca.trim() !== '' ? req.query.busca.trim().slice(0, 100) : null;
+    const offset = Math.max(0, Math.min(Number.parseInt(req.query.offset, 10) || 0, 1000000));
+    const limite = Math.max(1, Math.min(Number.parseInt(req.query.limite, 10) || 50, 200));
+    let linhas;
+    try {
+      linhas = await hubPostgrestRequest('rpc/hub_lancamento_externo_listar', 'POST',
+        { p_periodo_inicio: periodo, p_busca: busca, p_offset: offset, p_limite: limite }, claims);
+    } catch (e) {
+      const msg = mensagemDeErro(e);
+      if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+      if (msg.includes('APURACAO_NAO_CONFIGURADA')) return res.status(409).json({ erro: 'APURACAO_NAO_CONFIGURADA' });
+      console.error('[hub-adiantamentos] erro em GET /repasse/lancamentos-externos:', e.message);
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+    const rs = Array.isArray(linhas) ? linhas : [];
+    // M13: página fora de faixa vem VAZIA e sem linha para carregar o `total` (é uma window function): sem isto a tela
+    // afirmava "nenhum lançamento" com 49 atrás. Pergunta o total pela página 0.
+    let total = rs.length ? Number(rs[0].total) : 0;
+    if (!rs.length && offset > 0) {
+      try {
+        const p0 = await hubPostgrestRequest('rpc/hub_lancamento_externo_listar', 'POST',
+          { p_periodo_inicio: periodo, p_busca: busca, p_offset: 0, p_limite: 1 }, claims);
+        if (Array.isArray(p0) && p0.length) total = Number(p0[0].total);
+      } catch (e) {
+        console.error('[hub-adiantamentos] erro ao obter o total em GET /repasse/lancamentos-externos:', e.message);
+        return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+      }
+    }
+    return res.status(200).json({
+      total,
+      itens: rs.map((r) => ({
+        id: Number(r.id), motorista: r.entregador_nome, tipo: r.tipo, sinal: Number(r.sinal),
+        dataPagamento: r.data_pagamento, valor: dinheiroStr(r.valor), observacao: r.observacao ?? null,
+        criadoEm: r.criado_em, criadoPor: r.criado_por_nome ?? null, excluivel: r.excluivel === true,
+        semanaFechada: r.semana_fechada === true,
+      })),
+    });
+  } catch (e) {
+    console.error('[hub-adiantamentos] erro inesperado em GET /repasse/lancamentos-externos:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+router.delete('/repasse/lancamentos-externos/:id', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamento_confirmar'), lancamentoExternoExclusaoRateLimiter, async (req, res) => {
+  try {
+    const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamento_confirmar');
+    if (!ctx) return;
+    const { claims, entidadeAtiva, payload } = ctx;
+    if (!/^\d{1,15}$/.test(String(req.params.id))) return res.status(400).json({ erro: 'ID_INVALIDO' });
+    const id = Number(req.params.id);
+    let r;
+    try {
+      const rs = await hubPostgrestRequest('rpc/hub_lancamento_externo_excluir', 'POST', { p_id: id }, claims);
+      r = (Array.isArray(rs) ? rs[0] : rs) || {};
+    } catch (e) {
+      const msg = mensagemDeErro(e);
+      if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+      if (msg.includes('FORA_DE_ESCOPO')) return res.status(403).json({ erro: 'FORA_DE_ESCOPO' });
+      if (msg.includes('LANCAMENTO_NAO_ENCONTRADO')) return res.status(404).json({ erro: 'LANCAMENTO_NAO_ENCONTRADO' });
+      if (msg.includes('SEMANA_JA_FECHADA')) return res.status(409).json({ erro: 'SEMANA_JA_FECHADA' });
+      if (msg.includes('EXCLUSAO_DEIXA_LIQUIDO_NEGATIVO')) return res.status(409).json({ erro: 'EXCLUSAO_DEIXA_LIQUIDO_NEGATIVO' });
+      if (msg.includes('APURACAO_NAO_CONFIGURADA')) return res.status(409).json({ erro: 'APURACAO_NAO_CONFIGURADA' });
+      console.error('[hub-adiantamentos] erro em DELETE /repasse/lancamentos-externos/:id:', e.message);
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+    // O rastro DURÁVEL (quem/quando/o quê/valor) já foi gravado pela RPC na mesma transação do DELETE; este é o
+    // rastro do log de auditoria do hub. Falha aqui não desfaz nem vira 500 sobre uma exclusão que aconteceu (P6).
+    try {
+      await registrarAuditoria({
+        idEmpresa: entidadeAtiva, usuarioId: payload.sub, acao: 'adiantamento.lancamento_externo_excluido',
+        recurso: 'LancamentoExterno', recursoId: String(id),
+        detalhes: { tipo: r.tipo_excluido, valor: dinheiroStr(r.valor_excluido), dataPagamento: r.data_excluida }, claims,
+      });
+    } catch (e) {
+      console.error('[hub-adiantamentos] auditoria da exclusão de lançamento externo falhou (a exclusão JÁ foi gravada):', e && e.message);
+    }
+    return res.status(200).json({ excluido: true, id });
+  } catch (e) {
+    console.error('[hub-adiantamentos] erro inesperado em DELETE /repasse/lancamentos-externos/:id:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// Aviso de FR-049 (prévia e confirmação do fechamento): só contagem, total e o estado
+// da flag — nenhum dado identificável. Gate = `pagamentos_consultar` (a mesma da prévia, dec-036).
+router.get('/repasse/lancamentos-externos/resumo', requireModuloAtivo('adiantamentos'), requirePermission('adiantamentos.pagamentos_consultar'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoAdiantamentos(req, res, 'adiantamentos.pagamentos_consultar');
+    if (!ctx) return;
+    const { claims } = ctx;
+    const periodo = typeof req.query.periodo === 'string' ? req.query.periodo : '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodo)) return res.status(400).json({ erro: 'PERIODO_INVALIDO' });
+    let linhas;
+    try {
+      linhas = await hubPostgrestRequest('rpc/hub_lancamento_externo_resumo', 'POST', { p_periodo_inicio: periodo }, claims);
+    } catch (e) {
+      const msg = mensagemDeErro(e);
+      if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+      if (msg.includes('FORA_DE_ESCOPO')) return res.status(403).json({ erro: 'FORA_DE_ESCOPO' });
+      if (msg.includes('APURACAO_NAO_CONFIGURADA')) return res.status(409).json({ erro: 'APURACAO_NAO_CONFIGURADA' });
+      console.error('[hub-adiantamentos] erro em GET /repasse/lancamentos-externos/resumo:', e.message);
+      return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+    }
+    const r = (Array.isArray(linhas) ? linhas[0] : linhas) || {};
+    return res.status(200).json({
+      qtdDeducao: Number(r.qtd_deducao || 0), totalDeducao: Number(r.total_deducao || 0),
+      qtdCredito: Number(r.qtd_credito || 0), totalCredito: Number(r.total_credito || 0),
+      // P4: falha FECHADO — `true` SUPRIME o aviso; sem a flag na resposta (undefined/null) o default seguro é avisar.
+      flagDescontoLigada: r.flag_desconto_ligada === true,
+      // A2: motoristas com lançamento por fora que fecham a semana com remanescente NEGATIVO e o quanto evaporaria.
+      // Fail-closed como a flag acima: campo ausente é `null` (o diálogo trata como desconhecido e EXIGE confirmação),
+      // nunca um `0` fabricado que esconderia o aviso.
+      qtdNegativo: r.qtd_negativo == null ? null : Number(r.qtd_negativo),
+      totalNegativo: r.total_negativo == null ? null : Number(r.total_negativo),
+    });
+  } catch (e) {
+    console.error('[hub-adiantamentos] erro inesperado em GET /repasse/lancamentos-externos/resumo:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // 4.6 — Repasse
 // ════════════════════════════════════════════════════════════════════════
 
@@ -1727,6 +1969,9 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
         adiantamentos: totalDoPeriodo('total_adiantamentos'),
         debitos: totalDoPeriodo('total_debitos'),
         remanescente: totalDoPeriodo('total_remanescente'),
+        // 0117: parcela "pago por fora" (líquida, negativo = dedução) — fecha a conta
+        // créditos − adiantamentos − débitos + lançamentos = remanescente.
+        lancamentosExternos: totalDoPeriodo('total_lancamentos_externos'),
         motoristas: total,
         // F3: semana aberta = previsão (piso vigente agora); semana fechada
         // = valores congelados. Vem NULO quando não há nenhuma linha.
@@ -1741,6 +1986,7 @@ router.get('/repasse', requireModuloAtivo('adiantamentos'), requirePermission('a
         creditos: dinheiro(r.creditos),
         adiantamentos: dinheiro(r.adiantamentos),
         debitos: dinheiro(r.debitos),
+        lancamentosExternos: dinheiro(r.lancamentos_externos),
         remanescente: dinheiro(r.remanescente),
         negativo: Number(r.remanescente) < 0,
         emProcessamento: r.em_processamento === true,
@@ -1825,6 +2071,7 @@ router.get('/repasse/exportar', requireModuloAtivo('adiantamentos'), requirePerm
       creditos: r.creditos,
       adiantamentos: r.adiantamentos,
       debitos: r.debitos,
+      lancamentosExternos: r.lancamentos_externos,
       remanescente: r.remanescente,
       // F3: NULL num item de semana fechada antes da regra (Decision 7) —
       // `celulaMoedaOuVazia` sai em branco nesse caso, nunca "0,00".

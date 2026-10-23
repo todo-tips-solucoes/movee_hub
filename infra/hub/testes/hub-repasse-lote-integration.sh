@@ -105,11 +105,11 @@ E=9001; OUTRA=9010
 psql_t >/dev/null <<SQL
 INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES
   ('rep-aprovador@example.test','x','Aprovador Repasse',true),
-  ('rep-financeiro@example.test','x','Financeiro Repasse',true),
+  ('rep-operador@example.test','x','Operador Repasse',true),
   ('rep-outra@example.test','x','Operador Outra Empresa',true);
 INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ((SELECT id FROM "Usuario" WHERE email='rep-aprovador@example.test'), $E, (SELECT id FROM "Papel" WHERE nome='financeiro_aprovador'), true),
-  ((SELECT id FROM "Usuario" WHERE email='rep-financeiro@example.test'), $E, (SELECT id FROM "Papel" WHERE nome='financeiro'), true),
+  ((SELECT id FROM "Usuario" WHERE email='rep-operador@example.test'), $E, (SELECT id FROM "Papel" WHERE nome='operador'), true),
   ((SELECT id FROM "Usuario" WHERE email='rep-outra@example.test'), $OUTRA, (SELECT id FROM "Papel" WHERE nome='financeiro_aprovador'), true);
 -- módulo adiantamentos ativo nas duas empresas (hub_adiantamento_tem_permissao exige)
 INSERT INTO "ModuloEntidade" (modulo_id, empresa_id, ativo)
@@ -117,9 +117,9 @@ SELECT m.id, e, true FROM "Modulo" m, unnest(ARRAY[$E,$OUTRA]) e WHERE m.codigo 
 ON CONFLICT (modulo_id, empresa_id) DO UPDATE SET ativo = true;
 SQL
 U_APR="$(q "SELECT id FROM \"Usuario\" WHERE email='rep-aprovador@example.test'")"
-U_FIN="$(q "SELECT id FROM \"Usuario\" WHERE email='rep-financeiro@example.test'")"
+U_OP="$(q "SELECT id FROM \"Usuario\" WHERE email='rep-operador@example.test'")"
 U_OUT="$(q "SELECT id FROM \"Usuario\" WHERE email='rep-outra@example.test'")"
-[ -n "$U_APR" ] && [ -n "$U_FIN" ] && [ -n "$U_OUT" ] || { echo "FAIL: seed de usuários"; exit 1; }
+[ -n "$U_APR" ] && [ -n "$U_OP" ] && [ -n "$U_OUT" ] || { echo "FAIL: seed de usuários"; exit 1; }
 
 # mk_par <empresa> <rótulo> <fechado_por> [valor_pago=100] [semanas_de_deslocamento=0 (único por empresa+período)] -> "apuracao_id entregador_id envio_id conta_id item_id"
 # par completo e ELEGÍVEL: apuração fechada, valor_pago=100, nota aprovada, conta APROVADA.
@@ -161,7 +161,7 @@ read -r APU_O ENT_O ENV_O CONTA_O ITEM_O <<<"$(mk_par $OUTRA OutraEmpresa "$U_OU
 [ -n "$APU_O" ] || { echo "FAIL: fixture do par da outra empresa não criado"; exit 1; }
 
 JWT_APR="$(jwt_for "$U_APR" "$E" "$E")"
-JWT_FIN="$(jwt_for "$U_FIN" "$E" "$E")"
+JWT_OP="$(jwt_for "$U_OP" "$E" "$E")"
 JWT_OUT="$(jwt_for "$U_OUT" "$OUTRA" "$OUTRA")"
 JWT_WORKER="$(jwt_worker)"
 [ -n "$JWT_APR" ] && [ -n "$JWT_WORKER" ] || { echo "FAIL: geração de JWT"; exit 1; }
@@ -297,9 +297,12 @@ check "4 download incrementa downloads (1) e o lote vira EXPORTADO" "$(jq_b '.[0
 rpc "$JWT_APR" hub_repasse_lote_download "{\"p_lote_id\":$LOTE}"
 check "4 2º download => downloads=2, segue EXPORTADO" "$(jq_b '.[0].downloads')|$(q "SELECT status||'|'||downloads FROM \"RepasseLote\" WHERE id=$LOTE")" "2|EXPORTADO|2"
 
-# permissão: o papel `financeiro` NÃO tem pagamento_confirmar
-rpc "$JWT_FIN" hub_repasse_lote_confirmar "{\"p_lote_id\":$LOTE,\"p_falhas\":[]}"
-check_erro "(RBAC) papel financeiro não confirma => PERMISSAO_NEGADA" PERMISSAO_NEGADA
+# permissão: quem NÃO tem pagamento_confirmar não confirma. A persona era o papel `financeiro`, mas a migration
+# 0115 (2026-10-19) deu `adiantamentos.pagamento_confirmar` ao `financeiro` DE PROPÓSITO (decisão do operador: os dois
+# papéis ficam idênticos) — a asserção antiga afirmava o oposto do RBAC vigente. A guarda segue valendo, agora com um
+# papel que de fato não confirma (`operador`). Mesma correção aplicada em hub-adiantamentos-integration.sh (PR #298).
+rpc "$JWT_OP" hub_repasse_lote_confirmar "{\"p_lote_id\":$LOTE,\"p_falhas\":[]}"
+check_erro "(RBAC) papel operador (sem pagamento_confirmar) não confirma => PERMISSAO_NEGADA" PERMISSAO_NEGADA
 check "(RBAC) lote seguiu EXPORTADO" "$(q "SELECT status FROM \"RepasseLote\" WHERE id=$LOTE")" "EXPORTADO"
 
 # 5 confirmar sem falhas
@@ -368,6 +371,85 @@ criar "$(uuid)"; check "18 e um novo lote nasce sobre o par destravado" "$(jq_b 
 rpc "$JWT_WORKER" hub_repasse_lote_orfaos '{"p_minutos":0}'
 rpc "$JWT_WORKER" hub_repasse_lote_orfaos '{"p_minutos":0}'
 check "18 varredura é idempotente (2ª não acha nada)" "$(jq_b 'length')" "0"
+
+# --------------------------------------------------------------------------
+echo "=== H1 (lancamento-externo, rodada 2): CREDITO EXTERNO nao exige nota — invariante faturado >= pago INVERTIDA ==="
+# mk_h1 <rotulo> <creditos> <lancamentos_externos> <valor_pago> <deslocamento_em_semanas> <com_movimento: s|n> [saldo_anterior=0]
+#   (remanescente = valor_pago - saldo_anterior: a conservacao do CHECK `saldo_conserva` exige)
+#   -> "apuracao_id entregador_id". Item FECHADO com conta APROVADA; movimento (nota aprovada) so se 's'.
+mk_h1() {
+  psql_t -tA -F' ' <<SQL | tail -n1
+WITH cfg AS (
+  INSERT INTO "AdiantamentoConfiguracao" (id_empresa, versao, vigente_desde, timezone, dias_habilitados, horario_abertura,
+      horario_corte, percentual, taxa_fixa, previsao_pagamento_texto, descricao_pix_modelo, apuracao_dia_inicio, apuracao_dias_ate_repasse)
+  VALUES ($E, (SELECT COALESCE(max(versao),0)+1 FROM "AdiantamentoConfiguracao" WHERE id_empresa=$E), now(), 'America/Sao_Paulo',
+      '{1,2,3,4,5}', '08:00', '17:00', 50, 0, 'em 2 dias', 'Repasse {data_producao:DD.MM.AA} - {nome}', 1, 3)
+  RETURNING id
+), ent AS (
+  INSERT INTO "Entregador" (id_empresa, id_externo, nome) VALUES ($E, gen_random_uuid(), 'Teste H1 $1') RETURNING id
+), apu AS (
+  INSERT INTO "ApuracaoRepasse" (id_empresa, periodo_inicio, periodo_fim, data_repasse, configuracao_id, fechado_por, fechado_em)
+  SELECT $E, date '2026-10-05' + 7*$5, date '2026-10-11' + 7*$5, date '2026-10-14' + 7*$5, cfg.id, $U_APR, now() FROM cfg RETURNING id
+), it AS (
+  INSERT INTO "ApuracaoRepasseItem" (apuracao_id, id_empresa, entregador_id, creditos, adiantamentos, debitos, remanescente, detalhe, valor_pago, lancamentos_externos, saldo_anterior)
+  SELECT apu.id, $E, ent.id, $2, 0, 0, $4 - ${7:-0}, '{}'::jsonb, $4, $3, ${7:-0} FROM apu, ent RETURNING id
+), env AS (
+  INSERT INTO "EnvioMassa" (nome, cnpj_prestador, valor, id_empresa, mov_fechado, nota_ok, erro_validacao)
+  SELECT 'Teste H1 $1', '', $2, $E, false, 'http://x/nota.xml', NULL WHERE '$6' = 's' RETURNING id
+), mv AS (
+  INSERT INTO "ApuracaoRepasseMovimento" (apuracao_id, entregador_id, id_empresa, envio_massa_id, valor, gorjeta)
+  SELECT apu.id, ent.id, $E, env.id, $2, 0 FROM apu, ent, env RETURNING id
+), cb AS (
+  INSERT INTO "ContaBancariaMotorista" (id_empresa, entregador_id, origem, status, titular_nome, titular_documento, titular_tipo,
+      banco_codigo, banco_nome, agencia, conta, conta_digito, tipo_conta, entregador_confirmado_id)
+  SELECT $E, ent.id, 'HUB', 'APROVADA', 'Teste H1 $1', '12345678909', 'PF', '001', 'Banco do Brasil', '1234', '56789', '0', 'CORRENTE', ent.id
+  FROM ent RETURNING id
+)
+SELECT apu.id, ent.id FROM apu, ent, cb, it;
+SQL
+}
+previa_h1() { rpc "$JWT_APR" hub_repasse_lote_previa "{\"p_apuracoes\":[$1],\"p_entregadores\":[$2]}"; echo "$(jq_b '.[0].apta')|$(jq_b '.[0].motivo_pendencia // ""')|$(jq_b '.[0].valor_pago')"; }
+
+read -r A_CP E_CP <<<"$(mk_h1 CreditoPuro 0 50 50 40 n)"       # credito puro: sem producao, sem EnvioMassa
+read -r A_MX E_MX <<<"$(mk_h1 Mista 10 50 60 41 s)"            # mista: producao 10 (nota aprovada) + credito 50
+read -r A_MN E_MN <<<"$(mk_h1 MistaSemNota 10 50 60 42 n)"     # mista, producao SEM nota ainda
+read -r A_AD E_AD <<<"$(mk_h1 AdiantamentoExt 100 -30 70 43 n)" # deducao externa: a nota e da producao e ela falta
+# ALTO 1 (rodada 3): o conserto da rodada 2 olhava SO `creditos`, `total` e `lancamentos_externos`, mas valor_pago = remanescente +
+# saldo_anterior. Nenhuma fixture acima tinha saldo_anterior, entao o driver ficava VERDE com e sem o conserto.
+read -r A_SA E_SA <<<"$(mk_h1 SaldoMaisCredito 0 0.01 5.01 44 n 5.00)"   # W1 produziu 5,00 sem nota (retido) + W2: so um credito de 0,01
+read -r A_SM E_SM <<<"$(mk_h1 MistaComSaldo 10 50 65 45 s 5.00)"         # producao 10 COM nota + credito 50 + saldo 5 de semana anterior
+[ -n "$A_CP" ] && [ -n "$A_MX" ] && [ -n "$A_MN" ] && [ -n "$A_AD" ] && [ -n "$A_SA" ] && [ -n "$A_SM" ] || { echo "FAIL: fixture H1 nao criada"; exit 1; }
+
+# controle negativo PRIMEIRO: o corpo da 0112 (sem a excecao) trava o credito puro para sempre
+AVALIAR='hub_repasse_lote_avaliar(bigint[],integer[])'
+psql_t -tA -c "SELECT pg_get_functiondef('$AVALIAR'::regprocedure);" > "$TMP/avaliar-novo.sql"
+perl -0pe 's/OR \(b\.total = 0 AND NOT \(b\.creditos = 0 AND b\.lancamentos_externos > 0\s*AND b\.valor_pago <= b\.lancamentos_externos\)\)/OR b.total = 0/' "$TMP/avaliar-novo.sql" > "$TMP/avaliar-0112.sql"
+if cmp -s "$TMP/avaliar-novo.sql" "$TMP/avaliar-0112.sql"; then echo "FAIL: controle negativo H1 nao alterou a funcao (regex nao casou)"; fails=$((fails + 1)); fi
+# controle negativo 2 (ALTO 1): o corpo da RODADA 2 — a excecao SEM o limite `valor_pago <= lancamentos_externos`
+perl -0pe 's/\s*AND b\.valor_pago <= b\.lancamentos_externos//' "$TMP/avaliar-novo.sql" > "$TMP/avaliar-r2.sql"
+if cmp -s "$TMP/avaliar-novo.sql" "$TMP/avaliar-r2.sql"; then echo "FAIL: controle negativo ALTO1 nao alterou a funcao (regex nao casou)"; fails=$((fails + 1)); fi
+psql_t -q < "$TMP/avaliar-0112.sql" >/dev/null
+check "H1 [controle negativo, corpo da 0112] credito puro (producao 0) => NOTA_PENDENTE, apta=false, PARA SEMPRE" "$(previa_h1 $A_CP $E_CP)" "false|NOTA_PENDENTE|50.00"
+psql_t -q < "$TMP/avaliar-r2.sql" >/dev/null
+check "ALTO 1 [controle negativo, corpo da RODADA 2] R\$ 0,01 de credito destrava saldo de producao SEM nota: apta=true e paga 5,01 (o furo)" "$(previa_h1 $A_SA $E_SA)" "true||5.01"
+psql_t -q < "$TMP/avaliar-novo.sql" >/dev/null
+check "H1 [restaurado] corpo da 0117 de volta (a excecao esta no ar)" "$(psql_t -tAc "SELECT pg_get_functiondef('$AVALIAR'::regprocedure) ~ 'b.creditos = 0 AND b.lancamentos_externos > 0'")" "t"
+
+check "H1 credito PURO (producao 0, sem EnvioMassa) => apta=true, paga R\$ 50,00" "$(previa_h1 $A_CP $E_CP)" "true||50.00"
+check "H1 semana MISTA (producao 10 com nota + credito 50) => apta=true, o lote paga 60,00 (nota 10 + credito 50)" "$(previa_h1 $A_MX $E_MX)" "true||60.00"
+check "H1 mista: o EnvioMassa (nota) e so da PRODUCAO = 10,00" "$(q "SELECT em.valor FROM \"ApuracaoRepasseMovimento\" m JOIN \"EnvioMassa\" em ON em.id=m.envio_massa_id WHERE m.apuracao_id=$A_MX AND m.entregador_id=$E_MX")" "10"
+check "H1 mista com producao SEM nota => continua NOTA_PENDENTE (a excecao NAO cobre producao)" "$(previa_h1 $A_MN $E_MN)" "false|NOTA_PENDENTE|60.00"
+check "ALTO 1: credito de R\$ 0,01 + saldo transportado de producao sem nota => NOTA_PENDENTE (a dispensa vale so para o proprio credito)" "$(previa_h1 $A_SA $E_SA)" "false|NOTA_PENDENTE|5.01"
+check "ALTO 1: semana MISTA com saldo anterior (producao COM nota) segue apta: o saldo nao e bloqueado onde a nota da semana existe" "$(previa_h1 $A_SM $E_SM)" "true||65.00"
+check "H1 ADIANTAMENTO externo (deducao) NAO muda: producao sem nota => NOTA_PENDENTE" "$(previa_h1 $A_AD $E_AD)" "false|NOTA_PENDENTE|70.00"
+# conta: o credito puro tambem precisa de conta APROVADA (a excecao e da nota, nao da conta)
+mut "UPDATE \"ContaBancariaMotorista\" SET status='CANCELADA' WHERE entregador_id=$E_CP"
+check "H1 credito puro SEM conta aprovada => SEM_CONTA (so a nota foi dispensada)" "$(previa_h1 $A_CP $E_CP)" "false|SEM_CONTA|50.00"
+mut "UPDATE \"ContaBancariaMotorista\" SET status='APROVADA' WHERE entregador_id=$E_CP"
+# lote de verdade: cria e o total bate (50 + 60)
+rpc "$JWT_APR" hub_repasse_lote_criar "{\"p_apuracoes\":[$A_CP,$A_MX],\"p_entregadores\":[$E_CP,$E_MX],\"p_quantidade_esperada\":2,\"p_total_esperado\":110,\"p_chave\":\"$(uuid)\"}"
+check "H1 criar lote com credito puro + mista: 2 itens, total 110,00" "$(jq_b '.[0].quantidade')|$(jq_b '.[0].valor_total')" "2|110.00"
+reset_lotes
 
 # --------------------------------------------------------------------------
 reset_lotes

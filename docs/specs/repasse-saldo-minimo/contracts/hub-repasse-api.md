@@ -74,6 +74,18 @@ por posição — avisar o financeiro no PR de F1 e de F3.
   configuração (vigente, ou a da apuração fechada) não tem `categorias_nota`; configurada
   sem crédito naquele lado => `0.00`.
 
+**Lançamento externo (0117 / feature `lancamento-externo`, A1)** — mais uma coluna **no fim**
+(as doze anteriores não mudam de posição; **13 colunas** no total):
+
+`…,Valor da nota fiscal da semana,Gorjeta da semana,Pago por fora (líquido)`
+
+- `Pago por fora (líquido)`: efeito líquido dos lançamentos externos da semana (negativo = dedução,
+  positivo = crédito), já após o gate `desconto_adiantamentos`. Sem ela a conta do CSV não fecha
+  (`créditos − adiantamentos − débitos ≠ remanescente`). Sai como **número puro** (`-30.00`, sem
+  apóstrofo), para somar no Excel.
+- Quem lê por posição o par `nota|gorjeta` pelas **três últimas** colunas passa a lê-lo pelas
+  colunas 11 e 12.
+
 ## POST /repasse/:periodo/fechar — `hub-adiantamentos.js:1580`
 
 Permissão: `adiantamentos.pagamento_confirmar` (existente; após F2 só

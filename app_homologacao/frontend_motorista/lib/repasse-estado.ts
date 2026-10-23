@@ -18,3 +18,11 @@ export function classificarErroRepasse(err: unknown): EstadoRepasseErro {
   if (err instanceof ApiError && err.status === 404) return 'indisponivel';
   return 'erro';
 }
+
+/** 0117: linha "Pago por fora" da decomposição. `null` = nada a mostrar (zero/ausente/inválido);
+ * senão `{ sinal, valor }` com `valor` em módulo — o sinal é explícito para a conta fechar à vista. */
+export function parcelaPagoPorFora(lancamentosExternos: string | null | undefined): { sinal: '+' | '−'; valor: number } | null {
+  const n = Number(lancamentosExternos);
+  if (!lancamentosExternos || !Number.isFinite(n) || n === 0) return null;
+  return { sinal: n < 0 ? '−' : '+', valor: Math.abs(n) };
+}

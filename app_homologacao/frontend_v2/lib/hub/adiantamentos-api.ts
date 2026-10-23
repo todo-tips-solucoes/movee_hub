@@ -682,6 +682,9 @@ export interface RepasseItem {
   creditos: string;
   adiantamentos: string;
   debitos: string;
+  // 0117: parcela "pago por fora" LÍQUIDA (negativo = dedução, "0.00" = nenhuma). Fecha a conta
+  // creditos − adiantamentos − debitos + lancamentosExternos = remanescente.
+  lancamentosExternos: string;
   remanescente: string;
   negativo: boolean;
   emProcessamento: boolean;
@@ -703,7 +706,7 @@ export interface RepasseResponse {
     situacao: 'aberto' | 'fechado'; fechadoEm: string | null;
   };
   totais: {
-    creditos: string; adiantamentos: string; debitos: string; remanescente: string; motoristas: number;
+    creditos: string; adiantamentos: string; debitos: string; lancamentosExternos: string; remanescente: string; motoristas: number;
     // F3: semana aberta = previsão (piso vigente agora); semana fechada =
     // valores congelados. `null` quando não há nenhuma linha no período.
     saldoAnterior: string | null; aPagar: string | null; transportado: string | null;

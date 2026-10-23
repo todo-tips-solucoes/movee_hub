@@ -221,8 +221,8 @@ describe('adiantamentos-api — roundtrip com payload real (routes/hub-adiantame
   it('obterRepasse/fecharRepasse: sem descontos{} separado (routes/hub-adiantamentos.js:1096-1124, 1217-1222)', async () => {
     const repasse = {
       periodo: { inicio: '2026-09-10', fim: '2026-09-16', dataRepasse: null, situacao: 'aberto' as const },
-      totais: { creditos: '1200.00', adiantamentos: '256.00', debitos: '0.00', remanescente: '944.00', motoristas: 1 },
-      itens: [{ entregadorId: 42, nome: 'Motorista E2E', creditos: '1200.00', adiantamentos: '256.00', debitos: '0.00', remanescente: '944.00', negativo: false, emProcessamento: false }],
+      totais: { creditos: '1200.00', adiantamentos: '256.00', debitos: '0.00', lancamentosExternos: '0.00', remanescente: '944.00', motoristas: 1 },
+      itens: [{ entregadorId: 42, nome: 'Motorista E2E', creditos: '1200.00', adiantamentos: '256.00', debitos: '0.00', lancamentosExternos: '0.00', remanescente: '944.00', negativo: false, emProcessamento: false }],
       naoPagosNoPeriodo: 0,
       total: 1,
       page: 1,

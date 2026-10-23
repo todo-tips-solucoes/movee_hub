@@ -142,6 +142,10 @@ const CABECALHOS_CSV = [
   'Identificador', 'Entregador', 'Créditos', 'Adiantamentos', 'Débitos', 'Remanescente',
   'Saldo anterior', 'A pagar', 'Passou para a próxima semana',
   'CNPJ do prestador', 'Valor da nota fiscal da semana', 'Gorjeta da semana',
+  // 0117 (lancamento-externo): parcela "pago por fora" LÍQUIDA (negativo = dedução),
+  // no fim para não mexer na posição das doze de antes. Sem ela o CSV de conferência
+  // não fecha a conta: créditos − adiantamentos − débitos ≠ remanescente.
+  'Pago por fora (líquido)',
 ];
 
 /** CNPJ de 14 dígitos -> 00.000.000/0000-00. Só dígitos, o Excel/Sheets o
@@ -157,6 +161,13 @@ function celulaCsv(valor) {
   return quotarCelulaCsv(escaparCelulaCsvInjection(valor === null || valor === undefined ? '' : valor));
 }
 
+/** Número já formatado (`-30.00`): NÃO passa pelo escape anti-injeção, que prefixaria o
+ *  `-` com apóstrofo e faria a célula virar TEXTO no Excel (a coluna "Pago por fora"
+ *  deixava de somar). Seguro: a string vem de `formatarCentavos`, só `^-?\d+\.\d{2}$`. */
+function celulaNumero(str) {
+  return /^-?\d+\.\d{2}$/.test(str) ? quotarCelulaCsv(str) : celulaCsv(str);
+}
+
 /** Formata um campo monetário da linha a partir dos centavos (2.7.1): usa o
  * `*Centavos` já calculado quando presente; senão reconverte via
  * `paraCentavos` (linhas de teste/fixture antigas, sem os campos novos) —
@@ -164,7 +175,7 @@ function celulaCsv(valor) {
  * `Number(x).toFixed(2)`. */
 function celulaMoeda(linha, campo) {
   const centavos = linha[`${campo}Centavos`] ?? paraCentavos(linha[campo]);
-  return celulaCsv(formatarCentavos(centavos));
+  return celulaNumero(formatarCentavos(centavos));
 }
 
 /** F3: célula monetária que sai VAZIA (não "0,00") quando o valor é
@@ -172,7 +183,7 @@ function celulaMoeda(linha, campo) {
  * (Decision 7) não tem esses campos, e "sem valor" é diferente de zero. */
 function celulaMoedaOuVazia(valor) {
   if (valor === null || valor === undefined) return celulaCsv('');
-  return celulaCsv(formatarCentavos(paraCentavos(valor)));
+  return celulaNumero(formatarCentavos(paraCentavos(valor)));
 }
 
 /** CSV (RFC 4180 + proteção de injeção de fórmula, S5) das linhas de
@@ -192,6 +203,7 @@ function serializarCsvRemanescente(linhas) {
       celulaMoeda(l, 'debitos'), celulaMoeda(l, 'remanescente'),
       celulaMoedaOuVazia(l.saldoAnterior), celulaMoedaOuVazia(l.aPagar), celulaMoedaOuVazia(l.transportado),
       celulaCsv(formatarCnpj(l.cnpjPrestador)), celulaMoedaOuVazia(l.valorNota), celulaMoedaOuVazia(l.valorForaNota),
+      celulaMoedaOuVazia(l.lancamentosExternos),
     ].join(','),
   );
   return [cabecalho, ...corpo].join('\r\n');
