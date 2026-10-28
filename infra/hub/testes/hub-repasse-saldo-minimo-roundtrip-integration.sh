@@ -120,11 +120,14 @@ BEGIN
       id_empresa, versao, vigente_desde, timezone, dias_habilitados, horario_abertura, horario_corte,
       percentual, taxa_fixa, fonte_producao, categorias_producao, previsao_pagamento_texto,
       descricao_pix_modelo, apuracao_dia_inicio, apuracao_dias_ate_repasse, apuracao_data_base,
-      categorias_extrato, categorias_nota, desconto_adiantamentos, desconto_debitos, repasse_visivel_app)
+      categorias_extrato, categorias_nota, desconto_adiantamentos, desconto_debitos, repasse_visivel_app,
+      mensagem1_modelo, mensagem2_modelo)
   SELECT 6, v_ver, now(), timezone, dias_habilitados, horario_abertura, horario_corte,
       percentual, taxa_fixa, fonte_producao, categorias_producao, previsao_pagamento_texto,
       descricao_pix_modelo, 1, 3, 'data_lancamento',
-      ARRAY['Corridas concluidas','Gorjeta'], ARRAY['Corridas concluidas'], true, true, true
+      ARRAY['Corridas concluidas','Gorjeta'], ARRAY['Corridas concluidas'], true, true, true,
+      -- repasse-gera-movimento FX-1: sem modelo a geracao e RECUSADA (D10/FR-012), nunca texto inventado.
+      'Ola {nome}, emita a nota de {valor}.', 'Gorjeta {gorjeta}, total {total}.'
   FROM "AdiantamentoConfiguracao" WHERE id_empresa = 6 ORDER BY versao DESC LIMIT 1;
 
   INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status)
@@ -137,6 +140,20 @@ BEGIN
   INSERT INTO "Empresa" (id, nome_empresa, email, cnpj) VALUES
     (6, 'Movee Roundtrip F3.13', 'movee.roundtrip@example.test', '12345678000199')
   ON CONFLICT (id) DO NOTHING;
+
+  -- repasse-gera-movimento T18/T19: OUTRA empresa (9) com (a) um movimento ABERTO do mesmo CNPJ do
+  -- motorista pago (nao pode travar a geracao da Movee: S7) e (b) um financeiro proprio (nao pode
+  -- ler nem concluir movimento da Movee).
+  INSERT INTO "Empresa" (id, nome_empresa, email, cnpj) VALUES
+    (9, 'Outra Empresa T18', 'outra.t18@example.test', '98765432000100')
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO "EnvioMassa" (nome, cnpj_prestador, cnpj_tomador, valor, id_empresa, mov_fechado, dt_inicial, dt_final)
+  VALUES ('T18 outra empresa', '66666666000104', '98765432000100', 1.00, 9, false, now(), now());
+  INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES
+    ('outra.empresa@example.test', '$HASH_HUB', 'Financeiro Outra Empresa T19', true);
+  INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo)
+    VALUES ((SELECT id FROM "Usuario" WHERE email='outra.empresa@example.test'), 9,
+            (SELECT id FROM "Papel" WHERE nome='financeiro_aprovador'), true);
 
   INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES
     ('financeiro.roundtrip@example.test', '$HASH_HUB', 'Financeiro Roundtrip F3.13', true);
@@ -364,6 +381,30 @@ async function main() {
   // --- 3.3.7 resto: POST /repasse/:periodo2/movimentos — pago com saldo
   //     carregado soma os componentes numa nota só (conferido no Postgres
   //     depois, via EnvioMassa, porque a resposta só traz a contagem). -----
+  // --- T19: financeiro de OUTRA empresa nao le nem conclui movimento da Movee --------------------
+  const rLoginOutra = await fetch('http://localhost:3000/api/v1/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'outra.empresa@example.test', senha: senhaHub }),
+  });
+  let jarOutra = parseSetCookie(rLoginOutra);
+  const rTrocaOutra = await fetch('http://localhost:3000/api/v1/me/entidade', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jarOutra) },
+    body: JSON.stringify({ empresa_id: 9 }),
+  });
+  jarOutra = { ...jarOutra, ...parseSetCookie(rTrocaOutra) };
+  out.t19_login_status = rLoginOutra.status;
+  out.t19_troca_status = rTrocaOutra.status;
+  const rMovOutra = await fetch(`http://localhost:3000/api/v1/adiantamentos/repasse/${periodo2}/movimentos`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jarOutra) },
+    body: JSON.stringify({ confirmacao: true }),
+  });
+  out.t19_mov_status = rMovOutra.status;
+  const rLeituraOutra = await fetch(`http://localhost:3000/api/v1/adiantamentos/repasse?periodo=${periodo2}`, {
+    headers: { Cookie: cookieHeader(jarOutra) },
+  });
+  const bLeituraOutra = await rLeituraOutra.json().catch(() => ({}));
+  out.t19_leitura_itens = (bLeituraOutra.itens || []).length;
+
   const rMov2 = await fetch(`http://localhost:3000/api/v1/adiantamentos/repasse/${periodo2}/movimentos`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookieHeader(jar) },
     body: JSON.stringify({ confirmacao: true }),
@@ -476,6 +517,10 @@ check "3.3.7: item da semana 2 -> saldoAnterior=2.00 (carregado da semana 1)" "$
 check "3.3.7: item da semana 2 -> A pagar=10.00 (8,00 da semana + 2,00 carregados)" "$(G hub_item_saldo2_a_pagar)" "10.00"
 check "3.3.7: item da semana 2 -> transportado=0.00 (nada mais fica retido)" "$(G hub_item_saldo2_transportado)" "0.00"
 check "3.3.7: POST /repasse/:periodo2/movimentos real -> 201" "$(G hub_mov2_status)" "201"
+check "T18: movimento ABERTO do mesmo CNPJ em OUTRA empresa nao trava a geracao da Movee (gerou 1 EnvioMassa em id_empresa=6)" "$(psql_t -tAc "SELECT count(*) FROM \"EnvioMassa\" WHERE cnpj_prestador='66666666000104' AND id_empresa=6;" | tr -d '[:space:]')" "1"
+check "T19: login do financeiro de outra empresa -> 200 e troca para a empresa 9 -> 200" "$(G t19_login_status)/$(G t19_troca_status)" "200/200"
+check "T19: financeiro de OUTRA empresa NAO conclui movimento da Movee (POST nao e 2xx)" "$(case "$(G t19_mov_status)" in 2*) echo 2xx;; *) echo nao-2xx;; esac)" "nao-2xx"
+check "T19: ... e NAO le itens da apuracao da Movee (0 itens)" "$(G t19_leitura_itens)" "0"
 check "3.3.7: 1 movimento gerado na semana 2 (motorista pago com saldo)" "$(G hub_mov2_gerados)" "1"
 check "#229: motorista com movimento legado FECHADO na semana retida -> MOVIMENTO_LEGADO_EM_SEMANA_RETIDA" "$(G hub_mov2_motivo_legado)" "MOVIMENTO_LEGADO_EM_SEMANA_RETIDA"
 

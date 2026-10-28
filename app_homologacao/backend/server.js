@@ -149,6 +149,7 @@ const { hubEnvioMassaRequirePermission } = require('./middleware/hub-envio-massa
 // fire-and-forget, chamado só dentro de POST /upload (ver guard viaHub lá).
 // corrigir-movimento: parser numerico unico (importacao + correcao pela tela, FR-012)
 const { toNumberBR } = require('./lib/numero-br');
+const { selecionarAlvoDisparo, linhaSemNada } = require('./lib/disparo-alvo');
 const { corrigirPelaTela, reimportar, celulaSemNumero, criarDepsCorrecao } = require('./lib/envio-massa-correcao');
 const { buscarEmLotes } = require('./lib/hub-postgrest-lotes');
 const { registrarImportacaoEnvioMassa } = require('./lib/hub-envio-massa-import-log');
@@ -1336,8 +1337,8 @@ async function processBatchMessages(empresaId, userToken, connection_id, ids) {
         // por isso pagina em lotes de 100). O escopo do tenant continua vindo
         // do token na rota; `ids` só RESTRINGE dentro do que a empresa já
         // podia disparar, nunca amplia.
-        const selecionados = ids && ids.length ? new Set(ids) : null;
-        const alvo = selecionados ? data.filter((item) => selecionados.has(item.id)) : data;
+        // + valor > 0 (lib/disparo-alvo.js): movimento so-gorjeta nao tem nota a emitir.
+        const alvo = selecionarAlvoDisparo(data, ids);
 
         if (alvo.length === 0) {
             throw new Error('Nenhum registro encontrado para processamento.');
@@ -1955,9 +1956,17 @@ app.post('/upload', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, h
 
       // valor — obrigatório e numérico
       // corrigir-movimento: #REF!/#VALOR!/texto sem digito viraria 0 em toNumberBR — linha invalida, nunca R$ 0,00.
+      const gorjetaLinha = parseGorjeta(row.gorjeta);
       const valorNum = celulaSemNumero(row.valor) ? NaN : toNumberBR(row.valor);
       if (!Number.isFinite(valorNum)) {
         rowErrors.push('valor é obrigatório e deve ser numérico.');
+      } else if (temColunaGorjeta && linhaSemNada(valorNum, gorjetaLinha)) {
+        // recusa só quando não há NADA a pagar nem a emitir (mesma regra de soGorjetaPorDeducao): valor 0 + gorjeta é planilha legítima.
+        // ⚠️ `temColunaGorjeta`: sem a coluna no arquivo não se pode CONCLUIR "não há gorjeta" — e o /upload é tudo-ou-nada
+        // (:2031 recusa o arquivo INTEIRO), então uma linha de valor 0 derrubaria a planilha toda. É o round trip real:
+        // `/export-envio-massa` exporta o movimento aberto e o operador reimporta. A ESCRITA já honra esta mesma regra
+        // (:1983 — coluna ausente não apaga a gorjeta gravada); a validação passava na frente dela.
+        rowErrors.push('valor deve ser maior que zero quando não há gorjeta.');
       }
       const valor = Number.isFinite(valorNum) ? valorNum.toFixed(2) : null; // "99.99"
 
@@ -1977,7 +1986,7 @@ app.post('/upload', authenticateTokenCompartilhado, hubEnvioMassaClaimsBridge, h
       // gorjeta — coluna e celula vazia sao opcionais (FR-003 / CL-004); celula com texto SEM digito bloqueia a linha.
       // Coluna ausente na reimportacao NAO apaga a gorjeta gravada (temColunaGorjeta).
       // "R$ 22,00" → 22.00 | "R$ -" / vazio / undefined → null
-      const gorjeta = parseGorjeta(row.gorjeta);
+      const gorjeta = gorjetaLinha;
       if (celulaSemNumero(row.gorjeta)) {
         rowErrors.push('gorjeta deve ser numérica (ou vazia).');
       }
@@ -2133,7 +2142,7 @@ app.get('/export-envio-massa', authenticateTokenCompartilhado, hubEnvioMassaClai
   }
   try {
     // Solicitar os campos específicos da tabela EnvioMassa
-    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false&select=id,created_at,number,nome,cnpj_prestador,valor,mensagem1,mensagem2,enviado,retorno_envio_msg_1,retorno_envio_msg_2,tribnac,cnpj_tomador,dCompet,numnota,nota_ok,data_emissao,erro_validacao,dataEnvio,id_empresa,uuid,mov_fechado,dt_inicial,dt_final`);
+    const data = await postgrestRequest(`EnvioMassa?id_empresa=eq.${idEmp}&mov_fechado=eq.false&select=id,created_at,number,nome,cnpj_prestador,valor,gorjeta,mensagem1,mensagem2,enviado,retorno_envio_msg_1,retorno_envio_msg_2,tribnac,cnpj_tomador,dCompet,numnota,nota_ok,data_emissao,erro_validacao,dataEnvio,id_empresa,uuid,mov_fechado,dt_inicial,dt_final`);
 
     if (data.length === 0) {
       return res.status(404).json({ error: 'Nenhum dado encontrado' });
@@ -2520,7 +2529,10 @@ app.post('/validate-xml-batch', authenticateTokenCompartilhado, hubEnvioMassaCla
   var loadMovsError = null;
   try {
     movimentosAbertos = await postgrestRequest(
-      'EnvioMassa?mov_fechado=eq.false&id_empresa=eq.' + encodeURIComponent(idEmp) +
+      // valor=gt.0: mesma chave de "ha nota a emitir" das 4 rotas do app (routes/motorista.js VALOR_EMITIVEL).
+      // Sem ela, um erro_validacao gravado numa linha de valor <= 0 (ex.: movimento so-gorjeta) bloqueia o lote de
+      // pagamento, e o motorista nao enxerga essa linha para regularizar.
+      'EnvioMassa?mov_fechado=eq.false&valor=gt.0&id_empresa=eq.' + encodeURIComponent(idEmp) +
       '&select=id,nota_ok,erro_validacao,cnpj_prestador,numnota,data_emissao,valor,created_at' +
       '&order=created_at.desc'
     );

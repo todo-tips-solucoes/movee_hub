@@ -9,8 +9,8 @@
 //   US5 — confirmação manual do resultado do lote, reprocessar solicitação
 //         falhada (volta a LIBERADA — edge #20/7.7.4) e "Encerrar sem
 //         pagamento" (FALHOU → ENCERRADA, sai da fila — D-23/7.3.6)
-//   US6 — repasse: visualizar remanescente e fechar apuração (sucesso e
-//         recusa por APURACAO_COM_PENDENCIAS com a contagem por status)
+//   US6 — repasse: visualizar remanescente e "Gerar do repasse" (sucesso e
+//         recusa por ADIANTAMENTOS_PENDENTES com a contagem por status)
 //
 // Também fecha 7.3.4: a "ação explícita" da pendência CONTA_ALTERADA é o
 // botão "Atualizar conta" do detalhe (H02) — achado desta task (Constitution
@@ -438,6 +438,21 @@ async function installApiStubs(page: Page, state: StubState): Promise<void> {
       return json(200, { apuracaoId: 1, motoristas: dados.totais.motoristas, total: dados.totais.remanescente as string, naoPagosNoPeriodo: dados.naoPagosNoPeriodo });
     }
 
+    // repasse-gera-movimento: "Gerar do repasse" fecha (se aberta) e gera num acionamento só.
+    const movMatch = path.match(/^\/adiantamentos\/repasse\/([\d-]+)\/movimentos$/);
+    if (movMatch && method === 'POST') {
+      const periodo = movMatch[1];
+      const dados = state.repasse[periodo];
+      if (!dados || !dados.fechavel) {
+        return json(409, {
+          erro: 'ADIANTAMENTOS_PENDENTES', total: 3, porStatus: { LIBERADA: 2, FALHOU: 1 },
+          motoristas: [{ entregadorId: 1, nome: 'Motorista Um', status: 'LIBERADA' }], motoristasOmitidos: 2,
+        });
+      }
+      state.apuracoesFechadas.add(periodo);
+      return json(201, { apuracaoId: 1, gerados: dados.totais.motoristas, semTelefone: 0, recusados: [] });
+    }
+
     return json(404, { erro: 'NAO_ENCONTRADO', path, method });
   });
 }
@@ -691,26 +706,28 @@ test.describe('US6 — repasse e fechamento', () => {
     await expect(dialog.getByText('Motorista Três')).toBeVisible();
   });
 
-  test('fechar apuração com pendências é recusado e mostra a contagem por status (D-23/7.8.4)', async ({ page }) => {
+  test('gerar do repasse com pendências é recusado e mostra a contagem por status e quem trava (D-23/FR-008)', async ({ page }) => {
     const state = defaultState();
     await setup(page, state);
 
     await page.goto('/hub/dashboard/adiantamentos/repasse');
     await page.getByLabel('Período de apuração (início)').fill('2026-09-01');
-    await expect(page.getByText('Motorista Um')).toBeVisible();
+    await expect(page.getByText('Motorista Um').first()).toBeVisible();
 
-    await page.getByRole('button', { name: 'Fechar apuração' }).click();
+    await page.getByRole('button', { name: 'Gerar do repasse' }).click();
     const dialog = page.getByRole('alertdialog');
-    await dialog.getByRole('button', { name: 'Fechar apuração' }).click();
+    await dialog.getByRole('button', { name: 'Gerar do repasse' }).click();
 
-    await expect(dialog.getByText('Há solicitações pendentes neste período')).toBeVisible();
+    await expect(dialog.getByText(/nada foi fechado nem gerado/)).toBeVisible();
     // Rótulo REAL de LIBERADA (rotuloStatusAdiantamento) é "Adiantamento
     // liberado", não "Liberada" — Constitution VI, nunca supor o texto.
     await expect(dialog.getByText(/Adiantamento liberado.*2/)).toBeVisible();
     await expect(dialog.getByText(/Falha no pagamento.*1/)).toBeVisible();
+    await expect(dialog.getByText(/Motorista Um — Adiantamento liberado/)).toBeVisible();
+    await expect(dialog.getByText('e mais 2')).toBeVisible();
   });
 
-  test('fecha a apuração com sucesso quando não há pendências', async ({ page }) => {
+  test('gerar do repasse fecha a apuração e gera quando não há pendências', async ({ page }) => {
     const state = defaultState();
     await setup(page, state);
 
@@ -718,11 +735,11 @@ test.describe('US6 — repasse e fechamento', () => {
     await page.getByLabel('Período de apuração (início)').fill('2026-09-08');
     await expect(page.getByText('Motorista Dois')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Fechar apuração' }).click();
+    await page.getByRole('button', { name: 'Gerar do repasse' }).click();
     const dialog = page.getByRole('alertdialog');
-    await dialog.getByRole('button', { name: 'Fechar apuração' }).click();
+    await dialog.getByRole('button', { name: 'Gerar do repasse' }).click();
 
-    await expect(page.getByText(/Apuração fechada/)).toBeVisible();
+    await expect(page.getByText(/movimento\(s\) gerado\(s\)/)).toBeVisible();
     await expect(page.getByText('Fechado')).toBeVisible();
   });
 

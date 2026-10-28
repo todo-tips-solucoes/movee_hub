@@ -132,6 +132,19 @@ function cnpjEnvioMassaFilter(cnpj) {
   return `cnpj_prestador=in.(${encodeURIComponent(lista)})`;
 }
 
+// Movimento SEM nota a emitir nao e mostrado nem aceito para o motorista (decisao do
+// operador 28/10, dec-056): ele recebe a gorjeta e nao ve pedido de nota de R$ 0,00 —
+// que nao teria como emitir. O caso nasce da geracao do repasse (so-gorjeta por deducao
+// do pago por fora, lib/adiantamento-geracao-movimento.js `soGorjetaPorDeducao`), mas o
+// filtro tambem cobre valor 0 vindo da planilha (/upload aceita 0: rejeita so nao-numero,
+// server.js:1958-1961). Mesmo limiar da geracao, que recusa `valor <= 0` (VALOR_ZERO).
+// `EnvioMassa.valor` e double precision NULLABLE (MIG/0033:132): `gt.0` exclui 0, negativo
+// e NULL — nenhum dos tres e nota emitivel.
+// Vale para listagem E envio, pelo mesmo motivo do corte de notas pendentes: sem o filtro
+// no envio, quem tem o id (ou o movimento que o `limit=1` resolve) ainda mandaria nota
+// para a linha oculta, e a nota cairia num movimento diferente do que a tela mostra.
+const VALOR_EMITIVEL = 'valor=gt.0';
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Geração de tokens JWT (audiência: motorista)
 // Separação de audiência: claim `aud: 'motorista'` impede que tokens de Empresa
@@ -696,7 +709,7 @@ router.get('/movimento-aberto', authenticateMotorista, async (req, res) => {
 
     // Escopo sempre por token — nunca por parâmetro externo (Constituição II)
     const movimentos = await _postgrestRequest(
-      `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}&mov_fechado=eq.false&order=created_at.desc&limit=1`
+      `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}&${VALOR_EMITIVEL}&mov_fechado=eq.false&order=created_at.desc&limit=1`
     );
 
     if (!movimentos || movimentos.length === 0) {
@@ -814,7 +827,7 @@ router.post('/validar-nota', authenticateMotorista, uploadSingle, async (req, re
 
     // Pré-condição 1: existe movimento aberto para este CNPJ
     const movimentos = await _postgrestRequest(
-      `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}&mov_fechado=eq.false&order=created_at.desc&limit=1`
+      `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}&${VALOR_EMITIVEL}&mov_fechado=eq.false&order=created_at.desc&limit=1`
     );
 
     if (!movimentos || movimentos.length === 0) {
@@ -1050,6 +1063,7 @@ router.get('/notas-pendentes', authenticateMotorista, async (req, res) => {
     const corte = await corteNotasPendentes();
     const linhas = (await _postgrestRequest(
       `EnvioMassa?${cnpjEnvioMassaFilter(cnpj)}` +
+      `&${VALOR_EMITIVEL}` +
       `&dt_inicial=gte.${corte}` +
       `&or=${encodeURIComponent(NOTAS_PENDENTES_OR)}` +
       '&select=id,created_at,valor,dt_inicial,dt_final,cnpj_tomador,id_empresa,erro_validacao' +
@@ -1129,7 +1143,7 @@ router.post('/notas-pendentes/:id/validar', authenticateMotorista, uploadSingle,
     // da sessão. 404 (não 403) para não revelar que o movimento de outro existe.
     const idMov = String(req.params.id);
     const movimentos = /^\d+$/.test(idMov)
-      ? await _postgrestRequest(`EnvioMassa?id=eq.${idMov}&${cnpjEnvioMassaFilter(cnpj)}&dt_inicial=gte.${await corteNotasPendentes()}&limit=1`)
+      ? await _postgrestRequest(`EnvioMassa?id=eq.${idMov}&${cnpjEnvioMassaFilter(cnpj)}&${VALOR_EMITIVEL}&dt_inicial=gte.${await corteNotasPendentes()}&limit=1`)
       : [];
     if (!movimentos || movimentos.length === 0) {
       return res.status(404).json({ error: 'Pendência não encontrada.' });

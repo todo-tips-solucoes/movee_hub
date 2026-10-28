@@ -68,6 +68,11 @@ const MENSAGENS_CODIGO: Record<string, string> = {
   APURACAO_FORA_DE_ORDEM: 'Só é possível fechar a próxima semana em ordem, a partir da última já fechada.',
   APURACAO_NAO_CONFIGURADA: 'A apuração de repasse ainda não foi configurada.',
   APURACAO_COM_PENDENCIAS: 'Há solicitações pendentes neste período.',
+  // repasse-gera-movimento: a geração consulta as pendências ANTES de fechar; recusada por inteiro.
+  ADIANTAMENTOS_PENDENTES: 'Há adiantamentos pendentes nesta semana. Nada foi fechado nem gerado.',
+  // Sem o modelo cadastrado a geração recusa — o texto que o motorista lê sobre dinheiro nunca é inventado.
+  MODELO_MENSAGEM_AUSENTE: 'O modelo da mensagem ao motorista não está cadastrado na configuração do adiantamento. Cadastre-o antes de gerar.',
+  EMPRESA_SEM_CNPJ: 'A empresa não tem CNPJ cadastrado. Cadastre-o antes de gerar.',
   PERIODO_EM_ABERTO: 'O período ainda está em aberto para solicitações.',
   // A1: a gravação recusa janela que não começa no dia configurado. A
   // mensagem tem de dizer o que fazer, porque o fechamento é irreversível e
@@ -102,7 +107,9 @@ export class AdiantamentosApiError extends HubApiError {
     public readonly motivo?: string,
     /** Só em `RETORNO_INCOMPLETO`: por que as linhas PRESENTES no arquivo foram
      * recusadas (ex.: `VALOR_AMBIGUO:1.234`). Só contagem por motivo — nunca linhas. */
-    public readonly ignoradasPorMotivo?: RetornoIgnoradaPorMotivo[]
+    public readonly ignoradasPorMotivo?: RetornoIgnoradaPorMotivo[],
+    /** Corpo cru do erro: `ADIANTAMENTOS_PENDENTES` e `PERIODO_EM_ABERTO.liberaApos` trazem campos próprios. */
+    public readonly corpo?: Record<string, unknown>
   ) {
     super(status, message, codigo);
   }
@@ -131,7 +138,7 @@ const request = criarRequest(
       status, mensagemPorCodigo(MENSAGENS_CODIGO, body, status), codigoDoErro(body),
       detalheDoErro(body), faltantesDoErro(body),
       typeof body.motivo === 'string' ? body.motivo : undefined,
-      ignoradasDoErro(body)
+      ignoradasDoErro(body), body
     )
 );
 
@@ -762,6 +769,27 @@ export interface GerarMovimentosResponse {
   /** Gerados SEM telefone: a nota vale, só o disparo por WhatsApp não alcança. */
   semTelefone: number;
   recusados: MovimentoRecusado[];
+}
+
+/** `409 ADIANTAMENTOS_PENDENTES`: só nome + status (nunca CNPJ, telefone ou valor — FR-009). */
+export interface AdiantamentosPendentes {
+  total: number;
+  porStatus: Record<string, number>;
+  motoristas: { entregadorId: number; nome: string | null; status: string }[];
+  motoristasOmitidos: number;
+}
+
+/** Lê o corpo do `409 ADIANTAMENTOS_PENDENTES`; `null` se o erro é outro ou o corpo vier malformado. */
+export function pendentesDoErro(e: unknown): AdiantamentosPendentes | null {
+  if (!(e instanceof AdiantamentosApiError) || e.codigo !== 'ADIANTAMENTOS_PENDENTES' || !e.corpo) return null;
+  const { total, porStatus, motoristas, motoristasOmitidos } = e.corpo as Record<string, unknown>;
+  if (typeof total !== 'number' || !porStatus || typeof porStatus !== 'object' || !Array.isArray(motoristas)) return null;
+  return {
+    total,
+    porStatus: porStatus as Record<string, number>,
+    motoristas: motoristas as AdiantamentosPendentes['motoristas'],
+    motoristasOmitidos: typeof motoristasOmitidos === 'number' ? motoristasOmitidos : 0,
+  };
 }
 
 /** F4-B: cria na EnvioMassa o movimento de cada motorista da apuração fechada,

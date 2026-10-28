@@ -59,6 +59,15 @@ async function mockPostgrest(path, method = 'GET', body = null) {
     const min = p.get('dt_inicial').replace(/^gte\./, '');
     rows = rows.filter((r) => r.dt_inicial != null && r.dt_inicial >= min);
   }
+  if (p.get('valor')) {
+    // `VALOR_EMITIVEL` da rota ('valor=gt.0'): o mock INTERPRETA, como o PostgREST —
+    // se a rota deixar de filtrar, a linha de valor 0 volta e o teste falha.
+    // `gt` em SQL nunca casa NULL; Number() cobre numero e string ("300.00").
+    const v = p.get('valor');
+    assert.match(v, /^gt\./, 'mock interpreta apenas gt. em valor');
+    const min = Number(v.slice('gt.'.length));
+    rows = rows.filter((r) => r.valor != null && Number(r.valor) > min);
+  }
   if (p.get('or')) {
     // Interpreta o `or`: cada termo só vale se estiver NA query (sintaxe provada contra o PostgREST real)
     const or = p.get('or');
@@ -313,6 +322,24 @@ describe('POST /motorista/notas-pendentes/:id/validar', () => {
     assert.equal((await req('POST', '/motorista/notas-pendentes/abc/validar', { multipart: mp(XML('11111111000100')) })).status, 404);
   });
 
+  // dec-056 — pendencia de valor 0 (so gorjeta, dec-054) nao aceita envio: vale para
+  // listagem E envio, senao quem tem o id ainda mandaria nota de R$ 0,00.
+  test('pendencia de valor 0 (so gorjeta) → 404 e a FastAPI nem é chamada', async () => {
+    EnvioMassa = [mov(7, { valor: 0, gorjeta: 18 })];
+    const r = await req('POST', '/motorista/notas-pendentes/7/validar', { multipart: mp(XML('11111111000100')) });
+    assert.equal(r.status, 404);
+    assert.equal(chamadasAxios.length, 0);
+  });
+
+  test('nao-regressao: envio de pendencia com valor > 0 segue funcionando', async () => {
+    EnvioMassa = [mov(7, { valor: '430.00' })];
+    axiosImpl = fastapiGrava(7);
+    const r = await req('POST', '/motorista/notas-pendentes/7/validar', { multipart: mp(XML('11111111000100')) });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.valid, true);
+    assert.equal(chamadasAxios.length, 1);
+  });
+
   test('passa id_movimento à FastAPI (grupo Movee → não-nexus, id_empresa=6)', async () => {
     EnvioMassa = [mov(7, { id_empresa: 7 })]; // filial: pega pelo grupo, não por === 6
     axiosImpl = fastapiGrava(7);
@@ -455,5 +482,39 @@ describe('chave MOTORISTA_NOTAS_PENDENTES', () => {
       assert.equal(r.status, 200);
       assert.equal(chamadasAxios.length, 1);
     } finally { restaura(); }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// dec-056 — pendencia SEM nota a emitir (valor 0) nao aparece na lista. Origem:
+// geracao do repasse so-com-gorjeta (dec-054) grava valor 0 + gorjeta > 0. Antes
+// do filtro o app pediria "emita nota de R$ 0,00", que nao ha como emitir.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('dec-056 valor zero — GET /motorista/notas-pendentes', () => {
+  test('pendencia de valor 0 (so gorjeta) NAO aparece na lista', async () => {
+    EnvioMassa = [mov(1, { valor: 0, gorjeta: 18 })];
+    const r = await req('GET', '/motorista/notas-pendentes');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.notas, []);
+  });
+
+  test('nao-regressao: pendencia com valor > 0 continua aparecendo com a MESMA forma', async () => {
+    EnvioMassa = [mov(1, { valor: '430.00' }), mov(2, { valor: 0, gorjeta: 9 })];
+    const r = await req('GET', '/motorista/notas-pendentes');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.notas.map((n) => n.id), [1]);
+    // Forma do item congelada (mapper da rota): nenhuma chave somiu nem nasceu.
+    assert.deepEqual(Object.keys(r.body.notas[0]).sort(), [
+      'cnpjTomador', 'criadoEm', 'dtFinal', 'dtInicial', 'id', 'origem', 'tomador', 'valor',
+    ]);
+    assert.equal(r.body.notas[0].valor, '430.00');
+    assert.equal(r.body.notas[0].tomador, 'Movee Ltda');
+    assert.equal(r.body.notas[0].origem, 'MOVIMENTO');
+  });
+
+  test('valor nulo ou negativo tambem nao aparece (nenhum dos tres e nota emitivel)', async () => {
+    EnvioMassa = [mov(1, { valor: null }), mov(2, { valor: -5 }), mov(3, { valor: 10 })];
+    const r = await req('GET', '/motorista/notas-pendentes');
+    assert.deepEqual(r.body.notas.map((n) => n.id), [3]);
   });
 });

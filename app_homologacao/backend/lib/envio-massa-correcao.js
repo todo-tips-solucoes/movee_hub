@@ -5,6 +5,7 @@
 'use strict';
 
 const { toNumberBR } = require('./numero-br');
+const { linhaSemNada } = require('./disparo-alvo');
 const { renderizarMensagem } = require('./adiantamento-mensagem');
 const { hubPostgrestRequest } = require('./hub-postgrest');
 
@@ -158,6 +159,8 @@ function validarEntrada(body) {
       if (!Number.isFinite(gorjeta) || gorjeta < 0) return { erro: 'Gorjeta inválida.' };
     }
   }
+  // mesma regra da importação: recusa só quando não há nada a pagar nem a emitir (valor 0 + gorjeta é legítimo).
+  if (linhaSemNada(valor, gorjeta)) return { erro: 'Valor inválido.' };
   return { motivo, valor, gorjeta };
 }
 
@@ -353,7 +356,7 @@ async function reimportar({ linhas, idEmp, dtIni, dtFim, motivo, usuarioId = nul
 }
 
 module.exports = {
-  celulaSemNumero, faixaDia, reimportar,
+  validarEntrada, celulaSemNumero, faixaDia, reimportar,
   casarLinha, resumir, DESFECHOS, DESFECHO_RPC, ajustarMensagem, corrigirPelaTela, AVISO_MENSAGEM,
   ajustarMensagemHub, criarDepsCorrecao,
 };

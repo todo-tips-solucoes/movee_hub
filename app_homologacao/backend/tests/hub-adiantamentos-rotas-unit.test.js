@@ -1905,6 +1905,21 @@ describe('4.6 repasse', () => {
     assert.equal(r.body.erro, 'APURACAO_FORA_DE_ORDEM');
   });
 
+  // repasse-gera-movimento 3.1.4: os 7 codigos do RPC de fechar passam pelo helper compartilhado
+  // (`mapearErroFechamento`), que tambem sera usado por /movimentos — mesmo status e mesmo corpo de antes.
+  for (const [msg, status] of [
+    ['APURACAO_NAO_CONFIGURADA', 409], ['PERIODO_EM_ABERTO', 409], ['PERIODO_DESALINHADO', 409], ['PERMISSAO_NEGADA', 403],
+  ]) {
+    test(`3.1.4: POST /repasse/:periodo/fechar mapeia ${msg} -> ${status} (helper compartilhado)`, async () => {
+      comportamentoRpc.repasseFechar = msg;
+      const r = await request('POST', '/api/v1/adiantamentos/repasse/2026-09-08/fechar', {
+        body: { confirmacao: true }, cookie: tokenCookie(),
+      });
+      assert.equal(r.status, status);
+      assert.equal(r.body.erro, msg);
+    });
+  }
+
   test('4.6.8: encerrar-falha fora de FALHOU -> TRANSICAO_INVALIDA', async () => {
     comportamentoRpc.encerrarFalha = 'TRANSICAO_INVALIDA';
     const r = await request('POST', '/api/v1/adiantamentos/100/encerrar-falha', { body: { motivo: 'nao esta em falhou' }, cookie: tokenCookie() });

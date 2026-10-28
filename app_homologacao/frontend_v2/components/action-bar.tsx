@@ -4,6 +4,7 @@ import { Download, FileDown, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ProcessControls } from './process-controls';
+import { GerarDoRepasseButton } from '@/components/hub/gerar-do-repasse-button';
 import { ImportButton } from './import-button';
 import { CloseMovementDialog } from './close-movement-dialog';
 import { toast } from 'sonner';
@@ -107,6 +108,8 @@ export function ActionBar({
 
       <div className="flex flex-wrap items-center gap-2">
         <ImportButton onUpload={onUpload} />
+        {/* repasse-gera-movimento 4.6: sem `periodo` (a tela de Envio em Massa tem outro conceito de período); renderiza nada sem a permissão do hub. */}
+        <GerarDoRepasseButton />
         <Button size="sm" variant="outline" className="h-11 gap-1.5 sm:h-8" onClick={handleExportCSV} disabled={csvLoading}>
           {csvLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
           Exportar CSV

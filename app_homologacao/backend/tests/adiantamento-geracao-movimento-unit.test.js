@@ -9,7 +9,7 @@ const CTX = {
   mensagem2Modelo: 'Gorjeta {gorjeta}, total {total}.',
 };
 const conta = (over = {}) => ({ cnpjPrestador: '89000000000100', nome: 'Fulano', telefone: '5511900000001', ...over });
-const item = (over = {}) => ({ entregador_id: 1, creditos: '500.00', valor_nota: '480.00', valor_fora_nota: '20.00', ...over });
+const item = (over = {}) => ({ entregador_id: 1, creditos: '500.00', valor_nota: '480.00', valor_fora_nota: '20.00', nota_a_emitir: '480.00', ...over });
 const planejar = (itens, contas, jaGerados = [], abertos = []) =>
   planejarGeracao(itens, new Map(contas), new Set(jaGerados), new Set(abertos), CTX);
 
@@ -63,12 +63,12 @@ test.describe('planejarGeracao() — as recusas, cada uma com motivo próprio', 
   });
 
   test('apuração fechada antes de "entra na nota" existir', () => {
-    const { recusados } = planejar([item({ valor_nota: null, valor_fora_nota: null })], [[1, conta()]]);
+    const { recusados } = planejar([item({ valor_nota: null, valor_fora_nota: null, nota_a_emitir: null })], [[1, conta()]]);
     assert.equal(recusados[0].motivo, 'SEM_DIVISAO');
   });
 
   test('base da nota zero não vira nota', () => {
-    const { recusados } = planejar([item({ valor_nota: '0.00' })], [[1, conta()]]);
+    const { recusados } = planejar([item({ valor_nota: '0.00', nota_a_emitir: '0.00' })], [[1, conta()]]);
     assert.equal(recusados[0].motivo, 'VALOR_ZERO');
   });
 
@@ -146,7 +146,7 @@ test.describe('planejarGeracao() — F3: saldo mínimo carregado', () => {
     const { aGerar, recusados } = planejar(
       [item({
         valor_pago: '505.00', valor_transportado: '0.00',
-        valor_nota: '480.00', valor_fora_nota: '20.00',
+        valor_nota: '480.00', valor_fora_nota: '20.00', nota_a_emitir: '500.00',
         saldo_anterior_nota: '20.00', saldo_anterior_fora: '5.00',
       })],
       [[1, conta()]],
@@ -194,7 +194,7 @@ test.describe('planejarGeracao() — F3: saldo mínimo carregado', () => {
     const { aGerar, recusados } = planejar(
       [item({
         remanescente: '-10.00', valor_pago: '0.00', valor_transportado: '4.00',
-        valor_nota: '20.00', valor_fora_nota: '5.00',
+        valor_nota: '20.00', valor_fora_nota: '5.00', nota_a_emitir: '20.00',
         saldo_anterior_nota: '3.00', saldo_anterior_fora: '1.00',
       })],
       [[1, conta()]],
@@ -225,7 +225,7 @@ test.describe('planejarGeracao() — F3: saldo mínimo carregado', () => {
     const { aGerar } = planejar(
       [item({
         remanescente: '-10.00', valor_pago: '0.00', valor_transportado: '4.00',
-        valor_nota: '20.00', valor_fora_nota: '5.00',
+        valor_nota: '20.00', valor_fora_nota: '5.00', nota_a_emitir: '20.00',
         saldo_anterior_nota: '3.00', saldo_anterior_fora: '1.00',
       })],
       [[1, conta()]],
@@ -235,9 +235,81 @@ test.describe('planejarGeracao() — F3: saldo mínimo carregado', () => {
   });
 });
 
+// repasse-gera-movimento FASE 3.3 (0118): o `valor` da nota e `nota_a_emitir`, nunca `valor_nota` bruto.
+test.describe('planejarGeracao() — nota líquida (P4)', () => {
+  test('T01: nota liquida abate a deducao — valor = nota_a_emitir (70), nao o bruto (100); gorjeta intacta (T02)', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ valor_nota: '100.00', valor_fora_nota: '20.00', nota_a_emitir: '70.00', remanescente: '90.00', valor_pago: '90.00', valor_transportado: '0.00' })],
+      [[1, conta()]],
+    );
+    assert.equal(recusados.length, 0);
+    assert.equal(aGerar[0].linha.valor, 70);
+    assert.equal(aGerar[0].linha.gorjeta, 20);
+  });
+
+  test('T07: nota_a_emitir NULL com valor_nota presente recusa e NUNCA usa o bruto (fail-closed)', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ valor_nota: '100.00', nota_a_emitir: null })],
+      [[1, conta()]],
+    );
+    assert.equal(aGerar.length, 0, 'se gerou, caiu no valor_nota bruto');
+    assert.equal(recusados[0].motivo, 'NOTA_LIQUIDA_AUSENTE');
+    assert.match(recusados[0].detalhe, /fechada antes de a nota líquida existir/);
+  });
+
+  test('T07b: nota_a_emitir ausente (undefined) tambem recusa — item anterior a 0118 nao traz a coluna', () => {
+    const { aGerar, recusados } = planejar([{ entregador_id: 1, valor_nota: '480.00', valor_fora_nota: '20.00' }], [[1, conta()]]);
+    assert.equal(aGerar.length, 0);
+    assert.equal(recusados[0].motivo, 'NOTA_LIQUIDA_AUSENTE');
+  });
+
+  test('T05: configurado e sem credito de nota (0, nao NULL) -> VALOR_ZERO, nunca SEM_DIVISAO', () => {
+    const { recusados } = planejar([item({ valor_nota: '0.00', valor_fora_nota: '10.00', nota_a_emitir: '0.00' })], [[1, conta()]]);
+    assert.equal(recusados[0].motivo, 'VALOR_ZERO');
+  });
+
+  test('T06: sem categorias_nota (valor_nota e nota_a_emitir NULL) segue SEM_DIVISAO', () => {
+    const { recusados } = planejar([item({ valor_nota: null, valor_fora_nota: null, nota_a_emitir: null })], [[1, conta()]]);
+    assert.equal(recusados[0].motivo, 'SEM_DIVISAO');
+  });
+
+  test('zerou por DEDUÇÃO (base > 0) com gorjeta: gera o movimento só com a gorjeta (nota 0, recebe a gorjeta)', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ valor_nota: '40.00', valor_fora_nota: '200.00', nota_a_emitir: '0.00', remanescente: '30.00', valor_pago: '30.00' })],
+      [[1, conta()]],
+    );
+    assert.equal(recusados.length, 0);
+    assert.equal(aGerar.length, 1);
+    assert.equal(aGerar[0].linha.valor, 0);
+    assert.equal(aGerar[0].linha.gorjeta, 200);
+  });
+
+  test('zerou por NÃO PRODUZIR (base 0), mesmo com gorjeta: segue VALOR_ZERO', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ valor_nota: '0.00', valor_fora_nota: '200.00', nota_a_emitir: '0.00' })], [[1, conta()]]);
+    assert.equal(aGerar.length, 0);
+    assert.equal(recusados[0].motivo, 'VALOR_ZERO');
+  });
+
+  test('zerou por dedução e NÃO há gorjeta: nada a pagar nem a emitir -> VALOR_ZERO', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ valor_nota: '40.00', valor_fora_nota: '0.00', nota_a_emitir: '0.00' })], [[1, conta()]]);
+    assert.equal(aGerar.length, 0);
+    assert.equal(recusados[0].motivo, 'VALOR_ZERO');
+  });
+
+  test('remanescente negativo: saldo de nota carregado NÃO conta como base (não produziu nesta semana) -> VALOR_ZERO', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ valor_nota: '0.00', valor_fora_nota: '50.00', nota_a_emitir: '0.00', remanescente: '-5.00', saldo_anterior_nota: '20.00' })],
+      [[1, conta()]]);
+    assert.equal(aGerar.length, 0);
+    assert.equal(recusados[0].motivo, 'VALOR_ZERO');
+  });
+});
+
 test.describe('planejarGeracao() — lote', () => {
   test('separa quem gera de quem não, sem perder ninguém', () => {
-    const itens = [item({ entregador_id: 1 }), item({ entregador_id: 2 }), item({ entregador_id: 3, valor_nota: null })];
+    const itens = [item({ entregador_id: 1 }), item({ entregador_id: 2 }), item({ entregador_id: 3, valor_nota: null, nota_a_emitir: null })];
     const contas = [[1, conta()], [2, conta({ cnpjPrestador: '89000000000200' })], [3, conta()]];
     const { aGerar, recusados } = planejar(itens, contas, [], ['89000000000200']);
     assert.equal(aGerar.length, 1);
@@ -323,5 +395,42 @@ test.describe('entregadoresComMovimentoEmSemanaRetida() — issue #229', () => {
     const { aGerar, recusados } = planejarGeracao([pagoComSaldo], new Map([[1, conta()]]), new Set(), new Set(), CTX, new Set([1]));
     assert.equal(aGerar.length, 0);
     assert.equal(recusados[0].motivo, 'MOVIMENTO_LEGADO_EM_SEMANA_RETIDA');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Revisao adversarial 28/10 (3 camadas convergiram): o movimento so-gorjeta
+// nascia ABERTO, o app o escondia (VALOR_EMITIVEL) e ele travava a geracao da
+// semana seguinte daquele CNPJ, sem o motorista ter como fecha-lo. Decisao do
+// operador: nasce FECHADO — nao ha nota a emitir, logo nada pendente dele.
+// ---------------------------------------------------------------------------
+test.describe('planejarGeracao() — mov_fechado do movimento so-gorjeta', () => {
+  test('so-gorjeta por deducao nasce mov_fechado=true', () => {
+    // nota zerada POR DEDUCAO (nota_a_emitir 0 com valor_nota > 0) e gorjeta > 0
+    const { aGerar, recusados } = planejar([item({ valor_nota: '480.00', nota_a_emitir: '0.00' })], [[1, conta()]]);
+    assert.equal(recusados.length, 0, 'so-gorjeta nao deve ser recusado');
+    assert.equal(aGerar.length, 1);
+    assert.equal(aGerar[0].linha.valor, 0);
+    assert.ok(Number(aGerar[0].linha.gorjeta) > 0, 'a gorjeta precisa estar na linha');
+    assert.equal(aGerar[0].linha.mov_fechado, true,
+      'nada a esperar do motorista => FECHADO (aberto, travaria a geracao de W+1)');
+  });
+
+  test('CONTROLE NEGATIVO: com nota a emitir a linha nasce ABERTA', () => {
+    // Se este assert cair, a correcao vazou para o caminho normal e nenhuma
+    // nota voltaria a ser cobrada — o motorista e quem fecha, mandando a nota.
+    const { aGerar } = planejar([item()], [[1, conta()]]);
+    assert.equal(aGerar.length, 1);
+    assert.ok(Number(aGerar[0].linha.valor) > 0, 'o caso normal tem nota a emitir');
+    assert.equal(aGerar[0].linha.mov_fechado, false,
+      'com nota a emitir a linha nasce ABERTA: o motorista precisa envia-la para fechar');
+  });
+
+  test('CONTROLE NEGATIVO: valor 0 SEM gorjeta continua recusado (VALOR_ZERO), nao gera linha alguma', () => {
+    const { aGerar, recusados } = planejar(
+      [item({ valor_nota: '0.00', nota_a_emitir: '0.00', valor_fora_nota: '0.00', creditos: '0.00' })], [[1, conta()]]);
+    assert.equal(aGerar.length, 0);
+    assert.equal(recusados.length, 1);
+    assert.equal(recusados[0].motivo, 'VALOR_ZERO');
   });
 });

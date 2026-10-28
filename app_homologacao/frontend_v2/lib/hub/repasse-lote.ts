@@ -17,7 +17,7 @@ const BLOQUEIO: Record<string, { rotulo: string; acao: string }> = {
   },
   APURACAO_ABERTA: {
     rotulo: 'A apuração da semana ainda não foi fechada',
-    acao: 'Use "Fechar apuração" no topo da tela.',
+    acao: 'Use "Gerar do repasse" no topo da tela.',
   },
   VALOR_INVALIDO: {
     rotulo: 'Sem valor a pagar',

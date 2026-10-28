@@ -208,3 +208,41 @@ describe('3.2b valor ambiguo/sujo recusado na tela', () => {
     for (const v of ['1.500,00', '1500', 'R$ 12,34']) assert.equal((await corrigirPelaTela(req({ valor: v, motivo: 'x' }), w.deps)).status, 200);
   });
 });
+
+test('correcao: valor 0 + gorjeta aceita; valor 0 sem gorjeta e negativo recusam', async () => {
+  const { corrigirPelaTela } = require('../lib/envio-massa-correcao');
+  for (const body of [{ valor: '0', motivo: 'x' }, { valor: '0,00', gorjeta: '0', motivo: 'x' }, { valor: '-5', motivo: 'x' }]) {
+    const r = await corrigirPelaTela({ id: '1', idEmp: 6, body }, {});
+    assert.deepEqual(r, { status: 400, body: { error: 'Valor inválido.' } }, JSON.stringify(body));
+  }
+  const { validarEntrada } = require('../lib/envio-massa-correcao');
+  assert.equal(validarEntrada({ valor: '0', gorjeta: '25', motivo: 'x' }).erro, undefined);
+});
+
+// LIMITE DECLARADO (revisao adversarial 28/10, edge M6): este teste exercita a REGRA, nao a rota
+// `/upload` — que nao tem teste de rota neste repo. Importa porque a recusa do `/upload` e GLOBAL
+// (server.js:2031 recusa o arquivo INTEIRO), logo esta regra decide se uma planilha de 950 linhas
+// entra ou e rejeitada por completo. A condicao real da rota e `temColunaGorjeta && linhaSemNada(...)`
+// e as duas metades estao cobertas abaixo.
+test('importacao: a regra do /upload — 950 linhas com 3 zeradas-com-gorjeta entram; sem gorjeta recusa; SEM A COLUNA nao recusa', () => {
+  const { linhaSemNada } = require('../lib/disparo-alvo');
+  // a condicao da rota, replicada
+  const recusaDoUpload = (temColunaGorjeta, valor, gorjeta) => temColunaGorjeta && linhaSemNada(valor, gorjeta);
+  const lote = Array.from({ length: 950 }, (_, i) => ({ valor: i < 3 ? 0 : 100, gorjeta: i < 3 ? 25 : null }));
+  assert.equal(lote.filter((l) => linhaSemNada(l.valor, l.gorjeta)).length, 0);
+  const ruim = lote.map((l) => ({ ...l, gorjeta: null }));
+  assert.equal(ruim.filter((l) => linhaSemNada(l.valor, l.gorjeta)).length, 3);
+  assert.equal(linhaSemNada(0, 25), false);
+  assert.equal(linhaSemNada(0, 0), true);
+
+  // O ROUND TRIP que a revisao pegou: `/export-envio-massa` nao exportava `gorjeta` (corrigido em
+  // 28/10) e o arquivo reimportado chega SEM a coluna. Com `temColunaGorjeta=false` a linha de
+  // valor 0 NAO pode derrubar a planilha inteira.
+  assert.equal(recusaDoUpload(false, 0, null), false,
+    'sem a coluna gorjeta no arquivo, valor 0 NAO recusa (senao exportar->reimportar mata a planilha toda)');
+  // CONTROLES NEGATIVOS: com a coluna presente, a recusa volta a valer.
+  assert.equal(recusaDoUpload(true, 0, null), true,
+    'coluna presente e sem gorjeta: nada a pagar nem a emitir, recusa');
+  assert.equal(recusaDoUpload(true, 0, 25), false,
+    'coluna presente com gorjeta > 0: planilha legitima');
+});

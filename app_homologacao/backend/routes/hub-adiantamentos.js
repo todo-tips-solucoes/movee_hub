@@ -62,7 +62,10 @@ const {
   mapEvento, mapLote, mapLoteItem,
 } = require('../lib/adiantamento-dto');
 const { placeholdersInvalidos, PLACEHOLDERS_PERMITIDOS } = require('../lib/adiantamento-mensagem');
-const { planejarGeracao, entregadoresComMovimentoEmSemanaRetida } = require('../lib/adiantamento-geracao-movimento');
+const {
+  planejarGeracao, entregadoresComMovimentoEmSemanaRetida, MOTIVOS,
+  STATUS_ADIANTAMENTO_PENDENTE, montarPendenciasAdiantamento, idsVisiveisPendentes, mesmoDinheiro, TEXTO_FALHA,
+} = require('../lib/adiantamento-geracao-movimento');
 const {
   montarPlanilhaTransfeera, validarPlanilhaTransfeera, nomeArquivoTransfeera, renderizarDescricaoPix,
 } = require('../lib/adiantamento-transfeera-xlsx');
@@ -211,6 +214,32 @@ function detailDoErro(e) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Mapeia o erro do RPC `hub_adiantamento_repasse_fechar` para `{status, corpo}` (ou `null` se for outro erro).
+ * Compartilhado por `POST /repasse/:periodo/fechar` e por `POST /repasse/:periodo/movimentos` (que passa a fechar
+ * a apuracao quando ela ainda nao existe) — um so lugar para o texto de cada recusa.
+ * Contrato inalterado: `{ erro: <CODIGO> }` (+ `detalhe` onde o RPC o anexa).
+ */
+function mapearErroFechamento(e) {
+  const msg = mensagemDeErro(e);
+  if (msg.includes('APURACAO_COM_PENDENCIAS')) {
+    let detalhe = {};
+    try { detalhe = JSON.parse(detailDoErro(e) || '{}'); } catch { detalhe = {}; }
+    return { status: 409, corpo: { erro: 'APURACAO_COM_PENDENCIAS', detalhe } };
+  }
+  if (msg.includes('APURACAO_JA_FECHADA')) return { status: 409, corpo: { erro: 'APURACAO_JA_FECHADA' } };
+  // F3/FR-021: so a semana seguinte, em ordem, a ultima ja fechada da empresa — impede tanto fechar uma anterior
+  // quanto pular uma semana.
+  if (msg.includes('APURACAO_FORA_DE_ORDEM')) return { status: 409, corpo: { erro: 'APURACAO_FORA_DE_ORDEM' } };
+  if (msg.includes('APURACAO_NAO_CONFIGURADA')) return { status: 409, corpo: { erro: 'APURACAO_NAO_CONFIGURADA' } };
+  if (msg.includes('PERIODO_EM_ABERTO')) return { status: 409, corpo: { erro: 'PERIODO_EM_ABERTO' } };
+  // A1: o gatilho da 0086 recusa fechar uma janela que nao comeca no `apuracao_dia_inicio` configurado.
+  // `ApuracaoRepasse` e imutavel, entao a recusa e deliberadamente explicita em vez de realinhar em silencio.
+  if (msg.includes('PERIODO_DESALINHADO')) return { status: 409, corpo: { erro: 'PERIODO_DESALINHADO', detalhe: detailDoErro(e) || null } };
+  if (msg.includes('PERMISSAO_NEGADA')) return { status: 403, corpo: { erro: 'PERMISSAO_NEGADA' } };
+  return null;
 }
 
 /**
@@ -2113,26 +2142,8 @@ router.post('/repasse/:periodo/fechar', requireModuloAtivo('adiantamentos'), req
       const linhas = await hubPostgrestRequest('rpc/hub_adiantamento_repasse_fechar', 'POST', { p_periodo_inicio: periodo }, claims);
       resultado = Array.isArray(linhas) && linhas[0];
     } catch (e) {
-      const msg = mensagemDeErro(e);
-      if (msg.includes('APURACAO_COM_PENDENCIAS')) {
-        let detalhe = {};
-        try { detalhe = JSON.parse(detailDoErro(e) || '{}'); } catch { detalhe = {}; }
-        return res.status(409).json({ erro: 'APURACAO_COM_PENDENCIAS', detalhe });
-      }
-      if (msg.includes('APURACAO_JA_FECHADA')) return res.status(409).json({ erro: 'APURACAO_JA_FECHADA' });
-      // F3/FR-021: só a semana seguinte, em ordem, à última já fechada da
-      // empresa — impede tanto fechar uma anterior quanto pular uma semana.
-      if (msg.includes('APURACAO_FORA_DE_ORDEM')) return res.status(409).json({ erro: 'APURACAO_FORA_DE_ORDEM' });
-      if (msg.includes('APURACAO_NAO_CONFIGURADA')) return res.status(409).json({ erro: 'APURACAO_NAO_CONFIGURADA' });
-      if (msg.includes('PERIODO_EM_ABERTO')) return res.status(409).json({ erro: 'PERIODO_EM_ABERTO' });
-      // A1: o gatilho da 0086 recusa fechar uma janela que não começa no
-      // `apuracao_dia_inicio` configurado. `ApuracaoRepasse` é imutável, então
-      // a recusa é deliberadamente explícita em vez de realinhar em silêncio —
-      // o operador precisa saber que pediu outra semana.
-      if (msg.includes('PERIODO_DESALINHADO')) {
-        return res.status(409).json({ erro: 'PERIODO_DESALINHADO', detalhe: detailDoErro(e) || null });
-      }
-      if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+      const mapeado = mapearErroFechamento(e);
+      if (mapeado) return res.status(mapeado.status).json(mapeado.corpo);
       console.error('[hub-adiantamentos] erro em POST /repasse/:periodo/fechar:', e.message);
       return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
     }
@@ -2155,6 +2166,18 @@ router.post('/repasse/:periodo/fechar', requireModuloAtivo('adiantamentos'), req
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
+
+/** 'YYYY-MM-DD' + n dias (UTC puro — sem fuso, e data de calendario). */
+function somarDias(iso, n) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Violacao de UNIQUE/PK do Postgres (23505) vinda do PostgREST — o corpo do erro traz `code`. */
+function violacaoUnica(e) {
+  try { return JSON.parse((e && e.body) || '').code === '23505'; } catch { return false; }
+}
 
 // ════════════════════════════════════════════════════════════════════════
 // F4-B — POST /repasse/:periodo/movimentos: gerar as notas da semana
@@ -2185,23 +2208,85 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
       return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'confirmacao' });
     }
 
-    // 1. A apuração precisa estar FECHADA — é ela que tem os valores congelados.
-    const apuracoes = await hubPostgrestRequest(
-      `ApuracaoRepasse?id_empresa=eq.${GRUPO_MOVEE_ID}&periodo_inicio=eq.${periodo}&select=id,periodo_inicio,periodo_fim,configuracao_id&limit=1`,
+    // 1. PRÉ-FLIGHT de pendências de adiantamento — SEMPRE, antes de qualquer coisa que feche ou crie (D5/FR-008).
+    //    Roda também quando a apuração já existe: um adiantamento pode ter sido liberado DEPOIS do fechamento, e a
+    //    checagem do RPC de fechar (APURACAO_COM_PENDENCIAS) só roda quando a rota o chama. O RPC devolve só
+    //    contagem por status; o financeiro precisa dos NOMES (FR-009) — daí esta consulta própria.
+    const fimSemana = somarDias(periodo, 6);
+    const pendentes = await hubPostgrestRequest(
+      `AdiantamentoSolicitacao?id_empresa=in.(${claims.escopo.join(',')})&data_producao=gte.${periodo}&data_producao=lte.${fimSemana}` +
+      `&status=in.(${STATUS_ADIANTAMENTO_PENDENTE.join(',')})&select=entregador_id,status&limit=5000`,
       'GET', null, claims);
-    const apuracao = Array.isArray(apuracoes) ? apuracoes[0] : null;
-    if (!apuracao) return res.status(409).json({ erro: 'APURACAO_NAO_FECHADA' });
+    if (Array.isArray(pendentes) && pendentes.length > 0) {
+      const visiveis = idsVisiveisPendentes(pendentes);
+      const nomes = await buscarEmLotes('Entregador?select=id,nome', visiveis, { campoId: 'id', claims });
+      const corpo = montarPendenciasAdiantamento(pendentes, new Map((nomes || []).map((n) => [n.id, n.nome])));
+      // Só contagens no log (nunca nome/CNPJ): PII fora de log.
+      console.warn('[hub-adiantamentos] geração recusada por adiantamentos pendentes:', corpo.total, JSON.stringify(corpo.porStatus));
+      return res.status(409).json({ erro: 'ADIANTAMENTOS_PENDENTES', ...corpo });
+    }
 
-    // 2. Itens congelados + trilha do que já foi gerado.
-    const [itens, jaGeradosLinhas, configLinhas] = await Promise.all([
+    // 2. Modelo de mensagem: recusa ANTES de fechar (o fechamento é irreversível) e nunca inventa texto (D10/FR-012).
+    const buscarApuracao = async () => {
+      const linhas = await hubPostgrestRequest(
+        `ApuracaoRepasse?id_empresa=eq.${GRUPO_MOVEE_ID}&periodo_inicio=eq.${periodo}&select=id,periodo_inicio,periodo_fim,configuracao_id&limit=1`,
+        'GET', null, claims);
+      return Array.isArray(linhas) ? linhas[0] || null : null;
+    };
+    let apuracao = await buscarApuracao();
+    let fechouAgora = null;
+    if (!apuracao) {
+      const vigentes = await hubPostgrestRequest(
+        `AdiantamentoConfiguracao?id_empresa=eq.${GRUPO_MOVEE_ID}&vigente_desde=lte.${encodeURIComponent(new Date().toISOString())}` +
+        '&order=vigente_desde.desc,versao.desc&limit=1&select=mensagem1_modelo,horario_corte,timezone',
+        'GET', null, claims);
+      const vigente = (Array.isArray(vigentes) && vigentes[0]) || null;
+      if (vigente && !String(vigente.mensagem1_modelo ?? '').trim()) {
+        return res.status(409).json({ erro: 'MODELO_MENSAGEM_AUSENTE' });
+      }
+
+      // 3. D1: a apuração não existe -> fecha-se aqui (RPC atômico). Erros do RPC pelo MESMO mapeamento de /fechar.
+      try {
+        const linhas = await hubPostgrestRequest('rpc/hub_adiantamento_repasse_fechar', 'POST', { p_periodo_inicio: periodo }, claims);
+        fechouAgora = Array.isArray(linhas) ? linhas[0] || null : null;
+      } catch (e) {
+        const mapeado = mapearErroFechamento(e);
+        // Corrida: outro acionamento fechou entre a leitura e o RPC -> a apuração que faltava passou a existir.
+        // Não é erro: relê e segue para a geração (o 409 só sai se a releitura também falhar).
+        if (!(mapeado && mapeado.corpo.erro === 'APURACAO_JA_FECHADA')) {
+          if (mapeado) {
+            if (mapeado.corpo.erro === 'PERIODO_EM_ABERTO' && vigente) {
+              // Diz ATÉ QUANDO esperar: a semana só fecha depois do corte do dia seguinte ao último dia.
+              mapeado.corpo.liberaApos = { data: somarDias(fimSemana, 1), horario: vigente.horario_corte ?? null, timezone: vigente.timezone ?? null };
+            }
+            return res.status(mapeado.status).json(mapeado.corpo);
+          }
+          console.error('[hub-adiantamentos] erro ao fechar em POST /repasse/:periodo/movimentos:', e.message);
+          return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+        }
+      }
+      apuracao = await buscarApuracao();
+      if (!apuracao) return res.status(409).json({ erro: 'APURACAO_JA_FECHADA' });
+    }
+    // 3.7: auditar o fechamento LOGO que o RPC commitou (antes do laço): um throw adiante deixaria a semana fechada e não auditada.
+    // O fechamento implícito aparece na trilha de auditoria (mesma ação da rota /fechar); sem fechamento, só a segunda.
+    if (fechouAgora) {
+      await registrarAuditoria({
+        idEmpresa: entidadeAtiva, usuarioId: payload.sub, acao: 'adiantamento.repasse_fechado',
+        recurso: 'ApuracaoRepasse', recursoId: fechouAgora.apuracao_id ?? apuracao.id,
+        detalhes: { periodo, motoristas: fechouAgora.motoristas, total: fechouAgora.total, origem: 'gerar_do_repasse' }, claims,
+      });
+    }
+
+    // 4. Itens congelados + trilha do que já foi gerado.
+    const [itens, configLinhas] = await Promise.all([
       hubPostgrestRequest(
         // F3: colunas do saldo mínimo — `planejarGeracao` decide RETIDO/soma
         // com saldo a partir delas (contracts/hub-repasse-api.md §movimentos).
         `ApuracaoRepasseItem?apuracao_id=eq.${apuracao.id}&select=entregador_id,creditos,valor_nota,valor_fora_nota,` +
-        `remanescente,saldo_anterior_nota,saldo_anterior_fora,valor_pago,valor_transportado`,
+        // 0118/P4: `nota_a_emitir` e o valor da nota (liquido da deducao do pago por fora); sem ele o item e recusado.
+        `nota_a_emitir,remanescente,saldo_anterior_nota,saldo_anterior_fora,valor_pago,valor_transportado`,
         'GET', null, claims),
-      hubPostgrestRequest(
-        `ApuracaoRepasseMovimento?apuracao_id=eq.${apuracao.id}&select=entregador_id`, 'GET', null, claims),
       hubPostgrestRequest(
         `AdiantamentoConfiguracao?id=eq.${apuracao.configuracao_id}&select=mensagem1_modelo,mensagem2_modelo`,
         'GET', null, claims),
@@ -2210,6 +2295,11 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
       return res.status(200).json({ apuracaoId: apuracao.id, gerados: 0, recusados: [], semTelefone: 0 });
     }
     const config = (Array.isArray(configLinhas) && configLinhas[0]) || {};
+    // D10/FR-012: sem modelo de mensagem não há texto a enviar — recusa com aviso, nunca inventa (a apuração, se
+    // acabou de ser fechada, já foi checada antes de fechar; aqui cobre a apuração que JÁ existia).
+    if (!String(config.mensagem1_modelo ?? '').trim()) {
+      return res.status(409).json({ erro: 'MODELO_MENSAGEM_AUSENTE' });
+    }
 
     // 3. CNPJ, nome e telefone — do HUB, que virou o dono (F4-A). F3/Decision
     //    13: em lotes de 100 (lib/hub-postgrest-lotes.js) — nunca todos os ids
@@ -2246,8 +2336,14 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
     // 5. Quem já tem movimento aberto na EnvioMassa (convivência com a planilha).
     //    Em lotes de 100 (issue #229): ~1.000 CNPJs num `in.()` só estouram o
     //    header do PostgREST, mesmo incidente do PR #50.
+    //    S7 (Constitution §II): a `EnvioMassa` NÃO tem RLS — o filtro de `id_empresa` é a ÚNICA proteção de tenant.
+    //    O grupo Movee (empresa 6 + filiais) é resolvido UMA vez e reusado por toda leitura/escrita de `EnvioMassa`
+    //    desta rota (nunca `id_empresa === 6` estrito). Falha na consulta do grupo cai no fail-safe do helper: só a 6.
+    const grupoCache = {};
+    await mesmoGrupoQue(GRUPO_MOVEE_ID, GRUPO_MOVEE_ID, grupoCache);
+    const idsGrupo = [...(grupoCache.ids || new Set([GRUPO_MOVEE_ID]))];
     const cnpjs = [...new Set([...contasPorEntregador.values()].map((c) => c.cnpjPrestador).filter(Boolean))];
-    const abertos = await buscarEmLotes('EnvioMassa?mov_fechado=eq.false&select=cnpj_prestador', cnpjs,
+    const abertos = await buscarEmLotes(`EnvioMassa?mov_fechado=eq.false&id_empresa=in.(${idsGrupo.join(',')})&select=cnpj_prestador`, cnpjs,
       { campoId: 'cnpj_prestador', claims });
 
     // 5b. Issue #229 — quem recebe agora saldo carregado de semanas em que já
@@ -2274,9 +2370,6 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
         // id_empresa=6 estrito) — o mesmo CNPJ pode emitir para outra empresa
         // cliente, e isso não duplica nada do saldo daqui. Falha na consulta do
         // grupo cai no fail-safe do helper: só a empresa 6.
-        const grupoCache = {};
-        await mesmoGrupoQue(GRUPO_MOVEE_ID, GRUPO_MOVEE_ID, grupoCache);
-        const idsGrupo = [...(grupoCache.ids || new Set([GRUPO_MOVEE_ID]))];
         const [movimentos, trilha] = await Promise.all([
           buscarEmLotes(
             `EnvioMassa?dt_final=gte.${inicioMaisAntigo}&id_empresa=in.(${idsGrupo.join(',')})` +
@@ -2289,9 +2382,21 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
       }
     }
 
+    // 5c. S1 — a trilha é a RESERVA (id da EnvioMassa pré-alocado). Pré-filtro, uma vez: quem tem trilha E a
+    //     EnvioMassa existe já foi gerado; quem tem trilha SEM EnvioMassa é "reserva sem movimento" (uma geração
+    //     anterior caiu no meio) e é CONCLUÍDA com o MESMO id, nunca recomeçada. Tenant: `id_empresa` do grupo.
+    const trilhaApuracao = await hubPostgrestRequest(
+      `ApuracaoRepasseMovimento?apuracao_id=eq.${apuracao.id}&select=entregador_id,envio_massa_id,valor,gorjeta`, 'GET', null, claims);
+    const trilhaLinhas = Array.isArray(trilhaApuracao) ? trilhaApuracao : [];
+    const existentes = new Set((await buscarEmLotes(
+      `EnvioMassa?id_empresa=in.(${idsGrupo.join(',')})&select=id`, trilhaLinhas.map((t) => t.envio_massa_id), { campoId: 'id', claims })
+    ).map((m) => Number(m.id)));
+    const jaGeradosIds = new Set(trilhaLinhas.filter((t) => existentes.has(Number(t.envio_massa_id))).map((t) => t.entregador_id));
+    const reservados = new Map(trilhaLinhas.filter((t) => !existentes.has(Number(t.envio_massa_id))).map((t) => [t.entregador_id, t]));
+
     const { aGerar, recusados } = planejarGeracao(
       itens, contasPorEntregador,
-      new Set((jaGeradosLinhas || []).map((l) => l.entregador_id)),
+      jaGeradosIds,
       new Set((abertos || []).map((l) => l.cnpj_prestador)),
       {
         cnpjTomador,
@@ -2303,22 +2408,55 @@ router.post('/repasse/:periodo/movimentos', requireModuloAtivo('adiantamentos'),
       },
       comMovimentoEmSemanaRetida);
 
-    // 6. Insere um a um: um CNPJ que falhe não pode derrubar a rodada inteira,
-    //    e a trilha tem de refletir exatamente o que entrou na EnvioMassa.
+    // 6. Por motorista, a ORDEM única do S1: (1) id := alocar (ou o id da reserva existente) -> (2) POST da trilha COM
+    //    o id (UNIQUE apuracao+entregador => JA_GERADO) -> (3) POST EnvioMassa COM o MESMO id (PK => JA_GERADO).
+    //    Nenhum PATCH, nenhum DELETE, nenhuma heurística de tempo: as duas corridas fecham por integridade.
+    //    Um CNPJ que falhe não derruba a rodada, e o texto de cada falha diz o estado REAL.
     const gerados = [];
+    const recusarMotorista = (alvo, motivo, detalhe) =>
+      recusados.push({ entregadorId: alvo.entregadorId, nome: contasPorEntregador.get(alvo.entregadorId)?.nome ?? null, motivo, detalhe });
     for (const alvo of aGerar) {
+      const reserva = reservados.get(alvo.entregadorId);
+      let envioId;
+      if (reserva) {
+        // Conclui a reserva existente — mas só com o MESMO valor/gorjeta (nunca conclui com valor diferente).
+        if (!mesmoDinheiro(reserva.valor, alvo.linha.valor) || !mesmoDinheiro(reserva.gorjeta, alvo.linha.gorjeta || 0)) {
+          recusarMotorista(alvo, 'FALHA_AO_GRAVAR', TEXTO_FALHA.RESERVA_DIVERGENTE);
+          continue;
+        }
+        envioId = Number(reserva.envio_massa_id);
+      } else {
+        try {
+          const alocado = await hubPostgrestRequest('rpc/hub_repasse_alocar_envio_id', 'POST', {}, claims);
+          envioId = Number(Array.isArray(alocado) ? alocado[0] : alocado);
+          if (!Number.isSafeInteger(envioId) || envioId <= 0) throw new Error('id alocado invalido');
+          await hubPostgrestRequest('ApuracaoRepasseMovimento', 'POST', {
+            apuracao_id: apuracao.id, entregador_id: alvo.entregadorId, id_empresa: GRUPO_MOVEE_ID,
+            envio_massa_id: envioId, valor: alvo.linha.valor, gorjeta: alvo.linha.gorjeta || 0,
+            criado_por: payload.sub,
+          }, claims);
+        } catch (e) {
+          if (violacaoUnica(e)) {
+            // O concorrente reservou antes: nada foi escrito em EnvioMassa por esta requisição.
+            recusarMotorista(alvo, 'JA_GERADO', TEXTO_FALHA.JA_RESERVADO);
+          } else {
+            console.error('[hub-adiantamentos] falha ao reservar movimento do entregador', alvo.entregadorId, 'status', e.status); // sem e.message: o corpo do PostgREST pode trazer a linha inteira (PII)
+            recusarMotorista(alvo, 'FALHA_AO_GRAVAR', TEXTO_FALHA.NADA_GRAVADO);
+          }
+          continue;
+        }
+      }
       try {
-        const criado = await hubPostgrestRequest('EnvioMassa', 'POST', alvo.linha, claims);
-        const linha = Array.isArray(criado) ? criado[0] : criado;
-        await hubPostgrestRequest('ApuracaoRepasseMovimento', 'POST', {
-          apuracao_id: apuracao.id, entregador_id: alvo.entregadorId, id_empresa: GRUPO_MOVEE_ID,
-          envio_massa_id: linha.id, valor: alvo.linha.valor, gorjeta: alvo.linha.gorjeta || 0,
-          criado_por: payload.sub,
-        }, claims);
-        gerados.push({ entregadorId: alvo.entregadorId, envioMassaId: linha.id, semTelefone: alvo.semTelefone });
+        await hubPostgrestRequest('EnvioMassa', 'POST', { ...alvo.linha, id: envioId }, claims);
+        gerados.push({ entregadorId: alvo.entregadorId, envioMassaId: envioId, semTelefone: alvo.semTelefone });
       } catch (e) {
-        console.error('[hub-adiantamentos] falha ao gerar movimento do entregador', alvo.entregadorId, e.message);
-        recusados.push({ entregadorId: alvo.entregadorId, nome: null, motivo: 'FALHA_AO_GRAVAR', detalhe: 'Não foi possível criar o movimento; nada foi gravado para este motorista.' });
+        if (violacaoUnica(e)) {
+          // PK: outra requisição concluiu a MESMA reserva (mesmo id). Íntegro por construção — não é erro.
+          recusarMotorista(alvo, 'JA_GERADO', MOTIVOS.JA_GERADO);
+        } else {
+          console.error('[hub-adiantamentos] falha ao criar o movimento do entregador', alvo.entregadorId, 'status', e.status); // sem e.message (PII)
+          recusarMotorista(alvo, 'FALHA_AO_GRAVAR', TEXTO_FALHA.RESERVA_SEM_MOVIMENTO);
+        }
       }
     }
 

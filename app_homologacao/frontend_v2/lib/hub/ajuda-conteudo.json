@@ -1,6 +1,6 @@
 {
   "subtitulo": "Como operar o Envio em Massa, apurar e pagar o repasse semanal no Movee Hub, e o que o motorista faz no celular. Escrito a partir do comportamento real do sistema, incluindo o que ele recusa e por quê.",
-  "atualizadoEm": "2026-10-23",
+  "atualizadoEm": "2026-10-28",
   "secoes": [
     {
       "id": "inicio",
@@ -123,14 +123,9 @@
           "bloco": "trilha",
           "passos": [
             {
-              "titulo": "Fechar apuração",
-              "quem": "Hub › Adiantamentos › Repasse — exige papel que confirma pagamento",
-              "texto": "Grava um retrato permanente do que cada motorista produziu na semana. Depois disso o valor não muda mais, mesmo que a origem seja corrigida."
-            },
-            {
-              "titulo": "Gerar notas da semana",
-              "quem": "Hub › Adiantamentos › Repasse — exige papel que confirma pagamento",
-              "texto": "**Este passo não paga ninguém.** Ele cria, para cada motorista, um movimento no Envio em Massa com o valor que ele precisa faturar — é o que *pede a nota fiscal* ao motorista."
+              "titulo": "Gerar do repasse",
+              "quem": "Hub › Adiantamentos › Repasse (e também nas telas de Envio em Massa) — exige papel que confirma pagamento",
+              "texto": "Um clique faz duas coisas: **fecha a apuração** da semana, se ainda estiver aberta (grava um retrato permanente — depois o valor não muda mais), e **cria, para cada motorista, um movimento no Envio em Massa** com o valor que ele precisa faturar. **Este passo não paga ninguém:** é o que *pede a nota fiscal* ao motorista. Se houver adiantamento pendente na semana, nada é fechado nem gerado."
             },
             {
               "titulo": "O motorista envia a nota",
@@ -163,8 +158,8 @@
         {
           "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "\"Gerar notas\" e \"Gerar lote\" não são a mesma coisa",
-          "texto": "**Gerar notas da semana** pede a nota ao motorista. **Gerar lote de pagamento** paga quem já entregou a nota. São os passos 2 e 4, e há um motorista no meio deles."
+          "titulo": "\"Gerar do repasse\" e \"Gerar lote\" não são a mesma coisa",
+          "texto": "**Gerar do repasse** pede a nota ao motorista. **Gerar lote de pagamento** paga quem já entregou a nota. São os passos 1 e 3, e há um motorista no meio deles."
         },
         {
           "bloco": "subtitulo",
@@ -223,7 +218,7 @@
               "A apuração da semana ainda não foi fechada",
               "`APURACAO_ABERTA`",
               "A semana do pagamento ainda não teve a apuração fechada",
-              "Use **Fechar apuração** no topo da tela"
+              "Use **Gerar do repasse** no topo da tela"
             ]
           ]
         },
@@ -309,15 +304,7 @@
               "não"
             ],
             [
-              "**Fechar apuração**",
-              "sim",
-              "não",
-              "sim",
-              "sim",
-              "não"
-            ],
-            [
-              "**Gerar notas da semana**",
+              "**Gerar do repasse** (fecha a apuração e gera as notas)",
               "sim",
               "não",
               "sim",
@@ -734,21 +721,28 @@
         },
         {
           "bloco": "subtitulo",
-          "texto": "Fechar a apuração"
+          "texto": "Gerar do repasse"
         },
         {
           "bloco": "texto",
-          "texto": "Grava o retrato definitivo da semana. O botão só funciona quando o período está **Em apuração**."
+          "texto": "O botão **Gerar do repasse** fecha a apuração da semana — se o período ainda estiver **Em apuração**, gravando o retrato definitivo — e em seguida cria o movimento de cada motorista no Envio em Massa. Se a semana já estiver fechada, só gera. O mesmo botão aparece nas duas telas de Envio em Massa e dá o mesmo resultado para a mesma semana."
         },
         {
           "bloco": "aviso",
           "tipo": "atencao",
-          "titulo": "O que impede o fechamento",
+          "titulo": "O que impede de gerar",
           "itens": [
-            "**Semanas fora de ordem.** Só dá para fechar a semana seguinte à última já fechada. Se faltou uma, feche-a primeiro.",
-            "**Período ainda aberto para pedidos.** É preciso esperar passar o horário de corte do dia seguinte ao último dia da semana.",
-            "**Adiantamentos em andamento no período.** A tela lista quantos e em que situação. Resolva cada um (pagar, cancelar, rejeitar ou encerrar) antes de fechar."
+            "**Semanas fora de ordem.** Só dá para fechar a semana seguinte à última já fechada. Se faltou uma, gere-a primeiro.",
+            "**Período ainda aberto para pedidos.** É preciso esperar passar o horário de corte do dia seguinte ao último dia da semana — a tela diz a partir de quando.",
+            "**Adiantamentos em andamento na semana.** A tela mostra quantos, em que situação e **quem** está travando (até 20 nomes). Resolva cada um (pagar, cancelar, rejeitar ou encerrar) e tente de novo. Enquanto houver pendência, **nada é fechado nem gerado**.",
+            "**Modelo da mensagem ao motorista não cadastrado.** Na configuração do adiantamento, o texto que o motorista lê sobre o valor precisa estar cadastrado **antes do primeiro uso**; sem ele a geração é recusada (o sistema nunca inventa esse texto)."
           ]
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "atencao",
+          "titulo": "Apagar um movimento gerado",
+          "texto": "Se alguém apagar na planilha um movimento que o hub gerou, a próxima geração da mesma semana **o recria** (com o mesmo identificador), desde que o valor recalculado bata com o registrado. Apagar não significa \"não gerar de novo\"."
         }
       ]
     },
@@ -771,6 +765,12 @@
           "tipo": "importante",
           "titulo": "O prazo é o fechamento, não o pagamento",
           "texto": "A dedução entra no **fechamento da apuração**, que grava um retrato imutável da semana. Fechada a semana, o valor **não deduz mais**. Lance antes de fechar."
+        },
+        {
+          "bloco": "aviso",
+          "tipo": "importante",
+          "titulo": "O pago por fora abate a nota",
+          "texto": "O valor pago por fora desconta **a nota a emitir**, nunca a gorjeta. Se for maior que a nota da semana, a nota sai **zerada** e o que sobrou é descontado da nota das semanas seguintes (mesmo que o motorista não tenha produção nelas). O motorista vê a nota já abatida."
         },
         {
           "bloco": "subtitulo",
@@ -912,11 +912,11 @@
         },
         {
           "bloco": "subtitulo",
-          "texto": "No fechamento"
+          "texto": "Ao gerar do repasse"
         },
         {
           "bloco": "texto",
-          "texto": "Se algum motorista ficar com remanescente negativo, o diálogo de fechar mostra **quantos e quanto** e só libera o botão depois de você **marcar uma confirmação**. Se o número não puder ser verificado (erro ou ainda carregando), a confirmação é exigida **do mesmo jeito**, por segurança."
+          "texto": "Se algum motorista ficar com remanescente negativo, o diálogo de **Gerar do repasse** mostra **quantos e quanto** e só libera o botão depois de você **marcar uma confirmação**. Se o número não puder ser verificado (erro ou ainda carregando), a confirmação é exigida **do mesmo jeito**, por segurança."
         },
         {
           "bloco": "texto",
@@ -1895,12 +1895,22 @@
             [
               "Só é possível fechar a próxima semana em ordem",
               "`APURACAO_FORA_DE_ORDEM`",
-              "Existe uma semana anterior em aberto; feche-a primeiro"
+              "Existe uma semana anterior sem processar; gere-a primeiro"
             ],
             [
               "Há solicitações pendentes neste período",
               "`APURACAO_COM_PENDENCIAS`",
               "Resolva os adiantamentos listados (pagar, cancelar, rejeitar ou encerrar)"
+            ],
+            [
+              "Há adiantamentos pendentes nesta semana — nada foi fechado nem gerado",
+              "`ADIANTAMENTOS_PENDENTES`",
+              "Resolva os adiantamentos dos motoristas listados (pagar, cancelar, rejeitar ou encerrar) e gere de novo"
+            ],
+            [
+              "O modelo da mensagem ao motorista não está cadastrado",
+              "`MODELO_MENSAGEM_AUSENTE`",
+              "Cadastre o modelo na configuração do adiantamento e gere de novo"
             ],
             [
               "O período ainda está em aberto para solicitações",

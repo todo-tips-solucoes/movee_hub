@@ -391,11 +391,11 @@ WITH cfg AS (
   INSERT INTO "ApuracaoRepasse" (id_empresa, periodo_inicio, periodo_fim, data_repasse, configuracao_id, fechado_por, fechado_em)
   SELECT $E, date '2026-10-05' + 7*$5, date '2026-10-11' + 7*$5, date '2026-10-14' + 7*$5, cfg.id, $U_APR, now() FROM cfg RETURNING id
 ), it AS (
-  INSERT INTO "ApuracaoRepasseItem" (apuracao_id, id_empresa, entregador_id, creditos, adiantamentos, debitos, remanescente, detalhe, valor_pago, lancamentos_externos, saldo_anterior)
-  SELECT apu.id, $E, ent.id, $2, 0, 0, $4 - ${7:-0}, '{}'::jsonb, $4, $3, ${7:-0} FROM apu, ent RETURNING id
+  INSERT INTO "ApuracaoRepasseItem" (apuracao_id, id_empresa, entregador_id, creditos, adiantamentos, debitos, remanescente, detalhe, valor_pago, lancamentos_externos, saldo_anterior, nota_a_emitir)
+  SELECT apu.id, $E, ent.id, $2, 0, 0, $4 - ${7:-0}, '{}'::jsonb, $4, $3, ${7:-0}, ${8:-NULL} FROM apu, ent RETURNING id
 ), env AS (
   INSERT INTO "EnvioMassa" (nome, cnpj_prestador, valor, id_empresa, mov_fechado, nota_ok, erro_validacao)
-  SELECT 'Teste H1 $1', '', $2, $E, false, 'http://x/nota.xml', NULL WHERE '$6' = 's' RETURNING id
+  SELECT 'Teste H1 $1', '', $2, $E, false, CASE WHEN '$6' = 's' THEN 'http://x/nota.xml' END, NULL WHERE '$6' IN ('s','z') RETURNING id
 ), mv AS (
   INSERT INTO "ApuracaoRepasseMovimento" (apuracao_id, entregador_id, id_empresa, envio_massa_id, valor, gorjeta)
   SELECT apu.id, ent.id, $E, env.id, $2, 0 FROM apu, ent, env RETURNING id
@@ -417,6 +417,8 @@ read -r A_AD E_AD <<<"$(mk_h1 AdiantamentoExt 100 -30 70 43 n)" # deducao extern
 # ALTO 1 (rodada 3): o conserto da rodada 2 olhava SO `creditos`, `total` e `lancamentos_externos`, mas valor_pago = remanescente +
 # saldo_anterior. Nenhuma fixture acima tinha saldo_anterior, entao o driver ficava VERDE com e sem o conserto.
 read -r A_SA E_SA <<<"$(mk_h1 SaldoMaisCredito 0 0.01 5.01 44 n 5.00)"   # W1 produziu 5,00 sem nota (retido) + W2: so um credito de 0,01
+read -r A_GZ E_GZ <<<"$(mk_h1 SoGorjetaDeducao 0 0 30 46 z 0 0)"        # 0119: nota zerou por deducao; movimento valor 0 SEM nota; nota_a_emitir = 0
+read -r A_GN E_GN <<<"$(mk_h1 ZeroMasNotaDevida 0 0 30 47 z 0 12)"       # controle: mesmo movimento 0, mas nota_a_emitir > 0 (ha nota devida)
 read -r A_SM E_SM <<<"$(mk_h1 MistaComSaldo 10 50 65 45 s 5.00)"         # producao 10 COM nota + credito 50 + saldo 5 de semana anterior
 [ -n "$A_CP" ] && [ -n "$A_MX" ] && [ -n "$A_MN" ] && [ -n "$A_AD" ] && [ -n "$A_SA" ] && [ -n "$A_SM" ] || { echo "FAIL: fixture H1 nao criada"; exit 1; }
 
@@ -441,6 +443,27 @@ check "H1 mista: o EnvioMassa (nota) e so da PRODUCAO = 10,00" "$(q "SELECT em.v
 check "H1 mista com producao SEM nota => continua NOTA_PENDENTE (a excecao NAO cobre producao)" "$(previa_h1 $A_MN $E_MN)" "false|NOTA_PENDENTE|60.00"
 check "ALTO 1: credito de R\$ 0,01 + saldo transportado de producao sem nota => NOTA_PENDENTE (a dispensa vale so para o proprio credito)" "$(previa_h1 $A_SA $E_SA)" "false|NOTA_PENDENTE|5.01"
 check "ALTO 1: semana MISTA com saldo anterior (producao COM nota) segue apta: o saldo nao e bloqueado onde a nota da semana existe" "$(previa_h1 $A_SM $E_SM)" "true||65.00"
+check "0119: movimento so-gorjeta (nota_a_emitir=0, valor 0, sem nota) => apta=true, NAO e NOTA_PENDENTE" "$(previa_h1 $A_GZ $E_GZ)" "true||30.00"
+check "0119: controle — mesmo movimento 0 com nota_a_emitir>0 (nota devida) => NOTA_PENDENTE" "$(previa_h1 $A_GN $E_GN)" "false|NOTA_PENDENTE|30.00"
+perl -0pe 's/WHEN \(b\.nota_a_emitir IS DISTINCT FROM 0 OR b\.com_valor > 0\)\s+AND \(/WHEN (/' "$TMP/avaliar-novo.sql" > "$TMP/avaliar-pre0119.sql"
+if cmp -s "$TMP/avaliar-novo.sql" "$TMP/avaliar-pre0119.sql"; then echo "FAIL: controle negativo 0119 nao alterou a funcao (regex nao casou)"; fails=$((fails + 1)); fi
+psql_t -q < "$TMP/avaliar-pre0119.sql" >/dev/null
+check "0119 [controle negativo, corpo da 0117] so-gorjeta => NOTA_PENDENTE (o defeito que a 0119 corrige)" "$(previa_h1 $A_GZ $E_GZ)" "false|NOTA_PENDENTE|30.00"
+psql_t -q < "$TMP/avaliar-novo.sql" >/dev/null
+# GATE ESTREITO (revisao): fixture MULTI-MOVIMENTO — toda fixture acima cria UM movimento, e este caso era inexprimivel.
+# nota_a_emitir = 0 (so-gorjeta) MAS a semana tem um 2o movimento (valor 10, sem nota) => NAO pode sair apto.
+read -r A_MV E_MV <<<"$(mk_h1 MultiMov 0 0 40 48 z 0 0)"
+# 2o movimento pelo caminho PLANILHA (a trilha admite 1 por apuracao+entregador): CNPJ do entregador + dia do periodo
+mut "WITH cm AS (INSERT INTO \"ContaMotorista\" (cnpj_prestador, nome) VALUES ('99900011100048', 'Teste H1 MultiMov') RETURNING id),
+     up AS (UPDATE \"Entregador\" SET motorista_id = (SELECT id FROM cm) WHERE id = $E_MV)
+     INSERT INTO \"EnvioMassa\" (nome, cnpj_prestador, valor, id_empresa, mov_fechado, dt_inicial, dt_final)
+     SELECT 'Teste H1 MultiMov 2', '99900011100048', 10, $E, false, ar.periodo_inicio, ar.periodo_fim FROM \"ApuracaoRepasse\" ar WHERE ar.id = $A_MV"
+check "gate estreito: nota_a_emitir=0 mas 2o movimento com valor 10 SEM nota => NOTA_PENDENTE (nao apta)" "$(previa_h1 $A_MV $E_MV)" "false|NOTA_PENDENTE|40.00"
+perl -0pe 's/\(b\.nota_a_emitir IS DISTINCT FROM 0 OR b\.com_valor > 0\)/b.nota_a_emitir IS DISTINCT FROM 0/' "$TMP/avaliar-novo.sql" > "$TMP/avaliar-gate-largo.sql"
+if cmp -s "$TMP/avaliar-novo.sql" "$TMP/avaliar-gate-largo.sql"; then echo "FAIL: controle negativo do gate estreito nao alterou a funcao"; fails=$((fails + 1)); fi
+psql_t -q < "$TMP/avaliar-gate-largo.sql" >/dev/null
+check "gate estreito [controle negativo, gate LARGO da 0119 original] multi-movimento => apta (o defeito)" "$(previa_h1 $A_MV $E_MV)" "true||40.00"
+psql_t -q < "$TMP/avaliar-novo.sql" >/dev/null
 check "H1 ADIANTAMENTO externo (deducao) NAO muda: producao sem nota => NOTA_PENDENTE" "$(previa_h1 $A_AD $E_AD)" "false|NOTA_PENDENTE|70.00"
 # conta: o credito puro tambem precisa de conta APROVADA (a excecao e da nota, nao da conta)
 mut "UPDATE \"ContaBancariaMotorista\" SET status='CANCELADA' WHERE entregador_id=$E_CP"
