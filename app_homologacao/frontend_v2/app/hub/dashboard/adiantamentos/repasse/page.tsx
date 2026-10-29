@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, Download, FileText, FileUp, Inbox, ListChecks, Lock } from 'lucide-react';
+import { AlertCircle, Download, FileUp, Inbox, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,7 +43,7 @@ import { FilterBar } from '@/components/hub/filter-bar';
 import { CopyableUuid } from '@/components/hub/copyable-uuid';
 import { AdiantamentosAbas } from '@/components/hub/adiantamentos-abas';
 import { RepasseLotesSection } from '@/components/hub/repasse-lotes-section';
-import { FecharApuracaoDialog, useFecharApuracaoDialog } from '@/components/hub/adiantamento-fechar-apuracao-dialog';
+import { GerarDoRepasseButton } from '@/components/hub/gerar-do-repasse-button';
 import { LancamentoExternoDialog, useLancamentoExternoDialog } from '@/components/hub/lancamento-externo-dialog';
 import { AvisoLancamentoExterno } from '@/components/hub/lancamento-externo-aviso';
 import { LancamentoExternoListaDialog, useLancamentoExternoListaDialog } from '@/components/hub/lancamento-externo-lista-dialog';
@@ -51,12 +51,10 @@ import { formatarParcelaExterna } from '@/lib/hub/lancamento-externo';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { useDebounce } from '@/hooks/use-debounce';
 import { paraISO, inicioDaSemanaApuracao } from '@/lib/hub/periodo';
-import { resumirRecusas } from '@/lib/hub/adiantamento-recusas';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import {
   AdiantamentosApiError,
   exportarRepasseCsv,
-  gerarMovimentos,
   obterConfiguracoes,
   obterRepasse,
   type RepasseResponse,
@@ -155,14 +153,6 @@ export default function AdiantamentosRepassePage() {
   // leitura que alinha o período inicial (A1) alimenta estes pills.
   const descontos = h.descontos;
 
-  const fecharDialog = useFecharApuracaoDialog({
-    periodo: h.periodo,
-    onSucesso: (resultado) => {
-      toast.success(`Apuração fechada: ${resultado.motoristas} motorista(s), total ${formatBRL(resultado.total)}.`);
-      h.refetch();
-    },
-  });
-
   // Depois de importar, a prévia recarrega E o aviso de FR-049 reconsulta (versão nova).
   const [versaoResumo, setVersaoResumo] = useState(0);
   const externoDialog = useLancamentoExternoDialog({ onSucesso: () => { h.refetch(); setVersaoResumo((v) => v + 1); } });
@@ -182,35 +172,6 @@ export default function AdiantamentosRepassePage() {
   }, [h.periodo]);
 
   const periodoAberto = h.dados?.periodo.situacao === 'aberto';
-
-  // F4-B: gerar as notas da semana só faz sentido com a apuração FECHADA — é
-  // dela que saem os valores congelados (base da nota e o que fica fora).
-  const [gerando, setGerando] = useState(false);
-  const gerar = useCallback(async () => {
-    setGerando(true);
-    try {
-      const r = await gerarMovimentos(h.periodo);
-      if (r.gerados === 0 && r.recusados.length === 0) {
-        toast.info('Nada a gerar nesta apuração.');
-      } else {
-        // Uma linha só, com os três números que decidem o que fazer a seguir.
-        const partes = [`${r.gerados} movimento(s) gerado(s)`];
-        if (r.semTelefone > 0) partes.push(`${r.semTelefone} sem telefone`);
-        if (r.recusados.length > 0) partes.push(`${r.recusados.length} não gerado(s)`);
-        toast.success(partes.join(' · '), {
-          description: r.recusados.length
-            ? resumirRecusas(r.recusados)
-            : undefined,
-          duration: 10000,
-        });
-      }
-      await h.refetch();
-    } catch (e) {
-      toast.error(e instanceof AdiantamentosApiError ? e.message : 'Não foi possível gerar os movimentos.');
-    } finally {
-      setGerando(false);
-    }
-  }, [h]);
 
   return (
     <div className={`mx-auto flex w-full ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
@@ -232,30 +193,8 @@ export default function AdiantamentosRepassePage() {
               Ver pagos por fora
             </Button>
           )}
-          {podeFechar && (
-            <Button
-              size="sm"
-              className="min-h-11 gap-1.5 sm:min-h-8"
-              disabled={!h.dados || !periodoAberto}
-              onClick={fecharDialog.abrir}
-            >
-              <Lock className="size-4" aria-hidden="true" />
-              Fechar apuração
-            </Button>
-          )}
-          {podeFechar && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="min-h-11 gap-1.5 sm:min-h-8"
-              disabled={!h.dados || periodoAberto || gerando}
-              onClick={gerar}
-              title={periodoAberto ? 'Feche a apuração antes de gerar as notas.' : undefined}
-            >
-              <FileText className="size-4" aria-hidden="true" />
-              {gerando ? 'Gerando…' : 'Gerar notas da semana'}
-            </Button>
-          )}
+          {/* repasse-gera-movimento: um acionamento fecha (se aberta) e gera. A permissão é checada dentro do componente. */}
+          <GerarDoRepasseButton periodo={h.periodo} onSucesso={h.refetch} />
         </div>
       </PageHeader>
       <AdiantamentosAbas />
@@ -394,7 +333,6 @@ export default function AdiantamentosRepassePage() {
 
       <RepasseLotesSection />
 
-      <FecharApuracaoDialog d={fecharDialog} />
       <LancamentoExternoDialog d={externoDialog} />
       <LancamentoExternoListaDialog d={listaExternoDialog} />
     </div>

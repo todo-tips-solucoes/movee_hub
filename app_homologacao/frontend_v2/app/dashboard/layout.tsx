@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 import { Header } from '@/components/header';
 import { PageBreadcrumb } from '@/components/page-breadcrumb';
+import { HubAuthProvider } from '@/contexts/hub-auth-context';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -27,6 +28,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
+    // repasse-gera-movimento 4.6.2: o botão "Gerar do repasse" (na barra de ações) consulta o hub. SEM `HubSessionGuard` de
+    // propósito: o redirect de login do hub vive no guard; sem sessão de hub o botão simplesmente não renderiza.
+    <HubAuthProvider>
     <div className="flex min-h-dvh md:h-screen flex-col md:overflow-hidden bg-background">
       <Header />
       {/* U009: trilha de navegação fora do <main> p/ preservar o modelo de
@@ -40,5 +44,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* R009: em telas wide (≥xl/2xl) sobe o teto e os gutters p/ não desperdiçar >35% em ultrawide */}
       <main className="flex-1 overflow-auto md:overflow-y-auto mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 md:px-6 xl:max-w-[96rem] xl:px-8 2xl:max-w-[110rem]">{children}</main>
     </div>
+    </HubAuthProvider>
   );
 }

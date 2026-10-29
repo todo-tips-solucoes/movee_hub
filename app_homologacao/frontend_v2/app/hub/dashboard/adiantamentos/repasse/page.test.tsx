@@ -1,18 +1,15 @@
 // adiantamento-motorista (FASE 7, tasks.md 7.8, H14): remanescente semanal,
 // exportação CSV e fechamento de apuração com a contagem de pendências por
 // status quando recusado (7.8.4/D-23). Mesmo molde de `contas/page.test.tsx`.
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdiantamentosRepassePage from './page';
 import { AdiantamentosApiError } from '@/lib/hub/adiantamentos-api';
-import { paraISO } from '@/lib/hub/periodo';
 
-const HOJE = paraISO(new Date());
 
 const mockUseHubAuth = vi.fn();
 const mockObterRepasse = vi.fn();
 const mockExportarRepasseCsv = vi.fn();
-const mockFecharRepasse = vi.fn();
 const mockObterConfiguracoes = vi.fn();
 const { mockToast } = vi.hoisted(() => ({
   mockToast: { success: vi.fn(), error: vi.fn() },
@@ -40,7 +37,6 @@ vi.mock('@/lib/hub/adiantamentos-api', async () => {
     ...actual,
     obterRepasse: (...args: unknown[]) => mockObterRepasse(...args),
     exportarRepasseCsv: (...args: unknown[]) => mockExportarRepasseCsv(...args),
-    fecharRepasse: (...args: unknown[]) => mockFecharRepasse(...args),
     obterConfiguracoes: (...args: unknown[]) => mockObterConfiguracoes(...args),
   };
 });
@@ -60,7 +56,6 @@ describe('AdiantamentosRepassePage', () => {
     mockUseHubAuth.mockReset();
     mockObterRepasse.mockReset();
     mockExportarRepasseCsv.mockReset();
-    mockFecharRepasse.mockReset();
     mockObterConfiguracoes.mockReset();
     mockResumoExterno.mockReset();
     mockResumoExterno.mockResolvedValue({ qtdDeducao: 0, totalDeducao: 0, qtdCredito: 0, totalCredito: 0, flagDescontoLigada: true, qtdNegativo: 0, totalNegativo: 0 });
@@ -155,100 +150,6 @@ describe('AdiantamentosRepassePage', () => {
     await waitFor(() => expect(mockExportarRepasseCsv).toHaveBeenCalledWith(expect.any(String)));
   });
 
-  it('7.8.2: fechar apuração com sucesso mostra toast e recarrega', async () => {
-    mockObterRepasse.mockResolvedValue(REPASSE_ABERTO);
-    mockFecharRepasse.mockResolvedValueOnce({ apuracaoId: 7, motoristas: 1, total: '944.00', naoPagosNoPeriodo: 0 });
-    render(<AdiantamentosRepassePage />);
-    await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: /Fechar apuração/ }));
-    const dialog = await screen.findByRole('alertdialog');
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Fechar apuração' })).toBeEnabled());
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Fechar apuração' }));
-
-    await waitFor(() => expect(mockFecharRepasse).toHaveBeenCalledWith(HOJE));
-    await waitFor(() => expect(mockToast.success).toHaveBeenCalled());
-  });
-
-  it('7.8.4/D-23: recusa com APURACAO_COM_PENDENCIAS mostra a contagem por status, não só uma mensagem genérica', async () => {
-    mockObterRepasse.mockResolvedValueOnce(REPASSE_ABERTO);
-    mockFecharRepasse.mockRejectedValueOnce(
-      new AdiantamentosApiError(409, 'Há solicitações pendentes neste período.', 'APURACAO_COM_PENDENCIAS', { LIBERADA: 2, FALHOU: 1 })
-    );
-    render(<AdiantamentosRepassePage />);
-    await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: /Fechar apuração/ }));
-    const dlg = await screen.findByRole('alertdialog');
-    // C4: o botão só habilita depois que o resumo chegou e provou que ninguém fecha negativo.
-    await waitFor(() => expect(within(dlg).getByRole('button', { name: 'Fechar apuração' })).toBeEnabled());
-    fireEvent.click(within(dlg).getByRole('button', { name: 'Fechar apuração' }));
-
-    const alerta = await screen.findByText('Há solicitações pendentes neste período — o fechamento foi recusado.');
-    const bloco = alerta.closest('div') as HTMLElement;
-    expect(bloco).toHaveTextContent('Adiantamento liberado: 2');
-    expect(bloco).toHaveTextContent('Falha no pagamento: 1');
-  });
-
-  it('A2 (rodada 4): com remanescente NEGATIVO o fechamento é informado e exige confirmação explícita — e NÃO é recusado', async () => {
-    mockResumoExterno.mockResolvedValue({ qtdDeducao: 1, totalDeducao: 90, qtdCredito: 0, totalCredito: 0, flagDescontoLigada: true, qtdNegativo: 2, totalNegativo: 102 });
-    mockObterRepasse.mockResolvedValue(REPASSE_ABERTO);
-    mockFecharRepasse.mockResolvedValueOnce({ apuracaoId: 7, motoristas: 1, total: '944.00', naoPagosNoPeriodo: 0 });
-    render(<AdiantamentosRepassePage />);
-    await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: /Fechar apuração/ }));
-    const dialog = await screen.findByRole('alertdialog');
-    await within(dialog).findByText(/2 motoristas com pago por fora ficam com remanescente NEGATIVO/);
-    const botao = within(dialog).getByRole('button', { name: 'Fechar apuração' });
-    expect(botao).toBeDisabled();
-    fireEvent.click(botao);
-    expect(mockFecharRepasse).not.toHaveBeenCalled();
-
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: /não será pago nem transportado/ }));
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Fechar apuração' })).toBeEnabled());
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Fechar apuração' }));
-    await waitFor(() => expect(mockFecharRepasse).toHaveBeenCalledWith(HOJE));
-  });
-
-  describe('C4 (rodada 5): a confirmação do fechamento falha FECHADA quando o resumo não é conhecido', () => {
-    const abrir = async () => {
-      mockObterRepasse.mockResolvedValue(REPASSE_ABERTO);
-      render(<AdiantamentosRepassePage />);
-      await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
-      fireEvent.click(screen.getByRole('button', { name: /Fechar apuração/ }));
-      return screen.findByRole('alertdialog');
-    };
-    const OK = { qtdDeducao: 0, totalDeducao: 0, qtdCredito: 0, totalCredito: 0, flagDescontoLigada: true };
-
-    it('CARREGANDO: botão desabilitado e caixa de confirmação presente', async () => {
-      mockResumoExterno.mockReturnValue(new Promise(() => {}));
-      const dialog = await abrir();
-      expect(within(dialog).getByRole('button', { name: 'Fechar apuração' })).toBeDisabled();
-      expect(within(dialog).getByRole('checkbox')).toBeInTheDocument();
-    });
-    it('ERRO na consulta: botão desabilitado até marcar a caixa', async () => {
-      mockResumoExterno.mockRejectedValue(new Error('500'));
-      const dialog = await abrir();
-      await within(dialog).findByRole('checkbox');
-      expect(within(dialog).getByRole('button', { name: 'Fechar apuração' })).toBeDisabled();
-      fireEvent.click(within(dialog).getByRole('checkbox'));
-      await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Fechar apuração' })).toBeEnabled());
-    });
-    it('backend SEM o campo qtdNegativo: exige a caixa (não assume 0)', async () => {
-      mockResumoExterno.mockResolvedValue(OK);
-      const dialog = await abrir();
-      await within(dialog).findByRole('checkbox');
-      expect(within(dialog).getByRole('button', { name: 'Fechar apuração' })).toBeDisabled();
-    });
-    it('controle: qtdNegativo 0 conhecido NÃO exige a caixa', async () => {
-      mockResumoExterno.mockResolvedValue({ ...OK, qtdNegativo: 0, totalNegativo: 0 });
-      const dialog = await abrir();
-      await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Fechar apuração' })).toBeEnabled());
-      expect(within(dialog).queryByRole('checkbox')).toBeNull();
-    });
-  });
-
   it('7.8.3: pills de descontos refletem a configuração vigente', async () => {
     mockObterConfiguracoes.mockResolvedValue({
       vigente: { descontoAdiantamentos: true, descontoDebitos: false },
@@ -274,11 +175,18 @@ describe('AdiantamentosRepassePage', () => {
     expect(campo.value).toBe('2026-09-01');
   });
 
-  it('período fechado desabilita "Fechar apuração"', async () => {
-    mockObterRepasse.mockResolvedValueOnce({ ...REPASSE_ABERTO, periodo: { ...REPASSE_ABERTO.periodo, situacao: 'fechado' } });
+  // T22b (repasse-gera-movimento 4.5.4): o passo manual de fechar sumiu e gerar fica sempre disponível.
+  it('T22b: não existe "Fechar apuração"; "Gerar do repasse" está habilitado com a semana ABERTA e com a FECHADA', async () => {
+    mockObterRepasse.mockResolvedValue(REPASSE_ABERTO);
+    const { unmount } = render(<AdiantamentosRepassePage />);
+    await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Fechar apuração/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Gerar do repasse' })).toBeEnabled();
+    unmount();
+    mockObterRepasse.mockResolvedValue({ ...REPASSE_ABERTO, periodo: { ...REPASSE_ABERTO.periodo, situacao: 'fechado' } });
     render(<AdiantamentosRepassePage />);
     await waitFor(() => expect(screen.getByText('Joana Ribeiro')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /Fechar apuração/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Gerar do repasse' })).toBeEnabled();
   });
   // lancamento-externo 6.2.3 — as duas metades de FR-049 no nivel da PAGINA.
   it('lancamento-externo: quem so tem pagamentos_consultar VE o aviso (flag off + deducao) e NAO ve importar/fechar', async () => {

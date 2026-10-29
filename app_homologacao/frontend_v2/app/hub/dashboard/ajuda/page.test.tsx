@@ -22,9 +22,9 @@ describe('AjudaPage', () => {
       const esperado = avisos.filter((a) => a.bloco === 'aviso' && ({ importante: 'Importante', atencao: 'Atenção', dica: 'Dica' })[a.tipo] === rotulo).length;
       expect(screen.queryAllByText(rotulo, { selector: 'span' })).toHaveLength(esperado);
     }
-    // trilha: 6 passos numerados
+    // trilha: 5 passos numerados (repasse-gera-movimento fundiu "Fechar apuração" + "Gerar notas" em "Gerar do repasse")
     const trilha = blocos.find((b) => b.bloco === 'trilha');
-    expect(trilha && trilha.bloco === 'trilha' && trilha.passos).toHaveLength(6);
+    expect(trilha && trilha.bloco === 'trilha' && trilha.passos).toHaveLength(5);
     for (const p of trilha && trilha.bloco === 'trilha' ? trilha.passos : []) {
       expect(screen.getAllByText(p.titulo).length).toBeGreaterThan(0);
     }

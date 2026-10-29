@@ -260,6 +260,8 @@ item() { psql_t -tAc "SELECT i.valor_pago||'|'||i.saldo_anterior||'|'||i.lancame
 check "C1: repasse de A = R\$ 70,00; saldo_anterior 0 (COALESCE); lancamentos_externos -30,00 (conserva)" "$(item 2026-09-14 90000000001001)" "70.00|0.00|-30.00|70.00"
 check "C1: nenhum outro motorista afetado (B: 50,00 / 0 externos)" "$(item 2026-09-14 90000000000002)" "50.00|0.00|0.00|50.00"
 check "C14: empresa/motorista sem lancamento inalterado (lancamentos_externos = 0)" "$(item 2026-09-14 90000000000002 | cut -d'|' -f3)" "0.00"
+# repasse-gera-movimento T06 (invariante, 0118): sem `categorias_nota` NAO ha divisao -> nota_a_emitir NULL (nunca 0) e nenhum transporte no livro da nota
+check "T06 (0118): sem categorias_nota -> nota_a_emitir NULL, valor_nota NULL e transportado_nota 0 (nenhum transporte novo)" "$(psql_t -tAc "SELECT COALESCE(i.nota_a_emitir::text,'NULL')||'|'||COALESCE(i.valor_nota::text,'NULL')||'|'||i.transportado_nota FROM \"ApuracaoRepasseItem\" i JOIN \"ApuracaoRepasse\" a ON a.id=i.apuracao_id JOIN \"Entregador\" e ON e.id=i.entregador_id JOIN \"ContaMotorista\" c ON c.id=e.motorista_id WHERE a.periodo_inicio='2026-09-14' AND c.cnpj_prestador='90000000001001'")" "NULL|NULL|0.00"
 POS="$(psql_t -tAc "SELECT string_agg(e.nome||'|'||i.remanescente||'|'||i.valor_pago, E'\n' ORDER BY e.nome) FROM \"ApuracaoRepasseItem\" i JOIN \"Entregador\" e ON e.id=i.entregador_id")"
 check "C2: previa == fechamento, zero centavo de diferenca" "$PREVIA_A" "$POS"
 

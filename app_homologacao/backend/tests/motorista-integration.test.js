@@ -64,6 +64,16 @@ async function mockPostgrestRequest(path, method = 'GET', body = null) {
       // tests/hub-motorista-app-login.test.js#mockHubPostgrestRequest).
       if (key.startsWith('order') || key === 'limit' || key === 'select') continue;
       const field = key;
+      // `campo=gt.N` numerico — usado por `VALOR_EMITIVEL` ('valor=gt.0') em
+      // /movimento-aberto, /validar-nota e /notas-pendentes. Mock interpreta a
+      // query (nao e estatico): se a rota deixar de filtrar, a linha de valor 0
+      // volta e o teste falha. `Number()` cobre valor numerico e string ("300.00",
+      // o formato que o /upload grava). NULL nunca passa (`gt` em SQL e NULL).
+      if (val.startsWith('gt.')) {
+        const min = Number(val.slice('gt.'.length));
+        rows = rows.filter((r) => r[field] != null && Number(r[field]) > min);
+        continue;
+      }
       if (val.startsWith('in.(') && val.endsWith(')')) {
         const valores = val
           .slice('in.('.length, -1)
@@ -74,6 +84,19 @@ async function mockPostgrestRequest(path, method = 'GET', body = null) {
       }
       const value = val.replace(/^eq\./, '');
       rows = rows.filter((r) => String(r[field]) === String(value));
+    }
+    // `order=<campo>.desc|asc` — ANTES do limit, como o PostgREST. Sem isto o mock
+    // devolvia a ordem de INSERCAO e todo teste de "mais recente" com `limit=1`
+    // passava oco: /movimento-aberto e /validar-nota resolvem o movimento por
+    // `order=created_at.desc&limit=1`.
+    if (params.order) {
+      const [campo, dir] = String(params.order).split('.');
+      const sinal = dir === 'asc' ? 1 : -1;
+      rows.sort((a, b) => {
+        const x = a[campo] == null ? '' : a[campo];
+        const y = b[campo] == null ? '' : b[campo];
+        return x === y ? 0 : (x > y ? sinal : -sinal);
+      });
     }
     // limit
     if (params.limit) rows = rows.slice(0, parseInt(params.limit, 10));
@@ -643,6 +666,11 @@ describe('3.2 / 3.3 POST /motorista/validar-nota', () => {
       id: 102,
       cnpj_prestador: '55555555000100',
       mov_fechado: false,
+      // `valor` ERA omitido aqui (fixture sob-especificado: o teste mede a falha do
+      // serviço externo, não o valor). Com `VALOR_EMITIVEL` ('valor=gt.0') a linha
+      // sem valor deixa de ser movimento emitível e a rota devolveria 409 antes de
+      // chegar ao 502 — o filtro expôs a omissão, não um defeito da rota.
+      valor: 5000,
       nota_ok: null, // texto (URL), nunca boolean — ver seed do describe
       erro_validacao: null,
     });
@@ -933,5 +961,104 @@ describe('gorjeta Task 3.1 via HTTP — gorjeta no endpoint /movimento-aberto', 
     assert.equal(r.status, 200);
     assert.ok(r.body.movimento, 'movimento deve existir');
     assert.equal(r.body.movimento.gorjeta, null);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// dec-056 — Movimento SEM nota a emitir (valor 0) nao aparece para o motorista.
+// Caso de origem: geracao do repasse so-com-gorjeta (dec-054) grava valor 0 +
+// gorjeta > 0. Antes do filtro as duas rotas do app mostrariam "emita nota de
+// R$ 0,00", que o motorista nao tem como emitir.
+// ──────────────────────────────────────────────────────────────────────────────
+describe('dec-056 valor zero — /movimento-aberto e /validar-nota', () => {
+  const XML_VALIDO = `<?xml version="1.0" encoding="UTF-8"?><CompNfse><Nfse><InfNfse><Numero>1</Numero></InfNfse></Nfse></CompNfse>`;
+  const mpXml = (boundary = 'TEST_BOUNDARY_ZERO') => ({
+    body:
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="nota.xml"\r\n` +
+      `Content-Type: text/xml\r\n\r\n` +
+      XML_VALIDO +
+      `\r\n--${boundary}--\r\n`,
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  });
+
+  const movBase = {
+    mov_fechado: false,
+    dt_inicial: '2026-10-20',
+    dt_final: '2026-10-26',
+    nome: 'Movee',
+    cnpj_tomador: '88888888000100',
+    tribnac: null,
+    nota_ok: null,
+    erro_validacao: null,
+  };
+
+  before(() => {
+    resetDB();
+    // A) so-gorjeta por deducao (dec-054): nota R$ 0, gorjeta paga
+    DB.EnvioMassa.push({ ...movBase, id: 900, cnpj_prestador: '55555555000100', valor: 0, gorjeta: '18.00' });
+    // B) fluxo normal, intocado
+    DB.EnvioMassa.push({ ...movBase, id: 901, cnpj_prestador: '55555555000200', valor: '430.00', gorjeta: '12.00' });
+    // C) valor 0 MAIS RECENTE + valor > 0 anterior: a tela e o envio tem de
+    //    resolver a MESMA linha (senao a nota cai num movimento que a tela nao mostra)
+    DB.EnvioMassa.push({ ...movBase, id: 903, cnpj_prestador: '55555555000300', valor: 0, gorjeta: '9.00', created_at: '2026-10-27T10:00:00Z' });
+    DB.EnvioMassa.push({ ...movBase, id: 902, cnpj_prestador: '55555555000300', valor: '200.00', created_at: '2026-10-20T10:00:00Z' });
+  });
+
+  test('movimento de valor 0 (so gorjeta) NAO aparece em /movimento-aberto', async () => {
+    const tok = makeToken({ cnpjPrestador: '55555555000100' });
+    const r = await request('GET', '/motorista/movimento-aberto', { cookies: `accessToken=${tok}` });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.movimento, null, 'nota R$ 0 nunca e pedida ao motorista');
+  });
+
+  test('nao-regressao: movimento com valor > 0 aparece em /movimento-aberto com a MESMA forma', async () => {
+    const tok = makeToken({ cnpjPrestador: '55555555000200' });
+    const r = await request('GET', '/motorista/movimento-aberto', { cookies: `accessToken=${tok}` });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.movimento);
+    // Forma da resposta congelada (mapper de routes/motorista.js): nenhuma chave
+    // somiu nem nasceu com o filtro.
+    assert.deepEqual(Object.keys(r.body.movimento).sort(), [
+      'cnpjPrestador', 'cnpjTomador', 'dtFinal', 'dtInicial', 'erroValidacao',
+      'gorjeta', 'id', 'nome', 'notaOk', 'tomador', 'tribnac', 'valor',
+    ]);
+    assert.equal(r.body.movimento.id, 901);
+    assert.equal(r.body.movimento.valor, '430.00');
+    assert.equal(r.body.movimento.gorjeta, '12.00');
+  });
+
+  test('valor 0 mais recente nao esconde o movimento emitivel anterior', async () => {
+    const tok = makeToken({ cnpjPrestador: '55555555000300' });
+    const r = await request('GET', '/motorista/movimento-aberto', { cookies: `accessToken=${tok}` });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.movimento);
+    assert.equal(r.body.movimento.id, 902);
+  });
+
+  test('/validar-nota nao aceita nota quando o unico movimento aberto e de valor 0', async () => {
+    const tok = makeToken({ cnpjPrestador: '55555555000100' });
+    const r = await request('POST', '/motorista/validar-nota', {
+      cookies: `accessToken=${tok}`,
+      multipart: mpXml(),
+    });
+    assert.equal(r.status, 409);
+    assert.match(r.body.error, /Nenhum movimento em aberto/);
+  });
+
+  test('/validar-nota resolve o MESMO movimento que a tela mostra (902, nao o 903 de valor 0)', async () => {
+    _axiosMockResponse = { data: [{ valid: true, details: {} }] };
+    axiosMock.post = async () => {
+      const row = DB.EnvioMassa.find((m) => m.id === 902);
+      if (row) { row.nota_ok = 'https://fake/nota-902.xml'; row.erro_validacao = ''; }
+      return _axiosMockResponse;
+    };
+    const tok = makeToken({ cnpjPrestador: '55555555000300' });
+    const r = await request('POST', '/motorista/validar-nota', {
+      cookies: `accessToken=${tok}`,
+      multipart: mpXml('TEST_BOUNDARY_ZERO2'),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(DB.EnvioMassa.find((m) => m.id === 903).nota_ok, null, 'o movimento oculto nunca recebe nota');
   });
 });

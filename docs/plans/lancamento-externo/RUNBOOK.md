@@ -513,7 +513,7 @@ e reenvie com o valor certo. Semana fechada: não há correção por tela — de
 
 ## 5 · Fechar a apuração
 
-Só depois do passo 4 inteiro. Aba Repasse → **"Fechar apuração"**.
+Só depois do passo 4 inteiro. Aba Repasse → **"Gerar do repasse"** (desde a frente `repasse-gera-movimento` o botão "Fechar apuração" não existe mais: o mesmo clique fecha a semana e gera as notas; ver `docs/plans/repasse-gera-movimento/RUNBOOK-DEPLOY.md`).
 
 O diálogo de confirmação repete o aviso de flag, se houver. **Fechar é
 irreversível**: `ApuracaoRepasse` é imutável por desenho (`REVOKE UPDATE,
@@ -542,8 +542,8 @@ WHERE a.periodo_inicio = DATE '2026-10-19';
 devolva ao agente — o retrato já está congelado e a correção é de processo, não
 de `UPDATE`.
 
-Depois: seguir o ciclo normal do repasse (gerar notas, lote de pagamento).
-Lembrete do ciclo: **"Gerar notas da semana" é o 2º passo e PEDE a nota**, não é
+Depois: seguir o ciclo normal do repasse (lote de pagamento; as notas já saíram no "Gerar do repasse").
+Lembrete do ciclo: **"Gerar do repasse" é o 1º passo e PEDE a nota**, não é
 o que paga; e `confirmar` exige lote **EXPORTADO**, que só acontece no 1º
 download — **baixe antes de confirmar**.
 

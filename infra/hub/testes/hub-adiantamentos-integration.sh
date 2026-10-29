@@ -2618,6 +2618,72 @@ SQL
 }
 check "0086 A3: outro motorista NÃO vê a apuração alheia" "$(outro_motorista_sem_fechado)" "0"
 
+# --- repasse-gera-movimento FASE 3/5 (T14-T17, S1): concorrência REAL com SOBREPOSIÇÃO ---
+# Sem latch os dois psql podem rodar em série e o teste passa COM e SEM a correção (achado do
+# checklist). Aqui a sessão A segura a transação aberta (pg_sleep) e a B entra DURANTE esse
+# intervalo: o tempo de B medido >= 1s PROVA a sobreposição (B bloqueou esperando A).
+# Modela o laço de S1 em plpgsql: ordem NOVA = alocar id -> trilha(UNIQUE) -> EnvioMassa com o id;
+# ordem ANTIGA (controle negativo) = EnvioMassa com id novo -> trilha depois.
+APUR_ID="$(psql_t -tAc "SELECT id FROM \"ApuracaoRepasse\" ORDER BY id LIMIT 1;" | tr -d '[:space:]')"
+ENTR_ID="$(psql_t -tAc "SELECT id FROM \"Entregador\" ORDER BY id LIMIT 1;" | tr -d '[:space:]')"
+psql_t -c "INSERT INTO \"Empresa\" (id, nome_empresa, email, cnpj) VALUES (6, 'Movee S1', 'movee.s1@example.test', '12345678000199') ON CONFLICT (id) DO NOTHING;" >/dev/null
+psql_t -c "DELETE FROM \"ApuracaoRepasseMovimento\" WHERE apuracao_id=$APUR_ID AND entregador_id=$ENTR_ID;" >/dev/null
+psql_t -c "DELETE FROM \"EnvioMassa\" WHERE cnpj_prestador='99900000000191';" >/dev/null
+
+corrida_s1() { # corrida_s1 <ordem: nova|antiga> -> imprime "<n_trilha>|<n_enviomassa>|<ms_da_segunda>"
+  local ordem="$1" sql
+  if [ "$ordem" = "nova" ]; then
+    sql="DO \$\$ DECLARE v bigint; BEGIN
+      v := hub_repasse_alocar_envio_id();
+      INSERT INTO \"ApuracaoRepasseMovimento\" (apuracao_id, entregador_id, id_empresa, envio_massa_id, valor, gorjeta)
+        VALUES ($APUR_ID, $ENTR_ID, 6, v, 10, 0);
+      PERFORM pg_sleep(2);
+      INSERT INTO \"EnvioMassa\" (id, nome, cnpj_prestador, valor, id_empresa, mov_fechado, dt_inicial, dt_final)
+        VALUES (v, 'S1', '99900000000191', 10, 6, false, current_date, current_date);
+    EXCEPTION WHEN unique_violation THEN NULL; END \$\$;"
+  else
+    sql="DO \$\$ BEGIN
+      INSERT INTO \"EnvioMassa\" (nome, cnpj_prestador, valor, id_empresa, mov_fechado, dt_inicial, dt_final)
+        VALUES ('S1', '99900000000191', 10, 6, false, current_date, current_date);
+      PERFORM pg_sleep(2);
+      BEGIN
+        INSERT INTO \"ApuracaoRepasseMovimento\" (apuracao_id, entregador_id, id_empresa, envio_massa_id, valor, gorjeta)
+          VALUES ($APUR_ID, $ENTR_ID, 6, 0, 10, 0);
+      EXCEPTION WHEN unique_violation THEN NULL; END;
+    END \$\$;"
+  fi
+  psql_relaxed -c "$sql" >"$TMP/s1a.out" 2>&1 &
+  local pa=$!
+  sleep 0.7
+  local t0 t1; t0=$(date +%s%N)
+  psql_relaxed -c "$sql" >"$TMP/s1b.out" 2>&1
+  t1=$(date +%s%N)
+  wait $pa
+  local nt ne
+  cat "$TMP/s1a.out" "$TMP/s1b.out" | grep -iE 'error|erro' | sort -u | sed 's/^/    [s1 '"$ordem"'] /' >&2
+  nt="$(psql_t -tAc "SELECT count(*) FROM \"ApuracaoRepasseMovimento\" WHERE apuracao_id=$APUR_ID AND entregador_id=$ENTR_ID;" | tr -d '[:space:]')"
+  ne="$(psql_t -tAc "SELECT count(*) FROM \"EnvioMassa\" WHERE cnpj_prestador='99900000000191';" | tr -d '[:space:]')"
+  echo "$nt|$ne|$(( (t1 - t0) / 1000000 ))"
+}
+limpa_s1() {
+  psql_t -c "DELETE FROM \"ApuracaoRepasseMovimento\" WHERE apuracao_id=$APUR_ID AND entregador_id=$ENTR_ID;" >/dev/null
+  psql_t -c "DELETE FROM \"EnvioMassa\" WHERE cnpj_prestador='99900000000191';" >/dev/null
+}
+
+R_NOVA="$(corrida_s1 nova)"; limpa_s1
+check "S1/T14-T17: ordem NOVA, duas conclusões sobrepostas -> 1 linha de trilha e 1 EnvioMassa" "${R_NOVA%|*}" "1|1"
+check "S1/T14-T17: a sobreposição foi REAL (a segunda esperou a primeira >= 1000 ms)" "$([ "${R_NOVA##*|}" -ge 1000 ] && echo sim || echo "nao(${R_NOVA##*|}ms)")" "sim"
+R_ANT="$(corrida_s1 antiga)"; limpa_s1
+check "S1/controle negativo: ordem ANTIGA (EnvioMassa antes da trilha) DUPLICA o movimento (2 EnvioMassa)" "${R_ANT%|*}" "1|2"
+
+# alocação de id: N chamadas simultâneas -> ids todos distintos
+for i in 1 2 3 4 5 6; do
+  psql_relaxed -tAc "SELECT hub_repasse_alocar_envio_id();" >"$TMP/alloc$i.out" 2>&1 &
+done
+wait
+N_IDS="$(cat "$TMP"/alloc[1-6].out | grep -E '^[0-9]+$' | sort -u | wc -l | tr -d '[:space:]')"
+check "S1: 6 alocações simultâneas de id de EnvioMassa -> 6 ids distintos" "$N_IDS" "6"
+
 echo ""
 echo "===================================================================="
 echo "RESULTADO: $fails falha(s)"

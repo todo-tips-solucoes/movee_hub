@@ -12,6 +12,11 @@ const MOTIVOS = {
   SEM_CNPJ: 'Motorista sem CNPJ no hub — não há como emitir nota.',
   SEM_DIVISAO: 'A apuração foi fechada antes de "entra na nota" ser configurado.',
   VALOR_ZERO: 'Base da nota é zero — nada a emitir.',
+  // P4 (repasse-gera-movimento): `nota_a_emitir` é a nota LÍQUIDA da dedução do pago por fora, congelada no
+  // fechamento (0118). Item com divisão configurada mas sem ela foi fechado antes da 0118: usar `valor_nota` seria
+  // emitir a nota BRUTA — recusa fail-closed, nunca fallback.
+  NOTA_LIQUIDA_AUSENTE:
+    'A apuração foi fechada antes de a nota líquida existir — gerar agora emitiria a nota sem abater o que foi pago por fora. Resolva com o financeiro.',
   JA_GERADO: 'O hub já gerou movimento para este motorista nesta apuração.',
   MOVIMENTO_ABERTO: 'O motorista já tem movimento aberto (provavelmente da planilha).',
   // F3/FR-014/FR-020: total (semana + saldo carregado) abaixo do piso mínimo
@@ -151,10 +156,21 @@ function planejarGeracao(itens, contasPorEntregador, jaGerados, cnpjsComMoviment
     // `transportado_nota`/`_fora` para a PRÓXIMA nota — somá-lo também nesta
     // duplicaria o valor quando ele finalmente for pago. A nota desta semana
     // negativa é só a produção nota-elegível dela mesma.
+    //
+    // 0118/P4: o `valor` da nota é `nota_a_emitir` — JÁ líquido da dedução do pago por fora e JÁ com o saldo de nota
+    // carregado (ou sem ele, em semana de remanescente negativo: a regra de dec-055 vive agora no fechamento).
+    // `valor_nota` bruto nunca é usado como valor; a gorjeta segue a regra de hoje.
+    if (item.nota_a_emitir === null || item.nota_a_emitir === undefined) { recusar('NOTA_LIQUIDA_AUSENTE'); continue; }
     const negativo = num(item.remanescente) < 0;
-    const valor = num(item.valor_nota) + (negativo ? 0 : num(item.saldo_anterior_nota));
+    const valor = num(item.nota_a_emitir);
     const gorjeta = num(item.valor_fora_nota) + (negativo ? 0 : num(item.saldo_anterior_fora));
-    if (valor <= 0) { recusar('VALOR_ZERO'); continue; }
+    // Decisão do operador (28/10, D3): nota zerada POR DEDUÇÃO do pago por fora, com gorjeta, gera o movimento só
+    // com a gorjeta (nota R$ 0, "não emite"). `base` = a mesma base_nota do fechamento (0118:213): se ela era
+    // positiva, o zero veio da dedução; se já era zero, o motorista não produziu nota e VALOR_ZERO segue certo.
+    // Sem gorjeta não há nada a pagar nem a emitir: VALOR_ZERO também.
+    const baseNota = num(item.valor_nota) + (negativo ? 0 : num(item.saldo_anterior_nota));
+    const soGorjetaPorDeducao = valor <= 0 && baseNota > 0 && gorjeta > 0;
+    if (valor <= 0 && !soGorjetaPorDeducao) { recusar('VALOR_ZERO'); continue; }
 
     // A trilha vem antes da guarda de movimento aberto de propósito: se o hub
     // já gerou e o movimento foi fechado depois, o motivo certo é JA_GERADO,
@@ -185,7 +201,12 @@ function planejarGeracao(itens, contasPorEntregador, jaGerados, cnpjsComMoviment
         dt_inicial: contexto.periodoInicio,
         dt_final: contexto.periodoFim,
         enviado: 'off',                          // mesmo estado inicial do upload
-        mov_fechado: false,
+        // so-gorjeta nasce FECHADO: nao ha nota a emitir, logo nada a esperar do motorista. Aberto, a linha travava a
+        // geracao da semana seguinte daquele CNPJ (a guarda de `abertos` nao filtra valor) e o app a escondia
+        // (VALOR_EMITIVEL), de modo que o motorista nao tinha como fecha-la. O lote NAO depende deste campo (0109/0119
+        // nao filtram mov_fechado, medido). Custo declarado: a correcao pela tela pula movimento fechado
+        // (envio-massa-correcao.js:196 => 409 pulado_mov_fechado), entao a saida de D11 para esta linha e APAGAR.
+        mov_fechado: soGorjetaPorDeducao,
         mensagem1: renderizarMensagem(contexto.mensagem1Modelo, dados),
         mensagem2: renderizarMensagem(contexto.mensagem2Modelo, dados),
       },
@@ -195,4 +216,58 @@ function planejarGeracao(itens, contasPorEntregador, jaGerados, cnpjsComMoviment
   return { aGerar, recusados };
 }
 
-module.exports = { planejarGeracao, entregadoresComMovimentoEmSemanaRetida, MOTIVOS };
+
+// ─────────────────────────────────────────────────────────────────────────
+// repasse-gera-movimento — pendências de adiantamento (D5/FR-008/FR-009) e textos de falha do S1.
+// Lógica pura: a rota busca os dados e só repassa para cá.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Os 6 status do RPC `hub_adiantamento_repasse_fechar` (0117:759-771) — pendência de adiantamento na semana. */
+const STATUS_ADIANTAMENTO_PENDENTE = ['AGUARDANDO_CORTE', 'AGUARDANDO_PRODUCAO', 'LIBERADA', 'EM_LOTE', 'EXPORTADA', 'FALHOU'];
+/** Teto da lista de motoristas no 409 (FR-009): o resto vira contagem. */
+const CAP_MOTORISTAS_PENDENTES = 20;
+
+/**
+ * Corpo do `409 ADIANTAMENTOS_PENDENTES`. Só contagens, `entregadorId`, nome e status — NUNCA CNPJ, telefone, conta
+ * ou valor (gate de privacidade de 01/10). `solicitacoes` = linhas {entregador_id, status}; ordem determinística
+ * (status na ordem do RPC, depois entregador) para o teste e o financeiro verem sempre a mesma lista.
+ */
+function montarPendenciasAdiantamento(solicitacoes, nomePorEntregador = new Map()) {
+  const linhas = (solicitacoes || []).filter((l) => STATUS_ADIANTAMENTO_PENDENTE.includes(l.status));
+  const porStatus = {};
+  for (const l of linhas) porStatus[l.status] = (porStatus[l.status] || 0) + 1;
+  const itens = linhas
+    .map((l) => ({ entregadorId: l.entregador_id, status: l.status }))
+    .sort((a, b) => STATUS_ADIANTAMENTO_PENDENTE.indexOf(a.status) - STATUS_ADIANTAMENTO_PENDENTE.indexOf(b.status)
+      || a.entregadorId - b.entregadorId);
+  const visiveis = itens.slice(0, CAP_MOTORISTAS_PENDENTES)
+    .map((i) => ({ entregadorId: i.entregadorId, nome: nomePorEntregador.get(i.entregadorId) ?? null, status: i.status }));
+  return { total: linhas.length, porStatus, motoristas: visiveis, motoristasOmitidos: Math.max(0, itens.length - CAP_MOTORISTAS_PENDENTES) };
+}
+
+/** Os ids que serão exibidos (para buscar só esses nomes — nunca os 116). */
+function idsVisiveisPendentes(solicitacoes) {
+  return montarPendenciasAdiantamento(solicitacoes).motoristas.map((m) => m.entregadorId);
+}
+
+/** valor/gorjeta da reserva vs recomputado: igualdade em centavos (numeric do PostgREST vem como número ou texto). */
+function mesmoDinheiro(a, b) {
+  return Math.round(num(a) * 100) === Math.round(num(b) * 100);
+}
+
+/** Textos VERDADEIROS por modo de falha do laço de geração (plan.md §S1): "nada foi gravado" só quando é verdade. */
+const TEXTO_FALHA = {
+  NADA_GRAVADO: 'Não foi possível criar o movimento; nada foi gravado para este motorista.',
+  RESERVA_SEM_MOVIMENTO:
+    'A reserva foi registrada e o movimento NÃO foi criado: este motorista não recebeu nota. '
+    + 'Tentar de novo é seguro — a próxima geração conclui este movimento com a mesma reserva.',
+  JA_RESERVADO:
+    'Outro acionamento já reservou este motorista agora. Se o movimento não aparecer no Envio em Massa, acione a geração de novo.',
+  RESERVA_DIVERGENTE:
+    'A reserva existente tem valor/gorjeta diferentes dos calculados agora — o movimento não foi concluído. Resolva com o financeiro antes de gerar.',
+};
+
+module.exports = {
+  planejarGeracao, entregadoresComMovimentoEmSemanaRetida, MOTIVOS,
+  STATUS_ADIANTAMENTO_PENDENTE, CAP_MOTORISTAS_PENDENTES, montarPendenciasAdiantamento, idsVisiveisPendentes, mesmoDinheiro, TEXTO_FALHA,
+};

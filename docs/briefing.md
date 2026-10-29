@@ -1,143 +1,120 @@
-# Project Briefing: importar lançamentos pagos por fora do sistema
+# Project Briefing: o repasse gera o movimento no Envio em Massa
 
-> Frente corrente, aberta em 2026-10-22 a pedido do financeiro. Detalhe e decisões
-> em `docs/plans/lancamento-externo/BRIEFING.md`.
+> Frente corrente, aberta em 2026-10-28. Detalhe, decisões e medições em
+> `docs/plans/repasse-gera-movimento/BRIEFING.md`.
 
 ## 1. Visão e Propósito
 
-O financeiro paga valores aos motoristas **por fora do sistema** (adiantamento feito na
-mão, vale, acerto) e hoje **não tem como informar isso ao hub**. O resultado é que o
-repasse semanal paga o valor cheio, sem descontar o que já saiu do caixa.
+A frente anterior (`lancamento-externo`) está em produção, validada com dinheiro real, e
+**sem efeito**: a dedução dos valores pagos por fora só acontece no **fechamento da
+apuração**, e essa operação nunca fechou uma apuração na história do sistema — ela paga
+por **planilha** no Envio em Massa.
 
-Pedido do operador (22/10): *"o pessoal do financeiro gostaria de um layout de arquivo e
-uma forma de subir os adiantamentos que foram feitos de forma manual… para que os
-adiantamentos possam ser deduzidos do repasse semanal da semana que vem"*.
+Esta frente liga a dedução ao caminho que a operação de fato usa: o repasse passa a
+**preencher o Envio em Massa**, gerando o movimento com o valor da nota já líquido.
 
-⚠️ **A feature não é só de adiantamento.** Decisão do operador na mesma conversa: *"posso
-usar essa feature para inputar outros valores pagos por fora"*. Por isso o modelo nasce
-genérico, com **tipo** e **sinal derivado do tipo**, e `ADIANTAMENTO` é o primeiro tipo.
+Pedido do operador (28/10): *"ao invés de fechar a planilha, o financeiro deve gerar
+movimento para o recebimento de nota na tela de envioemmassa, inserindo valor para a
+emissão da nota do motorista. o fluxo depois disso deve funcionar como já funciona hoje.
+a única alteração é a forma como o envio em massa é preenchido."*
 
-### 🔴 O prazo real é o FECHAMENTO, não o pagamento
+### 🟢 O mecanismo já existe — é desacoplamento, não construção
 
-O pagamento da semana 19–25/10 sai na **quarta, 28/10**. Mas a dedução acontece no
-**fechamento da apuração**, que grava um retrato **imutável** em `ApuracaoRepasseItem`
-(`0098:218-222`). Fechada a semana, o valor está congelado e **não deduz mais**.
+`backend/lib/adiantamento-geracao-movimento.js` já decide quem vira movimento e monta a
+linha; `routes/hub-adiantamentos.js:2177` já grava na `EnvioMassa` com idempotência; o
+botão "Gerar notas da semana" já está na tela. **Três pontos travam:**
 
-O fechamento só é liberado depois do corte do dia seguinte ao fim da semana, então a
-janela real para lançar é **26/10 (segunda) até o fechamento**, antes de 28/10.
+1. `routes/hub-adiantamentos.js:2193` — recusa com `APURACAO_NAO_FECHADA`
+2. `frontend_v2/.../repasse/page.tsx:251` — botão bloqueado por `periodoAberto`
+3. `frontend_v2/.../repasse/page.tsx:239` — botão manual "Fechar apuração", que sai
 
 ## 2. Usuários e Stakeholders
 
 | Quem | Como usa |
 |---|---|
-| **Financeiro** | sobe a planilha dos valores pagos por fora antes de fechar a apuração. Já tem a permissão `adiantamentos.pagamento_confirmar` (migration 0115). |
-| **Motorista** | é o efeito final: o repasse dele passa a descontar o que já recebeu, em vez de pagar duas vezes. |
+| **Financeiro** | Confere a prévia do repasse e clica em gerar; as linhas aparecem no Envio em Massa com o valor da nota. Já tem a permissão `adiantamentos.pagamento_confirmar` |
+| **Motorista** | Efeito final: recebe a mensagem e emite nota pelo valor líquido do que já recebeu por fora, em vez de receber duas vezes |
 
 ## 3. Escopo
 
-### MVP (Essencial)
+### MVP (essencial)
 
-1. **Planilha XLSX de 5 colunas** (contrato fechado em §7), com cabeçalho conferido.
-2. **Tabela nova** de lançamento externo, genérica (tipo + sinal), sem tocar nos CHECKs
-   do fluxo vivo do app.
-3. **A dedução passa a somar as duas fontes** no fechamento (`0098`) e na prévia (`0100`).
-4. **Botão + diálogo na aba Repasse** que já existe (aprovado pelo operador).
-5. **Idempotência** por `empresa + CNPJ + data do pagamento + tipo`.
-6. **Recusa por linha**, nomeando o motivo, com contagem agregada.
+1. A rota de geração **fecha a apuração se ela não existir**, na mesma transação.
+2. A dedução do pago por fora sai da **parte da nota**; o excedente vira **saldo** para a
+   semana seguinte.
+3. **Recusa com diagnóstico** (quantos, status, nomes) quando há adiantamento pendente.
+4. Botão Gerar sem exigir período fechado; botão "Fechar apuração" manual **removido**.
+5. Botão **"Gerar do repasse"** também na tela de Envio em Massa.
+6. Ajuda atualizada nas duas centrais.
 
 ### Fora de Escopo
 
-- Página nova ou aba nova (o operador aprovou **só** o botão + diálogo, na aba Repasse
-  que já existe).
-- **Editar** lançamento pela tela — corrige-se excluindo e reenviando, com a semana aberta.
-- Reabrir semana fechada (`ApuracaoRepasse` é imutável por desenho).
-- Lançar valor para empresa fora do grupo Movee (o fechamento é `id_empresa = 6`).
-
-⚠️ **Emenda de 2026-10-23 (rodada 3).** A **listagem** dos lançamentos importados e a
-**exclusão** de um lançamento **deixaram de estar fora de escopo**: o operador autorizou
-as duas como diálogo da aba Repasse (FR-056/FR-057), e o código as entrega. O motivo é
-operacional — sem listar não há como achar o lançamento errado antes do fechamento, e
-sem excluir não há como corrigi-lo, já que editar continua fora. Quem conferir o escopo
-por este arquivo tem de ler esta emenda junto: a lista acima é o escopo de 22/10.
+- Qualquer mudança **depois** do movimento criado: disparo, emissão, validação de XML e
+  "Fechar movimento" seguem exatamente como hoje.
+- O upload de planilha do Envio em Massa.
+- Botão de desfazer a geração — a correção é pela tela de Envio em Massa, que já permite
+  editar com motivo ou apagar.
+- O app do motorista (a parcela "pago por fora" no extrato já está em produção).
 
 ## 4. Prioridades e Trade-offs
 
-**Prazo manda, mas não acima do dinheiro.** A entrega toca a função que calcula o repasse
-(`hub_adiantamento_repasse_fechar`), que é o caminho do dinheiro. O trade-off aceito pelo
-operador: mexer nessa função em vez de afrouxar os CHECKs de `AdiantamentoSolicitacao` —
-porque afrouxar enfraqueceria o fluxo do app para sempre, e a função pode ser alterada
-com teste e controle negativo.
+**O caminho do dinheiro manda.** A entrega toca a rota que cria movimento que gera nota
+fiscal. O trade-off aceito: fechar a apuração **automaticamente** (em vez de pedir ao
+operador) para preservar o retrato imutável e o saldo transportado que já funcionam, ao
+custo de a apuração passar a existir sem ninguém a ter pedido explicitamente.
 
 ## 5. Restrições
 
-### Medido no código (não supor)
+### Medido no código, não suposto
 
-- **A dedução hoje**: CTE `pagas` em `0098:218-222` soma `valor_bruto` de
-  `AdiantamentoSolicitacao` com `status IN ('PAGA','EXPORTADA')` e
-  `data_producao BETWEEN inicio AND inicio+6`. A prévia é `0100:81-89`.
-- **`remanescente = creditos - adiantamentos - debitos`**, e a flag
-  `desconto_adiantamentos` é `DEFAULT true` (`0066:69`).
-- ⚠️ **`debitos` NÃO serve** para isto: vem de `FaturamentoLancamento` com
-  `tipo='Debito'` (lançamentos da EntreGô) e a flag `desconto_debitos` é `DEFAULT false`.
-- **Saldo mínimo** `repasse_valor_minimo` `DEFAULT 5.50` (`0098:87`), com a regra **paga
-  tudo ou retém tudo** e o CHECK `apuracaorepasseitem_saldo_conserva` (`0098:71-81`)
-  garantindo `remanescente + saldo_anterior = valor_pago + valor_transportado`.
-- **Obstáculos que levaram à tabela nova**: `AdiantamentoSolicitacao` tem NOT NULL em
-  `conta_motorista_id`, `aceite_texto_sha256`, `configuracao_id`; CHECK
-  `data_producao = data_solicitacao - 1`; CHECK de `PAGA` exigindo `conta_bancaria_id` e
-  `valor_liquido > 0`; e UNIQUE de 1 por motorista/dia.
-- **RLS**: `AdiantamentoSolicitacao` tem RLS com policy só de SELECT por escopo
-  (`0066:366`); escrita passa por `SECURITY DEFINER`. A tabela nova segue o mesmo padrão.
-- **A semana é configurável**: `apuracao_dia_inicio` (0-6, `0066:92`), fim sempre
-  `inicio + 6`, e o trigger `hub_apuracao_repasse_valida_janela` (`0086:35-68`) recusa
-  `PERIODO_DESALINHADO`. ⚠️ O valor vigente em produção **só o banco sabe** — pendência
-  do operador (§8).
+- `ApuracaoRepasse` tem **0 linhas** em 2026-10-28; `LancamentoExterno`, **0**.
+- **116** adiantamentos pendentes na semana 19–25/10 (50 `LIBERADA`, 66 `EXPORTADA`) —
+  com a decisão D5, eles **recusam** a geração até serem resolvidos.
+- A divisão `valor_nota` / `valor_fora_nota` vem da config `categorias_nota`; quando ela
+  é nula, os dois campos vêm nulos e o motivo `SEM_DIVISAO` já existe.
+- ⚠️ A `EnvioMassa` **não tem RLS alguma** — o filtro de `id_empresa` na query é a única
+  proteção de tenant.
+- ⚠️ `hub_adiantamento_repasse` depende da claim de escopo do JWT: consulta sem ela
+  devolve **zero linhas** e parece defeito.
+- ⚠️ `mensagem1_modelo` é **NULL** nas empresas do `hub_homolog` — teste do caminho feliz
+  exige fixture própria.
 
 ### Técnicas
 
-- **Modelo mais próximo**: o retorno da Transfeera (`lib/adiantamento-retorno-transfeera.js`),
-  entregue hoje. Reusar `lerXlsx`, `conferirTetoZip`, `paraCentavos`, o padrão
-  `express.raw` com mime de XLSX, e o diálogo `adiantamento-importar-retorno-dialog.tsx`
-  como molde. ⚠️ **Ele está acoplado a `loteId`** — o molde serve, o componente não é
-  reutilizável como está.
-- ⚠️ **`express.json()` global de 100 KB roda antes do router**: o parser vai na rota.
-- ⚠️ **`paraCentavos('1.234,56')` dava NaN** e ganhou ramo para milhar BR hoje; `"1.234"`
-  (ponto sem decimais) é **ambíguo** e recusado com `VALOR_AMBIGUO`.
-- ⚠️ A resposta **nunca** devolve CNPJ nem nome: só contagem por motivo (gate owasp de
-  01/10, comentário em `hub-adiantamentos.js:1517-1523`).
+- Node 20 + Express sem ORM; PostgREST com `SECURITY DEFINER` e `REVOKE` antes do `GRANT`.
+- `express.json()` global de 100 KB roda antes do router — parser vai na rota.
+- Migration nova só se necessária; se houver, série `infra/hub/migrations/NNNN_*.sql`,
+  **nunca** editar migration aplicada.
 
 ## 6. Stack Técnica
 
-Node 20 + Express (sem ORM) · PostgreSQL via **PostgREST** com função `SECURITY DEFINER` ·
-**SheetJS (`xlsx`)**, já dependência · Next.js 16 App Router + React · Tailwind 4 + Base UI
-+ shadcn · testes `node --test` (backend), **vitest** (frontend), **Playwright** (E2E).
+Node 20 + Express · PostgreSQL via PostgREST · Next.js 16 App Router + React ·
+Tailwind 4 + Base UI + shadcn · `node --test` (backend), **vitest** (frontend_v2),
+**Playwright** (E2E do hub).
 
-Skills de consulta à documentação oficial, a usar durante o desenvolvimento: `xlsx`,
-`postgresql` / `postgres-best-practices`, `nodejs-backend-patterns`,
+Skills de consulta: `postgresql` / `postgres-best-practices`, `nodejs-backend-patterns`,
 `nextjs-app-router-patterns`, `tailwind-patterns`, `vitest-skill`, `typescript-pro`.
 
 ## 7. Qualidade e Padrões
 
-- **Deduplicação acima de tudo**: procurar antes de escrever. O leitor de XLSX, o teto de
-  ZIP e a conversão de valor **já existem** e devem ser reusados, não reimplementados.
-- **Escalabilidade e performance**: a dedução entra numa função que roda sobre a semana
-  inteira da empresa; o join novo precisa de índice e de `EXPLAIN` medido.
-- **Segurança**: arquivo vem de fora (cabeçalho por contrato, tetos de bytes/linhas/ZIP);
-  `SECURITY DEFINER` com `REVOKE` antes do `GRANT`; RLS por escopo; nenhum dado de
-  terceiro na resposta.
-- **Controle negativo obrigatório** em cada correção, com os testes **nomeados** e a
-  prova de que a reversão foi aplicada **antes** de medir.
-- **Gates com números**: backend `node --test` (baseline a medir no início), `tsc`,
-  `vitest`, `next build`, lint contra a baseline, driver
-  `hub-adiantamentos-integration.sh` (hoje **231 PASS / 0 FAIL**).
+- **Deduplicação acima de tudo**: o mecanismo existe. Procurar antes de escrever;
+  reusar `planejarGeracao`, os `MOTIVOS` e a trilha de idempotência, não reimplementar.
+- **Preferir restringir a generalizar** — na frente anterior, 4 de 15 correções criaram
+  defeito novo, e as duas mais elegantes foram as mais caras.
+- **Controle negativo obrigatório** em cada correção, com testes **nomeados** e a prova de
+  que a reversão foi aplicada **antes** de medir.
+- **Teste que passa com e sem a mudança é achado**, não cobertura.
+- **Gates com números**: backend `node --test`, `tsc`, vitest, lint contra a baseline, e
+  os drivers de integração do hub.
 
 ## 8. Visão de Futuro
 
-Com `tipo` e sinal no modelo, o segundo tipo de valor pago por fora entra por migration de
-uma linha, sem redesenho — era a razão de o operador recusar uma tabela só de adiantamento.
+Com o repasse preenchendo o Envio em Massa, a planilha deixa de ser o único caminho e a
+dedução automática passa a alcançar o fluxo real. O fechamento manual da apuração fica
+disponível no código para quem um dia precisar do retrato sem gerar nota.
 
 ## Itens a Definir
 
-**Um só, e não bloqueia o desenho** (a função lê da config; só a validação do período
-depende dele): o valor vigente de `apuracao_dia_inicio` em produção. Se for `1` (segunda),
-a semana 19–25/10 está alinhada. O agente **não acessa produção** — pendência do operador.
+**Nenhum.** As 12 decisões de desenho foram tomadas pelo operador antes do início, para
+que o desenvolvimento corra sem interrupção — a lista completa está na §4 de
+`docs/plans/repasse-gera-movimento/BRIEFING.md`.
