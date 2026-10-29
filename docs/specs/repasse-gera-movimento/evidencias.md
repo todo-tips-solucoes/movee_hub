@@ -360,3 +360,40 @@ backend **2182/0** (+3 testes) · `test:hub:unit` **1448/0** · vitest **992/0**
 **126/0** · `tsc` limpo nos dois · lint **28 (5 erros/23 avisos)** = baseline exata · driver nota
 líquida **39/0** · driver adiantamentos **0 falhas** · driver lote **91/0** · `package-lock.json`
 sem diff · `gitleaks protect --staged` **0 leaks**.
+
+## E2E de browser — RODOU em 2026-10-29 (15/15 × 3 rodadas)
+
+Desbloqueado quando o operador rodou `~/liberar-disco-PASSO0.sh --aplicar`: disco **19 → 21 GiB**
+(ganho real **1.702 MB**; 3 imagens removidas, todas confirmadas no registry e reversíveis por
+`pull`). A guarda do driver (`:54`, 21 GiB = 21.943.040 KB) passou com **~135 MB de margem** —
+medido como o driver mede, `df -Pk / | awk 'NR==2{print $4}'` = 22.081.548 KB.
+
+| Rodada | Resultado | Correção aplicada antes |
+|---|---|---|
+| 1 | **12 passed / 3 failed** | — |
+| 2 | **13 passed / 2 failed** | stub do resumo ganhou `qtdNegativo`/`totalNegativo` |
+| 3 | **14 passed / 1 failed** | stub dos lançamentos ganhou `semanaFechada`; locator `getByRole('listitem')` |
+| 4 | **15 passed / 0 failed** | locator ancorado: `/^Adiantamento liberado:/` |
+| 5 e 6 (confirmação) | **15/15** e **15/15** | nenhuma — estável, não flaky |
+
+### 🔴 As 3 falhas: nenhuma era defeito de produção, todas eram stub violando o contrato
+
+1. **`qtdNegativo` ausente no stub do resumo.** `ResumoLancamentosExternos`
+   (`lib/hub/lancamento-externo.ts:78`) o declara `number | null` e a rota real o devolve
+   (`routes/hub-adiantamentos.js:1854`). Sem ele, `typeof qtdNeg !== 'number'` ⇒
+   `negativoDesconhecido = true` ⇒ `exigeConfirmacao = true` e o botão de confirmar fica
+   **`disabled` para sempre** (115 tentativas de clique no log). ⚠️ **O componente está CORRETO** —
+   é o fail-closed que a frente anterior implementou de propósito (`gerar-do-repasse-button.tsx:99-100`).
+2. **`semanaFechada` ausente no stub dos lançamentos.** Campo **obrigatório** em
+   `LancamentoExternoItem` (`:68`), com o comentário *"sem ele a tela chutaria um dos dois"*. A lista
+   escolhe entre "Semana fechada" e "Sem permissão" por ele (`lancamento-externo-lista-dialog.tsx:139`).
+   **Herdado do PR #299**, que escreveu este teste e nunca o executou — por falta de disco.
+3. **Locator ambíguo em strict mode, duas vezes.** `/Adiantamento liberado.*2/` casava o `<li>` da
+   contagem **e** o `<ul>` dos nomes; trocar para `getByRole('listitem')` ainda casava dois, porque
+   **os nomes também são `<li>`** (`:207`). O discriminador real, lido do componente: a contagem
+   começa pelo rótulo (`{rótulo}: <span>{n}</span>`, `:199`), o nome o traz no fim (`{nome} — {rótulo}`).
+
+**Por que o `tsc` não pegou nenhuma das duas primeiras**: são objetos literais dentro de
+`json(200, …)` e um tipo inline no `state` do próprio spec — não há anotação de tipo que o compilador
+possa conferir. **Um stub que omite campo obrigatório do contrato só o E2E pega.** O spec ficou 6
+dias "tipado mas nunca executado", e isso escondeu 3 defeitos de teste.

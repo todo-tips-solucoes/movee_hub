@@ -100,7 +100,7 @@ interface StubState {
   repasse: Record<string, { itens: unknown[]; totais: Record<string, unknown>; naoPagosNoPeriodo: number; fechavel: boolean }>;
   apuracoesFechadas: Set<string>;
   // lancamento-externo (rodada 3): listagem/exclusão — o stub reflete a regra (semana fechada => 409).
-  lancamentosExternos: { id: number; motorista: string; tipo: string; sinal: number; dataPagamento: string; valor: string; observacao: string | null; criadoEm: string; criadoPor: string | null; excluivel: boolean }[];
+  lancamentosExternos: { id: number; motorista: string; tipo: string; sinal: number; dataPagamento: string; valor: string; observacao: string | null; criadoEm: string; criadoPor: string | null; excluivel: boolean; semanaFechada: boolean }[];
   exclusoes: number[];
 }
 
@@ -186,8 +186,12 @@ function defaultState(): StubState {
     },
     apuracoesFechadas: new Set<string>(),
     lancamentosExternos: [
-      { id: 701, motorista: 'Motorista Dois', tipo: 'ADIANTAMENTO', sinal: -1, dataPagamento: '2026-09-10', valor: '30.00', observacao: 'pix', criadoEm: '2026-09-11T10:00:00Z', criadoPor: 'Financeiro', excluivel: true },
-      { id: 702, motorista: 'Motorista Três', tipo: 'AJUSTE_CREDITO', sinal: 1, dataPagamento: '2026-09-09', valor: '5.00', observacao: null, criadoEm: '2026-09-11T10:01:00Z', criadoPor: 'Financeiro', excluivel: false },
+      { id: 701, motorista: 'Motorista Dois', tipo: 'ADIANTAMENTO', sinal: -1, dataPagamento: '2026-09-10', valor: '30.00', observacao: 'pix', criadoEm: '2026-09-11T10:00:00Z', criadoPor: 'Financeiro', excluivel: true, semanaFechada: false },
+      { id: 702, motorista: 'Motorista Três', tipo: 'AJUSTE_CREDITO', sinal: 1, dataPagamento: '2026-09-09', valor: '5.00', observacao: null, criadoEm: '2026-09-11T10:01:00Z', criadoPor: 'Financeiro', excluivel: false, semanaFechada: true },
+      // `semanaFechada` e OBRIGATORIO em `LancamentoExternoItem` (lib/hub/lancamento-externo.ts:68 — "sem ele a tela
+      // chutaria um dos dois"): a lista mostra 'Semana fechada' OU 'Sem permissao' por ele
+      // (lancamento-externo-lista-dialog.tsx:139). O stub o omitia desde o PR #299, que escreveu este teste e nunca o
+      // executou (disco). Pego pelo E2E em 29/10.
     ],
     exclusoes: [],
   };
@@ -408,7 +412,13 @@ async function installApiStubs(page: Page, state: StubState): Promise<void> {
       return json(200, { excluido: true, id: alvo.id });
     }
     if (path === '/adiantamentos/repasse/lancamentos-externos/resumo' && method === 'GET') {
-      return json(200, { qtdDeducao: 0, totalDeducao: 0, qtdCredito: 0, totalCredito: 0, flagDescontoLigada: true });
+      // `qtdNegativo`/`totalNegativo` NAO sao opcionais: `ResumoLancamentosExternos` (lib/hub/lancamento-externo.ts:78)
+      // os declara `number | null`, e a rota real os devolve (routes/hub-adiantamentos.js:1854). Omiti-los fazia
+      // `typeof qtdNeg !== 'number'` virar true no diálogo de "Gerar do repasse", que então exige a caixa de
+      // confirmação (fail-closed por desenho, gerar-do-repasse-button.tsx:99-100) e mantém o botão DISABLED para
+      // sempre. O `tsc` não pegava: é objeto literal dentro de `json(200, …)`, sem tipo. Pego pelo E2E em 29/10.
+      return json(200, { qtdDeducao: 0, totalDeducao: 0, qtdCredito: 0, totalCredito: 0, flagDescontoLigada: true,
+                         qtdNegativo: 0, totalNegativo: 0 });
     }
     if (path === '/adiantamentos/repasse' && method === 'GET') {
       const periodo = url.searchParams.get('periodo') ?? '';
@@ -721,8 +731,13 @@ test.describe('US6 — repasse e fechamento', () => {
     await expect(dialog.getByText(/nada foi fechado nem gerado/)).toBeVisible();
     // Rótulo REAL de LIBERADA (rotuloStatusAdiantamento) é "Adiantamento
     // liberado", não "Liberada" — Constitution VI, nunca supor o texto.
-    await expect(dialog.getByText(/Adiantamento liberado.*2/)).toBeVisible();
-    await expect(dialog.getByText(/Falha no pagamento.*1/)).toBeVisible();
+    // O strict mode recusava locator ambiguo aqui, e por DOIS motivos em sequencia (os dois pegos pelo E2E em 29/10):
+    // 1. `getByText(/Adiantamento liberado.*2/)` casava o <li> da contagem E o <ul> dos nomes;
+    // 2. `getByRole('listitem')` casava os dois <li> — os nomes TAMBEM sao <li> (gerar-do-repasse-button.tsx:207).
+    // Discriminador real, lido do componente: a contagem e `{rotulo}: <span>{n}</span>` (:199-:201, comeca pelo rotulo)
+    // e o nome e `{nome} — {rotulo}` (:207-:209, o rotulo vem no FIM). Ancorar no inicio separa os dois.
+    await expect(dialog.getByRole('listitem').filter({ hasText: /^Adiantamento liberado:/ })).toContainText('2');
+    await expect(dialog.getByRole('listitem').filter({ hasText: /^Falha no pagamento:/ })).toContainText('1');
     await expect(dialog.getByText(/Motorista Um — Adiantamento liberado/)).toBeVisible();
     await expect(dialog.getByText('e mais 2')).toBeVisible();
   });

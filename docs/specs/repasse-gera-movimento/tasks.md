@@ -367,8 +367,24 @@ Ref: quickstart.md C13–C15; SC-007/SC-008
 
 Ref: CLAUDE.md §Comandos; plan.md §Gates
 
-- [ ] 5.5.1 Rodar o E2E do hub **somente** pelo driver `DRV/*.sh` (nunca browser no host); `failed` já é regressão
-- [ ] 5.5.2 Conferir e **reverter** o `package-lock.json` reescrito pelo container do Playwright
+- [x] 5.5.1 Rodar o E2E do hub **somente** pelo driver `DRV/*.sh` (nunca browser no host); `failed` já é regressão
+  - ✅ **RODADO em 29/10**, pelo driver `infra/hub/testes/hub-adiantamentos-e2e-browser.sh` (nunca browser no host), depois que o
+    operador liberou disco (19 → 21 GiB, ganho real de 1.702 MB). Resultado: **15/15 em TRÊS rodadas consecutivas** (13,1s / 13,2s /
+    13,4s) — estável, não flaky.
+  - 🔴 **A primeira rodada deu 3 falhas, e NENHUMA era defeito de produção — eram 3 stubs do próprio spec violando o contrato que o
+    TypeScript declara.** O `tsc` não pegava nenhuma: são objetos literais dentro de `json(200, …)` e um tipo inline no `state`.
+    (a) stub do resumo sem `qtdNegativo`/`totalNegativo` ⇒ `negativoDesconhecido` virava true e o botão de confirmar ficava
+        **disabled para sempre** (fail-closed por desenho, `gerar-do-repasse-button.tsx:99-100`). 115 tentativas de clique.
+    (b) stub dos lançamentos sem `semanaFechada` — campo **obrigatório** em `LancamentoExternoItem` (`:68`, *"sem ele a tela
+        chutaria um dos dois"*). Herdado do PR #299, que escreveu o teste e nunca o executou (disco).
+    (c) locator ambíguo em strict mode, **duas vezes**: `/Adiantamento liberado.*2/` casava o `<li>` da contagem e o `<ul>` dos nomes;
+        e `getByRole('listitem')` casava os dois `<li>`, porque os nomes TAMBÉM são `<li>`. Discriminador lido do componente: a
+        contagem começa pelo rótulo (`{rótulo}: <span>{n}</span>`), o nome o traz no fim (`{nome} — {rótulo}`).
+  - **Lição**: um stub que omite campo obrigatório do contrato é invisível ao `tsc` e só o E2E pega. O spec ficou 6 dias "tipado mas
+    nunca executado" e isso escondeu 3 defeitos de teste.
+- [x] 5.5.2 Conferir e **reverter** o `package-lock.json` reescrito pelo container do Playwright
+  - ✅ Nada a reverter nas 4 rodadas de 29/10: o próprio driver confere no cleanup e reportou
+    `package-lock.json intacto` em todas. `git status` sem o arquivo modificado.
 - [x] 5.5.3 Teste: `git status` sem `package-lock.json` modificado; `sha256` igual ao de 0.1.1
 
 ---
