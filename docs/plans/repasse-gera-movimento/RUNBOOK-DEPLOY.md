@@ -223,7 +223,11 @@ fechada sem movimento" não é deadlock (o botão não depende do estado do per�
 - `EMPRESA_SEM_CNPJ` é checado depois do fechamento implícito (retomável: cadastre o CNPJ e gere de novo).
 - Se a resposta HTTP se perder depois de gravar, o texto de falha pode dizer "nada foi gravado"; repetir é seguro (converge sem duplicar).
 - Lista de pendências com `limit=5000`: se `PGRST_DB_MAX_ROWS` de produção for menor, o total mostrado subestima — a decisão de recusar continua correta.
-- E2E de browser **não rodou** — e os dois drivers estão bloqueados por motivos **diferentes** (medido em 28/10; antes isto estava registrado como um só motivo, e escondia metade do problema):
-  - `hub-adiantamentos-e2e-browser.sh` tem guarda de disco **no próprio driver** (`:54`, 21 GiB) porque ele **builda** (`:70` `npm run build`). Host em 20 GB ⇒ aborta corretamente.
-  - `hub-shell-e2e-browser.sh` **não** tem guarda de disco e **não** builda, mas roda contra o `hub-homolog` **no ar**, cujas imagens são de **14/10** e não têm bind mount do código. Rodá-lo sem rebuildar validaria código de duas semanas antes desta entrega.
-  - **Desbloqueio único**: liberar disco (`~/liberar-disco-PASSO0.sh --aplicar` rendeu 7,2 GB em 23/10), rebuildar `hub-backend:homolog` e `hub-frontend:homolog` do commit desta entrega, recriar os dois containers e rodar os dois drivers.
+- ✅ **E2E de browser: RODOU em 29/10 e está verde** — `hub-adiantamentos-e2e-browser.sh`, **15/15 em três rodadas
+  consecutivas** (13,1s/13,2s/13,4s), depois de liberar disco (19 → 21 GiB). `package-lock.json` intacto.
+  A primeira rodada deu 3 falhas e **nenhuma era defeito de produção**: eram stubs do próprio spec omitindo campo
+  obrigatório do contrato (invisível ao `tsc`) e locator ambíguo em strict mode.
+  - ⏳ **Resta o `hub-shell-e2e-browser.sh`**, e não é disco: ele roda contra as imagens do `hub-homolog` de **14/10**,
+    sem bind mount do código, então validaria código anterior a esta entrega. Gatilho: rebuildar
+    `hub-frontend:homolog` + `hub-backend:homolog` (~2 GB cada) e aplicar a **0119** no `hub_homolog` (ele tem só a
+    0118). Não feito por iniciativa própria porque o disco que sobra é o que você precisa para os 3 builds do deploy.
