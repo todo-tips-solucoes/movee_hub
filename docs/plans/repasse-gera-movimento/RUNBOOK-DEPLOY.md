@@ -156,6 +156,28 @@ Rollback: `--image <imagem anterior anotada>`.
 **Prova de bundle (cláusula 8 do rito)**: buscar no artefato servido uma string que só existe nesta entrega — `Gerar do repasse` — e a ausência de `Fechar apuração` no chunk da tela de Repasse. HTTP 200 prova que o serviço subiu, não que subiu o código certo.
 Smoke (HTTP, sem expor segredos): login do hub → 200; `GET /api/v1/adiantamentos/repasse?periodo=<segunda>` → 200.
 
+## ✅ DEPLOY FEITO em 2026-10-29 — o que já está verificado e o que falta
+
+Migrations **0118** e **0119** aplicadas e verificadas; `repasse-movimento-ca279f2` nos 3 serviços;
+prova de bundle **no container vivo** com controle negativo; smoke **200** nos dois domínios;
+`mensagem1_modelo` cadastrado (config versão **24**, vigente, placeholders validados pela própria
+função que os recusa). Rollbacks e digests na memória `producao-2026-10-29`.
+
+⏳ **Falta UM cenário: gerar de verdade (o caminho feliz).** O operador decidiu não forçá-lo em
+29/10 porque a operação tinha validação em curso e fechar movimento é irreversível. O gatilho e a
+lista do que validar estão em `docs/specs/repasse-gera-movimento/deferred-work.md`
+§"Pendente de validação em produção". Resumo das 3 condições, todas medidas em 29/10:
+
+| # | Condição | Estado em 29/10 |
+|---|---|---|
+| 1 | movimentos da semana anterior **fechados** | ❌ **937 motoristas** com movimento aberto |
+| 2 | **zero** adiantamento pendente na semana | ❌ 201 (26/10) · 116 (19/10) · 7 (05/10) · 1 (21/09) |
+| 3 | `mensagem1_modelo` na config vigente | ✅ versão 24 |
+
+🟢 **Teste de risco ZERO disponível agora**: clicar "Gerar do repasse" numa semana **com**
+pendentes exercita a recusa com diagnóstico (D5/FR-008) **sem escrever nada** — a rota consulta
+pendentes e devolve 409 **antes** de buscar ou criar apuração (`routes/hub-adiantamentos.js:2216`).
+
 ## Passo 5 — ROTEIRO DE VALIDAÇÃO (primeiro uso real)
 
 1. **Cadastrar `mensagem1_modelo` (e `mensagem2_modelo`) pela tela de Configurações do adiantamento — ANTES de qualquer tentativa de gerar.** Sem ele toda a geração é recusada (`MODELO_MENSAGEM_AUSENTE`) — por desenho, para nunca inventar o texto que o motorista lê sobre dinheiro. O diálogo de "Gerar do repasse" também avisa quando o modelo falta.

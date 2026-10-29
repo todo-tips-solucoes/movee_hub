@@ -176,3 +176,52 @@ como `defer` (os `decision`/`patch` estão na seção "Review Findings" de `spec
   mensagem antes de fechar de propósito ("o fechamento é irreversível") e não faz o mesmo com o
   CNPJ. **Não é deadlock** — medido: o botão não depende do estado do período, reapertar relê a
   apuração e gera. Conserto: mover o check para antes do fechamento, junto do modelo.
+
+## Pendente de validação em produção (29/10) — o CAMINHO FELIZ
+
+A frente está **em produção** (ver memória `producao-2026-10-29`) e tudo o que podia ser
+verificado sem efeito colateral foi verificado. **O que falta é um único cenário: gerar de
+verdade.** O operador decidiu não forçá-lo em 29/10, e a razão é boa:
+
+> *"não vou fechar porque estamos em produção e isso vai atrapalhar o que já está sendo
+> validado"*
+
+Fechar movimento é irreversível e a operação tinha validação em curso. Antecipar isso para
+exercitar a feature seria usar o ambiente do cliente como bancada de teste.
+
+### 🎯 Gatilho — as TRÊS condições, todas medidas por consulta
+
+O caminho feliz só é alcançável quando as três valem para a MESMA semana:
+
+| # | Condição | Como medir | Se falhar, o que acontece |
+|---|---|---|---|
+| 1 | movimentos da semana **anterior** FECHADOS para os motoristas da semana alvo | `SELECT count(DISTINCT cnpj_prestador) FROM "EnvioMassa" WHERE mov_fechado = false AND id_empresa IN (<grupo Movee>)` | recusa `MOVIMENTO_ABERTO`, com o texto "provavelmente da planilha" — que **atribui a causa errada** |
+| 2 | **zero** adiantamento pendente na semana alvo | status em `('AGUARDANDO_CORTE','AGUARDANDO_PRODUCAO','LIBERADA','EM_LOTE','EXPORTADA','FALHOU')` e `data_producao` na semana | recusa `ADIANTAMENTOS_PENDENTES` com a lista de quem trava |
+| 3 | `mensagem1_modelo` na config **vigente** | ✅ **JÁ ATENDIDA** desde 29/10 (versão **24**, `tem_msg1=true`, vigente) | recusa `MODELO_MENSAGEM_AUSENTE` |
+
+Medição de 29/10, que mostra por que nenhuma semana recente serve: **937 motoristas** com
+movimento aberto (condição 1 falha para praticamente todos) e pendentes em 4 das últimas 6
+semanas — 26/10: **201**; 19/10: **116**; 05/10: **7**; 21/09: **1**.
+
+### O que validar quando o gatilho vier
+
+1. A linha aparece no Envio em Massa com `valor` = **nota líquida** (não a bruta) e `gorjeta`
+   separada. Comparar com a prévia da tela de Repasse.
+2. Repetir o clique: tudo volta como "já gerado", **sem duplicata** (idempotência pela trilha).
+3. Se houver motorista cuja nota zerou por dedução **e** que tem gorjeta: ele sai em
+   **`gerados`** com `valor = 0`, `gorjeta > 0`, a linha nasce **`mov_fechado = true`** (logo
+   **não** aparece na lista de abertos nem no CSV do `/export-envio-massa`), o lote de pagamento
+   **o aceita** e o app do motorista **não** pede nota dele.
+4. O WhatsApp disparado usa o modelo da versão 24 e **não** sai para a linha de valor 0.
+
+### O que JÁ foi validado em 29/10, sem escrita
+
+Não repetir: migrations aplicadas e verificadas (inclusive o `USAGE` na sequência, de `false`
+para `true`); prova de bundle nos 3 serviços no container vivo, com controle negativo; smoke
+200 nos dois domínios; modelo da versão 24 conferido — placeholders válidos pela própria função
+que os recusa, e renderização de exemplo produzindo o texto completo.
+
+**Testes de risco zero disponíveis a qualquer momento** (a rota consulta pendentes e devolve
+409 **antes** de buscar ou criar apuração — `routes/hub-adiantamentos.js:2216-2226`): clicar
+"Gerar do repasse" numa semana **com** pendentes exercita a recusa com diagnóstico (D5/FR-008)
+sem escrever nada.
