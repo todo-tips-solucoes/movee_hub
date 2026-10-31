@@ -397,3 +397,59 @@ medido como o driver mede, `df -Pk / | awk 'NR==2{print $4}'` = 22.081.548 KB.
 `json(200, …)` e um tipo inline no `state` do próprio spec — não há anotação de tipo que o compilador
 possa conferir. **Um stub que omite campo obrigatório do contrato só o E2E pega.** O spec ficou 6
 dias "tipado mas nunca executado", e isso escondeu 3 defeitos de teste.
+
+## Onda-017 (31/10) — E2E de browser rodado (disco liberou) + emenda FR-020a
+
+Disco: **22.104.496 KB** livres contra os **21.943.040 KB** da guarda do driver. Guarda
+**satisfeita**, não contornada.
+
+### E2E de adiantamentos — `hub-adiantamentos-e2e-browser.sh`
+
+| Rodada | Resultado | O que mudou |
+|--------|-----------|-------------|
+| 1 | **15 passed** (13,9s) | baseline, spec como estava |
+| 2 | 15 passed, **1 failed** | teste novo de 4.7.2; falha era **do meu localizador** (o botão diz "Voltar", não "Cancelar" → timeout 60s) |
+| 3 | 15 passed, **1 failed** | localizador corrigido; falha passou a ser **real e determinística** (3 tentativas) |
+| 4 | **16 passed** (14,1s) | piso de dívida documentado |
+
+`package-lock.json` **sem diff** nas quatro rodadas — medido, não suposto. Este driver stuba todo
+`/api/**` e o config declara não alterar `node_modules`/`package.json`, ao contrário do
+`hub-shell-e2e-browser.sh` (que roda `npm install`). Fecha 5.5.2 por medição.
+
+### 4.7.2 — medida no DOM, e a medição pegou o que a leitura do código não viu
+
+Teste: `adiantamentos.spec.ts:792`, viewport mobile **fixado em 390×844** (o config é
+`Desktop Chrome`, onde `sm:min-h-8` = 32px vale **de propósito**). Controle negativo nomeado no
+próprio teste: sem o `setViewportSize` ele mede o ramo `sm:` e falha em ~32px.
+
+| Elemento | Medido | Barra 44px |
+|----------|--------|------------|
+| Gatilho "Gerar do repasse" | ≥ 44px | ✅ |
+| Campo de data | ≥ 44px | ✅ |
+| Confirmar do diálogo | **31,32px** | ❌ |
+| "Voltar" do diálogo | **31,32px** | ❌ |
+
+Erro literal: `Error: confirmar do diálogo tem 31.3214111328125px / Expected: >= 44`.
+
+⚠️ `evidencias.md:179` havia declarado a área tocável OK **lendo a classe no componente** — e o
+rodapé do diálogo **não tem classe nenhuma**. Gotcha do projeto confirmado com número.
+
+**Não é regressão desta frente**: `Button` `size: default` é `h-8` (32px) em **todos** os
+breakpoints (`components/ui/button.tsx:24`) e **zero** diálogos de `components/hub/` põem
+`min-h-11` nas ações, contra **37** usos do padrão no resto do hub. Causa-raiz compartilhada em
+`components/ui/alert-dialog.tsx`. Dívida repo-wide em `deferred-work.md` §Onda-017 (`dec-089`).
+
+### FR-020a — a emenda de FR que faltava
+
+`spec.md` ganhou **FR-020a**: separa o que ficou intocado (fechamento, emissão, validação de XML)
+do que **mudou** por `block-004` — disparo (`selecionarAlvoDisparo`, `server.js:1341`) e entrada
+(`linhaSemNada`, `server.js:1963` e `lib/envio-massa-correcao.js:163`). Registra que a chave de
+"há nota a emitir" ficou **única** (`EnvioMassa.valor > 0`), a mesma do app e do lote
+(`lib/disparo-alvo.js:7`) — o que fecha a divergência de duas chaves apontada pelo review.
+Fechou **5.4.3** e os **dois** itens Review/Patch pendentes do `spec.md`.
+
+### Gates do diff desta onda
+
+`tsc --noEmit` **exit 0** · vitest **992/992** (102 arquivos) · lint **28 (5 erros/23 avisos)** =
+baseline, **0 erro novo** · E2E **16/16** · `package-lock.json` sem diff. Nenhum arquivo de
+produção tocado: o diff é 1 spec de Playwright + documentos.
