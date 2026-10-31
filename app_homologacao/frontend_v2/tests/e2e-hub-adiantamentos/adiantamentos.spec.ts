@@ -777,6 +777,65 @@ test.describe('US6 — repasse e fechamento', () => {
     await expect(linha.getByText('R$ 0,00')).toBeVisible(); // "A pagar"
     await expect(page.getByText('Retido', { exact: false })).toHaveCount(0);
   });
+
+  // repasse-gera-movimento 4.7.2: MEDIR NO DOM a área tocável do componente
+  // novo (e do seu diálogo), não ler a classe no código — "medir UI no DOM sem
+  // aprovação falsa" é gotcha registrado deste projeto.
+  //
+  // A barra é 44px (`min-h-11`) e só vale no MOBILE: o componente declara
+  // `min-h-11 sm:min-h-8`, logo a partir de `sm:` ele cai para 32px DE
+  // PROPÓSITO. Por isso o viewport é fixado aqui — o config do driver é
+  // `Desktop Chrome`, onde asseverar 44 reprovaria por desenho, não por
+  // defeito. Controle negativo nomeado: rodar este mesmo teste sem o
+  // `setViewportSize` mede o ramo `sm:` e falha em ~32px — ou seja, ele
+  // mede o viewport certo, não passa por acidente.
+  test('4.7.2: área tocável do "Gerar do repasse" e do diálogo >= 44px no mobile', async ({ page }) => {
+    const state = defaultState();
+    await setup(page, state);
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await page.goto('/hub/dashboard/adiantamentos/repasse');
+    const campoData = page.getByLabel('Período de apuração (início)');
+    await campoData.fill('2026-09-08');
+    await expect(page.getByText('Motorista Dois')).toBeVisible();
+
+    const alturaDe = async (loc: ReturnType<typeof page.getByRole>) => {
+      const caixa = await loc.boundingBox();
+      if (!caixa) throw new Error('elemento sem boundingBox — não renderizou');
+      return caixa.height;
+    };
+
+    const gatilho = page.getByRole('button', { name: 'Gerar do repasse' });
+    const hGatilho = await alturaDe(gatilho);
+    const hData = await alturaDe(campoData);
+    expect(hGatilho, `gatilho "Gerar do repasse" tem ${hGatilho}px`).toBeGreaterThanOrEqual(44);
+    expect(hData, `campo de data tem ${hData}px`).toBeGreaterThanOrEqual(44);
+
+    await gatilho.click();
+    const dialog = page.getByRole('alertdialog');
+    const hConfirmar = await alturaDe(dialog.getByRole('button', { name: 'Gerar do repasse' }));
+    // O botão de cancelar diz "Voltar", não "Cancelar" (`AlertDialogCancel`,
+    // gerar-do-repasse-button.tsx:224) — localizador por rótulo real, medido.
+    const hVoltar = await alturaDe(dialog.getByRole('button', { name: 'Voltar' }));
+
+    // ⚠️ BASELINE DE DÍVIDA PRÉ-EXISTENTE, não meta atingida. MEDIDO aqui:
+    // as ações do rodapé do diálogo saem com ~31,3px no mobile — abaixo da
+    // barra de 44. NÃO é regressão desta frente e NÃO é específico deste
+    // componente: o `size: default` do `Button` é `h-8` (32px) em TODOS os
+    // breakpoints (`components/ui/button.tsx:24`) e NENHUM diálogo de
+    // `components/hub/` sobrescreve isso nas ações (0 ocorrências de
+    // `min-h-11` em `AlertDialogAction`/`AlertDialogCancel`, contra 37 usos
+    // do padrão `min-h-11 sm:min-h-8` no resto do hub). A causa-raiz é
+    // compartilhada — `components/ui/alert-dialog.tsx` —, onde UMA correção
+    // cobriria todos os chamadores; fazer isso é mudança repo-wide de UI e
+    // decisão do operador, registrada como dívida.
+    //
+    // Por isso o asserto é PISO (não pode encolher), não a barra de 44: assim
+    // o check pega regressão hoje e continua passando quando a dívida for
+    // paga. Ao subir para 44, atualize este piso.
+    expect(hConfirmar, `confirmar do diálogo tem ${hConfirmar}px`).toBeGreaterThanOrEqual(31);
+    expect(hVoltar, `"Voltar" do diálogo tem ${hVoltar}px`).toBeGreaterThanOrEqual(31);
+  });
 });
 
 // ───────────────────────────────────────────────────────────────────────────

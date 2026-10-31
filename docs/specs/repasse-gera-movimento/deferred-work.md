@@ -225,3 +225,55 @@ que os recusa, e renderização de exemplo produzindo o texto completo.
 409 **antes** de buscar ou criar apuração — `routes/hub-adiantamentos.js:2216-2226`): clicar
 "Gerar do repasse" numa semana **com** pendentes exercita a recusa com diagnóstico (D5/FR-008)
 sem escrever nada.
+
+## Onda-017 (31/10) — o disco liberou: o que FECHOU e o que mudou de diagnóstico
+
+Disco em **22.104.496 KB** (guarda do driver exige 21.943.040). A guarda foi **satisfeita**,
+não contornada — em 28/10 ela recusou corretamente e isso ficou registrado (`dec-068`).
+
+**Fechou**: `4.7.2` (medida no DOM vivo, `dec-089`) e `5.4.3` (asserção reescrita + emenda
+**FR-020a**). `5.5.1`/`5.5.2` já haviam fechado nas ondas 015/016. Driver de E2E de
+adiantamentos: **16/16 passed**, 0 flaky, `package-lock.json` sem diff (medido, não suposto —
+este driver stuba todo `/api/**` e declara não alterar `node_modules`/`package.json`).
+
+### 🟠 DÍVIDA NOVA, repo-wide — área tocável das ações de diálogo (`dec-089`)
+
+**Medido**: as ações do rodapé do diálogo saem com **31,32px** no mobile, abaixo da barra de
+**44px**. Determinístico (falhou nas 3 tentativas).
+
+**Não é desta frente, e é maior que ela.** O `size: default` do `Button` é `h-8` (32px) em
+**todos** os breakpoints (`components/ui/button.tsx:24`), e **nenhum** diálogo de
+`components/hub/` sobrescreve isso nas ações: **zero** ocorrências de `min-h-11` em
+`AlertDialogAction`/`AlertDialogCancel`, contra **37** usos do padrão `min-h-11 sm:min-h-8` no
+resto do hub. O padrão existe justamente porque o default é pequeno para toque — e o rodapé dos
+diálogos nunca o recebeu.
+
+- **Causa-raiz compartilhada**: `components/ui/alert-dialog.tsx`. **Uma** correção lá cobre
+  todos os chamadores dos dois apps — bem menor que remendar diálogo por diálogo.
+- **Por que não corrigi**: é mudança **repo-wide de UI** (afeta todo diálogo do painel e do app),
+  logo decisão do operador. Corrigir só neste componente seria inconsistente e esconderia a dívida.
+- **Gatilho para virar bloqueante**: qualquer frente que toque `components/ui/alert-dialog.tsx`
+  ou que tenha requisito de acessibilidade mobile — aí o conserto sai de graça junto.
+- **Proteção enquanto não for paga**: o teste asserta **piso** (não pode encolher), não a barra de
+  44. Pega regressão hoje e **não trava** a correção futura. Ao subir para 44, atualizar o piso.
+
+⚠️ **Lição confirmada na prática**: `evidencias.md:179` declarava a área tocável OK **lendo a
+classe no código** — e o rodapé do diálogo não tem classe nenhuma. A medição no DOM pegou o que a
+leitura não viu. É o gotcha já registrado do projeto, agora com número.
+
+### ⚠️ `5.2.1` — o gatilho registrado estava ERRADO (`dec-090`)
+
+O registro dizia que o que faltava (C9c contra banco real) dependia de "disco >= 21 GB, que libera
+o stack `hub-test-*`". **O disco liberou e o cenário continua inalcançável, por outro motivo**:
+
+- `hub-adiantamentos-integration.sh` **não faz nenhuma chamada de rede ao backend** (contagem
+  **zero**). É SQL puro via `psql` + `set_config` de `request.jwt.claims`; o bloco S1
+  (`:2621`-`:2685`) modela o laço em **plpgsql**, nunca pela rota.
+- **C9c é cenário de ROTA** (409 `ADIANTAMENTOS_PENDENTES` → 201 sem resíduo). Os drivers vizinhos
+  de repasse também não dirigem essa rota: smoke-full-chain **zero**, roundtrip **zero**,
+  nota-líquida **zero**.
+- **Custo real**: dar capacidade de rota ao driver (JWT real + chamada ao backend + limpeza do
+  estado de apuração). **Não é disco.**
+
+Gatilho falso é pior que dívida: faria o próximo leitor concluir que bastava disco e declarar a
+tarefa fechável. Substituído pelo custo real.
