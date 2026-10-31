@@ -184,6 +184,22 @@ que guarda os arquivos originais das importações). Para recursos do hub, filtr
 (só imagens sem tag) — foi o que recuperou 18 GB no incidente acima, sem tocar em
 nenhuma imagem tagueada, volume ou container em uso.
 
+Para liberar espaço **antes de buildar**, o caminho pronto é `~/liberar-disco-PASSO0.sh`
+(dry-run por default, `--aplicar` para remover). Ele é cirúrgico: só as 3 imagens nossas,
+preserva o que está em uso **e** as 2 tags mais recentes de cada repositório (em uso +
+rollback), exige tag no formato `<rótulo>-<sha7>`, e **confere no registry antes de remover**
+— é isso que o torna reversível por `pull`.
+
+⚠️ **Ele rende MUITO mais depois do build que antes.** Medido no mesmo dia (2026-10-29), com o
+mesmo script: **1.702 MB** antes dos 3 builds (19 → 21 GB) e **5.556 MB** depois (14 → 20 GB),
+**3,3× mais**. A diferença são as camadas intermediárias e as tags que o deploy acabou de
+deslocar. Se for rodar só uma vez, rode **depois**. E o critério dele se provou na prática:
+as 3 imagens de rollback foram preservadas mesmo tendo saído de uso no deploy.
+
+⚠️ **Remover imagem com tag rende pouco, e isso já enganou duas vezes.** 7 imagens de 689 MB
+"aparentes" renderam **menos de 1 GB** real (camadas compartilhadas). Para dimensionar, use o
+ganho medido em `df`, nunca a soma dos tamanhos que o `docker images` mostra.
+
 Gotcha turbopack: comentário JSX `{/* */}` imediatamente após `return (` quebra o
 build — usar `//` na linha acima do `return`.
 
@@ -233,8 +249,20 @@ Os quatro enganos do incidente de 2026-09-09, cada um custou tempo:
 
 E duas armadilhas de ambiente: há **dois** Traefik no host (`traefik_traefik` é produção,
 `hub_homolog_traefik` é o do hub isolado) — filtrar por `name=traefik_traefik`, nunca
-`name=traefik | head -1`; e `curl` devolvendo `000` **não** é queda da aplicação, é o
-próprio curl recusando o certificado — confirmar com `-k` antes de concluir qualquer coisa.
+`name=traefik | head -1`; e `000` no cliente HTTP **não** é queda da aplicação.
+
+⚠️ **Mas `000` tem DUAS causas, e este manual afirmava só uma** (corrigido em 2026-10-29, quando o
+smoke do app motorista deu `000` logo depois de um deploy e o diagnóstico "é o certificado"
+apontaria para o lugar errado):
+
+| Causa | Como distinguir, **sem rede externa** |
+|---|---|
+| o cliente recusando o certificado | `node infra/producao/cert-guard.js` lista a validade de todos os domínios. Em 29/10 deu **40 dias** para o domínio em questão — logo, não era isso. |
+| **timing pós-deploy**: o Swarm já disse `converged`, o Traefik ainda não registrou a task nova | `docker logs <container>` mostra o processo pronto (`✓ Ready`) e, dentro dele, a porta em `LISTEN 0.0.0.0:3000`. Se os dois estão de pé, esperar e repetir — foi o caso de 29/10, e o `200` veio minutos depois. |
+
+As duas verificações são **locais** e custam segundos. Fazê-las antes de concluir evita tanto
+investigar certificado saudável quanto declarar queda que não existe. O `-k` segue útil, mas só
+discrimina a primeira causa.
 
 Incidente completo em [`docs/plans/infra-certificados/RUNBOOK-CORRECAO.md`](docs/plans/infra-certificados/RUNBOOK-CORRECAO.md).
 
@@ -250,6 +278,7 @@ falha real, não de boas práticas genéricas — a justificativa está ao lado.
 |---|-------|-------|
 | 0 | Branch | Nunca commitar na `main`. Branch `<tipo>/<escopo>-<slug>`. Autorização é **por etapa**: commitar, pushar/PR e deployar são três permissões distintas — uma não implica a seguinte. |
 | 1 | Gates | Todos verdes e relatados **com números**: `tsc --noEmit` · suíte unit · `next build` (se tocou frontend) · detector impeccable 0 achados (se tocou UI) · E2E do hub (se tocou o hub) · lint comparado com a **baseline** (erro pré-existente não bloqueia; erro novo bloqueia). |
+| 1b | **Revisão adversarial** | Entrega grande feita por agente passa por revisão **independente sobre o diff**, antes do PR. Gates verdes **não** substituem: em `corrigir-valor` 16 ondas verdes deixaram 3 bloqueantes, e em `repasse-gera-movimento` outras 16 deixaram 2. **Medir cada achado antes de aceitar** — na mesma rodada, 7 dos 16 achados dos revisores não procediam, e 2 eram dívida já declarada. Aceitar a lista inteira gera retrabalho e defeito novo. |
 | 2 | Staging | `git status` lido arquivo a arquivo. `git add` **sempre por caminho explícito** — nunca `git add -A`/`.`. |
 | 3 | Commit | O quê, **por quê**, o que foi verificado, o que ficou de fora. Correção alheia ao escopo vai declarada no corpo, nunca escondida. Trailers de praxe (ver Governança). |
 | 4 | PR | O que muda, risco, verificação com números, o que ficou deliberadamente de fora, e os achados que mudaram o produto durante a verificação. |
@@ -377,6 +406,56 @@ Duas fontes para o mesmo número são normais aqui e **não** são duplicidade: 
 home vem da `EnvioMassa` (movimento já fechado, via planilha) e o extrato do repasse vem
 do hub (semana em curso, antes de existir movimento). O que não pode é cada uma inventar
 o seu vocabulário.
+
+## O que escapa de gate verde — padrões de 2026-10
+
+Quatro coisas que passaram por suítes inteiras verdes e só apareceram depois. Cada uma tem um
+jeito barato de caçar.
+
+⚠️ **Decisões individualmente corretas podem se CANCELAR quando juntas.** Em
+`repasse-gera-movimento`, três decisões do operador — gerar movimento só-gorjeta · não filtrar
+valor na guarda de "movimento aberto" · esconder valor zero do app do motorista — estavam certas
+isoladamente e, somadas, criavam uma linha que **travava a geração da semana seguinte** e que
+**ninguém conseguia fechar** (o motorista não a enxergava para mandar nota; a tabela da trilha não
+tem `GRANT DELETE`). Nenhuma revisão por arquivo pega isso. **Como caçar:** depois de mexer em
+regra de ciclo semanal, percorrer uma semana INTEIRA até a seguinte, não só o caso da semana.
+
+⚠️ **Stub que omite campo obrigatório do contrato é invisível ao `tsc` — só o E2E pega.** Três
+falhas do E2E em 29/10 eram isso: `qtdNegativo` e `semanaFechada` são obrigatórios nas interfaces
+(`lib/hub/lancamento-externo.ts`), e os stubs do spec os omitiam. O compilador não vê porque são
+**objetos literais** dentro de `json(200, …)` e um **tipo inline** no `state` do próprio teste.
+Pior: o primeiro deles fazia o botão de confirmar ficar `disabled` para sempre, e o componente
+estava **correto** (é fail-closed de propósito) — "consertar" o componente teria revertido uma
+guarda de dinheiro para fazer teste passar. **Como caçar:** spec "tipado mas nunca executado" é
+dívida, não cobertura; rodar o driver é o único jeito.
+
+⚠️ **Controle negativo precisa de guarda anti-oco.** Reverter a correção e contar falhas não
+basta: em 29/10, duas reversões minhas (escaping de `perl`) **não aplicaram**, e sem a guarda eu
+leria "0 falhas" como "o teste não discrimina" em vez de "o controle não rodou". **Como fazer:**
+conferir **no arquivo** que o padrão sumiu, e abortar se não sumiu, antes de medir.
+
+⚠️ **Locator ambíguo do Playwright: ler a estrutura no componente, não tentar variações.** Duas
+tentativas minhas falharam antes de eu abrir o `.tsx`. O discriminador estava lá: a contagem é
+`{rótulo}: <span>{n}</span>` e o nome é `{nome} — {rótulo}`, então ancorar no início
+(`/^rótulo:/`) separa os dois. Trocar `getByText` por `getByRole('listitem')` não resolveu porque
+**os nomes também são `<li>`**.
+
+## Gotcha do `bash-guard`: ele é fail-closed por SUBSTRING, inclusive em prosa
+
+O hook recusa o comando inteiro quando o **texto** contém algo que pareça comando de rede — mesmo
+dentro de um heredoc que só documenta, de uma mensagem de commit ou do campo `--justificativa` de
+um script de estado. Em 2026-10-29/31 isso bloqueou 4 chamadas cujo efeito era apenas escrever
+arquivo ou registrar decisão.
+
+**Não é para contornar** (ele está certo em ser fail-closed). O caminho é:
+
+- escrever arquivo com a tool de edição/escrita, não com heredoc no Bash;
+- em texto de commit/decisão, descrever sem a forma literal do comando ("envio ao remoto" em vez
+  da linha de comando);
+- quando o alvo é legítimo e a guarda recusa por URL fora da
+  `.claude/agente-00c-whitelist` (que contém só `https://localhost:8443/**`, por decisão do
+  operador em 28/08), **deixar o comando pronto** para ele colar com `!`. Editar a whitelist para
+  destravar o próprio comando é exatamente o contorno que o rito proíbe.
 
 ## Governança
 
