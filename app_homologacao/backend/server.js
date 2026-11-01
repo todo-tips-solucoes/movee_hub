@@ -75,6 +75,7 @@ const motoristaAdiantamentoRoutes = require('./routes/motorista-adiantamento');
 // órfãos/expurgo), iniciado no boot perto de app.listen (mesmo padrão de
 // hubPushWorker.iniciarExpurgoPeriodico acima).
 const adiantamentoWorker = require('./lib/adiantamento-worker');
+const { trocarCnpjDoMovimento } = require('./lib/motorista-cnpj');
 
 // robo-entrego (tasks.md FASE 2) — POST /api/v1/robo-entrego/eventos
 // (auditoria de execução do robô agendado), requirePermission interno.
@@ -1121,65 +1122,10 @@ app.patch('/update-envio-massa/:id', authenticateTokenCompartilhado, hubEnvioMas
         }
 
         if (hasCnpjChange) {
-            // [B] Validar cnpjNovo
-            const cnpjNovo = onlyDigits(cnpjRaw);
-            if (!isCNPJ14(cnpjNovo)) {
-                return res.status(400).json({ error: 'CNPJ inválido — deve conter 14 dígitos.' });
-            }
-
-            // [C] Buscar movimento atual escopado (ownership atômico anti-IDOR)
-            const movimentos = await postgrestRequest(
-                `EnvioMassa?id=eq.${id}&id_empresa=eq.${idEmp}&select=cnpj_prestador`
-            );
-            if (!Array.isArray(movimentos) || movimentos.length === 0) {
-                return res.status(404).json({ error: 'Movimento não encontrado.' });
-            }
-            const cnpjAntigo = onlyDigits(movimentos[0].cnpj_prestador);
-
-            // [D] Idempotência: CNPJ não muda → pular lógica de CNPJ
-            if (cnpjNovo !== cnpjAntigo) {
-                // [E] GATE DE GRUPO (SEC-03, guard-clause OBRIGATÓRIA antes de [E1])
-                // Empresa fora do grupo Movee nunca acessa Motorista
-                const _cnpjCache = {};
-                const isMoveeGroup = await mesmoGrupoQue(idEmp, 6, _cnpjCache);
-
-                if (isMoveeGroup) {
-                    // [E1] PRÉ-CHECK 409 + [F-Motorista] — dentro da função migrarCnpjMotorista
-                    // [F] PATCH em lote dos movimentos primeiro (FR-010: Motorista SÓ após movimentos OK)
-                    const patchLote = await postgrestRequest(
-                        `EnvioMassa?id_empresa=eq.${idEmp}&cnpj_prestador=eq.${encodeURIComponent(cnpjAntigo)}`,
-                        'PATCH',
-                        { cnpj_prestador: cnpjNovo }
-                    );
-                    if (patchLote && patchLote.error) {
-                        console.error('[PATCH /update-envio-massa] Erro no lote de movimentos:', patchLote.code);
-                        return res.status(500).json({ error: 'Erro ao atualizar movimentos em lote.' });
-                    }
-
-                    // [F-Motorista] migrar CNPJ na base Motorista (SÓ após movimentos OK — FR-010)
-                    const migResult = await migrarCnpjMotorista(cnpjAntigo, cnpjNovo, idEmp, _cnpjCache);
-                    if (migResult.conflict) {
-                        return res.status(409).json({ error: 'CNPJ já cadastrado para outro motorista.' });
-                    }
-                    if (migResult.error) {
-                        // FR-011: falha parcial pós-movimentos → 500, sem reverter
-                        console.error('[PATCH /update-envio-massa] Falha parcial em migrarCnpjMotorista (movimentos já atualizados):', migResult.error && migResult.error.message ? migResult.error.message : String(migResult.error));
-                        return res.status(500).json({ error: 'Movimentos atualizados, mas falha ao migrar base do motorista.' });
-                    }
-                } else {
-                    // Fora do grupo Movee: só atualiza movimentos, não toca Motorista (FR-013)
-                    const patchLote = await postgrestRequest(
-                        `EnvioMassa?id_empresa=eq.${idEmp}&cnpj_prestador=eq.${encodeURIComponent(cnpjAntigo)}`,
-                        'PATCH',
-                        { cnpj_prestador: cnpjNovo }
-                    );
-                    if (patchLote && patchLote.error) {
-                        console.error('[PATCH /update-envio-massa] Erro no lote de movimentos (fora do grupo):', patchLote.code);
-                        return res.status(500).json({ error: 'Erro ao atualizar movimentos em lote.' });
-                    }
-                }
-            }
-            // CNPJ igual (idempotência) ou já processado: cai para [G]
+            // Troca de CNPJ: validação, ownership, gate de grupo e RPC hub_motorista_trocar_cnpj
+            // (migration 0124: pré-check de conflito ANTES de escrever; conta/Motorista/movimentos numa transação).
+            const troca = await trocarCnpjDoMovimento({ id, idEmp, cnpjRaw, request: postgrestRequest, mesmoGrupoQue });
+            if (troca.status) return res.status(troca.status).json(troca.body);
         }
 
         // [G] PATCH demais campos do movimento editado (enviado/men1/men2/tipo) — não-regressão.
@@ -1628,86 +1574,6 @@ async function upsertMotoristasFromLote(rows) {
       'status=', err && err.status, 'body=', (err && err.body) || (err && err.message)
     );
     return { ok: false, erro: (err && err.body) || (err && err.message) || String(err) };
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// migrar-cnpj-motorista: migra o CNPJ de um motorista na base Motorista.
-//
-// Contrato (contracts/patch-update-envio-massa.md §Função migrarCnpjMotorista):
-//
-//   Gate de grupo ([E] na rota): SOMENTE chamada quando mesmoGrupoQue já passou.
-//   A função NÃO re-verifica o grupo — o gate pertence à rota (SEC-03, FR-013).
-//
-//   Algoritmo:
-//     1. PRÉ-CHECK 409 [E1]: Motorista?cnpj_prestador=eq.{cnpjNovo} existe? → { conflict: true }
-//     2. Buscar Motorista?cnpj_prestador=eq.{cnpjAntigo}
-//        - Existe  → PATCH preservando id/nome/senha/ativo: { cnpj_prestador: cnpjNovo }
-//        - Ausente → POST pré-cadastro { cnpj_prestador: cnpjNovo, nome: '', ativo: true }
-//          (senha NULL — motorista define via /motorista/register)
-//     3. Violação UNIQUE no POST → { conflict: true }  (SEC-04 — TOCTOU atômico)
-//     4. Qualquer outra falha → { error }  (FR-011: log sem objeto Motorista completo — SEC-05)
-//
-//   Retornos:
-//     { ok: true }       — migração concluída
-//     { skipped: true }  — (reservado; gate de grupo pertence à rota, não aqui)
-//     { conflict: true } — cnpjNovo já existe em Motorista (409 na rota)
-//     { error: <Error> } — falha inesperada (500 na rota + log)
-// ──────────────────────────────────────────────────────────────────────────────
-async function migrarCnpjMotorista(cnpjAntigo, cnpjNovo, idEmpresa, cache) {
-  try {
-    // [E1] PRÉ-CHECK 409: cnpjNovo já tem motorista cadastrado?
-    const existeNovo = await postgrestRequest(
-      `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNovo)}&select=cnpj_prestador`
-    );
-    if (Array.isArray(existeNovo) && existeNovo.length > 0) {
-      return { conflict: true };
-    }
-
-    // Buscar motorista com o CNPJ antigo
-    const existeAntigo = await postgrestRequest(
-      `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjAntigo)}&select=cnpj_prestador,nome,ativo`
-    );
-
-    if (Array.isArray(existeAntigo) && existeAntigo.length > 0) {
-      // Motorista antigo existe → PATCH preservando nome/ativo (nunca toca senha)
-      await postgrestRequest(
-        `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjAntigo)}`,
-        'PATCH',
-        { cnpj_prestador: cnpjNovo }
-      );
-      // Observabilidade: log de sucesso (SEC-05: só CNPJs, nunca o objeto Motorista/senha)
-      console.log(`[UPDATE][MOTORISTA] migrou ${cnpjAntigo}->${cnpjNovo} (grupo Movee)`);
-    } else {
-      // Motorista antigo ausente → pré-cadastro sem senha
-      try {
-        await postgrestRequest(
-          'Motorista',
-          'POST',
-          { cnpj_prestador: cnpjNovo, nome: '', ativo: true }
-        );
-        // Observabilidade: log de sucesso (SEC-05: só CNPJ, nunca senha)
-        console.log(`[UPDATE][MOTORISTA] pré-cadastro criado para ${cnpjNovo} (grupo Movee)`);
-      } catch (postErr) {
-        // SEC-04: violação UNIQUE (code 23505) no POST → conflict, não 500
-        if (
-          postErr && (
-            (postErr.code === '23505') ||
-            (postErr.message && postErr.message.includes('23505')) ||
-            (postErr.message && postErr.message.toLowerCase().includes('unique'))
-          )
-        ) {
-          return { conflict: true };
-        }
-        throw postErr;
-      }
-    }
-
-    return { ok: true };
-  } catch (err) {
-    // SEC-05: nunca logar objeto Motorista completo (contém hash de senha)
-    console.error('[migrarCnpjMotorista] erro:', err && err.message ? err.message : String(err));
-    return { error: err };
   }
 }
 

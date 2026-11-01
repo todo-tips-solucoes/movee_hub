@@ -16,6 +16,7 @@ const mockCriarCredencial = vi.fn();
 const mockResetSenhaCredencial = vi.fn();
 const mockDefinirNovaSenha = vi.fn();
 const mockAtualizarCredencial = vi.fn();
+const mockTrocarCnpj = vi.fn();
 const mockBuscarEntregoEnriquecimento = vi.fn();
 const mockPush = vi.fn();
 
@@ -40,6 +41,7 @@ vi.mock('@/lib/hub/motoristas-api', async () => {
     resetSenhaCredencial: (...args: unknown[]) => mockResetSenhaCredencial(...args),
     definirNovaSenhaCredencial: (...args: unknown[]) => mockDefinirNovaSenha(...args),
     atualizarCredencial: (...args: unknown[]) => mockAtualizarCredencial(...args),
+    trocarCnpjCredencial: (...args: unknown[]) => mockTrocarCnpj(...args),
     buscarEntregoEnriquecimento: (...args: unknown[]) => mockBuscarEntregoEnriquecimento(...args),
   };
 });
@@ -113,6 +115,7 @@ describe('MotoristaDetalhePage', () => {
     mockCriarCredencial.mockReset();
     mockResetSenhaCredencial.mockReset();
     mockAtualizarCredencial.mockReset();
+    mockTrocarCnpj.mockReset();
     mockBuscarEntregoEnriquecimento.mockReset();
     mockObterSugestoes.mockResolvedValue({ items: [], entidadeElegivel: true });
     withPermissoes(['motoristas.consultar', 'motoristas.editar']);
@@ -258,6 +261,39 @@ describe('MotoristaDetalhePage', () => {
       expect(screen.queryByRole('button', { name: /Criar credencial/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Redefinir senha/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Desativar credencial/ })).not.toBeInTheDocument();
+    });
+
+    it('Alterar CNPJ: só com motoristas.credencial (e só com conta vinculada); sem a permissão o botão não existe', async () => {
+      withPermissoes(['motoristas.consultar', 'motoristas.editar']);
+      mockObterMotorista.mockResolvedValueOnce(DETALHE_COM_VINCULO);
+      const { unmount } = render(<MotoristaDetalhePage />);
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'Fulano da Silva' })).toBeInTheDocument());
+      expect(screen.queryByRole('button', { name: /Alterar CNPJ/ })).not.toBeInTheDocument();
+      unmount();
+
+      withPermissoes(['motoristas.consultar', 'motoristas.credencial']);
+      mockObterMotorista.mockResolvedValueOnce(DETALHE_COM_VINCULO);
+      render(<MotoristaDetalhePage />);
+      await waitFor(() => expect(screen.getByRole('button', { name: /Alterar CNPJ/ })).toBeInTheDocument());
+      // com credencial mas sem editar: Trocar/Desvincular continuam escondidos
+      expect(screen.queryByRole('button', { name: /Trocar/ })).not.toBeInTheDocument();
+    });
+
+    it('Alterar CNPJ: envia só dígitos, re-busca o detalhe e avisa da conta bancária PJ', async () => {
+      withPermissoes(['motoristas.consultar', 'motoristas.credencial']);
+      mockObterMotorista.mockResolvedValue(DETALHE_COM_VINCULO);
+      mockTrocarCnpj.mockResolvedValueOnce({
+        id: 7, cnpjPrestador: '69.***.***/0001-**', movimentosMigrados: 3, inalterado: false, contaBancariaPjDesatualizada: true,
+      });
+      render(<MotoristaDetalhePage />);
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /Alterar CNPJ/ })).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Alterar CNPJ/ }));
+      fireEvent.change(screen.getByLabelText('CNPJ do prestador'), { target: { value: '69.222.222/0001-09' } });
+      fireEvent.click(screen.getAllByRole('button', { name: 'Alterar CNPJ' }).at(-1)!);
+
+      await waitFor(() => expect(mockTrocarCnpj).toHaveBeenCalledWith(1, { cnpjPrestador: '69222222000109' }));
+      await waitFor(() => expect(mockObterMotorista.mock.calls.length).toBeGreaterThan(1));
     });
 
     it('COM motoristas.credencial, sem credencial ainda: mostra "Criar credencial"', async () => {

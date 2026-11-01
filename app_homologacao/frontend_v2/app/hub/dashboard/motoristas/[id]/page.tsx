@@ -54,6 +54,10 @@ import {
   CredencialMotoristaDialogs,
   useCredencialMotoristaDialog,
 } from '@/components/hub/credencial-motorista-dialog';
+import {
+  AlterarCnpjMotoristaDialog,
+  useAlterarCnpjMotoristaDialog,
+} from '@/components/hub/alterar-cnpj-motorista-dialog';
 import { AtividadesMotoristaSection, useAtividadesMotorista } from '@/components/hub/atividades-motorista-section';
 import {
   buscarEntregoEnriquecimento,
@@ -221,6 +225,18 @@ export default function MotoristaDetalhePage() {
     onAtualizado: () => {
       refetch();
       toast.success('Credencial atualizada.');
+    },
+  });
+
+  // Alterar CNPJ da conta vinculada (frente motorista-cadastro-hub F3) — mesma permissão da credencial.
+  const alterarCnpjDialog = useAlterarCnpjMotoristaDialog({
+    entregadorId: id,
+    onAlterado: (r) => {
+      refetch();
+      toast.success(r.inalterado ? 'O CNPJ já era esse.' : `CNPJ alterado. ${r.movimentosMigrados} movimento(s) migrado(s).`);
+      if (r.contaBancariaPjDesatualizada) {
+        toast.warning('A conta bancária PJ cadastrada continua no CNPJ anterior. Confira com o motorista.');
+      }
     },
   });
 
@@ -531,21 +547,31 @@ export default function MotoristaDetalhePage() {
                     </div>
                     <p className="font-mono text-xs text-muted-foreground">{detalhe.vinculo.cnpjPrestadorMascarado}</p>
                   </div>
-                  {podeEditar && (
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => vinculoDialog.setOpen(true)}>
-                        <Link2 className="size-4" aria-hidden="true" />
-                        Trocar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        className="min-h-11 sm:min-h-8"
-                        onClick={() => setConfirmandoDesvinculo(true)}
-                      >
-                        <Link2Off className="size-4" aria-hidden="true" />
-                        Desvincular
-                      </Button>
+                  {(podeEditar || podeCredencial) && (
+                    <div className="flex flex-wrap gap-2">
+                      {podeCredencial && (
+                        <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => alterarCnpjDialog.setOpen(true)}>
+                          <Pencil className="size-4" aria-hidden="true" />
+                          Alterar CNPJ
+                        </Button>
+                      )}
+                      {podeEditar && (
+                        <>
+                          <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => vinculoDialog.setOpen(true)}>
+                            <Link2 className="size-4" aria-hidden="true" />
+                            Trocar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="min-h-11 sm:min-h-8"
+                            onClick={() => setConfirmandoDesvinculo(true)}
+                          >
+                            <Link2Off className="size-4" aria-hidden="true" />
+                            Desvincular
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -735,6 +761,8 @@ export default function MotoristaDetalhePage() {
           <AtividadesMotoristaSection carregandoDetalhe={carregando && !detalhe} state={atividadesState} />
 
           {podeCredencial && <CredencialMotoristaDialogs state={credencialDialog} />}
+
+          {podeCredencial && <AlterarCnpjMotoristaDialog state={alterarCnpjDialog} />}
 
           {podeEditar && <VinculoMotoristaDialog state={vinculoDialog} />}
 

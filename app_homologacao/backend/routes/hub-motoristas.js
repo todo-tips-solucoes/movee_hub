@@ -72,6 +72,7 @@ function compararMotorista(a, b, areasMap, coluna) {
   return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
 }
 const { registrarAuditoria } = require('../lib/hub-auditoria');
+const { validarTrocaCnpjBody, trocarCnpjMotorista } = require('../lib/motorista-cnpj');
 const {
   parsePaginacao,
   nomeCasa,
@@ -1499,6 +1500,87 @@ router.patch('/:id/credencial', requirePermission('motoristas.credencial'), asyn
     return res.status(200).json({ id: contaMotoristaId, ativo: validado.ativo });
   } catch (e) {
     console.error('[hub-motoristas] erro em PATCH /motoristas/:id/credencial:', e.message);
+    return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PATCH /motoristas/:id/credencial/cnpj — trocar o CNPJ da conta vinculada
+// (frente motorista-cadastro-hub F3). Substitui a troca do painel legado: a RPC
+// `hub_motorista_trocar_cnpj` (0124) migra ContaMotorista, Motorista (gatilhos da
+// 0123) e TODOS os movimentos da empresa numa transação, com pré-check de conflito
+// antes de escrever. CNPJ novo que já tem conta/Motorista = 409, sem escrita: o
+// operador usa "Trocar" (vínculo). Conta bancária PJ é mantida e apenas sinalizada.
+// ────────────────────────────────────────────────────────────────────────────
+
+router.patch('/:id/credencial/cnpj', requirePermission('motoristas.credencial'), async (req, res) => {
+  try {
+    const ctx = await resolverContextoEntidade(req, res, 'motoristas.credencial');
+    if (!ctx) return;
+    const { entidadeAtiva, claims } = ctx;
+
+    if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    const id = parseInt(req.params.id, 10);
+
+    const validado = validarTrocaCnpjBody(req.body);
+    if (!validado.ok) return res.status(422).json({ erro: validado.erro });
+
+    if (!(await entidadeEhElegivel(entidadeAtiva, claims))) {
+      return res.status(422).json({ erro: 'INVALIDO', motivo: 'entidade_fora_do_grupo' });
+    }
+
+    const vinculo = await hubPostgrestRequest(
+      `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,motorista_id`,
+      'GET', null, claims
+    );
+    if (!vinculo || vinculo.length === 0 || !vinculo[0].motorista_id) {
+      return res.status(404).json({ erro: 'credencial_inexistente' });
+    }
+    const contaMotoristaId = vinculo[0].motorista_id;
+    const contas = await hubPostgrestRequest(
+      `ContaMotorista?id=eq.${contaMotoristaId}&select=cnpj_prestador`, 'GET', null, claims
+    );
+    const cnpjAntigo = contas && contas[0] && String(contas[0].cnpj_prestador || '');
+    if (!cnpjAntigo) return res.status(404).json({ erro: 'credencial_inexistente' });
+
+    const r = await trocarCnpjMotorista(
+      (ep, m, b) => hubPostgrestRequest(ep, m, b, claims),
+      { cnpjAntigo, cnpjNovo: validado.cnpjPrestador, idEmpresa: entidadeAtiva }
+    );
+    if (r.conflito) return res.status(409).json({ erro: 'CONFLITO', motivo: 'cnpj_ja_cadastrado' });
+    if (r.invalido) return res.status(422).json({ erro: 'cnpj_invalido' });
+    if (r.foraDoGrupo) return res.status(422).json({ erro: 'INVALIDO', motivo: 'entidade_fora_do_grupo' });
+    if (r.naoEncontrado) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    if (!r.ok) throw r.error;
+
+    const out = r.resultado;
+    if (!out.inalterado) {
+      await registrarAuditoria({
+        idEmpresa: entidadeAtiva,
+        usuarioId: ctx.payload.sub,
+        acao: 'motorista.cnpj_alterado',
+        recurso: 'ContaMotorista',
+        recursoId: contaMotoristaId,
+        detalhes: {
+          contaMotoristaId,
+          cnpjAnterior: mascararCnpj(cnpjAntigo),
+          cnpjNovo: mascararCnpj(validado.cnpjPrestador),
+          movimentosMigrados: out.movimentos,
+          contaBancariaPjDesatualizada: out.contaBancariaPjDesatualizada === true,
+        },
+        claims,
+      });
+    }
+
+    return res.status(200).json({
+      id: contaMotoristaId,
+      cnpjPrestador: mascararCnpj(validado.cnpjPrestador),
+      movimentosMigrados: out.movimentos || 0,
+      inalterado: out.inalterado === true,
+      contaBancariaPjDesatualizada: out.contaBancariaPjDesatualizada === true,
+    });
+  } catch (e) {
+    console.error('[hub-motoristas] erro em PATCH /motoristas/:id/credencial/cnpj:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
   }
 });
