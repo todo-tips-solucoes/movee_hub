@@ -132,10 +132,19 @@ Rollback: mesma linha com `:repasse-movimento-ca279f2`.
 infra/producao/smoke-deploy.sh -t backend=<tag> -t frontend_v2=<tag> -t frontend_motorista=repasse-movimento-ca279f2
 ```
 
-As strings desta entrega estão em `infra/producao/smoke-deploy.strings`:
-`hub_motorista_trocar_cnpj` (backend) e `permissoesEntidadeAtiva` (frontend_v2). As duas
-existem só nesta entrega (0 ocorrências na main anterior). Um `000` logo depois do deploy
-pode ser timing do Traefik: ver CLAUDE.md antes de concluir.
+As strings desta entrega estão em `infra/producao/smoke-deploy.strings`: `hub_motorista_trocar_cnpj`
+(backend, tag `cadastro-motorista-b8aaa8d`), `permissoesEntidadeAtiva` (frontend_v2, mesma tag) e,
+para o app motorista que não muda, `recebeu por fora abatido` (tag `repasse-movimento-ca279f2`).
+Controle negativo medido nas imagens: 3 e 8 ocorrências nas imagens novas, 0 nas de rollback; a do
+app motorista, 2 em `ca279f2` e 0 em `pagos-por-fora-1bda5b3`.
+
+> Correção pós-deploy (2026-11-01): a primeira versão deste runbook dizia isso sem que as linhas
+> tivessem sido adicionadas ao arquivo. No deploy, o smoke rodou com um arquivo avulso
+> (`-s ~/smoke-cadastro-motorista.strings`) e deu 12/12. A linha do `frontend_motorista` também
+> estava vencida (apontava `ajuda-3-entregas-f3ffeba`, mas o ar está em `repasse-movimento-ca279f2`),
+> então o smoke padrão falharia nela. As três linhas agora valem para o que está no ar.
+
+Um `000` logo depois do deploy pode ser timing do Traefik: ver CLAUDE.md antes de concluir.
 
 Rotas novas vivas, sem login (o esperado é 401, não 404):
 
