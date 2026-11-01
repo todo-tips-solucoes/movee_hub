@@ -73,6 +73,22 @@ Usar se, após ligar: motoristas legítimos não conseguem entrar (login 401/403
 passo 5 falha. O login volta a ler a tabela `Motorista` (os gatilhos mantêm as duas iguais, então a
 reversão não perde senha alterada). Repetir o passo 4 (agora `printenv` não imprime nada) e o 5.
 
+## Ensaio no staging (2026-11-01)
+
+A chave foi ligada no `hub-homolog` com o backend desta entrega, e o smoke de refresh rodou nos
+dois modos:
+- **Chave desligada: 6/6.** Login 200 e refresh 200. Desativar no hub dá refresh 401 com os
+  cookies limpos; resetar dá refresh 401.
+- **Chave ligada: 5/7.** As mesmas checagens passaram. As 2 falhas são da dívida abaixo.
+
+⚠️ **Dívida conhecida, que não bloqueia a virada:** com a chave ligada, o login **não** coloca
+`entregadorUuid` no token. `resolverEntregadorUuid` lê `Entregador` pelo PostgREST do hub **sem
+claims**, a RLS por escopo devolve vazio sem erro, e a função retorna `null`. Isso já existia antes
+desta frente; o refresh preserva o que o login emitiu. O único efeito é que o carimbo
+`EnvioMassa.entregador_uuid` na validação de nota (best-effort, que nunca bloqueia) não acontece. Ele
+também nunca aconteceu em produção (0 movimentos com o campo preenchido). Correção: uma função
+SECURITY DEFINER que devolva o `id_externo` pelo `conta.id` (migration nova), numa frente própria.
+
 ## 7. Depois de OK
 
 Atualizar o `CLAUDE.md` e a memória do projeto registrando que **a chave está ligada em produção**
