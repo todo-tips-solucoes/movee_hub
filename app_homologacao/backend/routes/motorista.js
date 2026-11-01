@@ -259,6 +259,18 @@ async function resolverEntregadorUuid(contaMotoristaId) {
   return null;
 }
 
+// Payload do token de sessão do app com a chave ligada — usado pelo login E pelo refresh, para que nenhuma claim
+// de estado de sessão se perca na renovação. `entregadorUuid` é recalculado do banco (o vínculo pode ter mudado);
+// best-effort como no login: falha em resolver = sem a claim (clarify Q4), nunca bloqueia.
+async function payloadContaMotorista(conta) {
+  const payload = { cnpjPrestador: conta.cnpj_prestador, nome: conta.nome || '' };
+  const entregadorUuid = await resolverEntregadorUuid(conta.id);
+  if (entregadorUuid) {
+    payload.entregadorUuid = entregadorUuid;
+  }
+  return payload;
+}
+
 async function loginViaContaMotorista(cnpjNorm, senha, res) {
   // Mesma mensagem anti-enumeração do login legado (FR-016) — não revela
   // qual campo falhou.
@@ -291,13 +303,7 @@ async function loginViaContaMotorista(cnpjNorm, senha, res) {
     return res.status(403).json({ error: 'Conta inativa. Entre em contato com o suporte.' });
   }
 
-  const payload = { cnpjPrestador: conta.cnpj_prestador, nome: conta.nome || '' };
-  // FASE 6 (tasks.md 6.2) — aditivo: só entra no payload quando resolvido
-  // (Entregador vinculado existe). Ausência não é erro (clarify Q4).
-  const entregadorUuid = await resolverEntregadorUuid(conta.id);
-  if (entregadorUuid) {
-    payload.entregadorUuid = entregadorUuid;
-  }
+  const payload = await payloadContaMotorista(conta);
   const accessToken = generateMotoristaAccessToken(payload);
   const refreshToken = generateMotoristaRefreshToken(payload);
 
@@ -682,7 +688,11 @@ router.post('/token/refresh', async (req, res) => {
     return res.status(401).json({ error: 'Credenciais inválidas.' });
   }
 
-  const newAccessToken = generateMotoristaAccessToken({ cnpjPrestador: decoded.cnpjPrestador, nome: conta.nome || '' });
+  // chave ligada: mesmo payload do login (inclui entregadorUuid); desligada: como o login legado (sem a claim)
+  const novoPayload = hubMotoristaLoginHabilitado()
+    ? await payloadContaMotorista(conta)
+    : { cnpjPrestador: decoded.cnpjPrestador, nome: conta.nome || '' };
+  const newAccessToken = generateMotoristaAccessToken(novoPayload);
 
   const isProd = process.env.NODE_ENV === 'production';
   res.cookie('accessToken', newAccessToken, {

@@ -19,10 +19,15 @@ const Module = require('module');
 let consultas = []; // { tabela, query }
 let respostaLegado;
 let respostaConta;
+let respostaEntregador;
 const originalLoad = Module._load;
 Module._load = function (request) {
   if (request === '../lib/hub-postgrest') {
-    return { hubPostgrestRequest: async (q) => { consultas.push({ tabela: 'ContaMotorista', q }); return respostaConta(); } };
+    return { hubPostgrestRequest: async (q) => {
+      if (q.startsWith('Entregador?')) return respostaEntregador();
+      consultas.push({ tabela: 'ContaMotorista', q });
+      return respostaConta();
+    } };
   }
   return originalLoad.apply(this, arguments);
 };
@@ -54,6 +59,7 @@ beforeEach(() => {
   consultas = [];
   respostaLegado = async () => [];
   respostaConta = async () => [];
+  respostaEntregador = async () => [];
 });
 
 function refreshCom(token) {
@@ -93,6 +99,22 @@ for (const [modo, valor, tabela, setLinhas] of [
       assert.equal(jwt.decode(ac).nome, 'Nome do Banco');
       assert.deepEqual(consultas.map((c) => c.tabela), [tabela]);
       assert.match(consultas[0].q, new RegExp(`cnpj_prestador=eq\\.${CNPJ}`));
+    });
+
+    test('entregadorUuid no token renovado: só com a chave ligada e vínculo existente (recalculado do banco)', async () => {
+      setLinhas([{ id: 7, cnpj_prestador: CNPJ, nome: 'N', senha: 'hash', ativo: true }]);
+      const acessoDe = (r) => jwt.decode(decodeURIComponent(cookie(r, 'accessToken').split(';')[0].split('=')[1]));
+      respostaEntregador = async () => [{ id_externo: 'uuid-do-banco' }];
+      // o token antigo traz outra claim: não deve ser copiada
+      const comVinculo = acessoDe(await refreshCom(tokenValido({ entregadorUuid: 'uuid-velho' })));
+      assert.equal(comVinculo.entregadorUuid, valor === 'true' ? 'uuid-do-banco' : undefined);
+      respostaEntregador = async () => [];
+      const semVinculo = acessoDe(await refreshCom(tokenValido({ entregadorUuid: 'uuid-velho' })));
+      assert.equal(semVinculo.entregadorUuid, undefined);
+      respostaEntregador = async () => { throw new Error('db fora'); };
+      const comErro = await refreshCom(tokenValido());
+      assert.equal(comErro.status, 200); // best-effort, igual ao login
+      assert.equal(acessoDe(comErro).entregadorUuid, undefined);
     });
 
     test('inativo: 401 e cookies limpos', async () => {
