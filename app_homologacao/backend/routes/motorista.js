@@ -259,6 +259,18 @@ async function resolverEntregadorUuid(contaMotoristaId) {
   return null;
 }
 
+// Payload do token de sessão do app com a chave ligada — usado pelo login E pelo refresh, para que nenhuma claim
+// de estado de sessão se perca na renovação. `entregadorUuid` é recalculado do banco (o vínculo pode ter mudado);
+// best-effort como no login: falha em resolver = sem a claim (clarify Q4), nunca bloqueia.
+async function payloadContaMotorista(conta) {
+  const payload = { cnpjPrestador: conta.cnpj_prestador, nome: conta.nome || '' };
+  const entregadorUuid = await resolverEntregadorUuid(conta.id);
+  if (entregadorUuid) {
+    payload.entregadorUuid = entregadorUuid;
+  }
+  return payload;
+}
+
 async function loginViaContaMotorista(cnpjNorm, senha, res) {
   // Mesma mensagem anti-enumeração do login legado (FR-016) — não revela
   // qual campo falhou.
@@ -291,13 +303,7 @@ async function loginViaContaMotorista(cnpjNorm, senha, res) {
     return res.status(403).json({ error: 'Conta inativa. Entre em contato com o suporte.' });
   }
 
-  const payload = { cnpjPrestador: conta.cnpj_prestador, nome: conta.nome || '' };
-  // FASE 6 (tasks.md 6.2) — aditivo: só entra no payload quando resolvido
-  // (Entregador vinculado existe). Ausência não é erro (clarify Q4).
-  const entregadorUuid = await resolverEntregadorUuid(conta.id);
-  if (entregadorUuid) {
-    payload.entregadorUuid = entregadorUuid;
-  }
+  const payload = await payloadContaMotorista(conta);
   const accessToken = generateMotoristaAccessToken(payload);
   const refreshToken = generateMotoristaRefreshToken(payload);
 
@@ -644,36 +650,59 @@ router.get('/empresas-proprietarias', async (req, res) => {
 // ROTA: POST /motorista/token/refresh  (cookie refreshToken)
 // Ref: tarefa 2.2.2 / contracts §refresh
 // ──────────────────────────────────────────────────────────────────────────────
-router.post('/token/refresh', (req, res) => {
+router.post('/token/refresh', async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
 
   if (!refreshToken) {
     return res.status(401).json({ error: 'Token de atualização ausente.' });
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-
-    // Separação de audiência
-    if (decoded.aud !== 'motorista') {
-      return res.status(401).json({ error: 'Credenciais inválidas.' });
-    }
-
-    const payload = { cnpjPrestador: decoded.cnpjPrestador, nome: decoded.nome || '' };
-    const newAccessToken = generateMotoristaAccessToken(payload);
-
-    const isProd = process.env.NODE_ENV === 'production';
-    res.cookie('accessToken', newAccessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'Strict',
-      maxAge: 15 * 60 * 1000,
-    });
-
-    return res.json({ message: 'Token renovado.' });
+    decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
   } catch (err) {
     return res.status(403).json({ error: 'Token de atualização inválido.' });
   }
+
+  // Separação de audiência
+  if (decoded.aud !== 'motorista') {
+    return res.status(401).json({ error: 'Credenciais inválidas.' });
+  }
+
+  // Relê a conta no banco (mesma tabela que o /login usa conforme a chave): motorista desativado,
+  // CNPJ trocado ou com reset em curso (senha nula) perde a sessão em vez de renovar por até 7 dias.
+  let linhas;
+  try {
+    const q = `cnpj_prestador=eq.${encodeURIComponent(decoded.cnpjPrestador)}`;
+    linhas = hubMotoristaLoginHabilitado()
+      ? await hubPostgrestRequest(`ContaMotorista?${q}`)
+      : await _postgrestRequest(`Motorista?${q}`);
+  } catch (err) {
+    // fail-closed sem deslogar: instabilidade do banco não pode derrubar a sessão
+    return res.status(503).json({ error: 'Serviço indisponível. Tente novamente.' });
+  }
+
+  const conta = linhas && linhas[0];
+  if (!conta || conta.ativo !== true || !conta.senha) {
+    clearAuthCookies(res);
+    return res.status(401).json({ error: 'Credenciais inválidas.' });
+  }
+
+  // chave ligada: mesmo payload do login (inclui entregadorUuid); desligada: como o login legado (sem a claim)
+  const novoPayload = hubMotoristaLoginHabilitado()
+    ? await payloadContaMotorista(conta)
+    : { cnpjPrestador: decoded.cnpjPrestador, nome: conta.nome || '' };
+  const newAccessToken = generateMotoristaAccessToken(novoPayload);
+
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie('accessToken', newAccessToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'Strict',
+    maxAge: 15 * 60 * 1000,
+  });
+
+  return res.json({ message: 'Token renovado.' });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────

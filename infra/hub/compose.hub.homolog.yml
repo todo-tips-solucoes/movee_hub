@@ -142,7 +142,7 @@ services:
       # comportamento legado inalterado, FR-023/SC-007). Ligado aqui, SOMENTE
       # no compose do hub-homolog (recurso hub-*), para exercitar o login via
       # ContaMotorista nos Scenarios 6 do quickstart.md sem tocar produção.
-      HUB_MOTORISTA_LOGIN_CONTA_ATIVA: "${HUB_MOTORISTA_LOGIN_CONTA_ATIVA:-true}"
+      HUB_MOTORISTA_LOGIN_CONTA_ATIVA: "${HUB_MOTORISTA_LOGIN_CONTA_ATIVA:-}"
       # hub-avisos (FASE 1, tasks.md 1.4): Web Push — caminho do arquivo de
       # chave VAPID (gen-vapid.sh) e override de allowlist de hosts do
       # endpoint de inscrição (research.md Decision 10/14, lib/hub-push-
