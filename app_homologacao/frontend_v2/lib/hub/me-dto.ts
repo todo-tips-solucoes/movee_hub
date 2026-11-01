@@ -18,6 +18,8 @@ export interface MeResponseDTO {
   entidade_ativa: number | null;
   modulos: Array<{ codigo: string; nome: string; icone: string; ordem: number; ativo: boolean }>;
   permissoes: string[];
+  /** Só da entidade ativa (o que o gate do servidor usa). Ausente em backend antigo. */
+  permissoesEntidadeAtiva?: string[];
 }
 
 export interface TrocarEntidadeReqDTO {
@@ -62,6 +64,8 @@ export interface HubMe {
   entidadeAtiva: number | null;
   modulos: HubModulo[];
   permissoes: string[];
+  /** Permissões restritas à entidade ativa — base para esconder botões que o servidor recusaria. */
+  permissoesEntidadeAtiva: string[];
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -93,6 +97,7 @@ export function toHubMe(dto: MeResponseDTO): HubMe {
       // `ativo` deliberadamente omitido — decisão D2.
     })),
     permissoes: dto.permissoes,
+    permissoesEntidadeAtiva: dto.permissoesEntidadeAtiva ?? [],
   };
 }
 

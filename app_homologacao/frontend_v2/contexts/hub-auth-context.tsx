@@ -73,6 +73,8 @@ interface HubAuthContextValue {
   entidadeAtiva: number | null;
   modulos: HubMe['modulos'];
   permissoes: string[];
+  /** Permissões só da entidade ativa (gate real do servidor); [] sem sessão do hub. */
+  permissoesEntidadeAtiva: string[];
   carregando: boolean;
   login: (email: string, senha: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -192,6 +194,7 @@ export function HubAuthProvider({ children }: { children: ReactNode }) {
     entidadeAtiva: me ? me.entidadeAtiva : null,
     modulos: me ? me.modulos : [],
     permissoes: me ? me.permissoes : [],
+    permissoesEntidadeAtiva: me ? me.permissoesEntidadeAtiva : [],
     carregando,
     login,
     logout,

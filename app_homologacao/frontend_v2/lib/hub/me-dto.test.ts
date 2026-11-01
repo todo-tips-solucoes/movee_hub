@@ -75,11 +75,18 @@ describe('toHubMe — paridade com o contrato real de hub-me.js', () => {
     expect(toHubMe(dto).permissoes).toEqual(['motoristas.view', 'auditoria.consultar']);
   });
 
+  it('propaga permissoesEntidadeAtiva e cai em [] quando o backend não envia', () => {
+    expect(toHubMe(buildDto({ permissoesEntidadeAtiva: ['envio_massa.aprovar'] })).permissoesEntidadeAtiva).toEqual([
+      'envio_massa.aprovar',
+    ]);
+    expect(toHubMe(buildDto()).permissoesEntidadeAtiva).toEqual([]);
+  });
+
   it('não introduz nem descarta nenhum campo fora do contrato (paridade estrita)', () => {
     const dto = buildDto();
     const me = toHubMe(dto);
     expect(Object.keys(me).sort()).toEqual(
-      ['usuario', 'entidades', 'entidadeAtiva', 'modulos', 'permissoes'].sort()
+      ['usuario', 'entidades', 'entidadeAtiva', 'modulos', 'permissoes', 'permissoesEntidadeAtiva'].sort()
     );
     expect(Object.keys(me.usuario).sort()).toEqual(['id', 'email', 'nome'].sort());
     expect(Object.keys(me.entidades[0]).sort()).toEqual(['empresaId', 'nome', 'papel', 'ativo'].sort());

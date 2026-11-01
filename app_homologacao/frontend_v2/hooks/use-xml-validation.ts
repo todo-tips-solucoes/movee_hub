@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { lerErroApi } from '@/lib/api-client';
 
 // Enum de status terminal por XML (snake_case — paridade com backend)
 export type ValidationStatus =
@@ -67,8 +68,11 @@ export function useXmlValidation() {
         let msg = `Erro na validacao (status ${res.status})`;
         try {
           const body = await res.json();
-          // 4xx com detail = erro de negócio (propagar real); 5xx = infra
-          if (res.status < 500 && body?.detail) {
+          // 401/403 = permissão/sessão (não é infra); 4xx com detail = erro de
+          // negócio (propagar real); 5xx = infra
+          if (res.status === 401 || res.status === 403) {
+            msg = lerErroApi(body, res.status).mensagem;
+          } else if (res.status < 500 && body?.detail) {
             msg = body.detail;
           } else {
             msg = 'Servico de validacao indisponivel. Tente novamente mais tarde.';

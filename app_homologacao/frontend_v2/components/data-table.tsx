@@ -31,6 +31,10 @@ interface DataTableProps {
   onToggleSelect: (id: number) => void;
   onDelete: (id: number) => Promise<void>;
   onUpdate: (id: number, data: Record<string, unknown>) => Promise<unknown>;
+  /** Esconde Editar / Excluir quando o perfil não pode (só o hub passa; o painel
+   *  legado não passa nada e o default `true` mantém o comportamento). */
+  podeEditar?: boolean;
+  podeExcluir?: boolean;
   /** impeccable rodada 15 (h7): ordenação da tabela. Opcionais — o painel
    *  legado renderiza o mesmo componente e não passa nenhuma das duas, então
    *  ali os cabeçalhos seguem texto puro, sem virar botão sem função. */
@@ -58,6 +62,8 @@ export function DataTable({
   onToggleSelect,
   onDelete,
   onUpdate,
+  podeEditar = true,
+  podeExcluir = true,
 }: DataTableProps) {
   const [editRecord, setEditRecord] = useState<EnvioMassa | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -105,12 +111,16 @@ export function DataTable({
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    {podeEditar && (
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditRecord(item)} aria-label={`Editar registro ${item.nome || `nº ${item.number}`}`} title="Editar">
                       <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
+                    )}
+                    {podeExcluir && (
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(item.id)} aria-label={`Excluir registro ${item.nome || `nº ${item.number}`}`} title="Excluir">
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
@@ -292,6 +302,7 @@ export function DataTable({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        {podeEditar && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -302,6 +313,8 @@ export function DataTable({
                         >
                           <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                         </Button>
+                        )}
+                        {podeExcluir && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -312,6 +325,7 @@ export function DataTable({
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

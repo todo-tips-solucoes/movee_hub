@@ -72,3 +72,21 @@ describe('DataTable — cabeçalhos ordenáveis', () => {
     );
   });
 });
+
+describe('DataTable — Editar/Excluir por permissão', () => {
+  it('sem props (painel legado) os dois botões aparecem', () => {
+    renderTabela();
+    expect(screen.getAllByTitle('Editar').length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle('Excluir').length).toBeGreaterThan(0);
+  });
+
+  it('podeEditar/podeExcluir=false escondem cada botão, independentes', () => {
+    const { unmount } = renderTabela({ podeEditar: false });
+    expect(screen.queryAllByTitle('Editar')).toHaveLength(0);
+    expect(screen.getAllByTitle('Excluir').length).toBeGreaterThan(0);
+    unmount();
+    renderTabela({ podeExcluir: false });
+    expect(screen.queryAllByTitle('Excluir')).toHaveLength(0);
+    expect(screen.getAllByTitle('Editar').length).toBeGreaterThan(0);
+  });
+});

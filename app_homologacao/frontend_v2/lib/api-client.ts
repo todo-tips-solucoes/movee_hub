@@ -39,12 +39,21 @@ export interface LinhaInvalida {
  */
 export class ApiError extends Error {
   readonly status: number;
+  /** Código de máquina do erro (`PERMISSAO_INSUFICIENTE`...), quando o backend mandou. */
+  readonly codigo?: string;
   readonly linhasInvalidas: LinhaInvalida[];
   /** corrigir-movimento: corpo da resposta (`resultado`, `parcial`...). */
   readonly corpo: Record<string, unknown>;
 
-  constructor(message: string, status: number, linhasInvalidas: LinhaInvalida[] = [], corpo: Record<string, unknown> = {}) {
+  constructor(
+    message: string,
+    status: number,
+    linhasInvalidas: LinhaInvalida[] = [],
+    corpo: Record<string, unknown> = {},
+    codigo?: string
+  ) {
     super(message);
+    this.codigo = codigo;
     this.name = 'ApiError';
     this.status = status;
     this.linhasInvalidas = linhasInvalidas;
@@ -71,17 +80,49 @@ function extrairLinhasInvalidas(body: unknown): LinhaInvalida[] {
     .filter((x): x is LinhaInvalida => x !== null);
 }
 
+const MENSAGEM_POR_CODIGO: Record<string, string> = {
+  PERMISSAO_INSUFICIENTE: 'Seu perfil não tem permissão para esta ação.',
+  PERMISSAO_NEGADA: 'Seu perfil não tem permissão para esta ação.',
+  SEM_ENTIDADE_ATIVA: 'Selecione uma entidade para continuar.',
+  ENTIDADE_NAO_SELECIONADA: 'Selecione uma entidade para continuar.',
+  ADAPTADOR_INDISPONIVEL: 'Serviço indisponível. Tente novamente.',
+  TOKEN_INVALIDO: 'Sessão expirada. Entre novamente.',
+};
+
+/**
+ * Texto e código de um corpo de erro do backend, qualquer que seja o formato:
+ * `{message}`, `{error:'texto'}`, `{error:{code,message?}}`, `{erro:'CODIGO'}`.
+ * Fonte única: `body.message || body.error` transformava `{error:{code}}` em
+ * "[object Object]" na tela (403 do Fechar movimento).
+ */
+export function lerErroApi(body: unknown, status: number): { mensagem: string; codigo?: string } {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const e = b.error;
+  const eObj = e && typeof e === 'object' ? (e as Record<string, unknown>) : undefined;
+  const codigo =
+    typeof b.erro === 'string' ? b.erro : typeof eObj?.code === 'string' ? eObj.code : undefined;
+  const mensagem =
+    (typeof b.message === 'string' && b.message) ||
+    (typeof e === 'string' && e) ||
+    (typeof eObj?.message === 'string' && eObj.message) ||
+    (codigo && MENSAGEM_POR_CODIGO[codigo]) ||
+    `Erro ${status}. Tente novamente.`;
+  return { mensagem, codigo };
+}
+
 async function handleResponse(res: Response) {
   if (res.status === 401) {
     throw new Error('Não autorizado');
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: 'Erro desconhecido' }));
+    const { mensagem, codigo } = lerErroApi(body, res.status);
     throw new ApiError(
-      body.message || body.error || `Erro ${res.status}`,
+      mensagem,
       res.status,
       extrairLinhasInvalidas(body),
-      body && typeof body === 'object' ? body : {}
+      body && typeof body === 'object' ? body : {},
+      codigo
     );
   }
   return res;
