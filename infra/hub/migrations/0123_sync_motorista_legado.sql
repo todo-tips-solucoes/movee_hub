@@ -38,7 +38,10 @@
 --   hub_trg_entregador_vinculo_legado(), hub_trg_legado_para_conta(), hub_motorista_garante_legado(int),
 --   hub_cnpj_do_grupo_movee(text), hub_empresas_grupo_movee();
 
--- empresas do grupo Movee, mesma regra de mesmoGrupoQue (Grupo/Empresa vivos, NAO a allowlist EmpresaGrupoMovee)
+SET LOCAL lock_timeout = '5s';
+
+-- UNICA definicao de grupo Movee no banco: empresa 6 + filiais (Grupo/Empresa vivos, regra de mesmoGrupoQue) OU a
+-- allowlist "EmpresaGrupoMovee" (0022). Medido: em producao as duas dao {6}; em staging a allowlist e {9001} e o Grupo e vazio.
 CREATE OR REPLACE FUNCTION hub_empresas_grupo_movee()
 RETURNS SETOF bigint
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -47,6 +50,8 @@ AS $f$
     SELECT 6::bigint
     UNION
     SELECT e.id FROM "Empresa" e JOIN "Grupo" g ON g.id = e.id_grupo WHERE g.id_empresa_pai = 6
+    UNION
+    SELECT id_empresa::bigint FROM "EmpresaGrupoMovee"
 $f$;
 
 -- o CNPJ e de motorista do grupo Movee? (vinculo de Entregador numa empresa do grupo OU movimento nelas; a

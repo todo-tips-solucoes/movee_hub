@@ -8,7 +8,7 @@
 --   psql -d <banco> -v ON_ERROR_STOP=1 -f infra/hub/scripts/diagnostico-motorista-sync.sql
 -- Para garantir leitura pura: PGOPTIONS='-c default_transaction_read_only=on' psql ...
 --
--- Parte 1 = contagens D0..D9. Parte 2 = LISTAS DO GATE (C3b, C3d, C2): casos AMBIGUOS que a 0121 NAO corrige e
+-- Parte 1 = contagens D0..D9. Parte 2 = LISTAS DO GATE (C3b, C3d, C2, C4): casos AMBIGUOS que a 0121 NAO corrige e
 -- que o operador decide um a um. "Grupo Movee" = empresa 6 + filiais (Grupo.id_empresa_pai = 6), a mesma regra de
 -- mesmoGrupoQue (routes/grupo.js).
 
@@ -165,3 +165,18 @@ SELECT e.id AS entregador_id, e.id_empresa, e.nome AS entregador,
   LEFT JOIN "ContaMotorista" alvo ON alvo.cnpj_prestador = u.d
  WHERE u.d <> cm.cnpj_prestador
  ORDER BY e.id;
+
+\echo '=== LISTA C4. contas com reset de senha EM CURSO ou EXPIRADO (token_reset_hash preenchido; nunca imprime hash)'
+\echo '    O reset zera Motorista.senha (G2, 0123) e o /register recusa o CNPJ enquanto o token existir.'
+\echo '    colunas: conta_id, nome, cnpj mascarado, expira em, expirado, legado ainda tem senha, vinculada a Entregador'
+WITH mot AS (SELECT regexp_replace(m.cnpj_prestador, '\D', '', 'g') AS d, bool_or(m.senha IS NOT NULL) AS tem_senha
+               FROM "Motorista" m GROUP BY 1)
+SELECT cm.id AS conta_id, cm.nome,
+       left(cm.cnpj_prestador, 2) || '**********' || right(cm.cnpj_prestador, 2) AS cnpj,
+       cm.token_reset_expira AS expira_em,
+       (cm.token_reset_expira IS NULL OR cm.token_reset_expira < now()) AS expirado,
+       coalesce(mot.tem_senha, false) AS legado_tem_senha,
+       EXISTS (SELECT 1 FROM "Entregador" e WHERE e.motorista_id = cm.id) AS vinculada_a_entregador
+  FROM "ContaMotorista" cm LEFT JOIN mot ON mot.d = cm.cnpj_prestador
+ WHERE cm.token_reset_hash IS NOT NULL
+ ORDER BY cm.token_reset_expira NULLS FIRST, cm.id;

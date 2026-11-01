@@ -4,7 +4,11 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ActionBar } from './action-bar';
 
-vi.mock('./process-controls', () => ({ ProcessControls: () => <div data-testid="process-controls" /> }));
+vi.mock('./process-controls', () => ({
+  ProcessControls: ({ podeEnviar }: { podeEnviar?: boolean }) => (
+    <div data-testid="process-controls" data-pode-enviar={String(podeEnviar)} />
+  ),
+}));
 vi.mock('./import-button', () => ({ ImportButton: () => <div data-testid="import-button" /> }));
 vi.mock('./close-movement-dialog', () => ({ CloseMovementDialog: () => <div data-testid="close-movement" /> }));
 vi.mock('@/components/hub/gerar-do-repasse-button', () => ({ GerarDoRepasseButton: () => null }));
@@ -46,7 +50,8 @@ describe('ActionBar — permissões', () => {
     b.unmount();
 
     renderBarra({ podeEnviar: false });
-    expect(screen.queryByTestId('process-controls')).toBeNull();
+    // M3: o ProcessControls segue montado (indicador de disparo e "Limpar seleção"); só Disparar/Parar somem, dentro dele.
+    expect(screen.getByTestId('process-controls')).toHaveAttribute('data-pode-enviar', 'false');
     expect(screen.getByTestId('close-movement')).toBeInTheDocument();
   });
 

@@ -27,13 +27,14 @@ function lerCorpoDoErro(err) {
 }
 
 /**
+ * `modo` 'estrito' (hub: conflito = 409) ou 'envio_massa' (conflito: migra só os movimentos, contasMigradas=false).
  * Chama a RPC e classifica o desfecho.
  * @returns {Promise<{ok:true,resultado:object}|{conflito:true}|{invalido:true}|{foraDoGrupo:true}|{naoEncontrado:true}|{error:Error}>}
  */
-async function trocarCnpjMotorista(request, { cnpjAntigo, cnpjNovo, idEmpresa }) {
+async function trocarCnpjMotorista(request, { cnpjAntigo, cnpjNovo, idEmpresa, modo = 'estrito' }) {
   try {
     const resultado = await request('rpc/hub_motorista_trocar_cnpj', 'POST', {
-      p_cnpj_antigo: cnpjAntigo, p_cnpj_novo: cnpjNovo, p_id_empresa: idEmpresa,
+      p_cnpj_antigo: cnpjAntigo, p_cnpj_novo: cnpjNovo, p_id_empresa: idEmpresa, p_modo: modo,
     });
     return { ok: true, resultado: resultado || {} };
   } catch (err) {
@@ -74,7 +75,8 @@ async function trocarCnpjDoMovimento({ id, idEmp, cnpjRaw, request, mesmoGrupoQu
     return { ok: true };
   }
 
-  const r = await trocarCnpjMotorista(request, { cnpjAntigo, cnpjNovo, idEmpresa: idEmp });
+  // modo envio_massa: o PATCH serve para CORRIGIR CNPJ digitado errado; com conflito os movimentos migram e as contas ficam
+  const r = await trocarCnpjMotorista(request, { cnpjAntigo, cnpjNovo, idEmpresa: idEmp, modo: 'envio_massa' });
   if (r.ok) return { ok: true };
   if (r.conflito) return { status: 409, body: { error: 'CNPJ já cadastrado para outro motorista.' } };
   if (r.invalido) return { status: 400, body: { error: 'CNPJ inválido — deve conter 14 dígitos.' } };

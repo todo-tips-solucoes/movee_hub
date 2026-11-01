@@ -75,7 +75,7 @@ const motoristaAdiantamentoRoutes = require('./routes/motorista-adiantamento');
 // órfãos/expurgo), iniciado no boot perto de app.listen (mesmo padrão de
 // hubPushWorker.iniciarExpurgoPeriodico acima).
 const adiantamentoWorker = require('./lib/adiantamento-worker');
-const { trocarCnpjDoMovimento } = require('./lib/motorista-cnpj');
+const { trocarCnpjDoMovimento, onlyDigits, isCnpj14: isCNPJ14 } = require('./lib/motorista-cnpj');
 
 // robo-entrego (tasks.md FASE 2) — POST /api/v1/robo-entrego/eventos
 // (auditoria de execução do robô agendado), requirePermission interno.
@@ -1485,9 +1485,6 @@ app.post('/stop-process', authenticateTokenCompartilhado, hubEnvioMassaClaimsBri
 
 const currencyFormatterBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-const onlyDigits = (v) => String(v ?? '').replace(/\D/g, '');
-
-const isCNPJ14 = (digits) => /^\d{14}$/.test(digits);
 
 const maskCNPJ = (digits14) =>
   digits14.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');

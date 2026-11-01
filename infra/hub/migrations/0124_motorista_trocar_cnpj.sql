@@ -16,10 +16,15 @@
 -- CNPJ_NAO_ENCONTRADO (P0002: o CNPJ antigo não tem conta vinculada nem movimento DESTA empresa),
 -- CNPJ_CONFLITO (23505).
 --
--- Escopo: só grupo Movee (empresa 6 + filiais, mesma regra de mesmoGrupoQue: Grupo.id_empresa_pai=6
--- ->  Empresa.id_grupo). Movimentos: TODOS os da empresa p_id_empresa com o CNPJ antigo, nas duas
--- grafias (EnvioMassa guarda dígitos e pontuada). Movimento pontuado do CNPJ antigo NÃO é normalizado
--- além disso (destrutivo, só fechados) — apenas migra para o CNPJ novo em dígitos.
+-- MODO (p_modo, default 'estrito'): 'estrito' (rota do hub) recusa o conflito com 23505. 'envio_massa'
+-- (PATCH /update-envio-massa, que serve para CORRIGIR CNPJ digitado errado no movimento) em caso de conflito
+-- migra SOMENTE os movimentos da empresa e não toca ContaMotorista nem Motorista; devolve contasMigradas=false.
+-- Sem conflito os dois modos fazem o mesmo (renomeiam a conta).
+--
+-- Escopo: só grupo Movee (hub_empresas_grupo_movee(), 0123: empresa 6 + filiais OU allowlist
+-- "EmpresaGrupoMovee" — uma só definição no banco). Movimentos: TODOS os da empresa p_id_empresa cujo CNPJ,
+-- normalizado para dígitos, é o antigo (regexp_replace; cobre qualquer grafia irregular, medidas 378 em produção).
+-- Movimento pontuado NÃO é normalizado além disso (destrutivo, só fechados) — apenas migra para o CNPJ novo em dígitos.
 -- Sem conta e sem Motorista para o CNPJ antigo: cria o pré-cadastro do CNPJ novo (nome '', sem senha),
 -- que é o que o legado já fazia, para o motorista poder se cadastrar no app.
 -- Conta bancária PJ NÃO é tocada: só sinaliza (contaBancariaPjDesatualizada) para a tela avisar.
@@ -29,12 +34,13 @@
 -- do token (hub), nunca do corpo; a função ainda exige que o CNPJ antigo pertença à empresa.
 -- GRANT só a authenticated (padrão da 0116); REVOKE de PUBLIC.
 -- Aditiva e idempotente (CREATE OR REPLACE). Nenhuma tabela/coluna nova.
--- ROLLBACK: DROP FUNCTION IF EXISTS hub_motorista_trocar_cnpj(text, text, int);
+-- ROLLBACK: DROP FUNCTION IF EXISTS hub_motorista_trocar_cnpj(text, text, int, text);
 
 CREATE OR REPLACE FUNCTION hub_motorista_trocar_cnpj(
     p_cnpj_antigo text,
     p_cnpj_novo   text,
-    p_id_empresa  int
+    p_id_empresa  int,
+    p_modo        text DEFAULT 'estrito'
 ) RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -52,20 +58,25 @@ DECLARE
     v_mov       int := 0;
     v_precad    boolean := false;
     v_pj        boolean := false;
+    v_conflito  boolean;
+    v_contas    boolean := true;
 BEGIN
+    IF p_modo IS NULL OR p_modo NOT IN ('estrito', 'envio_massa') THEN
+        RAISE EXCEPTION 'CNPJ_INVALIDO' USING ERRCODE = '22023';
+    END IF;
+
     IF v_antigo !~ '^[0-9]{14}$' OR v_novo !~ '^[0-9]{14}$' THEN
         RAISE EXCEPTION 'CNPJ_INVALIDO' USING ERRCODE = '22023';
     END IF;
 
-    IF NOT (p_id_empresa = 6 OR EXISTS (
-            SELECT 1 FROM "Empresa" e JOIN "Grupo" g ON g.id = e.id_grupo
-             WHERE e.id = p_id_empresa AND g.id_empresa_pai = 6)) THEN
+    IF p_id_empresa IS NULL OR NOT EXISTS (SELECT 1 FROM hub_empresas_grupo_movee() g WHERE g = p_id_empresa) THEN
         RAISE EXCEPTION 'EMPRESA_FORA_DO_GRUPO' USING ERRCODE = '42501';
     END IF;
 
     IF v_antigo = v_novo THEN
         RETURN jsonb_build_object('inalterado', true, 'conta', 0, 'motorista', 0, 'movimentos', 0,
-                                  'motoristaPrecadastroCriado', false, 'contaBancariaPjDesatualizada', false);
+                                  'motoristaPrecadastroCriado', false, 'contaBancariaPjDesatualizada', false,
+                                  'contasMigradas', false);
     END IF;
 
     v_pont_ant  := substr(v_antigo,1,2)||'.'||substr(v_antigo,3,3)||'.'||substr(v_antigo,6,3)||'/'||substr(v_antigo,9,4)||'-'||substr(v_antigo,13,2);
@@ -73,15 +84,16 @@ BEGIN
 
     -- o CNPJ antigo tem de ser DESTA empresa (conta vinculada a um Entregador dela ou movimento dela)
     IF NOT (EXISTS (SELECT 1 FROM "EnvioMassa" em
-                     WHERE em.id_empresa = p_id_empresa AND em.cnpj_prestador IN (v_antigo, v_pont_ant))
+                     WHERE em.id_empresa = p_id_empresa AND regexp_replace(em.cnpj_prestador, '\D', '', 'g') = v_antigo)
             OR EXISTS (SELECT 1 FROM "Entregador" en JOIN "ContaMotorista" cm ON cm.id = en.motorista_id
                         WHERE en.id_empresa = p_id_empresa AND cm.cnpj_prestador = v_antigo)) THEN
         RAISE EXCEPTION 'CNPJ_NAO_ENCONTRADO' USING ERRCODE = 'P0002';
     END IF;
 
     -- PRÉ-CHECK de conflito: nada é escrito antes disto
-    IF EXISTS (SELECT 1 FROM "ContaMotorista" WHERE cnpj_prestador IN (v_novo, v_pont_novo))
-       OR EXISTS (SELECT 1 FROM "Motorista" WHERE cnpj_prestador IN (v_novo, v_pont_novo)) THEN
+    v_conflito := EXISTS (SELECT 1 FROM "ContaMotorista" WHERE cnpj_prestador IN (v_novo, v_pont_novo))
+               OR EXISTS (SELECT 1 FROM "Motorista" WHERE cnpj_prestador IN (v_novo, v_pont_novo));
+    IF v_conflito AND p_modo = 'estrito' THEN
         RAISE EXCEPTION 'CNPJ_CONFLITO' USING ERRCODE = '23505';
     END IF;
 
@@ -91,7 +103,11 @@ BEGIN
                             WHERE titular_tipo = 'PJ' AND titular_documento = v_antigo
                               AND status IN ('PENDENTE', 'APROVADA'));
 
-    IF v_tem_conta THEN
+    IF v_conflito THEN
+        -- modo envio_massa: só os movimentos migram (abaixo); conta e Motorista ficam intactas
+        v_contas := false;
+        v_pj := false;
+    ELSIF v_tem_conta THEN
         -- o gatilho G2 (0123) leva a troca à Motorista
         UPDATE "ContaMotorista" SET cnpj_prestador = v_novo, atualizado_em = now()
          WHERE cnpj_prestador = v_antigo;
@@ -110,13 +126,14 @@ BEGIN
     END IF;
 
     UPDATE "EnvioMassa" SET cnpj_prestador = v_novo
-     WHERE id_empresa = p_id_empresa AND cnpj_prestador IN (v_antigo, v_pont_ant);
+     WHERE id_empresa = p_id_empresa AND regexp_replace(cnpj_prestador, '\D', '', 'g') = v_antigo;
     GET DIAGNOSTICS v_mov = ROW_COUNT;
 
     RETURN jsonb_build_object('inalterado', false, 'conta', v_conta, 'motorista', v_mot, 'movimentos', v_mov,
-                              'motoristaPrecadastroCriado', v_precad, 'contaBancariaPjDesatualizada', v_pj);
+                              'motoristaPrecadastroCriado', v_precad, 'contaBancariaPjDesatualizada', v_pj,
+                              'contasMigradas', v_contas);
 END
 $$;
 
-REVOKE ALL ON FUNCTION hub_motorista_trocar_cnpj(text, text, int) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION hub_motorista_trocar_cnpj(text, text, int) TO authenticated;
+REVOKE ALL ON FUNCTION hub_motorista_trocar_cnpj(text, text, int, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION hub_motorista_trocar_cnpj(text, text, int, text) TO authenticated;

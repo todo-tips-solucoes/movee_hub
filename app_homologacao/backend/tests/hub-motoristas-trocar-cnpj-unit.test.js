@@ -120,7 +120,7 @@ describe('PATCH /motoristas/:id/credencial/cnpj (router real)', () => {
       id: 345, cnpjPrestador: '69.***.***/0001-**', movimentosMigrados: 7, inalterado: false, contaBancariaPjDesatualizada: true,
     });
     const rpc = chamadas.find((c) => c.endpoint.startsWith('rpc/'));
-    assert.deepEqual(rpc.body, { p_cnpj_antigo: ANTIGO, p_cnpj_novo: NOVO, p_id_empresa: 6 });
+    assert.deepEqual(rpc.body, { p_cnpj_antigo: ANTIGO, p_cnpj_novo: NOVO, p_id_empresa: 6, p_modo: 'estrito' });
     const ent = chamadas.find((c) => c.endpoint.startsWith('Entregador?'));
     assert.match(ent.endpoint, /id_empresa=eq\.6/);
     assert.equal(auditorias.length, 1);
@@ -211,12 +211,18 @@ describe('lib/motorista-cnpj — trocarCnpjDoMovimento (trecho real do PATCH /up
     assert.deepEqual(await chamar(), { ok: true });
     const rpcs = reqs.filter((r) => r.ep.startsWith('rpc/'));
     assert.equal(rpcs.length, 1);
-    assert.deepEqual(rpcs[0].b, { p_cnpj_antigo: ANTIGO, p_cnpj_novo: NOVO, p_id_empresa: 6 });
+    assert.deepEqual(rpcs[0].b, { p_cnpj_antigo: ANTIGO, p_cnpj_novo: NOVO, p_id_empresa: 6, p_modo: 'envio_massa' });
     assert.ok(!reqs.some((r) => r.m === 'PATCH' || r.ep.startsWith('Motorista')));
   });
 
-  test('conflito: 409 e nenhuma escrita (a RPC é a única escrita e foi recusada)', async () => {
-    rpc = erroRpc(409, { code: '23505', message: 'CNPJ_CONFLITO' });
+  test('conflito de CNPJ no envio em massa: segue 200 (a RPC migra só os movimentos, contasMigradas=false), sem PATCH direto', async () => {
+    rpc = { ...RPC_OK, contasMigradas: false, conta: 0, motorista: 0 };
+    assert.deepEqual(await chamar(), { ok: true });
+    assert.ok(!reqs.some((x) => x.m === 'PATCH'));
+  });
+
+  test('colisão UNIQUE inesperada vinda de gatilho: 409 fail-closed e nenhuma escrita', async () => {
+    rpc = erroRpc(409, { code: '23505', message: 'duplicate key value violates unique constraint' });
     const r = await chamar();
     assert.equal(r.status, 409);
     assert.equal(r.body.error, 'CNPJ já cadastrado para outro motorista.');

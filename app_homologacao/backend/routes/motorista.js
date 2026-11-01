@@ -272,8 +272,8 @@ async function loginViaContaMotorista(cnpjNorm, senha, res) {
 
   // Sem conta, ou conta sem senha (credencial ainda não criada, ou em meio a um
   // reset — routes/hub-motoristas.js#POST /credencial/reset-senha zera a senha
-  // imediatamente): compara contra o DUMMY_HASH para a resposta demorar o mesmo
-  // que a de uma senha errada (anti-enumeração por tempo) e não crashar o
+  // imediatamente): compara contra o DUMMY_HASH para REDUZIR a
+  // diferença de tempo em relação à de uma senha errada (anti-enumeração por tempo) e não crashar o
   // bcrypt.compare(_, null).
   if (!conta || !conta.senha) {
     await bcrypt.compare(typeof senha === 'string' ? senha : '', DUMMY_HASH);
@@ -487,7 +487,7 @@ router.post('/login', loginPerIpLimiter, loginPerAccountLimiter, async (req, res
 
     // Sem linha, ou pré-cadastro do upload (cadastro-motorista-base-validada: senha
     // NULL, o motorista ainda não definiu acesso): credencial inválida, com a mesma
-    // mensagem anti-enumeração. Compara contra o DUMMY_HASH para igualar o tempo de
+    // mensagem anti-enumeração. Compara contra o DUMMY_HASH para reduzir (não igualar) a diferença de tempo de
     // uma senha errada e não crashar o bcrypt.compare(_, null).
     if (!motorista || !motorista.senha) {
       await bcrypt.compare(typeof senha === 'string' ? senha : '', DUMMY_HASH);
@@ -566,6 +566,20 @@ router.post('/register', registerRateLimiter, async (req, res) => {
 
     // Pré-cadastro desativado pelo admin (CRUD) → não elegível (decisão §6.9).
     if (!registro.ativo) {
+      return res.status(409).json({ error: NOT_ELIGIBLE_MSG });
+    }
+
+    // Reset do hub em curso ou expirado (ContaMotorista.token_reset_hash preenchido): o reset zera
+    // Motorista.senha de verdade (gatilho G2, 0123); sem esta recusa, quem soubesse o CNPJ definiria a
+    // senha aqui. Mesma resposta anti-enumeração, nada escrito.
+    // Sem POSTGREST_URL não há hub neste deployment (convenção do server.js) e logo não há reset; com hub
+    // configurado, falha da consulta propaga (500) — fail-closed.
+    const resets = process.env.POSTGREST_URL
+      ? await hubPostgrestRequest(
+        `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}&token_reset_hash=not.is.null&select=id&limit=1`
+      )
+      : [];
+    if (resets && resets.length > 0) {
       return res.status(409).json({ error: NOT_ELIGIBLE_MSG });
     }
 

@@ -97,3 +97,13 @@ describe('ProcessControls — lista indisponível', () => {
     expect(screen.getByRole('button', { name: /Disparar para 5/ })).toBeDisabled();
   });
 });
+
+describe('ProcessControls — sem permissão de envio (podeEnviar=false)', () => {
+  it('esconde só Disparar/Parar; mantém "Limpar seleção" e o indicador de disparo em andamento', () => {
+    renderizar({ podeEnviar: false, isActive: true, selecionados: 2, selecionadosMarcados: 3, onLimparSelecao: vi.fn() });
+    expect(screen.queryByRole('button', { name: /Iniciar|Disparar/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Parar/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Limpar seleção \(3\)/ })).toBeInTheDocument();
+    expect(screen.getByText('Processando...')).toBeInTheDocument();
+  });
+});

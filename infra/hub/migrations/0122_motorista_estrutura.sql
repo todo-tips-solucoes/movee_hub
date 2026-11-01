@@ -4,8 +4,9 @@
 -- POR QUE (frente motorista-cadastro-hub):
 --   E1  nada impedia CNPJ pontuado ou de tamanho errado nas duas tabelas; os gatilhos da 0123 casam as linhas por
 --       IGUALDADE de CNPJ, entao uma grafia diferente cria linha duplicada (a UNIQUE nao pega). CHECK `NOT VALID`
---       (so valida linha nova/alterada, sem varrer) seguido de `VALIDATE` (varre sob SHARE UPDATE EXCLUSIVE; as
---       tabelas tem poucos milhares de linhas). O VALIDATE FALHA se sobrar CNPJ fora do padrao: rode a 0121 antes
+--       (so valida linha nova/alterada, sem varrer) seguido de `VALIDATE` (varre; as tabelas tem poucos
+--       milhares de linhas). Com `psql -1` o ACCESS EXCLUSIVE do ADD CONSTRAINT vale ATE O COMMIT, entao o VALIDATE
+--       tambem roda com a tabela bloqueada para leitura; por isso o lock_timeout abaixo. O VALIDATE FALHA se sobrar CNPJ fora do padrao: rode a 0121 antes
 --       (ela normaliza o que nao colide) e trate as colisoes listadas em D4/D4b do diagnostico.
 --   E3  `ContaMotorista.atualizado_em` existia mas nada o atualizava; `Motorista` nem tinha a coluna. Sem isso nao
 --       ha "quem mudou por ultimo" para decidir senha divergente. ADD COLUMN com DEFAULT now() (volatil nao,
@@ -21,6 +22,8 @@
 -- Idempotente. ROLLBACK: ALTER TABLE ... DROP CONSTRAINT motorista_cnpj_14 / contamotorista_cnpj_14;
 -- DROP TRIGGER trg_*_atualizado_em; DROP FUNCTION hub_trg_touch_atualizado_em(); DROP INDEX idx_conta_motorista_token_reset;
 -- reaplicar a funcao da 0102. A coluna `Motorista.atualizado_em` pode ficar (aditiva).
+
+SET LOCAL lock_timeout = '5s';
 
 -- E1 -----------------------------------------------------------------------------------------------------------
 DO $$

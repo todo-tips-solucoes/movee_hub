@@ -1186,7 +1186,7 @@ router.post('/:id/credencial', requirePermission('motoristas.credencial'), async
     // senha (o motorista a criou pelo app). Esta rota CRIA credencial, nunca
     // sobrescreve uma existente -> 409 `credencial_existente`.
     const contasPorCnpj = await hubPostgrestRequest(
-      `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjPrestador)}&select=id,nome,senha`,
+      `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjPrestador)}&select=id,nome,senha,ativo`,
       'GET', null, claims
     );
     const contaExistente = contasPorCnpj && contasPorCnpj[0];
@@ -1277,7 +1277,7 @@ router.post('/:id/credencial', requirePermission('motoristas.credencial'), async
 
     // 10. resposta — NUNCA a chave `senha`; `senhaTemporaria` só quando
     // AUTO-gerada (nunca ecoa uma senha que o próprio caller já sabia).
-    const resposta = { id: conta.id, cnpjPrestador: mascararCnpj(cnpjPrestador), ativo: true };
+    const resposta = { id: conta.id, cnpjPrestador: mascararCnpj(cnpjPrestador), ativo: conta.ativo !== false };
     if (senhaGerada) {
       resposta.senhaTemporaria = senhaEmClaro;
     }
@@ -1525,9 +1525,7 @@ router.patch('/:id/credencial/cnpj', requirePermission('motoristas.credencial'),
     const validado = validarTrocaCnpjBody(req.body);
     if (!validado.ok) return res.status(422).json({ erro: validado.erro });
 
-    if (!(await entidadeEhElegivel(entidadeAtiva, claims))) {
-      return res.status(422).json({ erro: 'INVALIDO', motivo: 'entidade_fora_do_grupo' });
-    }
+    if (await recusarEntidadeForaDoGrupo(entidadeAtiva, claims, res)) return;
 
     const vinculo = await hubPostgrestRequest(
       `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}&select=id,motorista_id`,

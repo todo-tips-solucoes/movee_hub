@@ -102,8 +102,8 @@ export function ActionBar({
   // R002: gaps fluidos; grupos com wrap p/ nunca causar scroll horizontal <400px
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 sm:gap-3 md:gap-4">
-      {podeEnviar && (
       <ProcessControls
+        podeEnviar={podeEnviar}
         isActive={isActive}
         isLoading={isProcessLoading}
         onStart={onStart}
@@ -113,7 +113,6 @@ export function ActionBar({
         onLimparSelecao={onLimparSelecao}
         dadosIndisponiveis={dadosIndisponiveis}
       />
-      )}
 
       {podeEnviar && <Separator orientation="vertical" className="hidden h-8 sm:block" />}
 
