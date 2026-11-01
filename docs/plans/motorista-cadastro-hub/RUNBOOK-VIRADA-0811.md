@@ -18,7 +18,12 @@ PGOPTIONS='-c default_transaction_read_only=on' docker exec -i -e PGOPTIONS pgad
 ```
 
 A **última linha** é o veredito. `PRONTO` → seguir. `NAO PRONTO: N motoristas perderiam acesso` →
-**parar**; as linhas acima listam id, nome, CNPJ mascarado e motivo (sem conta / senha diferente /
+**parar**. Linhas com `motivo=cnpj migrado` (e a linha `AVISAR: N motoristas devem passar a usar o
+CNPJ novo`) **não bloqueiam** a virada, e não entram na contagem do `NAO PRONTO`: a conta do hub
+foi movida para o CNPJ novo com a mesma senha. Mas esses motoristas precisam ser **avisados ANTES de
+08/11**, porque com a chave ligada o CNPJ antigo deixa de entrar (passam a entrar só pelo CNPJ novo,
+com a mesma senha).
+Em `NAO PRONTO`, as linhas listam id, nome, CNPJ mascarado e motivo (sem conta / senha diferente /
 ativo diferente). Não ligar a chave; devolver ao operador.
 
 ## 2. Anotar o env atual (rollback)
