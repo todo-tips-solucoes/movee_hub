@@ -118,6 +118,12 @@ router.get('/', async (req, res) => {
     }
 
     const permissoesEfetivas = await obterPermissoesEfetivas(payload.sub);
+    // Permissões RESTRITAS à entidade ativa: é o que o gate do servidor usa
+    // (hub-envio-massa-permission). A união `permissoes` serve só à navegação;
+    // a UI usa esta para esconder botões que o servidor recusaria.
+    const permissoesEntidadeAtiva = entidadeAtiva
+      ? await obterPermissoesEfetivasPorEntidade(payload.sub, entidadeAtiva)
+      : new Set();
 
     // contracts/rbac-me.md: "módulos habilitados para a entidade ativa
     // (ModuloEntidade.ativo=true) CRUZADOS com as permissões efetivas da
@@ -151,6 +157,7 @@ router.get('/', async (req, res) => {
       entidade_ativa: entidadeAtiva,
       modulos,
       permissoes: Array.from(permissoesEfetivas),
+      permissoesEntidadeAtiva: Array.from(permissoesEntidadeAtiva),
     });
   } catch (e) {
     console.error('[hub-me] erro em GET /me:', e.message);

@@ -11,6 +11,7 @@
 
 const express = require('express');
 const bcrypt = require('bcrypt');
+const { DUMMY_HASH } = require('../lib/senha');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit'); // OWASP A06/A07: limita brute-force de login/cadastro
 const multer = require('multer');
@@ -267,17 +268,15 @@ async function loginViaContaMotorista(cnpjNorm, senha, res) {
     `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}`
   );
 
-  if (!contas || contas.length === 0) {
-    return res.status(401).json({ error: INVALID_MSG });
-  }
+  const conta = contas && contas[0];
 
-  const conta = contas[0];
-
-  // Conta sem senha definida (credencial ainda não criada, ou em meio a um
-  // reset — routes/hub-motoristas.js#POST /credencial/reset-senha zera a
-  // senha imediatamente) -> mesma mensagem genérica, sem crashar
+  // Sem conta, ou conta sem senha (credencial ainda não criada, ou em meio a um
+  // reset — routes/hub-motoristas.js#POST /credencial/reset-senha zera a senha
+  // imediatamente): compara contra o DUMMY_HASH para REDUZIR a
+  // diferença de tempo em relação à de uma senha errada (anti-enumeração por tempo) e não crashar o
   // bcrypt.compare(_, null).
-  if (!conta.senha) {
+  if (!conta || !conta.senha) {
+    await bcrypt.compare(typeof senha === 'string' ? senha : '', DUMMY_HASH);
     return res.status(401).json({ error: INVALID_MSG });
   }
 
@@ -443,12 +442,8 @@ router.post('/definir-senha', recuperacaoPerIpLimiter, async (req, res) => {
         { senha: hash, token_reset_hash: null, token_reset_expira: null },
         {}, { returnMinimal: true }
       );
-      // Espelho no legado — é a tabela que o login usa hoje (incidente
-      // 2026-09-23/24). Sem isto a senha nova não vale no app.
-      await hubPostgrestRequest(
-        `Motorista?cnpj_prestador=eq.${encodeURIComponent(String(conta.cnpj_prestador).replace(/\D/g, ''))}`,
-        'PATCH', { senha: hash }, {}, { returnMinimal: true }
-      );
+      // A senha chega à tabela `Motorista` (a que o login usa hoje) pelo gatilho da
+      // migration 0123, na mesma transação — não há mais segundo PATCH aqui.
     } catch (e) {
       console.error('[motorista] definir-senha: falha ao gravar:', e.message);
       return res.status(502).json({ error: 'Não foi possível salvar a senha. Tente novamente.' });
@@ -488,16 +483,14 @@ router.post('/login', loginPerIpLimiter, loginPerAccountLimiter, async (req, res
     // Mensagem genérica — não revelar qual campo falhou (anti-enumeração FR-016)
     const INVALID_MSG = 'Credenciais inválidas.';
 
-    if (!motoristas || motoristas.length === 0) {
-      return res.status(401).json({ error: INVALID_MSG });
-    }
+    const motorista = motoristas && motoristas[0];
 
-    const motorista = motoristas[0];
-
-    // cadastro-motorista-base-validada: pré-cadastro vindo do upload tem senha
-    // NULL (motorista ainda não definiu acesso). Tratar como credencial inválida
-    // — mesma mensagem anti-enumeração e sem crashar o bcrypt.compare(_, null).
-    if (!motorista.senha) {
+    // Sem linha, ou pré-cadastro do upload (cadastro-motorista-base-validada: senha
+    // NULL, o motorista ainda não definiu acesso): credencial inválida, com a mesma
+    // mensagem anti-enumeração. Compara contra o DUMMY_HASH para reduzir (não igualar) a diferença de tempo de
+    // uma senha errada e não crashar o bcrypt.compare(_, null).
+    if (!motorista || !motorista.senha) {
+      await bcrypt.compare(typeof senha === 'string' ? senha : '', DUMMY_HASH);
       return res.status(401).json({ error: INVALID_MSG });
     }
 
@@ -573,6 +566,20 @@ router.post('/register', registerRateLimiter, async (req, res) => {
 
     // Pré-cadastro desativado pelo admin (CRUD) → não elegível (decisão §6.9).
     if (!registro.ativo) {
+      return res.status(409).json({ error: NOT_ELIGIBLE_MSG });
+    }
+
+    // Reset do hub em curso ou expirado (ContaMotorista.token_reset_hash preenchido): o reset zera
+    // Motorista.senha de verdade (gatilho G2, 0123); sem esta recusa, quem soubesse o CNPJ definiria a
+    // senha aqui. Mesma resposta anti-enumeração, nada escrito.
+    // Sem POSTGREST_URL não há hub neste deployment (convenção do server.js) e logo não há reset; com hub
+    // configurado, falha da consulta propaga (500) — fail-closed.
+    const resets = process.env.POSTGREST_URL
+      ? await hubPostgrestRequest(
+        `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjNorm)}&token_reset_hash=not.is.null&select=id&limit=1`
+      )
+      : [];
+    if (resets && resets.length > 0) {
       return res.status(409).json({ error: NOT_ELIGIBLE_MSG });
     }
 

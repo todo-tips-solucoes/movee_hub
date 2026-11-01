@@ -105,7 +105,12 @@ function EnvioMassaSkeleton() {
 }
 
 function EnvioMassaClient() {
-  const { entidadeAtiva, carregando: carregandoAuth } = useHubAuth();
+  const { entidadeAtiva, carregando: carregandoAuth, permissoesEntidadeAtiva } = useHubAuth();
+  // Esconde o que o servidor recusaria (o gate real continua lá, por entidade
+  // ativa): Fechar/Excluir <- aprovar; Importar/Editar <- criar; Disparar/Parar <- enviar.
+  const podeAprovar = permissoesEntidadeAtiva.includes('envio_massa.aprovar');
+  const podeCriar = permissoesEntidadeAtiva.includes('envio_massa.criar');
+  const podeEnviar = permissoesEntidadeAtiva.includes('envio_massa.enviar');
   const router = useRouter();
   const reduzirMovimento = useReducedMotion();
 
@@ -425,6 +430,9 @@ function EnvioMassaClient() {
           periodo={periodo}
           dadosIndisponiveis={erro !== null}
           onLimparSelecao={limparSelecao}
+          podeCriar={podeCriar}
+          podeEnviar={podeEnviar}
+          podeAprovar={podeAprovar}
         />
 
         <Filters
@@ -458,6 +466,8 @@ function EnvioMassaClient() {
           onToggleSelect={toggleSelect}
           onDelete={deleteRecord}
           onUpdate={updateRecord}
+          podeEditar={podeCriar}
+          podeExcluir={podeAprovar}
         />
         )}
       </div>

@@ -603,7 +603,9 @@ function validarCriacaoCredencialBody(corpoCru) {
 
   const cnpjBruto = typeof corpo.cnpjPrestador === 'string' ? corpo.cnpjPrestador : '';
   const cnpjPrestador = cnpjBruto.replace(/\D/g, '');
-  if (!cnpjPrestador) {
+  // 14 dígitos exatos: o CHECK das tabelas (0122) recusa o resto, e um CNPJ de
+  // outro tamanho nunca seria digitado pelo motorista no login (500 em vez de 422).
+  if (!/^\d{14}$/.test(cnpjPrestador)) {
     return { ok: false, erro: 'cnpj_invalido' };
   }
 

@@ -2,7 +2,7 @@
 // `handleResponse` fazia `new Error(body.message)` e as linhas recusadas — que o
 // servidor já tinha calculado — morriam ali.
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { api, ApiError } from './api-client';
+import { api, ApiError, lerErroApi } from './api-client';
 
 function respostaDeErro(body: unknown, status = 400) {
   return {
@@ -71,5 +71,40 @@ describe('ApiError — linhas inválidas do upload', () => {
     const erro = (await api.uploadFile('/upload', new File(['x'], 'p.xlsx')).catch((e) => e)) as ApiError;
     expect(erro).not.toBeInstanceOf(ApiError);
     expect(erro.message).toBe('Não autorizado');
+  });
+});
+
+describe('lerErroApi — todo formato de erro do backend vira texto legível', () => {
+  it('{error:{code}} (403 do Fechar movimento) nunca vira "[object Object]"', () => {
+    const r = lerErroApi({ error: { code: 'PERMISSAO_INSUFICIENTE' } }, 403);
+    expect(r.codigo).toBe('PERMISSAO_INSUFICIENTE');
+    expect(r.mensagem).toBe('Seu perfil não tem permissão para esta ação.');
+  });
+  it('{error:{code,message}} prefere a mensagem do servidor', () => {
+    expect(lerErroApi({ error: { code: 'SEM_ENTIDADE_ATIVA', message: 'Selecione X' } }, 403)).toEqual({
+      mensagem: 'Selecione X',
+      codigo: 'SEM_ENTIDADE_ATIVA',
+    });
+  });
+  it('{error:"texto"} legado e {message} passam como vieram', () => {
+    expect(lerErroApi({ error: 'CNPJ já cadastrado' }, 409).mensagem).toBe('CNPJ já cadastrado');
+    expect(lerErroApi({ message: 'Erros de validação', error: 'x' }, 400).mensagem).toBe('Erros de validação');
+  });
+  it('{erro:"CODIGO"} do hub usa o mapa de códigos', () => {
+    expect(lerErroApi({ erro: 'PERMISSAO_NEGADA' }, 403)).toEqual({
+      mensagem: 'Seu perfil não tem permissão para esta ação.',
+      codigo: 'PERMISSAO_NEGADA',
+    });
+  });
+  it('código desconhecido, corpo vazio ou não-objeto caem na mensagem com o status', () => {
+    expect(lerErroApi({ erro: 'XPTO' }, 500).mensagem).toBe('Erro 500. Tente novamente.');
+    expect(lerErroApi(null, 502).mensagem).toBe('Erro 502. Tente novamente.');
+    expect(lerErroApi('texto', 400).mensagem).toBe('Erro 400. Tente novamente.');
+  });
+  it('ApiError carrega o codigo vindo do corpo', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaDeErro({ error: { code: 'PERMISSAO_INSUFICIENTE' } }, 403)));
+    const erro = (await api.post('/close-movimento').catch((e) => e)) as ApiError;
+    expect(erro.codigo).toBe('PERMISSAO_INSUFICIENTE');
+    expect(erro.message).not.toContain('object');
   });
 });

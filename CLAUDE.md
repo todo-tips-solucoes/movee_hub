@@ -95,6 +95,17 @@ docs/                     # constitution.md, RITO-PRODUCAO.md, plans/ (planos ve
   — não há vínculo vivo entre os dois. Uma permissão nova dada só a `financeiro` depois da
   0097 **não** se propaga para `financeiro_aprovador`; quem editar a matriz papel×permissão
   precisa lembrar de espelhar manualmente (ou criar migration dedicada).
+  ⚠️ **`ContaMotorista` (hub) e `Motorista` (legado, lida pelo login do app) se sincronizam
+  por GATILHO no banco (migration `0123`), não por código** — nenhuma linha JS espelha senha,
+  `ativo` ou CNPJ. G1: conta que nasce sem senha adota a do legado; G2: conta→legado (cria a
+  linha legada só com senha e CNPJ do grupo Movee); G3: vínculo tardio em `Entregador`; G4:
+  legado→conta (temporário, dropar quando `/register` e a troca de CNPJ deixarem de escrever
+  na `Motorista`). "Grupo Movee" no banco = `hub_empresas_grupo_movee()` (`Grupo` pai 6 ∪
+  allowlist `EmpresaGrupoMovee`). Troca de CNPJ = RPC única `hub_motorista_trocar_cnpj`
+  (`0124`), modo `estrito` (hub: conflito → 409 sem escrita) e `envio_massa` (corrigir
+  planilha: conflito → só os movimentos migram). Como o reset do hub agora zera o legado de
+  verdade, o `/register` do app recusa CNPJ com reset em curso — sem isso, quem soubesse o
+  CNPJ definiria a senha. **Teste unitário com stub não vê gatilho**: provar em banco.
 - **Auth (constitution §I–III)**: JWT em cookies httpOnly (`accessToken` 15 min +
   `refreshToken`), nunca em localStorage/query/header exposto; escopo multi-tenant é
   resolvido server-side a partir do token, nunca do corpo da requisição. A sessão do hub

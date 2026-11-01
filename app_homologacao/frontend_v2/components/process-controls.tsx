@@ -34,6 +34,9 @@ interface ProcessControlsProps {
    *  há como dizer para quantos motoristas ela iria. Mesma trava que o
    *  `CloseMovementDialog` já tinha. */
   dadosIndisponiveis?: boolean;
+  /** Sem permissão de envio, esconde SÓ Disparar/Parar; o indicador "Processando..." e o
+   *  "Limpar seleção" continuam (quem não pode disparar ainda vê que há disparo em andamento). */
+  podeEnviar?: boolean;
 }
 
 export function ProcessControls({
@@ -45,10 +48,12 @@ export function ProcessControls({
   selecionadosMarcados = 0,
   onLimparSelecao,
   dadosIndisponiveis = false,
+  podeEnviar = true,
 }: ProcessControlsProps) {
   const jaEnviados = Math.max(0, selecionadosMarcados - selecionados);
   return (
     <div className="flex items-center gap-2">
+      {podeEnviar && (<>
       <Tooltip>
         <TooltipTrigger render={
           <Button
@@ -98,6 +103,7 @@ export function ProcessControls({
         </TooltipTrigger>
         <TooltipContent>Parar processamento</TooltipContent>
       </Tooltip>
+      </>)}
       {selecionadosMarcados > 0 && onLimparSelecao && (
         <Button
           size="sm"

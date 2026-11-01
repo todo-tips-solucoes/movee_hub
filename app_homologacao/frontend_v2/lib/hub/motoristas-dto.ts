@@ -572,6 +572,32 @@ export function parseResetCredencialResponse(raw: unknown): ResetCredencialRespo
   return { ok: r.ok === true, tokenDefinicao: r.tokenDefinicao };
 }
 
+export interface TrocarCnpjResponse {
+  id: number;
+  cnpjPrestador: string;
+  movimentosMigrados: number;
+  inalterado: boolean;
+  /** A conta bancária PJ cadastrada continua no CNPJ anterior (é mantida, nunca apagada). */
+  contaBancariaPjDesatualizada: boolean;
+}
+
+export function parseTrocarCnpjResponse(raw: unknown): TrocarCnpjResponse {
+  if (!raw || typeof raw !== 'object') {
+    throw new TypeError('Resposta de troca de CNPJ inválida: shape não é objeto');
+  }
+  const r = raw as Record<string, unknown>;
+  if (typeof r.id !== 'number') {
+    throw new TypeError('Resposta de troca de CNPJ inválida: id ausente');
+  }
+  return {
+    id: r.id,
+    cnpjPrestador: typeof r.cnpjPrestador === 'string' ? r.cnpjPrestador : '',
+    movimentosMigrados: typeof r.movimentosMigrados === 'number' ? r.movimentosMigrados : 0,
+    inalterado: r.inalterado === true,
+    contaBancariaPjDesatualizada: r.contaBancariaPjDesatualizada === true,
+  };
+}
+
 export interface AtualizarCredencialResponse {
   id: number;
   ativo: boolean;

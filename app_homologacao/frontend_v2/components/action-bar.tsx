@@ -38,6 +38,12 @@ interface ActionBarProps {
    *  dispensada. Opcional porque o painel legado (`app/dashboard`) monta esta
    *  mesma barra e continua com o toast — o alvo desta rodada é o hub. */
   onFalha?: (mensagem: string) => void;
+  /** Esconde o que o servidor recusaria ao perfil (só a tela do hub passa; o
+   *  painel legado não passa nada e o default `true` mantém tudo visível —
+   *  lá o backend sempre libera a sessão legada). Guarda real: o servidor. */
+  podeCriar?: boolean; // Importar
+  podeEnviar?: boolean; // Disparar / Parar
+  podeAprovar?: boolean; // Fechar movimento
 }
 
 export function ActionBar({
@@ -56,6 +62,9 @@ export function ActionBar({
   dadosIndisponiveis,
   onLimparSelecao,
   onFalha,
+  podeCriar = true,
+  podeEnviar = true,
+  podeAprovar = true,
 }: ActionBarProps) {
   const [csvLoading, setCsvLoading] = useState(false);
   const [xmlLoading, setXmlLoading] = useState(false);
@@ -94,6 +103,7 @@ export function ActionBar({
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 sm:gap-3 md:gap-4">
       <ProcessControls
+        podeEnviar={podeEnviar}
         isActive={isActive}
         isLoading={isProcessLoading}
         onStart={onStart}
@@ -104,10 +114,10 @@ export function ActionBar({
         dadosIndisponiveis={dadosIndisponiveis}
       />
 
-      <Separator orientation="vertical" className="hidden h-8 sm:block" />
+      {podeEnviar && <Separator orientation="vertical" className="hidden h-8 sm:block" />}
 
       <div className="flex flex-wrap items-center gap-2">
-        <ImportButton onUpload={onUpload} />
+        {podeCriar && <ImportButton onUpload={onUpload} />}
         {/* repasse-gera-movimento 4.6: sem `periodo` (a tela de Envio em Massa tem outro conceito de período); renderiza nada sem a permissão do hub. */}
         <GerarDoRepasseButton />
         <Button size="sm" variant="outline" className="h-11 gap-1.5 sm:h-8" onClick={handleExportCSV} disabled={csvLoading}>
@@ -127,14 +137,16 @@ export function ActionBar({
             ProcessControls — o Fechar movimento seguia clicável durante o
             disparo, e um clique fora de hora lacrava o movimento com parte dos
             motoristas notificados e parte não. */}
-        <CloseMovementDialog
-          onConfirm={onCloseMovement}
-          stats={stats}
-          isActive={isActive}
-          periodo={periodo}
-          dadosIndisponiveis={dadosIndisponiveis}
-          onFalha={onFalha}
-        />
+        {podeAprovar && (
+          <CloseMovementDialog
+            onConfirm={onCloseMovement}
+            stats={stats}
+            isActive={isActive}
+            periodo={periodo}
+            dadosIndisponiveis={dadosIndisponiveis}
+            onFalha={onFalha}
+          />
+        )}
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import {
   parseMotoristaDetalhe,
   parseMotoristaListResponse,
   parseResetCredencialResponse,
+  parseTrocarCnpjResponse,
   parseSugestoesResponse,
   parseVincularResponse,
   type AtualizarCredencialResponse,
@@ -28,12 +29,15 @@ import {
   type OrigemVinculo,
   type ResetCredencialResponse,
   type SugestoesResponse,
+  type TrocarCnpjResponse,
   type VincularResponse,
 } from './motoristas-dto';
 
 const MENSAGENS_MOTIVO: Record<string, string> = {
   entidade_fora_do_grupo: 'Esta entidade não pertence ao grupo elegível para vínculo de motoristas.',
   conta_ja_vinculada: 'Esta conta já está vinculada a outra pessoa entregadora.',
+  cnpj_ja_cadastrado:
+    'Este CNPJ já pertence a outra conta de acesso. Para usar essa conta, use Trocar em “Conta de acesso vinculada”.',
 };
 
 const MENSAGENS_CODIGO: Record<string, string> = {
@@ -262,6 +266,18 @@ export async function definirNovaSenhaCredencial(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+/** PATCH .../credencial/cnpj — troca o CNPJ da conta vinculada e migra os movimentos da empresa. */
+export async function trocarCnpjCredencial(
+  entregadorId: number,
+  body: { cnpjPrestador: string }
+): Promise<TrocarCnpjResponse> {
+  const raw = await request<unknown>(`/motoristas/${entregadorId}/credencial/cnpj`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  return parseTrocarCnpjResponse(raw);
 }
 
 export async function atualizarCredencial(
