@@ -33,11 +33,9 @@ const router = express.Router();
 // Constantes
 // ────────────────────────────────────────────────────────────────────────────
 
-// grupo-unificado-filiais Task 4.1 gerou o dummy hash legado via
-// bcrypt.hashSync('dummy-placeholder', 10) (server.js:79-80). Reproduzido aqui
-// (arquivo novo, mesma técnica) para equalizar timing de bcrypt.compare quando
-// o e-mail não existe (FR-015, contracts/auth.md §login).
-const BCRYPT_DUMMY_HASH = '$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234';
+// Dummy hash para equalizar o timing de bcrypt.compare quando o e-mail não existe (FR-015,
+// contracts/auth.md §login) — um só, em lib/senha.js.
+const { DUMMY_HASH: BCRYPT_DUMMY_HASH } = require('../lib/senha');
 
 // hub-sessao-inatividade (2026-09-06). As três janelas abaixo aceitam override
 // por env SOMENTE para prova com TTL reduzido no hub-homolog isolado; produção

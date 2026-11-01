@@ -229,9 +229,8 @@ app.options('*', cors({
 }));
 app.use(express.json()); // Para entender JSON no corpo das requisições
 
-// grupo-unificado-filiais — Task 4.1: dummy hash fixo p/ equalizar timing (OWASP HIGH-001 / CWE-208)
-// Gerado uma vez: bcrypt.hashSync('dummy-placeholder', 10)
-const BCRYPT_DUMMY_HASH = '$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234';
+// grupo-unificado-filiais — Task 4.1: dummy hash fixo p/ equalizar timing (OWASP HIGH-001 / CWE-208) — lib/senha.js
+const { DUMMY_HASH: BCRYPT_DUMMY_HASH } = require('./lib/senha');
 
 // grupo-unificado-filiais — Task 4.3: rate limiter em POST /login (OWASP MEDIUM-001)
 const loginRateLimiter = rateLimit({

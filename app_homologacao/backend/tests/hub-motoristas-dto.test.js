@@ -723,6 +723,10 @@ describe('validarCriacaoCredencialBody — allowlist estrita FASE 5 (task 5.1.2)
     assert.equal(validarCriacaoCredencialBody({}).erro, 'cnpj_invalido');
     assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '' }).erro, 'cnpj_invalido');
     assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '...' }).erro, 'cnpj_invalido');
+    // exige 14 dígitos exatos (CHECK da 0122): mais curto ou mais longo é 422, não 500
+    assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '1234567800019' }).erro, 'cnpj_invalido');
+    assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '123456780001955' }).erro, 'cnpj_invalido');
+    assert.equal(validarCriacaoCredencialBody({ cnpjPrestador: '123' }).erro, 'cnpj_invalido');
   });
 
   test('corpo null/undefined -> erro cnpj_invalido, nunca lança', () => {

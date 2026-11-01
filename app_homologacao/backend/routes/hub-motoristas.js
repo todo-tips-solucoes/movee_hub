@@ -1111,41 +1111,30 @@ function gerarTokenResetCredencial() {
 // ────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────
-// Espelho da senha na tabela LEGADA (`Motorista`) — incidente 2026-09-23/24.
+// Sincronia com a tabela LEGADA (`Motorista`) — migration 0123.
 //
-// O login do app motorista ainda autentica contra `Motorista.senha`
-// (routes/motorista.js; o gate `HUB_MOTORISTA_LOGIN_CONTA_ATIVA` está
-// desligado em produção). Enquanto isso for verdade, mexer na senha SÓ na
-// `ContaMotorista` não tem efeito nenhum para o motorista: o reset do hub
-// prometia repor acesso e não repunha, e o token devolvido não abria porta
-// alguma.
+// O login do app motorista ainda autentica contra `Motorista` (o gate
+// `HUB_MOTORISTA_LOGIN_CONTA_ATIVA` está desligado em produção). Quem mantém
+// `ContaMotorista` e `Motorista` em sincronia é o BANCO (gatilhos da 0123):
+// senha, ativo, nome e CNPJ da conta chegam ao legado na MESMA transação, e a
+// linha legada é criada quando falta (só com senha e CNPJ do grupo Movee).
+// Por isso as rotas abaixo escrevem SÓ na conta — o antigo espelho por HTTP
+// (PATCH que afetava 0 linhas e devolvia "ok") foi removido.
 //
-// ⚠️ As QUATRO escritas de senha do hub têm de espelhar JUNTAS. Espelhar só o
-// reset (que zera) sem espelhar o definir (que grava) trancaria o motorista
-// para fora de vez — ele perderia a senha antiga e a nova não valeria no app.
-//
-// Casa por CNPJ só com dígitos: é como o login normaliza o que o motorista
-// digita, e como a `ContaMotorista` passou a guardar (migration 0095).
-// Best-effort: falha aqui NÃO derruba a operação do hub, mas é registrada —
-// o hub continua sendo a fonte, o legado é a cópia que mantém o app vivo.
-// Quando o gate for ligado, este espelho deixa de ser necessário.
-async function espelharSenhaNoLegado(contaMotoristaId, senhaOuNull, claims) {
-  try {
-    const contas = await hubPostgrestRequest(
-      `ContaMotorista?id=eq.${contaMotoristaId}&select=cnpj_prestador`, 'GET', null, claims);
-    const cnpj = contas && contas[0] && contas[0].cnpj_prestador;
-    if (!cnpj) return { ok: false, motivo: 'conta_sem_cnpj' };
-    const digitos = String(cnpj).replace(/\D/g, '');
-    if (!digitos) return { ok: false, motivo: 'cnpj_invalido' };
+// ⚠️ Para o gatilho reconhecer o CNPJ como Movee, o VÍNCULO Entregador→conta
+// tem de existir ANTES de a senha ser gravada (o G3 da 0123 cria a linha
+// legada no vínculo; o G2, na senha). Daí a ordem em POST /:id/credencial.
+// ─────────────────────────────────────────────────────────────────────────
 
-    await hubPostgrestRequest(
-      `Motorista?cnpj_prestador=eq.${encodeURIComponent(digitos)}`, 'PATCH',
-      { senha: senhaOuNull }, claims, { returnMinimal: true });
-    return { ok: true };
-  } catch (e) {
-    console.error('[hub-motoristas] espelho da senha no legado falhou:', e.message);
-    return { ok: false, motivo: 'erro' };
-  }
+/**
+ * Gate Movee das rotas de credencial: a credencial do app é exclusiva do grupo
+ * Movee (`EmpresaGrupoMovee`). Responde 422 e devolve `true` quando a entidade
+ * ativa está fora do grupo — o chamador faz `return`.
+ */
+async function recusarEntidadeForaDoGrupo(entidadeAtiva, claims, res) {
+  if (await entidadeEhElegivel(entidadeAtiva, claims)) return false;
+  res.status(422).json({ erro: 'INVALIDO', motivo: 'entidade_fora_do_grupo' });
+  return true;
 }
 
 router.post('/:id/credencial', requirePermission('motoristas.credencial'), async (req, res) => {
@@ -1165,6 +1154,8 @@ router.post('/:id/credencial', requirePermission('motoristas.credencial'), async
       return res.status(422).json({ erro: validado.erro });
     }
     const { cnpjPrestador, senhaInicial } = validado;
+
+    if (await recusarEntidadeForaDoGrupo(entidadeAtiva, claims, res)) return;
 
     // 1. 404 fora do escopo — filtro explícito por id_empresa (defesa em
     // profundidade, mesmo padrão de GET/PATCH /:id).
@@ -1189,21 +1180,36 @@ router.post('/:id/credencial', requirePermission('motoristas.credencial'), async
       }
     }
 
-    // 3. ContaMotorista por cnpj_prestador informado — se já vinculada a
-    // OUTRO Entregador (dentro do escopo), 409 sem vazar qual entregador
-    // (mesmo espírito do 409 defensivo de POST /:id/vinculo).
+    // 3. ContaMotorista por cnpj_prestador informado. `ContaMotorista` é GLOBAL
+    // (sem id_empresa nem RLS): a conta pode ser de outra entidade ou já ter
+    // senha (o motorista a criou pelo app). Esta rota CRIA credencial, nunca
+    // sobrescreve uma existente -> 409 `credencial_existente`.
     const contasPorCnpj = await hubPostgrestRequest(
-      `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjPrestador)}&select=id,nome`,
+      `ContaMotorista?cnpj_prestador=eq.${encodeURIComponent(cnpjPrestador)}&select=id,nome,senha`,
       'GET', null, claims
     );
     const contaExistente = contasPorCnpj && contasPorCnpj[0];
     if (contaExistente) {
+      if (contaExistente.senha) {
+        return res.status(409).json({ erro: 'credencial_existente' });
+      }
       const vinculoOutro = await hubPostgrestRequest(
         `Entregador?motorista_id=eq.${contaExistente.id}&id=neq.${id}`
         + `&id_empresa=eq.${entidadeAtiva}&select=id`,
         'GET', null, claims
       );
       if (vinculoOutro && vinculoOutro.length > 0) {
+        return res.status(409).json({ erro: 'credencial_existente' });
+      }
+    } else {
+      // Sem conta, mas o motorista pode já ter senha NO LEGADO (se cadastrou
+      // pelo app): a conta nova adotaria essa senha (G1 da 0123) e este POST a
+      // sobrescreveria. Mesma recusa.
+      const legado = await hubPostgrestRequest(
+        `Motorista?cnpj_prestador=eq.${encodeURIComponent(cnpjPrestador)}&select=senha`,
+        'GET', null, claims
+      );
+      if (legado && legado[0] && legado[0].senha) {
         return res.status(409).json({ erro: 'credencial_existente' });
       }
     }
@@ -1221,38 +1227,42 @@ router.post('/:id/credencial', requirePermission('motoristas.credencial'), async
     // 5. bcrypt cost >= 12 (mandato S3).
     const hash = await bcrypt.hash(senhaEmClaro, CREDENCIAL_BCRYPT_COST);
 
-    // 6. PATCH se a conta já existia (reaproveita cadastro), POST se não.
-    let conta;
-    if (contaExistente) {
-      await hubPostgrestRequest(
-        `ContaMotorista?id=eq.${contaExistente.id}`, 'PATCH', { senha: hash }, claims,
-        { returnMinimal: true }
-      );
-      conta = contaExistente;
-    } else {
+    // 6. a conta existe (reaproveita o cadastro) ou nasce SEM senha.
+    let conta = contaExistente;
+    if (!conta) {
       const criados = await hubPostgrestRequest(
         'ContaMotorista', 'POST',
-        { cnpj_prestador: cnpjPrestador, nome: entregador.nome, ativo: true, senha: hash },
+        { cnpj_prestador: cnpjPrestador, nome: entregador.nome, ativo: true },
         claims
       );
       conta = criados && criados[0];
       if (!conta) return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
     }
 
-    // Espelha no legado a senha recém-criada: é o que faz a credencial valer no
-    // app do motorista enquanto o login usar `Motorista.senha`.
-    await espelharSenhaNoLegado(conta.id, hash, claims);
-
-    // 7. vincular Entregador -> conta, se ainda não apontava para ela
-    // (mesmo idioma de PATCH em POST /:id/vinculo).
+    // 7. VÍNCULO ANTES DA SENHA. O índice único global
+    // `idx_entregador_motorista_id_unico` aborta aqui se a conta já pertence a
+    // um Entregador que a RLS esconde (outra entidade) — e nenhuma senha foi
+    // gravada ainda. E o gatilho da 0123 só reconhece o CNPJ como Movee com o
+    // vínculo feito.
     if (entregador.motorista_id !== conta.id) {
-      await hubPostgrestRequest(
-        `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`, 'PATCH', { motorista_id: conta.id }, claims,
-        { returnMinimal: true }
-      );
+      try {
+        await hubPostgrestRequest(
+          `Entregador?id=eq.${id}&id_empresa=eq.${entidadeAtiva}`, 'PATCH', { motorista_id: conta.id }, claims,
+          { returnMinimal: true }
+        );
+      } catch (e) {
+        if (e && e.status === 409) return res.status(409).json({ erro: 'credencial_existente' });
+        throw e;
+      }
     }
 
-    // 8. auditoria — NUNCA a senha (mandato S4, defesa em profundidade além
+    // 8. a senha, por último. O gatilho G2 da 0123 a leva ao legado (criando a
+    // linha, se for o caso) na mesma transação.
+    await hubPostgrestRequest(
+      `ContaMotorista?id=eq.${conta.id}`, 'PATCH', { senha: hash }, claims, { returnMinimal: true }
+    );
+
+    // 9. auditoria — NUNCA a senha (mandato S4, defesa em profundidade além
     // do scrub automático de lib/hub-auditoria.js).
     await registrarAuditoria({
       idEmpresa: entidadeAtiva,
@@ -1264,7 +1274,7 @@ router.post('/:id/credencial', requirePermission('motoristas.credencial'), async
       claims,
     });
 
-    // 9. resposta — NUNCA a chave `senha`; `senhaTemporaria` só quando
+    // 10. resposta — NUNCA a chave `senha`; `senhaTemporaria` só quando
     // AUTO-gerada (nunca ecoa uma senha que o próprio caller já sabia).
     const resposta = { id: conta.id, cnpjPrestador: mascararCnpj(cnpjPrestador), ativo: true };
     if (senhaGerada) {
@@ -1295,6 +1305,8 @@ router.post('/:id/credencial/reset-senha', requirePermission('motoristas.credenc
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
 
+    if (await recusarEntidadeForaDoGrupo(entidadeAtiva, claims, res)) return;
+
     // 404 se fora do escopo OU sem credencial vinculada (motivo mais
     // preciso que 409 aqui: não há nada de "conflito", só nada para
     // resetar).
@@ -1316,9 +1328,8 @@ router.post('/:id/credencial/reset-senha', requirePermission('motoristas.credenc
       { senha: null, token_reset_hash: tokenHash, token_reset_expira: expira.toISOString() },
       claims, { returnMinimal: true }
     );
-    // Espelha a invalidação no legado: sem isto o motorista continuaria
-    // entrando com a senha antiga e o reset seria só aparência.
-    const espelhoReset = await espelharSenhaNoLegado(contaMotoristaId, null, claims);
+    // A invalidação chega ao legado pelo gatilho G2 (0123), na mesma transação:
+    // sem isso o motorista continuaria entrando com a senha antiga.
 
     // Auditoria — NUNCA o token (mandato S4).
     await registrarAuditoria({
@@ -1327,7 +1338,7 @@ router.post('/:id/credencial/reset-senha', requirePermission('motoristas.credenc
       acao: 'motorista.credencial_reset_iniciado',
       recurso: 'ContaMotorista',
       recursoId: contaMotoristaId,
-      detalhes: { contaMotoristaId, espelhoLegado: espelhoReset.ok, espelhoMotivo: espelhoReset.motivo || null },
+      detalhes: { contaMotoristaId },
       claims,
     });
 
@@ -1336,10 +1347,7 @@ router.post('/:id/credencial/reset-senha', requirePermission('motoristas.credenc
     // e-mail mock), não existe canal de e-mail para o motorista — o
     // operador que aciona esta rota repassa o token à pessoa motorista por
     // fora do sistema (WhatsApp/telefone/presencial).
-    // `espelhoLegado` na resposta: enquanto o login usar a tabela legada, um
-    // espelho que falhou significa que o reset NÃO teve efeito no app — quem
-    // aciona precisa saber disso na hora, não descobrir pelo motorista.
-    return res.status(200).json({ ok: true, tokenDefinicao: tokenBruto, espelhoLegado: espelhoReset.ok });
+    return res.status(200).json({ ok: true, tokenDefinicao: tokenBruto });
   } catch (e) {
     console.error('[hub-motoristas] erro em POST /motoristas/:id/credencial/reset-senha:', e.message);
     return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
@@ -1371,6 +1379,8 @@ router.post('/:id/credencial/reset-senha/definir', requirePermission('motoristas
 
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
+
+    if (await recusarEntidadeForaDoGrupo(entidadeAtiva, claims, res)) return;
 
     // Allowlist estrita: só `token`/`novaSenha` — validação de FORMATO
     // apenas (a de NEGÓCIO — hash bate? expirou? — é feita abaixo).
@@ -1416,9 +1426,8 @@ router.post('/:id/credencial/reset-senha/definir', requirePermission('motoristas
       { senha: hash, token_reset_hash: null, token_reset_expira: null },
       claims, { returnMinimal: true }
     );
-    // Espelha a senha NOVA no legado — é esta escrita que devolve o acesso ao
-    // app. Sem ela, o reset (que já zerou) deixaria o motorista trancado.
-    const espelhoDefinir = await espelharSenhaNoLegado(contaMotoristaId, hash, claims);
+    // A senha nova chega ao legado pelo gatilho G2 (0123) — é ela que devolve o
+    // acesso ao app depois do reset.
 
     await registrarAuditoria({
       idEmpresa: entidadeAtiva,
@@ -1426,7 +1435,7 @@ router.post('/:id/credencial/reset-senha/definir', requirePermission('motoristas
       acao: 'motorista.credencial_senha_definida',
       recurso: 'ContaMotorista',
       recursoId: contaMotoristaId,
-      detalhes: { contaMotoristaId, espelhoLegado: espelhoDefinir.ok, espelhoMotivo: espelhoDefinir.motivo || null },
+      detalhes: { contaMotoristaId },
       claims,
     });
 
@@ -1454,6 +1463,8 @@ router.patch('/:id/credencial', requirePermission('motoristas.credencial'), asyn
 
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = parseInt(req.params.id, 10);
+
+    if (await recusarEntidadeForaDoGrupo(entidadeAtiva, claims, res)) return;
 
     // Allowlist estrita — só `ativo` (5.3.1).
     const validado = validarPatchCredencialBody(req.body);
@@ -1499,7 +1510,4 @@ module.exports = {
   idValido,
   ORDENAVEIS_MOTORISTAS,
   compararMotorista,
-  // Exportado para teste: o espelho da senha no legado é o que mantém o app do
-  // motorista funcionando enquanto o gate do login não é ligado.
-  espelharSenhaNoLegado,
 };
