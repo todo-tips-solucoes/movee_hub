@@ -1,0 +1,17 @@
+[Unit]
+Description=Alarme do PostgREST de produção (pool/conexão com o banco)
+Documentation=file:///var/lib/envioMassa_homologacao/infra/producao/README-postgrest-guard.md
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env node /var/lib/envioMassa_homologacao/infra/producao/postgrest-guard.js
+
+# Mesmo motivo dos outros guards: este host já foi derrubado por starvation
+# (2026-06-11). Um alarme nunca pode ser o que atrapalha quem atende cliente.
+Nice=10
+IOSchedulingClass=idle
+
+# `exit 1` = PostgREST fora (unidade `failed` de propósito: rastro que sobrevive
+# mesmo se o e-mail não sair). `exit 2` = o próprio guard falhou.
