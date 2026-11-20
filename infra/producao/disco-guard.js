@@ -181,4 +181,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { medirDisco, faixaDe, deveAvisar, corpoDoAlerta };
+module.exports = { medirDisco, faixaDe, deveAvisar, corpoDoAlerta, lerEnvRobo };
