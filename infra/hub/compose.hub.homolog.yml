@@ -60,7 +60,7 @@ services:
 
   postgrest:
     <<: *hub-common
-    image: postgrest/postgrest:v14.1
+    image: postgrest/postgrest:v14.18
     container_name: hub_homolog_postgrest
     mem_limit: 256m
     cpus: 0.5

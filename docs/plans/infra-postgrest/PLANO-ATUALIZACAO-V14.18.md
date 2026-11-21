@@ -73,6 +73,24 @@ Objetivo: provar a v14.18 com as **mesmas suítes** que já usamos, antes de toc
 
 Fase A pode ser feita pelo agente (escopo `hub-*`). O commit e o PR dos composes seguem o rito do ciclo git.
 
+### Resultado da fase A (2026-11-21)
+
+| Etapa | Resultado |
+|---|---|
+| Imagem | `postgrest/postgrest:v14.18@sha256:c7cd7e265a85b05248abf53f4473fcec7e327c282d0bd0cf60f1551996d09fcf` (`postgrest --version` → `PostgREST 14.18`) ← **usar este digest na fase B** |
+| Composes `infra/hub/compose.hub.{homolog,test,dev,s10}.yml` | v14.1 → v14.18 |
+| Drivers com PostgREST real (`compose.hub.test.yml`, container efêmero conferido em `v14.18`) | **419 PASS / 0 FAIL, 0 `PGRST3xx`**: rls 26/0 · rls-importacoes 19/0 · auth 44/0 · admin 25/0 · faturamento 85/0 · repasse-lote 91/0 · motoristas 129/0. Os 3 com baseline registrada repetiram o placar exato (admin 25/0, faturamento 85/0, rls-importacoes 19/0) |
+| `hub-homolog` | preflight PASSOU; `hub_homolog_postgrest` recriado em v14.18 às 02:33 UTC; LISTEN ativo (`pg_stat_activity`: `PostgREST 14.18 / LISTEN "pgrst"`); 0 `PGRST` no backend |
+| Observação de 24 h | ⏳ em curso até 2026-11-22 02:33 UTC |
+
+⚠️ **Limite do ensaio:** o `hub-homolog` roda em **compose**, não em Swarm, e por isso **não passa
+pelo IPVS** que derruba a conexão LISTEN de produção a cada 2h02. As 24 h provam
+estabilidade e compatibilidade, **não** o comportamento diante da queda de rede. Esse
+comportamento só será visto em produção, sob a vigília do `postgrest-guard`.
+
+Fora do conjunto: o E2E do shell e o driver de adiantamentos não sobem PostgREST real
+(usam stub) e, por isso, não exercitariam a troca.
+
 ## 5. Fase B — produção (rito integral, os 5 gates)
 
 **G1 — Autorização** explícita do operador para *esta* troca.
@@ -102,15 +120,17 @@ systemctl is-active postgrest-guard.timer # alarme ligado
 **G4 — Aplicar** (fixando o digest da fase A, nunca a tag solta):
 ```bash
 docker service update --with-registry-auth \
-  --image postgrest/postgrest:v14.18@sha256:<DIGEST-DA-FASE-A> \
+  --image postgrest/postgrest:v14.18@sha256:c7cd7e265a85b05248abf53f4473fcec7e327c282d0bd0cf60f1551996d09fcf \
   pgadmin_postgrest
 ```
 Nunca `docker stack deploy`. Se o classificador bloquear, o operador cola.
 
 **G5 — Smoke** (todos locais, sem expor segredo):
 1. `docker service ps pgadmin_postgrest` mostra a tarefa nova `Running` com a imagem v14.18.
-2. Log do container novo: `Successfully connected to PostgreSQL 13.23`,
-   `Schema cache loaded …` e **nenhum** `PGRST00x` nem `PGRST3xx`.
+2. Log do container novo: `Starting PostgREST 14.18...`, `Successfully connected to PostgreSQL 13.23`,
+   `Listener connected to PostgreSQL …` (na v14.18 o texto mudou; a v14.1 dizia
+   `Listening for database notifications`), `Schema cache loaded … RPCs …` e **nenhum**
+   `PGRST00x` nem `PGRST3xx`.
 3. `pg_stat_activity` mostra conexões `PostgREST 14.18` (o `application_name` identifica a versão).
 4. Backend: nenhum `PGRST` nos logs nos 2 min seguintes; o `adiantamento-worker` roda o tick sem erro.
 5. `node infra/producao/postgrest-guard.js --dry-run` → `ok`, exit 0.
