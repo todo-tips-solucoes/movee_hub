@@ -211,6 +211,42 @@ describe('garantirSessaoValida', () => {
     // e o login persistiu o storageState novo (asserção herdada do cenário 401->login)
     assert.deepEqual(carregarStorageState(caminho), { cookies: [{ name: 'sess', value: 'novo' }] });
   });
+
+  // REGRESSÃO (incidente 2026-11-19/20): com a sessão morta o portal redireciona
+  // para a tela de login no meio do evaluate. Antes isso virava
+  // ErroPortalTransitorio e o login completo NUNCA acontecia (3 imports perdidos).
+  test('redirect destrói o contexto da sonda E do refresh -> espera, repete e chega ao login completo', async () => {
+    const caminho = tmpPath('sessao/entrego-session.json');
+    const destruido = new Set();
+    let esperas = 0;
+    const page = {
+      url: () => 'https://franqueado.entregolog.com/',
+      evaluate: async (fn) => {
+        if (fn.name !== '_evalSondaSessao' && fn.name !== '_evalRenovarSessao') return undefined;
+        if (!destruido.has(fn.name)) {
+          destruido.add(fn.name);
+          throw new Error('page.evaluate: Execution context was destroyed, most likely because of a navigation.');
+        }
+        return { status: 401 };
+      },
+      waitForLoadState: async () => { esperas += 1; },
+      goto: async () => {},
+      fill: async () => {},
+      click: async () => {},
+      waitForSelector: async () => {},
+      waitForFunction: async () => {},
+      context: () => ({ storageState: async () => ({ cookies: [{ name: 'sess', value: 'novo' }] }) }),
+    };
+    const r = await garantirSessaoValida(page, { email: 'a@x.com', senha: 's', obterCodigo: async () => '654321', storageStatePath: caminho });
+    assert.deepEqual(r, { relogou: true, renovada: false });
+    assert.equal(esperas, 2, 'espera a navegação assentar uma vez na sonda e uma no refresh');
+  });
+
+  test('contexto destruído DUAS vezes seguidas -> continua ErroPortalTransitorio (não fica em loop)', async () => {
+    const page = mockPageEvaluate(() => { throw new Error('Execution context was destroyed'); });
+    page.waitForLoadState = async () => {};
+    await assert.rejects(() => sondarSessaoValida(page), (e) => e instanceof ErroPortalTransitorio && e.sinal === 'erro_conexao');
+  });
 });
 
 // --- 4.2 — login completo (4 passos) ----------------------------------------
