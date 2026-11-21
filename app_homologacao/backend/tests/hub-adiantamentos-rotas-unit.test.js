@@ -1391,6 +1391,12 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
     assert.equal(r.body.motivo, 'FORMATO_INVALIDO');
+    // Incidente 2026-11-21: recusa sem rastro não deixava saber se alguém tentou.
+    const recusa = registrosAuditoria.find((e) => e.acao === 'adiantamento.retorno_recusado');
+    assert.ok(recusa, 'recusa precisa de trilha');
+    assert.equal(recusa.recursoId, 900);
+    assert.deepEqual(recusa.detalhes, { status: 400, erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
+    assert.ok(!registrosAuditoria.some((e) => e.acao === 'adiantamento.retorno_importado'));
   });
 
   test('cabeçalho fora do contrato -> 400 ARQUIVO_INVALIDO/CABECALHO_INVALIDO', async () => {
@@ -1400,6 +1406,8 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
     assert.equal(r.status, 400);
     assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
     assert.equal(r.body.motivo, 'CABECALHO_INVALIDO');
+    const recusa = registrosAuditoria.find((e) => e.acao === 'adiantamento.retorno_recusado');
+    assert.deepEqual(recusa && recusa.detalhes, { status: 400, erro: 'ARQUIVO_INVALIDO', motivo: 'CABECALHO_INVALIDO' });
   });
 
   // FR-002/FR-019: o CSV deixou de existir — só o mime XLSX entra no parser.
@@ -1467,6 +1475,8 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
     assert.equal(r.body.erro, 'ARQUIVO_INVALIDO');
     assert.equal(r.body.motivo, 'LINHA_DUPLICADA');
     assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
+    const recusa = registrosAuditoria.find((e) => e.acao === 'adiantamento.retorno_recusado');
+    assert.deepEqual(recusa && recusa.detalhes, { status: 400, erro: 'ARQUIVO_INVALIDO', motivo: 'LINHA_DUPLICADA' });
   });
 
   test('Finalizada -> paga e Devolvida -> falhou (motivo literal), auditoria registrada', async () => {
@@ -1510,6 +1520,12 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
     assert.equal(r.body.erro, 'RETORNO_INCOMPLETO');
     assert.deepEqual(r.body.faltantes, [101]);
     assert.ok(!chamadasPostgrest.some((c) => c.endpoint === 'rpc/hub_adiantamento_lote_confirmar'));
+    // Só contagens na trilha: nem ids, nem o texto das células.
+    const recusa = registrosAuditoria.find((e) => e.acao === 'adiantamento.retorno_recusado');
+    assert.deepEqual(recusa && recusa.detalhes, {
+      status: 409, erro: 'RETORNO_INCOMPLETO', faltantes: 1, ignoradas: 0, linhasArquivo: 1,
+    });
+    assert.ok(!registrosAuditoria.some((e) => e.acao === 'adiantamento.retorno_importado'));
   });
 
   // Defeito 2026-10-21: VALOR_AMBIGUO nunca chegava à tela — item `incluido` com linha
@@ -1582,6 +1598,8 @@ describe('FASE 9 — POST /lotes/:id/retorno', () => {
     const r = await request('POST', '/api/v1/adiantamentos/lotes/900/retorno', { ...corpoRetorno([{ 'ID integração': 'ADV-000100', Status: 'FINALIZADO', Valor: '250,00' }]), cookie: tokenCookie() });
     assert.equal(r.status, 404);
     assert.equal(r.body.erro, 'NAO_ENCONTRADO');
+    const recusa = registrosAuditoria.find((e) => e.acao === 'adiantamento.retorno_recusado');
+    assert.deepEqual(recusa && recusa.detalhes, { status: 404, erro: 'NAO_ENCONTRADO' });
   });
 });
 

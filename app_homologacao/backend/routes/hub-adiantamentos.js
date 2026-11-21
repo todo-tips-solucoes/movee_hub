@@ -1511,27 +1511,39 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
     const { claims, entidadeAtiva, payload } = ctx;
     if (!idValido(req.params.id)) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
     const id = Number(req.params.id);
+    // Incidente 2026-11-21: só a importação ACEITA deixava rastro. Com 19 lotes
+    // sem retorno, a trilha não respondia se o financeiro tentou e a tela
+    // recusou, ou se ninguém tentou. Toda recusa a partir daqui passa por isto.
+    // Só contagens e tokens fechados em `detalhes`: nada do texto do arquivo.
+    const recusar = async (status, corpo, extra = {}) => {
+      await registrarAuditoria({
+        idEmpresa: entidadeAtiva, usuarioId: payload.sub, acao: 'adiantamento.retorno_recusado',
+        recurso: 'AdiantamentoLote', recursoId: id,
+        detalhes: { status, erro: corpo.erro, ...(corpo.motivo ? { motivo: corpo.motivo } : {}), ...extra }, claims,
+      });
+      return res.status(status).json(corpo);
+    };
     // `express.raw()` entrega Buffer; qualquer outro content-type cai aqui como
     // `{}` (o parser não casou) e vira 400 — nunca 500.
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
+      return recusar(400, { erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
     }
 
     let linhasRetorno;
     try {
       linhasRetorno = lerXlsx(req.body);
     } catch (e) {
-      if (e instanceof RetornoTransfeeraParseError) return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
+      if (e instanceof RetornoTransfeeraParseError) return recusar(400, { erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
       // Só mensagem constante + e.name: o `message` do SheetJS pode ecoar conteúdo do arquivo.
       console.error('[hub-adiantamentos] erro ao ler o XLSX em POST /lotes/:id/retorno:', e && e.name);
-      return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
+      return recusar(400, { erro: 'ARQUIVO_INVALIDO', motivo: 'FORMATO_INVALIDO' });
     }
 
     const itensRaw = await hubPostgrestRequest(
       `AdiantamentoLoteItem?lote_id=eq.${id}&id_empresa=in.(${claims.escopo.join(',')})&select=solicitacao_id,col_id_integracao,situacao,valor`,
       'GET', null, claims,
     );
-    if (!itensRaw || !itensRaw.length) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
+    if (!itensRaw || !itensRaw.length) return recusar(404, { erro: 'NAO_ENCONTRADO' });
 
     const itensLote = itensRaw.map((i) => ({
       solicitacaoId: i.solicitacao_id,
@@ -1548,7 +1560,7 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
       // conflitante — o arquivo inteiro é recusado, nunca se escolhe uma das
       // linhas (uma `Devolvida` duplicando uma `Finalizada` marcaria FALHOU
       // um adiantamento já pago).
-      if (e instanceof RetornoTransfeeraParseError) return res.status(400).json({ erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
+      if (e instanceof RetornoTransfeeraParseError) return recusar(400, { erro: 'ARQUIVO_INVALIDO', motivo: e.motivo });
       throw e;
     }
     const { aplicaveis, ignoradas, faltantes } = casamento;
@@ -1567,7 +1579,11 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
     // ignorada (ex.: VALOR_AMBIGUO) vira faltante — sem isto a tela mandava
     // reexportar o período quando o problema era a célula.
     if (faltantes.length > 0) {
-      return res.status(409).json({ erro: 'RETORNO_INCOMPLETO', faltantes, ignoradasPorMotivo });
+      // Na trilha vão só as CONTAGENS: os ids dos faltantes estão no lote, e o
+      // motivo pode trazer o texto da célula (`VALOR_AMBIGUO:1.234`).
+      return recusar(409, { erro: 'RETORNO_INCOMPLETO', faltantes, ignoradasPorMotivo }, {
+        faltantes: faltantes.length, ignoradas: ignoradas.length, linhasArquivo: linhasRetorno.length,
+      });
     }
 
     // Revisão de segurança 2026-09-18: o `motivo` aqui vem do texto livre do
@@ -1594,9 +1610,9 @@ router.post('/lotes/:id/retorno', requireModuloAtivo('adiantamentos'), requirePe
         );
       } catch (e) {
         const msg = mensagemDeErro(e);
-        if (msg.includes('NAO_ENCONTRADA')) return res.status(404).json({ erro: 'NAO_ENCONTRADO' });
-        if (msg.includes('TRANSICAO_INVALIDA')) return res.status(409).json({ erro: 'TRANSICAO_INVALIDA' });
-        if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
+        if (msg.includes('NAO_ENCONTRADA')) return recusar(404, { erro: 'NAO_ENCONTRADO' });
+        if (msg.includes('TRANSICAO_INVALIDA')) return recusar(409, { erro: 'TRANSICAO_INVALIDA' });
+        if (msg.includes('PERMISSAO_NEGADA')) return recusar(403, { erro: 'PERMISSAO_NEGADA' });
         console.error('[hub-adiantamentos] erro em POST /lotes/:id/retorno:', e.message);
         return res.status(500).json({ erro: 'ERRO_SERVIDOR' });
       }
