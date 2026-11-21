@@ -156,6 +156,23 @@ async function _evalSondaSessao(args) {
   return { status: resp.status };
 }
 
+// Incidente 2026-11-19/20: com a sessão morta o portal passou a REDIRECIONAR
+// para a tela de login logo após o `goto`, em vez de só responder 401 à sonda.
+// O redirect destrói o contexto no meio do `evaluate` ("Execution context was
+// destroyed"), o erro virava ErroPortalTransitorio e o robô nunca chegava ao
+// login completo — 3 janelas de import perdidas. Espera a navegação assentar e
+// repete UMA vez: a página de login é da mesma origem, então a sonda/renovação
+// recebe o 401 e o fluxo segue para `realizarLoginCompleto`.
+async function avaliarAposRedirect(page, fn, args) {
+  try {
+    return await page.evaluate(fn, args);
+  } catch (e) {
+    if (!/Execution context was destroyed/.test((e && e.message) || '')) throw e;
+    if (page.waitForLoadState) await page.waitForLoadState('load').catch(() => {});
+    return page.evaluate(fn, args);
+  }
+}
+
 /**
  * Sonda de sessão viva (research.md Decision 3, tasks.md 4.1.2).
  * @returns {Promise<{valida: boolean}>} `valida=false` (401) NÃO é falha — o
@@ -180,7 +197,7 @@ async function sondarSessaoValida(page, { baseURL = BASE_URL, portalOrigin = POR
 
   let resultado;
   try {
-    resultado = await page.evaluate(_evalSondaSessao, { baseURL, headers: HEADERS_API });
+    resultado = await avaliarAposRedirect(page, _evalSondaSessao, { baseURL, headers: HEADERS_API });
   } catch (e) {
     throw new ErroPortalTransitorio(`entrego-portal: sonda de sessão falhou (${e.message})`, 'erro_conexao');
   }
@@ -374,7 +391,7 @@ async function renovarSessao(page, { baseURL = BASE_URL, portalOrigin = PORTAL_O
   }
   let resultado;
   try {
-    resultado = await page.evaluate(_evalRenovarSessao, { baseURL, headers: HEADERS_API });
+    resultado = await avaliarAposRedirect(page, _evalRenovarSessao, { baseURL, headers: HEADERS_API });
   } catch (e) {
     throw new ErroPortalTransitorio(`entrego-portal: renovação de sessão falhou (${e.message})`, 'erro_conexao');
   }
