@@ -189,7 +189,7 @@ Formulário (POST/PUT):
 (⚠️ `valorCentavos` de objeto é só estimativa e não tem o teto do dinheiro; foto vai por rota própria depois de salvar.)
 
 App motorista:
-| GET | `/api/motorista/campanhas` | `{itens:[{id,nome,situacao,dataFim,minhaPosicao,total,minhaSituacao,naZonaPremio}]}` |
+| GET | `/api/motorista/campanhas` | `{itens:[{id,nome,situacao,dataInicio,dataFim,minhaPosicao,total,minhaSituacao,naZonaPremio}]}` (`dataInicio` acrescentado em 2026-11-22: o card escolhe a agendada que começa primeiro) |
 | GET | `/api/motorista/campanhas/:id` | ver abaixo |
 | GET | `/api/motorista/campanhas/:id/premios/:premioId/foto` | binário |
 

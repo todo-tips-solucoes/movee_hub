@@ -35,6 +35,7 @@ const {
   executarExpurgo,
   iniciarExpurgoPeriodico,
   iniciarVarreduraPeriodica,
+  avisarInicioCampanhas,
   VARREDURA_INTERVALO_MS,
   classificarErroEnvio,
   executarComPool,
@@ -412,7 +413,35 @@ describe('iniciarVarreduraPeriodica (avisos do sistema)', () => {
     assert.equal(consultas.length, 0, 'não roda no agendamento: o boot já faz a retomada');
     tick();
     await new Promise((r) => setTimeout(r, 5));
-    assert.deepEqual(consultas, ['Aviso?status=in.(na_fila,em_andamento)&select=id']);
+    // Campanhas: o aviso de início é enfileirado ANTES da retomada, no mesmo tick.
+    assert.deepEqual(consultas, ['rpc/hub_campanhas_avisar_inicio', 'Aviso?status=in.(na_fila,em_andamento)&select=id']);
+  });
+
+  test('campanhas: avisar_inicio usa o JWT do push worker; a falha loga e a retomada ainda roda', async () => {
+    let tick = null;
+    const chamadas = [];
+    const logs = [];
+    const deps = criarDepsBase({
+      hubPostgrestRequest: async (endpoint, method, body, claims) => {
+        chamadas.push({ endpoint, method, claims });
+        if (endpoint === 'rpc/hub_campanhas_avisar_inicio') throw new Error('RPC fora do ar (simulado)');
+        return [];
+      },
+      logErro: (msg) => logs.push(msg),
+      agendarIntervalo: (fn) => { tick = fn; return 'handle'; },
+    });
+    iniciarVarreduraPeriodica(deps);
+    tick();
+    await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(chamadas[0].claims, { hubPushWorker: true });
+    assert.equal(chamadas[0].method, 'POST');
+    assert.ok(chamadas.some((c) => c.endpoint.startsWith('Aviso?status=in.')), 'a retomada dos avisos NÃO pode ser derrubada');
+    assert.ok(logs.some((m) => m.includes('avisarInicioCampanhas')));
+  });
+
+  test('avisarInicioCampanhas devolve null (não lança) quando a RPC falha', async () => {
+    const deps = criarDepsBase({ hubPostgrestRequest: async () => { throw new Error('x'); } });
+    assert.equal(await avisarInicioCampanhas(deps), null);
   });
 
   test('aviso que ainda está na fila não é enfileirado de novo pelo tick seguinte', async () => {

@@ -23,7 +23,7 @@ const OBSERVACAO_MAX = 500;
 const DATA_PISO = '2024-01-01';
 /** Guard-rail de digitação (dec-026), não limite de negócio. Em centavos. */
 const TETO_CENTAVOS = 500000;
-const TIPOS = ['ADIANTAMENTO', 'AJUSTE_CREDITO'];
+const TIPOS = ['ADIANTAMENTO', 'AJUSTE_CREDITO', 'PREMIO_CAMPANHA'];
 
 class LancamentoExternoParseError extends Error {
   constructor(message, motivo) {

@@ -205,7 +205,9 @@ Onde o "não parar por nada" esbarra no que já foi acordado:
 1. ~~Aprovar telas e A1–A12~~ ✅ 2026-11-22.
 2. ~~A12~~ ✅ `admin_entidade` + `financeiro` (+ `financeiro_aprovador`, pela 0115).
 3. ~~Consulta de cobertura~~: dispensada. A P1 é medida na hora pelo formulário (§2).
-4. **Janela de deploy** (gate 2): só é necessária na W7, e a execução não espera por ela.
+4. ~~Janela de deploy~~ ✅ combinada com o operador: **2026-11-22 depois das 22h** (gate 2).
+   Se as ondas não fecharem a tempo com todos os gates verdes, o deploy **não** acontece nessa
+   janela e uma nova é combinada. Gate verde não se pula por causa de horário.
 
 ## 10. Fora do escopo (v1), de propósito
 

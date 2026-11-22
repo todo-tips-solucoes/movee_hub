@@ -394,6 +394,11 @@ function criarFakePostgrest({
       return { modo: 'concurrent', duracao_ms: 1 };
     }
 
+    // Campanhas do motorista (CONTRATOS §8): recálculo do ranking depois do refresh de performance.
+    if (endpoint === 'rpc/hub_campanhas_recalcular_ativas' && method === 'POST') {
+      return { recalculadas: 0 };
+    }
+
     throw new Error(`mock não implementado para: ${method} ${endpoint}`);
   }
 
@@ -616,6 +621,60 @@ describe('executarPipeline — happy path (completed)', () => {
     const resultado = await executarPipeline(jobPerformance(), deps);
 
     assert.equal(resultado.status, 'completed', 'falha no refresh NÃO pode reverter a importação');
+  });
+
+  // Campanhas (CONTRATOS §8): o ranking é derivado da MV — só recalcula depois do refresh de PERFORMANCE,
+  // com o MESMO JWT/escopo da importação e o id da empresa do job; falha não derruba a importação.
+  test('performance: recalcula as campanhas ativas APÓS o refresh, com o mesmo claims e p_id_empresa do job', async () => {
+    const csv = [HEADER_ROW_PERFORMANCE, linhaPerformance(), ''].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'performance.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+    const job = jobPerformance({ claims: { escopo: [100], usuarioId: 7 } });
+
+    await executarPipeline(job, deps);
+
+    const refresh = deps.chamadas.find((c) => c.endpoint === 'rpc/hub_performance_refresh_mv');
+    const recalc = deps.chamadas.filter((c) => c.endpoint === 'rpc/hub_campanhas_recalcular_ativas');
+    assert.equal(recalc.length, 1);
+    assert.ok(deps.chamadas.indexOf(recalc[0]) > deps.chamadas.indexOf(refresh));
+    assert.deepEqual(recalc[0].body, { p_id_empresa: 100 });
+    assert.equal(recalc[0].claims, job.claims);
+  });
+
+  test('faturamento NUNCA dispara o recálculo de campanhas', async () => {
+    const csv = [HEADER_ROW_FATURAMENTO, linhaFaturamento(), ''].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+    await executarPipeline(jobFaturamento(), deps);
+    assert.equal(deps.chamadas.filter((c) => c.endpoint === 'rpc/hub_campanhas_recalcular_ativas').length, 0);
+  });
+
+  test('performance: MV não atualizada -> não recalcula (ranking derivaria de MV velha)', async () => {
+    const csv = [HEADER_ROW_PERFORMANCE, linhaPerformance(), ''].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'performance.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+    const original = deps.hubPostgrestRequest;
+    deps.hubPostgrestRequest = async (endpoint, ...r) => {
+      if (endpoint === 'rpc/hub_performance_refresh_mv') throw new Error('MV fora (simulado)');
+      return original(endpoint, ...r);
+    };
+    const resultado = await executarPipeline(jobPerformance(), deps);
+    assert.equal(resultado.status, 'completed');
+    assert.equal(deps.chamadas.filter((c) => c.endpoint === 'rpc/hub_campanhas_recalcular_ativas').length, 0);
+  });
+
+  test('performance: falha do recálculo de campanhas loga e NÃO derruba a importação (completed)', async () => {
+    const csv = [HEADER_ROW_PERFORMANCE, linhaPerformance(), ''].join('\n');
+    const deps = criarFakePostgrest({ nomeArquivo: 'performance.csv' });
+    deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
+    const original = deps.hubPostgrestRequest;
+    deps.hubPostgrestRequest = async (endpoint, ...r) => {
+      if (endpoint === 'rpc/hub_campanhas_recalcular_ativas') throw new Error('recálculo falhou (simulado)');
+      return original(endpoint, ...r);
+    };
+    const resultado = await executarPipeline(jobPerformance(), deps);
+    assert.equal(resultado.status, 'completed');
+    assert.equal(resultado.validas, 1);
   });
 
   // S5/hub-motoristas (tasks.md 8.2.4, block-004/dec-048) — o upsert de

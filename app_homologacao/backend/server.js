@@ -71,6 +71,7 @@ const motoristaPushRoutes = require('./routes/motorista-push');
 // e /motorista/adiantamentos*, montadas com authenticateMotorista (mesmo
 // padrão de motoristaPushRoutes acima).
 const motoristaAdiantamentoRoutes = require('./routes/motorista-adiantamento');
+const motoristaCampanhasRoutes = require('./routes/motorista-campanhas');
 // adiantamento-motorista (tasks.md FASE 3.3) — tick de 60s (processar/
 // órfãos/expurgo), iniciado no boot perto de app.listen (mesmo padrão de
 // hubPushWorker.iniciarExpurgoPeriodico acima).
@@ -102,6 +103,7 @@ const hubFaturamentoRoutes = require('./routes/hub-faturamento');
 // cobertura) e criação/disparo de push. Arquivo 100% novo
 // (routes/hub-avisos.js).
 const hubAvisosRoutes = require('./routes/hub-avisos');
+const hubCampanhasRoutes = require('./routes/hub-campanhas');
 
 // hub-performance (S7 do hub de frota, FASE 2) — GET /api/v1/performance
 // (lista paginada + export CSV) e GET /api/v1/performance/resumo (cards/
@@ -2767,6 +2769,10 @@ motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, motorista
 // do sub-router.
 motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, motoristaAdiantamentoRoutes.router);
 
+// campanhas do motorista — GET /campanhas, /campanhas/:id, /campanhas/:id/premios/:premioId/foto.
+// Mesmo padrão acima: authenticateMotorista explícito (identidade só da claim da sessão).
+motoristaRoutes.router.use('/', motoristaRoutes.authenticateMotorista, motoristaCampanhasRoutes.router);
+
 // hub-fundacoes (FASE 3) — /api/v1/auth/* (login/refresh/logout/recuperar-senha/
 // redefinir-senha). Sem authenticateToken aqui — o próprio router aplica
 // rate-limit (Decision 8) e cada rota decide sua própria exigência de auth
@@ -2836,6 +2842,10 @@ app.use('/api/v1/admin', hubAdminRoutes.router);
 // requirePermission aplicados dentro do próprio router (mesmo padrão do
 // bloco /api/v1/papeis acima).
 app.use('/api/v1/avisos', hubAvisosRoutes.router);
+
+// campanhas do motorista (módulo Campanhas do hub) — /api/v1/hub/campanhas. requireModuloAtivo/
+// requirePermission aplicados dentro do próprio router; foto usa express.raw NA ROTA.
+app.use('/api/v1/hub/campanhas', hubCampanhasRoutes.router);
 
 // adiantamento-motorista (tasks.md FASE 4.9) — /api/v1/adiantamentos
 // (módulo Adiantamentos do hub: solicitações, configuração, contas
