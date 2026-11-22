@@ -14,6 +14,7 @@ test('linkPermitido: aceita cada rota da allowlist', () => {
   assert.equal(linkPermitido('/conta-bancaria'), '/conta-bancaria');
   assert.equal(linkPermitido('/avisos/45'), '/avisos/45');
   assert.equal(linkPermitido('/repasse'), '/repasse');
+  assert.equal(linkPermitido('/campanhas/12'), '/campanhas/12');
 });
 
 test('linkPermitido: recusa null/undefined/vazio', () => {
@@ -27,4 +28,6 @@ test('linkPermitido: recusa rota fora da allowlist (defesa em profundidade)', ()
   assert.equal(linkPermitido('https://evil.example/adiantamento'), null);
   assert.equal(linkPermitido('/adiantamento/abc'), null);
   assert.equal(linkPermitido('/avisos/'), null);
+  assert.equal(linkPermitido('/campanhas/abc'), null);
+  assert.equal(linkPermitido('/campanhas/'), null);
 });

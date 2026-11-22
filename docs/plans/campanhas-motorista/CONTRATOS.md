@@ -4,6 +4,21 @@
 > Se algo aqui se mostrar impossível ou contraditório: PARE e devolva ao orquestrador com o
 > motivo medido. Não improvise.
 
+## Erratas validadas pelo orquestrador depois da W1 (2026-11-22)
+
+- "Praça" = coluna `PerformanceTurno.subpraca` (a mesma de `/performance/areas` e da 0051), não `praca`.
+- Nota de pedidos é limitada a 100, inclusive a hipotética de quem passa o líder.
+- Formatos de retorno: `hub_campanha_listar` → `TABLE(item jsonb)` em camelCase; detalhe e RPCs do
+  motorista em camelCase; `hub_campanha_ranking` e `hub_campanha_opcoes` em snake_case (§6).
+- Prêmio aceita `id` opcional no `hub_campanha_salvar`: com id, atualiza e preserva a foto.
+- O motorista é resolvido pelo Entregador da **empresa da campanha** (um por empresa).
+- `posicao_anterior` só avança quando `dados_ate` muda (2ª e 3ª importação do dia não zeram a variação).
+- Links de notificação `/campanhas/<id>` são aceitos no CHECK do banco, em `linkPermitidoOuNulo`
+  (backend) e em `lib/notificacao-link.ts` (app).
+- **Deploy:** a 0127 não habilita o módulo `campanhas` para nenhuma entidade (fail-closed). No deploy,
+  habilitar em `ModuloEntidade` para a entidade **6 (Movee)**. O app é exclusivo do grupo Movee; outras
+  entidades só sob decisão do operador.
+
 ## 0. Regras transversais
 
 - Hoje = `(now() AT TIME ZONE 'America/Sao_Paulo')::date`. Uma única função SQL: `hub_hoje_sp()`.

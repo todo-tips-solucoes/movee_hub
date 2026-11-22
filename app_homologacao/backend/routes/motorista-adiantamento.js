@@ -750,7 +750,7 @@ const CATEGORIAS_NOTIFICACAO = new Set(['adiantamento', 'pagamento', 'conta_banc
 // um `link` fora da lista (dado antigo, RPC futura com bug) sai como `null`
 // em vez de vazar um valor não esperado para o app navegar.
 const LINK_ALLOWLIST_FIXO = new Set(['/adiantamento', '/conta-bancaria', '/repasse']);
-const LINK_ALLOWLIST_REGEX = [/^\/adiantamento\/\d+$/, /^\/avisos\/\d+$/];
+const LINK_ALLOWLIST_REGEX = [/^\/adiantamento\/\d+$/, /^\/avisos\/\d+$/, /^\/campanhas\/\d+$/];
 
 function linkPermitidoOuNulo(link) {
   if (typeof link !== 'string' || !link) return null;
