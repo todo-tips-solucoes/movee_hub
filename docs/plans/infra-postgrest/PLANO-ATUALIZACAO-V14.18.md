@@ -1,7 +1,8 @@
 # Plano — atualizar o PostgREST de produção de v14.1 para v14.18
 
 > Preparado em 2026-11-20, depois do incidente do pool travado (14:38–16:22 UTC).
-> Status: **plano, nada executado.** A fase B é escrita em produção (rito integral, 5 gates).
+> Status: **fase A ✅ fechada em 2026-11-22. Fase B (produção) não executada**: exige o rito
+> integral (5 gates) e autorização própria.
 
 ## 1. Por quê
 
@@ -46,7 +47,7 @@ Nenhuma mudança de configuração é exigida. As 6 variáveis atuais (`PGRST_DB
 | Imagem | `postgrest/postgrest:v14.1@sha256:e9490aa503a5fb07d8e8c80da46e5c0c193894e583b59ed9077e74c4101ffae2` ← **ROLLBACK** |
 | UpdateConfig | `stop-first`, `FailureAction: pause`, monitor 5 s (≈10 s de indisponibilidade na troca) |
 | Clientes | backend de produção (legado + hub: login, RPCs do hub, adiantamento-worker a cada 60 s) |
-| Outros PostgREST v14.1 | `hub_homolog_postgrest` e os composes `infra/hub/compose.hub.{homolog,test,dev,s10}.yml` |
+| Outros PostgREST v14.1 | `hub_homolog_postgrest` e os composes `infra/hub/compose.hub.{homolog,test,dev,s10}.yml` (já em v14.18 depois da fase A) |
 | Disco | 27 GB livres (a imagem do PostgREST tem dezenas de MB) |
 
 ⚠️ **O arquivo da stack `pgadmin` não está no repositório.** Depois do `service update`, o rótulo
@@ -81,7 +82,11 @@ Fase A pode ser feita pelo agente (escopo `hub-*`). O commit e o PR dos composes
 | Composes `infra/hub/compose.hub.{homolog,test,dev,s10}.yml` | v14.1 → v14.18 |
 | Drivers com PostgREST real (`compose.hub.test.yml`, container efêmero conferido em `v14.18`) | **419 PASS / 0 FAIL, 0 `PGRST3xx`**: rls 26/0 · rls-importacoes 19/0 · auth 44/0 · admin 25/0 · faturamento 85/0 · repasse-lote 91/0 · motoristas 129/0. Os 3 com baseline registrada repetiram o placar exato (admin 25/0, faturamento 85/0, rls-importacoes 19/0) |
 | `hub-homolog` | preflight PASSOU; `hub_homolog_postgrest` recriado em v14.18 às 02:33 UTC; LISTEN ativo (`pg_stat_activity`: `PostgREST 14.18 / LISTEN "pgrst"`); 0 `PGRST` no backend |
-| Observação de 24 h | ⏳ em curso até 2026-11-22 02:33 UTC |
+| Observação de 24 h | ✅ **fechada** em 2026-11-22 19:55 UTC, após **41 h** no ar: 0 reinícios, 0 `PGRST`/5xx (log só com as 9 linhas da subida), 0 `PGRST` no backend, pool em 6 conexões `PostgREST 14.18` ociosas (abriu sob uso e assentou). RSS 50 → 75 MB, desacelerando (+16 MB nas primeiras 19 h, +6 MB nas 22 h seguintes); acompanhar a memória nas 48 h da fase B |
+
+⚠️ **Tráfego quase nulo na observação:** o backend do `hub-homolog` só registrou a rotina
+periódica no período. As 41 h provam que o processo fica de pé e estável; a compatibilidade
+está provada pelos 419 testes acima, não pela observação.
 
 ⚠️ **Limite do ensaio:** o `hub-homolog` roda em **compose**, não em Swarm, e por isso **não passa
 pelo IPVS** que derruba a conexão LISTEN de produção a cada 2h02. As 24 h provam
