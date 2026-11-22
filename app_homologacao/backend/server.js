@@ -2891,6 +2891,8 @@ if (process.env.POSTGREST_URL) {
       console.error(`[boot] push: chave VAPID indisponível (${resultado.erro}) — disparo/envio respondem 503 PUSH_INDISPONIVEL até corrigir.`);
       return;
     }
+    // Só com chave válida: sem ela cada tick logaria erro por aviso.
+    hubPushWorker.iniciarVarreduraPeriodica();
     return hubPushWorker.retomarAvisosPendentes();
   }).catch((err) => {
     console.error('[boot] push: falha ao inicializar chave/retomar avisos (não bloqueia o boot):', err && err.message);
