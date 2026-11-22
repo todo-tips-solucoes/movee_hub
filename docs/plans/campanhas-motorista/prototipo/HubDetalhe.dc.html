@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Hub — Campanha em andamento</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2c66e9}a:hover{color:#1b3fac}
+</style>
+</helmet>
+<div style="width: 1280px; height: 1120px; background: #f9f2e8; color: #0f1849; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; padding: 32px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+  <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: #52618a">
+    <a href="Main.dc.html" style="font-weight: 600">Campanhas</a><span aria-hidden="true">/</span><span>Rei do Jantar — Novembro</span>
+  </div>
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Rei do Jantar — Novembro</h1>
+        <span style="font-size: 12px; font-weight: 700; background: #d6f5ec; color: #00715e; padding: 4px 10px; border-radius: 999px">Em andamento</span>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #52618a">10/11 a 30/11 · faltam 8 dias · dados até 21/11 (importação de hoje 11h04)</p>
+    </div>
+    <div style="display: flex; gap: 10px">
+      <button style="font: inherit; font-size: 13px; font-weight: 700; background: #ffffff; color: #0f1849; border: 1px solid #e7ddcd; padding: 10px 16px; border-radius: 12px; min-height: 44px; cursor: pointer">Exportar CSV</button>
+      <button style="font: inherit; font-size: 13px; font-weight: 700; background: #ffffff; color: #c62828; border: 1px solid #f0c4c4; padding: 10px 16px; border-radius: 12px; min-height: 44px; cursor: pointer">Cancelar campanha</button>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px">
+    <div style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 14px; padding: 16px 18px"><div style="font-size: 12px; font-weight: 700; color: #52618a">No ranking</div><div style="font-size: 28px; font-weight: 800; margin-top: 4px">184</div></div>
+    <div style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 14px; padding: 16px 18px"><div style="font-size: 12px; font-weight: 700; color: #52618a">Abaixo do corte</div><div style="font-size: 28px; font-weight: 800; margin-top: 4px; color: #7a5200">23</div></div>
+    <div style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 14px; padding: 16px 18px"><div style="font-size: 12px; font-weight: 700; color: #52618a">Sem o mínimo de turnos</div><div style="font-size: 28px; font-weight: 800; margin-top: 4px">41</div></div>
+    <div style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 14px; padding: 16px 18px"><div style="font-size: 12px; font-weight: 700; color: #52618a">Nota de corte do top 10</div><div style="font-size: 28px; font-weight: 800; margin-top: 4px">88,4</div></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start">
+    <section aria-labelledby="rk" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; overflow: hidden">
+      <div style="padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #efe6d6">
+        <h2 id="rk" style="margin: 0; font-size: 16px; font-weight: 800">Ranking</h2>
+        <div role="tablist" aria-label="Lista" style="display: flex; gap: 6px">
+          <button role="tab" aria-selected="true" style="font: inherit; font-size: 12px; font-weight: 700; background: #0f1849; color: #ffffff; border: 0; padding: 8px 12px; border-radius: 999px; cursor: pointer">Classificados</button>
+          <button role="tab" aria-selected="false" style="font: inherit; font-size: 12px; font-weight: 700; background: #efe6d6; color: #0f1849; border: 0; padding: 8px 12px; border-radius: 999px; cursor: pointer">Abaixo do corte</button>
+          <button role="tab" aria-selected="false" style="font: inherit; font-size: 12px; font-weight: 700; background: #efe6d6; color: #0f1849; border: 0; padding: 8px 12px; border-radius: 999px; cursor: pointer">Sem mínimo</button>
+          <button role="tab" aria-selected="false" style="font: inherit; font-size: 12px; font-weight: 700; background: #fff1d1; color: #7a5200; border: 0; padding: 8px 12px; border-radius: 999px; cursor: pointer">Sem modal · 12</button>
+        </div>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums">
+        <thead>
+          <tr style="background: #faf6ef; color: #52618a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; text-align: right">
+            <th scope="col" style="padding: 10px 12px 10px 20px; text-align: left">#</th>
+            <th scope="col" style="padding: 10px 12px; text-align: left">Motorista</th>
+            <th scope="col" style="padding: 10px 12px">Aceitação</th>
+            <th scope="col" style="padding: 10px 12px">Conclusão</th>
+            <th scope="col" style="padding: 10px 12px">Tempo</th>
+            <th scope="col" style="padding: 10px 12px">Pedidos</th>
+            <th scope="col" style="padding: 10px 12px">Turnos</th>
+            <th scope="col" style="padding: 10px 20px 10px 12px">Nota</th>
+          </tr>
+        </thead>
+        <tbody>
+          <sc-for list="{{rk}}" as="r" hint-placeholder-count="10">
+            <tr style="border-top: 1px solid #efe6d6; text-align: right">
+              <td style="padding: 11px 12px 11px 20px; text-align: left"><span style="{{r.pos}}">{{r.n}}</span></td>
+              <td style="padding: 11px 12px; text-align: left; font-weight: 600">{{r.nome}}</td>
+              <td style="padding: 11px 12px">{{r.a}}</td>
+              <td style="padding: 11px 12px">{{r.c}}</td>
+              <td style="padding: 11px 12px">{{r.t}}</td>
+              <td style="padding: 11px 12px">{{r.p}}</td>
+              <td style="padding: 11px 12px">{{r.tu}}</td>
+              <td style="padding: 11px 20px 11px 12px; font-weight: 800">{{r.nota}}</td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+      <div style="padding: 12px 20px; font-size: 12px; color: #52618a; border-top: 1px solid #efe6d6">O hub vê o nome completo; o app mostra só nome e inicial. Mostrando 1–10 de 184.</div>
+    </section>
+
+    <aside aria-labelledby="cfg" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 8px">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#52618a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <h2 id="cfg" style="margin: 0; font-size: 15px; font-weight: 800">Regras travadas</h2>
+      </div>
+      <p style="margin: 0; font-size: 12px; color: #52618a">Lançada em 09/11 18:42 por Ana R. Imutável desde então.</p>
+      <dl style="margin: 0; display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+        <div><dt style="color: #52618a; font-weight: 600">Público</dt><dd style="margin: 2px 0 0; font-weight: 600">SÃO PAULO · JANTAR (2 turnos) · MOTO · mín. 5 turnos</dd></div>
+        <div><dt style="color: #52618a; font-weight: 600">Nota</dt><dd style="margin: 2px 0 0; font-weight: 600">Aceitação 30% (≥ 80%) · Conclusão 30% (≥ 90%) · Tempo 20% · Pedidos 20%</dd></div>
+        <div><dt style="color: #52618a; font-weight: 600">Desempate</dt><dd style="margin: 2px 0 0; font-weight: 600">Pedidos concluídos, depois tempo disponível</dd></div>
+        <div><dt style="color: #52618a; font-weight: 600">Prêmios</dt><dd style="margin: 2px 0 0; font-weight: 600">1º Moto Honda CG 160 · 2º–3º Bag térmica · 4º–10º R$ 100</dd></div>
+        <div><dt style="color: #52618a; font-weight: 600">Aviso aos motoristas</dt><dd style="margin: 2px 0 0; font-weight: 600">Enviado em 10/11 08:00 · 196 entregues</dd></div>
+      </dl>
+    </aside>
+  </div>
+  <p style="margin: 0; font-size: 12px; color: #52618a">EXEMPLO — nomes e números ilustrativos.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var b = 'display:inline-flex;width:28px;height:28px;border-radius:999px;align-items:center;justify-content:center;font-weight:800;font-size:12px;';
+    var ouro = b + 'background:#ffb72a;color:#0f1849;';
+    var prata = b + 'background:#dfe3ec;color:#0f1849;';
+    var bronze = b + 'background:#f2d5bd;color:#5a2e0c;';
+    var top = b + 'background:#eef3fe;color:#1b3fac;';
+    return {
+      rk: [
+        { n: 1, pos: ouro, nome: 'Marcos Vinícius Andrade', a: '96,2%', c: '99,1%', t: '94,0%', p: 412, tu: 19, nota: '97,3' },
+        { n: 2, pos: prata, nome: 'Juliana Pereira Lima', a: '94,8%', c: '98,7%', t: '91,5%', p: 398, tu: 18, nota: '95,6' },
+        { n: 3, pos: bronze, nome: 'Rafael Souza Costa', a: '93,1%', c: '97,9%', t: '95,2%', p: 371, tu: 20, nota: '94,2' },
+        { n: 4, pos: top, nome: 'Patrícia Gomes', a: '91,0%', c: '98,0%', t: '89,9%', p: 380, tu: 17, nota: '92,8' },
+        { n: 5, pos: top, nome: 'Diego Martins', a: '90,4%', c: '96,5%', t: '92,0%', p: 355, tu: 19, nota: '91,7' },
+        { n: 6, pos: top, nome: 'Aline Ribeiro', a: '89,7%', c: '97,2%', t: '88,1%', p: 349, tu: 16, nota: '90,6' },
+        { n: 7, pos: top, nome: 'Thiago Almeida', a: '88,2%', c: '95,8%', t: '90,3%', p: 362, tu: 18, nota: '90,1' },
+        { n: 8, pos: top, nome: 'Fernanda Rocha', a: '87,5%', c: '96,9%', t: '86,4%', p: 340, tu: 15, nota: '89,2' },
+        { n: 9, pos: top, nome: 'Bruno Carvalho', a: '86,9%', c: '95,1%', t: '89,0%', p: 333, tu: 17, nota: '88,9' },
+        { n: 10, pos: top, nome: 'Camila Duarte', a: '86,0%', c: '94,7%', t: '87,7%', p: 345, tu: 16, nota: '88,4' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

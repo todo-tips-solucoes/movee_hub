@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>App — Tela da campanha</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2c67ea}a:hover{color:#1b3fac}
+</style>
+</helmet>
+<div style="width: 390px; height: 1760px; background: #f4ece0; color: #0f1849; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+  <div style="background: #0f1849; color: #ffffff; padding: 16px 16px 72px; position: relative; overflow: hidden">
+    <div aria-hidden="true" style="position: absolute; left: 50%; top: 40px; width: 420px; height: 420px; transform: translateX(-50%); border-radius: 999px; background: radial-gradient(circle, rgba(255,183,42,0.32), rgba(255,183,42,0) 65%)"></div>
+    <div style="display: flex; align-items: center; gap: 8px; position: relative">
+      <a href="AppHome.dc.html" aria-label="Voltar" style="color: #ffffff; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -10px">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </a>
+      <span style="font-size: 14px; font-weight: 700; color: #c9d2f0">Campanha</span>
+    </div>
+    <div style="position: relative; text-align: center; padding-top: 8px">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">Rei do Jantar — Novembro</h1>
+      <p style="margin: 6px 0 0; font-size: 13px; color: #c9d2f0">Jantar em SÃO PAULO · só moto · 10 a 30/11</p>
+      <div style="display: flex; justify-content: center; gap: 8px; margin-top: 16px">
+        <sc-for list="{{tempo}}" as="t" hint-placeholder-count="3">
+          <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16); border-radius: 14px; padding: 8px 14px; min-width: 56px">
+            <div style="font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums">{{t.v}}</div>
+            <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #c9d2f0">{{t.l}}</div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 12px 0 0; font-size: 11px; color: #9aa8cf">Ranking com os dados até ontem (21/11)</p>
+    </div>
+  </div>
+
+  <div style="padding: 0 16px; margin-top: -52px; display: flex; flex-direction: column; gap: 16px; position: relative">
+    <section aria-label="Minha posição" style="background: #ffffff; border-radius: 24px; padding: 20px; box-shadow: 0 24px 48px -28px rgba(15,24,73,0.55); display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 16px">
+        <div style="width: 84px; height: 84px; border-radius: 999px; background: conic-gradient(#ffb72a 0 90%, #efe6d6 90% 100%); display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+          <div style="width: 70px; height: 70px; border-radius: 999px; background: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center">
+            <span style="font-size: 28px; font-weight: 800; line-height: 1">7º</span>
+            <span style="font-size: 10px; font-weight: 700; color: #5a6a87">de 184</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 12px; font-weight: 700; color: #5a6a87">Sua nota</span>
+          <span style="font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums">90,1</span>
+          <span style="font-size: 12px; font-weight: 700; color: #00715e; display: inline-flex; align-items: center; gap: 4px">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+            subiu 3 posições desde ontem
+          </span>
+        </div>
+      </div>
+      <div style="background: #e6fbf5; border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 10px">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00715e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+        <div style="font-size: 13px; line-height: 1.4"><strong>Na zona de prêmio: R$ 100.</strong> Faltam 0,5 ponto para passar Aline R. (6º).</div>
+      </div>
+      <div style="font-size: 13px; line-height: 1.45; color: #0f1849; display: flex; gap: 10px; align-items: flex-start">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2c67ea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+        <span><strong>Onde você ganha mais pontos:</strong> tempo disponível. Cada 5% a mais no tempo online soma 1 ponto na sua nota.</span>
+      </div>
+    </section>
+
+    <section aria-labelledby="pr" style="display: flex; flex-direction: column; gap: 10px">
+      <h2 id="pr" style="margin: 0; padding: 0 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5a6a87">Prêmios</h2>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+        <sc-for list="{{premios}}" as="p" hint-placeholder-count="3">
+          <div style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 18px; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+            <div style="{{p.img}}">
+              <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{p.icon}}"/></svg>
+            </div>
+            <span style="{{p.faixaStyle}}">{{p.faixa}}</span>
+            <span style="font-size: 12px; font-weight: 700; line-height: 1.3">{{p.desc}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 0; padding: 0 4px; font-size: 11px; color: #5a6a87">Com foto do prêmio, a foto entra no lugar do ícone.</p>
+    </section>
+
+    <section aria-labelledby="pd" style="background: #ffffff; border-radius: 24px; padding: 20px 16px 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden">
+      <h2 id="pd" style="margin: 0; font-size: 16px; font-weight: 800; text-align: center">Pódio</h2>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; margin-top: 12px">
+        <sc-for list="{{podio}}" as="p" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <span style="{{p.avatar}}">{{p.ini}}</span>
+            <span style="font-size: 13px; font-weight: 700">{{p.nome}}</span>
+            <span style="font-size: 12px; font-weight: 600; color: #5a6a87; font-variant-numeric: tabular-nums">{{p.nota}}</span>
+            <div style="{{p.bloco}}">{{p.pos}}</div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section aria-labelledby="tp" style="background: #ffffff; border-radius: 24px; padding: 8px 0; overflow: hidden">
+      <h2 id="tp" style="margin: 0; padding: 12px 16px 8px; font-size: 16px; font-weight: 800">Top 10</h2>
+      <ol style="list-style: none; margin: 0; padding: 0">
+        <sc-for list="{{top}}" as="r" hint-placeholder-count="7">
+          <li style="{{r.row}}">
+            <span style="width: 28px; font-weight: 800; font-size: 14px; color: #5a6a87; font-variant-numeric: tabular-nums">{{r.pos}}</span>
+            <span style="flex: 1; font-weight: 700; font-size: 14px">{{r.nome}}</span>
+            <span style="font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums">{{r.nota}}</span>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+
+    <section aria-labelledby="mi" style="background: #ffffff; border-radius: 24px; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px">
+      <h2 id="mi" style="margin: 0; font-size: 16px; font-weight: 800">Seus indicadores</h2>
+      <sc-for list="{{ind}}" as="i" hint-placeholder-count="4">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; align-items: baseline; justify-content: space-between">
+            <span style="font-size: 14px; font-weight: 700">{{i.nome}} <span style="font-weight: 600; font-size: 12px; color: #5a6a87">· peso {{i.peso}}</span></span>
+            <span style="font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums">{{i.valor}}</span>
+          </div>
+          <div style="height: 10px; border-radius: 999px; background: #efe6d6; position: relative; overflow: visible">
+            <div style="{{i.barra}}"></div>
+            <div style="{{i.marca}}"></div>
+          </div>
+          <span style="font-size: 12px; font-weight: 600; color: {{i.corNota}}">{{i.nota}}</span>
+        </div>
+      </sc-for>
+    </section>
+
+    <section aria-labelledby="rg" style="background: #ffffff; border-radius: 24px; padding: 18px 16px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px">
+      <h2 id="rg" style="margin: 0; font-size: 16px; font-weight: 800">Regras</h2>
+      <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #0f1849">Quem tiver a melhor nota nos turnos de jantar de 10 a 30/11 leva os prêmios. Aceitação abaixo de 80% tira do ranking.</p>
+      <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #5a6a87">Mínimo de 5 turnos: você já tem 18. Empate: vence quem tiver mais pedidos concluídos. As regras não mudam depois que a campanha começa.</p>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var img = 'height:64px;border-radius:12px;display:flex;align-items:center;justify-content:center;';
+    var fx = 'align-self:flex-start;font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;';
+    var av = 'width:52px;height:52px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;';
+    var bl = 'width:100%;border-radius:14px 14px 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:10px;font-size:22px;font-weight:800;box-sizing:border-box;';
+    var row = 'display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid #efe6d6;';
+    var eu = 'display:flex;align-items:center;gap:8px;padding:12px 16px;background:#fff6e0;border-top:1px solid #ffd98a;border-bottom:1px solid #ffd98a;';
+    function ind(nome, peso, valor, pct, corte, nota, ok) {
+      return {
+        nome: nome, peso: peso, valor: valor, nota: nota, corNota: ok ? '#00715e' : '#5a6a87',
+        barra: 'position:absolute;left:0;top:0;bottom:0;width:' + pct + '%;border-radius:999px;background:linear-gradient(90deg,#2c67ea,#2ceabc);',
+        marca: corte ? 'position:absolute;top:-4px;bottom:-4px;left:' + corte + '%;width:2px;background:#0f1849;border-radius:2px;' : 'display:none;'
+      };
+    }
+    return {
+      tempo: [{ v: '08', l: 'dias' }, { v: '14', l: 'horas' }, { v: '22', l: 'min' }],
+      premios: [
+        { img: img + 'background:#fff1d1;color:#7a5200;', icon: 'M5 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 15h4l3-5h4l3 5M12 10 10 6H7M15 6h3', faixa: '1º', faixaStyle: fx + 'background:#ffb72a;color:#0f1849;', desc: 'Moto Honda CG 160' },
+        { img: img + 'background:#eef1f6;color:#0f1849;', icon: 'M4 8h16v12H4zM8 8V5a4 4 0 0 1 8 0v3M4 13h16', faixa: '2º e 3º', faixaStyle: fx + 'background:#dfe3ec;color:#0f1849;', desc: 'Bag térmica Movee' },
+        { img: img + 'background:#e6fbf5;color:#00715e;', icon: 'M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 12h.01M18 12h.01', faixa: '4º ao 10º', faixaStyle: fx + 'background:#f2d5bd;color:#5a2e0c;', desc: 'R$ 100 no repasse' }
+      ],
+      podio: [
+        { ini: 'JP', nome: 'Juliana P.', nota: '95,6', pos: '2', avatar: av + 'background:#dfe3ec;color:#0f1849;', bloco: bl + 'height:84px;background:#dfe3ec;color:#0f1849;' },
+        { ini: 'MV', nome: 'Marcos V.', nota: '97,3', pos: '1', avatar: av + 'background:#ffb72a;color:#0f1849;box-shadow:0 0 0 4px #fff1d1;', bloco: bl + 'height:116px;background:#ffb72a;color:#0f1849;' },
+        { ini: 'RS', nome: 'Rafael S.', nota: '94,2', pos: '3', avatar: av + 'background:#f2d5bd;color:#5a2e0c;', bloco: bl + 'height:64px;background:#f2d5bd;color:#5a2e0c;' }
+      ],
+      top: [
+        { pos: '4º', nome: 'Patrícia G.', nota: '92,8', row: row },
+        { pos: '5º', nome: 'Diego M.', nota: '91,7', row: row },
+        { pos: '6º', nome: 'Aline R.', nota: '90,6', row: row },
+        { pos: '7º', nome: 'Você', nota: '90,1', row: eu },
+        { pos: '8º', nome: 'Fernanda R.', nota: '89,2', row: row },
+        { pos: '9º', nome: 'Bruno C.', nota: '88,9', row: row },
+        { pos: '10º', nome: 'Camila D.', nota: '88,4', row: row }
+      ],
+      ind: [
+        ind('Taxa de aceitação', '30%', '88,2%', 88.2, 80, 'Nota 88,2 · acima do corte de 80%', true),
+        ind('Taxa de conclusão', '30%', '95,8%', 95.8, 90, 'Nota 95,8 · acima do corte de 90%', true),
+        ind('Tempo disponível', '20%', '90,3%', 90.3, 0, 'Nota 90,3', true),
+        ind('Pedidos concluídos', '20%', '362', 87.9, 0, 'Nota 87,9 · o líder fez 412', true)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
