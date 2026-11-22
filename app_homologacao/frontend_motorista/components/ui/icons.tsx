@@ -76,3 +76,9 @@ export const Rule = makeIcon('rule');
 // Tela de Ajuda — seção recolhível e aviso do tipo "dica".
 export const ExpandMore = makeIcon('expand_more');
 export const Lightbulb = makeIcon('lightbulb');
+
+// Campanhas do motorista — troféu, variação de posição e prêmio.
+export const Trophy = makeIcon('emoji_events');
+export const ArrowUp = makeIcon('arrow_upward');
+export const ArrowDown = makeIcon('arrow_downward');
+export const Gift = makeIcon('redeem');

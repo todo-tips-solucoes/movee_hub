@@ -20,6 +20,7 @@ import { CountUp } from '@/components/ui/count-up';
 import { CopyButton } from '@/components/ui/copy-button';
 import { NotificacoesCard } from '@/components/notificacoes';
 import { CardNotasPendentes } from '@/components/card-notas-pendentes';
+import { CardCampanha } from '@/components/card-campanha';
 import { BottomNav } from '@/components/bottom-nav';
 import { Wordmark } from '@/components/brand/wordmark';
 import { Aurora } from '@/components/brand/aurora';
@@ -216,6 +217,9 @@ export default function MovimentoPage() {
             </span>
           </Link>
         ) : null}
+
+        {/* Campanha em andamento — some sem campanha/erro; fetch próprio, não bloqueante. */}
+        <CardCampanha />
 
         {/* Notas pendentes — só aparece com pendência; fetch próprio, não bloqueante. */}
         <CardNotasPendentes />
