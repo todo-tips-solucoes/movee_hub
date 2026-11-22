@@ -34,6 +34,8 @@ const {
   registrarChaveVapid,
   executarExpurgo,
   iniciarExpurgoPeriodico,
+  iniciarVarreduraPeriodica,
+  VARREDURA_INTERVALO_MS,
   classificarErroEnvio,
   executarComPool,
   _resetParaTeste,
@@ -390,6 +392,40 @@ describe('retomarAvisosPendentes (5.2.1 — retomada no boot, FR-018)', () => {
     const r = await retomarAvisosPendentes(deps);
     assert.equal(r.totalRetomados, 0);
     assert.equal('erro' in r, false);
+  });
+});
+
+// Incidente 2026-11-21: aviso criado pelo banco (evento de adiantamento) só
+// saía no próximo boot — ninguém chamava o worker para ele.
+describe('iniciarVarreduraPeriodica (avisos do sistema)', () => {
+  test('agenda a cada 60 s e cada tick consulta os avisos na_fila/em_andamento', async () => {
+    let tick = null;
+    let intervaloMs = null;
+    const consultas = [];
+    const deps = criarDepsBase({
+      hubPostgrestRequest: async (endpoint) => { consultas.push(endpoint); return []; },
+      agendarIntervalo: (fn, ms) => { tick = fn; intervaloMs = ms; return 'handle'; },
+    });
+    iniciarVarreduraPeriodica(deps);
+    assert.equal(intervaloMs, 60 * 1000);
+    assert.equal(VARREDURA_INTERVALO_MS, 60 * 1000);
+    assert.equal(consultas.length, 0, 'não roda no agendamento: o boot já faz a retomada');
+    tick();
+    await new Promise((r) => setTimeout(r, 5));
+    assert.deepEqual(consultas, ['Aviso?status=in.(na_fila,em_andamento)&select=id']);
+  });
+
+  test('aviso que ainda está na fila não é enfileirado de novo pelo tick seguinte', async () => {
+    const deps = criarDepsBase({
+      hubPostgrestRequest: async (endpoint) => (endpoint.startsWith('Aviso?status=in.')
+        ? [{ id: 7 }, { id: 8 }]
+        : new Promise(() => {})), // o aviso 7 fica "em processamento" para sempre
+    });
+    const r1 = await retomarAvisosPendentes(deps);
+    assert.equal(r1.totalRetomados, 2);
+    // 7 saiu da fila (processando), 8 ainda espera: só o 7 volta.
+    const r2 = await retomarAvisosPendentes(deps);
+    assert.equal(r2.totalRetomados, 1);
   });
 });
 

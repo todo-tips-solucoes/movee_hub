@@ -62,6 +62,11 @@ const RETRY_BACKOFF_MS = [500, 2000];
 // 100.000 entregas processadas antes de desistir e logar.
 const MAX_ITERACOES_POR_AVISO = 2000;
 const EXPURGO_INTERVALO_MS = 24 * 60 * 60 * 1000;
+// Incidente 2026-11-21: avisos de evento do SISTEMA (hub_adiantamento_notificar,
+// 0068) nascem no banco e ninguém chamava o worker — o push só saía no próximo
+// boot (média de 30 a 382 h, pior caso 19 dias). A varredura usa a MESMA
+// retomada do boot. ponytail: polling de 60 s; LISTEN/NOTIFY se a latência importar.
+const VARREDURA_INTERVALO_MS = 60 * 1000;
 // contracts/motorista-push.md §Payload do push.
 const PUSH_OPTS_BASE = { TTL: 259200, urgency: 'normal', timeout: 10000 };
 
@@ -325,14 +330,16 @@ async function retomarAvisosPendentes(deps = DEFAULT_DEPS) {
       'Aviso?status=in.(na_fila,em_andamento)&select=id',
       'GET', null, { hubPushWorker: true },
     );
-    const ids = Array.isArray(linhas) ? linhas.map((l) => l.id) : [];
+    // Na varredura periódica, o aviso que ainda está na fila não entra de novo
+    // (um aviso grande atravessa vários ticks).
+    const ids = (Array.isArray(linhas) ? linhas.map((l) => l.id) : []).filter((id) => !filaAvisos.includes(id));
     for (const id of ids) {
       processarAviso(id, deps).catch((err) => {
-        deps.logErro(`retomarAvisosPendentes: falha ao processar aviso ${id} após reinício`, err, null);
+        deps.logErro(`retomarAvisosPendentes: falha ao processar aviso ${id}`, err, null);
       });
     }
     if (ids.length > 0) {
-      deps.logInfo(`retomarAvisosPendentes: ${ids.length} aviso(s) retomado(s) após reinício`, null);
+      deps.logInfo(`retomarAvisosPendentes: ${ids.length} aviso(s) enfileirado(s)`, null);
     }
     return { totalRetomados: ids.length };
   } catch (err) {
@@ -413,6 +420,17 @@ function iniciarExpurgoPeriodico(deps = DEFAULT_DEPS) {
   return deps.agendarIntervalo(() => { executarExpurgo(deps).catch(() => {}); }, EXPURGO_INTERVALO_MS);
 }
 
+/**
+ * Varre a cada 60 s os avisos `na_fila`/`em_andamento` — é o que entrega o push
+ * dos avisos criados pelo próprio banco (eventos de adiantamento), que não
+ * passam pela rota que chama `processarAviso`.
+ * @param {typeof DEFAULT_DEPS} [deps]
+ * @returns {NodeJS.Timeout}
+ */
+function iniciarVarreduraPeriodica(deps = DEFAULT_DEPS) {
+  return deps.agendarIntervalo(() => { retomarAvisosPendentes(deps).catch(() => {}); }, VARREDURA_INTERVALO_MS);
+}
+
 /** Só para teste: reseta o estado do módulo entre casos (evita vazamento entre `describe`s). */
 function _resetParaTeste() {
   chaveCache = null;
@@ -427,6 +445,8 @@ module.exports = {
   registrarChaveVapid,
   executarExpurgo,
   iniciarExpurgoPeriodico,
+  iniciarVarreduraPeriodica,
+  VARREDURA_INTERVALO_MS,
   obterChave,
   classificarErroEnvio,
   executarComPool,
