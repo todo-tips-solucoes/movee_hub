@@ -26,6 +26,7 @@ import {
   Settings2,
   ShieldCheck,
   TrendingUp,
+  Trophy,
   Truck,
   Upload,
   Users,
@@ -68,6 +69,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   // adiantamento-motorista (FASE 7, tasks.md 7.2.2).
   adiantamentos: Wallet,
   wallet: Wallet,
+  // campanhas do motorista (W3a).
+  campanhas: Trophy,
+  trophy: Trophy,
 };
 
 /** Ícone de fallback — módulo sem `icone` reconhecido, mas ainda visível. */
@@ -132,6 +136,8 @@ const DESCRICAO_MAP: Record<string, string> = {
   avisos: 'Envie avisos por push ao app do motorista e acompanhe quem recebeu.',
   // adiantamento-motorista (FASE 7, tasks.md 7.2.2).
   adiantamentos: 'Revise solicitações, aprove contas bancárias e monte lotes de pagamento.',
+  // campanhas do motorista (W3a).
+  campanhas: 'Crie rankings por período com prêmios e acompanhe a classificação dos motoristas.',
 };
 
 /**
