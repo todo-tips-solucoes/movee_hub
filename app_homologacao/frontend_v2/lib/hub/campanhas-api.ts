@@ -139,6 +139,10 @@ export async function cancelarCampanha(id: number, motivo: string): Promise<void
   await request<void>(`${BASE}/${id}/cancelar`, { method: 'POST', body: JSON.stringify({ motivo }) });
 }
 
+export async function excluirCampanha(id: number): Promise<void> {
+  await request<void>(`${BASE}/${id}`, { method: 'DELETE' });
+}
+
 export async function fecharCampanha(id: number): Promise<void> {
   await request<void>(`${BASE}/${id}/fechar`, { method: 'POST' });
 }

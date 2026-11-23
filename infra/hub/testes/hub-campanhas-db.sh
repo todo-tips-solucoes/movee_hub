@@ -18,6 +18,8 @@
 #   CAMP_NEG=a1|a2|m1|m2 -> reverte A1 (data do carimbo), A2 (adiar CNPJ do dia), M1 (fechar so apos o dia), M2 (relido sob lock)
 #   CAMP_NEG=anterior  -> remove a guarda de dados_ate (prova (c)/variacao: posicao_anterior zera no mesmo dado)
 #   CAMP_NEG=escopo    -> remove a policy de escopo de "Campanha" (prova (b): a leitura direta vaza)
+#   CAMP_NEG=excluir   -> (so na secao 0128) remove a checagem de lancada_em de hub_campanha_excluir E desliga o gatilho de DELETE
+#                         (0128: sem os DOIS, a lancada nao e apagada; so a RPC sem o gatilho daria o mesmo token)
 #
 # CAMP_REUSE=<projeto compose ja no ar e migrado> reaproveita o stack (so para desenvolver o driver).
 # Uso: infra/hub/testes/hub-campanhas-db.sh
@@ -139,6 +141,13 @@ case "${CAMP_NEG:-}" in
     own "SELECT count(*) FROM pg_policies WHERE policyname='campanha_select_por_escopo' AND qual='true'" | grep -q 1 || { echo "ABORTA: policy nao revertida"; exit 1; }
     echo "NEG escopo: policy de Campanha agora USING (true) (conferido)";;
 esac
+
+neg_excluir() { # aplicado so na secao 0128 (no inicio ele quebraria o cenario inteiro das secoes anteriores)
+  patch_fn 'hub_campanha_excluir(integer)' 's/IF c\.lancada_em IS NOT NULL THEN/IF false THEN/'
+  psql_t -q -c 'ALTER TABLE "Campanha" DISABLE TRIGGER trg_campanha_imutavel;'
+  own "SELECT (pg_get_functiondef('hub_campanha_excluir(integer)'::regprocedure) ~ 'IF false THEN') AND (SELECT tgenabled = 'D' FROM pg_trigger WHERE tgname = 'trg_campanha_imutavel')" | grep -q t || { echo "ABORTA: reversao excluir nao esta no corpo vivo/gatilho — controle OCO"; exit 1; }
+  echo "NEG excluir: RPC sem a checagem de lancada_em e gatilho de imutabilidade DESLIGADO (conferido)"
+}
 
 # ============================ fixtures SINTETICAS ============================
 # Empresas: 9001 (cenario), 9002 (outro tenant), 9003 (sem cobertura de pedidos), 9004 (teto).
@@ -347,7 +356,7 @@ check "b: SELECT * da tabela de premios tambem recusa (coluna foto)" "$(tok "$(r
 check "b: motorista (claim sem escopo) le 0 linhas direto em Campanha" "$(app 90000000000001 'SELECT count(*) FROM "Campanha";')" "0"
 check "b: operador sem permissao nao lista -> PERMISSAO_NEGADA" "$(tok "$(rpc op@example.com $E9001 9001 "SELECT * FROM hub_campanha_listar(9001,NULL);")")" "PERMISSAO_NEGADA"
 check "b: financeiro consulta (papel recebeu as 3 permissoes)" "$(rpc fin@example.com $E9001 9001 "SELECT count(*) FROM hub_campanha_listar(9001,NULL);")" "9"
-check "b: matriz: admin_entidade, financeiro e financeiro_aprovador com as 3 permissoes" "$(own "SELECT string_agg(p.nome||'='||n, ',' ORDER BY p.nome) FROM (SELECT pa.nome, count(*) n FROM \"PapelPermissao\" pp JOIN \"Papel\" pa ON pa.id=pp.papel_id JOIN \"Permissao\" pe ON pe.id=pp.permissao_id WHERE pe.codigo LIKE 'campanhas.%' GROUP BY pa.nome) p")" "admin_entidade=3,financeiro=3,financeiro_aprovador=3"
+check "b: matriz: admin_entidade, admin_plataforma (0128), financeiro e financeiro_aprovador com as 3 permissoes" "$(own "SELECT string_agg(p.nome||'='||n, ',' ORDER BY p.nome) FROM (SELECT pa.nome, count(*) n FROM \"PapelPermissao\" pp JOIN \"Papel\" pa ON pa.id=pp.papel_id JOIN \"Permissao\" pe ON pe.id=pp.permissao_id WHERE pe.codigo LIKE 'campanhas.%' GROUP BY pa.nome) p")" "admin_entidade=3,admin_plataforma=3,financeiro=3,financeiro_aprovador=3"
 check "b: modulo desligado na entidade nega (fail-closed)" "$(own "UPDATE \"ModuloEntidade\" SET ativo=false WHERE empresa_id=9002 AND modulo_id=(SELECT id FROM \"Modulo\" WHERE codigo='campanhas')" >/dev/null; tok "$(rpc admb@example.com '[9002]' 9002 "SELECT * FROM hub_campanha_listar(9002,NULL);")")" "PERMISSAO_NEGADA"
 own "UPDATE \"ModuloEntidade\" SET ativo=true WHERE empresa_id=9002" >/dev/null
 check "b: funcoes internas NAO executaveis por authenticated" "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_recalcular_interno($ID_A);" | grep -oE 'permission denied')" "permission denied"
@@ -588,9 +597,38 @@ check "A2: F, com a Ana agora carimbada hoje em G, volta a adia-la (qualquer cam
 check "exportar: operador sem 'entregar' -> PERMISSAO_NEGADA" "$(tok "$(rpc op@example.com $E9001 9001 "SELECT * FROM hub_campanha_marcar_exportado($ID_A);")")" "PERMISSAO_NEGADA"
 check "tipo de lancamento externo PREMIO_CAMPANHA existe com sinal +1" "$(own "SELECT sinal FROM \"LancamentoExternoTipo\" WHERE codigo='PREMIO_CAMPANHA'")" "1"
 
+echo "--- 0128: excluir rascunho + admin_plataforma ---"
+psql_t -q <<'SQL' >"$TMP/seed128.log" 2>&1 || { echo "FAIL: seed 0128"; cat "$TMP/seed128.log"; exit 1; }
+INSERT INTO "Usuario" (email, senha_hash, nome) VALUES ('plat@example.com','x','Plat 9001');
+INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
+  ((SELECT id FROM "Usuario" WHERE email='plat@example.com'), 9001, (SELECT id FROM "Papel" WHERE nome='admin_plataforma'), true);
+SQL
+check "0128: admin_plataforma tem as 3 permissoes de campanhas" "$(own "SELECT string_agg(perm.codigo, ',' ORDER BY perm.codigo) FROM \"PapelPermissao\" pp JOIN \"Papel\" p ON p.id=pp.papel_id JOIN \"Permissao\" perm ON perm.id=pp.permissao_id WHERE p.nome='admin_plataforma' AND perm.codigo LIKE 'campanhas.%'")" "campanhas.consultar,campanhas.entregar,campanhas.gerir"
+PLAT='plat@example.com'
+BX="$(body 'Rascunho Excluir' 2027-02-01 2027-02-07 null null null 3 100 0 0 0 "$NOCUT")"
+ID_PL="$(salvar $PLAT $E9001 9001 NULL "$BX")"
+check "0128: admin_plataforma cria campanha na entidade onde tem vinculo" "$(printf '%s' "$ID_PL" | grep -cE '^[0-9]+$')" "1"
+check "0128: admin_plataforma lista na entidade onde tem vinculo" "$(rpc $PLAT $E9001 9001 "SELECT count(*) >= 1 FROM hub_campanha_listar(9001,NULL);")" "t"
+check "0128: admin_plataforma sem vinculo na entidade 9002 -> PERMISSAO_NEGADA (o grant nao cria acesso)" "$(tok "$(rpc $PLAT '[9002]' 9002 "SELECT * FROM hub_campanha_listar(9002,NULL);")")" "PERMISSAO_NEGADA"
+ID_X="$(salvar $ADM $E9001 9001 NULL "$BX")"
+ownx "INSERT INTO \"CampanhaRanking\" (campanha_id, entregador_id, id_empresa, turnos, ofertadas, aceitas, completadas, situacao) VALUES ($ID_X, $(EID 'Ana Lima'), 9001, 1, 1, 1, 1, 'classificado')" >/dev/null
+check "0128: rascunho tem premios e ranking antes de excluir" "$(own "SELECT (SELECT count(*) FROM \"CampanhaPremio\" WHERE campanha_id=$ID_X) > 0 AND (SELECT count(*) FROM \"CampanhaRanking\" WHERE campanha_id=$ID_X) = 1")" "t"
+check "0128: operador (sem gerir) -> PERMISSAO_NEGADA e o rascunho continua" "$(tok "$(rpc op@example.com $E9001 9001 "SELECT hub_campanha_excluir($ID_X);")")|$(own "SELECT count(*) FROM \"Campanha\" WHERE id=$ID_X")" "PERMISSAO_NEGADA|1"
+check "0128: entidade B (9002) -> CAMPANHA_NAO_ENCONTRADA e o rascunho continua" "$(tok "$(rpc admb@example.com '[9002]' 9002 "SELECT hub_campanha_excluir($ID_X);")")|$(own "SELECT count(*) FROM \"Campanha\" WHERE id=$ID_X")" "CAMPANHA_NAO_ENCONTRADA|1"
+check "0128: id inexistente -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_excluir(2147483647);")")" "CAMPANHA_NAO_ENCONTRADA"
+check "0128: authenticated nao tem DELETE direto em Campanha" "$(tok "$(rpc $ADM $E9001 9001 "DELETE FROM \"Campanha\" WHERE id=$ID_X;")")|$(own "SELECT count(*) FROM \"Campanha\" WHERE id=$ID_X")" "permission denied|1"
+[ "${CAMP_NEG:-}" = excluir ] && neg_excluir
+check "0128: excluir lancada -> CAMPANHA_IMUTAVEL e ela continua la" "$(tok "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_excluir($ID_A);")")|$(own "SELECT count(*) FROM \"Campanha\" WHERE id=$ID_A")" "CAMPANHA_IMUTAVEL|1"
+check "0128: excluir rascunho devolve {id,nome}" "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_excluir($ID_X);")" "{\"id\": $ID_X, \"nome\": \"Rascunho Excluir\"}"
+check "0128: rascunho sumiu, com premios e ranking em cascata" "$(own "SELECT (SELECT count(*) FROM \"Campanha\" WHERE id=$ID_X)::text||(SELECT count(*) FROM \"CampanhaPremio\" WHERE campanha_id=$ID_X)::text||(SELECT count(*) FROM \"CampanhaRanking\" WHERE campanha_id=$ID_X)::text")" "000"
+check "0128: admin_plataforma exclui o proprio rascunho" "$(rpc $PLAT $E9001 9001 "SELECT hub_campanha_excluir($ID_PL);" | grep -c "Rascunho Excluir")|$(own "SELECT count(*) FROM \"Campanha\" WHERE id=$ID_PL")" "1|0"
+check "0128: hub_campanha_excluir nao e executavel por PUBLIC" "$(own "SELECT has_function_privilege('public','hub_campanha_excluir(int)','EXECUTE')")" "f"
+
 echo "--- idempotencia da migration (reaplicar 0127 inteira) ---"
 R2="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0127_campanhas.sql" 2>&1 | grep -c ERROR)"
 check "migration 0127 reaplicada sem erro" "$R2" "0"
+R3="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0128_campanhas_excluir_admin.sql" 2>&1 | grep -c ERROR)"
+check "migration 0128 reaplicada sem erro" "$R3" "0"
 
 echo "===================================================================="
 echo "CAMPANHAS-DB${CAMP_NEG:+ (controle negativo: $CAMP_NEG)}: PASS=$passes FAIL=$fails"
