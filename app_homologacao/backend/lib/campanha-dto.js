@@ -83,11 +83,13 @@ function lerLista(v) {
 const INDICADORES = ['aceitacao', 'conclusao', 'tempo', 'pedidos'];
 
 /** Categorias do extrato: 1..60 strings de 1..200 caracteres, SEM trim/upper (nome exato ou `familia:*`); repetição some. */
+const FAMILIAS = ['familia:promocao', 'familia:missoes'];
 function lerCategorias(v) {
   if (!Array.isArray(v) || v.length < 1 || v.length > 60) return null;
   const out = [];
   for (const item of v) {
     if (typeof item !== 'string' || tam(item) < 1 || tam(item) > 200) return null;
+    if (item.startsWith('familia:') && !FAMILIAS.includes(item)) return null;
     if (!out.includes(item)) out.push(item);
   }
   return out;

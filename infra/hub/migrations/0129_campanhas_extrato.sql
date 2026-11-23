@@ -13,7 +13,9 @@
 --  * hub_campanha_turnos_extrato e hub_campanha_recalcular_extrato sao INTERNAS: recebem uma linha "Campanha"
 --    montada por quem chama — sem REVOKE, um authenticated passaria uma linha forjada e leria outra empresa.
 --  * hub_campanha_categorias() exige campanhas.gerir e filtra pela EMPRESA ATIVA (a 0087 so filtra pelo escopo).
---  * lancar: a checagem de cobertura de pedidos tambem vale no extrato quando ha corte de pedidos.
+--  * extrato: fecha automaticamente so em fim+3 E com faturamento importado a partir de fim+3 (E5); depois de fechada,
+--    o faturamento com criado_em > fechada_em nao entra na lista de turnos; tem_valor = existe credito do turno em
+--    QUALQUER categoria; familias aceitas apenas 'familia:promocao' e 'familia:missoes'.
 --
 -- ROLLBACK: nao ha campanha 'extrato' em producao antes do deploy; depois dele, reverter exige apagar/cancelar as
 -- 'extrato' e reaplicar os corpos da 0127 (DROP de hub_campanha_ranking antes) + DROP das colunas novas.
@@ -116,10 +118,11 @@ $$;
 --   hub_campanha_recalcular_extrato(p_c)               — agrega por entregador e grava o ranking
 -- Interna: sem EXECUTE para authenticated (receberia empresa arbitraria).
 DROP FUNCTION IF EXISTS hub_campanha_turnos_extrato("Campanha", int);
+DROP FUNCTION IF EXISTS hub_campanha_turnos_extrato_q(int, date, date, int, text[], text[], text[], text[], numeric, numeric, numeric, int);
 CREATE OR REPLACE FUNCTION hub_campanha_turnos_extrato_q(
     v_emp int, v_ini date, v_fim date, v_ent int,
     v_turnos text[], v_pracas text[], v_modais text[], v_cats text[],
-    c_ace numeric, c_con numeric, c_tem numeric, c_ped int
+    c_ace numeric, c_con numeric, c_tem numeric, c_ped int, v_corte timestamptz
 )
 RETURNS TABLE (
     entregador_id int, data_periodo date, periodo text, modal text,
@@ -164,12 +167,16 @@ AS $$
                   FROM "Entregador" e
                   WHERE e.id_empresa = v_emp AND (v_ent IS NULL OR e.id = v_ent)
                   OFFSET 0) ent ON ent.id = m.entregador_id
-            LEFT JOIN (SELECT f.entregador_id, f.data_referencia, upper(btrim(f.periodo)) AS p, round(sum(f.valor) * 100)::bigint AS v
+            LEFT JOIN (SELECT f.entregador_id, f.data_referencia, upper(btrim(f.periodo)) AS p,
+                              -- valor = so as categorias da campanha; mas a linha existe com credito de QUALQUER categoria
+                              -- (tem_valor: o faturamento do turno ja chegou; sem categoria marcada vale 0, nao "aguardando")
+                              COALESCE(round(sum(f.valor) FILTER (WHERE hub_adiantamento_categoria_casa(f.descricao, v_cats)) * 100)::bigint, 0) AS v
                        FROM "FaturamentoLancamento" f
                        WHERE f.id_empresa = v_emp AND f.tipo = 'Credito' AND f.entregador_id IS NOT NULL
                          AND f.data_referencia BETWEEN v_ini AND v_fim
                          AND (v_ent IS NULL OR f.entregador_id = v_ent)
-                         AND hub_adiantamento_categoria_casa(f.descricao, v_cats)
+                         -- campanha fechada: o faturamento que chegou DEPOIS do fechamento nao entra (lista = ranking congelado)
+                         AND (v_corte IS NULL OR f.criado_em <= v_corte)
                        GROUP BY f.entregador_id, f.data_referencia, upper(btrim(f.periodo))) fat
                    ON fat.entregador_id = m.entregador_id AND fat.data_referencia = m.data_periodo
                   AND fat.p = upper(btrim(m.periodo))
@@ -218,7 +225,7 @@ DECLARE
 BEGIN
     RETURN QUERY
     SELECT * FROM hub_campanha_turnos_extrato_q(v_emp, v_ini, v_fim, p_entregador_id, v_turnos, v_pracas, v_modais,
-                                                v_cats, c_ace, c_con, c_tem, c_ped);
+                                                v_cats, c_ace, c_con, c_tem, c_ped, p_c.fechada_em);
 END;
 $$;
 
@@ -272,7 +279,7 @@ BEGIN
                sum(t.completadas)::bigint AS completadas, sum(t.pedidos)::bigint AS pedidos,
                sum(t.online_epoch) AS online_epoch, sum(t.periodo_epoch) AS periodo_epoch
         FROM hub_campanha_turnos_extrato_q(v_emp, v_ini, v_fim, NULL, v_turnos, v_pracas, v_modais, v_cats,
-                                           c_ace, c_con, c_tem, c_ped) t
+                                           c_ace, c_con, c_tem, c_ped, p_c.fechada_em) t
         GROUP BY t.entregador_id
     ),
     cls AS (
@@ -605,6 +612,7 @@ DECLARE
     v_recalc int := 0;
     v_fech   int := 0;
     v_erros  int[] := '{}';
+    v_fat    boolean;
 BEGIN
     IF p_id_empresa IS NULL OR NOT (p_id_empresa = ANY (hub_jwt_escopo_ids())) THEN
         RAISE EXCEPTION 'FORA_DE_ESCOPO' USING ERRCODE = '42501';
@@ -622,8 +630,16 @@ BEGIN
         ORDER BY c.id
     LOOP
         BEGIN
-            -- M1: dado cobre E o ultimo dia ja passou; extrato (0129): espera a importacao de ate fim+3 (faturamento atrasa)
-            IF v_max >= r.data_fim AND hub_hoje_sp() >= r.data_fim + 1 + (r.tipo = 'extrato')::int * 2 THEN
+            -- M1: dado cobre E o ultimo dia ja passou. Extrato (0129): so em fim+3 E depois de entrar faturamento
+            -- importado a partir de fim+3 (o robo importa Performance ANTES do faturamento na mesma rodada).
+            v_fat := true;
+            IF r.tipo = 'extrato' THEN
+                SELECT EXISTS (SELECT 1 FROM "FaturamentoLancamento" f
+                               WHERE f.id_empresa = p_id_empresa AND f.data_referencia >= r.data_fim - 31
+                                 AND f.criado_em >= ((r.data_fim + 3)::timestamp AT TIME ZONE 'America/Sao_Paulo'))
+                INTO v_fat;
+            END IF;
+            IF v_max >= r.data_fim AND v_fat AND hub_hoje_sp() >= r.data_fim + 1 + (r.tipo = 'extrato')::int * 2 THEN
                 PERFORM hub_campanha_fechar_interno(r.id);
                 v_fech := v_fech + 1;
             ELSE
@@ -912,7 +928,8 @@ BEGIN
             RAISE EXCEPTION 'VALIDACAO' USING ERRCODE = '22023', DETAIL = 'categorias';
         END IF;
         SELECT array_agg(DISTINCT x ORDER BY x) INTO v_cats FROM jsonb_array_elements_text(p_dados -> 'categorias') x;
-        IF v_cats IS NOT NULL AND NOT hub_campanha_categorias_ok(v_cats) THEN
+        IF v_cats IS NOT NULL AND (NOT hub_campanha_categorias_ok(v_cats)
+           OR EXISTS (SELECT 1 FROM unnest(v_cats) y WHERE y LIKE 'familia:%' AND y NOT IN ('familia:promocao', 'familia:missoes'))) THEN
             RAISE EXCEPTION 'VALIDACAO' USING ERRCODE = '22023', DETAIL = 'categorias';
         END IF;
     END IF;
@@ -1061,16 +1078,16 @@ BEGIN
         RAISE EXCEPTION 'OPCAO_DESCONHECIDA' USING ERRCODE = '22023';
     END IF;
 
-    -- 0129: categoria salva que nao existe mais (nem como nome com turno, nem como familia) -> recusa
+    -- 0129: categoria salva que nao existe mais (nem nome com turno, nem token de familia conhecido) -> recusa
     IF c.tipo = 'extrato' AND EXISTS (
         SELECT 1 FROM unnest(c.categorias) x
-        WHERE x NOT LIKE 'familia:%'
-          AND NOT EXISTS (SELECT 1 FROM hub_campanha_categorias() k WHERE k.descricao = x)) THEN
+        WHERE x NOT IN ('familia:promocao', 'familia:missoes')
+          AND (x LIKE 'familia:%'
+               OR NOT EXISTS (SELECT 1 FROM hub_campanha_categorias() k WHERE k.descricao = x))) THEN
         RAISE EXCEPTION 'OPCAO_DESCONHECIDA' USING ERRCODE = '22023';
     END IF;
 
-    -- (extrato nao tem peso: o criterio de pedidos e o corte; a cobertura vale igual — sem ela nenhum turno valida)
-    IF (c.peso_pedidos > 0 OR (c.tipo = 'extrato' AND c.corte_pedidos IS NOT NULL)) AND COALESCE((v_op ->> 'cobertura_pedidos')::numeric, 0) < 0.95 THEN
+    IF c.peso_pedidos > 0 AND COALESCE((v_op ->> 'cobertura_pedidos')::numeric, 0) < 0.95 THEN
         RAISE EXCEPTION 'PEDIDOS_SEM_COBERTURA' USING ERRCODE = '22023';
     END IF;
 
@@ -1090,7 +1107,7 @@ $$;
 -- 6. EXECUTE
 -- ═══════════════════════════════════════════════════════════════════════
 -- Internas: so as funcoes SECURITY DEFINER da propria familia as chamam.
-REVOKE ALL ON FUNCTION hub_campanha_turnos_extrato_q(int, date, date, int, text[], text[], text[], text[], numeric, numeric, numeric, int) FROM PUBLIC;
+REVOKE ALL ON FUNCTION hub_campanha_turnos_extrato_q(int, date, date, int, text[], text[], text[], text[], numeric, numeric, numeric, int, timestamptz) FROM PUBLIC;
 REVOKE ALL ON FUNCTION hub_campanha_turnos_extrato("Campanha", int)    FROM PUBLIC;
 REVOKE ALL ON FUNCTION hub_campanha_recalcular_extrato("Campanha")     FROM PUBLIC;
 REVOKE ALL ON FUNCTION hub_campanha_recalcular_interno(int)            FROM PUBLIC;

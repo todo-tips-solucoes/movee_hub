@@ -159,6 +159,7 @@ describe('validarFormulario — extrato (0129)', () => {
     assert.equal(erro(ext({ categorias: ['x'.repeat(201)] })).campo, 'categorias');
     assert.equal(erro(ext({ categorias: [''] })).campo, 'categorias');
     assert.equal(erro(ext({ categorias: [1] })).campo, 'categorias');
+    assert.equal(erro(ext({ categorias: ['familia:promocoes'] })).campo, 'categorias');
     assert.equal(erro(ext({ minTurnosBase: 'outra' })).campo, 'minTurnosBase');
     assert.equal(erro(form({ tipo: 'outro' })).campo, 'tipo');
   });

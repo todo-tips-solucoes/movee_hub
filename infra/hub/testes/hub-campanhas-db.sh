@@ -20,6 +20,7 @@
 #   CAMP_NEG=a1|a2|m1|m2 -> reverte A1 (data do carimbo), A2 (adiar CNPJ do dia), M1 (fechar so apos o dia), M2 (relido sob lock)
 #   CAMP_NEG=anterior  -> remove a guarda de dados_ate (prova (c)/variacao: posicao_anterior zera no mesmo dado)
 #   CAMP_NEG=extrato_fecha   -> (0129) extrato volta a fechar em fim+1 (prova: a secao de fechamento deve FALHAR)
+#   CAMP_NEG=extrato_corte   -> (0129/M2) turnos voltam a ver faturamento pos-fechamento (prova: os checks M2 devem FALHAR)
 #   CAMP_NEG=extrato_privado -> (0129) top10 do extrato vaza campo de valor (prova: a secao de privacidade deve FALHAR)
 #   CAMP_NEG=escopo    -> remove a policy de escopo de "Campanha" (prova (b): a leitura direta vaza)
 #   CAMP_NEG=excluir   -> (so na secao 0128) remove a checagem de lancada_em de hub_campanha_excluir E desliga o gatilho de DELETE
@@ -144,6 +145,10 @@ case "${CAMP_NEG:-}" in
     patch_fn 'hub_campanhas_recalcular_ativas(integer)' 's/::int \* 2 THEN/::int * 0 THEN/'
     own "SELECT pg_get_functiondef('hub_campanhas_recalcular_ativas(integer)'::regprocedure) ~ '::int [*] 0 THEN'" | grep -q t || { echo "ABORTA: reversao extrato_fecha nao esta no corpo vivo"; exit 1; }
     echo "NEG extrato_fecha: extrato volta a fechar em fim+1 (conferido)";;
+  extrato_corte)
+    patch_fn 'hub_campanha_turnos_extrato_q(integer,date,date,integer,text[],text[],text[],text[],numeric,numeric,numeric,integer,timestamp with time zone)' 's/(v_corte IS NULL OR f\.criado_em <= v_corte)/true/'
+    own "SELECT pg_get_functiondef('hub_campanha_turnos_extrato_q(integer,date,date,integer,text[],text[],text[],text[],numeric,numeric,numeric,integer,timestamp with time zone)'::regprocedure) !~ 'v_corte IS NULL'" | grep -q t || { echo "ABORTA: reversao extrato_corte nao esta no corpo vivo"; exit 1; }
+    echo "NEG extrato_corte: lista de turnos volta a ver faturamento posterior ao fechamento (conferido)";;
   extrato_privado)
     patch_fn 'hub_motorista_campanha(integer)' "s/'nomeAbreviado', hub_nome_abreviado(t.nome)/'nomeAbreviado', hub_nome_abreviado(t.nome), 'valorCentavos', t.posicao/"
     own "SELECT pg_get_functiondef('hub_motorista_campanha(integer)'::regprocedure) ~ 'valorCentavos., t.posicao'" | grep -q t || { echo "ABORTA: reversao extrato_privado nao esta no corpo vivo"; exit 1; }
@@ -748,6 +753,13 @@ check "0129/lancar: categoria salva que nao existe mais -> OPCAO_DESCONHECIDA" "
 check "0129/lancar: so familia (token) lanca" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_lancar($ID_X6);")")" ""
 check "0129/lancar: extrato com nomes + familia lanca" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_lancar($ID_X1);")")" ""
 check "0129/lancar: extrato base validos lanca" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_lancar($ID_X2);")")" ""
+check "0129/B2: salvar com familia fora da allowlist (familia:foo) -> VALIDACAO" "$(tok "$(sal5 NULL "$(xbody X1x 2027-03-01 2027-03-03 '["familia:foo"]' trabalhados "$XC" 2 '["moto"]')")")" "VALIDACAO"
+ID_XB="$(sal5 NULL "$(xbody 'Extrato familia ruim' 2027-03-01 2027-03-03 '["familia:promocao"]' trabalhados "$XC" 2 '["moto"]')")"
+own "UPDATE \"Campanha\" SET categorias=ARRAY['familia:foo'] WHERE id=$ID_XB" >/dev/null
+check "0129/B2: lancar com token de familia desconhecido (gravado por fora da RPC) -> OPCAO_DESCONHECIDA" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_lancar($ID_XB);")")" "OPCAO_DESCONHECIDA"
+# B1: extrato com corte de pedidos em empresa SEM cobertura de pedidos (9003) lanca: leitura ausente so nao valida o turno
+ID_XP="$(salvar adm3@example.com '[9003]' 9003 NULL "$(xbody 'Extrato pedidos' 2027-03-01 2027-03-03 '["familia:promocao"]' trabalhados '{"aceitacao":null,"conclusao":null,"tempo":null,"pedidos":3}' 1 null)")"
+check "0129/B1: extrato com corte de pedidos lanca mesmo sem cobertura de pedidos (nao ha peso para zerar)" "$(tok "$(rpc adm3@example.com '[9003]' 9003 "SELECT hub_campanha_lancar($ID_XP);")")|$(own "SELECT lancada_em IS NOT NULL FROM \"Campanha\" WHERE id=$ID_XP")" "|t"
 for col in "categorias=ARRAY['Outra']" "min_turnos_base='validos'" "tipo='nota'" "corte_tempo=0.1"; do
   check "0129/imutavel: depois de lancar, UPDATE de $col -> CAMPANHA_IMUTAVEL" "$(tok "$(ownx "UPDATE \"Campanha\" SET $col WHERE id=$ID_X1")")" "CAMPANHA_IMUTAVEL"
 done
@@ -781,6 +793,10 @@ psql_t -q <<'SQL' >"$TMP/seed129b.log" 2>&1 || { echo "FAIL: seed 0129b"; cat "$
 INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, hash_linha)
 SELECT 9005, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('e',64)), e.id, '2027-03-04', '2027-03-03', 'JANTAR 18H-22H', 'Credito', v.v, 'Corridas', md5(v.n||'b')||md5(v.n||'bb')
 FROM (VALUES ('Alice Extrato',20),('Davi Extrato',40),('Hugo Extrato',5),('Iara Extrato',10)) v(n, v) JOIN "Entregador" e ON e.nome = v.n AND e.id_empresa = 9005;
+-- Bento d3 (turno valido): faturamento chegou, mas so em categoria NAO marcada (M3)
+INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, hash_linha)
+SELECT 9005, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('e',64)), e.id, '2027-03-04', '2027-03-03', 'JANTAR 18H-22H', 'Credito', 7, 'Outra', md5('m3a')||md5('m3b')
+FROM "Entregador" e WHERE e.nome='Bento Extrato' AND e.id_empresa=9005;
 SQL
 rpc $ADM5 $E9005 9005 "SELECT hub_campanha_recalcular($ID_X1);" >/dev/null
 check "0129/B: ranking final (Alice x Davi empatam em valor e validos: desempata pelo id; posicao_anterior = a do estagio A)" "$(RK $ID_X1)" "Alice Extrato|classificado|1|2|3|3|12000
@@ -791,6 +807,7 @@ Hugo Extrato|classificado|5|5|3|1|3000
 Elisa Extrato|sem_minimo|-|-|1|1|50000
 Fabio Extrato|sem_modal|-|-|3|3|1500
 Iara Extrato|sem_minimo|-|-|3|0|0"
+check "0129/M3: turno valido com faturamento so em OUTRA categoria: tem_valor=true e valor 0 (nao fica 'aguardando' para sempre)" "$(TURNOS $ID_X1 'Bento Extrato' | tr ';' '\n' | tail -1)" "2027-03-03|true|true|0|{}"
 check "0129/B: dados_ate avancou para 03/03" "$(own "SELECT dados_ate FROM \"Campanha\" WHERE id=$ID_X1")" "2027-03-03"
 rpc $ADM5 $E9005 9005 "SELECT hub_campanha_recalcular($ID_X1);" >/dev/null
 check "0129/B: recalcular de novo com o MESMO dado preserva posicao_anterior" "$(own "SELECT string_agg(e.nome||'='||r.posicao_anterior, ',' ORDER BY r.posicao) FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$ID_X1 AND r.posicao <= 4")" "Alice Extrato=2,Davi Extrato=4,Cida Extrato=1,Bento Extrato=3"
@@ -803,7 +820,7 @@ echo "  hub: ranking, detalhe, lista"
 check "0129/hub: hub_campanha_ranking traz turnos_validos e valor_centavos (e nome completo)" "$(rpc $ADM5 $E9005 9005 "SELECT posicao||'|'||nome||'|'||turnos||'|'||turnos_validos||'|'||valor_centavos FROM hub_campanha_ranking($ID_X1,'classificado',2,0);")" "1|Alice Extrato|3|3|12000
 2|Davi Extrato|3|3|12000"
 check "0129/hub: detalhe traz tipo, categorias e minTurnosBase" "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_detalhe($ID_X1);" | jq -c '[.tipo,.categorias,.minTurnosBase]')" '["extrato",["Corridas","familia:promocao"],"trabalhados"]'
-check "0129/hub: lista traz tipo" "$(rpc $ADM5 $E9005 9005 "SELECT count(*) FROM hub_campanha_listar(9005,NULL) l WHERE l.item->>'tipo'='extrato';")" "4"
+check "0129/hub: lista traz tipo" "$(rpc $ADM5 $E9005 9005 "SELECT count(*) FROM hub_campanha_listar(9005,NULL) l WHERE l.item->>'tipo'='extrato';")" "5"
 check "0129/hub: campanha de OUTRA empresa continua 404 no ranking" "$(tok "$(rpc admb@example.com '[9002]' 9002 "SELECT * FROM hub_campanha_ranking($ID_X1,NULL,10,0);")")" "CAMPANHA_NAO_ENCONTRADA"
 
 echo "  app: privacidade (X2/E7)"
@@ -820,7 +837,7 @@ check "0129/app: campanha traz tipo e minTurnosBase" "$(printf '%s' "$JA" | jq -
 check "0129/app: a lista do app traz o tipo" "$(app $CA "SELECT hub_motorista_campanhas();" | jq -r '[.[]|select(.id=='$ID_X1')|.tipo]|first')" "extrato"
 echo "  app: turnos do proprio motorista"
 check "0129/app/turnos: Alice (so os dela, mais recente primeiro; soma = 12000)" "$(app $CA "SELECT hub_motorista_campanha_turnos($ID_X1);" | jq -c '[[.[]|[.data,.valido,.temValor,.valorCentavos]], ([.[].valorCentavos]|add)]')" '[[["2027-03-03",true,true,2000],["2027-03-02",true,true,4000],["2027-03-01",true,true,6000]],12000]'
-check "0129/app/turnos: Bento — invalido com motivo, valor lido e minimo; pendente sem valor" "$(app $CB "SELECT hub_motorista_campanha_turnos($ID_X1);" | jq -cS 'walk(if type=="number" then .+0 else . end)|[.[]|{d:.data,v:.valido,t:.temValor,c:.valorCentavos,m:.motivos}]')" '[{"c":0,"d":"2027-03-03","m":[],"t":false,"v":true},{"c":20000,"d":"2027-03-02","m":[{"criterio":"aceitacao","lido":0.7,"minimo":0.8}],"t":true,"v":false},{"c":10000,"d":"2027-03-01","m":[],"t":true,"v":true}]'
+check "0129/app/turnos: Bento — invalido com motivo, valor lido e minimo; pendente sem valor" "$(app $CB "SELECT hub_motorista_campanha_turnos($ID_X1);" | jq -cS 'walk(if type=="number" then .+0 else . end)|[.[]|{d:.data,v:.valido,t:.temValor,c:.valorCentavos,m:.motivos}]')" '[{"c":0,"d":"2027-03-03","m":[],"t":true,"v":true},{"c":20000,"d":"2027-03-02","m":[{"criterio":"aceitacao","lido":0.7,"minimo":0.8}],"t":true,"v":false},{"c":10000,"d":"2027-03-01","m":[],"t":true,"v":true}]'
 check "0129/app/turnos: motivo de tempo traz lido e minimo (Hugo 02/03: 25% vs 70%)" "$(app 90500000000008 "SELECT hub_motorista_campanha_turnos($ID_X1);" | jq -cS 'walk(if type=="number" then .+0 else . end)|.[]|select(.data=="2027-03-02")|.motivos')" '[{"criterio":"tempo","lido":0.25,"minimo":0.7}]'
 check "0129/app/turnos: motorista de OUTRA empresa -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(app 90000000000101 "SELECT hub_motorista_campanha_turnos($ID_X1);")")" "CAMPANHA_NAO_ENCONTRADA"
 check "0129/app/turnos: campanha 'nota' devolve lista vazia" "$(app 90000000000001 "SELECT hub_motorista_campanha_turnos($ID_A);")" "[]"
@@ -834,7 +851,19 @@ check "0129/fecha: fechar manual antes de fim+3 -> FECHAMENTO_ANTECIPADO" "$(tok
 hoje 2027-03-06
 check "0129/fecha: fechar manual em fim+3 libera" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_fechar($ID_X6);")")|$(own "SELECT fechada_em IS NOT NULL FROM \"Campanha\" WHERE id=$ID_X6")" "|t"
 R="$(rpc $ADM5 $E9005 9005 "SELECT hub_campanhas_recalcular_ativas(9005);")"
-check "0129/fecha: em fim+3 o recalculo das ativas FECHA os 2 extratos restantes" "$(printf '%s' "$R" | jq -c '.fechadas')|$(own "SELECT count(*) FROM \"Campanha\" WHERE id IN ($ID_X1,$ID_X2) AND fechada_em IS NOT NULL")" "2|2"
+check "0129/M1: em fim+3 so com PERFORMANCE (sem faturamento importado a partir de fim+3) NAO fecha o extrato" "$(printf '%s' "$R" | jq -c '.fechadas')|$(own "SELECT count(*) FROM \"Campanha\" WHERE id IN ($ID_X1,$ID_X2) AND fechada_em IS NOT NULL")" "0|0"
+own "INSERT INTO \"FaturamentoLancamento\" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, hash_linha, criado_em)
+     SELECT 9005, (SELECT id FROM \"ImportacaoArquivo\" WHERE hash_sha256=repeat('e',64)), e.id, '2027-03-06', '2027-03-03', 'JANTAR 18H-22H', 'Credito', 5, 'Corridas', md5('m1a')||md5('m1b'), '2027-03-06 09:00-03'
+     FROM \"Entregador\" e WHERE e.nome='Alice Extrato' AND e.id_empresa=9005" >/dev/null
+R="$(rpc $ADM5 $E9005 9005 "SELECT hub_campanhas_recalcular_ativas(9005);")"
+check "0129/M1: com faturamento criado em fim+3 o recalculo das ativas FECHA os 2 extratos" "$(printf '%s' "$R" | jq -c '.fechadas')|$(own "SELECT count(*) FROM \"Campanha\" WHERE id IN ($ID_X1,$ID_X2) AND fechada_em IS NOT NULL")" "2|2"
+check "0129/M1: o valor desse faturamento entrou no ranking final (Alice 12000 + 500)" "$(own "SELECT valor_centavos FROM \"CampanhaRanking\" WHERE campanha_id=$ID_X1 AND entregador_id=(SELECT id FROM \"Entregador\" WHERE nome='Alice Extrato')")" "12500"
+L0="$(TURNOS $ID_X1 'Alice Extrato')"
+own "INSERT INTO \"FaturamentoLancamento\" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, hash_linha, criado_em)
+     SELECT 9005, (SELECT id FROM \"ImportacaoArquivo\" WHERE hash_sha256=repeat('e',64)), e.id, '2027-03-07', '2027-03-01', 'JANTAR 18H-22H', 'Credito', 99, 'Corridas', md5('m2a')||md5('m2b'), now() + interval '1 hour'
+     FROM \"Entregador\" e WHERE e.nome='Alice Extrato' AND e.id_empresa=9005" >/dev/null
+check "0129/M2: faturamento criado DEPOIS de fechada_em nao muda a lista de turnos (bate com o ranking congelado)" "$(TURNOS $ID_X1 'Alice Extrato')" "$L0"
+check "0129/M2: ... e o d1 continua em 6000 (sem o +9900)" "$(TURNOS $ID_X1 'Alice Extrato' | tr ';' '\n' | head -1)" "2027-03-01|true|true|6000|{}"
 check "0129/fecha: vencedores do extrato = posicoes 1..3 (Alice, Davi, Cida)" "$(own "SELECT string_agg(v.posicao||'='||e.nome, ',' ORDER BY v.posicao) FROM \"CampanhaVencedor\" v JOIN \"Entregador\" e ON e.id=v.entregador_id WHERE v.campanha_id=$ID_X1")" "1=Alice Extrato,2=Davi Extrato,3=Cida Extrato"
 # (a nota segue fechando em fim+1: coberto pelo teste M1 desta suite, que roda sobre a funcao ja redefinida pela 0129)
 

@@ -68,7 +68,7 @@ export function TelaExtrato({ t, hero }: { t: ExtratoTela; hero: ReactNode }) {
             <h2 className="text-[17px] font-extrabold leading-tight">Você ainda não está no ranking</h2>
             <p className="text-[13px] text-muted-foreground">
               {eu
-                ? `Você tem ${nValidos} ${nValidos === 1 ? 'turno válido' : 'turnos válidos'} de ${eu.turnos} rodados. Mínimo de ${c.minTurnos} turnos ${base} para entrar.`
+                ? `Você tem ${nValidos} ${nValidos === 1 ? 'turno válido' : 'turnos válidos'} de ${eu.turnos} rodados. Mínimo de ${c.minTurnos} turnos ${base} para entrar${nValidos === 0 ? ', com pelo menos 1 turno válido' : ''}.`
                 : 'Rode nos turnos da campanha para entrar no ranking.'}
             </p>
             {eu && eu.valorCentavos > 0 && (
