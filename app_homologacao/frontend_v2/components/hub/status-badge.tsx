@@ -9,6 +9,10 @@ import {
   Banknote,
   CheckCircle2,
   CircleOff,
+  FilePen,
+  Flag,
+  Hourglass,
+  Trophy,
   Clock,
   FileCheck2,
   Gauge,
@@ -28,6 +32,7 @@ import type { VariantProps } from 'class-variance-authority';
 import { STATUS_LABELS, type StatusImportacao } from '@/lib/hub/importacoes-dto';
 import type { TipoAtividade } from '@/lib/hub/motoristas-dto';
 import { STATUS_AVISO_LABELS, type StatusAviso } from '@/lib/hub/avisos-dto';
+import { SITUACAO_LABELS, type SituacaoCampanha } from '@/lib/hub/campanhas-dto';
 import { cn } from '@/lib/utils';
 
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>['variant']>;
@@ -286,6 +291,26 @@ export function VinculoBadge({ vinculado }: { vinculado: boolean }) {
   ) : (
     <StatusBadge variant="outline" icon={Link2Off}>
       Sem vínculo
+    </StatusBadge>
+  );
+}
+
+// campanhas do motorista (W3a) — situação derivada da campanha. Cor + ícone +
+// texto (WCAG 1.4.1), como os demais badges deste arquivo.
+const CAMPANHA_SITUACAO_BADGE: Record<SituacaoCampanha, { variant: BadgeVariant; icon: LucideIcon }> = {
+  rascunho: { variant: 'secondary', icon: FilePen },
+  agendada: { variant: 'outline', icon: Clock },
+  em_andamento: { variant: 'success', icon: Trophy },
+  apurando: { variant: 'warning', icon: Hourglass },
+  encerrada: { variant: 'default', icon: Flag },
+  cancelada: { variant: 'destructive', icon: Ban },
+};
+
+export function CampanhaSituacaoBadge({ situacao }: { situacao: SituacaoCampanha }) {
+  const cfg = CAMPANHA_SITUACAO_BADGE[situacao] ?? { variant: 'outline' as const, icon: Clock };
+  return (
+    <StatusBadge variant={cfg.variant} icon={cfg.icon}>
+      {SITUACAO_LABELS[situacao] ?? situacao}
     </StatusBadge>
   );
 }

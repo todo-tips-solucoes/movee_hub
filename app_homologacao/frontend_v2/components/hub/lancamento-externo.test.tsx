@@ -108,6 +108,8 @@ describe('diálogo de importação', () => {
     const { result } = renderHook(() => useLancamentoExternoDialog({ onSucesso: vi.fn() }));
     act(() => { result.current.abrir(); result.current.setTipo('AJUSTE_CREDITO'); });
     expect(result.current.tipo).toBe('AJUSTE_CREDITO');
+    act(() => { result.current.setTipo('PREMIO_CAMPANHA'); });
+    expect(result.current.tipo).toBe('PREMIO_CAMPANHA');
     act(() => result.current.abrir());
     expect(result.current.tipo).toBe('ADIANTAMENTO');
   });
@@ -139,5 +141,15 @@ describe('formatarParcelaExterna (sinal explícito; zero/ausente/ilegível = tra
   it('dedução leva − e crédito leva +, ambos com o valor absoluto formatado', () => {
     expect(formatarParcelaExterna('-30.00')).toMatch(/^−\s.*30,00/);
     expect(formatarParcelaExterna('13.00')).toMatch(/^\+\s.*13,00/);
+  });
+});
+
+describe('tipos oferecidos', () => {
+  it('inclui Prêmio de campanha com a descrição do orquestrador', async () => {
+    const { TIPOS_LANCAMENTO_EXTERNO } = await import('@/lib/hub/lancamento-externo');
+    expect(TIPOS_LANCAMENTO_EXTERNO.map((t) => t.value)).toEqual(['ADIANTAMENTO', 'AJUSTE_CREDITO', 'PREMIO_CAMPANHA']);
+    const t = TIPOS_LANCAMENTO_EXTERNO.find((x) => x.value === 'PREMIO_CAMPANHA')!;
+    expect(t.label).toBe('Prêmio de campanha');
+    expect(t.descricao).toBe('Prêmio em dinheiro de campanha do motorista: soma ao repasse da semana');
   });
 });

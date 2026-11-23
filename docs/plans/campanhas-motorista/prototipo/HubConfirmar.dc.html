@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Hub — Confirmar lançamento</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2c66e9}a:hover{color:#1b3fac}
+</style>
+</helmet>
+<div style="width: 1280px; height: 860px; position: relative; background: #f9f2e8; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #0f1849; overflow: hidden">
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(15, 24, 73, 0.55)"></div>
+  <div role="dialog" aria-modal="true" aria-labelledby="dlg-t" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 600px; background: #ffffff; border-radius: 20px; box-shadow: 0 30px 80px -20px rgba(15, 24, 73, 0.5); padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <div style="width: 44px; height: 44px; border-radius: 12px; background: #fff1d1; color: #7a5200; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </div>
+      <h2 id="dlg-t" style="margin: 0; font-size: 20px; font-weight: 800">Lançar “Rei do Jantar — Novembro”?</h2>
+    </div>
+    <div style="background: #fff8e6; border: 1px solid #ffd98a; border-radius: 12px; padding: 14px 16px; font-size: 14px; line-height: 1.5">
+      <strong>Depois de lançada, a campanha não pode ser alterada.</strong> Período, praças, turnos, indicadores, pesos, cortes e prêmios ficam travados. Se precisar mudar algo, a saída é cancelar (com motivo registrado) e lançar outra.
+    </div>
+    <dl style="margin: 0; display: grid; grid-template-columns: 140px 1fr; row-gap: 10px; column-gap: 16px; font-size: 14px">
+      <dt style="color: #52618a; font-weight: 600">Período</dt><dd style="margin: 0; font-weight: 600">10/11 a 30/11/2026 (21 dias)</dd>
+      <dt style="color: #52618a; font-weight: 600">Praças</dt><dd style="margin: 0; font-weight: 600">SÃO PAULO</dd>
+      <dt style="color: #52618a; font-weight: 600">Turnos</dt><dd style="margin: 0; font-weight: 600">JANTAR 18H-22H, JANTAR 18H00-21H59 · mín. 5 turnos</dd>
+      <dt style="color: #52618a; font-weight: 600">Modal</dt><dd style="margin: 0; font-weight: 600">MOTO · <span style="color: #7a5200">12 sem modal no cadastro ficam de fora</span></dd>
+      <dt style="color: #52618a; font-weight: 600">Nota</dt><dd style="margin: 0; font-weight: 600">Aceitação 30% (corte 80%) · Conclusão 30% (corte 90%) · Tempo 20% · Pedidos 20%</dd>
+      <dt style="color: #52618a; font-weight: 600">Prêmios</dt><dd style="margin: 0; font-weight: 600">1º Moto · 2º–3º Bag térmica · 4º–10º R$ 100</dd>
+      <dt style="color: #52618a; font-weight: 600">Alcance hoje</dt><dd style="margin: 0; font-weight: 600">212 motoristas rodaram nesses turnos nos últimos 30 dias</dd>
+    </dl>
+    <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600"><input type="checkbox" checked style="width: 18px; height: 18px"> Avisar os motoristas por notificação quando a campanha começar</label>
+    <label style="display: flex; align-items: flex-start; gap: 10px; font-size: 14px; font-weight: 600; padding: 12px 14px; border: 1.5px solid #2c66e9; border-radius: 12px; background: #eef3fe"><input type="checkbox" checked style="width: 18px; height: 18px; margin-top: 1px"> Revisei tudo e entendo que não vou poder editar depois de lançar.</label>
+    <div style="display: flex; justify-content: flex-end; gap: 12px">
+      <a href="HubCriar.dc.html" style="text-decoration: none; font-size: 14px; font-weight: 700; color: #0f1849; border: 1px solid #e7ddcd; padding: 12px 18px; border-radius: 12px; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center">Voltar e editar</a>
+      <a href="HubDetalhe.dc.html" style="text-decoration: none; font-size: 14px; font-weight: 700; background: #2c66e9; color: #ffffff; padding: 12px 18px; border-radius: 12px; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center">Lançar campanha</a>
+    </div>
+    <p style="margin: 0; font-size: 12px; color: #52618a">O botão só habilita com a caixa de confirmação marcada. O banco recusa qualquer alteração depois do lançamento, mesmo fora desta tela.</p>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

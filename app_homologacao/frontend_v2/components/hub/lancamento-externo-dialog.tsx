@@ -77,6 +77,9 @@ export function LancamentoExternoDialog({ d }: { d: ReturnType<typeof useLancame
             <label htmlFor={tipoId} className="text-sm font-medium">Tipo</label>
             <SelectFiltro id={tipoId} ariaLabel="Tipo" value={d.tipo} onChange={(v) => d.setTipo(v as TipoLancamentoExterno)}
               opcoes={TIPOS_LANCAMENTO_EXTERNO} disabled={d.enviando} />
+            {TIPOS_LANCAMENTO_EXTERNO.find((t) => t.value === d.tipo)?.descricao && (
+              <p className="text-xs text-muted-foreground">{TIPOS_LANCAMENTO_EXTERNO.find((t) => t.value === d.tipo)?.descricao}.</p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor={inputId} className="text-sm font-medium">Arquivo XLSX</label>

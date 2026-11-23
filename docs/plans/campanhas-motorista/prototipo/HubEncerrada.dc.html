@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Hub — Vencedores e entrega</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2c66e9}a:hover{color:#1b3fac}
+</style>
+</helmet>
+<div style="width: 1280px; height: 960px; background: #f9f2e8; color: #0f1849; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; padding: 32px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+  <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: #52618a">
+    <a href="Main.dc.html" style="font-weight: 600">Campanhas</a><span aria-hidden="true">/</span><span>Semana do Tempo Online</span>
+  </div>
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Semana do Tempo Online</h1>
+        <span style="font-size: 12px; font-weight: 700; background: #0f1849; color: #ffffff; padding: 4px 10px; border-radius: 999px">Encerrada</span>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #52618a">03/11 a 09/11 · resultado final congelado em 10/11 11:06, na importação que trouxe o dia 09/11.</p>
+    </div>
+    <div style="display: flex; gap: 10px">
+      <button style="font: inherit; font-size: 13px; font-weight: 700; background: #ffffff; color: #0f1849; border: 1px solid #e7ddcd; padding: 10px 16px; border-radius: 12px; min-height: 44px; cursor: pointer">Exportar vencedores (CSV)</button>
+      <button style="font: inherit; font-size: 13px; font-weight: 700; background: #2c66e9; color: #ffffff; border: 0; padding: 10px 16px; border-radius: 12px; min-height: 44px; cursor: pointer">Baixar planilha de prêmios em dinheiro</button>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 14px">
+    <div style="flex: 1; background: #ffffff; border: 1px solid #e7ddcd; border-radius: 14px; padding: 16px 18px; display: flex; align-items: center; gap: 14px">
+      <div style="width: 44px; height: 44px; border-radius: 12px; background: #fff1d1; color: #7a5200; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg></div>
+      <div><div style="font-size: 22px; font-weight: 800">3 de 10</div><div style="font-size: 12px; font-weight: 600; color: #52618a">prêmios ainda não entregues</div></div>
+    </div>
+    <div style="flex: 2; background: #eef3fe; border: 1px solid #c9d8fb; border-radius: 14px; padding: 16px 18px; font-size: 13px; line-height: 1.5; display: flex; align-items: center">
+      <span>Prêmio em dinheiro: o hub gera a planilha no layout do <strong>Lançamento externo</strong> (tipo Prêmio de campanha, soma ao repasse) e o financeiro importa pelo fluxo que já existe. Prêmio em objeto é marcado como entregue aqui, com data e quem entregou.</span>
+    </div>
+  </div>
+
+  <section aria-labelledby="vc" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; overflow: hidden">
+    <h2 id="vc" style="margin: 0; padding: 16px 20px; font-size: 16px; font-weight: 800; border-bottom: 1px solid #efe6d6">Vencedores</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums">
+      <thead>
+        <tr style="background: #faf6ef; color: #52618a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; text-align: left">
+          <th scope="col" style="padding: 10px 20px">#</th>
+          <th scope="col" style="padding: 10px 12px">Motorista</th>
+          <th scope="col" style="padding: 10px 12px">Nota</th>
+          <th scope="col" style="padding: 10px 12px">Prêmio</th>
+          <th scope="col" style="padding: 10px 12px">Entrega</th>
+          <th scope="col" style="padding: 10px 20px"><span style="position: absolute; left: -9999px">Ação</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <sc-for list="{{v}}" as="r" hint-placeholder-count="8">
+          <tr style="border-top: 1px solid #efe6d6">
+            <td style="padding: 13px 20px"><span style="{{r.pos}}">{{r.n}}</span></td>
+            <td style="padding: 13px 12px; font-weight: 600">{{r.nome}}</td>
+            <td style="padding: 13px 12px; font-weight: 800">{{r.nota}}</td>
+            <td style="padding: 13px 12px">{{r.premio}}</td>
+            <td style="padding: 13px 12px"><span style="{{r.chip}}">{{r.status}}</span></td>
+            <td style="padding: 13px 20px; text-align: right"><a href="#" style="font-weight: 700; font-size: 13px">{{r.acao}}</a></td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+  </section>
+  <p style="margin: 0; font-size: 12px; color: #52618a">EXEMPLO — nomes e números ilustrativos. Marcar entrega não altera a campanha: é um registro à parte, auditado.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var b = 'display:inline-flex;width:28px;height:28px;border-radius:999px;align-items:center;justify-content:center;font-weight:800;font-size:12px;';
+    var c = 'font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;';
+    var ok = c + 'background:#d6f5ec;color:#00715e;';
+    var pend = c + 'background:#fff1d1;color:#7a5200;';
+    return {
+      v: [
+        { n: 1, pos: b + 'background:#ffb72a;color:#0f1849;', nome: 'Rafael Souza Costa', nota: '98,9', premio: 'Moto Honda CG 160', status: 'Pendente', chip: pend, acao: 'Marcar como entregue' },
+        { n: 2, pos: b + 'background:#dfe3ec;color:#0f1849;', nome: 'Marcos Vinícius Andrade', nota: '98,1', premio: 'Bag térmica Movee', status: 'Entregue 12/11 · Ana R.', chip: ok, acao: 'Ver registro' },
+        { n: 3, pos: b + 'background:#f2d5bd;color:#5a2e0c;', nome: 'Aline Ribeiro', nota: '97,6', premio: 'Bag térmica Movee', status: 'Pendente', chip: pend, acao: 'Marcar como entregue' },
+        { n: 4, pos: b + 'background:#eef3fe;color:#1b3fac;', nome: 'Diego Martins', nota: '97,0', premio: 'R$ 100', status: 'Na planilha de 11/11', chip: ok, acao: '' },
+        { n: 5, pos: b + 'background:#eef3fe;color:#1b3fac;', nome: 'Juliana Pereira Lima', nota: '96,4', premio: 'R$ 100', status: 'Na planilha de 11/11', chip: ok, acao: '' },
+        { n: 6, pos: b + 'background:#eef3fe;color:#1b3fac;', nome: 'Thiago Almeida', nota: '95,8', premio: 'R$ 100', status: 'Sem CNPJ: fora da planilha', chip: pend, acao: 'Ver cadastro' },
+        { n: 7, pos: b + 'background:#eef3fe;color:#1b3fac;', nome: 'Patrícia Gomes', nota: '95,1', premio: 'R$ 100', status: 'Na planilha de 11/11', chip: ok, acao: '' },
+        { n: 8, pos: b + 'background:#eef3fe;color:#1b3fac;', nome: 'Bruno Carvalho', nota: '94,9', premio: 'R$ 100', status: 'Na planilha de 11/11', chip: ok, acao: '' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

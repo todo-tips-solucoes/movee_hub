@@ -7,7 +7,7 @@ import {
   resolveModuleDescription,
   resolveModuleIcon,
 } from './module-nav';
-import { FileUp, Truck, Upload, Wallet } from 'lucide-react';
+import { FileUp, Trophy, Truck, Upload, Wallet } from 'lucide-react';
 
 describe('moduloParaRota', () => {
   it('deriva /hub/dashboard/<codigo> por convenção pura, sem lista fixa (dec-039/dec-041: prefixo /hub/ evita colisão com app/dashboard/motoristas legado)', () => {
@@ -76,6 +76,14 @@ describe('resolveModuleIcon', () => {
   it('módulo importacoes: codigo resolve para FileUp (mais específico); icone literal upload segue em Upload', () => {
     expect(resolveModuleIcon('importacoes')).toBe(FileUp);
     expect(resolveModuleIcon('upload')).toBe(Upload);
+  });
+});
+
+describe('módulo campanhas (W3a)', () => {
+  it('resolve rota, ícone (pelo código, icone vem null) e descrição', () => {
+    expect(moduloParaRota('campanhas')).toBe('/hub/dashboard/campanhas');
+    expect(resolveModuleIcon(null, 'campanhas')).toBe(Trophy);
+    expect(resolveModuleDescription('campanhas')).toMatch(/rankings/i);
   });
 });
 

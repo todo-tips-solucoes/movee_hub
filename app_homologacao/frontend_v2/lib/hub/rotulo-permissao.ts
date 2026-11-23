@@ -76,6 +76,9 @@ const POR_CODIGO: Record<string, string> = {
   // `partesDoCodigo` corta no primeiro, e o "verbo" vira `enriquecimento.consultar`
   // — que nenhum mapa de verbo traduz. Sem isto aparecem em código cru na matriz,
   // e o `impeccable-rodada10` NÃO pega (o regex dele exige um ponto só).
+  // campanhas do motorista (W3a): `gerir`/`entregar` não têm verbo genérico.
+  'campanhas.gerir': 'Criar, lançar e cancelar campanhas',
+  'campanhas.entregar': 'Registrar entrega de prêmios e baixar a planilha de dinheiro',
   'motoristas.enriquecimento.consultar': 'Ler a fila de enriquecimento (robô)',
   'motoristas.enriquecimento.atualizar': 'Gravar resultado do enriquecimento (robô)',
 };
@@ -93,6 +96,9 @@ const ALTO_IMPACTO_POR_CODIGO = new Set([
   'adiantamentos.exportar',
   'adiantamentos.reprocessar',
   'adiantamentos.pagamento_confirmar',
+  // lançar é irreversível; a planilha de prêmios gera dinheiro a pagar.
+  'campanhas.gerir',
+  'campanhas.entregar',
 ]);
 
 /** `motoristas.exportar` → `{ modulo: 'motoristas', verbo: 'exportar' }`. */

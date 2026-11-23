@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Hub — Lista de campanhas</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2c66e9}a:hover{color:#1b3fac}
+</style>
+</helmet>
+<div style="width: 1280px; height: 860px; display: flex; background: #f9f2e8; color: #0f1849; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; box-sizing: border-box">
+  <nav aria-label="Módulos do hub" style="width: 232px; flex-shrink: 0; background: #f3ece0; border-right: 1px solid #e7ddcd; padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; box-sizing: border-box">
+    <div style="font-weight: 800; font-size: 18px; padding: 0 12px 20px">movee<span style="color: #2c66e9">.</span>hub</div>
+    <a href="#" style="text-decoration: none; color: #52618a; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 500">Performance</a>
+    <a href="#" style="text-decoration: none; color: #52618a; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 500">Motoristas</a>
+    <a href="#" style="text-decoration: none; color: #52618a; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 500">Adiantamentos</a>
+    <a href="#" style="text-decoration: none; color: #52618a; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 500">Avisos</a>
+    <a href="#" aria-current="page" style="text-decoration: none; color: #ffffff; background: #0f1849; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+      Campanhas
+    </a>
+  </nav>
+  <main style="flex: 1; padding: 32px 40px; display: flex; flex-direction: column; gap: 24px; min-width: 0; box-sizing: border-box">
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Campanhas</h1>
+        <p style="margin: 0; font-size: 14px; color: #52618a">Rankings com data de início e fim, calculados sobre os indicadores da Performance. Dados atualizados até <strong style="color: #0f1849">21/11</strong>.</p>
+      </div>
+      <a href="HubCriar.dc.html" style="text-decoration: none; background: #2c66e9; color: #ffffff; font-weight: 700; font-size: 14px; padding: 12px 18px; border-radius: 12px; display: flex; align-items: center; gap: 8px; min-height: 44px; box-sizing: border-box">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nova campanha
+      </a>
+    </div>
+
+    <div role="tablist" aria-label="Filtrar por situação" style="display: flex; gap: 8px; flex-wrap: wrap">
+      <button role="tab" aria-selected="true" style="font: inherit; font-size: 13px; font-weight: 600; border: 1px solid #0f1849; background: #0f1849; color: #ffffff; padding: 8px 14px; border-radius: 999px; cursor: pointer">Todas · 6</button>
+      <button role="tab" aria-selected="false" style="font: inherit; font-size: 13px; font-weight: 600; border: 1px solid #e7ddcd; background: #ffffff; color: #0f1849; padding: 8px 14px; border-radius: 999px; cursor: pointer">Em andamento · 2</button>
+      <button role="tab" aria-selected="false" style="font: inherit; font-size: 13px; font-weight: 600; border: 1px solid #e7ddcd; background: #ffffff; color: #0f1849; padding: 8px 14px; border-radius: 999px; cursor: pointer">Agendadas · 1</button>
+      <button role="tab" aria-selected="false" style="font: inherit; font-size: 13px; font-weight: 600; border: 1px solid #e7ddcd; background: #ffffff; color: #0f1849; padding: 8px 14px; border-radius: 999px; cursor: pointer">Rascunhos · 1</button>
+      <button role="tab" aria-selected="false" style="font: inherit; font-size: 13px; font-weight: 600; border: 1px solid #e7ddcd; background: #ffffff; color: #0f1849; padding: 8px 14px; border-radius: 999px; cursor: pointer">Encerradas · 2</button>
+    </div>
+
+    <div style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; overflow: hidden">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+        <thead>
+          <tr style="background: #faf6ef; text-align: left; color: #52618a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em">
+            <th scope="col" style="padding: 14px 20px; font-weight: 700">Campanha</th>
+            <th scope="col" style="padding: 14px 12px; font-weight: 700">Período</th>
+            <th scope="col" style="padding: 14px 12px; font-weight: 700">Indicadores</th>
+            <th scope="col" style="padding: 14px 12px; font-weight: 700">Participantes</th>
+            <th scope="col" style="padding: 14px 12px; font-weight: 700">Situação</th>
+            <th scope="col" style="padding: 14px 20px"><span style="position: absolute; left: -9999px">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+            <tr style="border-top: 1px solid #efe6d6">
+              <td style="padding: 16px 20px">
+                <div style="font-weight: 700">{{r.nome}}</div>
+                <div style="font-size: 12px; color: #52618a; margin-top: 2px">{{r.escopo}}</div>
+              </td>
+              <td style="padding: 16px 12px; white-space: nowrap">{{r.periodo}}</td>
+              <td style="padding: 16px 12px; color: #52618a">{{r.indicadores}}</td>
+              <td style="padding: 16px 12px; font-variant-numeric: tabular-nums">{{r.participantes}}</td>
+              <td style="padding: 16px 12px"><span style="{{r.chip}}">{{r.status}}</span></td>
+              <td style="padding: 16px 20px; text-align: right"><a href="HubDetalhe.dc.html" style="font-weight: 600; font-size: 13px">{{r.acao}}</a></td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin: 0; font-size: 12px; color: #52618a">EXEMPLO — nomes, praças e números ilustrativos.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var base = 'display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;';
+    var chips = {
+      andamento: base + 'background:#d6f5ec;color:#00715e;',
+      agendada: base + 'background:#dfe8fd;color:#1b3fac;',
+      apurando: base + 'background:#fff1d1;color:#7a5200;',
+      rascunho: base + 'background:#efe6d6;color:#52618a;',
+      encerrada: base + 'background:#0f1849;color:#ffffff;',
+      cancelada: base + 'background:#fbe3e3;color:#c62828;'
+    };
+    return {
+      rows: [
+        { nome: 'Rei do Jantar — Novembro', escopo: 'SÃO PAULO · turnos JANTAR · mín. 5 turnos', periodo: '10/11 – 30/11', indicadores: 'Aceitação 30 · Conclusão 30 · Tempo 20 · Pedidos 20', participantes: '184 no ranking · 23 abaixo do corte', status: 'Em andamento', chip: chips.andamento, acao: 'Acompanhar' },
+        { nome: 'Desafio Campinas', escopo: 'CAMPINAS · todos os turnos · mín. 3 turnos', periodo: '17/11 – 23/11', indicadores: 'Pedidos 60 · Tempo 40', participantes: '61 no ranking · 4 abaixo do corte', status: 'Em andamento', chip: chips.andamento, acao: 'Acompanhar' },
+        { nome: 'Black Friday Almoço', escopo: 'Todas as praças · turnos ALMOCO · mín. 4 turnos', periodo: '24/11 – 30/11', indicadores: 'Aceitação 50 · Conclusão 50', participantes: 'começa em 2 dias', status: 'Agendada', chip: chips.agendada, acao: 'Ver' },
+        { nome: 'Dezembro sem cancelamento', escopo: 'Todas as praças · todos os turnos', periodo: '01/12 – 31/12', indicadores: 'Conclusão 70 · Pedidos 30', participantes: '—', status: 'Rascunho', chip: chips.rascunho, acao: 'Editar' },
+        { nome: 'Semana do Tempo Online', escopo: 'SÃO PAULO · todos os turnos · mín. 5 turnos', periodo: '03/11 – 09/11', indicadores: 'Tempo 100', participantes: '201 no ranking · 3 prêmios a entregar', status: 'Encerrada', chip: chips.encerrada, acao: 'Ver vencedores' },
+        { nome: 'Outubro Rosa', escopo: 'Todas as praças · todos os turnos', periodo: '01/10 – 31/10', indicadores: 'Aceitação 40 · Conclusão 40 · Pedidos 20', participantes: 'cancelada em 05/10 — motivo registrado', status: 'Cancelada', chip: chips.cancelada, acao: 'Ver' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

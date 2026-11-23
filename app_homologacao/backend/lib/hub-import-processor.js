@@ -875,6 +875,18 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
       }
     }
 
+    // Campanhas do motorista (CONTRATOS §8): o ranking é DERIVADO da MV recém-atualizada.
+    // Falha aqui só loga — nunca derruba nem reverte a importação.
+    if (job.tipo === 'performance' && mvAtualizada === true) {
+      try {
+        await deps.hubPostgrestRequest(
+          'rpc/hub_campanhas_recalcular_ativas', 'POST', { p_id_empresa: job.idEmpresa }, job.claims,
+        );
+      } catch (errCampanhas) {
+        console.error('[hub-import-processor] falha ao recalcular as campanhas ativas (o ranking fica no estado anterior até a próxima importação):', errCampanhas && errCampanhas.message);
+      }
+    }
+
     // Log estruturado (plano técnico §12.6) — SEM dado pessoal (só contadores
     // e timing; nunca nome/UUID/linha de CSV).
     const duracaoMs = deps.agoraMs() - inicioMs;

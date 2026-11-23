@@ -395,6 +395,20 @@ body {
 /* spinner suave reutilizável */
 .spinner { animation: mv-spin 0.7s linear infinite; }
 
+/* confete decorativo da campanha encerrada — só CSS, aria-hidden no uso;
+   --r = rotação base da peça. Estático sob prefers-reduced-motion. */
+@keyframes mv-confete {
+  from { transform: translateY(-10px) rotate(var(--r, 0deg)); }
+  to   { transform: translateY(12px) rotate(calc(var(--r, 0deg) + 40deg)); }
+}
+.confete {
+  position: absolute;
+  border-radius: 2px;
+  opacity: 0.8;
+  transform: rotate(var(--r, 0deg));
+  animation: mv-confete 3.2s ease-in-out infinite alternate;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -406,4 +420,5 @@ body {
   .animate-fade-up,
   .animate-scale-in,
   .animate-fade-in { opacity: 1 !important; transform: none !important; }
+  .confete { animation: none !important; transform: rotate(var(--r, 0deg)) !important; }
 }

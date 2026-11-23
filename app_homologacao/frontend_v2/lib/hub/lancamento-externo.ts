@@ -7,11 +7,15 @@ import { HubApiError, criarRequest, mensagemPorCodigo, codigoDoErro } from './ap
 import { XLSX_MIME } from './retorno-xlsx';
 import { formatBRL } from '@/lib/utils';
 
-export type TipoLancamentoExterno = 'ADIANTAMENTO' | 'AJUSTE_CREDITO';
+/** Teto por linha do Lançamento externo (espelho de `TETO_CENTAVOS` do backend); o prêmio em dinheiro das campanhas usa o mesmo. */
+export const TETO_CENTAVOS = 500000;
 
-export const TIPOS_LANCAMENTO_EXTERNO: { value: TipoLancamentoExterno; label: string }[] = [
+export type TipoLancamentoExterno = 'ADIANTAMENTO' | 'AJUSTE_CREDITO' | 'PREMIO_CAMPANHA';
+
+export const TIPOS_LANCAMENTO_EXTERNO: { value: TipoLancamentoExterno; label: string; descricao?: string }[] = [
   { value: 'ADIANTAMENTO', label: 'Adiantamento (deduz do repasse)' },
   { value: 'AJUSTE_CREDITO', label: 'Crédito (soma ao repasse)' },
+  { value: 'PREMIO_CAMPANHA', label: 'Prêmio de campanha', descricao: 'Prêmio em dinheiro de campanha do motorista: soma ao repasse da semana' },
 ];
 
 export class LancamentoExternoApiError extends HubApiError {

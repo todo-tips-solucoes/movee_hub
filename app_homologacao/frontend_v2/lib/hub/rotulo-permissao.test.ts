@@ -66,6 +66,9 @@ const CODIGOS_REAIS = [
   'performance.metas_gerenciar',       // migration 0048
   'avisos.consultar',                  // migration 0062
   'avisos.enviar',                     // idem
+  'campanhas.consultar',               // campanhas do motorista (W3a)
+  'campanhas.gerir',                   // idem — sem verbo genérico
+  'campanhas.entregar',                // idem — sem verbo genérico
 ];
 
 const COM_LISTAR = modulosComListar(CODIGOS_REAIS);

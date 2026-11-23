@@ -10,7 +10,7 @@
  * `linkPermitidoOuNulo`).
  */
 
-const PERMITIDOS = [/^\/adiantamento$/, /^\/adiantamento\/\d+$/, /^\/conta-bancaria$/, /^\/avisos\/\d+$/, /^\/repasse$/];
+const PERMITIDOS = [/^\/adiantamento$/, /^\/adiantamento\/\d+$/, /^\/conta-bancaria$/, /^\/avisos\/\d+$/, /^\/repasse$/, /^\/campanhas\/\d+$/];
 
 export function linkPermitido(link: string | null | undefined): string | null {
   if (!link) return null;

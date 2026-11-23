@@ -245,3 +245,35 @@ describe('proxy — corpo binário do retorno XLSX (FR-016/017/018)', () => {
     expect(chamadas()[0].body).toBe('{"empresa_id":9}');
   });
 });
+
+// campanhas (W5 A3): a foto do prêmio sobe como binário pelo mesmo proxy.
+describe('proxy — foto de prêmio (image/*) em binário', () => {
+  const fotoReq = (mime: string, corpo: Uint8Array, cl?: string | null) =>
+    reqBin(COOKIE_OK(), corpo, { contentType: mime, contentLength: cl });
+
+  it.each(['image/jpeg', 'image/png', 'image/webp'])('%s: bytes >= 0x80 chegam idênticos ao backend', async (mime) => {
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(200));
+    const original = bytesXlsx();
+    await POST(fotoReq(mime, original));
+    const body = chamadas()[0].body as unknown;
+    expect(typeof body).not.toBe('string');
+    expect(Buffer.from(body as Uint8Array).equals(Buffer.from(original))).toBe(true);
+  });
+
+  it('sem content-length -> 411; acima de 600 KB -> 413 sem ler o corpo; exatamente 600 KB passa', async () => {
+    expect((await POST(fotoReq('image/jpeg', bytesXlsx(), null))).status).toBe(411);
+    const r = fotoReq('image/png', bytesXlsx(), String(600 * 1024 + 1));
+    const lido = vi.spyOn(r, 'arrayBuffer');
+    expect((await POST(r)).status).toBe(413);
+    expect(lido).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(200));
+    expect((await POST(fotoReq('image/webp', new Uint8Array(600 * 1024).fill(0xff)))).status).toBe(200);
+  });
+
+  it('image/svg+xml NÃO entra no ramo binário (segue como texto)', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(resposta(200));
+    await POST(fotoReq('image/svg+xml', new Uint8Array([0x3c, 0x73])));
+    expect(typeof chamadas()[0].body).toBe('string');
+  });
+});

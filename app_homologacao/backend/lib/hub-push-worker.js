@@ -428,7 +428,20 @@ function iniciarExpurgoPeriodico(deps = DEFAULT_DEPS) {
  * @returns {NodeJS.Timeout}
  */
 function iniciarVarreduraPeriodica(deps = DEFAULT_DEPS) {
-  return deps.agendarIntervalo(() => { retomarAvisosPendentes(deps).catch(() => {}); }, VARREDURA_INTERVALO_MS);
+  return deps.agendarIntervalo(() => {
+    // Campanhas: enfileira o aviso de início ANTES da retomada, para sair no mesmo tick.
+    avisarInicioCampanhas(deps).catch(() => {}).then(() => retomarAvisosPendentes(deps)).catch(() => {});
+  }, VARREDURA_INTERVALO_MS);
+}
+
+/** Chama `hub_campanhas_avisar_inicio()` (CONTRATOS §8): idempotente no banco; falha só loga e a varredura segue. */
+async function avisarInicioCampanhas(deps = DEFAULT_DEPS) {
+  try {
+    return await deps.hubPostgrestRequest('rpc/hub_campanhas_avisar_inicio', 'POST', {}, { hubPushWorker: true });
+  } catch (err) {
+    deps.logErro('avisarInicioCampanhas falhou (best-effort, a varredura segue)', err, null);
+    return null;
+  }
 }
 
 /** Só para teste: reseta o estado do módulo entre casos (evita vazamento entre `describe`s). */
@@ -446,6 +459,7 @@ module.exports = {
   executarExpurgo,
   iniciarExpurgoPeriodico,
   iniciarVarreduraPeriodica,
+  avisarInicioCampanhas,
   VARREDURA_INTERVALO_MS,
   obterChave,
   classificarErroEnvio,
