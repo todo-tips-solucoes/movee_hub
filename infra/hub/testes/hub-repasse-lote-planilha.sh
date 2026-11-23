@@ -33,18 +33,20 @@ INSERT INTO "ContaBancariaMotorista"(id_empresa,entregador_id,origem,status,titu
  SELECT 9001,9109000+g,'HUB','APROVADA','T','12345678901234','PJ','001','B','0001','1','1','CORRENTE',9109000+g FROM generate_series(1,9) g;
 INSERT INTO "ApuracaoRepasseItem"(apuracao_id,id_empresa,entregador_id,creditos,adiantamentos,debitos,remanescente,valor_pago,valor_transportado,saldo_anterior)
  SELECT 9109001,9001,9109000+g,100,0,0,100,100,0,0 FROM generate_series(1,9) g;
--- EnvioMassa: ok = aprovado
-INSERT INTO "EnvioMassa"(id,id_empresa,cnpj_prestador,nota_ok,dt_inicial,dt_final) VALUES
- (9109001,9001,NULL,'http://x/a.xml',NULL,NULL),                          -- A (só trilha)
- (9109002,9001,'91090000000002','http://x/b.xml',$D1,$D2),                -- B
- (9109003,9001,'91090000000003','http://x/b2a.xml',$D1,$D2),              -- B2 aprovado
- (9109004,9001,'91090000000003',NULL,$D1,$D2),                            -- B2 pendente
- (9109005,9001,'91090000000004','http://x/c.xml',$D1,$D2),                -- C (trilha + planilha)
- (9109006,9001,'91090000000006','http://x/e.xml',$D1,$D2),                -- E aprovado no escopo
- (9109007,9010,'91090000000006',NULL,$D1,$D2),                            -- E OUTRO tenant, pendente (não pode contar)
- (9109008,9001,'91090000000007','http://x/f.xml',$D1,$D2),                -- F (entregador sem vínculo)
- (9109010,9001,'91090000000008','UNECONT:abc',$D1,$D2),                   -- G conciliado
- (9109011,9001,'91090000000009','UNECONT:def',$D1,$D2);                   -- H igual, mas conciliada_em NULL
+-- EnvioMassa: ok = aprovado. valor = 100 em todos (sem crases aqui: o heredoc expande): desde a 0117/0119 só conta como "nota a emitir"
+-- o movimento com EnvioMassa.valor > 0 (a mesma chave do app, VALOR_EMITIVEL). Sem valor, total = 0 e a
+-- regra H1 da 0119 manda o item com crédito para NOTA_PENDENTE — o driver (de 13/10) ficou vermelho por isso.
+INSERT INTO "EnvioMassa"(id,id_empresa,cnpj_prestador,nota_ok,valor,dt_inicial,dt_final) VALUES
+ (9109001,9001,NULL,'http://x/a.xml',100,NULL,NULL),                      -- A (só trilha)
+ (9109002,9001,'91090000000002','http://x/b.xml',100,$D1,$D2),            -- B
+ (9109003,9001,'91090000000003','http://x/b2a.xml',100,$D1,$D2),          -- B2 aprovado
+ (9109004,9001,'91090000000003',NULL,100,$D1,$D2),                        -- B2 pendente
+ (9109005,9001,'91090000000004','http://x/c.xml',100,$D1,$D2),            -- C (trilha + planilha)
+ (9109006,9001,'91090000000006','http://x/e.xml',100,$D1,$D2),            -- E aprovado no escopo
+ (9109007,9010,'91090000000006',NULL,100,$D1,$D2),                        -- E OUTRO tenant, pendente (não pode contar)
+ (9109008,9001,'91090000000007','http://x/f.xml',100,$D1,$D2),            -- F (entregador sem vínculo)
+ (9109010,9001,'91090000000008','UNECONT:abc',100,$D1,$D2),               -- G conciliado
+ (9109011,9001,'91090000000009','UNECONT:def',100,$D1,$D2);               -- H igual, mas conciliada_em NULL
 UPDATE "EnvioMassa" SET conciliada_em = now(), conciliada_origem = 'UNECONT' WHERE id = 9109010;
 INSERT INTO "ApuracaoRepasseMovimento"(apuracao_id,entregador_id,id_empresa,envio_massa_id,valor,gorjeta) VALUES
  (9109001,9109001,9001,9109001,100,0),
