@@ -11,7 +11,9 @@ import {
   type SituacaoCampanha,
   type Cortes,
   type IndicadorCampanha,
+  type MinTurnosBase,
   type Pesos,
+  type TipoCampanha,
   type TipoPremio,
 } from './campanhas-dto';
 import { TETO_CENTAVOS } from './lancamento-externo';
@@ -29,6 +31,8 @@ export const LIMITES = {
   descricaoPremioMax: 200,
   /** Prêmio em dinheiro: teto do Lançamento externo, importado — não redigitado. */
   dinheiroMaxCentavos: TETO_CENTAVOS,
+  /** Mesmo teto do banco (CHECK da 0129): 1..60 categorias no extrato. */
+  categoriasMax: 60,
   fotoMaxBytes: 512000,
   /** Abaixo disso o indicador Pedidos não pode ser usado (CONTRATOS §4). */
   coberturaPedidosMin: 0.95,
@@ -48,6 +52,10 @@ export interface PremioForm {
 }
 
 export interface FormularioCampanha {
+  tipo: TipoCampanha;
+  /** Só no extrato: nomes exatos ou tokens de família. Vazio na nota. */
+  categorias: string[];
+  minTurnosBase: MinTurnosBase;
   nome: string;
   descricao: string;
   dataInicio: string;
@@ -65,6 +73,9 @@ export interface FormularioCampanha {
 
 export function formularioVazio(): FormularioCampanha {
   return {
+    tipo: 'nota',
+    categorias: [],
+    minTurnosBase: 'trabalhados',
     nome: '',
     descricao: '',
     dataInicio: '',
@@ -101,6 +112,9 @@ export function premioVazio(posicaoDe = 1): PremioForm {
 
 export function formularioDeDetalhe(d: CampanhaDetalhe): FormularioCampanha {
   return {
+    tipo: d.tipo,
+    categorias: d.categorias ?? [],
+    minTurnosBase: d.minTurnosBase,
     nome: d.nome,
     descricao: d.descricao,
     dataInicio: d.dataInicio,
@@ -128,6 +142,9 @@ export function formularioDeDetalhe(d: CampanhaDetalhe): FormularioCampanha {
 /** Corpo do POST/PUT (CONTRATOS §7). Sem as chaves só-de-UI dos prêmios. */
 export function formularioParaCorpo(f: FormularioCampanha) {
   return {
+    tipo: f.tipo,
+    // Nota: sem categorias (o banco exige NULL); extrato: pesos todos 0.
+    ...(f.tipo === 'extrato' ? { categorias: f.categorias, minTurnosBase: f.minTurnosBase } : {}),
     nome: f.nome.trim(),
     descricao: f.descricao.trim(),
     dataInicio: f.dataInicio,
@@ -136,7 +153,7 @@ export function formularioParaCorpo(f: FormularioCampanha) {
     turnos: f.turnos,
     modais: f.modais,
     minTurnos: f.minTurnos,
-    pesos: f.pesos,
+    pesos: f.tipo === 'extrato' ? { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 } : f.pesos,
     cortes: f.cortes,
     premios: f.premios.map((p) => ({
       // id só das faixas já salvas: o banco o usa para preservar a foto. Faixa nova vai sem id.
@@ -239,10 +256,14 @@ export function validarFormulario(f: FormularioCampanha, ctx: ContextoValidacao)
     e.minTurnos = `O mínimo de turnos vai de ${LIMITES.minTurnosMin} a ${LIMITES.minTurnosMax}.`;
   }
 
-  // pesos
+  const extrato = f.tipo === 'extrato';
+
+  // pesos (o extrato não tem peso: o que ordena é o valor somado)
   const pesosOk = INDICADORES_CAMPANHA.every((i) => inteiro(f.pesos[i]) && f.pesos[i] >= 0 && f.pesos[i] <= 100);
-  if (!pesosOk) e.pesos = 'Cada peso é um número inteiro de 0 a 100.';
-  else if (somaPesos(f.pesos) !== 100) e.pesos = `Os pesos precisam somar 100 (hoje somam ${somaPesos(f.pesos)}).`;
+  if (!extrato) {
+    if (!pesosOk) e.pesos = 'Cada peso é um número inteiro de 0 a 100.';
+    else if (somaPesos(f.pesos) !== 100) e.pesos = `Os pesos precisam somar 100 (hoje somam ${somaPesos(f.pesos)}).`;
+  }
 
   // cortes
   for (const i of INDICADORES_CAMPANHA) {
@@ -250,7 +271,7 @@ export function validarFormulario(f: FormularioCampanha, ctx: ContextoValidacao)
     if (c === null) continue;
     const rotulo = ROTULO_INDICADOR_CAMPANHA[i];
     if (Number.isNaN(c)) e[`corte.${i}`] = `Corte de ${rotulo}: número inválido.`;
-    else if (pesosOk && f.pesos[i] === 0) e[`corte.${i}`] = `${rotulo} tem peso 0: tire o corte ou dê peso.`;
+    else if (!extrato && pesosOk && f.pesos[i] === 0) e[`corte.${i}`] = `${rotulo} tem peso 0: tire o corte ou dê peso.`;
     else if (i === 'pedidos') {
       if (!inteiro(c) || c < 1 || c > LIMITES.corteMaxPedidos) {
         e[`corte.${i}`] = `Corte de pedidos: inteiro de 1 a ${LIMITES.corteMaxPedidos}.`;
@@ -258,8 +279,19 @@ export function validarFormulario(f: FormularioCampanha, ctx: ContextoValidacao)
     } else if (c < 0 || c > 1) e[`corte.${i}`] = `Corte de ${rotulo}: de 0% a 100%.`;
   }
 
-  // pedidos exige cobertura
-  if (f.pesos.pedidos > 0 && pedidosBloqueado(ctx.coberturaPedidos)) {
+  if (extrato) {
+    // E2/E3: ao menos 1 critério com mínimo e ao menos 1 categoria de valor.
+    if (!INDICADORES_CAMPANHA.some((i) => f.cortes[i] !== null)) {
+      e.cortes = 'Marque ao menos 1 critério e informe o mínimo no turno.';
+    }
+    if (f.categorias.length < 1) e.categorias = 'Marque ao menos 1 categoria para compor o valor do turno.';
+    else if (f.categorias.length > LIMITES.categoriasMax) {
+      e.categorias = `Marque no máximo ${LIMITES.categoriasMax} categorias.`;
+    }
+  }
+
+  // pedidos exige cobertura (só na nota: no extrato turno sem a leitura simplesmente não vale)
+  if (!extrato && f.pesos.pedidos > 0 && pedidosBloqueado(ctx.coberturaPedidos)) {
     e['pesos.pedidos'] =
       ctx.coberturaPedidos === null
         ? 'Sem dado de pedidos concluídos neste público: use peso 0 em Pedidos concluídos.'
@@ -292,6 +324,13 @@ export function validarFormulario(f: FormularioCampanha, ctx: ContextoValidacao)
     }
   }
   return e;
+}
+
+/** O extrato fecha sozinho 3 dias depois do fim (E5). "YYYY-MM-DD" → "DD/MM"; inválida → null. */
+export function fechamentoExtrato(dataFim: string): string | null {
+  if (!DATA_RE.test(dataFim)) return null;
+  const d = new Date(Date.UTC(+dataFim.slice(0, 4), +dataFim.slice(5, 7) - 1, +dataFim.slice(8, 10) + 3));
+  return formatDiaMes(d.toISOString().slice(0, 10));
 }
 
 // ── formatação ──────────────────────────────────────────────────────────────
@@ -340,6 +379,16 @@ export function resumoPesos(pesos: Pesos, cortes?: Cortes): string {
     .join(' · ');
 }
 
+/** Extrato: "Taxa de aceitação ≥ 90% · Tempo disponível ≥ 70%" — o mínimo conferido em cada turno. */
+export function resumoCriterios(cortes: Cortes): string {
+  return INDICADORES_CAMPANHA.filter((i) => cortes[i] !== null)
+    .map((i) => {
+      const c = cortes[i] as number;
+      return `${ROTULO_INDICADOR_CAMPANHA[i]} ≥ ${i === 'pedidos' ? `${c} pedidos` : formatFracao(c).replace(',0%', '%')}`;
+    })
+    .join(' · ');
+}
+
 // ── helpers de entrada ──────────────────────────────────────────────────────
 
 /** Marca/desmarca um item numa seleção múltipla onde `null` = "Todas/Todos".
@@ -384,13 +433,13 @@ export function erroFoto(arquivo: { type: string; size: number }): string | null
 // ── textos da lista e do detalhe ────────────────────────────────────────────
 
 /** "SAO PAULO · turnos JANTAR 18H-22H · mín. 5 turnos" (null = todas/todos). */
-export function escopoTexto(c: Pick<CampanhaItem, 'pracas' | 'turnos' | 'modais' | 'minTurnos'>): string {
+export function escopoTexto(c: Pick<CampanhaItem, 'pracas' | 'turnos' | 'modais' | 'minTurnos' | 'tipo' | 'minTurnosBase'>): string {
   const partes = [
     c.pracas === null ? 'Todas as praças' : c.pracas.join(', '),
     c.turnos === null ? 'todos os turnos' : `turnos ${c.turnos.join(', ')}`,
   ];
   if (c.modais !== null) partes.push(`modal ${c.modais.join(', ')}`);
-  partes.push(`mín. ${c.minTurnos} turnos`);
+  partes.push(`mín. ${c.minTurnos} turnos${c.tipo === 'extrato' ? (c.minTurnosBase === 'validos' ? ' válidos' : ' trabalhados') : ''}`);
   return partes.join(' · ');
 }
 

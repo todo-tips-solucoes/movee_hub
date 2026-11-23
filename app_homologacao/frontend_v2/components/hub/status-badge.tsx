@@ -21,6 +21,7 @@ import {
   Link2Off,
   MailWarning,
   RotateCw,
+  Scale,
   Send,
   ShieldOff,
   Wallet,
@@ -32,7 +33,7 @@ import type { VariantProps } from 'class-variance-authority';
 import { STATUS_LABELS, type StatusImportacao } from '@/lib/hub/importacoes-dto';
 import type { TipoAtividade } from '@/lib/hub/motoristas-dto';
 import { STATUS_AVISO_LABELS, type StatusAviso } from '@/lib/hub/avisos-dto';
-import { SITUACAO_LABELS, type SituacaoCampanha } from '@/lib/hub/campanhas-dto';
+import { SITUACAO_LABELS, TIPO_CAMPANHA_LABELS, type SituacaoCampanha, type TipoCampanha } from '@/lib/hub/campanhas-dto';
 import { cn } from '@/lib/utils';
 
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>['variant']>;
@@ -305,6 +306,15 @@ const CAMPANHA_SITUACAO_BADGE: Record<SituacaoCampanha, { variant: BadgeVariant;
   encerrada: { variant: 'default', icon: Flag },
   cancelada: { variant: 'destructive', icon: Ban },
 };
+
+/** Selo do tipo (nota ponderada | melhor extrato) — lista e detalhe. */
+export function CampanhaTipoBadge({ tipo }: { tipo: TipoCampanha }) {
+  return (
+    <StatusBadge variant="outline" icon={tipo === 'extrato' ? Wallet : Scale}>
+      {TIPO_CAMPANHA_LABELS[tipo] ?? tipo}
+    </StatusBadge>
+  );
+}
 
 export function CampanhaSituacaoBadge({ situacao }: { situacao: SituacaoCampanha }) {
   const cfg = CAMPANHA_SITUACAO_BADGE[situacao] ?? { variant: 'outline' as const, icon: Clock };

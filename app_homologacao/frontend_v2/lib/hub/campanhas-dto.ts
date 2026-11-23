@@ -3,6 +3,7 @@
 // O backend responde em camelCase; aqui só espelhamos o contrato e validamos o
 // SHAPE (mesmo molde de `avisos-dto.ts`).
 
+import type { CategoriaProducao } from './adiantamentos-api';
 import { INDICADORES_META } from './performance-metas-api';
 
 export type SituacaoCampanha =
@@ -30,6 +31,10 @@ export const SITUACAO_LABELS: Record<SituacaoCampanha, string> = {
   encerrada: 'Encerrada',
   cancelada: 'Cancelada',
 };
+
+export type TipoCampanha = 'nota' | 'extrato';
+export const TIPO_CAMPANHA_LABELS: Record<TipoCampanha, string> = { nota: 'Nota ponderada', extrato: 'Melhor extrato' };
+export type MinTurnosBase = 'trabalhados' | 'validos';
 
 export type IndicadorCampanha = 'aceitacao' | 'conclusao' | 'tempo' | 'pedidos';
 export const INDICADORES_CAMPANHA: IndicadorCampanha[] = ['aceitacao', 'conclusao', 'tempo', 'pedidos'];
@@ -59,6 +64,10 @@ export interface Contagem {
   abaixoCorte: number;
   semMinimo: number;
   semModal: number;
+  /** Extrato: somas sobre classificado + sem_minimo (0 na nota). */
+  turnos: number;
+  turnosValidos: number;
+  valorCentavos: number;
 }
 
 export interface CampanhaItem {
@@ -71,6 +80,10 @@ export interface CampanhaItem {
   turnos: string[] | null;
   modais: string[] | null;
   minTurnos: number;
+  tipo: TipoCampanha;
+  /** Só no extrato: nomes exatos ou tokens de família (`familia:promocao`). */
+  categorias: string[] | null;
+  minTurnosBase: MinTurnosBase;
   pesos: Pesos;
   contagem: Contagem;
   premiosPendentes: number;
@@ -110,7 +123,11 @@ export interface LinhaRanking {
   nome: string;
   modal: string | null;
   situacao: SituacaoRanking;
+  /** Turnos trabalhados. */
   turnos: number;
+  /** Só no extrato. */
+  turnosValidos: number | null;
+  valorCentavos: number | null;
   aceitacao: number | null;
   conclusao: number | null;
   tempo: number | null;
@@ -185,6 +202,9 @@ function parseContagem(raw: unknown): Contagem {
     abaixoCorte: num(r.abaixoCorte),
     semMinimo: num(r.semMinimo),
     semModal: num(r.semModal),
+    turnos: num(r.turnos),
+    turnosValidos: num(r.turnosValidos),
+    valorCentavos: num(r.valorCentavos),
   };
 }
 
@@ -208,6 +228,9 @@ export function parseCampanhaItem(raw: unknown): CampanhaItem {
     turnos: listaOuNull(r.turnos),
     modais: listaOuNull(r.modais),
     minTurnos: num(r.minTurnos, 1),
+    tipo: r.tipo === 'extrato' ? 'extrato' : 'nota',
+    categorias: listaOuNull(r.categorias),
+    minTurnosBase: r.minTurnosBase === 'validos' ? 'validos' : 'trabalhados',
     pesos: parseIndicadores(r.pesos, (v) => num(v)),
     contagem: parseContagem(r.contagem),
     premiosPendentes: num(r.premiosPendentes),
@@ -267,6 +290,8 @@ function parseLinha(raw: unknown): LinhaRanking {
     modal: strOuNull(r.modal),
     situacao,
     turnos: num(r.turnos),
+    turnosValidos: numOuNull(r.turnosValidos),
+    valorCentavos: numOuNull(r.valorCentavos),
     aceitacao: numOuNull(r.aceitacao),
     conclusao: numOuNull(r.conclusao),
     tempo: numOuNull(r.tempo),
@@ -326,6 +351,22 @@ export function parseOpcoes(raw: unknown): OpcoesCampanha {
     coberturaPedidos: numOuNull(r.coberturaPedidos),
     alcance: { rodaram: num(a.rodaram), semModal: num(a.semModal) },
   };
+}
+
+/** Mesma forma da rota de categorias do adiantamento (`CategoriaProducao`); o backend
+ * pode mandar `semMotoristaIdentificado` em camel ou snake — aceita os dois. */
+export function parseCategorias(raw: unknown): CategoriaProducao[] {
+  const r = obj(raw, 'Categorias');
+  if (!Array.isArray(r.itens)) throw new TypeError('Categorias inválidas: itens não é array');
+  return r.itens.map((x) => {
+    const c = obj(x, 'Categoria');
+    return {
+      descricao: str(c.descricao),
+      lancamentos: num(c.lancamentos),
+      semMotoristaIdentificado: (c.semMotoristaIdentificado ?? c.sem_motorista_identificado) === true,
+      familia: strOuNull(c.familia),
+    };
+  });
 }
 
 export function parseIdCriado(raw: unknown): number {

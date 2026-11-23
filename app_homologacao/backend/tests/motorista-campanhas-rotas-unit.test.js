@@ -136,3 +136,48 @@ describe('motorista-campanhas', () => {
     assert.equal((await get('/motorista/campanhas/12/premios/3/foto')).status, 404);
   });
 });
+
+describe('extrato no app', () => {
+  const EXTRATO = {
+    campanha: { id: 3, nome: 'Extrato', tipo: 'extrato', minTurnosBase: 'validos' },
+    // o banco só manda posição + nome; o stub injeta lixo para provar que o servidor corta
+    top10: [{ posicao: 1, nomeAbreviado: 'Ana R.', valorCentavos: 9999, centavos: 1, nota: 90, turnos: 4, souEu: true }],
+    podio: [{ posicao: 1, nomeAbreviado: 'Ana R.', valor: 5, valorTotal: 1, notaFinal: 3, turnosValidos: 2 }],
+    eu: { situacao: 'classificado', posicao: 1, turnos: 4, turnosValidos: 3, valorCentavos: 1000 },
+    lider: { pedidos: 50 },
+  };
+
+  test('top10/podio do extrato saem só com posicao e nomeAbreviado (nenhuma chave de valor/centavos/nota/turnos)', async () => {
+    respostas['rpc/hub_motorista_campanha'] = EXTRATO;
+    const r = await get('/motorista/campanhas/3');
+    assert.equal(r.status, 200);
+    for (const k of ['top10', 'podio']) {
+      assert.deepEqual(r.body[k], [{ posicao: 1, nomeAbreviado: 'Ana R.' }]);
+      assert.ok(!/valor|centavos|nota|turnos/i.test(JSON.stringify(r.body[k])));
+    }
+    assert.equal(r.body.lider, null);
+    assert.equal(r.body.eu.valorCentavos, 1000, 'os dados do PRÓPRIO motorista seguem');
+    assert.equal(r.body.campanha.minTurnosBase, 'validos');
+  });
+
+  test('nota: payload intocado (souEu e nota do top10 seguem)', async () => {
+    respostas['rpc/hub_motorista_campanha'] = { campanha: { id: 1, tipo: 'nota' }, top10: [{ posicao: 1, nome: 'A', nota: 90, souEu: true }] };
+    const r = await get('/motorista/campanhas/1');
+    assert.deepEqual(r.body.top10, [{ posicao: 1, nome: 'A', nota: 90, souEu: true }]);
+  });
+
+  test('turnos: só da claim, id inteiro; SEM_VINCULO -> 404; id malformado -> 404 sem RPC; sem sessão -> 401', async () => {
+    respostas['rpc/hub_motorista_campanha_turnos'] = [{ data: '2026-12-01', turno: 'Jantar', valido: true, temValor: true, valorCentavos: 100, motivos: [] }];
+    const r = await get('/motorista/campanhas/3/turnos?cnpj=9', { 'x-test-cnpj': '33333333000191' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.itens[0].temValor, true);
+    assert.deepEqual(chamadas[0].body, { p_campanha_id: 3 });
+    assert.deepEqual(chamadas[0].claims, { motoristaCnpj: '33333333000191' });
+    chamadas = [];
+    assert.equal((await get('/motorista/campanhas/abc/turnos')).status, 404);
+    assert.equal(chamadas.length, 0);
+    assert.equal((await get('/motorista/campanhas/3/turnos', {})).status, 401);
+    respostas['rpc/hub_motorista_campanha_turnos'] = Object.assign(new Error('x'), { body: JSON.stringify({ message: 'SEM_VINCULO' }) });
+    assert.equal((await get('/motorista/campanhas/3/turnos')).status, 404);
+  });
+});

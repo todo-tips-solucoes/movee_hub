@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CampanhaApiError } from '@/lib/hub/campanhas-api';
-import { formatCentavos, formatDiaMes, resumoPesos, rotuloFaixa, type FormularioCampanha } from '@/lib/hub/campanhas-form';
+import { formatCentavos, formatDiaMes, resumoCriterios, resumoPesos, rotuloFaixa, type FormularioCampanha } from '@/lib/hub/campanhas-form';
 
 export interface AlcanceLancamento {
   rodaram: number;
@@ -102,7 +102,7 @@ function Conteudo({ form, alcance, onLancar, onOpenChange }: Omit<Props, 'open'>
         </Linha>
         <Linha rotulo="Praças">{lista(form.pracas, 'Todas as praças')}</Linha>
         <Linha rotulo="Turnos">
-          {lista(form.turnos, 'Todos os turnos')} · mín. {form.minTurnos} turnos
+          {lista(form.turnos, 'Todos os turnos')} · mín. {form.minTurnos} turnos{form.tipo === 'extrato' ? (form.minTurnosBase === 'validos' ? ' válidos' : ' trabalhados') : ''}
         </Linha>
         <Linha rotulo="Modal">
           {lista(form.modais, 'Todos os modais')}
@@ -113,7 +113,14 @@ function Conteudo({ form, alcance, onLancar, onOpenChange }: Omit<Props, 'open'>
             </span>
           )}
         </Linha>
-        <Linha rotulo="Nota">{resumoPesos(form.pesos, form.cortes)}</Linha>
+        {form.tipo === 'extrato' ? (
+          <>
+            <Linha rotulo="Critério do turno">{resumoCriterios(form.cortes)}</Linha>
+            <Linha rotulo="Valor do turno">{form.categorias.length} categorias do faturamento · soma só dos turnos válidos</Linha>
+          </>
+        ) : (
+          <Linha rotulo="Nota">{resumoPesos(form.pesos, form.cortes)}</Linha>
+        )}
         <Linha rotulo="Prêmios">
           {form.premios
             .map(

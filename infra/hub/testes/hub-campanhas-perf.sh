@@ -6,6 +6,11 @@
 #   hub_campanha_recalcular        <= 2000 ms
 #   hub_motorista_campanha         <=   50 ms   (como o motorista: claim motorista_cnpj, SET ROLE authenticated)
 #   hub_campanha_ranking (pag. 50) <=  100 ms   (como o admin)
+# 0129 (campanha tipo extrato, plano §7): alem dos ~900 mil turnos semeia ~300 mil linhas de FaturamentoLancamento e mede
+#   recalculo extrato 30 dias (sem filtro e com praca+turno+modal)  <= 2000 ms
+#   hub_motorista_campanha (extrato)                                <=   50 ms
+#   hub_motorista_campanha_turnos (campanha de 91 dias)             <=   50 ms
+#   hub_campanha_ranking (extrato, pag. 50)                         <=  100 ms
 # Cada medida = melhor de 5 (ruido de relogio, como hub-lancamento-externo-perf.sh); a mediana tambem e impressa.
 # Imprime o EXPLAIN (ANALYZE) dos comandos internos via auto_explain aninhado.
 # O db do hub-test tem 0,5 CPU: o orcamento e medido numa maquina PIOR que a de producao.
@@ -41,6 +46,7 @@ dc up -d --wait db >/dev/null
 psql_t() { dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@"; }
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/m.log" 2>&1 || { echo "FAIL: migrate"; tail -20 "$TMP/m.log"; exit 1; }
 grep -q "0127_campanhas.sql" "$TMP/m.log" || { echo "FAIL: 0127 nao aplicada"; exit 1; }
+grep -q "0129_campanhas_extrato.sql" "$TMP/m.log" || { echo "FAIL: 0129 nao aplicada"; exit 1; }
 
 DIAS=150; ENT=2000
 [ "${PERF_FULL:-1}" = "0" ] && { DIAS=15; ENT=2000; }
@@ -69,14 +75,24 @@ CROSS JOIN generate_series(0, $DIAS - 1) d
 CROSS JOIN (VALUES (1,'ALMOCO 11H-14H'),(2,'JANTAR 18H-22H'),(3,'MADRUGADA 00H-04H')) t(i,p)
 WHERE e.id_empresa = 9001;
 SQL
+# faturamento: 1 linha de credito por entregador/dia (300 mil), no turno JANTAR (+ ~1/3 com 2a categoria "Promocao - Wn")
+psql_t -q >"$TMP/seedf.log" 2>&1 <<SQL || { echo "FAIL: seed faturamento"; tail "$TMP/seedf.log"; exit 1; }
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status) VALUES (9001,'faturamento',repeat('q',64),'completed');
+INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, hash_linha)
+SELECT 9001, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('q',64)), e.id, ('2026-06-30'::date - d + 1), ('2026-06-30'::date - d),
+       'JANTAR 18H-22H', 'Credito', 10 + (e.id + d) % 90,
+       CASE WHEN (e.id + d) % 3 = 0 THEN 'Promocao - W' || (d / 7) ELSE 'Corridas' END,
+       md5(e.id::text||'/'||d::text||'/f')||md5(d::text||'/'||e.id::text||'/ff')
+FROM "Entregador" e CROSS JOIN generate_series(0, $DIAS - 1) d WHERE e.id_empresa = 9001;
+SQL
 if [ "${PERF_NEG:-}" = "semindice" ]; then
   psql_t -q -c 'DROP INDEX IF EXISTS idx_performanceturno_empresa_data; DROP INDEX IF EXISTS idx_performance_empresa_subpraca_data;' >/dev/null
   N="$(psql_t -tAc "SELECT count(*) FROM pg_indexes WHERE indexname IN ('idx_performanceturno_empresa_data','idx_performance_empresa_subpraca_data')")"
   [ "$N" = "0" ] || { echo "ABORTA: indices nao foram derrubados (controle OCO)"; exit 1; }
   echo "NEG semindice: os 2 indices de PerformanceTurno DERRUBADOS (conferido em pg_indexes)"
 fi
-psql_t -q -c 'REFRESH MATERIALIZED VIEW mv_performance_dia; ANALYZE "PerformanceTurno"; ANALYZE mv_performance_dia; ANALYZE "Entregador";' >/dev/null
-echo "turnos em PerformanceTurno: $(psql_t -tAc 'SELECT count(*) FROM "PerformanceTurno"') | linhas na MV: $(psql_t -tAc 'SELECT count(*) FROM mv_performance_dia')"
+psql_t -q -c 'REFRESH MATERIALIZED VIEW mv_performance_dia; ANALYZE "PerformanceTurno"; ANALYZE mv_performance_dia; ANALYZE "Entregador"; ANALYZE "FaturamentoLancamento";' >/dev/null
+echo "turnos em PerformanceTurno: $(psql_t -tAc 'SELECT count(*) FROM "PerformanceTurno"') | linhas na MV: $(psql_t -tAc 'SELECT count(*) FROM mv_performance_dia') | linhas de faturamento: $(psql_t -tAc 'SELECT count(*) FROM "FaturamentoLancamento"')"
 
 # campanhas de 30 dias (junho/2026): V1 sem filtro de praca, V2 com 3 de 10 pracas + 1 turno + modal MOTO.
 psql_t -q -c "SELECT 1; CREATE OR REPLACE FUNCTION hub_hoje_sp() RETURNS date LANGUAGE sql STABLE AS \$\$ SELECT '2026-06-30'::date \$\$;" >/dev/null
@@ -88,6 +104,17 @@ SELECT 9001, v.nome, '2026-06-01', '2026-06-30', v.pracas, v.turnos, v.modais, 5
 FROM (VALUES ('V1 sem praca', NULL::text[], NULL::text[], NULL::text[]),
              ('V2 com praca', ARRAY['PRACA 1','PRACA 2','PRACA 3'], ARRAY['JANTAR 18H-22H'], ARRAY['MOTO'])) v(nome, pracas, turnos, modais);
 SQL
+# campanhas extrato (0129): X1 30 dias sem filtro de praca; X2 30 dias com praca+turno+modal; X3 91 dias (tela de turnos do app)
+psql_t -q <<'SQL' >/dev/null
+INSERT INTO "Campanha" (id_empresa, nome, data_inicio, data_fim, pracas, turnos, modais, min_turnos, corte_aceitacao, corte_tempo,
+                        tipo, categorias, min_turnos_base, criada_por, lancada_por, lancada_em)
+SELECT 9001, v.nome, v.ini, '2026-06-30', v.pracas, v.turnos, v.modais, 5, 0.55, 0.60, 'extrato', ARRAY['Corridas','familia:promocao'], 'validos',
+       (SELECT id FROM "Usuario" WHERE email='perf@example.com'), (SELECT id FROM "Usuario" WHERE email='perf@example.com'), now()
+FROM (VALUES ('X1 extrato 30d', '2026-06-01'::date, NULL::text[], NULL::text[], NULL::text[]),
+             ('X2 extrato 30d filtros', '2026-06-01'::date, ARRAY['PRACA 1','PRACA 2','PRACA 3'], ARRAY['JANTAR 18H-22H'], ARRAY['MOTO']),
+             ('X3 extrato 91d', '2026-04-01'::date, NULL, NULL, NULL)) v(nome, ini, pracas, turnos, modais);
+SQL
+X1="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='X1 extrato 30d'")"; X2="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='X2 extrato 30d filtros'")"; X3="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='X3 extrato 91d'")"
 V1="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='V1 sem praca'")"; V2="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='V2 com praca'")"
 CNPJ=90000000000003  # entregador 3 (PRACA 3, MOTO) esta nas duas
 
@@ -134,6 +161,18 @@ mede "hub_campanha_ranking V1 pagina 50 (classificado)" 100 "(SELECT count(*) FR
 mede "hub_campanha_ranking V1 pagina 50, offset 1000" 100 "(SELECT count(*) FROM hub_campanha_ranking($V1,'classificado',50,1000))" "$CLAIM_ADM"
 mede "hub_campanha_ranking V1 pagina 50 (todas as situacoes)" 100 "(SELECT count(*) FROM hub_campanha_ranking($V1,NULL,50,0))" "$CLAIM_ADM"
 mede "hub_campanha_ranking V2 pagina 50" 100 "(SELECT count(*) FROM hub_campanha_ranking($V2,'classificado',50,0))" "$CLAIM_ADM"
+echo "--- 0129: campanha extrato ---"
+for V in $X1 $X2 $X3; do echo "  extrato $V 1a execucao: $(psql_t -tA -c "SELECT hub_campanha_recalcular_interno($V);")"; done
+echo "  classificados X1: $(psql_t -tAc "SELECT count(*) FILTER (WHERE situacao='classificado')||' de '||count(*) FROM \"CampanhaRanking\" WHERE campanha_id=$X1") | valor medio dos classificados (centavos): $(psql_t -tAc "SELECT round(avg(valor_centavos)) FROM \"CampanhaRanking\" WHERE campanha_id=$X1 AND situacao='classificado'")"
+mede "recalcular EXTRATO X1 (30 dias, SEM filtro)" 2000 "hub_campanha_recalcular_interno($X1)"
+mede "recalcular EXTRATO X2 (30 dias, praca+turno+modal)" 2000 "hub_campanha_recalcular_interno($X2)"
+mede "recalcular EXTRATO X3 (91 dias; o plano so exige 30 dias — teto informativo de 3x)" 6000 "hub_campanha_recalcular_interno($X3)"
+mede "hub_motorista_campanha EXTRATO X1" 50 "hub_motorista_campanha($X1)" "$CLAIM_MOT"
+mede "hub_motorista_campanha EXTRATO X3 (91 dias)" 50 "hub_motorista_campanha($X3)" "$CLAIM_MOT"
+mede "hub_motorista_campanha_turnos X1 (30 dias)" 50 "hub_motorista_campanha_turnos($X1)" "$CLAIM_MOT"
+mede "hub_motorista_campanha_turnos X3 (91 dias)" 50 "hub_motorista_campanha_turnos($X3)" "$CLAIM_MOT"
+mede "hub_campanha_ranking EXTRATO X1 pagina 50" 100 "(SELECT count(*) FROM hub_campanha_ranking($X1,'classificado',50,0))" "$CLAIM_ADM"
+mede "hub_campanha_categorias (seletor)" 500 "(SELECT count(*) FROM hub_campanha_categorias())" "$CLAIM_ADM"
 mede "hub_campanha_ranking_contagem V1" 100 "hub_campanha_ranking_contagem($V1)" "$CLAIM_ADM"
 echo "  hub_campanha_opcoes (abre o formulario e roda ao lancar; meta do orquestrador <= 500 ms):"
 mede "hub_campanha_opcoes (lista de opcoes + cobertura 30d, sem filtro)" 500 "hub_campanha_opcoes(9001,NULL,NULL,NULL)" "$CLAIM_ADM"
@@ -147,6 +186,10 @@ SELECT '#### RECALCULAR V1';  SELECT hub_campanha_recalcular_interno($V1) \gset
 SELECT '#### RECALCULAR V2';  SELECT hub_campanha_recalcular_interno($V2) \gset
 SELECT '#### MOTORISTA V1';
 BEGIN; $CLAIM_MOT SELECT hub_motorista_campanha($V1) \gset
+ROLLBACK;
+SELECT '#### RECALCULAR EXTRATO X1';  SELECT hub_campanha_recalcular_interno($X1) \gset
+SELECT '#### TURNOS APP X3';
+BEGIN; $CLAIM_MOT SELECT hub_motorista_campanha_turnos($X3) \gset
 ROLLBACK;
 SELECT '#### RANKING V1 pagina 50';
 BEGIN; $CLAIM_ADM SELECT count(*) FROM hub_campanha_ranking($V1,'classificado',50,0);

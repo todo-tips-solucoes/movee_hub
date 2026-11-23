@@ -2,7 +2,9 @@
 
 // campanhas do motorista (W3a) — formulário de criar/editar RASCUNHO ("HubCriar"
 // do protótipo aprovado): 1 identificação e período · 2 público · 3 indicadores
-// com peso e corte · 4 prêmios por faixa. "Salvar rascunho" grava; "Revisar e
+// com peso e corte · 4 prêmios por faixa. Tipo "Melhor extrato" (PLANO-MELHOR-
+// EXTRATO E1/E10): o bloco 3 vira "mínimo no turno" (sem peso) e entra o bloco
+// "Valor do turno" com o seletor de categorias do faturamento. "Salvar rascunho" grava; "Revisar e
 // lançar" grava e abre o diálogo de lançamento. Foto do prêmio sobe DEPOIS de
 // salvar (rota própria, corpo binário).
 
@@ -14,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { SelectFiltro } from '@/components/hub/select-filtro';
+import { SeletorCategorias } from '@/components/hub/seletor-categorias';
 import { CampanhaLancarDialog } from '@/components/hub/campanha-lancar-dialog';
 import {
   CampanhaApiError,
@@ -21,6 +24,7 @@ import {
   criarCampanha,
   enviarFotoPremio,
   lancarCampanha,
+  listarCategoriasCampanha,
   obterCampanha,
   obterOpcoes,
   urlFotoPremio,
@@ -28,9 +32,11 @@ import {
 import {
   INDICADORES_CAMPANHA,
   ROTULO_INDICADOR_CAMPANHA,
+  TIPO_CAMPANHA_LABELS,
   TIPO_PREMIO_LABELS,
   type IndicadorCampanha,
   type OpcoesCampanha,
+  type TipoCampanha,
   type TipoPremio,
 } from '@/lib/hub/campanhas-dto';
 import {
@@ -38,6 +44,7 @@ import {
   alternarSelecao,
   centavosParaReais,
   erroFoto,
+  fechamentoExtrato,
   fracaoParaPercentual,
   hojeSP,
   pedidosBloqueado,
@@ -50,6 +57,7 @@ import {
   type FormularioCampanha,
   type PremioForm,
 } from '@/lib/hub/campanhas-form';
+import type { CategoriaProducao } from '@/lib/hub/adiantamentos-api';
 import { cn } from '@/lib/utils';
 
 const CLASSE_CAMPO =
@@ -240,6 +248,15 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
     tempo: fracaoParaPercentual(inicial.cortes.tempo),
     pedidos: inicial.cortes.pedidos === null ? '' : String(inicial.cortes.pedidos),
   }));
+  // Extrato: o indicador "marcado" ainda sem mínimo digitado não existe no modelo (corte null).
+  const [marcados, setMarcados] = useState<Record<IndicadorCampanha, boolean>>(() => ({
+    aceitacao: inicial.cortes.aceitacao !== null,
+    conclusao: inicial.cortes.conclusao !== null,
+    tempo: inicial.cortes.tempo !== null,
+    pedidos: inicial.cortes.pedidos !== null,
+  }));
+  const [categorias, setCategorias] = useState<CategoriaProducao[] | null>(null);
+  const [categoriasErro, setCategoriasErro] = useState<string | null>(null);
   const [erros, setErros] = useState<ErrosFormulario>({});
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -272,10 +289,48 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveSelecao]);
 
+  const extrato = form.tipo === 'extrato';
+
+  // Categorias só importam (e só são pedidas) no extrato.
+  useEffect(() => {
+    if (!extrato || categorias !== null) return;
+    let vivo = true;
+    listarCategoriasCampanha()
+      .then((c) => {
+        if (vivo) setCategorias(c);
+      })
+      .catch((e) => {
+        if (vivo) setCategoriasErro(e instanceof CampanhaApiError ? e.message : 'Não foi possível carregar as categorias.');
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [extrato, categorias]);
+
   const cobertura = opcoes?.coberturaPedidos ?? null;
-  const pedidosOff = opcoes !== null && pedidosBloqueado(cobertura);
+  const pedidosOff = !extrato && opcoes !== null && pedidosBloqueado(cobertura);
   const soma = somaPesos(form.pesos);
 
+  function trocarTipo(tipo: TipoCampanha) {
+    if (tipo === form.tipo) return;
+    // Os dois tipos não compartilham critério nem valor: recomeça os blocos que diferem.
+    set({
+      tipo,
+      pesos: { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 },
+      cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null },
+      categorias: [],
+      minTurnosBase: tipo === 'extrato' ? 'validos' : 'trabalhados',
+    });
+    setCortesTxt({ aceitacao: '', conclusao: '', tempo: '', pedidos: '' });
+    setMarcados({ aceitacao: false, conclusao: false, tempo: false, pedidos: false });
+  }
+  function alternarCriterio(i: IndicadorCampanha, ligado: boolean) {
+    setMarcados((m) => ({ ...m, [i]: ligado }));
+    if (!ligado) {
+      set({ cortes: { ...form.cortes, [i]: null } });
+      setCortesTxt((t) => ({ ...t, [i]: '' }));
+    }
+  }
   function setPeso(i: IndicadorCampanha, v: number) {
     set({ pesos: { ...form.pesos, [i]: v } });
   }
@@ -354,13 +409,21 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
     router.push(`/hub/dashboard/campanhas/${id}`);
   }
 
-  const ind = (i: IndicadorCampanha) => ({ ligado: form.pesos[i] > 0, rotulo: ROTULO_INDICADOR_CAMPANHA[i] });
+  const ind = (i: IndicadorCampanha) => ({ ligado: extrato ? marcados[i] : form.pesos[i] > 0, rotulo: ROTULO_INDICADOR_CAMPANHA[i] });
   const regra: Record<IndicadorCampanha, string> = {
     aceitacao: 'Aceitas ÷ ofertadas. 85% vira nota 85.',
     conclusao: 'Completadas ÷ aceitas. 97% vira nota 97.',
     tempo: 'Tempo online ÷ duração do turno.',
     pedidos: 'Relativo ao líder: quem fez mais vira nota 100.',
   };
+  const regraTurno: Record<IndicadorCampanha, string> = {
+    aceitacao: 'Aceitas ÷ ofertadas daquele turno.',
+    conclusao: 'Completadas ÷ aceitas daquele turno.',
+    tempo: 'Tempo online ÷ duração daquele turno.',
+    pedidos: 'Pedidos do turno. Turno sem a leitura não vale (zero inventado nunca conta).',
+  };
+  const fechaEm = fechamentoExtrato(form.dataFim);
+  const n = (base: number) => (extrato ? base + 1 : base);
 
   return (
     <>
@@ -372,6 +435,26 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
         void revisar();
       }}
     >
+      <Secao id={`${baseId}-tipo`} titulo="Tipo de campanha">
+        <div role="radiogroup" aria-labelledby={`${baseId}-tipo`} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {(['nota', 'extrato'] as TipoCampanha[]).map((t) => (
+            <label key={t} className={cn('flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-3',
+              form.tipo === t ? 'border-primary bg-primary/10' : 'hover:bg-muted/50')}>
+              <input type="radio" name={`${baseId}-tipo`} className="mt-1 size-4 accent-primary" checked={form.tipo === t}
+                onChange={() => trocarTipo(t)} />
+              <span className="flex flex-col gap-0.5">
+                <strong className="text-sm">{TIPO_CAMPANHA_LABELS[t]}</strong>
+                <span className="text-xs text-muted-foreground">
+                  {t === 'nota'
+                    ? 'Média dos indicadores no período, com peso por indicador. Ganha a maior nota.'
+                    : 'Turno que cumpre os critérios soma o valor do faturamento daquele turno. Ganha a maior soma.'}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </Secao>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Secao id={`${baseId}-id`} titulo="1. Identificação e período">
           <div className="flex flex-col gap-1">
@@ -400,10 +483,17 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
               <Erro id={`${baseId}-fim-e`} texto={erros.dataFim} />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Os dados chegam com 1 dia de atraso (importação diária da EntreGô). O resultado final fecha sozinho quando a
-            importação do último dia da campanha entrar.
-          </p>
+          {extrato ? (
+            <p className="text-xs text-muted-foreground">
+              O faturamento chega com 1 a 2 dias de atraso. O resultado final fecha sozinho{' '}
+              <strong>3 dias depois do fim</strong>{fechaEm ? ` (${fechaEm})` : ''}, quando ~97% do valor já entrou.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Os dados chegam com 1 dia de atraso (importação diária da EntreGô). O resultado final fecha sozinho quando a
+              importação do último dia da campanha entrar.
+            </p>
+          )}
         </Secao>
 
         <Secao id={`${baseId}-pub`} titulo="2. Quem participa">
@@ -423,11 +513,29 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
             </p>
           )}
           <div className="flex flex-col gap-1">
-            <label htmlFor={`${baseId}-min`} className="text-sm font-medium">Mínimo de turnos trabalhados para entrar no ranking</label>
+            <label htmlFor={`${baseId}-min`} className="text-sm font-medium">
+              {extrato ? 'Mínimo de turnos para entrar no ranking' : 'Mínimo de turnos trabalhados para entrar no ranking'}
+            </label>
             <Input id={`${baseId}-min`} type="number" inputMode="numeric" min={LIMITES.minTurnosMin} max={LIMITES.minTurnosMax}
               className={cn(CLASSE_INPUT, 'sm:w-32')} value={Number.isNaN(form.minTurnos) ? '' : form.minTurnos}
               aria-invalid={!!erros.minTurnos} onChange={(e) => set({ minTurnos: e.target.value === '' ? Number.NaN : Number(e.target.value) })} />
-            <p className="text-xs text-muted-foreground">Impede que quem fez um turno só apareça com 100%.</p>
+            {extrato ? (
+              <fieldset className="flex flex-col gap-1">
+                <legend className="sr-only">Base do mínimo de turnos</legend>
+                <div className="flex flex-wrap gap-x-4">
+                  {([['validos', 'turnos válidos'], ['trabalhados', 'turnos trabalhados']] as const).map(([v, r]) => (
+                    <label key={v} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm sm:min-h-8">
+                      <input type="radio" name={`${baseId}-base`} className="size-4 accent-primary" checked={form.minTurnosBase === v}
+                        onChange={() => set({ minTurnosBase: v })} />
+                      {r}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Válido = turno que cumpriu todos os critérios marcados abaixo.</p>
+              </fieldset>
+            ) : (
+              <p className="text-xs text-muted-foreground">Impede que quem fez um turno só apareça com 100%.</p>
+            )}
             <Erro id={`${baseId}-min-e`} texto={erros.minTurnos} />
           </div>
         </Secao>
@@ -435,8 +543,8 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
 
       <Secao
         id={`${baseId}-ind`}
-        titulo="3. Indicadores, pesos e corte mínimo"
-        acao={
+        titulo={extrato ? '3. Critérios do turno (mínimo em cada turno)' : '3. Indicadores, pesos e corte mínimo'}
+        acao={extrato ? undefined : (
           <span
             role="status"
             className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold',
@@ -445,22 +553,32 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
             {soma === 100 ? <CheckCircle2 className="size-4" aria-hidden="true" /> : <AlertCircle className="size-4" aria-hidden="true" />}
             Soma dos pesos: {soma}%
           </span>
-        }
+        )}
       >
-        <p className="text-sm text-muted-foreground">
-          Cada indicador marcado vira uma nota de 0 a 100. A nota final é a média ponderada pelos pesos. Quem ficar abaixo
-          do <strong>corte mínimo</strong> de qualquer indicador sai do ranking (e vê o quanto falta para voltar).
-        </p>
+        {extrato ? (
+          <p className="text-sm text-muted-foreground">
+            Os mesmos indicadores da Performance, conferidos <strong>turno a turno</strong>. O turno só vale se cumprir{' '}
+            <strong>todos</strong> os marcados. Não há peso: o que ordena o ranking é o valor somado.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Cada indicador marcado vira uma nota de 0 a 100. A nota final é a média ponderada pelos pesos. Quem ficar abaixo
+            do <strong>corte mínimo</strong> de qualquer indicador sai do ranking (e vê o quanto falta para voltar).
+          </p>
+        )}
         <ul className="flex flex-col gap-3">
           {INDICADORES_CAMPANHA.map((i) => {
             const { ligado, rotulo } = ind(i);
             const bloqueado = i === 'pedidos' && pedidosOff && !ligado;
             return (
-              <li key={i} className="grid grid-cols-1 items-start gap-3 rounded-lg border p-3 sm:grid-cols-[14rem_7rem_11rem_1fr]">
+              <li key={i} className={cn('grid grid-cols-1 items-start gap-3 rounded-lg border p-3',
+                extrato ? 'sm:grid-cols-[14rem_11rem_1fr]' : 'sm:grid-cols-[14rem_7rem_11rem_1fr]')}>
                 <label className={cn('flex min-h-11 items-center gap-2 text-sm font-medium', bloqueado ? 'cursor-not-allowed opacity-70' : 'cursor-pointer')}>
-                  <Checkbox checked={ligado} disabled={bloqueado} onCheckedChange={(v) => alternarIndicador(i, v === true)} />
+                  <Checkbox checked={ligado} disabled={bloqueado}
+                    onCheckedChange={(v) => (extrato ? alternarCriterio(i, v === true) : alternarIndicador(i, v === true))} />
                   {rotulo}
                 </label>
+                {!extrato && (
                 <div className="flex flex-col gap-1">
                   <label htmlFor={`${baseId}-peso-${i}`} className="text-xs font-medium text-muted-foreground">Peso (%) — {rotulo}</label>
                   <Input id={`${baseId}-peso-${i}`} type="number" inputMode="numeric" min={0} max={100} className={CLASSE_INPUT}
@@ -468,17 +586,18 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
                     aria-invalid={!!erros['pesos.' + i]}
                     onChange={(e) => setPeso(i, e.target.value === '' ? Number.NaN : Number(e.target.value))} />
                 </div>
+                )}
                 <div className="flex flex-col gap-1">
                   <label htmlFor={`${baseId}-corte-${i}`} className="text-xs font-medium text-muted-foreground">
-                    Corte mínimo ({i === 'pedidos' ? 'pedidos' : '%'}) — {rotulo}
+                    {extrato ? 'Mínimo no turno' : 'Corte mínimo'} ({i === 'pedidos' ? 'pedidos' : '%'}) — {rotulo}
                   </label>
                   <Input id={`${baseId}-corte-${i}`} inputMode="decimal" className={CLASSE_INPUT} disabled={!ligado}
-                    placeholder="sem corte" value={cortesTxt[i]} aria-invalid={!!erros['corte.' + i]}
+                    placeholder={extrato ? 'mínimo' : 'sem corte'} value={cortesTxt[i]} aria-invalid={!!erros['corte.' + i]}
                     onChange={(e) => setCorte(i, e.target.value)} />
                 </div>
                 <p className="text-xs text-muted-foreground sm:pt-6">
-                  {regra[i]}
-                  {i === 'pedidos' && (
+                  {extrato ? regraTurno[i] : regra[i]}
+                  {!extrato && i === 'pedidos' && (
                     <>
                       {' '}
                       {opcoes === null
@@ -498,11 +617,33 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
           })}
         </ul>
         <Erro id={`${baseId}-pesos-e`} texto={erros.pesos} />
+        <Erro id={`${baseId}-cortes-e`} texto={erros.cortes} />
       </Secao>
+
+      {extrato && (
+        <Secao id={`${baseId}-cat`} titulo="4. Valor do turno: categorias do faturamento">
+          <p className="text-sm text-muted-foreground">
+            Soma dos créditos do Financeiro do motorista naquele dia (data de referência) e turno, nas categorias marcadas.
+            Mesmo seletor das Configurações do adiantamento.
+          </p>
+          <SeletorCategorias
+            titulo="Categorias do faturamento"
+            textoVazio={categoriasErro ?? (categorias === null ? 'Carregando categorias…' : 'Nenhuma categoria com turno encontrada nos últimos 90 dias.')}
+            disponiveis={categorias ?? []}
+            selecionadas={form.categorias}
+            onChange={(c) => set({ categorias: c })}
+            aviso="Nenhuma categoria marcada: o valor do turno ficaria zerado."
+          />
+          <p className="text-xs text-muted-foreground">
+            Só aparecem categorias que têm turno no faturamento. Gorjeta, por exemplo, vem sem turno e não pode ser atribuída a um.
+          </p>
+          <Erro id={`${baseId}-cat-e`} texto={erros.categorias} />
+        </Secao>
+      )}
 
       <Secao
         id={`${baseId}-pre`}
-        titulo="4. Prêmios por faixa de posição"
+        titulo={`${n(4)}. Prêmios por faixa de posição`}
         acao={
           <Button type="button" variant="outline" size="sm" className="min-h-11 gap-1.5 sm:min-h-8" onClick={adicionarFaixa}
             disabled={form.premios.length >= LIMITES.premiosMax}>

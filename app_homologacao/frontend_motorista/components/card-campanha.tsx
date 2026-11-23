@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Trophy } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
-import { buscarCampanha, listarCampanhas, type CampanhaItem, type CampanhaTela } from '@/lib/campanhas-api';
+import { buscarCampanha, ehExtrato, listarCampanhas, type CampanhaItem, type CampanhaTela } from '@/lib/campanhas-api';
 import {
   escolherCampanha,
   modoCard,
@@ -42,9 +42,9 @@ export function CardCampanha() {
         const m = modoCard(c);
         // O detalhe só serve para "pontos para subir" / "turnos que faltam";
         // falha = card sem essa linha.
-        if (m === 'andamento' && (e === 'classificado' || e === 'sem_minimo')) {
+        if (c.tipo !== 'extrato' && m === 'andamento' && (e === 'classificado' || e === 'sem_minimo')) {
           buscarCampanha(c.id)
-            .then((d) => vivo && setDetalhe(d))
+            .then((d) => vivo && !ehExtrato(d) && setDetalhe(d))
             .catch(() => {});
         }
       })

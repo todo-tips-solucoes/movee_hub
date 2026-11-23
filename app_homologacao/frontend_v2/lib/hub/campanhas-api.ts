@@ -5,6 +5,7 @@
 import { HUB_API_BASE, HubApiError, codigoDoErro, criarRequest, query } from './api';
 import {
   parseCampanhaDetalhe,
+  parseCategorias,
   parseCampanhaLista,
   parseIdCriado,
   parseOpcoes,
@@ -18,6 +19,7 @@ import {
   type SituacaoRanking,
   type Vencedor,
 } from './campanhas-dto';
+import type { CategoriaProducao } from './adiantamentos-api';
 import { formularioParaCorpo, type FormularioCampanha } from './campanhas-form';
 
 const BASE = '/hub/campanhas';
@@ -43,7 +45,7 @@ export const MENSAGENS_CAMPANHA: Record<string, string> = {
   PESOS_INVALIDOS: 'Os pesos precisam ser inteiros de 0 a 100, somar 100 e ter ao menos um indicador acima de 0.',
   CORTE_SEM_PESO: 'Há corte mínimo em um indicador com peso 0. Tire o corte ou dê peso ao indicador.',
   OPCAO_DESCONHECIDA:
-    'Alguma praça, turno ou modal escolhido não existe mais nos dados recentes. Recarregue as opções e escolha de novo.',
+    'Alguma praça, turno, modal ou categoria escolhido não existe mais nos dados recentes. Recarregue as opções e escolha de novo.',
   FECHAMENTO_ANTECIPADO:
     'Ainda não dá para fechar com os dados que existem: isso só é liberado 3 dias depois do fim da campanha. Antes disso o fechamento é automático quando a importação do último dia chegar.',
   ARQUIVO_INVALIDO: 'A foto não serve: use JPEG, PNG ou WebP de até 500 KB.',
@@ -66,10 +68,17 @@ export class CampanhaApiError extends HubApiError {
   }
 }
 
+/** Campos do extrato que o backend recusa com VALIDACAO (E2/E3). */
+const CAMPO_EXTRATO: Record<string, string> = {
+  cortes: 'Marque ao menos 1 critério do turno e informe o mínimo.',
+  categorias: 'Marque ao menos 1 categoria para compor o valor do turno.',
+};
+
 /** Mensagem acionável para o corpo de erro `{ erro, campo? }`. */
 export function mensagemCampanha(body: Record<string, unknown>, status: number): string {
   const codigo = codigoDoErro(body);
   const campo = typeof body.campo === 'string' ? body.campo : undefined;
+  if (codigo === 'VALIDACAO' && campo && CAMPO_EXTRATO[campo]) return CAMPO_EXTRATO[campo];
   if (codigo === 'VALIDACAO' && campo) return `${MENSAGENS_CAMPANHA.VALIDACAO} (campo: ${campo})`;
   if (codigo && MENSAGENS_CAMPANHA[codigo]) return MENSAGENS_CAMPANHA[codigo];
   return `Erro ${status}. Tente novamente.`;
@@ -105,6 +114,11 @@ export async function obterOpcoes(f: {
     `${BASE}/opcoes${query({ pracas: juntar(f.pracas), turnos: juntar(f.turnos), modais: juntar(f.modais) })}`
   );
   return parseOpcoes(raw);
+}
+
+/** Categorias do faturamento com turno (extrato). Sem Gorjeta: ela não tem turno. */
+export async function listarCategoriasCampanha(): Promise<CategoriaProducao[]> {
+  return parseCategorias(await request<unknown>(`${BASE}/categorias`));
 }
 
 export async function obterRanking(

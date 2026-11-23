@@ -9,6 +9,9 @@ import { CampanhaApiError } from '@/lib/hub/campanhas-api';
 import { premioVazio, type FormularioCampanha } from '@/lib/hub/campanhas-form';
 
 const FORM: FormularioCampanha = {
+  tipo: 'nota',
+  categorias: [],
+  minTurnosBase: 'trabalhados',
   nome: 'Rei do Jantar — Novembro',
   descricao: 'Regras',
   dataInicio: '2026-11-10',

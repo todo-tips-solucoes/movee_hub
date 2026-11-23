@@ -11,6 +11,9 @@ import type {
   Indicador,
   MinhaLinha,
   Pesos,
+  LinhaTopExtrato,
+  MotivoTurno,
+  TurnoExtrato,
 } from './campanhas-api.ts';
 
 export const INDICADORES: Indicador[] = ['aceitacao', 'conclusao', 'tempo', 'pedidos'];
@@ -343,4 +346,88 @@ export function textoDadosAte(dadosAte: string | null, agora: Date | number = Da
   return dadosAte.slice(0, 10) === ontem
     ? `Ranking com os dados até ontem (${data})`
     : `Ranking com os dados até ${data}`;
+}
+
+// ── Melhor extrato (X2/E4/E7) ────────────────────────────────────────────
+
+/** Centavos → "R$ 1.284,50" (pt-BR, sem depender de ICU do runtime). */
+export function fmtReais(centavos: number): string {
+  const neg = centavos < 0;
+  const c = Math.abs(Math.round(centavos));
+  const inteiro = String(Math.floor(c / 100)).replace(/\B(?=(\d{3})+$)/g, '.');
+  return `${neg ? '-' : ''}R$ ${inteiro},${String(c % 100).padStart(2, '0')}`;
+}
+
+const ROTULO_CRITERIO: Record<Indicador, string> = {
+  aceitacao: 'Aceitação',
+  conclusao: 'Conclusão',
+  tempo: 'Tempo online',
+  pedidos: 'Pedidos',
+};
+
+const fmtMedida = (c: Indicador, n: number) => (c === 'pedidos' ? String(n) : fmtCortePct(n));
+
+/** "Tempo online 65% (mínimo 70%)" · "Pedidos 3 (mínimo 5)" · "Tempo online sem leitura (mínimo 70%)". */
+export function textoMotivo(m: MotivoTurno): string {
+  const lido = m.lido == null ? 'sem leitura' : fmtMedida(m.criterio, m.lido);
+  return `${ROTULO_CRITERIO[m.criterio]} ${lido} (mínimo ${fmtMedida(m.criterio, m.minimo)})`;
+}
+
+const DIA_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+/** "2026-11-21", "JANTAR 21H30-23H59" → "Sáb 21/11 · JANTAR 21H30-23H59". */
+export function rotuloTurno(data: string, turno: string): string {
+  const m = data.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return turno;
+  const dia = DIA_SEMANA[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()];
+  return `${dia} ${m[3]}/${m[2]} · ${turno}`;
+}
+
+export interface LinhaTurno {
+  estado: 'valido' | 'invalido' | 'aguardando';
+  quando: string;
+  detalhe: string;
+  /** Texto do valor ("R$ 148,20"; "—" quando aguardando). */
+  valor: string;
+}
+
+/** E4: sem faturamento (`temValor=false`) é "aguardando", nunca inválido. */
+export function linhaTurno(t: TurnoExtrato): LinhaTurno {
+  const quando = rotuloTurno(t.data, t.turno);
+  if (!t.temValor) return { estado: 'aguardando', quando, detalhe: 'Aguardando faturamento', valor: '—' };
+  if (t.valido) return { estado: 'valido', quando, detalhe: 'Somou no seu extrato', valor: fmtReais(t.valorCentavos) };
+  return {
+    estado: 'invalido',
+    quando,
+    detalhe: t.motivos.length ? t.motivos.map(textoMotivo).join(' · ') : 'Não atingiu os mínimos do turno',
+    valor: fmtReais(t.valorCentavos),
+  };
+}
+
+export interface RankingExtrato {
+  podio: { posicao: number; nome: string; souEu: boolean }[];
+  /** 4º ao 10º. */
+  resto: { posicao: number; nome: string; souEu: boolean }[];
+}
+
+/**
+ * X2: monta pódio/top 10 copiando SÓ posição e nome abreviado — qualquer campo extra
+ * que o servidor mandasse por engano (valor etc.) não chega à tela.
+ */
+export function rankingExtrato(top10: LinhaTopExtrato[], posicaoEu: number | null): RankingExtrato {
+  const l = top10.map((x) => ({ posicao: x.posicao, nome: x.nomeAbreviado, souEu: x.posicao === posicaoEu }));
+  return {
+    podio: [2, 1, 3].map((p) => l.find((x) => x.posicao === p)).filter((x): x is (typeof l)[number] => !!x),
+    resto: l.filter((x) => x.posicao > 3),
+  };
+}
+
+/** "Turno válido: tempo online ≥ 70% e aceitação ≥ 90%." a partir dos cortes definidos. */
+export function textoTurnoValido(cortes: Cortes): string {
+  const partes: string[] = [];
+  if (cortes.tempo != null) partes.push(`tempo online ≥ ${fmtCortePct(cortes.tempo)}`);
+  if (cortes.aceitacao != null) partes.push(`aceitação ≥ ${fmtCortePct(cortes.aceitacao)}`);
+  if (cortes.conclusao != null) partes.push(`conclusão ≥ ${fmtCortePct(cortes.conclusao)}`);
+  if (cortes.pedidos != null) partes.push(`pedidos ≥ ${cortes.pedidos}`);
+  return partes.length ? `Turno válido: ${partes.join(' e ')} no turno.` : 'Todo turno com faturamento soma o valor dele.';
 }

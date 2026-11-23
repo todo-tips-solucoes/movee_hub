@@ -26,8 +26,11 @@ const ITEM = {
   turnos: ['JANTAR 18H-22H'],
   modais: ['MOTO'],
   minTurnos: 5,
+  tipo: 'nota',
+  categorias: null,
+  minTurnosBase: 'trabalhados',
   pesos: { aceitacao: 30, conclusao: 30, tempo: 20, pedidos: 20 },
-  contagem: { classificado: 184, abaixoCorte: 23, semMinimo: 41, semModal: 12 },
+  contagem: { classificado: 184, abaixoCorte: 23, semMinimo: 41, semModal: 12, turnos: 0, turnosValidos: 0, valorCentavos: 0 },
   premiosPendentes: 0,
   dadosAte: '2026-11-21',
 };
@@ -49,7 +52,7 @@ const DETALHE = {
 };
 
 const LINHA = {
-  posicao: 1, entregadorId: 88, nome: 'Marcos Vinícius Andrade', modal: 'MOTO', situacao: 'classificado', turnos: 19,
+  posicao: 1, entregadorId: 88, nome: 'Marcos Vinícius Andrade', modal: 'MOTO', situacao: 'classificado', turnos: 19, turnosValidos: null, valorCentavos: null,
   aceitacao: 0.962, conclusao: 0.991, tempo: 0.94, pedidos: 412, nota: 97.3, notaHipotetica: null, posicaoHipotetica: null,
   motivoCorte: [], posicaoAnterior: 3,
 };
@@ -125,5 +128,18 @@ describe('diasAte', () => {
   it('conta dias de calendário e nunca fica negativo', () => {
     expect(diasAte('2026-11-30', '2026-11-22')).toBe(8);
     expect(diasAte('2026-11-30', '2026-12-05')).toBe(0);
+  });
+});
+
+describe('extrato no contrato', () => {
+  it('lista/detalhe trazem tipo, categorias e base; ausentes = nota', () => {
+    const e = parseCampanhaItem({ ...ITEM, tipo: 'extrato', categorias: ['familia:promocao'], minTurnosBase: 'validos' });
+    expect(e).toMatchObject({ tipo: 'extrato', categorias: ['familia:promocao'], minTurnosBase: 'validos' });
+    expect(parseCampanhaItem(ITEM)).toMatchObject({ tipo: 'nota', categorias: null, minTurnosBase: 'trabalhados' });
+  });
+  it('ranking do extrato: turnosValidos e valorCentavos; nota null', () => {
+    const r = parseRanking({ itens: [{ ...LINHA, nota: null, turnosValidos: 14, valorCentavos: 203140 }], contagem: {} });
+    expect(r.itens[0]).toMatchObject({ turnosValidos: 14, turnos: 19, valorCentavos: 203140, nota: null });
+    expect(parseRanking({ itens: [LINHA], contagem: {} }).itens[0]).toMatchObject({ turnosValidos: null, valorCentavos: null });
   });
 });

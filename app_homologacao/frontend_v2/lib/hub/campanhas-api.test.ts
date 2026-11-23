@@ -10,6 +10,7 @@ import {
   enviarFotoPremio,
   lancarCampanha,
   listarCampanhas,
+  listarCategoriasCampanha,
   mensagemCampanha,
   baixarPlanilhaPremios,
   mensagemAdiados,
@@ -149,5 +150,27 @@ describe('planilha de prêmios em dinheiro', () => {
   it('URL da foto segue /:id/premios/:premioId/foto', async () => {
     const { urlFotoPremio } = await import('./campanhas-api');
     expect(urlFotoPremio(12, 3)).toBe('/api/v1/hub/campanhas/12/premios/3/foto');
+  });
+});
+
+describe('extrato', () => {
+  it('categorias: GET /hub/campanhas/categorias, aceita camel e snake no flag de motorista', async () => {
+    const f = stubFetch(
+      { itens: [
+        { descricao: 'A', lancamentos: 3, semMotoristaIdentificado: true, familia: null },
+        { descricao: 'B', lancamentos: 2, sem_motorista_identificado: true, familia: 'familia:promocao' },
+      ] },
+      200
+    );
+    const r = await listarCategoriasCampanha();
+    expect(f.mock.calls[0][0]).toMatch(/\/hub\/campanhas\/categorias$/);
+    expect(r).toEqual([
+      { descricao: 'A', lancamentos: 3, semMotoristaIdentificado: true, familia: null },
+      { descricao: 'B', lancamentos: 2, semMotoristaIdentificado: true, familia: 'familia:promocao' },
+    ]);
+  });
+  it('VALIDACAO de cortes/categorias vira mensagem do extrato, não "(campo: …)"', () => {
+    expect(mensagemCampanha({ erro: 'VALIDACAO', campo: 'cortes' }, 422)).toMatch(/ao menos 1 critério/);
+    expect(mensagemCampanha({ erro: 'VALIDACAO', campo: 'categorias' }, 422)).toMatch(/ao menos 1 categoria/);
   });
 });
