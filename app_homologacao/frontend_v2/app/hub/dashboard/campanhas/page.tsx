@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { EmptyState } from '@/components/hub/empty-state';
 import { PageHeader } from '@/components/hub/page-header';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
+import { CampanhaExcluirRascunho } from '@/components/hub/campanha-excluir-dialog';
 import { CampanhaSituacaoBadge } from '@/components/hub/status-badge';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
@@ -161,6 +162,9 @@ export default function CampanhasPage() {
                       <CampanhaSituacaoBadge situacao={c.situacao} />
                     </TableCell>
                     <TableCell className="text-right">
+                      {podeGerir && c.situacao === 'rascunho' && (
+                        <CampanhaExcluirRascunho id={c.id} nome={c.nome} onExcluida={() => void buscar()} />
+                      )}
                       <Link
                         href={href}
                         className="inline-flex min-h-11 items-center px-2 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8"

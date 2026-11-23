@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
+import { CampanhaExcluirRascunho } from '@/components/hub/campanha-excluir-dialog';
 import { CampanhaFormulario } from '@/components/hub/campanha-formulario';
 import { PageHeader } from '@/components/hub/page-header';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
@@ -47,7 +48,11 @@ export default function EditarCampanhaPage() {
         <span aria-hidden="true">/</span>
         <span>Editar rascunho</span>
       </nav>
-      <PageHeader titulo="Editar rascunho" />
+      <PageHeader titulo="Editar rascunho">
+        {podeGerir && inicial && (
+          <CampanhaExcluirRascunho id={id} nome={inicial.nome} onExcluida={() => router.replace('/hub/dashboard/campanhas')} />
+        )}
+      </PageHeader>
       {!podeGerir ? (
         <p role="alert" className="text-sm font-medium text-destructive">Você não tem permissão para editar campanhas.</p>
       ) : erro ? (

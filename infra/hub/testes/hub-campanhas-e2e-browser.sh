@@ -271,6 +271,7 @@ if tem_fase 1; then
   echo "--- banco depois da fase 1 (campanha #$CAMP_ID) ---"
   check_match "a/banco: campanha lançada (lancada_em preenchido) e situação em_andamento" "$(own "SELECT (lancada_em IS NOT NULL)||'/'||hub_campanha_situacao(c) FROM \"Campanha\" c WHERE id=$CAMP_ID")" '^true/em_andamento$|^t/em_andamento$'
   check "a/banco: só UMA campanha lançada com esse nome (retry não duplicou)" "$(own "SELECT count(*) FROM \"Campanha\" WHERE nome='$NOME_CAMPANHA' AND lancada_em IS NOT NULL")" "1"
+  check "c/banco: rascunho excluido pela UI nao existe mais (nem prêmios órfãos)" "$(own "SELECT (SELECT count(*) FROM \"Campanha\" WHERE nome LIKE 'Rascunho para excluir E2E%')||'/'||(SELECT count(*) FROM \"CampanhaPremio\" WHERE campanha_id NOT IN (SELECT id FROM \"Campanha\"))")" "0/0"
   check "a/banco: campos do formulário gravados (nome, período, praça/turno/modal canônicos, min_turnos)" \
     "$(own "SELECT nome||'|'||data_inicio||'|'||data_fim||'|'||pracas::text||turnos::text||modais::text||'|'||min_turnos FROM \"Campanha\" WHERE id=$CAMP_ID")" \
     "$NOME_CAMPANHA|$HOJE|$(date -u -d "$HOJE + 1 day" +%F)|{\"SAO PAULO\"}{\"JANTAR 18H-22H\"}{MOTO}|1"

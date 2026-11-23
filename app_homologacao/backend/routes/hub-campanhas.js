@@ -182,6 +182,14 @@ router.post('/:id/cancelar', ...rota('POST /:id/cancelar', 'campanhas.gerir', as
   return res.status(204).end();
 }, { escrita: true }));
 
+router.delete('/:id', ...rota('DELETE /:id', 'campanhas.gerir', async (ctx, req, res) => {
+  if (!idValido(req.params.id)) return naoEncontrada(res);
+  const id = Number(req.params.id);
+  const r = await rpc('hub_campanha_excluir', { p_id: id }, ctx.claims);
+  await auditar(ctx, 'campanha.excluida', id, { id, nome: r && r.nome });
+  return res.status(204).end();
+}, { escrita: true }));
+
 router.post('/:id/fechar', ...rota('POST /:id/fechar', 'campanhas.gerir', async (ctx, req, res) => {
   if (!idValido(req.params.id)) return naoEncontrada(res);
   const id = Number(req.params.id);

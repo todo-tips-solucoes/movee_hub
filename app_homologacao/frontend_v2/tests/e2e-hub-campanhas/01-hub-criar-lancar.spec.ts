@@ -6,6 +6,7 @@ import { ROTULO_INDICADOR_CAMPANHA } from '../../lib/hub/campanhas-dto';
 import { HUB, NOME_CAMPANHA, apiHub, campanhaIdPorNome, env, loginHub, somaDias } from './_comum';
 
 const R = ROTULO_INDICADOR_CAMPANHA;
+const NOME_RASCUNHO_EXCLUIR = 'Rascunho para excluir E2E';
 
 /** Marca uma opção de um grupo (fieldset com <legend>) clicando no rótulo. */
 async function marcar(page: Page, legenda: RegExp, texto: string) {
@@ -151,5 +152,47 @@ test.describe.serial('campanhas — hub: criar, editar, lançar, imutável', () 
     // e o nome não mudou
     const depois = JSON.parse((await apiHub(page, 'GET', `/hub/campanhas/${id}`)).texto);
     expect(depois.nome).toBe(NOME_CAMPANHA);
+  });
+
+  test('c) excluir rascunho pela UI: confirma, some da lista e da API; lançada não ganha o botão', async ({ page }, testInfo) => {
+    await loginHub(page, env('CAMP_ADMIN_EMAIL'), env('CAMP_ADMIN_SENHA'));
+    const idLancada = await campanhaIdPorNome(page, NOME_CAMPANHA);
+    const d = JSON.parse((await apiHub(page, 'GET', `/hub/campanhas/${idLancada}`)).texto);
+    const nome = `${NOME_RASCUNHO_EXCLUIR} r${testInfo.retry}`;
+    const criado = await apiHub(page, 'POST', '/hub/campanhas', {
+      nome, descricao: d.descricao, dataInicio: d.dataInicio, dataFim: d.dataFim,
+      pracas: d.pracas, turnos: d.turnos, modais: d.modais, minTurnos: d.minTurnos, pesos: d.pesos, cortes: d.cortes,
+      premios: d.premios.map((p: Record<string, unknown>) => ({
+        posicaoDe: p.posicaoDe, posicaoAte: p.posicaoAte, tipo: p.tipo, descricao: p.descricao, valorCentavos: p.valorCentavos,
+      })),
+      avisar: false,
+    });
+    expect(criado.status).toBe(201);
+    const id = JSON.parse(criado.texto).id as number;
+
+    await page.goto(`${HUB}/hub/dashboard/campanhas`);
+    // a linha lançada NÃO tem o botão; a do rascunho tem
+    await expect(page.getByRole('row', { name: new RegExp(NOME_CAMPANHA) }).getByRole('button', { name: /Excluir rascunho/ })).toHaveCount(0);
+    const linha = page.getByRole('row', { name: new RegExp(nome) });
+    await linha.getByRole('button', { name: /Excluir rascunho/ }).click();
+
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo.getByText(`Excluir “${nome}”?`)).toBeVisible();
+    await expect(dialogo.getByText(/não pode ser desfeita/)).toBeVisible();
+    // "Manter" fecha sem excluir
+    await dialogo.getByRole('button', { name: 'Manter rascunho' }).click();
+    await expect(dialogo).toHaveCount(0);
+    expect((await apiHub(page, 'GET', `/hub/campanhas/${id}`)).status).toBe(200);
+
+    await linha.getByRole('button', { name: /Excluir rascunho/ }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Excluir definitivamente' }).click();
+    await expect(page.getByRole('row', { name: new RegExp(nome) })).toHaveCount(0);
+    expect((await apiHub(page, 'GET', `/hub/campanhas/${id}`)).status).toBe(404);
+
+    // a lançada continua e a API recusa excluí-la (409), sem efeito
+    const del = await apiHub(page, 'DELETE', `/hub/campanhas/${idLancada}`);
+    expect(del.status).toBe(409);
+    expect(del.texto).toContain('CAMPANHA_IMUTAVEL');
+    expect((await apiHub(page, 'GET', `/hub/campanhas/${idLancada}`)).status).toBe(200);
   });
 });

@@ -107,7 +107,7 @@ describe('guardas', () => {
     const casos = [
       ['GET', '/', 'campanhas.consultar'], ['GET', '/opcoes', 'campanhas.gerir'], ['POST', '/', 'campanhas.gerir'],
       ['PUT', '/1', 'campanhas.gerir'], ['POST', '/1/lancar', 'campanhas.gerir'], ['POST', '/1/cancelar', 'campanhas.gerir'],
-      ['POST', '/1/fechar', 'campanhas.gerir'], ['GET', '/1', 'campanhas.consultar'], ['GET', '/1/ranking', 'campanhas.consultar'],
+      ['POST', '/1/fechar', 'campanhas.gerir'], ['DELETE', '/1', 'campanhas.gerir'], ['GET', '/1', 'campanhas.consultar'], ['GET', '/1/ranking', 'campanhas.consultar'],
       ['GET', '/1/ranking.csv', 'campanhas.consultar'], ['GET', '/1/vencedores', 'campanhas.consultar'],
       ['POST', '/1/vencedores/1/entrega', 'campanhas.entregar'], ['POST', '/1/premios-dinheiro.xlsx', 'campanhas.entregar'],
       ['PUT', '/1/premios/2/foto', 'campanhas.gerir'], ['GET', '/1/premios/2/foto', 'campanhas.consultar'],
@@ -178,6 +178,25 @@ describe('criar / editar / transições', () => {
     assert.deepEqual(chamadas[0].body, { p_id: 5, p_motivo: 'prêmio errado' });
     assert.equal((await req('POST', '/api/v1/hub/campanhas/5/fechar')).status, 204);
     assert.deepEqual(auditorias.map((x) => x.acao), ['campanha.cancelada', 'campanha.fechada']);
+  });
+
+  test('excluir: 204, p_id, auditoria campanha.excluida com id e nome; id malformado -> 404 sem RPC', async () => {
+    respostas['rpc/hub_campanha_excluir'] = { id: 5, nome: 'TESTE' };
+    assert.equal((await req('DELETE', '/api/v1/hub/campanhas/5')).status, 204);
+    assert.deepEqual(chamadas[0].body, { p_id: 5 });
+    assert.deepEqual(auditorias.map((x) => [x.acao, x.recursoId, x.detalhes]), [['campanha.excluida', 5, { id: 5, nome: 'TESTE' }]]);
+    chamadas = [];
+    assert.equal((await req('DELETE', '/api/v1/hub/campanhas/abc')).status, 404);
+    assert.equal(chamadas.length, 0);
+  });
+
+  test('excluir: tokens do banco -> 409 (lançada) e 404 (fora do escopo), sem auditoria', async () => {
+    for (const [token, status] of [['CAMPANHA_IMUTAVEL', 409], ['CAMPANHA_NAO_ENCONTRADA', 404]]) {
+      respostas['rpc/hub_campanha_excluir'] = rpcErr(token);
+      const r = await req('DELETE', '/api/v1/hub/campanhas/5');
+      assert.deepEqual([r.status, r.body], [status, { erro: token }]);
+    }
+    assert.equal(auditorias.length, 0);
   });
 
   const esperado = {
