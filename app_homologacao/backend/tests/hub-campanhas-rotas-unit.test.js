@@ -109,7 +109,7 @@ describe('guardas', () => {
       ['PUT', '/1', 'campanhas.gerir'], ['POST', '/1/lancar', 'campanhas.gerir'], ['POST', '/1/cancelar', 'campanhas.gerir'],
       ['POST', '/1/fechar', 'campanhas.gerir'], ['GET', '/1', 'campanhas.consultar'], ['GET', '/1/ranking', 'campanhas.consultar'],
       ['GET', '/1/ranking.csv', 'campanhas.consultar'], ['GET', '/1/vencedores', 'campanhas.consultar'],
-      ['POST', '/1/vencedores/1/entrega', 'campanhas.entregar'], ['GET', '/1/premios-dinheiro.xlsx', 'campanhas.entregar'],
+      ['POST', '/1/vencedores/1/entrega', 'campanhas.entregar'], ['POST', '/1/premios-dinheiro.xlsx', 'campanhas.entregar'],
       ['PUT', '/1/premios/2/foto', 'campanhas.gerir'], ['GET', '/1/premios/2/foto', 'campanhas.consultar'],
     ];
     for (const [m, p, perm] of casos) {
@@ -283,24 +283,44 @@ describe('leituras', () => {
   });
 });
 
-describe('planilha de prêmios em dinheiro', () => {
-  test('cabeçalho do importador, linha sem CNPJ não entra, headers e auditoria', async () => {
+describe('planilha de prêmios em dinheiro (A1/A2)', () => {
+  const RPC = [
+    { cnpj: '11222333000181', nome: 'Ana', valor_centavos: 10000, posicao: 1, data_pagamento: '2026-11-20', adiado: false },
+    { cnpj: null, nome: 'Sem', valor_centavos: 5000, posicao: 2, data_pagamento: '2026-11-22', adiado: false },
+    { cnpj: '44555666000199', nome: 'Adiado', valor_centavos: 3000, posicao: 3, data_pagamento: '2026-11-22', adiado: true },
+  ];
+  const aoaDe = (r) => { const wb = XLSX.read(r.raw, { type: 'buffer' }); return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }); };
+
+  test('POST: cabeçalho do importador, data da linha vinda da RPC, adiado e sem CNPJ fora, X-Premios-Adiados, auditoria', async () => {
     const { CABECALHO_ESPERADO } = require('../lib/lancamento-externo');
-    respostas['rpc/hub_campanha_marcar_exportado'] = [
-      { cnpj: '11222333000181', nome: 'Ana', valor_centavos: 10000, posicao: 1 },
-      { cnpj: null, nome: 'Sem', valor_centavos: 5000, posicao: 2 },
-    ];
-    const r = await req('GET', '/api/v1/hub/campanhas/9/premios-dinheiro.xlsx');
+    respostas['rpc/hub_campanha_marcar_exportado'] = RPC;
+    const r = await req('POST', '/api/v1/hub/campanhas/9/premios-dinheiro.xlsx');
     assert.equal(r.status, 200);
     assert.match(r.headers['content-type'], /spreadsheetml/);
     assert.match(r.headers['content-disposition'], /premios-campanha-9\.xlsx/);
-    const wb = XLSX.read(r.raw, { type: 'buffer' });
-    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+    assert.equal(r.headers['x-premios-adiados'], '1');
+    const aoa = aoaDe(r);
     assert.deepEqual(aoa[0], CABECALHO_ESPERADO);
-    assert.equal(aoa.length, 2);
+    assert.equal(aoa.length, 2, 'só a Ana: adiado e sem CNPJ ficam fora');
+    assert.equal(aoa[1][1], '2026-11-20', 'data = a do carimbo, não hoje');
     assert.equal(aoa[1][4], 'Prêmio campanha #9 — 1º');
+    assert.deepEqual(chamadas[0].body, { p_id: 9 });
     assert.equal(auditorias[0].acao, 'campanha.planilha_exportada');
-    assert.equal(auditorias[0].detalhes.linhas, 1);
+    assert.deepEqual([auditorias[0].detalhes.linhas, auditorias[0].detalhes.adiados], [1, 1]);
+  });
+
+  test('download repetido gera a MESMA data da 1ª exportação (a RPC devolve a data original)', async () => {
+    respostas['rpc/hub_campanha_marcar_exportado'] = RPC;
+    const a = aoaDe(await req('POST', '/api/v1/hub/campanhas/9/premios-dinheiro.xlsx'));
+    const b = aoaDe(await req('POST', '/api/v1/hub/campanhas/9/premios-dinheiro.xlsx'));
+    assert.deepEqual(a, b);
+    assert.equal(b[1][1], '2026-11-20');
+  });
+
+  test('GET na rota da planilha não existe mais (404) e não chama a RPC que carimba', async () => {
+    const r = await req('GET', '/api/v1/hub/campanhas/9/premios-dinheiro.xlsx');
+    assert.ok([404, 405].includes(r.status), `status ${r.status}`);
+    assert.equal(chamadas.length, 0);
   });
 });
 
@@ -310,8 +330,9 @@ describe('foto do prêmio', () => {
   test('PNG válido com mime correto -> 204; RPC recebe mime detectado e base64; audita', async () => {
     const r = await put(PNG, 'image/png');
     assert.equal(r.status, 204);
-    assert.deepEqual(chamadas[0].body, { p_premio_id: 4, p_mime: 'image/png', p_base64: PNG.toString('base64') });
+    assert.deepEqual(chamadas[0].body, { p_campanha_id: 9, p_premio_id: 4, p_mime: 'image/png', p_base64: PNG.toString('base64') });
     assert.equal(auditorias[0].acao, 'campanha.foto_salva');
+    assert.equal(auditorias[0].recursoId, 9, 'auditoria com o id da campanha da URL');
   });
 
   test('bytes de PNG com mime declarado jpeg -> 422 FOTO_INVALIDA', async () => {
@@ -345,6 +366,8 @@ describe('foto do prêmio', () => {
     assert.equal(r.headers['x-content-type-options'], 'nosniff');
     assert.equal(r.headers['cache-control'], 'private, max-age=300');
     assert.ok(r.raw.equals(PNG));
+    assert.deepEqual(chamadas[0].body, { p_campanha_id: 9, p_premio_id: 4 }, 'B2: o prêmio é conferido contra a campanha da URL');
+    assert.equal(auditorias.length, 0);
     respostas['rpc/hub_campanha_premio_foto'] = [{ mime: 'text/html', base64: 'PGI+' }];
     assert.equal((await req('GET', '/api/v1/hub/campanhas/9/premios/4/foto')).status, 404);
   });

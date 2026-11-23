@@ -71,7 +71,7 @@ router.get('/campanhas/:id/premios/:premioId/foto', limiter, async (req, res) =>
     return res.status(404).json({ erro: 'CAMPANHA_NAO_ENCONTRADA' });
   }
   try {
-    const linhas = await rpc('hub_motorista_campanha_foto', { p_premio_id: Number(req.params.premioId) }, req);
+    const linhas = await rpc('hub_motorista_campanha_foto', { p_campanha_id: Number(req.params.id), p_premio_id: Number(req.params.premioId) }, req);
     return dto.enviarFoto(res, Array.isArray(linhas) ? linhas[0] : null);
   } catch (e) {
     return responderErro(res, 'GET /campanhas/:id/premios/:premioId/foto', e);

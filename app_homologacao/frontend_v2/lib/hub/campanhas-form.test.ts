@@ -230,6 +230,13 @@ describe('conversões de unidade (percentual × fração × centavos)', () => {
     expect(reaisParaCentavos('16000')).toBe(1_600_000);
     expect(reaisParaCentavos('1.600,50')).toBe(160_050);
     expect(reaisParaCentavos('0,1')).toBe(10);
+    expect(reaisParaCentavos('100,50')).toBe(10050);
+    expect(reaisParaCentavos('1.234,56')).toBe(123456);
+    expect(reaisParaCentavos('1.234')).toBe(123400);
+    // "100.50" (decimal americano) é RECUSADO: antes virava 1.005.000 centavos
+    expect(reaisParaCentavos('100.50')).toBeNaN();
+    expect(reaisParaCentavos('1.23,4')).toBeNaN();
+    expect(reaisParaCentavos('1,234')).toBeNaN();
     expect(reaisParaCentavos('')).toBeNull();
     expect(reaisParaCentavos('x')).toBeNaN();
     expect(centavosParaReais(160_050)).toBe('1600,50');

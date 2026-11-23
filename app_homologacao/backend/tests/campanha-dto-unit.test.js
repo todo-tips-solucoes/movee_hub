@@ -220,28 +220,35 @@ describe('mapeamento snake -> camel (§7)', () => {
 
 describe('planilha de prêmios em dinheiro', () => {
   const venc = [
-    { cnpj: '11.222.333/0001-81', nome: 'Ana', valor_centavos: 10000, posicao: 1 },
-    { cnpj: null, nome: 'Sem CNPJ', valor_centavos: 5000, posicao: 2 },
-    { cnpj: '123', nome: 'CNPJ curto', valor_centavos: 5000, posicao: 3 },
-    { cnpj: '44555666000199', nome: 'Beto', valor_centavos: 2550, posicao: 4 },
+    { cnpj: '11.222.333/0001-81', nome: 'Ana', valor_centavos: 10000, posicao: 1, data_pagamento: '2026-11-20', adiado: false },
+    { cnpj: null, nome: 'Sem CNPJ', valor_centavos: 5000, posicao: 2, data_pagamento: '2026-11-22', adiado: false },
+    { cnpj: '123', nome: 'CNPJ curto', valor_centavos: 5000, posicao: 3, data_pagamento: '2026-11-22', adiado: false },
+    { cnpj: '44555666000199', nome: 'Beto', valor_centavos: 2550, posicao: 4, data_pagamento: '2026-11-22', adiado: false },
+    { cnpj: '77888999000155', nome: 'Adiado', valor_centavos: 3000, posicao: 5, data_pagamento: '2026-11-22', adiado: true },
   ];
-  test('cabeçalho idêntico a CABECALHO_ESPERADO; linha sem CNPJ válido não entra; observação do contrato', () => {
-    const aoa = dto.linhasPlanilhaPremios(venc, 12, '2026-11-22');
+  test('data da linha = data_pagamento da RPC (não hoje); adiado e sem CNPJ não entram; cabeçalho do importador', () => {
+    const aoa = dto.linhasPlanilhaPremios(venc, 12);
     assert.deepEqual(aoa[0], lancamento.CABECALHO_ESPERADO);
     assert.equal(aoa.length, 3);
-    assert.deepEqual(aoa[1], ['11222333000181', '2026-11-22', 100, 'Ana', 'Prêmio campanha #12 — 1º']);
+    assert.deepEqual(aoa[1], ['11222333000181', '2026-11-20', 100, 'Ana', 'Prêmio campanha #12 — 1º']);
     assert.deepEqual(aoa[2], ['44555666000199', '2026-11-22', 25.5, 'Beto', 'Prêmio campanha #12 — 4º']);
+    assert.equal(dto.contarAdiados(venc), 1);
   });
-  test('o XLSX gerado é lido pelo importador do Lançamento externo (sem recusa)', () => {
-    const buf = dto.planilhaPremiosBuffer(dto.linhasPlanilhaPremios(venc, 12, '2026-11-22'));
+  test('o XLSX gerado é lido pelo importador do Lançamento externo (sem recusa), com a data original', () => {
+    const buf = dto.planilhaPremiosBuffer(dto.linhasPlanilhaPremios(venc, 12));
     const lido = lancamento.lerLancamentos(buf, { hoje: '2026-11-22' });
     assert.equal(lido.recusadas.length, 0);
     assert.deepEqual(lido.validas.map((v) => [v.cnpj, v.data, v.valor]), [
-      ['11222333000181', '2026-11-22', '100.00'], ['44555666000199', '2026-11-22', '25.50'],
+      ['11222333000181', '2026-11-20', '100.00'], ['44555666000199', '2026-11-22', '25.50'],
     ]);
-    assert.equal(lido.validas[0].obs, 'Prêmio campanha #12 — 1º');
     const wb = XLSX.read(buf, { type: 'buffer' });
     assert.deepEqual(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 })[0], lancamento.CABECALHO_ESPERADO);
+  });
+  test('B6: id de prêmio repetido -> VALIDACAO campo premios', () => {
+    const p = (de, id) => ({ posicaoDe: de, posicaoAte: de, tipo: 'objeto', descricao: 'x', id });
+    const r = erro(form({ premios: [p(1, 7), p(2, 7)] }));
+    assert.deepEqual([r.token, r.campo], ['VALIDACAO', 'premios']);
+    assert.equal(dto.validarFormulario(form({ premios: [p(1, 7), p(2, 8)] })).ok, true);
   });
   test('TIPOS do lançamento externo inclui PREMIO_CAMPANHA', () => {
     assert.ok(lancamento.TIPOS.includes('PREMIO_CAMPANHA'));

@@ -11,6 +11,8 @@ import {
   lancarCampanha,
   listarCampanhas,
   mensagemCampanha,
+  baixarPlanilhaPremios,
+  mensagemAdiados,
   obterOpcoes,
   obterRanking,
   registrarEntrega,
@@ -119,5 +121,33 @@ describe('chamadas (CONTRATOS §7)', () => {
     expect(init.method).toBe('PUT');
     expect(init.body).toBe(arq);
     expect((init.headers as Record<string, string>)['Content-Type']).toBe('image/jpeg');
+  });
+});
+
+describe('planilha de prêmios em dinheiro', () => {
+  it('é POST, baixa o blob e devolve X-Premios-Adiados (0 quando ausente)', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    const mk = (adiados: string | null) => ({
+      status: 200, ok: true,
+      blob: async () => new Blob(['x']),
+      headers: new Headers(adiados === null ? {} : { 'X-Premios-Adiados': adiados }),
+    }) as unknown as Response;
+    let f = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => mk('2'));
+    vi.stubGlobal('fetch', f);
+    expect(await baixarPlanilhaPremios(12)).toBe(2);
+    const [url, init] = f.mock.calls[0];
+    expect(url).toBe('/api/v1/hub/campanhas/12/premios-dinheiro.xlsx');
+    expect(init?.method).toBe('POST');
+    f = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => mk(null));
+    vi.stubGlobal('fetch', f);
+    expect(await baixarPlanilhaPremios(12)).toBe(0);
+  });
+  it('mensagem dos adiados', () => {
+    expect(mensagemAdiados(3)).toBe('3 prêmio(s) ficam para amanhã: o Lançamento externo aceita um prêmio por motorista por dia');
+  });
+  it('URL da foto segue /:id/premios/:premioId/foto', async () => {
+    const { urlFotoPremio } = await import('./campanhas-api');
+    expect(urlFotoPremio(12, 3)).toBe('/api/v1/hub/campanhas/12/premios/3/foto');
   });
 });

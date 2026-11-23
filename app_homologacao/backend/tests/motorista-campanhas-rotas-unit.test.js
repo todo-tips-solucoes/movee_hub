@@ -128,7 +128,7 @@ describe('motorista-campanhas', () => {
     assert.equal(r.headers['x-content-type-options'], 'nosniff');
     assert.equal(r.headers['cache-control'], 'private, max-age=300');
     assert.ok(r.raw.equals(png));
-    assert.deepEqual(chamadas[0].body, { p_premio_id: 3 });
+    assert.deepEqual(chamadas[0].body, { p_campanha_id: 12, p_premio_id: 3 });
     assert.deepEqual(chamadas[0].claims, { motoristaCnpj: '11111111000191' });
     respostas['rpc/hub_motorista_campanha_foto'] = [{ mime: 'image/svg+xml', base64: 'PHN2Zy8+' }];
     assert.equal((await get('/motorista/campanhas/12/premios/3/foto')).status, 404);

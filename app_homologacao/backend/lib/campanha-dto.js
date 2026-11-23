@@ -167,6 +167,8 @@ function validarFormulario(corpo) {
     }
     premios.push(prem);
   }
+  const ids = premios.filter((x) => x.id !== undefined).map((x) => x.id);
+  if (new Set(ids).size !== ids.length) return falha('premios'); // B6: id repetido
   const ordenados = [...premios].sort((x, y) => x.posicaoDe - y.posicaoDe);
   for (let i = 1; i < ordenados.length; i += 1) {
     if (ordenados[i].posicaoDe <= ordenados[i - 1].posicaoAte) return falha('premios', 'FAIXAS_SOBREPOSTAS');
@@ -262,23 +264,25 @@ function linhaVencedor(r) {
 }
 
 // ─── Planilha de prêmios em dinheiro (layout do Lançamento externo) ────────
-const fmtIso = (d) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-
 /**
- * @param {Array<{cnpj:string|null,nome:string,valor_centavos:number,posicao:number}>} vencedores
- * @param {number} campanhaId
- * @param {string} [hoje] 'YYYY-MM-DD' (injetável)
- * @returns {Array<Array<string|number>>} AoA com cabeçalho; linha sem CNPJ (14 dígitos) NÃO entra.
+ * @param {Array<{cnpj:string|null,nome:string,valor_centavos:number,posicao:number,data_pagamento:string,adiado?:boolean}>} vencedores
+ *   retorno de `hub_campanha_marcar_exportado` (A1/A2): a data de cada linha é a do carimbo da 1ª exportação.
+ * @returns {Array<Array<string|number>>} AoA com cabeçalho; sem CNPJ válido, sem data ou `adiado` NÃO entram.
  */
-function linhasPlanilhaPremios(vencedores, campanhaId, hoje = fmtIso(new Date())) {
+function linhasPlanilhaPremios(vencedores, campanhaId) {
   const linhas = [];
   for (const v of vencedores || []) {
     const cnpj = String(v.cnpj || '').replace(/\D/g, '');
-    if (cnpj.length !== 14 || !Number.isInteger(v.valor_centavos) || v.valor_centavos <= 0) continue;
-    linhas.push([cnpj, hoje, v.valor_centavos / 100, v.nome, `Prêmio campanha #${campanhaId} — ${v.posicao}º`]);
+    if (v.adiado === true || cnpj.length !== 14 || !Number.isInteger(v.valor_centavos) || v.valor_centavos <= 0) continue;
+    const data = String(v.data_pagamento || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) continue;
+    linhas.push([cnpj, data, v.valor_centavos / 100, v.nome, `Prêmio campanha #${campanhaId} — ${v.posicao}º`]);
   }
   return [[...CABECALHO_ESPERADO], ...linhas];
 }
+
+/** Quantos vencedores ficaram para o dia seguinte (CNPJ já exportado hoje em outra campanha). */
+const contarAdiados = (vencedores) => (vencedores || []).filter((v) => v && v.adiado === true).length;
 
 function planilhaPremiosBuffer(aoa) {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -305,5 +309,5 @@ module.exports = {
   IMAGEM_MAX_BYTES, SITUACOES_CAMPANHA, SITUACOES_RANKING, POR_PAGINA, MIMES_IMAGEM, TOKENS_HTTP,
   TETO_CENTAVOS, CABECALHO_ESPERADO,
   mapearErroRpc, canonizar, validarFormulario, lerListaQuery, detectarImagem,
-  camelizar, itemLista, detalhe, linhaRanking, linhaVencedor, linhasPlanilhaPremios, planilhaPremiosBuffer,
+  camelizar, contarAdiados, itemLista, detalhe, linhaRanking, linhaVencedor, linhasPlanilhaPremios, planilhaPremiosBuffer,
 };

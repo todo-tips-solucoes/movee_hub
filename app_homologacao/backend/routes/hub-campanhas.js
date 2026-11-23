@@ -272,16 +272,18 @@ router.post('/:id/vencedores/:posicao/entrega', ...rota('POST /:id/vencedores/:p
   return res.status(204).end();
 }, { escrita: true }));
 
-router.get('/:id/premios-dinheiro.xlsx', ...rota('GET /:id/premios-dinheiro.xlsx', 'campanhas.entregar', async (ctx, req, res) => {
+// POST (não GET): a chamada carimba `exportado_em`. O download repetido reproduz as mesmas linhas e datas.
+router.post('/:id/premios-dinheiro.xlsx', ...rota('POST /:id/premios-dinheiro.xlsx', 'campanhas.entregar', async (ctx, req, res) => {
   if (!idValido(req.params.id)) return naoEncontrada(res);
   const id = Number(req.params.id);
-  // A RPC carimba `exportado_em` (idempotente no banco); sem CNPJ não volta.
   const venc = await rpc('hub_campanha_marcar_exportado', { p_id: id }, ctx.claims);
   const aoa = dto.linhasPlanilhaPremios(venc, id);
-  await auditar(ctx, 'campanha.planilha_exportada', id, { linhas: aoa.length - 1 });
+  const adiados = dto.contarAdiados(venc);
+  await auditar(ctx, 'campanha.planilha_exportada', id, { linhas: aoa.length - 1, adiados });
   res.setHeader('Content-Type', XLSX_MIME);
   res.setHeader('Content-Disposition', `attachment; filename="premios-campanha-${id}.xlsx"`);
   res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Premios-Adiados', String(adiados));
   return res.status(200).send(dto.planilhaPremiosBuffer(aoa));
 }, { escrita: true }));
 
@@ -300,14 +302,14 @@ router.put('/:id/premios/:premioId/foto', ...rota('PUT /:id/premios/:premioId/fo
   if (!mime || mime !== declarado) return res.status(422).json({ erro: 'FOTO_INVALIDA' });
   const id = Number(req.params.id);
   const premioId = Number(req.params.premioId);
-  await rpc('hub_campanha_premio_foto_salvar', { p_premio_id: premioId, p_mime: mime, p_base64: req.body.toString('base64') }, ctx.claims);
+  await rpc('hub_campanha_premio_foto_salvar', { p_campanha_id: id, p_premio_id: premioId, p_mime: mime, p_base64: req.body.toString('base64') }, ctx.claims);
   await auditar(ctx, 'campanha.foto_salva', id, { premioId, bytes: req.body.length });
   return res.status(204).end();
 }, { escrita: true, extras: [lerFoto] }));
 
 router.get('/:id/premios/:premioId/foto', ...rota('GET /:id/premios/:premioId/foto', 'campanhas.consultar', async (ctx, req, res) => {
   if (!idValido(req.params.id) || !idValido(req.params.premioId)) return naoEncontrada(res);
-  const linhas = await rpc('hub_campanha_premio_foto', { p_premio_id: Number(req.params.premioId) }, ctx.claims);
+  const linhas = await rpc('hub_campanha_premio_foto', { p_campanha_id: Number(req.params.id), p_premio_id: Number(req.params.premioId) }, ctx.claims);
   return dto.enviarFoto(res, Array.isArray(linhas) ? linhas[0] : null);
 }));
 

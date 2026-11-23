@@ -27,6 +27,7 @@ import {
   baixarRankingCsv,
   cancelarCampanha,
   fecharCampanha,
+  mensagemAdiados,
   obterCampanha,
   obterRanking,
   obterVencedores,
@@ -455,8 +456,9 @@ export default function CampanhaDetalhePage() {
           )}
           {c.situacao === 'encerrada' && podeEntregar && temDinheiro && (
             <Button className="min-h-11 gap-1.5 sm:min-h-8" onClick={() => acao(async () => {
-              await baixarPlanilhaPremios(c.id);
+              const adiados = await baixarPlanilhaPremios(c.id);
               toast.success('Planilha gerada. Entregue ao financeiro para importar no Lançamento externo.');
+              if (adiados > 0) toast.warning(mensagemAdiados(adiados), { duration: 12000 });
               carregar();
             })}>
               <FileSpreadsheet className="size-4" aria-hidden="true" />

@@ -350,12 +350,17 @@ export function alternarSelecao(atual: string[] | null, item: string): string[] 
   return prox.length === 0 ? null : prox;
 }
 
-/** "1600", "1.600,50", "16,5" (reais) → centavos; vazio → null; ilegível → NaN. */
+/** Reais no formato BR → centavos. Aceita "100", "100,5", "100,50", "1.234,56"; vazio → null.
+ * Qualquer outra coisa (inclusive "100.50", que é decimal à moda americana e
+ * viraria 10050 reais) → NaN: melhor recusar que errar por fator 100.
+ * (Não havia parser monetário reaproveitável no frontend: os existentes só
+ * trocam vírgula por ponto, em campos que nunca levam milhar.) */
 export function reaisParaCentavos(texto: string): number | null {
-  const t = texto.trim().replace(/\./g, '').replace(',', '.');
+  const t = texto.trim();
   if (t === '') return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? Math.round(n * 100) : Number.NaN;
+  if (!/^(\d{1,3}(\.\d{3})+|\d+)(,\d{1,2})?$/.test(t)) return Number.NaN;
+  const [inteiro, dec = ''] = t.replace(/\./g, '').split(',');
+  return Number(inteiro) * 100 + Number(dec.padEnd(2, '0'));
 }
 
 export function centavosParaReais(c: number | null): string {

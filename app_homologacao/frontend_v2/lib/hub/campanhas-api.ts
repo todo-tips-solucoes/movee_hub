@@ -46,6 +46,7 @@ export const MENSAGENS_CAMPANHA: Record<string, string> = {
     'Alguma praça, turno ou modal escolhido não existe mais nos dados recentes. Recarregue as opções e escolha de novo.',
   FECHAMENTO_ANTECIPADO:
     'Ainda não dá para fechar com os dados que existem: isso só é liberado 3 dias depois do fim da campanha. Antes disso o fechamento é automático quando a importação do último dia chegar.',
+  ARQUIVO_INVALIDO: 'A foto não serve: use JPEG, PNG ou WebP de até 500 KB.',
   FOTO_INVALIDA: 'A foto não serve: use JPEG, PNG ou WebP de até 500 KB.',
   CONFIRMACAO_AUSENTE: 'Marque a caixa de confirmação para lançar.',
   VALIDACAO: 'Há campos inválidos. Confira o formulário e tente novamente.',
@@ -163,8 +164,9 @@ export const urlFotoPremio = (id: number, premioId: number) => `${HUB_API_BASE}$
 
 // ── downloads ───────────────────────────────────────────────────────────────
 
-async function baixar(caminho: string, nomePadrao: string): Promise<void> {
-  const res = await fetch(`${HUB_API_BASE}${caminho}`, { credentials: 'include' });
+/** Devolve o cabeçalho `X-Premios-Adiados` (0 se ausente) — só a planilha o envia. */
+async function baixar(caminho: string, nomePadrao: string, metodo: 'GET' | 'POST' = 'GET'): Promise<number> {
+  const res = await fetch(`${HUB_API_BASE}${caminho}`, { method: metodo, credentials: 'include' });
   if (!res.ok) {
     const corpo: unknown = await res.json().catch(() => ({}));
     throw falha(res.status, (corpo && typeof corpo === 'object' ? corpo : {}) as Record<string, unknown>);
@@ -179,10 +181,17 @@ async function baixar(caminho: string, nomePadrao: string): Promise<void> {
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
+  const adiados = Number(res.headers.get('X-Premios-Adiados'));
+  return Number.isFinite(adiados) && adiados > 0 ? adiados : 0;
 }
 
-export const baixarRankingCsv = (id: number) => baixar(`${BASE}/${id}/ranking.csv`, `campanha-${id}-ranking.csv`);
+export const baixarRankingCsv = async (id: number): Promise<void> => {
+  await baixar(`${BASE}/${id}/ranking.csv`, `campanha-${id}-ranking.csv`);
+};
 
-/** Gerar a planilha carimba `exportado_em` no banco (hub_campanha_marcar_exportado). */
-export const baixarPlanilhaPremios = (id: number) =>
-  baixar(`${BASE}/${id}/premios-dinheiro.xlsx`, `campanha-${id}-premios-dinheiro.xlsx`);
+/** POST: gerar a planilha carimba `exportado_em` no banco. Devolve quantos prêmios ficaram para amanhã. */
+export const baixarPlanilhaPremios = (id: number): Promise<number> =>
+  baixar(`${BASE}/${id}/premios-dinheiro.xlsx`, `campanha-${id}-premios-dinheiro.xlsx`, 'POST');
+
+export const mensagemAdiados = (n: number): string =>
+  `${n} prêmio(s) ficam para amanhã: o Lançamento externo aceita um prêmio por motorista por dia`;

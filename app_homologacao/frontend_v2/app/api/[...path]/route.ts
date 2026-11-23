@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { XLSX_MIME, XLSX_MAX_BYTES } from '@/lib/hub/retorno-xlsx';
+import { tetoBinario } from '@/lib/hub/corpo-binario';
 import {
   COOKIE_ACCESS,
   COOKIE_REFRESH,
@@ -100,18 +100,19 @@ async function proxyRequest(req: NextRequest) {
         init.body = req.body;
         (init as Record<string, unknown>).duplex = 'half';
         // Keep original Content-Type header with boundary intact
-      } else if (contentType.split(';')[0].trim() === XLSX_MIME) {
+      } else if (tetoBinario(contentType) !== undefined) {
+        // (XLSX do retorno e fotos de prêmio de campanha — tabela em lib/hub/corpo-binario.ts)
         // retorno-transfeera-xlsx: o XLSX (ZIP) é BINÁRIO — `req.text()` decodifica
         // UTF-8 e todo byte >= 0x80 inválido vira U+FFFD, corrompendo o arquivo
         // antes do backend. Mime comparado por IGUALDADE (não `includes`): só este
         // endpoint entra no ramo. O proxy bufferiza o corpo ANTES de qualquer
         // autenticação do backend, então o teto vem antes da leitura: sem
-        // `content-length` válido -> 411; acima de 10 MB -> 413.
+        // `content-length` válido -> 411; acima do teto do mime (XLSX 10 MB, foto 600 KB) -> 413.
         const tamanho = Number(req.headers.get('content-length'));
         if (!req.headers.get('content-length') || !Number.isSafeInteger(tamanho) || tamanho < 0) {
           return NextResponse.json({ erro: 'ARQUIVO_INVALIDO', motivo: 'TAMANHO_AUSENTE' }, { status: 411 });
         }
-        if (tamanho > XLSX_MAX_BYTES) {
+        if (tamanho > (tetoBinario(contentType) as number)) {
           return NextResponse.json({ erro: 'ARQUIVO_INVALIDO', motivo: 'ARQUIVO_MUITO_GRANDE' }, { status: 413 });
         }
         init.body = new Uint8Array(await req.arrayBuffer());

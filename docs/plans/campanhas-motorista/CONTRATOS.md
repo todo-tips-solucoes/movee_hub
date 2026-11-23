@@ -19,6 +19,36 @@
   habilitar em `ModuloEntidade` para a entidade **6 (Movee)**. O app é exclusivo do grupo Movee; outras
   entidades só sob decisão do operador.
 
+## Erratas da revisão adversarial W5 (2026-11-22) — decisões do orquestrador
+
+- **A1/A2 planilha de prêmios (dinheiro):**
+  - Data do pagamento de cada linha = **data (SP) do `exportado_em`** daquele vencedor, carimbada uma vez
+    só. O download repetido reproduz as mesmas linhas e datas, e o reimport dá `JA_APLICADO`.
+  - Ao carimbar, um vencedor cujo CNPJ **já tem** outro vencedor de dinheiro (qualquer campanha da
+    empresa) com `exportado_em` no mesmo dia SP **não é carimbado**: fica pendente para o dia seguinte e
+    volta como `adiados` na resposta.
+  - RPC `hub_campanha_marcar_exportado(p_id)` → `TABLE(cnpj, nome, valor_centavos, posicao, data_pagamento date, adiado boolean)`.
+    Inclui as linhas já exportadas (com a data original) e as recém-carimbadas; `adiado=true` não entra
+    no XLSX. Sem CNPJ continua fora.
+  - Rota: `POST /:id/premios-dinheiro.xlsx` (era GET; GET não carimba nada). Resposta = arquivo; o
+    cabeçalho `X-Premios-Adiados: <n>` informa quantos ficaram para amanhã.
+- **A3:** o proxy `frontend_v2/app/api/[...path]/route.ts` repassa `image/jpeg|png|webp` como binário,
+  com teto de 600 KB antes da leitura. Generaliza o ramo do XLSX numa tabela `mime → teto`, sem um
+  segundo `if` copiado.
+- **M1:** fechamento automático exige `max(data_periodo) >= data_fim` **e** `hub_hoje_sp() > data_fim`.
+- **M2/B1:** `fechar_interno` e `recalcular_interno` retornam sem efeito se a campanha está cancelada ou
+  já fechada (relido sob `FOR UPDATE`).
+- **M3:** o aviso de início só é enfileirado a partir das 08:00 de São Paulo do dia de início.
+- **B2:** as RPCs de foto passam a receber `(p_campanha_id, p_premio_id, …)` e exigem que o prêmio
+  pertença à campanha (`CAMPANHA_NAO_ENCONTRADA` se não pertencer). A auditoria usa o mesmo id.
+- **B3:** `alcance.rodaram` respeita o filtro de modal (e `sem_modal` continua contando os sem modal do público).
+- **B6:** `id` de prêmio repetido no corpo → `VALIDACAO` (campo `premios`); o gatilho do prêmio checa
+  também `OLD.campanha_id`.
+- **B7:** o valor em reais no formulário é lido no formato BR (`1.234,56`), reaproveitando o parser já
+  existente no frontend (se houver), e nunca removendo todo ponto.
+- **B8:** as RPCs do motorista exigem o módulo `campanhas` ativo na empresa da campanha.
+- **B4 recusado:** prêmio de vencedor sem CNPJ está pendente de verdade.
+
 ## 0. Regras transversais
 
 - Hoje = `(now() AT TIME ZONE 'America/Sao_Paulo')::date`. Uma única função SQL: `hub_hoje_sp()`.
