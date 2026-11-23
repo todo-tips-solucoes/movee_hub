@@ -65,6 +65,12 @@ AS $$
     ) t;
 $$;
 
+-- Hora de São Paulo (função própria para o gate de 08:00 do aviso de início ser testável).
+CREATE OR REPLACE FUNCTION hub_hora_sp()
+RETURNS time
+LANGUAGE sql STABLE
+AS $$ SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::time; $$;
+
 -- Lista de praças/turnos/modais: NULL (todos) ou 1..50 itens, cada 1..120, já canônicos.
 CREATE OR REPLACE FUNCTION hub_campanha_lista_ok(p text[])
 RETURNS boolean
@@ -269,9 +275,12 @@ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-    v_campanha int := CASE WHEN TG_OP = 'DELETE' THEN OLD.campanha_id ELSE NEW.campanha_id END;
+    -- B6: checa a campanha de ORIGEM (OLD) e a de DESTINO (NEW): mover um prêmio para fora/para dentro de
+    -- uma campanha lançada também é mudança de regra
+    v_old int := CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE OLD.campanha_id END;
+    v_new int := CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE NEW.campanha_id END;
 BEGIN
-    IF EXISTS (SELECT 1 FROM "Campanha" c WHERE c.id = v_campanha AND c.lancada_em IS NOT NULL) THEN
+    IF EXISTS (SELECT 1 FROM "Campanha" c WHERE c.id IN (v_old, v_new) AND c.lancada_em IS NOT NULL) THEN
         RAISE EXCEPTION 'CAMPANHA_IMUTAVEL' USING ERRCODE = '55000';
     END IF;
     RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
@@ -758,6 +767,9 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'VALIDACAO' USING ERRCODE = '22023', DETAIL = 'premios';
     END IF;
+    IF EXISTS (SELECT 1 FROM hub_campanha_premios_in(v_premios) i WHERE i.id IS NOT NULL GROUP BY i.id HAVING count(*) > 1) THEN
+        RAISE EXCEPTION 'VALIDACAO' USING ERRCODE = '22023', DETAIL = 'premios';   -- B6: id de prêmio repetido
+    END IF;
     IF EXISTS (
         SELECT 1 FROM hub_campanha_premios_in(v_premios) a JOIN hub_campanha_premios_in(v_premios) b
           ON a.n < b.n AND a.de <= b.ate AND b.de <= a.ate
@@ -895,7 +907,7 @@ BEGIN
     SELECT
         (sum(np) FILTER (WHERE v_modais IS NULL OR modal = ANY (v_modais)))::numeric
             / NULLIF(sum(n) FILTER (WHERE v_modais IS NULL OR modal = ANY (v_modais)), 0),
-        count(*),
+        count(*) FILTER (WHERE v_modais IS NULL OR modal = ANY (v_modais)),
         count(*) FILTER (WHERE modal IS NULL)
     INTO v_cob, v_rodaram, v_sem
     FROM m;
@@ -1009,6 +1021,10 @@ DECLARE
 BEGIN
     SELECT * INTO v_c FROM "Campanha" WHERE id = p_id FOR UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'CAMPANHA_NAO_ENCONTRADA' USING ERRCODE = 'P0002'; END IF;
+    -- M2/B1: relida SOB o lock — cancelada/fechada (ou rascunho) entre a seleção e este ponto: sem efeito
+    IF v_c.cancelada_em IS NOT NULL OR v_c.fechada_em IS NOT NULL OR v_c.lancada_em IS NULL THEN
+        RETURN jsonb_build_object('ignorada', true);
+    END IF;
     v_ate := LEAST(v_c.data_fim, v_hoje);
     -- Último dia de dado da empresa (até data_fim). O robô importa 3x/dia com o MESMO dia: se `dados_ate`
     -- não andou, `posicao_anterior` é PRESERVADA (senão "subiu N posições desde ontem" zera na 2ª importação).
@@ -1199,7 +1215,7 @@ DECLARE
     v_cnpjs text[];
 BEGIN
     SELECT * INTO c FROM "Campanha" WHERE id = p_id FOR UPDATE;
-    IF NOT FOUND OR c.fechada_em IS NOT NULL THEN RETURN; END IF;
+    IF NOT FOUND OR c.fechada_em IS NOT NULL OR c.cancelada_em IS NOT NULL OR c.lancada_em IS NULL THEN RETURN; END IF;
 
     PERFORM hub_campanha_recalcular_interno(p_id);
 
@@ -1280,7 +1296,7 @@ BEGIN
         ORDER BY c.id
     LOOP
         BEGIN
-            IF v_max >= r.data_fim THEN
+            IF v_max >= r.data_fim AND hub_hoje_sp() > r.data_fim THEN   -- M1: dado cobre E o último dia já passou
                 PERFORM hub_campanha_fechar_interno(r.id);
                 v_fech := v_fech + 1;
             ELSE
@@ -1318,6 +1334,8 @@ BEGIN
         SELECT id FROM "Campanha"
         WHERE lancada_em IS NOT NULL AND cancelada_em IS NULL AND avisar AND aviso_inicio_em IS NULL
           AND hub_hoje_sp() BETWEEN data_inicio AND data_fim
+          -- M3: no dia de início só a partir das 08:00 de SP (não acordar o motorista à meia-noite)
+          AND (hub_hoje_sp() > data_inicio OR hub_hora_sp() >= time '08:00')
         ORDER BY id
         FOR UPDATE SKIP LOCKED
     LOOP
@@ -1534,39 +1552,65 @@ BEGIN
 END;
 $$;
 
--- Prêmios em DINHEIRO com CNPJ (sem CNPJ não volta). Carimba exportado_em na primeira exportação.
+-- Planilha de prêmios em DINHEIRO (só vencedores com CNPJ; sem CNPJ não volta).
+-- A1: `data_pagamento` = dia (SP) do `exportado_em` do vencedor, carimbado UMA vez: baixar de novo reproduz as
+--     mesmas linhas e datas (o reimport no Lançamento externo dá JA_APLICADO).
+-- A2: vencedor cujo CNPJ já tem outro prêmio de dinheiro exportado no MESMO dia SP (qualquer campanha da empresa)
+--     NÃO é carimbado: volta com adiado = true e data_pagamento NULL, e fica pendente para o dia seguinte.
+--     O lock por empresa serializa duas exportações simultâneas (senão as duas passariam pela checagem).
 CREATE OR REPLACE FUNCTION hub_campanha_marcar_exportado(p_id int)
-RETURNS TABLE (cnpj text, nome text, valor_centavos int, posicao int)
+RETURNS TABLE (cnpj text, nome text, valor_centavos int, posicao int, data_pagamento date, adiado boolean)
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 #variable_conflict use_column
 DECLARE
-    c "Campanha";
+    c          "Campanha";
+    r          RECORD;
+    v_hoje     date := (now() AT TIME ZONE 'America/Sao_Paulo')::date;
+    v_conflito boolean;
+    v_em       timestamptz;
 BEGIN
     c := hub_campanha_carregar(p_id, 'campanhas.entregar', true);
     IF c.cancelada_em IS NOT NULL THEN
         RAISE EXCEPTION 'CAMPANHA_SITUACAO_INVALIDA' USING ERRCODE = '55000';
     END IF;
-    RETURN QUERY
-    WITH sel AS (
-        SELECT v.posicao AS pos, cm.cnpj_prestador AS cnpj, e.nome AS nome, p.valor_centavos AS valor
+    PERFORM pg_advisory_xact_lock(c.id_empresa, hashtext('hub_campanha_exportar'));
+
+    FOR r IN
+        SELECT v.posicao AS pos, cm.cnpj_prestador AS cnpj, e.nome AS nome, p.valor_centavos AS valor, v.exportado_em AS em
         FROM "CampanhaVencedor" v
         JOIN "CampanhaPremio" p ON p.id = v.premio_id AND p.tipo = 'dinheiro'
         JOIN "Entregador" e ON e.id = v.entregador_id
         JOIN "ContaMotorista" cm ON cm.id = e.motorista_id
         WHERE v.campanha_id = c.id
-    ),
-    mk AS (
-        UPDATE "CampanhaVencedor" v SET exportado_em = COALESCE(v.exportado_em, now())
-        FROM sel WHERE v.campanha_id = c.id AND v.posicao = sel.pos
-        RETURNING v.posicao
-    )
-    SELECT sel.cnpj, sel.nome, sel.valor, sel.pos FROM sel ORDER BY sel.pos;
+        ORDER BY v.posicao
+    LOOP
+        v_em := r.em;
+        IF v_em IS NULL THEN
+            SELECT EXISTS (
+                SELECT 1 FROM "CampanhaVencedor" x
+                JOIN "CampanhaPremio" xp ON xp.id = x.premio_id AND xp.tipo = 'dinheiro'
+                JOIN "Entregador" xe ON xe.id = x.entregador_id
+                JOIN "ContaMotorista" xc ON xc.id = xe.motorista_id
+                WHERE x.id_empresa = c.id_empresa AND xc.cnpj_prestador = r.cnpj
+                  AND x.exportado_em IS NOT NULL
+                  AND (x.exportado_em AT TIME ZONE 'America/Sao_Paulo')::date = v_hoje
+            ) INTO v_conflito;
+            IF v_conflito THEN
+                RETURN QUERY SELECT r.cnpj, r.nome, r.valor, r.pos, NULL::date, true;
+                CONTINUE;
+            END IF;
+            UPDATE "CampanhaVencedor" SET exportado_em = now()
+            WHERE campanha_id = c.id AND posicao = r.pos
+            RETURNING exportado_em INTO v_em;
+        END IF;
+        RETURN QUERY SELECT r.cnpj, r.nome, r.valor, r.pos, (v_em AT TIME ZONE 'America/Sao_Paulo')::date, false;
+    END LOOP;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION hub_campanha_premio_foto_salvar(p_premio_id int, p_mime text, p_base64 text)
+CREATE OR REPLACE FUNCTION hub_campanha_premio_foto_salvar(p_campanha_id int, p_premio_id int, p_mime text, p_base64 text)
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -1578,9 +1622,10 @@ DECLARE
     v_b    bytea;
     v_tipo text;
 BEGIN
-    SELECT * INTO pr FROM "CampanhaPremio" WHERE id = p_premio_id;
+    c := hub_campanha_carregar(p_campanha_id, 'campanhas.gerir', true);
+    -- B2: o prêmio TEM de pertencer à campanha informada (e autorizada)
+    SELECT * INTO pr FROM "CampanhaPremio" WHERE id = p_premio_id AND campanha_id = c.id;
     IF NOT FOUND THEN RAISE EXCEPTION 'CAMPANHA_NAO_ENCONTRADA' USING ERRCODE = 'P0002'; END IF;
-    c := hub_campanha_carregar(pr.campanha_id, 'campanhas.gerir', true);
     IF c.lancada_em IS NOT NULL THEN
         RAISE EXCEPTION 'CAMPANHA_IMUTAVEL' USING ERRCODE = '55000';
     END IF;
@@ -1607,7 +1652,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION hub_campanha_premio_foto(p_premio_id int)
+CREATE OR REPLACE FUNCTION hub_campanha_premio_foto(p_campanha_id int, p_premio_id int)
 RETURNS TABLE (mime text, base64 text)
 LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -1617,9 +1662,9 @@ DECLARE
     pr "CampanhaPremio";
     c  "Campanha";
 BEGIN
-    SELECT * INTO pr FROM "CampanhaPremio" WHERE id = p_premio_id;
-    IF NOT FOUND THEN RETURN; END IF;
-    c := hub_campanha_carregar(pr.campanha_id, 'campanhas.consultar', false);
+    c := hub_campanha_carregar(p_campanha_id, 'campanhas.consultar', false);
+    SELECT * INTO pr FROM "CampanhaPremio" WHERE id = p_premio_id AND campanha_id = c.id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'CAMPANHA_NAO_ENCONTRADA' USING ERRCODE = 'P0002'; END IF;
     IF pr.foto IS NULL THEN RETURN; END IF;
     -- encode(...,'base64') quebra linha a cada 76 caracteres; tirar.
     RETURN QUERY SELECT pr.foto_mime, translate(encode(pr.foto, 'base64'), E'\n', '');
@@ -1642,6 +1687,9 @@ SET search_path = public, pg_temp
 AS $$
     SELECT c.lancada_em IS NOT NULL
        AND c.cancelada_em IS NULL
+       -- B8: o módulo `campanhas` tem de estar ATIVO na empresa da campanha (desligar o módulo some do app)
+       AND EXISTS (SELECT 1 FROM "ModuloEntidade" me JOIN "Modulo" m ON m.id = me.modulo_id
+                   WHERE m.codigo = 'campanhas' AND me.empresa_id = c.id_empresa AND me.ativo)
        AND (c.fechada_em IS NULL OR c.fechada_em >= now() - interval '30 days')
        AND (c.pracas IS NULL
             OR EXISTS (SELECT 1 FROM "CampanhaRanking" r WHERE r.campanha_id = c.id AND r.entregador_id = p_entregador_id)
@@ -1783,7 +1831,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION hub_motorista_campanha_foto(p_premio_id int)
+CREATE OR REPLACE FUNCTION hub_motorista_campanha_foto(p_campanha_id int, p_premio_id int)
 RETURNS TABLE (mime text, base64 text)
 LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -1796,12 +1844,15 @@ DECLARE
     v_ent  int;
 BEGIN
     IF v_cnpj IS NULL THEN RETURN; END IF;
-    SELECT * INTO pr FROM "CampanhaPremio" WHERE id = p_premio_id;
-    IF NOT FOUND OR pr.foto IS NULL THEN RETURN; END IF;
-    SELECT * INTO c FROM "Campanha" WHERE id = pr.campanha_id;
+    SELECT * INTO c FROM "Campanha" WHERE id = p_campanha_id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'CAMPANHA_NAO_ENCONTRADA' USING ERRCODE = 'P0002'; END IF;
+    SELECT * INTO pr FROM "CampanhaPremio" WHERE id = p_premio_id AND campanha_id = c.id;
     SELECT e.id INTO v_ent FROM "Entregador" e JOIN "ContaMotorista" cm ON cm.id = e.motorista_id
     WHERE cm.cnpj_prestador = v_cnpj AND e.id_empresa = c.id_empresa ORDER BY e.id LIMIT 1;
-    IF v_ent IS NULL OR NOT hub_campanha_visivel(c, v_ent) THEN RETURN; END IF;
+    IF pr.id IS NULL OR v_ent IS NULL OR NOT hub_campanha_visivel(c, v_ent) THEN
+        RAISE EXCEPTION 'CAMPANHA_NAO_ENCONTRADA' USING ERRCODE = 'P0002';
+    END IF;
+    IF pr.foto IS NULL THEN RETURN; END IF;
     RETURN QUERY SELECT pr.foto_mime, translate(encode(pr.foto, 'base64'), E'\n', '');
 END;
 $$;
@@ -1835,14 +1886,14 @@ BEGIN
         'hub_campanha_vencedores(int)',
         'hub_campanha_registrar_entrega(int, int, text)',
         'hub_campanha_marcar_exportado(int)',
-        'hub_campanha_premio_foto_salvar(int, text, text)',
-        'hub_campanha_premio_foto(int)',
+        'hub_campanha_premio_foto_salvar(int, int, text, text)',
+        'hub_campanha_premio_foto(int, int)',
         'hub_campanha_recalcular(int)',
         'hub_campanhas_recalcular_ativas(int)',
         'hub_campanhas_avisar_inicio()',
         'hub_motorista_campanhas()',
         'hub_motorista_campanha(int)',
-        'hub_motorista_campanha_foto(int)'
+        'hub_motorista_campanha_foto(int, int)'
     ] LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', f);
         EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated', f);
