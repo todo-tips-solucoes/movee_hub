@@ -641,12 +641,15 @@ describe('executarPipeline — happy path (completed)', () => {
     assert.equal(recalc[0].claims, job.claims);
   });
 
-  test('faturamento NUNCA dispara o recálculo de campanhas', async () => {
+  test('faturamento (E9, extrato soma o faturamento): recalcula as campanhas ativas APÓS o refresh', async () => {
     const csv = [HEADER_ROW_FATURAMENTO, linhaFaturamento(), ''].join('\n');
     const deps = criarFakePostgrest({ nomeArquivo: 'faturamento.csv' });
     deps.lerArquivo = async () => Buffer.from(csv, 'utf8');
-    await executarPipeline(jobFaturamento(), deps);
-    assert.equal(deps.chamadas.filter((c) => c.endpoint === 'rpc/hub_campanhas_recalcular_ativas').length, 0);
+    const job = jobFaturamento();
+    await executarPipeline(job, deps);
+    const recalc = deps.chamadas.filter((c) => c.endpoint === 'rpc/hub_campanhas_recalcular_ativas');
+    assert.equal(recalc.length, 1);
+    assert.deepEqual(recalc[0].body, { p_id_empresa: job.idEmpresa });
   });
 
   test('performance: MV não atualizada -> não recalcula (ranking derivaria de MV velha)', async () => {

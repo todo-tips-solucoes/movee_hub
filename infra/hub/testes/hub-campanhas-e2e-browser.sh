@@ -14,6 +14,10 @@
 #   (e) fechar -> hub mostra vencedores; entrega do objeto; planilha de prêmios em dinheiro
 #       (cabeçalho = CABECALHO_ESPERADO e lida pelo PARSER REAL do lançamento externo); app: "Resultado final"
 #   (f) hub_campanhas_avisar_inicio() -> notificação /campanhas/<id> na central do app, link clicável
+#   (g) campanha tipo "Melhor extrato" (fases 6-8, depois da nota): hub cria (mínimo no turno em 2
+#       critérios, categorias nome+família, base "válidos") -> rascunho -> lança; semeia Performance +
+#       faturamento (turnos válidos/inválidos/pendentes, 5 motoristas) e recalcula -> cards, tabela e CSV
+#       do hub; app: "Seu extrato na campanha", ✓/✕/… em "Seus turnos", NENHUM valor de terceiro
 #
 # Ambiente: stack efêmero hub-test-<runid> (db + postgrest + backend, série de migrations completa).
 # UM container oficial do Playwright fica de pé com os DOIS frontends (hub :3005 e app motorista
@@ -42,7 +46,7 @@ PLAYWRIGHT_IMAGE="mcr.microsoft.com/playwright:v1.61.1-jammy"
 EVID_DIR="$REPO_DIR/docs/specs/envioMassa_homologacao/evidencias/campanhas"
 mkdir -p "$EVID_DIR"
 RUN_LOG="$EVID_DIR/campanhas-e2e-browser-run-$(date -u +%Y%m%dT%H%M%SZ).log"
-PHASES="${CAMP_PHASES:-1 2 3 4 5}"
+PHASES="${CAMP_PHASES:-1 2 3 4 5 6 7 8}"
 
 . "$HUB_DIR/scripts/lib.sh"
 DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"; DB_NAME="$(get_var HUB_DB_NAME "$ENV_FILE")"
@@ -142,10 +146,11 @@ if [ -z "${CAMP_REUSE:-}" ]; then
   echo "subindo db+postgrest efêmeros ($PROJECT, tmpfs)…"
   dc up -d --wait db
   dc up -d --wait postgrest
-  echo "rodando migrate.sh (série completa, inclusive a 0127)…"
+  echo "rodando migrate.sh (série completa, inclusive a 0127 e a 0129)…"
   "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1 || { echo "FAIL: migrate"; tail -40 "$TMP/migrate.log"; exit 1; }
   grep -q "0127_campanhas.sql" "$TMP/migrate.log" || { echo "FAIL: 0127 não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
-  echo "PASS: série de migrations aplicada do zero, com a 0127"
+  grep -q "0129_campanhas_extrato.sql" "$TMP/migrate.log" || { echo "FAIL: 0129 não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
+  echo "PASS: série de migrations aplicada do zero, com a 0127 e a 0129"
   # recarrega o schema cache do PostgREST (RPCs novas)
   dc kill -s SIGUSR1 postgrest >/dev/null 2>&1 || true
 
@@ -247,7 +252,7 @@ roda_fase() { # roda_fase <rótulo> <arquivo-do-spec> [VAR=valor ...]
               -e "CAMP_HOJE=$HOJE" -e "CAMP_ADMIN_EMAIL=$ADMIN_EMAIL" -e "CAMP_ADMIN_SENHA=$SENHA_ADMIN"
               -e "CAMP_FIN_EMAIL=$FIN_EMAIL" -e "CAMP_FIN_SENHA=$SENHA_ADMIN" -e "CAMP_MOT_SENHA=$SENHA_MOT"
               -e "CAMP_MOT_A_CNPJ=$C_EVA" -e "CAMP_MOT_B_CNPJ=$C_DIEGO" -e "CAMP_MOT_W_CNPJ=$C_ALINE"
-              -e "CAMP_ID=${CAMP_ID:-0}")
+              -e "CAMP_ID=${CAMP_ID:-0}" -e "CAMP_X_INI=${CAMP_X_INI:-}" -e "CAMP_X_ID=${CAMP_X_ID:-}")
   local v; for v in "$@"; do envs+=(-e "$v"); done
   echo; echo "=== fase $rotulo ($arq) ==="
   local out="$TMP/fase-$rotulo.log"
@@ -261,6 +266,8 @@ roda_fase() { # roda_fase <rótulo> <arquivo-do-spec> [VAR=valor ...]
   [ "$rc" = "0" ] || PW_EXIT_ALL=1
   return "$rc"
 }
+NOME_EXTRATO='Melhor extrato E2E'
+campanha_extrato_id() { own "SELECT id FROM \"Campanha\" WHERE nome='$NOME_EXTRATO' AND lancada_em IS NOT NULL ORDER BY id DESC LIMIT 1"; }
 campanha_id() { own "SELECT id FROM \"Campanha\" WHERE nome='$NOME_CAMPANHA' AND lancada_em IS NOT NULL ORDER BY id DESC LIMIT 1"; }
 tem_fase() { case " $PHASES " in *" $1 "*) return 0;; *) return 1;; esac; }
 
@@ -411,13 +418,108 @@ if tem_fase 5; then
   roda_fase 5 05-app-resultado-final CAMP_ID="$CAMP_ID"
 fi
 
+# ============================ fases 6-8: campanha tipo "Melhor extrato" (g) ============================
+# Roda DEPOIS da nota (a nota já fechou na fase 4): o "hoje" do banco pode estar fixado em HOJE+2.
+# Janela do extrato: S = hoje do banco; turnos em S, S+1, S+2; fim S+3; hoje fixado em S+2 para o recálculo.
+# Critério do turno: aceitação >= 90% E tempo disponível >= 70%. Categorias: "Corridas" + família Promoção.
+# Contas à mão (R$): turno válido soma o valor; inválido/pendente não soma.
+#   Aline  d0 válido 80+20(Promocao)=100 · d1 válido 50 · d2 válido sem faturamento (pendente)  -> 3/3 válidos, R$ 150
+#   Bruno  d0 válido 120 · d1 INVÁLIDO (aceitação 70%) 300 · d2 válido pendente                  -> 3 trab., 2 válidos, R$ 120
+#   Carla  d0 válido 60  · d1 INVÁLIDO (tempo 50%) 40                                            -> 2 trab., 1 válido  -> sem_minimo, R$ 60
+#   Eva    d0 válido 40 (+77 "Ajuste", +9,99 Gorjeta sem turno: não contam) · d1 válido 30        -> 2/2, R$ 70   (motorista A)
+#   Diego  d0 válido 25 · d1 INVÁLIDO (aceitação 70%) 500 · d2 válido pendente                   -> 3 trab., 2 válidos, R$ 25 (motorista B)
+#   Ranking: Aline 150 · Bruno 120 · Eva 70 · Diego 25 · (sem mínimo) Carla 60. Σ válidos 10 de 13 = 76,9%; Σ valor R$ 425.
+if tem_fase 6 || tem_fase 7 || tem_fase 8; then
+  if [ -z "${CAMP_X_INI:-}" ]; then
+    CAMP_X_INI="$(own "SELECT hub_hoje_sp()")"
+    X_D1="$(date -u -d "$CAMP_X_INI + 1 day" +%F)"; X_D2="$(date -u -d "$CAMP_X_INI + 2 day" +%F)"
+    echo "--- extrato: semear Performance + faturamento (S=$CAMP_X_INI) ---"
+    psql_t -q <<SQL >"$TMP/seed-extrato.log" 2>&1 || { echo "FAIL: seed do extrato"; cat "$TMP/seed-extrato.log"; exit 1; }
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status) VALUES ($EMP,'faturamento',repeat('f',64),'completed');
+CREATE TEMP TABLE px (nome text, d int, o int, a int, c int, p int, t numeric);
+INSERT INTO px VALUES
+ ('Aline Ribeiro Santos',0,10,10,10,10,3.8),('Aline Ribeiro Santos',1,10,10,10,10,3.8),('Aline Ribeiro Santos',2,10,10,10,10,3.8),
+ ('Bruno Teixeira Souza',0,10,10,10,10,3.8),('Bruno Teixeira Souza',1,10, 7, 7, 8,3.8),('Bruno Teixeira Souza',2,10,10,10,10,3.8),
+ ('Carla Dias Moreira',  0,10,10,10,10,3.8),('Carla Dias Moreira',  1,10,10,10, 9,2.0),
+ ('Eva Costa Lima',      0,10,10,10,10,3.8),('Eva Costa Lima',      1,10,10,10,10,3.8),
+ ('Diego Pires Oliveira',0,10,10,10,10,3.8),('Diego Pires Oliveira',1,10, 7, 7, 5,3.8),('Diego Pires Oliveira',2,10,10,10,10,3.8);
+INSERT INTO "PerformanceTurno" (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca,
+       corridas_ofertadas, corridas_aceitas, corridas_completadas, pedidos_concluidos, tempo_disponivel, hash_linha)
+SELECT $EMP, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('a',64)), e.id, ('$CAMP_X_INI'::date + p.d), 'JANTAR 18H-22H', interval '4 hours', 'SAO PAULO',
+       p.o, p.a, p.c, p.p, make_interval(secs => (p.t * 3600)::float8),
+       md5('x'||e.id::text||p.d::text)||md5(p.d::text||e.id::text||'x')
+FROM px p JOIN "Entregador" e ON e.nome = p.nome AND e.id_empresa = $EMP;
+REFRESH MATERIALIZED VIEW mv_performance_dia;
+CREATE TEMP TABLE fx (nome text, d int, cat text, v numeric, per text);
+INSERT INTO fx VALUES
+ ('Aline Ribeiro Santos',0,'Corridas',80,'JANTAR 18H-22H'),('Aline Ribeiro Santos',0,'Promocao - W1',20,'JANTAR 18H-22H'),
+ ('Aline Ribeiro Santos',1,'Corridas',50,'JANTAR 18H-22H'),
+ ('Bruno Teixeira Souza',0,'Corridas',120,'JANTAR 18H-22H'),('Bruno Teixeira Souza',1,'Corridas',300,'JANTAR 18H-22H'),
+ ('Carla Dias Moreira',  0,'Corridas',60,'JANTAR 18H-22H'),('Carla Dias Moreira',  1,'Corridas',40,'JANTAR 18H-22H'),
+ ('Eva Costa Lima',      0,'Corridas',40,'JANTAR 18H-22H'),('Eva Costa Lima',      1,'Corridas',30,'JANTAR 18H-22H'),
+ ('Eva Costa Lima',      0,'Ajuste fora da campanha',77,'JANTAR 18H-22H'),('Eva Costa Lima',0,'Gorjeta',9.99,NULL),
+ ('Diego Pires Oliveira',0,'Corridas',25,'JANTAR 18H-22H'),('Diego Pires Oliveira',1,'Corridas',500,'JANTAR 18H-22H');
+INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, hash_linha)
+SELECT $EMP, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('f',64)), e.id, ('$CAMP_X_INI'::date + f.d + 1), ('$CAMP_X_INI'::date + f.d),
+       f.per, 'Credito', f.v, f.cat, md5(f.nome||f.d||f.cat||'fx')||md5(f.cat||f.v||f.d||'fy')
+FROM fx f JOIN "Entregador" e ON e.nome = f.nome AND e.id_empresa = $EMP;
+SQL
+    check "g/seed: 13 turnos e 13 lançamentos de faturamento do extrato" "$(own "SELECT (SELECT count(*) FROM \"PerformanceTurno\" WHERE id_empresa=$EMP AND data_periodo >= '$CAMP_X_INI'::date)||'/'||(SELECT count(*) FROM \"FaturamentoLancamento\" WHERE id_empresa=$EMP AND data_referencia >= '$CAMP_X_INI'::date)")" "13/13"
+  fi
+  X_D1="$(date -u -d "$CAMP_X_INI + 1 day" +%F)"; X_D2="$(date -u -d "$CAMP_X_INI + 2 day" +%F)"
+  X_FIM="$(date -u -d "$CAMP_X_INI + 3 day" +%F)"
+fi
+
+if tem_fase 6; then
+  roda_fase 6 06-hub-extrato-criar-lancar
+  CAMP_X_ID="$(campanha_extrato_id)"
+  echo "--- banco depois da fase 6 (extrato #$CAMP_X_ID) ---"
+  check "g/banco: UMA campanha de extrato lançada com esse nome" "$(own "SELECT count(*) FROM \"Campanha\" WHERE nome='$NOME_EXTRATO' AND lancada_em IS NOT NULL")" "1"
+  check "g/banco: tipo, base do mínimo, mínimo de turnos e categorias (nome exato + token de família)" \
+    "$(own "SELECT tipo||'|'||min_turnos_base||'|'||min_turnos||'|'||array_to_string(categorias,',') FROM \"Campanha\" WHERE id=$CAMP_X_ID")" \
+    "extrato|validos|2|Corridas,familia:promocao"
+  check "g/banco: período, praça/turno/modal canônicos" \
+    "$(own "SELECT data_inicio||'|'||data_fim||'|'||pracas::text||turnos::text||modais::text FROM \"Campanha\" WHERE id=$CAMP_X_ID")" \
+    "$CAMP_X_INI|$X_FIM|{\"SAO PAULO\"}{\"JANTAR 18H-22H\"}{MOTO}"
+  check "g/banco: sem peso; mínimo no turno só em aceitação (0,9) e tempo (0,7)" \
+    "$(own "SELECT peso_aceitacao||'/'||peso_conclusao||'/'||peso_tempo||'/'||peso_pedidos||' '||corte_aceitacao||' '||COALESCE(corte_conclusao::text,'-')||' '||corte_tempo||' '||COALESCE(corte_pedidos::text,'-') FROM \"Campanha\" WHERE id=$CAMP_X_ID")" \
+    "0/0/0/0 0.9000 - 0.7000 -"
+  check "g/banco: 1 faixa 1º-3º objeto" "$(own "SELECT string_agg(posicao_de||'-'||posicao_ate||':'||tipo||':'||descricao, ' | ') FROM \"CampanhaPremio\" WHERE campanha_id=$CAMP_X_ID")" "1-3:objeto:Vale-combustível"
+  for col in "categorias=ARRAY['Outra']" "min_turnos_base='trabalhados'" "tipo='nota'"; do
+    R="$(ownx "UPDATE \"Campanha\" SET $col WHERE id=$CAMP_X_ID")"
+    check_match "g/banco: depois de lançar, UPDATE direto de $col recusado (CAMPANHA_IMUTAVEL)" "$R" 'CAMPANHA_IMUTAVEL'
+  done
+  # recalcular como o gancho; hoje fixado em S+2 (turnos de S..S+2 já "aconteceram")
+  psql_t -q -c "CREATE OR REPLACE FUNCTION hub_hoje_sp() RETURNS date LANGUAGE sql STABLE AS \$\$ SELECT '$X_D2'::date \$\$;" >/dev/null
+  R="$(rpc $ADM $E6 $EMP "SELECT hub_campanhas_recalcular_ativas($EMP);")"
+  check "g: recalcular_ativas sem fechar nada e sem erro" "$(printf '%s' "$R" | jq -c '[(.recalculadas>=1),.fechadas,(.erros|length)]' 2>/dev/null)" "[true,0,0]"
+  check "g/banco: ranking do extrato (nome|situação|posição|trabalhados|válidos|centavos) = contas à mão" \
+    "$(own "SELECT string_agg(e.nome||'|'||r.situacao||'|'||COALESCE(r.posicao::text,'-')||'|'||r.turnos||'|'||r.turnos_validos||'|'||r.valor_centavos, ' ; ' ORDER BY r.posicao NULLS LAST, e.nome) FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$CAMP_X_ID")" \
+    "Aline Ribeiro Santos|classificado|1|3|3|15000 ; Bruno Teixeira Souza|classificado|2|3|2|12000 ; Eva Costa Lima|classificado|3|2|2|7000 ; Diego Pires Oliveira|classificado|4|3|2|2500 ; Carla Dias Moreira|sem_minimo|-|2|1|6000"
+fi
+if [ -z "${CAMP_X_ID:-}" ] && { tem_fase 7 || tem_fase 8; }; then CAMP_X_ID="$(campanha_extrato_id)"; fi
+
+if tem_fase 7; then
+  rm -f "$DL"/extrato.csv
+  roda_fase 7 07-hub-extrato-ranking CAMP_X_ID="$CAMP_X_ID"
+  echo "--- CSV do extrato: cabeçalho do extrato (sem as colunas da nota) e linhas ---"
+  check "g/csv: cabeçalho do extrato" "$(head -1 "$DL/extrato.csv" 2>/dev/null | tr -d '\r\357\273\277')" "Posição,Nome,Modal,Situação,Turnos válidos,Trabalhados,Valor somado,Posição anterior"
+  check_match "g/csv: Aline 1ª, 3 válidos, 3 trabalhados, 150,00" "$(grep 'Aline Ribeiro Santos' "$DL/extrato.csv" 2>/dev/null)" '^1,Aline Ribeiro Santos,.*,3,3,"?150,00"?,'
+  check_match "g/csv: Carla sem_minimo, 1 válido, 2 trabalhados, 60,00" "$(grep 'Carla Dias Moreira' "$DL/extrato.csv" 2>/dev/null)" 'sem_minimo,1,2,"?60,00"?,'
+  check "g/csv: 5 linhas de dados (4 classificados + 1 sem mínimo)" "$(tail -n +2 "$DL/extrato.csv" 2>/dev/null | grep -c .)" "5"
+fi
+
+if tem_fase 8; then
+  roda_fase 8 08-app-extrato CAMP_X_ID="$CAMP_X_ID"
+fi
+
 # ------------------------------ relatório ------------------------------
 echo
 echo "=== log completo: $RUN_LOG ==="
 echo "Checagens de banco/driver: $passes PASS, $fails FAIL"
 echo "Playwright (soma das fases): $PW_PASSED passed, $PW_FAILED failed, $PW_FLAKY flaky"
 if [ "$fails" = "0" ] && [ "$PW_EXIT_ALL" = "0" ] && [ "$PW_FAILED" = "0" ]; then
-  echo "HUB-CAMPANHAS-E2E-BROWSER: OK — a) b) c) d) e) f) verdes"
+  echo "HUB-CAMPANHAS-E2E-BROWSER: OK — a) b) c) d) e) f) g) verdes"
   exit 0
 fi
 echo "HUB-CAMPANHAS-E2E-BROWSER: FALHOU (checagens=$fails, playwright_exit=$PW_EXIT_ALL, failed=$PW_FAILED)" >&2

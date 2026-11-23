@@ -13,7 +13,7 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { seloZonaClasse } from '@/components/card-campanha';
+import { TelaExtrato } from '@/components/campanha-extrato';
 import {
   AlertCircle,
   ArrowDown,
@@ -30,8 +30,11 @@ import { ApiError } from '@/lib/api-client';
 import { cn, formatDate } from '@/lib/utils';
 import {
   buscarCampanha,
+  ehExtrato,
   urlFotoPremio,
+  type CampanhaDados,
   type CampanhaTela,
+  type ExtratoTela,
   type Indicador,
   type LinhaTop,
   type MinhaLinha,
@@ -63,7 +66,7 @@ import {
 
 type Carga =
   | { tipo: 'carregando' }
-  | { tipo: 'ok'; dados: CampanhaTela }
+  | { tipo: 'ok'; dados: CampanhaTela | ExtratoTela }
   | { tipo: 'erro' }
   | { tipo: 'nao-encontrada'; semVinculo: boolean };
 
@@ -93,6 +96,8 @@ export default function CampanhaPage() {
   }, [carregar]);
 
   if (carga.tipo === 'ok') {
+    if (ehExtrato(carga.dados))
+      return <TelaExtrato t={carga.dados} hero={<Hero c={carga.dados.campanha} />} />;
     return carga.dados.campanha.situacao === 'encerrada' ? (
       <Encerrada t={carga.dados} />
     ) : (
@@ -180,7 +185,7 @@ function EmAndamento({ t }: { t: CampanhaTela }) {
 
   return (
     <main className="flex min-h-dvh flex-col bg-muted/40 pb-10">
-      <Hero t={t} />
+      <Hero c={t.campanha} />
       <div className="relative mx-auto -mt-12 flex w-full max-w-md flex-col gap-4 px-4">
         {estado === 'classificado' && eu && <MinhaPosicao t={t} eu={eu} />}
         {estado === 'abaixo_corte' && eu && <ForaDoRanking t={t} eu={eu} />}
@@ -196,8 +201,7 @@ function EmAndamento({ t }: { t: CampanhaTela }) {
   );
 }
 
-function Hero({ t }: { t: CampanhaTela }) {
-  const { campanha: c } = t;
+function Hero({ c }: { c: CampanhaDados }) {
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setAgora(Date.now()), 30_000);

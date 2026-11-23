@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Hub — Nova campanha (Melhor extrato)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2c66e9}a:hover{color:#1b3fac}
+</style>
+</helmet>
+<div style="width: 1280px; height: 1500px; background: #f9f2e8; color: #0f1849; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; padding: 32px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+  <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: #52618a">
+    <a href="Main.dc.html" style="font-weight: 600">Campanhas</a><span aria-hidden="true">/</span><span>Nova campanha</span>
+    <span style="margin-left: auto; font-size: 12px; font-weight: 700; background: #efe6d6; color: #52618a; padding: 4px 10px; border-radius: 999px">Rascunho · editável até lançar</span>
+  </div>
+  <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Nova campanha</h1>
+
+  <section aria-labelledby="s-tipo" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px">
+    <h2 id="s-tipo" style="margin: 0; font-size: 16px; font-weight: 800">Tipo de campanha</h2>
+    <div role="radiogroup" aria-labelledby="s-tipo" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <label style="display: flex; gap: 12px; align-items: flex-start; padding: 16px; border: 1px solid #e7ddcd; border-radius: 14px; cursor: pointer">
+        <input type="radio" name="tipo" style="width: 18px; height: 18px; margin-top: 2px">
+        <span style="display: flex; flex-direction: column; gap: 4px"><strong style="font-size: 14px">Nota ponderada</strong><span style="font-size: 13px; color: #52618a; line-height: 1.45">Média dos indicadores no período, com peso por indicador. Ganha a maior nota.</span></span>
+      </label>
+      <label style="display: flex; gap: 12px; align-items: flex-start; padding: 16px; border: 1.5px solid #2c66e9; background: #eef3fe; border-radius: 14px; cursor: pointer">
+        <input type="radio" name="tipo" checked style="width: 18px; height: 18px; margin-top: 2px">
+        <span style="display: flex; flex-direction: column; gap: 4px"><strong style="font-size: 14px">Melhor extrato</strong><span style="font-size: 13px; color: #52618a; line-height: 1.45">Turno que cumpre os critérios soma o valor do faturamento daquele turno. Ganha a maior soma.</span></span>
+      </label>
+    </div>
+  </section>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+    <section aria-labelledby="s-id" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+      <h2 id="s-id" style="margin: 0; font-size: 16px; font-weight: 800">1. Identificação e período</h2>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600">Nome da campanha
+        <input type="text" value="Melhor extrato — 2ª quinzena" style="font: inherit; font-weight: 500; font-size: 14px; padding: 11px 12px; border: 1px solid #e7ddcd; border-radius: 10px; color: #0f1849">
+      </label>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600">Regras e descrição (o motorista vê este texto)
+        <textarea rows="3" style="font: inherit; font-weight: 500; font-size: 14px; padding: 11px 12px; border: 1px solid #e7ddcd; border-radius: 10px; color: #0f1849; resize: none">Todo turno de jantar com 70% de tempo online e 90% de aceitação soma o valor do turno. Quem somar mais de 16 a 30/11 leva os prêmios.</textarea>
+      </label>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600">Início
+          <input type="date" value="2026-11-16" style="font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid #e7ddcd; border-radius: 10px; color: #0f1849">
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600">Fim
+          <input type="date" value="2026-11-30" style="font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid #e7ddcd; border-radius: 10px; color: #0f1849">
+        </label>
+      </div>
+      <p style="margin: 0; font-size: 12px; color: #52618a; line-height: 1.5">O faturamento chega com 1 a 2 dias de atraso. O resultado final fecha sozinho <strong style="color: #0f1849">3 dias depois do fim</strong> (03/12), quando ~97% do valor já entrou.</p>
+    </section>
+
+    <section aria-labelledby="s-pub" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+      <h2 id="s-pub" style="margin: 0; font-size: 16px; font-weight: 800">2. Quem participa</h2>
+      <p style="margin: 0; font-size: 13px; color: #52618a">Praças, turnos e modal: iguais à nota ponderada.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px">
+        <span style="font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1.5px solid #2c66e9; background: #eef3fe; border-radius: 999px">SÃO PAULO</span>
+        <span style="font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1.5px solid #2c66e9; background: #eef3fe; border-radius: 999px">JANTAR CPS 18H30-21H29</span>
+        <span style="font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1.5px solid #2c66e9; background: #eef3fe; border-radius: 999px">JANTAR 21H30-23H59</span>
+        <span style="font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1.5px solid #2c66e9; background: #eef3fe; border-radius: 999px">MOTO</span>
+      </div>
+      <fieldset style="border: 0; padding: 4px 0 0; margin: 0; display: flex; flex-direction: column; gap: 10px">
+        <legend style="font-size: 13px; font-weight: 600; margin-bottom: 8px">Mínimo de turnos para entrar no ranking</legend>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <input type="number" value="8" min="1" aria-label="Quantidade mínima de turnos" style="font: inherit; font-size: 14px; width: 80px; padding: 10px 12px; border: 1px solid #e7ddcd; border-radius: 10px; color: #0f1849; text-align: right">
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1.5px solid #2c66e9; background: #eef3fe; border-radius: 999px"><input type="radio" name="base" checked> turnos válidos</label>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1px solid #e7ddcd; border-radius: 999px"><input type="radio" name="base"> turnos trabalhados</label>
+        </div>
+        <p style="margin: 0; font-size: 12px; color: #52618a">Válido = turno que cumpriu todos os critérios marcados abaixo.</p>
+      </fieldset>
+    </section>
+  </div>
+
+  <section aria-labelledby="s-ind" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+    <h2 id="s-ind" style="margin: 0; font-size: 16px; font-weight: 800">3. Critérios do turno (mínimo em cada turno)</h2>
+    <p style="margin: 0; font-size: 13px; color: #52618a; line-height: 1.5">Os mesmos indicadores da Performance, conferidos <strong style="color: #0f1849">turno a turno</strong>. O turno só vale se cumprir <strong style="color: #0f1849">todos</strong> os marcados. Não há peso: o que ordena o ranking é o valor somado.</p>
+    <div style="display: grid; grid-template-columns: 2.2fr 1.4fr 3fr; border: 1px solid #efe6d6; border-radius: 12px; overflow: hidden; font-size: 14px">
+      <div style="padding: 10px 16px; background: #faf6ef; font-size: 12px; font-weight: 700; color: #52618a; text-transform: uppercase; letter-spacing: 0.04em">Indicador</div>
+      <div style="padding: 10px 16px; background: #faf6ef; font-size: 12px; font-weight: 700; color: #52618a; text-transform: uppercase; letter-spacing: 0.04em">Mínimo no turno</div>
+      <div style="padding: 10px 16px; background: #faf6ef; font-size: 12px; font-weight: 700; color: #52618a; text-transform: uppercase; letter-spacing: 0.04em">Como é conferido</div>
+      <sc-for list="{{ind}}" as="i" hint-placeholder-count="4">
+        <label style="padding: 14px 16px; border-top: 1px solid #efe6d6; display: flex; align-items: center; gap: 10px; font-weight: 700"><input type="checkbox" checked="{{i.on}}" style="width: 18px; height: 18px"> {{i.nome}}</label>
+        <div style="padding: 10px 16px; border-top: 1px solid #efe6d6; display: flex; align-items: center; gap: 6px"><input type="text" value="{{i.corte}}" aria-label="Mínimo no turno" style="font: inherit; width: 84px; padding: 8px 10px; border: 1px solid #e7ddcd; border-radius: 8px; text-align: right; color: #0f1849"> {{i.unid}}</div>
+        <div style="padding: 14px 16px; border-top: 1px solid #efe6d6; font-size: 12px; color: #52618a; line-height: 1.4">{{i.regra}}</div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-cat" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: baseline; justify-content: space-between">
+      <h2 id="s-cat" style="margin: 0; font-size: 16px; font-weight: 800">4. Valor do turno: categorias do faturamento</h2>
+      <span style="font-size: 13px; font-weight: 700; color: #52618a">3 de 17 marcadas</span>
+    </div>
+    <p style="margin: 0; font-size: 13px; color: #52618a; line-height: 1.5">Soma dos créditos do Financeiro do motorista naquele dia (data de referência) e turno, nas categorias marcadas. Mesmo seletor das Configurações do adiantamento.</p>
+    <input type="search" placeholder="Buscar categoria" aria-label="Buscar categoria" style="font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid #e7ddcd; border-radius: 10px; max-width: 360px">
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <sc-for list="{{cats}}" as="c" hint-placeholder-count="8">
+        <label style="{{c.estilo}}"><input type="checkbox" checked="{{c.on}}" disabled="{{c.off}}"> {{c.nome}} <span style="font-weight: 500; font-size: 12px; opacity: 0.75">{{c.det}}</span></label>
+      </sc-for>
+    </div>
+    <p style="margin: 0; font-size: 12px; color: #7a5200; font-weight: 600">Só aparecem categorias que têm turno no faturamento. Gorjeta, por exemplo, vem sem turno e não pode ser atribuída a um.</p>
+  </section>
+
+  <section aria-labelledby="s-pre" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between">
+    <h2 id="s-pre" style="margin: 0; font-size: 16px; font-weight: 800">5. Prêmios por faixa de posição</h2>
+    <span style="font-size: 13px; color: #52618a">Igual à nota ponderada (objeto ou dinheiro, com foto opcional).</span>
+  </section>
+
+  <div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 4px">
+    <button style="font: inherit; font-size: 14px; font-weight: 700; background: #ffffff; color: #0f1849; border: 1px solid #e7ddcd; padding: 12px 20px; border-radius: 12px; min-height: 44px; cursor: pointer">Salvar rascunho</button>
+    <a href="HubConfirmar.dc.html" style="text-decoration: none; font-size: 14px; font-weight: 700; background: #2c66e9; color: #ffffff; padding: 12px 20px; border-radius: 12px; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center">Revisar e lançar</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var on = 'display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:8px 12px;border:1.5px solid #2c66e9;background:#eef3fe;border-radius:999px;';
+    var of = 'display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:8px 12px;border:1px solid #e7ddcd;border-radius:999px;';
+    var na = 'display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:8px 12px;border:1px dashed #d8ccb6;border-radius:999px;color:#8a93ad;';
+    return {
+      ind: [
+        { on: true, nome: 'Taxa de aceitação', corte: '90', unid: '%', regra: 'Aceitas ÷ ofertadas daquele turno.' },
+        { on: false, nome: 'Taxa de conclusão', corte: '', unid: '%', regra: 'Completadas ÷ aceitas daquele turno.' },
+        { on: true, nome: 'Tempo disponível', corte: '70', unid: '%', regra: 'Tempo online ÷ duração daquele turno.' },
+        { on: false, nome: 'Pedidos concluídos', corte: '', unid: 'pedidos', regra: 'Pedidos do turno. Turno sem a leitura não vale (zero inventado nunca conta).' }
+      ],
+      cats: [
+        { on: true, off: false, nome: 'Corridas concluidas', det: '41.462', estilo: on },
+        { on: true, off: false, nome: 'Valor por Hora Online', det: '21.775', estilo: on },
+        { on: false, off: false, nome: 'Promocao entregador', det: '11.885', estilo: of },
+        { on: true, off: false, nome: 'Tempo de espera na origem', det: '10.591', estilo: on },
+        { on: false, off: false, nome: 'Percentual atingido de rotas completas', det: '3.487', estilo: of },
+        { on: false, off: false, nome: 'ROUTE_WITH_OCCURRENCE', det: '3.439', estilo: of },
+        { on: false, off: false, nome: 'Promoção (família)', det: '6 categorias', estilo: of }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

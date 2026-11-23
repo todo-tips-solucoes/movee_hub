@@ -38,7 +38,7 @@ describe('validarFormulario — caminho feliz e canonização', () => {
     assert.equal(r.dados.cortes.tempo, null);
     assert.equal(r.dados.minTurnos, 5);
     assert.equal(r.dados.premios[0].posicaoDe, 1);
-    assert.deepEqual(Object.keys(r.dados).sort(), ['avisar', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'turnos']);
+    assert.deepEqual(Object.keys(r.dados).sort(), ['avisar', 'categorias', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'minTurnosBase', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'tipo', 'turnos']);
   });
   test('deduplica itens canônicos da lista', () => {
     assert.deepEqual(dto.validarFormulario(form({ pracas: ['a', ' A ', 'b'] })).dados.pracas, ['A', 'B']);
@@ -136,6 +136,48 @@ describe('validarFormulario — bordas do §4', () => {
   });
 });
 
+describe('validarFormulario — extrato (0129)', () => {
+  const ext = (over = {}) => form({
+    tipo: 'extrato', categorias: ['Bônus X', 'familia:promocao'], minTurnosBase: 'validos',
+    pesos: undefined, cortes: { aceitacao: 0.8, conclusao: null, tempo: null, pedidos: null }, ...over,
+  });
+  test('válido: pesos ausentes viram 0; categorias sem trim/upper; repetição some; campos repassados', () => {
+    const r = dto.validarFormulario(ext({ categorias: [' Bônus x', ' Bônus x', 'familia:missoes'] }));
+    assert.equal(r.ok, true);
+    assert.equal(r.dados.tipo, 'extrato');
+    assert.deepEqual(r.dados.categorias, [' Bônus x', 'familia:missoes']);
+    assert.equal(r.dados.minTurnosBase, 'validos');
+    assert.deepEqual(r.dados.pesos, { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 });
+    assert.equal(dto.validarFormulario(ext({ pesos: { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 } })).ok, true);
+  });
+  test('inválidos: peso > 0, sem corte, sem/ruim categorias, tipo e base desconhecidos', () => {
+    assert.equal(erro(ext({ pesos: { aceitacao: 100, conclusao: 0, tempo: 0, pedidos: 0 } })).token, 'PESOS_INVALIDOS');
+    assert.equal(erro(ext({ cortes: {} })).campo, 'cortes');
+    assert.equal(erro(ext({ categorias: undefined })).campo, 'categorias');
+    assert.equal(erro(ext({ categorias: [] })).campo, 'categorias');
+    assert.equal(erro(ext({ categorias: Array.from({ length: 61 }, (_, i) => `c${i}`) })).campo, 'categorias');
+    assert.equal(erro(ext({ categorias: ['x'.repeat(201)] })).campo, 'categorias');
+    assert.equal(erro(ext({ categorias: [''] })).campo, 'categorias');
+    assert.equal(erro(ext({ categorias: [1] })).campo, 'categorias');
+    assert.equal(erro(ext({ categorias: ['familia:promocoes'] })).campo, 'categorias');
+    assert.equal(erro(ext({ minTurnosBase: 'outra' })).campo, 'minTurnosBase');
+    assert.equal(erro(form({ tipo: 'outro' })).campo, 'tipo');
+  });
+  test('nota: categorias ou base ≠ trabalhados recusadas; padrão nota/trabalhados/null', () => {
+    assert.equal(erro(form({ categorias: ['x'] })).campo, 'categorias');
+    assert.equal(erro(form({ minTurnosBase: 'validos' })).campo, 'minTurnosBase');
+    const r = dto.validarFormulario(form());
+    assert.equal(r.dados.tipo, 'nota');
+    assert.equal(r.dados.categorias, null);
+    assert.equal(r.dados.minTurnosBase, 'trabalhados');
+  });
+  test('linhaRanking e linhaVencedor carregam turnosValidos/valorCentavos', () => {
+    const l = dto.linhaRanking({ turnos_validos: '3', valor_centavos: '1500' });
+    assert.equal(l.turnosValidos, 3);
+    assert.equal(l.valorCentavos, 1500);
+  });
+});
+
 describe('detectarImagem (A9)', () => {
   const png = (extra = 0) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]), Buffer.alloc(extra)]);
   test('JPEG, PNG e WebP por bytes iniciais', () => {
@@ -185,12 +227,12 @@ describe('mapeamento snake -> camel (§7)', () => {
     const r = dto.linhaRanking({
       posicao: 1, entregador_id: 88, nome: 'Marcos', modal: 'MOTO', situacao: 'classificado', turnos: 19,
       aceitacao: '0.962', conclusao: 0.991, tempo: 0.94, pedidos: 412, nota: 97.3, nota_hipotetica: null,
-      posicao_hipotetica: null, motivo_corte: [], posicao_anterior: 3,
+      posicao_hipotetica: null, motivo_corte: [], posicao_anterior: 3, turnos_validos: 17, valor_centavos: '250000',
     });
     assert.deepEqual(r, {
       posicao: 1, entregadorId: 88, nome: 'Marcos', modal: 'MOTO', situacao: 'classificado', turnos: 19,
       aceitacao: 0.962, conclusao: 0.991, tempo: 0.94, pedidos: 412, nota: 97.3, notaHipotetica: null,
-      posicaoHipotetica: null, motivoCorte: [], posicaoAnterior: 3,
+      posicaoHipotetica: null, motivoCorte: [], posicaoAnterior: 3, turnosValidos: 17, valorCentavos: 250000,
     });
   });
   test('itemLista desembrulha {item} da RPC (já camelCase) e aceita snake solto', () => {

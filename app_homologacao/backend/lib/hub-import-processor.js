@@ -877,7 +877,8 @@ async function executarPipeline(job, deps = DEFAULT_DEPS) {
 
     // Campanhas do motorista (CONTRATOS §8): o ranking é DERIVADO da MV recém-atualizada.
     // Falha aqui só loga — nunca derruba nem reverte a importação.
-    if (job.tipo === 'performance' && mvAtualizada === true) {
+    // E9: o extrato soma o faturamento, então a importação de faturamento também recalcula.
+    if ((job.tipo === 'performance' || job.tipo === 'faturamento') && mvAtualizada === true) {
       try {
         await deps.hubPostgrestRequest(
           'rpc/hub_campanhas_recalcular_ativas', 'POST', { p_id_empresa: job.idEmpresa }, job.claims,

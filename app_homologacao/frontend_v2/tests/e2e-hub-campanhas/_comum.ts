@@ -11,6 +11,7 @@ export const env = (nome: string): string => {
 };
 
 export const NOME_CAMPANHA = 'Rei do Jantar E2E';
+export const NOME_EXTRATO = 'Melhor extrato E2E';
 
 /** YYYY-MM-DD + n dias (aritmética em UTC, sem fuso). */
 export function somaDias(iso: string, n: number): string {

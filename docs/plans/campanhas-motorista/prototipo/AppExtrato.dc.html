@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>App — Campanha Melhor extrato</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2c67ea}a:hover{color:#1b3fac}
+</style>
+</helmet>
+<div style="width: 390px; height: 1640px; background: #f4ece0; color: #0f1849; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; display: flex; flex-direction: column">
+  <div style="background: #0f1849; color: #ffffff; padding: 16px 16px 72px; position: relative; overflow: hidden">
+    <div aria-hidden="true" style="position: absolute; left: 50%; top: 40px; width: 420px; height: 420px; transform: translateX(-50%); border-radius: 999px; background: radial-gradient(circle, rgba(255,183,42,0.32), rgba(255,183,42,0) 65%)"></div>
+    <div style="display: flex; align-items: center; gap: 8px; position: relative">
+      <a href="AppHome.dc.html" aria-label="Voltar" style="color: #ffffff; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; margin-left: -10px">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </a>
+      <span style="font-size: 14px; font-weight: 700; color: #c9d2f0">Campanha · Melhor extrato</span>
+    </div>
+    <div style="position: relative; text-align: center; padding-top: 8px">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">Melhor extrato — 2ª quinzena</h1>
+      <p style="margin: 6px 0 0; font-size: 13px; color: #c9d2f0">Jantar em SÃO PAULO · só moto · 16 a 30/11</p>
+      <div style="display: flex; justify-content: center; gap: 8px; margin-top: 16px">
+        <sc-for list="{{tempo}}" as="t" hint-placeholder-count="3">
+          <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16); border-radius: 14px; padding: 8px 14px; min-width: 56px">
+            <div style="font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums">{{t.v}}</div>
+            <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #c9d2f0">{{t.l}}</div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 12px 0 0; font-size: 11px; color: #9aa8cf">Ranking com o faturamento até 21/11 (chega com 1 a 2 dias)</p>
+    </div>
+  </div>
+
+  <div style="padding: 0 16px; margin-top: -52px; display: flex; flex-direction: column; gap: 16px; position: relative">
+    <section aria-label="Minha posição" style="background: #ffffff; border-radius: 24px; padding: 20px; box-shadow: 0 24px 48px -28px rgba(15,24,73,0.55); display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 16px">
+        <div style="width: 84px; height: 84px; border-radius: 999px; background: conic-gradient(#ffb72a 0 92%, #efe6d6 92% 100%); display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+          <div style="width: 70px; height: 70px; border-radius: 999px; background: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center">
+            <span style="font-size: 28px; font-weight: 800; line-height: 1">5º</span>
+            <span style="font-size: 10px; font-weight: 700; color: #5a6a87">de 142</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 12px; font-weight: 700; color: #5a6a87">Seu extrato na campanha</span>
+          <span style="font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums">R$ 1.284,50</span>
+          <span style="font-size: 12px; font-weight: 700; color: #00715e; display: inline-flex; align-items: center; gap: 4px">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+            subiu 2 posições desde ontem
+          </span>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+        <div style="background: #e6fbf5; border-radius: 14px; padding: 10px 12px"><div style="font-size: 22px; font-weight: 800; color: #00715e">9</div><div style="font-size: 12px; font-weight: 600">turnos válidos</div></div>
+        <div style="background: #f4ece0; border-radius: 14px; padding: 10px 12px"><div style="font-size: 22px; font-weight: 800">3</div><div style="font-size: 12px; font-weight: 600">não valeram</div></div>
+      </div>
+      <div style="background: #e6fbf5; border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.4"><strong>Na zona de prêmio: Bag térmica.</strong> Cada turno válido a mais soma o valor dele no seu extrato.</div>
+    </section>
+
+    <section aria-labelledby="pd" style="background: #ffffff; border-radius: 24px; padding: 20px 16px 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden">
+      <h2 id="pd" style="margin: 0; font-size: 16px; font-weight: 800; text-align: center">Pódio</h2>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; margin-top: 12px">
+        <sc-for list="{{podio}}" as="p" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <span style="{{p.avatar}}">{{p.ini}}</span>
+            <span style="font-size: 13px; font-weight: 700">{{p.nome}}</span>
+            <div style="{{p.bloco}}">{{p.pos}}</div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section aria-labelledby="tp" style="background: #ffffff; border-radius: 24px; padding: 8px 0; overflow: hidden">
+      <h2 id="tp" style="margin: 0; padding: 12px 16px 2px; font-size: 16px; font-weight: 800">Top 10</h2>
+      <p style="margin: 0; padding: 0 16px 8px; font-size: 12px; color: #5a6a87">O valor de cada motorista é só dele: aqui aparecem só nome e posição.</p>
+      <ol style="list-style: none; margin: 0; padding: 0">
+        <sc-for list="{{top}}" as="r" hint-placeholder-count="7">
+          <li style="{{r.row}}">
+            <span style="width: 32px; font-weight: 800; font-size: 14px; color: #5a6a87; font-variant-numeric: tabular-nums">{{r.pos}}</span>
+            <span style="flex: 1; font-weight: 700; font-size: 14px">{{r.nome}}</span>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+
+    <section aria-labelledby="mt" style="background: #ffffff; border-radius: 24px; padding: 20px 16px; display: flex; flex-direction: column; gap: 4px">
+      <h2 id="mt" style="margin: 0 0 8px; font-size: 16px; font-weight: 800">Seus turnos</h2>
+      <sc-for list="{{turnos}}" as="t" hint-placeholder-count="6">
+        <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid #efe6d6">
+          <span style="{{t.selo}}">{{t.ic}}</span>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 14px; font-weight: 700">{{t.quando}}</span>
+            <span style="font-size: 12px; color: {{t.cor}}; font-weight: 600">{{t.det}}</span>
+          </div>
+          <span style="font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: {{t.corV}}">{{t.valor}}</span>
+        </div>
+      </sc-for>
+    </section>
+
+    <section aria-labelledby="rg" style="background: #ffffff; border-radius: 24px; padding: 18px 16px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px">
+      <h2 id="rg" style="margin: 0; font-size: 16px; font-weight: 800">Regras</h2>
+      <p style="margin: 0; font-size: 13px; line-height: 1.5">Todo turno de jantar com 70% de tempo online e 90% de aceitação soma o valor do turno. Quem somar mais de 16 a 30/11 leva os prêmios.</p>
+      <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #5a6a87">Turno válido: tempo disponível ≥ 70% e aceitação ≥ 90% no turno. Mínimo de 8 turnos válidos: você tem 9. Empate: vence quem tiver mais turnos válidos. As regras não mudam depois que a campanha começa.</p>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var av = 'width:52px;height:52px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;';
+    var bl = 'width:100%;border-radius:14px 14px 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:10px;font-size:22px;font-weight:800;box-sizing:border-box;';
+    var row = 'display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid #efe6d6;';
+    var eu = 'display:flex;align-items:center;gap:8px;padding:12px 16px;background:#fff6e0;border-top:1px solid #ffd98a;border-bottom:1px solid #ffd98a;';
+    var ok = 'width:28px;height:28px;border-radius:999px;background:#e6fbf5;color:#00715e;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;';
+    var no = 'width:28px;height:28px;border-radius:999px;background:#fdecec;color:#a3271f;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;';
+    var pe = 'width:28px;height:28px;border-radius:999px;background:#efe6d6;color:#5a6a87;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;';
+    function t(v, quando, det, valor) {
+      return { quando: quando, det: det, valor: valor,
+        selo: v === 'ok' ? ok : v === 'no' ? no : pe, ic: v === 'ok' ? '✓' : v === 'no' ? '✕' : '…',
+        cor: v === 'no' ? '#a3271f' : '#5a6a87', corV: v === 'ok' ? '#0f1849' : '#8a93ad' };
+    }
+    return {
+      tempo: [{ v: '08', l: 'dias' }, { v: '14', l: 'horas' }, { v: '22', l: 'min' }],
+      podio: [
+        { ini: 'JP', nome: 'Juliana P.', pos: '2', avatar: av + 'background:#dfe3ec;color:#0f1849;', bloco: bl + 'height:84px;background:#dfe3ec;color:#0f1849;' },
+        { ini: 'MV', nome: 'Marcos V.', pos: '1', avatar: av + 'background:#ffb72a;color:#0f1849;box-shadow:0 0 0 4px #fff1d1;', bloco: bl + 'height:116px;background:#ffb72a;color:#0f1849;' },
+        { ini: 'RS', nome: 'Rafael S.', pos: '3', avatar: av + 'background:#f2d5bd;color:#5a2e0c;', bloco: bl + 'height:64px;background:#f2d5bd;color:#5a2e0c;' }
+      ],
+      top: [
+        { pos: '4º', nome: 'Patrícia G.', row: row },
+        { pos: '5º', nome: 'Você', row: eu },
+        { pos: '6º', nome: 'Aline R.', row: row },
+        { pos: '7º', nome: 'Diego M.', row: row },
+        { pos: '8º', nome: 'Fernanda R.', row: row },
+        { pos: '9º', nome: 'Bruno C.', row: row },
+        { pos: '10º', nome: 'Camila D.', row: row }
+      ],
+      turnos: [
+        t('pe', 'Sex 21/11 · JANTAR 21H30-23H59', 'Faturamento ainda não chegou', '—'),
+        t('ok', 'Sex 21/11 · JANTAR CPS 18H30-21H29', 'Tempo 84% · aceitação 96%', 'R$ 148,20'),
+        t('no', 'Qui 20/11 · JANTAR CPS 18H30-21H29', 'Tempo online 65% (mínimo 70%)', 'R$ 121,00'),
+        t('ok', 'Qua 19/11 · JANTAR 21H30-23H59', 'Tempo 91% · aceitação 93%', 'R$ 132,70'),
+        t('no', 'Ter 18/11 · JANTAR 21H30-23H59', 'Aceitação 86% (mínimo 90%)', 'R$ 97,40'),
+        t('ok', 'Seg 17/11 · JANTAR CPS 18H30-21H29', 'Tempo 77% · aceitação 100%', 'R$ 155,10')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

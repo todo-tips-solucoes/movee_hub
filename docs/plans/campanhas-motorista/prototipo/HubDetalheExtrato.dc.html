@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Hub — Campanha Melhor extrato em andamento</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2c66e9}a:hover{color:#1b3fac}
+</style>
+</helmet>
+<div style="width: 1280px; height: 1040px; background: #f9f2e8; color: #0f1849; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; padding: 32px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+  <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: #52618a">
+    <a href="Main.dc.html" style="font-weight: 600">Campanhas</a><span aria-hidden="true">/</span><span>Melhor extrato — 2ª quinzena</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 12px">
+    <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Melhor extrato — 2ª quinzena</h1>
+    <span style="font-size: 12px; font-weight: 700; background: #e6fbf5; color: #00715e; padding: 4px 10px; border-radius: 999px">Em andamento</span>
+    <span style="font-size: 12px; font-weight: 700; background: #eef3fe; color: #1b3fac; padding: 4px 10px; border-radius: 999px">Melhor extrato</span>
+    <span style="margin-left: auto; font-size: 13px; color: #52618a">16 a 30/11 · fecha sozinha em 03/12 · faturamento até 21/11</span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+    <sc-for list="{{kpi}}" as="k" hint-placeholder-count="4">
+      <div style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 12px; font-weight: 700; color: #52618a; text-transform: uppercase; letter-spacing: 0.04em">{{k.l}}</span>
+        <span style="font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums">{{k.v}}</span>
+        <span style="font-size: 12px; color: #52618a">{{k.d}}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <section aria-labelledby="rk" style="background: #ffffff; border: 1px solid #e7ddcd; border-radius: 16px; overflow: hidden">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 16px 20px">
+      <h2 id="rk" style="margin: 0; font-size: 16px; font-weight: 800; margin-right: auto">Ranking</h2>
+      <span style="font-size: 13px; font-weight: 700; padding: 8px 12px; border: 1.5px solid #2c66e9; background: #eef3fe; border-radius: 999px">Classificados 118</span>
+      <span style="font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1px solid #e7ddcd; border-radius: 999px">Sem o mínimo 21</span>
+      <span style="font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1px solid #e7ddcd; border-radius: 999px">Sem modal 3</span>
+      <button style="font: inherit; font-size: 13px; font-weight: 700; color: #2c66e9; background: none; border: 1px solid #e7ddcd; border-radius: 10px; padding: 8px 12px; min-height: 40px">Baixar CSV</button>
+    </div>
+    <div style="display: grid; grid-template-columns: 0.7fr 2.6fr 1.3fr 1.3fr 1.4fr 1.2fr; font-size: 14px">
+      <sc-for list="{{cab}}" as="c" hint-placeholder-count="6">
+        <div style="padding: 10px 16px; background: #faf6ef; font-size: 12px; font-weight: 700; color: #52618a; text-transform: uppercase; letter-spacing: 0.04em">{{c}}</div>
+      </sc-for>
+      <sc-for list="{{linhas}}" as="r" hint-placeholder-count="8">
+        <div style="padding: 12px 16px; border-top: 1px solid #efe6d6; font-weight: 800">{{r.pos}}</div>
+        <div style="padding: 12px 16px; border-top: 1px solid #efe6d6; font-weight: 700">{{r.nome}}</div>
+        <div style="padding: 12px 16px; border-top: 1px solid #efe6d6; font-variant-numeric: tabular-nums">{{r.val}}</div>
+        <div style="padding: 12px 16px; border-top: 1px solid #efe6d6; font-variant-numeric: tabular-nums; color: #52618a">{{r.trab}}</div>
+        <div style="padding: 12px 16px; border-top: 1px solid #efe6d6; font-weight: 800; font-variant-numeric: tabular-nums">{{r.soma}}</div>
+        <div style="padding: 12px 16px; border-top: 1px solid #efe6d6; font-variant-numeric: tabular-nums; color: {{r.cv}}">{{r.var}}</div>
+      </sc-for>
+    </div>
+  </section>
+  <p style="margin: 0; font-size: 12px; color: #52618a">O hub vê nomes completos e valores. O app mostra aos motoristas só nome abreviado e posição.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    function r(pos, nome, val, trab, soma, v) { return { pos: pos, nome: nome, val: val, trab: trab, soma: soma, var: v, cv: v.indexOf('▲') === 0 ? '#00715e' : v.indexOf('▼') === 0 ? '#a3271f' : '#52618a' }; }
+    return {
+      kpi: [
+        { l: 'Participantes', v: '142', d: 'rodaram no público da campanha' },
+        { l: 'Classificados', v: '118', d: 'com 8+ turnos válidos' },
+        { l: 'Turnos válidos', v: '61%', d: '1.104 de 1.811 turnos' },
+        { l: 'Valor somado', v: 'R$ 98.410', d: 'nos turnos válidos' }
+      ],
+      cab: ['Pos.', 'Motorista', 'Turnos válidos', 'Trabalhados', 'Valor somado', 'Variação'],
+      linhas: [
+        r('1º', 'Marcos Vinícius Andrade', '14', '15', 'R$ 2.031,40', '—'),
+        r('2º', 'Juliana Pereira Lima', '13', '13', 'R$ 1.877,90', '▲ 1'),
+        r('3º', 'Rafael Souza', '12', '14', 'R$ 1.702,15', '▼ 1'),
+        r('4º', 'Patrícia Gomes', '11', '12', 'R$ 1.390,00', '—'),
+        r('5º', 'Carlos Eduardo Nunes', '9', '12', 'R$ 1.284,50', '▲ 2'),
+        r('6º', 'Aline Ramos', '10', '11', 'R$ 1.251,30', '▼ 1'),
+        r('7º', 'Diego Martins', '9', '10', 'R$ 1.198,75', '▼ 1'),
+        r('8º', 'Fernanda Rocha', '8', '13', 'R$ 1.104,60', '—')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

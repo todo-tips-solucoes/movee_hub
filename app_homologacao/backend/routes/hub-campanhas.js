@@ -135,6 +135,13 @@ router.get('/opcoes', ...rota('GET /opcoes', 'campanhas.gerir', async (ctx, req,
   return res.status(200).json(dto.camelizar(r || {}));
 }));
 
+// ─── Categorias de faturamento (extrato) ───────────────────────────────────
+// Declarada ANTES de `/:id` (e `categorias` não é um id válido de qualquer forma).
+router.get('/categorias', ...rota('GET /categorias', 'campanhas.gerir', async (ctx, req, res) => {
+  const linhas = await rpc('hub_campanha_categorias', {}, ctx.claims);
+  return res.status(200).json({ itens: (linhas || []).map(dto.linhaCategoria) });
+}));
+
 // ─── Lista ─────────────────────────────────────────────────────────────────
 router.get('/', ...rota('GET /', 'campanhas.consultar', async (ctx, req, res) => {
   const s = req.query.situacao;
@@ -231,6 +238,11 @@ const CSV_CABECALHO = [
   'Posição', 'Nome', 'Modal', 'Situação', 'Turnos', 'Aceitação', 'Conclusão', 'Tempo', 'Pedidos', 'Nota',
   'Nota hipotética', 'Posição hipotética', 'Motivo do corte', 'Posição anterior',
 ];
+// Extrato: sem nota; turnos válidos e valor somado no lugar.
+const CSV_CABECALHO_EXTRATO = [
+  'Posição', 'Nome', 'Modal', 'Situação', 'Turnos válidos', 'Trabalhados', 'Valor somado', 'Posição anterior',
+];
+const brl = (c) => (c === null || c === undefined ? '' : (c / 100).toFixed(2).replace('.', ','));
 
 const celulaCsv = (v) => quotarCelulaCsv(escaparCelulaCsvInjection(v));
 
@@ -246,12 +258,16 @@ router.get('/:id/ranking.csv', ...rota('GET /:id/ranking.csv', 'campanhas.consul
     todas.push(...linhas.map(dto.linhaRanking));
     if (linhas.length < CSV_LOTE) break;
   }
-  const corpo = [CSV_CABECALHO.map(celulaCsv).join(',')];
+  const det = await rpc('hub_campanha_detalhe', { p_id: id }, ctx.claims);
+  if (!det) return naoEncontrada(res);
+  const extrato = det.tipo === 'extrato';
+  const corpo = [(extrato ? CSV_CABECALHO_EXTRATO : CSV_CABECALHO).map(celulaCsv).join(',')];
   for (const r of todas) {
-    corpo.push([
-      r.posicao, r.nome, r.modal, r.situacao, r.turnos, r.aceitacao, r.conclusao, r.tempo, r.pedidos, r.nota,
-      r.notaHipotetica, r.posicaoHipotetica, r.motivoCorte.join(' '), r.posicaoAnterior,
-    ].map(celulaCsv).join(','));
+    corpo.push((extrato
+      ? [r.posicao, r.nome, r.modal, r.situacao, r.turnosValidos, r.turnos, brl(r.valorCentavos), r.posicaoAnterior]
+      : [r.posicao, r.nome, r.modal, r.situacao, r.turnos, r.aceitacao, r.conclusao, r.tempo, r.pedidos, r.nota,
+        r.notaHipotetica, r.posicaoHipotetica, r.motivoCorte.join(' '), r.posicaoAnterior]
+    ).map(celulaCsv).join(','));
   }
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="campanha-${id}-ranking.csv"`);
@@ -261,8 +277,21 @@ router.get('/:id/ranking.csv', ...rota('GET /:id/ranking.csv', 'campanhas.consul
 // ─── Vencedores, entrega, planilha ─────────────────────────────────────────
 router.get('/:id/vencedores', ...rota('GET /:id/vencedores', 'campanhas.consultar', async (ctx, req, res) => {
   if (!idValido(req.params.id)) return naoEncontrada(res);
-  const linhas = await rpc('hub_campanha_vencedores', { p_id: Number(req.params.id) }, ctx.claims);
-  return res.status(200).json({ itens: (linhas || []).map(dto.linhaVencedor) });
+  const id = Number(req.params.id);
+  const linhas = (await rpc('hub_campanha_vencedores', { p_id: id }, ctx.claims)) || [];
+  // Extrato: a RPC devolve `nota` NULL; o valor somado vem do ranking (casado por entregador).
+  let porEntregador = null;
+  if (linhas.length && linhas.every((l) => l.nota === null || l.nota === undefined)) {
+    porEntregador = new Map();
+    const quer = new Set(linhas.map((l) => l.entregador_id));
+    for (let offset = 0; offset < 500 && porEntregador.size < quer.size; offset += 200) {
+      // eslint-disable-next-line no-await-in-loop
+      const lote = (await rpc('hub_campanha_ranking', { p_id: id, p_situacao: 'classificado', p_limite: 200, p_offset: offset }, ctx.claims)) || [];
+      for (const r of lote) if (quer.has(r.entregador_id)) porEntregador.set(r.entregador_id, r);
+      if (lote.length < 200) break;
+    }
+  }
+  return res.status(200).json({ itens: linhas.map((l) => dto.linhaVencedor(l, porEntregador)) });
 }));
 
 router.post('/:id/vencedores/:posicao/entrega', ...rota('POST /:id/vencedores/:posicao/entrega', 'campanhas.entregar', async (ctx, req, res) => {

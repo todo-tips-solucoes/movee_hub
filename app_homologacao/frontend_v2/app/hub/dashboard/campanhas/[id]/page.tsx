@@ -9,13 +9,13 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { AlertCircle, Download, FileSpreadsheet, Gift, Lock, Trophy } from 'lucide-react';
+import { AlertCircle, Download, FileSpreadsheet, Gift, Lock, Trophy, Users, Wallet, Percent } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PaginationControls } from '@/components/pagination-controls';
 import { CampanhaCancelarDialog } from '@/components/hub/campanha-cancelar-dialog';
 import { CampanhaEntregaDialog } from '@/components/hub/campanha-entrega-dialog';
-import { CampanhaSituacaoBadge } from '@/components/hub/status-badge';
+import { CampanhaSituacaoBadge, CampanhaTipoBadge } from '@/components/hub/status-badge';
 import { EmptyState } from '@/components/hub/empty-state';
 import { KpiCard } from '@/components/hub/kpi-card';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
@@ -33,6 +33,7 @@ import {
   obterVencedores,
   registrarEntrega,
 } from '@/lib/hub/campanhas-api';
+import { ROTULO_FAMILIA } from '@/lib/hub/adiantamento-categorias';
 import {
   diasAte,
   type CampanhaDetalhe,
@@ -47,8 +48,10 @@ import {
   formatDiaMes,
   formatFracao,
   formatNota,
+  fechamentoExtrato,
   hojeSP,
   podeFecharAntecipado,
+  resumoCriterios,
   resumoPesos,
   rotuloFaixa,
 } from '@/lib/hub/campanhas-form';
@@ -62,6 +65,11 @@ const ABAS_RANKING: { id: SituacaoRanking; rotulo: string; chave: 'classificado'
   { id: 'sem_minimo', rotulo: 'Sem mínimo', chave: 'semMinimo' },
   { id: 'sem_modal', rotulo: 'Sem modal', chave: 'semModal' },
 ];
+
+// Extrato: sem "Abaixo do corte" (não há corte de nota) — o que sobra é "Sem o mínimo" de turnos.
+const ABAS_EXTRATO = ABAS_RANKING.filter((a) => a.id !== 'abaixo_corte').map((a) =>
+  a.id === 'sem_minimo' ? { ...a, rotulo: 'Sem o mínimo' } : a
+);
 
 const MEDALHA = [
   'bg-warning/25 text-foreground', // ouro
@@ -83,8 +91,8 @@ function Posicao({ n }: { n: number | null }) {
   );
 }
 
-function Variacao({ atual, anterior }: { atual: number | null; anterior: number | null }) {
-  if (atual === null || anterior === null || atual === anterior) return null;
+function Variacao({ atual, anterior, vazio = null }: { atual: number | null; anterior: number | null; vazio?: React.ReactNode }) {
+  if (atual === null || anterior === null || atual === anterior) return <>{vazio}</>;
   const subiu = atual < anterior;
   return (
     <span className={cn('ml-1 text-xs', subiu ? 'text-success' : 'text-destructive')}>
@@ -99,13 +107,31 @@ function Pendente() {
   return <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground" role="status">Carregando…</div>;
 }
 
+function KpisExtrato({ c }: { c: CampanhaDetalhe }) {
+  const { classificado, semMinimo, semModal, turnos, turnosValidos, valorCentavos } = c.contagem;
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <KpiCard label="Participantes" value={classificado + semMinimo + semModal} icon={Users} />
+      <KpiCard label="Classificados" value={classificado} icon={Trophy} />
+      <KpiCard
+        label="Turnos válidos"
+        value={turnos > 0 ? formatFracao(turnosValidos / turnos) : '—'}
+        icon={Percent}
+      />
+      <KpiCard label="Valor somado" value={formatCentavos(valorCentavos)} icon={Wallet} />
+    </div>
+  );
+}
+
 function RankingSecao({ campanha }: { campanha: CampanhaDetalhe }) {
   const [aba, setAba] = useState<SituacaoRanking>('classificado');
   const [pagina, setPagina] = useState(1);
   const [linhas, setLinhas] = useState<LinhaRanking[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-  const total = campanha.contagem[ABAS_RANKING.find((a) => a.id === aba)!.chave];
+  const extrato = campanha.tipo === 'extrato';
+  const abas = extrato ? ABAS_EXTRATO : ABAS_RANKING;
+  const total = campanha.contagem[abas.find((a) => a.id === aba)!.chave];
 
   useEffect(() => {
     let vivo = true;
@@ -132,7 +158,7 @@ function RankingSecao({ campanha }: { campanha: CampanhaDetalhe }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="rk" className="font-heading text-base font-semibold">Ranking</h2>
         <div role="tablist" aria-label="Lista" className="flex flex-wrap gap-2">
-          {ABAS_RANKING.map((a) => (
+          {abas.map((a) => (
             <button
               key={a.id}
               type="button"
@@ -168,6 +194,16 @@ function RankingSecao({ campanha }: { campanha: CampanhaDetalhe }) {
         <>
           <Table>
             <TableHeader>
+              {extrato ? (
+                <TableRow>
+                  <TableHead scope="col">Pos.</TableHead>
+                  <TableHead scope="col">Motorista</TableHead>
+                  <TableHead scope="col" className="text-right">Turnos válidos</TableHead>
+                  <TableHead scope="col" className="text-right">Trabalhados</TableHead>
+                  <TableHead scope="col" className="text-right">Valor somado</TableHead>
+                  <TableHead scope="col">Variação</TableHead>
+                </TableRow>
+              ) : (
               <TableRow>
                 <TableHead scope="col">{classificados ? '#' : 'Pos.'}</TableHead>
                 <TableHead scope="col">Motorista</TableHead>
@@ -179,9 +215,24 @@ function RankingSecao({ campanha }: { campanha: CampanhaDetalhe }) {
                 <TableHead scope="col" className="text-right">{aba === 'abaixo_corte' ? 'Nota se passasse' : 'Nota'}</TableHead>
                 {aba === 'abaixo_corte' && <TableHead scope="col">Motivo</TableHead>}
               </TableRow>
+              )}
             </TableHeader>
             <TableBody>
-              {linhas.map((l) => (
+              {linhas.map((l) => extrato ? (
+                <TableRow key={l.entregadorId}>
+                  <TableCell className="whitespace-nowrap"><Posicao n={l.posicao} /></TableCell>
+                  <TableCell className="whitespace-nowrap font-medium">
+                    {l.nome}
+                    {l.modal && <span className="ml-2 text-xs font-normal text-muted-foreground">{l.modal}</span>}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">{l.turnosValidos ?? '—'}</TableCell>
+                  <TableCell className="text-right font-mono">{l.turnos}</TableCell>
+                  <TableCell className="text-right font-mono font-semibold">{formatCentavos(l.valorCentavos)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Variacao atual={classificados ? l.posicao : null} anterior={l.posicaoAnterior} vazio="—" />
+                  </TableCell>
+                </TableRow>
+              ) : (
                 <TableRow key={l.entregadorId}>
                   <TableCell className="whitespace-nowrap">
                     <Posicao n={classificados ? l.posicao : null} />
@@ -280,7 +331,7 @@ function VencedoresSecao({
             <TableRow>
               <TableHead scope="col">#</TableHead>
               <TableHead scope="col">Motorista</TableHead>
-              <TableHead scope="col" className="text-right">Nota</TableHead>
+              {campanha.tipo === 'nota' && <TableHead scope="col" className="text-right">Nota</TableHead>}
               <TableHead scope="col">Prêmio</TableHead>
               <TableHead scope="col">Entrega</TableHead>
               <TableHead scope="col"><span className="sr-only">Ação</span></TableHead>
@@ -291,7 +342,7 @@ function VencedoresSecao({
               <TableRow key={v.posicao}>
                 <TableCell><Posicao n={v.posicao} /></TableCell>
                 <TableCell className="whitespace-nowrap font-medium">{v.nome}</TableCell>
-                <TableCell className="text-right font-mono">{formatNota(v.nota)}</TableCell>
+                {campanha.tipo === 'nota' && <TableCell className="text-right font-mono">{formatNota(v.nota)}</TableCell>}
                 <TableCell className="whitespace-normal">
                   {v.premio.descricao}
                   {v.premio.tipo === 'dinheiro' && <span className="text-xs text-muted-foreground"> · {formatCentavos(v.premio.valorCentavos)}</span>}
@@ -335,8 +386,9 @@ function RegrasTravadas({ c }: { c: CampanhaDetalhe }) {
     c.pracas === null ? 'Todas as praças' : c.pracas.join(', '),
     c.turnos === null ? 'todos os turnos' : `${c.turnos.join(', ')}`,
     c.modais === null ? 'todos os modais' : c.modais.join(', '),
-    `mín. ${c.minTurnos} turnos`,
+    `mín. ${c.minTurnos} turnos${c.tipo === 'extrato' ? (c.minTurnosBase === 'validos' ? ' válidos' : ' trabalhados') : ''}`,
   ].join(' · ');
+  const extrato = c.tipo === 'extrato';
   return (
     <aside aria-labelledby="cfg" className="flex flex-col gap-3 rounded-lg border bg-card p-4 lg:w-80 lg:shrink-0">
       <div className="flex items-center gap-2">
@@ -351,8 +403,21 @@ function RegrasTravadas({ c }: { c: CampanhaDetalhe }) {
       )}
       <dl className="flex flex-col gap-2 text-sm">
         <div><dt className="text-xs font-medium text-muted-foreground">Público</dt><dd>{publico}</dd></div>
-        <div><dt className="text-xs font-medium text-muted-foreground">Nota</dt><dd>{resumoPesos(c.pesos, c.cortes)}</dd></div>
-        <div><dt className="text-xs font-medium text-muted-foreground">Desempate</dt><dd>Pedidos concluídos, depois tempo disponível</dd></div>
+        {extrato ? (
+          <>
+            <div><dt className="text-xs font-medium text-muted-foreground">Critério do turno</dt><dd>{resumoCriterios(c.cortes)}</dd></div>
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">Valor do turno</dt>
+              <dd>{(c.categorias ?? []).map((x) => ROTULO_FAMILIA[x] ?? x).join(', ') || '—'}</dd>
+            </div>
+            <div><dt className="text-xs font-medium text-muted-foreground">Desempate</dt><dd>Maior valor somado, depois mais turnos válidos</dd></div>
+          </>
+        ) : (
+          <>
+            <div><dt className="text-xs font-medium text-muted-foreground">Nota</dt><dd>{resumoPesos(c.pesos, c.cortes)}</dd></div>
+            <div><dt className="text-xs font-medium text-muted-foreground">Desempate</dt><dd>Pedidos concluídos, depois tempo disponível</dd></div>
+          </>
+        )}
         <div>
           <dt className="text-xs font-medium text-muted-foreground">Prêmios</dt>
           <dd>{c.premios.map((p) => `${rotuloFaixa(p.posicaoDe, p.posicaoAte)} ${p.descricao}`).join(' · ') || '—'}</dd>
@@ -428,6 +493,7 @@ export default function CampanhaDetalhePage() {
   const sub = [
     `${formatDiaMes(c.dataInicio)} a ${formatDiaMes(c.dataFim)}`,
     c.situacao === 'em_andamento' ? `faltam ${dias} dias` : null,
+    c.tipo === 'extrato' && ativa && fechamentoExtrato(c.dataFim) ? `fecha sozinha em ${fechamentoExtrato(c.dataFim)}` : null,
     c.dadosAte ? `dados até ${formatDiaMes(c.dadosAte)}` : null,
     c.fechadaEm ? `resultado final congelado em ${formatDataHora(c.fechadaEm)}` : null,
   ].filter(Boolean).join(' · ');
@@ -446,6 +512,7 @@ export default function CampanhaDetalhePage() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-heading text-xl font-semibold sm:text-2xl">{c.nome}</h1>
             <CampanhaSituacaoBadge situacao={c.situacao} />
+            <CampanhaTipoBadge tipo={c.tipo} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{sub}</p>
           {c.descricao && <p className="mt-2 max-w-3xl text-sm">{c.descricao}</p>}
@@ -509,7 +576,8 @@ export default function CampanhaDetalhePage() {
         </p>
       )}
 
-      {(ativa || c.situacao === 'encerrada') && (
+      {(ativa || c.situacao === 'encerrada') && c.tipo === 'extrato' && <KpisExtrato c={c} />}
+      {(ativa || c.situacao === 'encerrada') && c.tipo === 'nota' && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiCard label="No ranking" value={c.contagem.classificado} icon={Trophy} />
           <KpiCard label="Abaixo do corte" value={c.contagem.abaixoCorte} icon={AlertCircle} />

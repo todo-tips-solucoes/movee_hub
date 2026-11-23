@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/hub/empty-state';
 import { PageHeader } from '@/components/hub/page-header';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { CampanhaExcluirRascunho } from '@/components/hub/campanha-excluir-dialog';
-import { CampanhaSituacaoBadge } from '@/components/hub/status-badge';
+import { CampanhaSituacaoBadge, CampanhaTipoBadge } from '@/components/hub/status-badge';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { CampanhaApiError, listarCampanhas } from '@/lib/hub/campanhas-api';
@@ -152,11 +152,14 @@ export default function CampanhasPage() {
                 return (
                   <TableRow key={c.id}>
                     <TableCell className="max-w-[320px] whitespace-normal">
-                      <div className="font-medium">{c.nome}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{c.nome}</span>
+                        <CampanhaTipoBadge tipo={c.tipo} />
+                      </div>
                       <div className="text-xs text-muted-foreground">{escopoTexto(c)}</div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{formatPeriodo(c.dataInicio, c.dataFim)}</TableCell>
-                    <TableCell className="max-w-[260px] whitespace-normal text-xs">{resumoPesos(c.pesos)}</TableCell>
+                    <TableCell className="max-w-[260px] whitespace-normal text-xs">{c.tipo === 'extrato' ? 'Valor somado dos turnos válidos' : resumoPesos(c.pesos)}</TableCell>
                     <TableCell className="max-w-[220px] whitespace-normal text-xs">{participantesTexto(c, hoje)}</TableCell>
                     <TableCell>
                       <CampanhaSituacaoBadge situacao={c.situacao} />

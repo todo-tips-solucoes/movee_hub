@@ -14,12 +14,14 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockOpcoes = vi.fn();
 const mockCriar = vi.fn();
+const mockCategorias = vi.fn();
 vi.mock('@/lib/hub/campanhas-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/hub/campanhas-api')>('@/lib/hub/campanhas-api');
   return {
     ...actual,
     obterOpcoes: (...a: unknown[]) => mockOpcoes(...a),
     criarCampanha: (...a: unknown[]) => mockCriar(...a),
+    listarCategoriasCampanha: (...a: unknown[]) => mockCategorias(...a),
     atualizarCampanha: vi.fn(),
     lancarCampanha: vi.fn(),
     obterCampanha: vi.fn(),
@@ -37,6 +39,9 @@ const OPCOES_OK: OpcoesCampanha = {
 
 // Data bem no futuro: a regra "início >= hoje" não depende do relógio do CI.
 const COMPLETO: FormularioCampanha = {
+  tipo: 'nota',
+  categorias: [],
+  minTurnosBase: 'trabalhados',
   nome: 'Rei do Jantar',
   descricao: '',
   dataInicio: '2099-01-10',
@@ -51,9 +56,27 @@ const COMPLETO: FormularioCampanha = {
   avisar: true,
 };
 
+const CATEGORIAS = [
+  { descricao: 'Corridas concluidas', lancamentos: 41462, semMotoristaIdentificado: false, familia: null },
+  { descricao: 'Valor por Hora Online', lancamentos: 21775, semMotoristaIdentificado: false, familia: null },
+  { descricao: 'Promocao entregador', lancamentos: 11885, semMotoristaIdentificado: false, familia: 'familia:promocao' },
+];
+
+const EXTRATO: FormularioCampanha = {
+  ...COMPLETO,
+  tipo: 'extrato',
+  minTurnosBase: 'validos',
+  minTurnos: 8,
+  pesos: { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 },
+  cortes: { aceitacao: 0.9, conclusao: null, tempo: 0.7, pedidos: null },
+  categorias: ['Corridas concluidas', 'familia:promocao'],
+};
+
 beforeEach(() => {
   mockOpcoes.mockReset();
   mockCriar.mockReset();
+  mockCategorias.mockReset();
+  mockCategorias.mockResolvedValue(CATEGORIAS);
   push.mockReset();
 });
 
@@ -128,5 +151,73 @@ describe('CampanhaFormulario', () => {
     await screen.findByText(/Cobertura/);
     fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
     expect(await screen.findByText(/Esta entidade já tem 10 campanhas/)).toBeInTheDocument();
+  });
+
+  describe('tipo "Melhor extrato"', () => {
+    it('nota (padrão): sem bloco de valor do turno e sem pedir categorias', async () => {
+      mockOpcoes.mockResolvedValue(OPCOES_OK);
+      render(<CampanhaFormulario campanhaId={null} inicial={COMPLETO} />);
+      await screen.findByText(/Cobertura/);
+      expect(screen.getByRole('radio', { name: /Nota ponderada/ })).toBeChecked();
+      expect(screen.getByText('Soma dos pesos: 100%')).toBeInTheDocument();
+      expect(screen.queryByText(/Valor do turno/)).not.toBeInTheDocument();
+      expect(mockCategorias).not.toHaveBeenCalled();
+    });
+
+    it('trocar para extrato troca os blocos: sem peso, "Mínimo no turno", seletor de categorias, base do mínimo', async () => {
+      mockOpcoes.mockResolvedValue(OPCOES_OK);
+      render(<CampanhaFormulario campanhaId={null} inicial={COMPLETO} />);
+      await screen.findByText(/Cobertura/);
+      fireEvent.click(screen.getByRole('radio', { name: /Melhor extrato/ }));
+      expect(screen.queryByText(/Soma dos pesos/)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/^Peso \(%\)/)).not.toBeInTheDocument();
+      expect(screen.getByText('3. Critérios do turno (mínimo em cada turno)')).toBeInTheDocument();
+      expect(screen.getByText('4. Valor do turno: categorias do faturamento')).toBeInTheDocument();
+      expect(screen.getByText('5. Prêmios por faixa de posição')).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'turnos válidos' })).toBeChecked();
+      expect(screen.getByText(/3 dias depois do fim/)).toBeInTheDocument();
+      // seletor: nenhuma marcada por padrão, família dobrada
+      expect(await screen.findByText('0 de 3 selecionadas')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Promoção/ })).toBeInTheDocument();
+    });
+
+    it('extrato sem critério ou sem categoria: erro do cliente e nada é gravado', async () => {
+      mockOpcoes.mockResolvedValue(OPCOES_OK);
+      render(<CampanhaFormulario campanhaId={null} inicial={{ ...EXTRATO, cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null }, categorias: [] }} />);
+      await screen.findByText(/212 motoristas rodaram/);
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+      expect(await screen.findByText('Marque ao menos 1 critério e informe o mínimo no turno.')).toBeInTheDocument();
+      expect(screen.getByText('Marque ao menos 1 categoria para compor o valor do turno.')).toBeInTheDocument();
+      expect(mockCriar).not.toHaveBeenCalled();
+    });
+
+    it('extrato válido: o payload leva tipo, categorias, base e pesos zerados', async () => {
+      mockOpcoes.mockResolvedValue(OPCOES_OK);
+      mockCriar.mockResolvedValue(77);
+      render(<CampanhaFormulario campanhaId={null} inicial={EXTRATO} />);
+      await screen.findByText(/212 motoristas rodaram/);
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+      await waitFor(() => expect(mockCriar).toHaveBeenCalledTimes(1));
+      const { formularioParaCorpo } = await import('@/lib/hub/campanhas-form');
+      const corpo = formularioParaCorpo(mockCriar.mock.calls[0][0]);
+      expect(corpo).toMatchObject({
+        tipo: 'extrato',
+        categorias: ['Corridas concluidas', 'familia:promocao'],
+        minTurnosBase: 'validos',
+        minTurnos: 8,
+        pesos: { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 },
+        cortes: { aceitacao: 0.9, conclusao: null, tempo: 0.7, pedidos: null },
+      });
+      expect(push).toHaveBeenCalledWith('/hub/dashboard/campanhas');
+    });
+
+    it('voltar para nota zera critérios e categorias (não vaza dado do extrato)', async () => {
+      mockOpcoes.mockResolvedValue(OPCOES_OK);
+      render(<CampanhaFormulario campanhaId={null} inicial={EXTRATO} />);
+      await screen.findByText(/212 motoristas rodaram/);
+      fireEvent.click(screen.getByRole('radio', { name: /Nota ponderada/ }));
+      expect(screen.queryByText(/Valor do turno/)).not.toBeInTheDocument();
+      expect(screen.getByText('Soma dos pesos: 0%')).toBeInTheDocument();
+    });
   });
 });

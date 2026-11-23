@@ -33,6 +33,9 @@ import {
   textoDadosAte,
   ROTULO_INDICADOR,
 } from './campanhas.ts';
+import { fmtReais, textoMotivo, rotuloTurno, linhaTurno, rankingExtrato, textoTurnoValido } from './campanhas.ts';
+import { readFileSync } from 'node:fs';
+import type { LinhaTopExtrato, TurnoExtrato } from './campanhas-api.ts';
 import { buscarCampanha, listarCampanhas, urlFotoPremio } from './campanhas-api.ts';
 import type { CampanhaItem, CampanhaTela, MinhaLinha } from './campanhas-api.ts';
 
@@ -256,4 +259,73 @@ test('cliente: lista, detalhe e URL da foto', async () => {
   assert.equal((await buscarCampanha(12)).campanha.id, 12);
   assert.deepEqual(chamadas, ['/api/motorista/campanhas', '/api/motorista/campanhas/12']);
   assert.equal(urlFotoPremio(12, 3), '/api/motorista/campanhas/12/premios/3/foto');
+});
+
+// ── Melhor extrato ───────────────────────────────────────────────────────
+
+test('fmtReais: pt-BR com milhar e centavos', () => {
+  assert.equal(fmtReais(128450), 'R$ 1.284,50');
+  assert.equal(fmtReais(5), 'R$ 0,05');
+  assert.equal(fmtReais(0), 'R$ 0,00');
+  assert.equal(fmtReais(123456789), 'R$ 1.234.567,89');
+});
+
+test('textoMotivo: taxa, pedidos e leitura ausente', () => {
+  assert.equal(textoMotivo({ criterio: 'tempo', lido: 0.65, minimo: 0.7 }), 'Tempo online 65% (mínimo 70%)');
+  assert.equal(textoMotivo({ criterio: 'aceitacao', lido: 0.864, minimo: 0.9 }), 'Aceitação 86,4% (mínimo 90%)');
+  assert.equal(textoMotivo({ criterio: 'pedidos', lido: 3, minimo: 5 }), 'Pedidos 3 (mínimo 5)');
+  assert.equal(textoMotivo({ criterio: 'tempo', lido: null, minimo: 0.7 }), 'Tempo online sem leitura (mínimo 70%)');
+  assert.equal(textoMotivo({ criterio: 'pedidos', lido: null, minimo: 5 }), 'Pedidos sem leitura (mínimo 5)');
+  assert.equal(textoMotivo({ criterio: 'conclusao', lido: 0, minimo: 0.8 }), 'Conclusão 0% (mínimo 80%)');
+});
+
+test('rotuloTurno: dia da semana a partir da data', () => {
+  assert.equal(rotuloTurno('2026-11-21', 'JANTAR 21H30-23H59'), 'Sáb 21/11 · JANTAR 21H30-23H59');
+  assert.equal(rotuloTurno('lixo', 'X'), 'X');
+});
+
+const turno = (o: Partial<TurnoExtrato>): TurnoExtrato => ({
+  data: '2026-11-20', turno: 'JANTAR', valido: true, temValor: true, valorCentavos: 14820, motivos: [], ...o,
+});
+
+test('linhaTurno: válido, inválido com motivo e valor, aguardando faturamento (E4)', () => {
+  const v = linhaTurno(turno({}));
+  assert.equal(v.estado, 'valido');
+  assert.equal(v.valor, 'R$ 148,20');
+  const i = linhaTurno(turno({ valido: false, valorCentavos: 12100, motivos: [{ criterio: 'tempo', lido: 0.65, minimo: 0.7 }, { criterio: 'pedidos', lido: 3, minimo: 5 }] }));
+  assert.equal(i.estado, 'invalido');
+  assert.equal(i.detalhe, 'Tempo online 65% (mínimo 70%) · Pedidos 3 (mínimo 5)');
+  assert.equal(i.valor, 'R$ 121,00');
+  // sem faturamento nunca é inválido, mesmo com valido=false e motivos
+  const a = linhaTurno(turno({ valido: false, temValor: false, valorCentavos: 0, motivos: [{ criterio: 'tempo', lido: null, minimo: 0.7 }] }));
+  assert.equal(a.estado, 'aguardando');
+  assert.equal(a.detalhe, 'Aguardando faturamento');
+  assert.equal(a.valor, '—');
+});
+
+test('rankingExtrato (X2): só posição e nome; nenhum valor em R$ nem campo de valor', () => {
+  // O servidor não deveria mandar valor; se mandar por engano, não pode chegar à tela.
+  const top = Array.from({ length: 10 }, (_, k) => ({
+    posicao: k + 1, nomeAbreviado: `Motorista ${k + 1}.`, valorCentavos: 99900 + k, valor: 'R$ 999,00',
+  })) as unknown as LinhaTopExtrato[];
+  const r = rankingExtrato(top, 5);
+  assert.deepEqual(r.podio.map((l) => l.posicao), [2, 1, 3]);
+  assert.deepEqual(r.resto.map((l) => l.posicao), [4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(r.resto.find((l) => l.souEu)?.posicao, 5);
+  const json = JSON.stringify(r);
+  assert.doesNotMatch(json, /R\$|valor|centavos|99900/i);
+  for (const l of [...r.podio, ...r.resto]) assert.deepEqual(Object.keys(l).sort(), ['nome', 'posicao', 'souEu']);
+});
+
+test('tela do extrato: pódio e top 10 não referenciam valor em R$ (guarda no fonte)', () => {
+  const src = readFileSync(new URL('../components/campanha-extrato.tsx', import.meta.url), 'utf8');
+  const bloco = src.slice(src.indexOf('function PodioExtrato'), src.indexOf('type CargaTurnos'));
+  assert.ok(bloco.includes('<ol') && bloco.length > 500, 'guarda anti-oco: bloco do pódio/top 10 encontrado');
+  assert.doesNotMatch(bloco, /fmtReais|valorCentavos|R\$|faltam/);
+});
+
+test('textoTurnoValido: lista só os cortes definidos', () => {
+  assert.equal(textoTurnoValido({ aceitacao: 0.9, conclusao: null, tempo: 0.7, pedidos: null }), 'Turno válido: tempo online ≥ 70% e aceitação ≥ 90% no turno.');
+  assert.match(textoTurnoValido({ aceitacao: null, conclusao: null, tempo: null, pedidos: 5 }), /pedidos ≥ 5/);
+  assert.match(textoTurnoValido({ aceitacao: null, conclusao: null, tempo: null, pedidos: null }), /soma o valor/);
 });

@@ -18,6 +18,8 @@ import {
   formularioParaCorpo,
   formularioVazio,
   faixasSobrepostas,
+  fechamentoExtrato,
+  resumoCriterios,
   fracaoParaPercentual,
   hojeSP,
   pedidosBloqueado,
@@ -43,6 +45,9 @@ function premio(parcial: Partial<PremioForm> = {}): PremioForm {
 
 function valido(parcial: Partial<FormularioCampanha> = {}): FormularioCampanha {
   return {
+    tipo: 'nota',
+    categorias: [],
+    minTurnosBase: 'trabalhados',
     nome: 'Rei do Jantar — Novembro',
     descricao: 'Quem tiver a melhor nota leva os prêmios.',
     dataInicio: '2026-11-10',
@@ -257,7 +262,7 @@ describe('corpo do POST/PUT (CONTRATOS §7)', () => {
   it('só os campos do contrato: sem chave/id/foto da UI nos prêmios; textos aparados', () => {
     const corpo = formularioParaCorpo(valido({ nome: '  Rei do Jantar  ' }));
     expect(Object.keys(corpo).sort()).toEqual(
-      ['avisar', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'turnos']
+      ['avisar', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'tipo', 'turnos']
     );
     expect(corpo.nome).toBe('Rei do Jantar');
     expect(Object.keys(corpo.premios[0]).sort()).toEqual(['descricao', 'posicaoAte', 'posicaoDe', 'tipo', 'valorCentavos']);
@@ -308,7 +313,7 @@ describe('formatação e textos', () => {
     expect(acaoDaSituacao('cancelada')).toEqual({ rotulo: 'Ver', editar: false });
   });
   it('escopo por texto', () => {
-    const base = { pracas: null, turnos: null, modais: null, minTurnos: 3 };
+    const base = { pracas: null, turnos: null, modais: null, minTurnos: 3, tipo: 'nota' as const, minTurnosBase: 'trabalhados' as const };
     expect(escopoTexto(base)).toBe('Todas as praças · todos os turnos · mín. 3 turnos');
     expect(escopoTexto({ ...base, pracas: ['SAO PAULO'], modais: ['MOTO'] })).toBe('SAO PAULO · todos os turnos · modal MOTO · mín. 3 turnos');
   });
@@ -321,5 +326,54 @@ describe('fechamento manual (CONTRATOS §3: apurando e hoje >= fim + 3)', () => 
     expect(podeFecharAntecipado('apurando', fim, '2026-12-03')).toBe(true);
     expect(podeFecharAntecipado('em_andamento', fim, '2026-12-05')).toBe(false);
     expect(podeFecharAntecipado('encerrada', fim, '2026-12-05')).toBe(false);
+  });
+});
+
+describe('tipo "Melhor extrato"', () => {
+  const extrato = (parcial: Partial<FormularioCampanha> = {}) =>
+    valido({
+      tipo: 'extrato',
+      minTurnosBase: 'validos',
+      categorias: ['Corridas concluidas'],
+      pesos: { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 },
+      cortes: { aceitacao: 0.9, conclusao: null, tempo: 0.7, pedidos: null },
+      ...parcial,
+    });
+
+  it('válido sem pesos e sem exigir cobertura de pedidos', () => {
+    expect(validarFormulario(extrato(), { ...CTX, coberturaPedidos: null })).toEqual({});
+  });
+  it('exige ao menos 1 critério e ao menos 1 categoria', () => {
+    const e = validarFormulario(
+      extrato({ cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null }, categorias: [] }),
+      CTX
+    );
+    expect(e.cortes).toMatch(/ao menos 1 critério/);
+    expect(e.categorias).toMatch(/ao menos 1 categoria/);
+  });
+  it('mínimo no turno segue as faixas (0–100%; pedidos inteiro)', () => {
+    expect(validarFormulario(extrato({ cortes: { aceitacao: 1.5, conclusao: null, tempo: null, pedidos: null } }), CTX)['corte.aceitacao']).toBeDefined();
+    expect(validarFormulario(extrato({ cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: 2.5 } }), CTX)['corte.pedidos']).toBeDefined();
+    expect(validarFormulario(extrato({ cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: 3 } }), CTX)).toEqual({});
+  });
+  it('mais de 60 categorias é recusado como no banco', () => {
+    const muitas = Array.from({ length: LIMITES.categoriasMax + 1 }, (_, i) => `c${i}`);
+    expect(validarFormulario(extrato({ categorias: muitas }), CTX).categorias).toMatch(/no máximo 60/);
+  });
+  it('corpo: extrato leva categorias/base e pesos 0; nota não leva categorias', () => {
+    const c = formularioParaCorpo(extrato({ pesos: { aceitacao: 9, conclusao: 0, tempo: 0, pedidos: 0 } }));
+    expect(c).toMatchObject({ tipo: 'extrato', categorias: ['Corridas concluidas'], minTurnosBase: 'validos', pesos: { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 } });
+    const n = formularioParaCorpo(valido());
+    expect(n.tipo).toBe('nota');
+    expect(n).not.toHaveProperty('categorias');
+    expect(n).not.toHaveProperty('minTurnosBase');
+  });
+  it('fecha sozinha 3 dias depois do fim; textos de critério e escopo', () => {
+    expect(fechamentoExtrato('2026-11-30')).toBe('03/12');
+    expect(fechamentoExtrato('')).toBeNull();
+    expect(resumoCriterios({ aceitacao: 0.9, conclusao: null, tempo: 0.7, pedidos: 12 })).toBe(
+      'Taxa de aceitação ≥ 90% · Tempo disponível ≥ 70% · Pedidos concluídos ≥ 12 pedidos'
+    );
+    expect(escopoTexto({ pracas: null, turnos: null, modais: null, minTurnos: 8, tipo: 'extrato', minTurnosBase: 'validos' })).toMatch(/mín\. 8 turnos válidos$/);
   });
 });

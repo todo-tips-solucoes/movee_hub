@@ -82,6 +82,19 @@ function lerLista(v) {
 
 const INDICADORES = ['aceitacao', 'conclusao', 'tempo', 'pedidos'];
 
+/** Categorias do extrato: 1..60 strings de 1..200 caracteres, SEM trim/upper (nome exato ou `familia:*`); repetição some. */
+const FAMILIAS = ['familia:promocao', 'familia:missoes'];
+function lerCategorias(v) {
+  if (!Array.isArray(v) || v.length < 1 || v.length > 60) return null;
+  const out = [];
+  for (const item of v) {
+    if (typeof item !== 'string' || tam(item) < 1 || tam(item) > 200) return null;
+    if (item.startsWith('familia:') && !FAMILIAS.includes(item)) return null;
+    if (!out.includes(item)) out.push(item);
+  }
+  return out;
+}
+
 /**
  * @param {object} corpo formulário camelCase (§7). Só os campos conhecidos são lidos
  *   (`idEmpresa` e afins no corpo são IGNORADOS).
@@ -109,6 +122,27 @@ function validarFormulario(corpo) {
   if (fim < ini) return falha('dataFim');
   if ((fim - ini) / 86400000 + 1 > 92) return falha('dataFim'); // duração inclusiva ≤ 92 dias
 
+  // 0129: tipo / categorias / base do mínimo (mesmas regras do banco)
+  let tipo = 'nota';
+  if (b.tipo !== undefined && b.tipo !== null) {
+    if (b.tipo !== 'nota' && b.tipo !== 'extrato') return falha('tipo');
+    tipo = b.tipo;
+  }
+  const extrato = tipo === 'extrato';
+  let minTurnosBase = 'trabalhados';
+  if (b.minTurnosBase !== undefined && b.minTurnosBase !== null) {
+    if (b.minTurnosBase !== 'trabalhados' && b.minTurnosBase !== 'validos') return falha('minTurnosBase');
+    minTurnosBase = b.minTurnosBase;
+  }
+  if (!extrato && minTurnosBase !== 'trabalhados') return falha('minTurnosBase');
+  let categorias = null;
+  if (b.categorias !== undefined && b.categorias !== null) {
+    categorias = lerCategorias(b.categorias);
+    if (!categorias || !extrato) return falha('categorias');
+  } else if (extrato) {
+    return falha('categorias');
+  }
+
   const listas = {};
   for (const campo of ['pracas', 'turnos', 'modais']) {
     const r = lerLista(b[campo]);
@@ -118,11 +152,18 @@ function validarFormulario(corpo) {
 
   if (!ehInt(b.minTurnos, 1, 200)) return falha('minTurnos');
 
-  const pesos = b.pesos && typeof b.pesos === 'object' ? b.pesos : null;
-  if (!pesos) return falha('pesos');
-  for (const k of INDICADORES) if (!ehInt(pesos[k], 0, 100)) return falha(`pesos.${k}`);
+  // extrato não tem peso: ausente = todos 0; qualquer peso > 0 é PESOS_INVALIDOS (soma esperada 0, não 100)
+  const pesosIn = b.pesos && typeof b.pesos === 'object' ? b.pesos : null;
+  if (!pesosIn && !extrato) return falha('pesos');
+  const pesos = {};
+  for (const k of INDICADORES) {
+    const x = pesosIn ? pesosIn[k] : undefined;
+    if (extrato && (x === undefined || x === null)) { pesos[k] = 0; continue; }
+    if (!ehInt(x, 0, 100)) return falha(`pesos.${k}`);
+    pesos[k] = x;
+  }
   const soma = INDICADORES.reduce((a, k) => a + pesos[k], 0);
-  if (soma !== 100) return falha('pesos', 'PESOS_INVALIDOS'); // cobre "todos 0" (soma 0)
+  if (soma !== (extrato ? 0 : 100)) return falha('pesos', 'PESOS_INVALIDOS'); // nota: cobre "todos 0"
 
   const cortesIn = b.cortes && typeof b.cortes === 'object' ? b.cortes : {};
   const cortes = {};
@@ -135,9 +176,11 @@ function validarFormulario(corpo) {
       || Math.abs(v * 10000 - Math.round(v * 10000)) > 1e-6) {
       return falha(`cortes.${k}`);
     }
-    if (pesos[k] === 0) return falha(`cortes.${k}`, 'CORTE_SEM_PESO');
+    if (!extrato && pesos[k] === 0) return falha(`cortes.${k}`, 'CORTE_SEM_PESO');
     cortes[k] = v;
   }
+  // extrato: o corte é o critério do turno; sem nenhum, todo turno valeria
+  if (extrato && INDICADORES.every((k) => cortes[k] === null)) return falha('cortes');
 
   if (!Array.isArray(b.premios) || b.premios.length < 1 || b.premios.length > 20) return falha('premios');
   const premios = [];
@@ -187,9 +230,21 @@ function validarFormulario(corpo) {
       nome, descricao, dataInicio: b.dataInicio, dataFim: b.dataFim,
       pracas: listas.pracas, turnos: listas.turnos, modais: listas.modais, minTurnos: b.minTurnos,
       pesos: { aceitacao: pesos.aceitacao, conclusao: pesos.conclusao, tempo: pesos.tempo, pedidos: pesos.pedidos },
-      cortes, premios, avisar,
+      cortes, premios, avisar, tipo, categorias, minTurnosBase,
     },
   };
+}
+
+// ─── App do motorista: whitelist do extrato ────────────────────────────────
+/** Extrato: o app só vê posição + nome abreviado dos outros — nada de valor, turnos ou nota, mesmo que o banco mande. */
+const soPosicaoNome = (l) => (Array.isArray(l) ? l.map((x) => ({ posicao: x && x.posicao, nomeAbreviado: x && x.nomeAbreviado })) : l);
+function appCampanha(r) {
+  const out = camelizar(r);
+  if (out && out.campanha && out.campanha.tipo === 'extrato') {
+    for (const k of ['top10', 'podio']) if (k in out) out[k] = soPosicaoNome(out[k]);
+    if ('lider' in out) out.lider = null;
+  }
+  return out;
 }
 
 /** Lista CSV de query (`?pracas=A,B`) → array canonizado (≤50) ou `null`; `undefined` se malformada. */
@@ -246,14 +301,27 @@ function linhaRanking(r) {
     posicaoHipotetica: num(r.posicao_hipotetica),
     motivoCorte: Array.isArray(r.motivo_corte) ? r.motivo_corte : [],
     posicaoAnterior: num(r.posicao_anterior),
+    turnosValidos: num(r.turnos_validos),
+    valorCentavos: num(r.valor_centavos),
   };
 }
 
-function linhaVencedor(r) {
+/** `valorSomado` (extrato): `{entregador_id → linha do ranking}`; a RPC de vencedores só devolve `nota` (NULL no extrato). */
+const linhaCategoria = (r) => ({
+  descricao: r.descricao,
+  lancamentos: num(r.lancamentos),
+  semMotoristaIdentificado: r.sem_motorista_identificado === true,
+  familia: r.familia ?? null,
+});
+
+function linhaVencedor(r, rankingPorEntregador) {
+  const rk = rankingPorEntregador && rankingPorEntregador.get(r.entregador_id);
   return {
     posicao: num(r.posicao),
     nome: r.nome,
     nota: num(r.nota),
+    turnosValidos: rk ? num(rk.turnos_validos) : null,
+    valorSomadoCentavos: rk ? num(rk.valor_centavos) : null,
     premio: { tipo: r.premio_tipo, descricao: r.premio_descricao, valorCentavos: num(r.valor_centavos) },
     entregueEm: r.entregue_em ?? null,
     entreguePor: r.entregue_por_nome ?? null,
@@ -309,5 +377,5 @@ module.exports = {
   IMAGEM_MAX_BYTES, SITUACOES_CAMPANHA, SITUACOES_RANKING, POR_PAGINA, MIMES_IMAGEM, TOKENS_HTTP,
   TETO_CENTAVOS, CABECALHO_ESPERADO,
   mapearErroRpc, canonizar, validarFormulario, lerListaQuery, detectarImagem,
-  camelizar, contarAdiados, itemLista, detalhe, linhaRanking, linhaVencedor, linhasPlanilhaPremios, planilhaPremiosBuffer,
+  camelizar, appCampanha, contarAdiados, itemLista, detalhe, linhaRanking, linhaVencedor, linhaCategoria, linhasPlanilhaPremios, planilhaPremiosBuffer,
 };

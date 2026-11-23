@@ -60,9 +60,20 @@ router.get('/campanhas/:id', limiter, async (req, res) => {
   try {
     const r = await rpc('hub_motorista_campanha', { p_id: Number(req.params.id) }, req);
     if (!r) return res.status(404).json({ erro: 'CAMPANHA_NAO_ENCONTRADA' });
-    return res.status(200).json(dto.camelizar(r));
+    return res.status(200).json(dto.appCampanha(r));
   } catch (e) {
     return responderErro(res, 'GET /campanhas/:id', e);
+  }
+});
+
+// Turnos do PRÓPRIO motorista (extrato): a identidade vem só da claim de CNPJ.
+router.get('/campanhas/:id/turnos', limiter, async (req, res) => {
+  if (!idValido(req.params.id)) return res.status(404).json({ erro: 'CAMPANHA_NAO_ENCONTRADA' });
+  try {
+    const r = await rpc('hub_motorista_campanha_turnos', { p_campanha_id: Number(req.params.id) }, req);
+    return res.status(200).json({ itens: dto.camelizar(Array.isArray(r) ? r : []) });
+  } catch (e) {
+    return responderErro(res, 'GET /campanhas/:id/turnos', e);
   }
 });
 

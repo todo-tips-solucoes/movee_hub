@@ -270,6 +270,7 @@ describe('leituras', () => {
 
   test('ranking.csv: cabeçalho, injeção de fórmula neutralizada, pagina o RPC em lotes', async () => {
     let n = 0;
+    respostas['rpc/hub_campanha_detalhe'] = { id: 9, tipo: 'nota' };
     respostas['rpc/hub_campanha_ranking'] = () => {
       n += 1;
       if (n === 1) return Array.from({ length: 1000 }, (_, i) => ({ posicao: i + 1, nome: 'N', situacao: 'classificado', motivo_corte: [] }));
@@ -283,13 +284,65 @@ describe('leituras', () => {
     assert.match(linhas[0], /^Posição,Nome,Modal/);
     assert.match(linhas[1001], /'=HYPERLINK\(""x""\)"/);
     assert.match(linhas[1001], /"MOTO, X"/);
-    assert.deepEqual(chamadas.map((c) => c.body.p_offset), [0, 1000]);
+    assert.deepEqual(chamadas.filter((c) => c.endpoint === 'rpc/hub_campanha_ranking').map((c) => c.body.p_offset), [0, 1000]);
   });
 
   test('vencedores: shape do contrato', async () => {
     respostas['rpc/hub_campanha_vencedores'] = [{ posicao: 1, nome: 'Ana', cnpj: null, nota: 95, premio_tipo: 'objeto', premio_descricao: 'Moto', valor_centavos: null, entregue_em: null, entregue_por_nome: null, observacao: null, exportado_em: null }];
     const r = await req('GET', '/api/v1/hub/campanhas/9/vencedores');
-    assert.deepEqual(r.body.itens[0], { posicao: 1, nome: 'Ana', nota: 95, premio: { tipo: 'objeto', descricao: 'Moto', valorCentavos: null }, entregueEm: null, entreguePor: null, observacao: null, exportadoEm: null, semCnpj: true });
+    assert.deepEqual(r.body.itens[0], { posicao: 1, nome: 'Ana', nota: 95, premio: { tipo: 'objeto', descricao: 'Moto', valorCentavos: null }, entregueEm: null, entreguePor: null, observacao: null, exportadoEm: null, semCnpj: true, turnosValidos: null, valorSomadoCentavos: null });
+  });
+
+  test('vencedores do extrato: nota NULL na RPC -> valor somado e turnos válidos vêm do ranking', async () => {
+    respostas['rpc/hub_campanha_vencedores'] = [{ posicao: 1, entregador_id: 7, nome: 'Ana', cnpj: '1', nota: null, premio_tipo: 'dinheiro', premio_descricao: 'R$', valor_centavos: 5000 }];
+    respostas['rpc/hub_campanha_ranking'] = [{ posicao: 1, entregador_id: 7, turnos_validos: 12, valor_centavos: 345000 }];
+    const r = await req('GET', '/api/v1/hub/campanhas/9/vencedores');
+    assert.equal(r.body.itens[0].nota, null);
+    assert.equal(r.body.itens[0].valorSomadoCentavos, 345000);
+    assert.equal(r.body.itens[0].turnosValidos, 12);
+    assert.equal(r.body.itens[0].premio.valorCentavos, 5000);
+  });
+
+  test('categorias: exige campanhas.gerir; mapeia colunas; não colide com /:id', async () => {
+    respostas['rpc/hub_campanha_categorias'] = [{ descricao: 'Bônus X', lancamentos: '12', sem_motorista_identificado: true, familia: 'promocao' }];
+    const r = await req('GET', '/api/v1/hub/campanhas/categorias');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.itens, [{ descricao: 'Bônus X', lancamentos: 12, semMotoristaIdentificado: true, familia: 'promocao' }]);
+    assert.equal(chamadas[0].endpoint, 'rpc/hub_campanha_categorias');
+    permissoes = new Set(['campanhas.consultar']);
+    chamadas = [];
+    assert.equal((await req('GET', '/api/v1/hub/campanhas/categorias')).status, 403);
+    assert.equal(chamadas.length, 0);
+  });
+
+  test('ranking.csv do extrato: Turnos válidos, Trabalhados e Valor somado (R$), sem coluna Nota', async () => {
+    respostas['rpc/hub_campanha_detalhe'] = { id: 9, tipo: 'extrato' };
+    respostas['rpc/hub_campanha_ranking'] = [{ posicao: 1, nome: 'Ana', situacao: 'classificado', turnos: 15, turnos_validos: 12, valor_centavos: 345050, motivo_corte: [] }];
+    const r = await req('GET', '/api/v1/hub/campanhas/9/ranking.csv');
+    const linhas = r.body.trim().split('\r\n');
+    assert.equal(linhas[0], 'Posição,Nome,Modal,Situação,Turnos válidos,Trabalhados,Valor somado,Posição anterior');
+    assert.equal(linhas[1], '1,Ana,,classificado,12,15,"3450,50",');
+  });
+
+  test('OPCAO_DESCONHECIDA no lançar -> 422 com o token', async () => {
+    respostas['rpc/hub_campanha_lancar'] = Object.assign(new Error('x'), { body: JSON.stringify({ message: 'OPCAO_DESCONHECIDA' }) });
+    const r = await req('POST', '/api/v1/hub/campanhas/9/lancar', { json: { confirmo: true } });
+    assert.equal(r.status, 422);
+    assert.equal(r.body.erro, 'OPCAO_DESCONHECIDA');
+  });
+
+  test('POST repassa tipo/categorias/minTurnosBase à RPC (extrato sem pesos)', async () => {
+    respostas['rpc/hub_campanha_salvar'] = 5;
+    const r = await req('POST', '/api/v1/hub/campanhas', { json: {
+      nome: 'Melhor extrato', dataInicio: '2026-12-10', dataFim: '2026-12-20', minTurnos: 3, tipo: 'extrato',
+      categorias: ['Bônus X', 'familia:promocao'], minTurnosBase: 'validos', cortes: { aceitacao: 0.8 },
+      premios: [{ posicaoDe: 1, posicaoAte: 1, tipo: 'objeto', descricao: 'Moto' }],
+    } });
+    assert.equal(r.status, 201);
+    const d = chamadas.find((c) => c.endpoint === 'rpc/hub_campanha_salvar').body.p_dados;
+    assert.equal(d.tipo, 'extrato');
+    assert.deepEqual(d.categorias, ['Bônus X', 'familia:promocao']);
+    assert.equal(d.minTurnosBase, 'validos');
   });
 
   test('entrega: 204 + auditoria; observação inválida -> 422; posição malformada -> 404', async () => {
