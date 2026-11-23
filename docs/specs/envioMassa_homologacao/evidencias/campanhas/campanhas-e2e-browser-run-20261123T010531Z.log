@@ -1,0 +1,35 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/01-hub-criar-lancar.spec.ts:22:7 › campanhas — hub: criar, editar, lançar, imutável › a) rascunho -> editar -> revisar e lançar (caixa obrigatória) (4.1s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/01-hub-criar-lancar.spec.ts:110:7 › campanhas — hub: criar, editar, lançar, imutável › b) lançada: sem caminho de edição na UI; PUT direto na API -> 409 CAMPANHA_IMUTAVEL (1.4s)
+
+  2 passed (6.6s)
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/02-hub-ranking.spec.ts:57:5 › c) admin_entidade: detalhe com ranking, abas e contagens (1.5s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/02-hub-ranking.spec.ts:62:5 › c) financeiro (papel com as permissões): enxerga o mesmo ranking (1.6s)
+
+  2 passed (3.9s)
+
+Running 3 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/03-app-motorista.spec.ts:12:5 › d) classificada: card na Início, tela da campanha, pódio, top 10 abreviado, indicadores (3.1s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/03-app-motorista.spec.ts:62:5 › d) abaixo do corte: "fora do ranking" com nota hipotética e o que fazer (2.9s)
+  ✓  3 [chromium] › tests/e2e-hub-campanhas/03-app-motorista.spec.ts:83:5 › f) notificação de início na central, com link /campanhas/<id> clicável (1.8s)
+
+  3 passed (8.7s)
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/04-hub-fechar-vencedores.spec.ts:8:5 › e) vencedores, entrega do objeto e planilha de prêmios em dinheiro (1.8s)
+
+  1 passed (2.6s)
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/05-app-resultado-final.spec.ts:5:5 › e) app: card "Resultado final" e a tela do resultado (2.5s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/05-app-resultado-final.spec.ts:26:5 › e) app: o vencedor (1º, objeto) vê o prêmio e a entrega registrada (1.2s)
+
+  2 passed (4.4s)

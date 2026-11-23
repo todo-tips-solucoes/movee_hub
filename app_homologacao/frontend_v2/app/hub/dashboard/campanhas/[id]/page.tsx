@@ -374,6 +374,9 @@ export default function CampanhaDetalhePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [acaoErro, setAcaoErro] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState(false);
+  // Gerar a planilha carimba `exportado_em`; a seção de vencedores busca a própria lista e só
+  // reagia ao id da campanha (achado do E2E W4). Mudar a key a remonta e recarrega.
+  const [versaoVencedores, setVersaoVencedores] = useState(0);
   const hoje = hojeSP();
 
   const carregar = useCallback(() => {
@@ -459,6 +462,7 @@ export default function CampanhaDetalhePage() {
               const adiados = await baixarPlanilhaPremios(c.id);
               toast.success('Planilha gerada. Entregue ao financeiro para importar no Lançamento externo.');
               if (adiados > 0) toast.warning(mensagemAdiados(adiados), { duration: 12000 });
+              setVersaoVencedores((v) => v + 1);
               carregar();
             })}>
               <FileSpreadsheet className="size-4" aria-hidden="true" />
@@ -520,7 +524,7 @@ export default function CampanhaDetalhePage() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
-          {c.situacao === 'encerrada' && <VencedoresSecao campanha={c} podeEntregar={podeEntregar} onMudou={carregar} />}
+          {c.situacao === 'encerrada' && <VencedoresSecao key={versaoVencedores} campanha={c} podeEntregar={podeEntregar} onMudou={carregar} />}
           {ativa && <RankingSecao campanha={c} />}
         </div>
         <RegrasTravadas c={c} />

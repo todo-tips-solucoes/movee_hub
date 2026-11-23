@@ -538,7 +538,9 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
           {salvando && <Loader2 className="mr-2 size-4 motion-safe:animate-spin" aria-hidden="true" />}
           Salvar rascunho
         </Button>
-        <Button type="submit" className="min-h-11 sm:min-h-8" disabled={salvando}>
+        {/* Sem as opções (cobertura de pedidos) a validação de lançar leria cobertura nula e
+            recusaria "Pedidos" por engano — achado do E2E W4. Fail-closed enquanto carregam. */}
+        <Button type="submit" className="min-h-11 sm:min-h-8" disabled={salvando || opcoes === null}>
           Revisar e lançar
         </Button>
       </div>

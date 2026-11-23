@@ -126,6 +126,7 @@ const DRIVERS = [
   { nome: 'hub-motorista-360', caminho: 'infra/hub/testes/hub-motorista-360-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
   { nome: 'motorista-adiantamento', caminho: 'infra/hub/testes/hub-motorista-adiantamento-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
   { nome: 'motorista-push', caminho: 'infra/hub/testes/hub-motorista-push-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
+  { nome: 'hub-campanhas', caminho: 'infra/hub/testes/hub-campanhas-e2e-browser.sh', timeout: TIMEOUT_DEMAIS_MS },
   { nome: 'envio-massa-a11y', caminho: 'infra/hub/testes/hub-envio-massa-a11y-smoke.sh', timeout: TIMEOUT_DEMAIS_MS },
   { nome: 'auditoria-admin-a11y', caminho: 'infra/hub/testes/hub-auditoria-admin-a11y-smoke.sh', timeout: TIMEOUT_DEMAIS_MS },
 ];
