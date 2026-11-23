@@ -112,6 +112,11 @@ psql_t <<SQL >/dev/null
 INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ($UID_EDITOR, $E_TESTE, $PAPEL_ADMIN_ENTIDADE, true),
   ($UID_OPERADOR, $E_TESTE, $PAPEL_OPERADOR, true);
+-- Desde o PR #308 (2026-10-31) as rotas de credencial só atendem o grupo Movee
+-- (recusarEntidadeForaDoGrupo → 422 INVALIDO/entidade_fora_do_grupo). Sem esta
+-- linha TODA chamada de credencial deste driver recebia 422 e ele ficou vermelho
+-- desde então. A recusa fora do grupo é coberta em hub-motoristas-credencial-unit.
+INSERT INTO "EmpresaGrupoMovee" (id_empresa) VALUES ($E_TESTE) ON CONFLICT DO NOTHING;
 SQL
 
 # --- Seed: 3 Entregadores no escopo da empresa de teste ---------------------
