@@ -16,8 +16,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, Loader2, Mail, Plus, UserCog, UserX, Users as UsersIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertCircle, Loader2, Mail, Plus, ShieldCheck, UserCog, UserX, Users as UsersIcon } from 'lucide-react';
+import Link from 'next/link';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/hub/page-header';
 import { EmptyState } from '@/components/hub/empty-state';
 import { FilterBar } from '@/components/hub/filter-bar';
@@ -664,6 +665,13 @@ export default function UsuariosPage() {
           <Plus className="size-4" aria-hidden="true" />
           Novo usuário
         </Button>
+        <Link
+          href="/hub/dashboard/usuarios/papeis"
+          className={buttonVariants({ variant: 'outline', size: 'sm', className: 'min-h-11 gap-1.5 sm:min-h-8' })}
+        >
+          <ShieldCheck className="size-4" aria-hidden="true" />
+          Papéis e permissões
+        </Link>
         {pendentesDaPagina.length > 0 && (
           <Button
             size="sm"
