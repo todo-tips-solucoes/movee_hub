@@ -371,3 +371,17 @@ describe('UsuariosPage — aviso ao redefinir a própria senha', () => {
     expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
   });
 });
+
+describe('UsuariosPage — acesso à matriz de papéis', () => {
+  it('o cabeçalho tem o link "Papéis e permissões" para a matriz', async () => {
+    mockUseHubAuth.mockReturnValue({ entidadeAtiva: 6, permissoes: ['usuarios.gerenciar'] });
+    mockListarUsuarios.mockResolvedValue({ usuarios: [], total: 0, page: 1, pageSize: 20 });
+    mockListarPapeisMatriz.mockResolvedValue({ papeis: [], permissoes: [], matriz: [], podeEditar: false });
+    render(<UsuariosPage />);
+    await waitFor(() => expect(screen.getByText('Nenhum usuário encontrado')).toBeInTheDocument());
+    expect(screen.getByRole('link', { name: 'Papéis e permissões' })).toHaveAttribute(
+      'href',
+      '/hub/dashboard/usuarios/papeis',
+    );
+  });
+});

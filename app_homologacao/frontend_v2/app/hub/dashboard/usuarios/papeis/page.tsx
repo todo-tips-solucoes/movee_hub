@@ -13,7 +13,8 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, ShieldAlert } from 'lucide-react';
+import Link from 'next/link';
+import { AlertCircle, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/hub/page-header';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { Checkbox, CHECKBOX_ALVO_44 } from '@/components/ui/checkbox';
@@ -25,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -195,6 +196,14 @@ export default function PapeisMatrizPage() {
 
   return (
     <div className={`mx-auto flex ${LARGURA_LISTA} flex-col gap-4 p-4 sm:p-6 lg:p-8`}>
+      <Link
+        href="/hub/dashboard/usuarios"
+        className={buttonVariants({ variant: 'ghost', size: 'sm', className: 'w-fit min-h-11 gap-1.5 sm:min-h-8' })}
+      >
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        Usuários
+      </Link>
+
       <PageHeader
         titulo="Papéis e permissões"
         subtitulo="Catálogo fixo de papéis (nenhum papel novo pode ser criado). Marque/desmarque a célula para conceder ou remover uma permissão do papel."
