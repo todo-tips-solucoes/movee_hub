@@ -38,6 +38,7 @@ import {
   obterSolicitacao,
   type SolicitacaoDetalhe,
 } from '@/lib/hub/adiantamentos-api';
+import { descreverCategorias } from '@/lib/hub/adiantamento-categorias';
 import { LARGURA_DETALHE } from '@/lib/hub/larguras';
 import { formatBRL, formatDateBR } from '@/lib/utils';
 
@@ -203,6 +204,9 @@ export default function AdiantamentoDetalhePage() {
                 {detalhe.calculo ? (
                   <dl className="flex flex-col gap-1.5">
                     <LinhaChaveValor chave="Produção" valor={<span className="font-mono">{formatBRL(detalhe.calculo.producao ?? '0')}</span>} />
+                    {detalhe.calculo.categorias && detalhe.calculo.categorias.length > 0 && (
+                      <LinhaChaveValor chave="Categorias" valor={descreverCategorias(detalhe.calculo.categorias)} />
+                    )}
                     <LinhaChaveValor chave="Percentual" valor={detalhe.calculo.percentual !== null ? `${detalhe.calculo.percentual}%` : '—'} />
                     <LinhaChaveValor chave="Bruto" valor={<span className="font-mono">{formatBRL(detalhe.calculo.bruto ?? '0')}</span>} />
                     <LinhaChaveValor chave="Taxa" valor={<span className="font-mono">− {formatBRL(detalhe.calculo.taxa ?? '0')}</span>} />

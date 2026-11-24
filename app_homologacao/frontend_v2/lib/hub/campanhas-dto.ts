@@ -365,6 +365,7 @@ export function parseCategorias(raw: unknown): CategoriaProducao[] {
       lancamentos: num(c.lancamentos),
       semMotoristaIdentificado: (c.semMotoristaIdentificado ?? c.sem_motorista_identificado) === true,
       familia: strOuNull(c.familia),
+      primeira: strOuNull(c.primeira),
     };
   });
 }

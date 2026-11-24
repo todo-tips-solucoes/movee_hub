@@ -52,6 +52,7 @@ function mapearErroRpc(e) {
 
 // ─── Canonização ───────────────────────────────────────────────────────────
 const canonizar = (s) => String(s).trim().toUpperCase();
+const { lerCategorias: lerTokens } = require('./categorias-tokens');
 const tam = (s) => Array.from(s).length;
 
 // ─── Validação do formulário (§4) ──────────────────────────────────────────
@@ -83,17 +84,7 @@ function lerLista(v) {
 const INDICADORES = ['aceitacao', 'conclusao', 'tempo', 'pedidos'];
 
 /** Categorias do extrato: 1..60 strings de 1..200 caracteres, SEM trim/upper (nome exato ou `familia:*`); repetição some. */
-const FAMILIAS = ['familia:promocao', 'familia:missoes'];
-function lerCategorias(v) {
-  if (!Array.isArray(v) || v.length < 1 || v.length > 60) return null;
-  const out = [];
-  for (const item of v) {
-    if (typeof item !== 'string' || tam(item) < 1 || tam(item) > 200) return null;
-    if (item.startsWith('familia:') && !FAMILIAS.includes(item)) return null;
-    if (!out.includes(item)) out.push(item);
-  }
-  return out;
-}
+const lerCategorias = (v) => lerTokens(v, { min: 1, max: 60, maxNome: 200 }); // sem `modo:` (campanha não tem o modo)
 
 /**
  * @param {object} corpo formulário camelCase (§7). Só os campos conhecidos são lidos
@@ -312,6 +303,7 @@ const linhaCategoria = (r) => ({
   lancamentos: num(r.lancamentos),
   semMotoristaIdentificado: r.sem_motorista_identificado === true,
   familia: r.familia ?? null,
+  primeira: r.primeira ?? null, // 0131: 1º lançamento na janela (YYYY-MM-DD)
 });
 
 function linhaVencedor(r, rankingPorEntregador) {

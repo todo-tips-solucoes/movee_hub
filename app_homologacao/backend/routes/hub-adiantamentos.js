@@ -60,6 +60,7 @@ const {
   dinheiro, formatarSequencial, formatarBancoCodigoNome, pontuarDocumentoMascarado,
   rotuloStatusAdiantamento, mapConfiguracao, mapContaCompleta, mapSolicitacaoResumo,
   mapEvento, mapLote, mapLoteItem,
+  validarListasCategorias,
 } = require('../lib/adiantamento-dto');
 const { placeholdersInvalidos, PLACEHOLDERS_PERMITIDOS } = require('../lib/adiantamento-mensagem');
 const {
@@ -519,6 +520,7 @@ router.get('/configuracoes/categorias', requireModuloAtivo('adiantamentos'), req
         // 0087: categorias que o cálculo trata como uma só (ex.: toda
         // "Promoção - …", inclusive as campanhas futuras). null = categoria avulsa.
         familia: r.familia || null,
+        primeira: r.primeira ?? null, // 0131: 1º lançamento na janela (YYYY-MM-DD)
       })),
     });
   } catch (e) {
@@ -553,6 +555,10 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
     for (const campo of CAMPOS) {
       if (corpo[campo] !== undefined) dados[campo] = corpo[campo];
     }
+
+    // 0131: tokens `modo:todas` / `familia:*` — mesma regra do banco (defesa em profundidade).
+    const erroLista = validarListasCategorias(dados);
+    if (erroLista) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: erroLista.campo });
 
     // F3/FR-025/FR-026: piso do repasse — `> 0` e só quem tem
     // `adiantamentos.pagamento_confirmar` pode ALTERAR o valor vigente
@@ -650,6 +656,8 @@ router.put('/configuracoes', requireModuloAtivo('adiantamentos'), requirePermiss
       if (msg.includes('DADOS_INVALIDOS_REPASSE_VALOR_MINIMO')) {
         return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'repasseValorMinimo' });
       }
+      // 0131: token de categoria inválido (o DTO já barra; isto é a defesa do banco)
+      if (msg.includes('DADOS_INVALIDOS_CATEGORIAS')) return res.status(400).json({ erro: 'DADOS_INVALIDOS', motivo: 'categorias' });
       if (msg.includes('PERMISSAO_NEGADA')) return res.status(403).json({ erro: 'PERMISSAO_NEGADA' });
       if (msg.includes('FORA_DO_GRUPO_MOVEE')) return res.status(403).json({ erro: 'FORA_DO_GRUPO_MOVEE' });
       console.error('[hub-adiantamentos] erro em PUT /configuracoes:', e.message);

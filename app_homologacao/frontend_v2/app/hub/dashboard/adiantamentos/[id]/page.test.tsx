@@ -105,6 +105,13 @@ describe('AdiantamentoDetalhePage', () => {
     expect(screen.getAllByText('Adiantamento liberado').length).toBeGreaterThan(0);
   });
 
+  it('0131: traduz os tokens de categorias do cálculo, nunca o token cru', async () => {
+    mockObterSolicitacao.mockResolvedValueOnce({ ...DETALHE_BASE, calculo: { ...DETALHE_BASE.calculo, categorias: ['modo:todas', 'familia:indicador', 'Gorjeta'] } });
+    render(<AdiantamentoDetalhePage />);
+    expect(await screen.findByText('Todas, exceto: Indicadores, Gorjeta')).toBeInTheDocument();
+    expect(screen.queryByText(/modo:todas/)).not.toBeInTheDocument();
+  });
+
   it('solicitação sem cálculo ainda (AGUARDANDO_CORTE) mostra "Ainda não calculado"', async () => {
     mockObterSolicitacao.mockResolvedValueOnce({ ...DETALHE_BASE, status: 'AGUARDANDO_CORTE', calculo: null });
     render(<AdiantamentoDetalhePage />);

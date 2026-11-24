@@ -1,0 +1,21 @@
+
+Running 16 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:478:7 › US3 — contas bancárias › lista mostra só dado mascarado; documento/PIX completos só aparecem na revisão dedicada, e aprovar exige confirmar o entregador (947ms)
+  ✓   2 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:508:7 › US3 — contas bancárias › aprovação em massa mostra a contagem antes de confirmar (FR-020) (963ms)
+  ✓   3 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:530:7 › US4 — pagamentos e lotes › seleciona, revisa a prévia (com pendência real JA_EM_LOTE) e gera o lote (1.0s)
+  ✓   4 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:577:7 › US5 — confirmação de pagamento e transições de falha › confirma o resultado do lote marcando uma falha — os demais viram pagos automaticamente (1.2s)
+  ✓   5 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:602:7 › US5 — confirmação de pagamento e transições de falha › reprocessar uma solicitação falhada devolve para LIBERADA e ela reaparece na fila de pagamento (edge #20/7.7.4) (959ms)
+  ✓   6 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:623:7 › US5 — confirmação de pagamento e transições de falha › "Encerrar sem pagamento" em FALHOU transiciona para ENCERRADA e some da fila de reprocessamento (D-23/7.3.6) (1.0s)
+  ✓   7 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:640:7 › US5 — confirmação de pagamento e transições de falha › a ação explícita "Atualizar conta" resolve a pendência de conta alterada (7.3.4) (756ms)
+  ✓   8 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:663:7 › US6 — repasse e fechamento › visualiza o remanescente por motorista no período (550ms)
+  ✓   9 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:679:7 › US6 — repasse e fechamento › lancamento-externo FR-049: o resumo da semana carrega e a página NÃO mostra o banner de falha do aviso (537ms)
+  ✓  10 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:693:7 › US6 — repasse e fechamento › lancamento-externo: lista os pagos por fora, exclui um (com confirmação) e a prévia + o aviso reconsultam; semana fechada não exclui (973ms)
+  ✓  11 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:719:7 › US6 — repasse e fechamento › gerar do repasse com pendências é recusado e mostra a contagem por status e quem trava (D-23/FR-008) (903ms)
+  ✓  12 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:745:7 › US6 — repasse e fechamento › gerar do repasse fecha a apuração e gera quando não há pendências (1.0s)
+  ✓  13 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:764:7 › US6 — repasse e fechamento › coluna Identificador mostra o uuid; motorista retido tem "A pagar" zerado e o badge (583ms)
+  ✓  14 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:792:7 › US6 — repasse e fechamento › 4.7.2: área tocável do "Gerar do repasse" e do diálogo >= 44px no mobile (677ms)
+  ✓  15 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:850:7 › Tema escuro — combobox nativo › as opções do <select> usam as cores de menu do design (--popover), não as do navegador (652ms)
+  ✓  16 [chromium] › tests/e2e-hub-adiantamentos/adiantamentos.spec.ts:887:7 › F3 — piso do repasse (configurações) › campo do piso carrega o valor vigente e fica habilitado para quem confirma pagamento (460ms)
+
+  16 passed (14.3s)

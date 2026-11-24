@@ -246,7 +246,7 @@ async function fakeHubPostgrestRequest(endpoint, method, body, claims, opts) {
       // Sem `familia`: o formato do RPC antes da 0087 — a rota não pode quebrar
       // se o backend novo subir antes da migration.
       { descricao: 'Frete', lancamentos: 42, sem_motorista_identificado: false },
-      { descricao: 'Promocao - Campanha X', lancamentos: 7, sem_motorista_identificado: false, familia: 'familia:promocao' },
+      { descricao: 'Promocao - Campanha X', lancamentos: 7, sem_motorista_identificado: false, familia: 'familia:promocao', primeira: '2026-11-20' },
     ];
   }
   if (caminho === 'rpc/hub_adiantamento_configuracao_salvar') {
@@ -712,6 +712,19 @@ describe('4.2 configuração', () => {
     assert.equal(r.body.itens[0].lancamentos, 42);
     assert.equal(r.body.itens[0].familia, null, 'RPC sem o campo (pré-0087) -> familia null, não undefined');
     assert.equal(r.body.itens[1].familia, 'familia:promocao');
+    assert.equal(r.body.itens[0].primeira, null, 'RPC sem o campo (pré-0131) -> primeira null');
+    assert.equal(r.body.itens[1].primeira, '2026-11-20');
+  });
+
+  test('PUT /configuracoes: tokens de categoria (0131)', async () => {
+    const put = (body) => request('PUT', '/api/v1/adiantamentos/configuracoes', { body: { versaoEsperada: 1, ...body }, cookie: tokenCookie() });
+    for (const [campo, v] of [['categoriasProducao', ['modo:outro']], ['categoriasExtrato', ['familia:xyz']], ['categoriasNota', 'x']]) {
+      const r = await put({ [campo]: v });
+      assert.equal(r.status, 400);
+      assert.equal(r.body.motivo, campo);
+    }
+    const ok = await put({ categoriasProducao: ['modo:todas', 'familia:indicador'], categoriasNota: null });
+    assert.notEqual(ok.status, 400);
   });
 
   test('PUT /configuracoes sem versaoEsperada -> 400', async () => {

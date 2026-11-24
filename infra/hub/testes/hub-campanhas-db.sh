@@ -23,6 +23,7 @@
 #   CAMP_NEG=extrato_corte   -> (0129/M2) turnos voltam a ver faturamento pos-fechamento (prova: os checks M2 devem FALHAR)
 #   CAMP_NEG=extrato_privado -> (0129) top10 do extrato vaza campo de valor (prova: a secao de privacidade deve FALHAR)
 #   CAMP_NEG=tempo_leitura -> (0130) tempo sem leitura volta a valer 100% (prova: os checks 0130 (a)/(b) devem FALHAR)
+#   CAMP_NEG=familias  -> (0131) familias() sem indicador (prova: os checks 0131/campanha de familia:indicador devem FALHAR)
 #   CAMP_NEG=escopo    -> remove a policy de escopo de "Campanha" (prova (b): a leitura direta vaza)
 #   CAMP_NEG=excluir   -> (so na secao 0128) remove a checagem de lancada_em de hub_campanha_excluir E desliga o gatilho de DELETE
 #                         (0128: sem os DOIS, a lancada nao e apagada; so a RPC sem o gatilho daria o mesmo token)
@@ -121,6 +122,10 @@ case "${CAMP_NEG:-}" in
     patch_fn 'hub_campanha_recalcular_interno(integer)' 's/nt\.tempo DESC NULLS LAST, nt\.entregador_id ASC/nt.tempo DESC NULLS LAST, nt.entregador_id DESC/'
     own "SELECT pg_get_functiondef('hub_campanha_recalcular_interno(integer)'::regprocedure) ~ 'nt[.]entregador_id DESC[)]'" | grep -q t || { echo "ABORTA: reversao nao esta no corpo vivo"; exit 1; }
     echo "NEG desempate: corpo vivo agora desempata por entregador_id DESC (conferido)";;
+  familias)
+    patch_fn 'hub_adiantamento_familias()' "s/, 'familia:indicador'//"
+    own "SELECT pg_get_functiondef('hub_adiantamento_familias()'::regprocedure) ~ 'indicador'" | grep -q f || { echo "ABORTA: reversao familias nao esta no corpo vivo — controle OCO"; exit 1; }
+    echo "NEG familias: familias() volta a ter so promocao/missoes (conferido; os checks 0131/campanha de indicador devem FALHAR)";;
   a1)
     patch_fn 'hub_campanha_marcar_exportado(integer)' "s/(v_em AT TIME ZONE 'America\/Sao_Paulo')::date, false/v_hoje, false/"
     own "SELECT pg_get_functiondef('hub_campanha_marcar_exportado(integer)'::regprocedure) ~ 'v_hoje, false'" | grep -q t || { echo "ABORTA: reversao A1 nao esta no corpo vivo"; exit 1; }
@@ -756,9 +761,34 @@ check "0129/lancar: so familia (token) lanca" "$(tok "$(rpc $ADM5 $E9005 9005 "S
 check "0129/lancar: extrato com nomes + familia lanca" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_lancar($ID_X1);")")" ""
 check "0129/lancar: extrato base validos lanca" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_lancar($ID_X2);")")" ""
 check "0129/B2: salvar com familia fora da allowlist (familia:foo) -> VALIDACAO" "$(tok "$(sal5 NULL "$(xbody X1x 2027-03-01 2027-03-03 '["familia:foo"]' trabalhados "$XC" 2 '["moto"]')")")" "VALIDACAO"
+check "0131/campanha: seletor traz primeira (data de CHEGADA, criado_em em SP) por categoria" "$(rpc $ADM5 $E9005 9005 "SELECT string_agg(descricao||'='||primeira, ',' ORDER BY descricao) FROM hub_campanha_categorias();")" "$(own "SELECT string_agg(descricao||'='||m, ',' ORDER BY descricao) FROM (SELECT f.descricao, (min(f.criado_em) AT TIME ZONE 'America/Sao_Paulo')::date m FROM \"FaturamentoLancamento\" f WHERE f.id_empresa=9005 AND f.tipo='Credito' AND f.data_referencia >= '2027-02-20'::date-90 GROUP BY f.descricao HAVING count(f.entregador_id)>0 AND count(NULLIF(btrim(f.periodo),''))>0) t")"
 ID_XB="$(sal5 NULL "$(xbody 'Extrato familia ruim' 2027-03-01 2027-03-03 '["familia:promocao"]' trabalhados "$XC" 2 '["moto"]')")"
+CHK_DEF="$(own "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='campanha_categorias_chk'")"
+own "ALTER TABLE \"Campanha\" DROP CONSTRAINT campanha_categorias_chk" >/dev/null
 own "UPDATE \"Campanha\" SET categorias=ARRAY['familia:foo'] WHERE id=$ID_XB" >/dev/null
 check "0129/B2: lancar com token de familia desconhecido (gravado por fora da RPC) -> OPCAO_DESCONHECIDA" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_lancar($ID_XB);")")" "OPCAO_DESCONHECIDA"
+# 0131: familias vem de hub_adiantamento_familias() (inclui indicador); a campanha NAO tem o modo "todas".
+# Reaproveita o rascunho ID_XB (sem criar campanha nova: os contadores dos blocos seguintes nao mudam).
+echo "  0131: familia:indicador aceita, modo: recusado"
+own "UPDATE \"Campanha\" SET categorias=ARRAY['modo:todas'] WHERE id=$ID_XB" >/dev/null
+check "0131/campanha: lancar com modo: (gravado por fora, sem o CHECK) -> OPCAO_DESCONHECIDA" "$(tok "$(rpc $ADM5 $E9005 9005 "SELECT hub_campanha_lancar($ID_XB);")")" "OPCAO_DESCONHECIDA"
+own "UPDATE \"Campanha\" SET categorias=ARRAY['Corridas'] WHERE id=$ID_XB" >/dev/null
+own "ALTER TABLE \"Campanha\" ADD CONSTRAINT campanha_categorias_chk $CHK_DEF" >/dev/null
+check "0131/campanha: CHECK reposto (campanha_categorias_chk existe)" "$(own "SELECT count(*) FROM pg_constraint WHERE conname='campanha_categorias_chk'")" "1"
+check "0131/campanha: salvar (edita o rascunho) com familia:indicador grava" "$(tok "$(sal5 $ID_XB "$(xbody 'Extrato familia ruim' 2027-03-01 2027-03-03 '["Corridas","familia:indicador"]' trabalhados "$XC" 2 '["moto"]')")")|$(own "SELECT array_to_string(categorias,',') FROM \"Campanha\" WHERE id=$ID_XB")" "|Corridas,familia:indicador"
+check "0131/campanha: lancar com familia:indicador NAO recusa (ROLLBACK: o rascunho segue rascunho)" "$(psql_relaxed -tA 2>&1 <<SQL | grep -c 'OPCAO_DESCONHECIDA'
+BEGIN;
+SELECT set_config('request.jwt.claims', jsonb_build_object('sub',(SELECT id FROM "Usuario" WHERE email='$ADM5'),'empresa_ativa','9005','escopo','$E9005'::jsonb)::text, true);
+SET ROLE authenticated;
+SELECT hub_campanha_lancar($ID_XB);
+ROLLBACK;
+SQL
+)" "0"
+check "0131/campanha: o rascunho continua nao lancado depois do ROLLBACK" "$(own "SELECT lancada_em IS NULL FROM \"Campanha\" WHERE id=$ID_XB")" "t"
+check "0131/campanha: salvar com modo:todas -> VALIDACAO" "$(tok "$(sal5 NULL "$(xbody X1x 2027-03-01 2027-03-03 '["modo:todas","Corridas"]' trabalhados "$XC" 2 '["moto"]')")")" "VALIDACAO"
+check "0131/campanha: salvar com modo:outro -> VALIDACAO" "$(tok "$(sal5 NULL "$(xbody X1x 2027-03-01 2027-03-03 '["modo:outro"]' trabalhados "$XC" 2 '["moto"]')")")" "VALIDACAO"
+check "0131/campanha: CHECK recusa modo:todas gravado por fora" "$(tok "$(DBINS 0 0 0.5 extrato "ARRAY['modo:todas','Corridas']" trabalhados)")" 'violates check constraint "campanha_categorias_chk"'
+check "0131/campanha: CHECK recusa familia:foo gravada por fora" "$(tok "$(DBINS 0 0 0.5 extrato "ARRAY['familia:foo']" trabalhados)")" 'violates check constraint "campanha_categorias_chk"'
 # B1: extrato com corte de pedidos em empresa SEM cobertura de pedidos (9003) lanca: leitura ausente so nao valida o turno
 ID_XP="$(salvar adm3@example.com '[9003]' 9003 NULL "$(xbody 'Extrato pedidos' 2027-03-01 2027-03-03 '["familia:promocao"]' trabalhados '{"aceitacao":null,"conclusao":null,"tempo":null,"pedidos":3}' 1 null)")"
 check "0129/B1: extrato com corte de pedidos lanca mesmo sem cobertura de pedidos (nao ha peso para zerar)" "$(tok "$(rpc adm3@example.com '[9003]' 9003 "SELECT hub_campanha_lancar($ID_XP);")")|$(own "SELECT lancada_em IS NOT NULL FROM \"Campanha\" WHERE id=$ID_XP")" "|t"
@@ -871,8 +901,8 @@ check "0129/fecha: vencedores do extrato = posicoes 1..3 (Alice, Davi, Cida)" "$
 
 echo "--- idempotencia da migration (0129 duas vezes, com dados de extrato presentes) ---"
 for i in 1 2; do
-  R4="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0129_campanhas_extrato.sql" 2>&1 | grep -c ERROR)"
-  check "migration 0129 reaplicada ($i) sem erro" "$R4" "0"
+  R4="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0131_categorias_modo_todas.sql" 2>&1 | grep -c ERROR)"
+  check "migration 0131 reaplicada ($i) sem erro (a 0129 nao e mais reaplicavel por cima: a 0131 muda o retorno de hub_campanha_categorias)" "$R4" "0"
 done
 
 echo "--- 0130: campanha de NOTA sem leitura de tempo (tempo NULL, nao 100%) ---"

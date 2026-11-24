@@ -165,8 +165,8 @@ describe('extrato', () => {
     const r = await listarCategoriasCampanha();
     expect(f.mock.calls[0][0]).toMatch(/\/hub\/campanhas\/categorias$/);
     expect(r).toEqual([
-      { descricao: 'A', lancamentos: 3, semMotoristaIdentificado: true, familia: null },
-      { descricao: 'B', lancamentos: 2, semMotoristaIdentificado: true, familia: 'familia:promocao' },
+      { descricao: 'A', lancamentos: 3, semMotoristaIdentificado: true, familia: null, primeira: null },
+      { descricao: 'B', lancamentos: 2, semMotoristaIdentificado: true, familia: 'familia:promocao', primeira: null },
     ]);
   });
   it('VALIDACAO de cortes/categorias vira mensagem do extrato, não "(campo: …)"', () => {

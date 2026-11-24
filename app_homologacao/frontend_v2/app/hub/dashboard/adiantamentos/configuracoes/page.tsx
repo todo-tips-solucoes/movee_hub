@@ -39,7 +39,7 @@ import {
   type Configuracao,
   type ConfiguracaoHistoricoItem,
 } from '@/lib/hub/adiantamentos-api';
-import { restringirAoExtrato } from '@/lib/hub/adiantamento-categorias';
+import { modoDaLista, restringirAoExtrato, validarTokensCategorias } from '@/lib/hub/adiantamento-categorias';
 import { Chip, SeletorCategorias, toggleItem } from '@/components/hub/seletor-categorias';
 import { diaDoRepasse, diasAteRepasse } from '@/lib/hub/adiantamento-repasse';
 import { LARGURA_DETALHE } from '@/lib/hub/larguras';
@@ -154,6 +154,8 @@ function primeiraViolacao(f: FormState): string | null {
   if ((f.fonteProducao === 'financeiro_lancamento' || f.fonteProducao === 'financeiro_referencia') && f.categoriasProducao.length === 0) {
     return 'Selecione ao menos uma categoria de produção para essa fonte.';
   }
+  const tokenInvalido = [f.categoriasProducao, f.categoriasExtrato, f.categoriasNota].map(validarTokensCategorias).find(Boolean);
+  if (tokenInvalido) return tokenInvalido;
   if (f.previsaoPagamentoTexto.trim().length < 1 || f.previsaoPagamentoTexto.length > 120) {
     return 'A previsão de pagamento precisa ter entre 1 e 120 caracteres.';
   }
@@ -424,6 +426,8 @@ export default function ConfiguracoesAdiantamentoPage() {
                   textoVazio="Escolha uma fonte para ver as categorias encontradas nos últimos 90 dias."
                   disponiveis={c.form.fonteProducao ? c.categoriasDisponiveis : []}
                   selecionadas={c.form.categoriasProducao}
+                  modo={{ valor: modoDaLista(c.form.categoriasProducao) }}
+                  revisadoEm={c.vigente?.vigenteDesde}
                   onChange={(categoriasProducao) => c.setForm((f) => ({ ...f, categoriasProducao }))}
                 />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -560,6 +564,9 @@ export default function ConfiguracoesAdiantamentoPage() {
                   textoVazio="Nenhuma categoria encontrada nos últimos 90 dias."
                   disponiveis={c.categoriasDisponiveis}
                   selecionadas={c.form.categoriasExtrato}
+                  modo={{ valor: modoDaLista(c.form.categoriasExtrato) }}
+                  revisadoEm={c.vigente?.vigenteDesde}
+                  destino="do repasse"
                   onChange={(categoriasExtrato) => c.setForm((f) => ({ ...f, categoriasExtrato }))}
                   aviso="Sem nenhuma categoria marcada, o repasse de todas as semanas fica zerado."
                 />
@@ -568,6 +575,9 @@ export default function ConfiguracoesAdiantamentoPage() {
                   textoVazio="Marque primeiro as categorias do repasse, acima."
                   disponiveis={restringirAoExtrato(c.categoriasDisponiveis, c.form.categoriasExtrato)}
                   selecionadas={c.form.categoriasNota}
+                  modo={{ valor: modoDaLista(c.form.categoriasNota) }}
+                  revisadoEm={c.vigente?.vigenteDesde}
+                  destino="da nota"
                   onChange={(categoriasNota) => c.setForm((f) => ({ ...f, categoriasNota }))}
                   aviso="Enquanto nada estiver marcado, o app do motorista mostra só o total, sem separar o que entra na nota."
                 />

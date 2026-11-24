@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { filtrarItensCategoria, montarItensCategoria, restringirAoExtrato } from './adiantamento-categorias';
+import {
+  CASOS_CASA_CATEGORIA, casaCategoria, dataLocalSP, descreverCategorias, filtrarItensCategoria, montarItensCategoria, restringirAoExtrato,
+  trocarModo, validarTokensCategorias,
+} from './adiantamento-categorias';
 import type { CategoriaProducao } from './adiantamentos-api';
 
 const cat = (descricao: string, lancamentos: number, familia: string | null = null): CategoriaProducao => ({
@@ -98,5 +101,59 @@ describe('restringirAoExtrato', () => {
 
   it('extrato vazio não oferece nada', () => {
     expect(restringirAoExtrato(DISPONIVEIS, [])).toEqual([]);
+  });
+});
+
+describe('casaCategoria (espelho de hub_adiantamento_categoria_casa; mesma tabela do banco)', () => {
+  it.each(CASOS_CASA_CATEGORIA)('$descricao / $familia / $lista -> $esperado', ({ descricao, familia, lista, esperado }) => {
+    expect(casaCategoria(descricao, familia, lista)).toBe(esperado);
+  });
+});
+
+describe('modo "todas"', () => {
+  it('restringirAoExtrato: no modo todas a nota pode escolher tudo menos as exceções', () => {
+    const r = restringirAoExtrato(DISPONIVEIS, ['modo:todas', 'Gorjeta']).map((c) => c.descricao);
+    expect(r).toHaveLength(DISPONIVEIS.length - 1);
+    expect(r).not.toContain('Gorjeta');
+  });
+  it('trocarModo para todas: Indicadores SEMPRE, mesmo com a lista vazia (carregando/falhou)', () => {
+    expect(trocarModo('todas', [])).toEqual(['modo:todas', 'familia:indicador']);
+    expect(trocarModo('todas', DISPONIVEIS)).toEqual(['modo:todas', 'familia:indicador']);
+  });
+  it('trocarModo para marcadas preserva o que entrava', () => {
+    const disp = [...DISPONIVEIS, cat('Percentual atingido de x', 1, 'familia:indicador')];
+    const r = trocarModo('marcadas', disp, ['modo:todas', 'familia:indicador', 'Gorjeta']);
+    expect(r).toEqual(expect.arrayContaining(['familia:promocao', 'familia:missoes', 'Corridas concluidas', 'Promocao entregador']));
+    expect(r).not.toContain('familia:indicador');
+    expect(r).not.toContain('Gorjeta');
+    // equivalência: o que casava antes casa depois
+    for (const c of disp) expect(casaCategoria(c.descricao, c.familia, r)).toBe(casaCategoria(c.descricao, c.familia, ['modo:todas', 'familia:indicador', 'Gorjeta']));
+  });
+  it('trocarModo para marcadas: membro de família excetuado por nome sai e os demais entram por nome', () => {
+    const atual = ['modo:todas', 'Promocao - Dias Produtivos Franquias'];
+    const r = trocarModo('marcadas', DISPONIVEIS, atual);
+    expect(r).not.toContain('familia:promocao');
+    expect(r).toContain('Promocao - Destravou_Ganhou Elite w97 Franquias');
+    for (const c of DISPONIVEIS) expect(casaCategoria(c.descricao, c.familia, r)).toBe(casaCategoria(c.descricao, c.familia, atual));
+  });
+  it('validarTokensCategorias recusa modo/família desconhecidos e modo duplicado', () => {
+    expect(validarTokensCategorias(['modo:todas', 'familia:indicador', 'Gorjeta'])).toBeNull();
+    expect(validarTokensCategorias(['modo:todas', 'modo:todas'])).toMatch(/duplicado/);
+    expect(validarTokensCategorias(['modo:tudo'])).toMatch(/desconhecido/);
+    expect(validarTokensCategorias(['familia:promoçao'])).toMatch(/desconhecida/);
+  });
+  it('descreverCategorias traduz tokens, nunca os mostra crus', () => {
+    expect(descreverCategorias(['modo:todas', 'familia:indicador', 'Gorjeta'])).toBe('Todas, exceto: Indicadores, Gorjeta');
+    expect(descreverCategorias(['modo:todas'])).toBe('Todas');
+    expect(descreverCategorias(['familia:promocao', 'corrida'])).toBe('Promoção, corrida');
+  });
+});
+
+describe('dataLocalSP', () => {
+  it('data pura passa; ISO perto da meia-noite usa o dia de São Paulo', () => {
+    expect(dataLocalSP('2026-11-23')).toBe('2026-11-23');
+    expect(dataLocalSP('2026-11-24T01:00:00Z')).toBe('2026-11-23'); // 22h do dia 23 em SP
+    expect(dataLocalSP('2026-11-23T22:00:00-03:00')).toBe('2026-11-23');
+    expect(dataLocalSP('2026-11-24T03:00:00Z')).toBe('2026-11-24'); // 00h do dia 24 em SP
   });
 });

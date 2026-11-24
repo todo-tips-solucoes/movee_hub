@@ -21,6 +21,8 @@
 const { paraCentavos, formatarCentavos } = require('./adiantamento-remanescente');
 const { documentoMascarado, contaMascarada } = require('./adiantamento-conta');
 
+const { lerCategorias, MODO_TODAS } = require('./categorias-tokens');
+
 const REGEX_DINHEIRO = /^-?\d+\.\d{2}$/;
 
 /** Dinheiro sempre como string decimal de 2 casas — nunca `null`/`undefined`
@@ -341,7 +343,25 @@ function mapLinhaPrevia(row) {
   };
 }
 
+const LISTAS_CATEGORIAS = ['categoriasProducao', 'categoriasExtrato', 'categoriasNota'];
+
+/** 0131: valida (e normaliza, in-place) as 3 listas presentes em `dados` (camelCase).
+ * `null` só em extrato/nota (nota herda do extrato). Retorna `{ campo }` no 1º erro, ou null. */
+function validarListasCategorias(dados) {
+  for (const campo of LISTAS_CATEGORIAS) {
+    const v = dados[campo];
+    if (v === undefined) continue;
+    if (v === null && campo !== 'categoriasProducao') continue;
+    const lista = lerCategorias(v, { permiteModo: true });
+    if (!lista) return { campo };
+    dados[campo] = lista;
+  }
+  return null;
+}
+
 module.exports = {
+  MODO_TODAS,
+  validarListasCategorias,
   REGEX_DINHEIRO,
   dinheiro,
   formatarSequencial,

@@ -1,0 +1,127 @@
+[
+ {
+  "descricao": "Gorjeta",
+  "familia": null,
+  "lista": [],
+  "esperado": false
+ },
+ {
+  "descricao": "Gorjeta",
+  "familia": null,
+  "lista": [
+   "Gorjeta"
+  ],
+  "esperado": true
+ },
+ {
+  "descricao": "Corrida",
+  "familia": null,
+  "lista": [
+   "Gorjeta"
+  ],
+  "esperado": false
+ },
+ {
+  "descricao": "Promocao - A",
+  "familia": "familia:promocao",
+  "lista": [
+   "familia:promocao"
+  ],
+  "esperado": true
+ },
+ {
+  "descricao": "Promocao - A",
+  "familia": "familia:promocao",
+  "lista": [
+   "Promocao - A"
+  ],
+  "esperado": true
+ },
+ {
+  "descricao": "Promocao - A",
+  "familia": "familia:promocao",
+  "lista": [
+   "Gorjeta"
+  ],
+  "esperado": false
+ },
+ {
+  "descricao": "Percentual atingido de rotas",
+  "familia": "familia:indicador",
+  "lista": [
+   "familia:indicador"
+  ],
+  "esperado": true
+ },
+ {
+  "descricao": "Corrida",
+  "familia": null,
+  "lista": [
+   "modo:todas"
+  ],
+  "esperado": true
+ },
+ {
+  "descricao": "Corrida",
+  "familia": null,
+  "lista": [
+   "modo:todas",
+   "Corrida"
+  ],
+  "esperado": false
+ },
+ {
+  "descricao": "Gorjeta",
+  "familia": null,
+  "lista": [
+   "modo:todas",
+   "Corrida"
+  ],
+  "esperado": true
+ },
+ {
+  "descricao": "Percentual atingido de rotas",
+  "familia": "familia:indicador",
+  "lista": [
+   "modo:todas",
+   "familia:indicador"
+  ],
+  "esperado": false
+ },
+ {
+  "descricao": "Promocao - A",
+  "familia": "familia:promocao",
+  "lista": [
+   "modo:todas",
+   "familia:indicador"
+  ],
+  "esperado": true
+ },
+ {
+  "descricao": "Promocao - A",
+  "familia": "familia:promocao",
+  "lista": [
+   "modo:todas",
+   "Promocao - A"
+  ],
+  "esperado": false
+ },
+ {
+  "descricao": "Promocao - A",
+  "familia": "familia:promocao",
+  "lista": [
+   "modo:todas",
+   "familia:promocao"
+  ],
+  "esperado": false
+ },
+ {
+  "descricao": "Corrida",
+  "familia": null,
+  "lista": [
+   "modo:todas",
+   "familia:promocao"
+  ],
+  "esperado": true
+ }
+]

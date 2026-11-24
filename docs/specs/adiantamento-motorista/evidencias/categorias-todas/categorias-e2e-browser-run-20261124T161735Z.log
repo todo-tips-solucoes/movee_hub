@@ -1,0 +1,12 @@
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-adiantamentos-categorias/01-config-modo-todas.spec.ts:11:5 › config: aviso (âmbar/azul), modo todas, exceção extra, salvar e reabrir (2.2s)
+
+  1 passed (3.0s)
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-adiantamentos-categorias/02-detalhe-e-voltar.spec.ts:8:5 › detalhe da solicitação traduz o modo; voltar a "Só as marcadas" converte e salva (1.7s)
+
+  1 passed (2.5s)
