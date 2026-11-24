@@ -304,10 +304,10 @@ describe('leituras', () => {
   });
 
   test('categorias: exige campanhas.gerir; mapeia colunas; não colide com /:id', async () => {
-    respostas['rpc/hub_campanha_categorias'] = [{ descricao: 'Bônus X', lancamentos: '12', sem_motorista_identificado: true, familia: 'promocao' }];
+    respostas['rpc/hub_campanha_categorias'] = [{ descricao: 'Bônus X', lancamentos: '12', sem_motorista_identificado: true, familia: 'promocao', primeira: '2026-11-20' }];
     const r = await req('GET', '/api/v1/hub/campanhas/categorias');
     assert.equal(r.status, 200);
-    assert.deepEqual(r.body.itens, [{ descricao: 'Bônus X', lancamentos: 12, semMotoristaIdentificado: true, familia: 'promocao' }]);
+    assert.deepEqual(r.body.itens, [{ descricao: 'Bônus X', lancamentos: 12, semMotoristaIdentificado: true, familia: 'promocao', primeira: '2026-11-20' }]);
     assert.equal(chamadas[0].endpoint, 'rpc/hub_campanha_categorias');
     permissoes = new Set(['campanhas.consultar']);
     chamadas = [];

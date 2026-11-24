@@ -7,6 +7,8 @@ const assert = require('node:assert/strict');
 const XLSX = require('xlsx');
 
 const dto = require('../lib/campanha-dto');
+assert.equal(dto.linhaCategoria({ descricao: 'a', primeira: '2026-11-01' }).primeira, '2026-11-01');
+assert.equal(dto.linhaCategoria({ descricao: 'a' }).primeira, null);
 const lancamento = require('../lib/lancamento-externo');
 
 const form = (over = {}) => ({
@@ -160,6 +162,8 @@ describe('validarFormulario — extrato (0129)', () => {
     assert.equal(erro(ext({ categorias: [''] })).campo, 'categorias');
     assert.equal(erro(ext({ categorias: [1] })).campo, 'categorias');
     assert.equal(erro(ext({ categorias: ['familia:promocoes'] })).campo, 'categorias');
+    assert.equal(erro(ext({ categorias: ['modo:todas'] })).campo, 'categorias', 'campanha não tem o modo');
+    assert.deepEqual(dto.validarFormulario(ext({ categorias: ['familia:indicador'] })).dados.categorias, ['familia:indicador']);
     assert.equal(erro(ext({ minTurnosBase: 'outra' })).campo, 'minTurnosBase');
     assert.equal(erro(form({ tipo: 'outro' })).campo, 'tipo');
   });

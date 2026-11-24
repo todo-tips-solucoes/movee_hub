@@ -11,7 +11,52 @@ import type { CategoriaProducao } from './adiantamentos-api';
 export const ROTULO_FAMILIA: Record<string, string> = {
   'familia:promocao': 'Promoção',
   'familia:missoes': 'Missões',
+  'familia:indicador': 'Indicadores',
 };
+
+/** Token que vira a lista em "Todas, exceto as marcadas" (migration 0131). */
+export const TOKEN_MODO_TODAS = 'modo:todas';
+export type ModoCategorias = 'marcadas' | 'todas';
+
+export const modoDaLista = (lista: string[]): ModoCategorias => (lista.includes(TOKEN_MODO_TODAS) ? 'todas' : 'marcadas');
+/** A lista sem o token de modo: o que o operador de fato marca. */
+export const semTokenModo = (lista: string[]): string[] => lista.filter((x) => x !== TOKEN_MODO_TODAS);
+
+/** Troca o modo. Os itens marcados mudam de sentido (inclusão vira exceção), então a
+ *  seleção é LIMPA em vez de reinterpretada — o seletor avisa isso no texto de ajuda.
+ *  Para "todas", Indicadores já vem como exceção (decisão Y1/C3), se existir. */
+export function trocarModo(novo: ModoCategorias, disponiveis: CategoriaProducao[]): string[] {
+  if (novo === 'marcadas') return [];
+  const temIndicador = disponiveis.some((c) => c.familia === 'familia:indicador');
+  return temIndicador ? [TOKEN_MODO_TODAS, 'familia:indicador'] : [TOKEN_MODO_TODAS];
+}
+
+/** Espelho TS de `hub_adiantamento_categoria_casa` (migration 0131). Os casos de
+ *  teste são os MESMOS do driver de banco: `casa-categoria-casos.json`. */
+export function casaCategoria(descricao: string, familia: string | null, lista: string[]): boolean {
+  if (lista.length === 0) return false;
+  const naLista = lista.includes(descricao) || (familia !== null && lista.includes(familia));
+  return lista.includes(TOKEN_MODO_TODAS) ? !naLista : naLista;
+}
+export { default as CASOS_CASA_CATEGORIA } from './casa-categoria-casos.json';
+
+/** Validação espelho do backend/banco: token desconhecido é recusado (no modo
+ *  "todas" uma exceção com erro de digitação contaria dinheiro que não devia). */
+export function validarTokensCategorias(lista: string[]): string | null {
+  if (lista.filter((x) => x === TOKEN_MODO_TODAS).length > 1) return 'Modo de contagem duplicado.';
+  for (const t of lista) {
+    if (t.startsWith('modo:') && t !== TOKEN_MODO_TODAS) return `Modo de categorias desconhecido: ${t}.`;
+    if (t.startsWith('familia:') && !(t in ROTULO_FAMILIA)) return `Família de categorias desconhecida: ${t}.`;
+  }
+  return null;
+}
+
+/** Texto legível de uma lista salva (detalhe da solicitação): nunca o token cru. */
+export function descreverCategorias(lista: string[]): string {
+  const nomes = semTokenModo(lista).map((t) => ROTULO_FAMILIA[t] ?? t).join(', ');
+  if (modoDaLista(lista) === 'todas') return nomes ? `Todas, exceto: ${nomes}` : 'Todas';
+  return nomes || '—';
+}
 
 export interface ItemCategoria {
   /** O valor que vai para `categoriasProducao`: token de família ou nome exato. */
@@ -92,7 +137,16 @@ export function filtrarItensCategoria(itens: ItemCategoria[], busca: string): It
 /** F3: o que pode ser marcado como "entra na nota" é sempre um subconjunto do
  *  extrato — oferecer o resto deixaria marcar algo que o cálculo ignora.
  *  Mesma regra do `hub_adiantamento_categoria_casa` no banco: casa pelo nome
- *  exato ou pelo token da família. */
+ *  exato ou pelo token da família (invertido no modo "todas"). */
 export function restringirAoExtrato(disponiveis: CategoriaProducao[], extrato: string[]): CategoriaProducao[] {
-  return disponiveis.filter((c) => extrato.includes(c.descricao) || (c.familia !== null && extrato.includes(c.familia)));
+  return disponiveis.filter((c) => casaCategoria(c.descricao, c.familia, extrato));
+}
+
+const fmtSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
+/** YYYY-MM-DD no fuso de São Paulo. Data pura passa direto; timestamp ISO (Z/offset)
+ *  é convertido, senão salvar às 22h de 23/11 viraria 24/11 (UTC). */
+export function dataLocalSP(valor: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) return valor;
+  const d = new Date(valor);
+  return Number.isNaN(d.getTime()) ? valor.slice(0, 10) : fmtSP.format(d);
 }

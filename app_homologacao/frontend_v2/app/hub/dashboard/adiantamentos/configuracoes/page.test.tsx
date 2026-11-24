@@ -179,6 +179,25 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     expect(mockSalvarConfiguracao).not.toHaveBeenCalled();
   });
 
+  it('0131: trocar a produção para "Todas, exceto" salva o token modo:todas + Indicadores', async () => {
+    mockListarCategoriasProducao.mockResolvedValue({
+      itens: [
+        { descricao: 'Corridas', lancamentos: 5, semMotoristaIdentificado: false, familia: null, primeira: '2026-01-01' },
+        { descricao: 'Percentual atingido de rotas', lancamentos: 3, semMotoristaIdentificado: false, familia: 'familia:indicador', primeira: '2026-01-01' },
+      ],
+    });
+    mockObterConfiguracoes.mockResolvedValue(RESPOSTA_BASE);
+    mockSalvarConfiguracao.mockResolvedValueOnce({ ...VIGENTE_BASE, versao: 4 });
+    render(<ConfiguracoesAdiantamentoPage />);
+    const grupo = await screen.findByRole('group', { name: 'Categorias que entram na produção' });
+    expect(grupo).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('radio', { name: 'Todas, exceto as marcadas' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
+    await waitFor(() => expect(mockSalvarConfiguracao).toHaveBeenCalledWith(
+      expect.objectContaining({ categoriasProducao: ['modo:todas', 'familia:indicador'] })
+    ));
+  });
+
   it('0087: família vira um item só; marcá-la salva o TOKEN, e o valor já salvo fora da lista continua lá', async () => {
     mockListarCategoriasProducao.mockResolvedValue({
       itens: [
