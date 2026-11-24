@@ -1,7 +1,9 @@
+\set ON_ERROR_STOP on
+BEGIN;
 -- ROLLBACK da 0131 (categorias: modo "Todas, exceto as marcadas" + familia Indicadores).
 --
 -- ATENCAO (plano §7): a casa() antiga leria 'modo:todas' como NOME de categoria e as excecoes virariam as UNICAS
--- categorias que contam. Por isso o bloco 1 ABORTA se qualquer configuracao VIGENTE (ultima versao por empresa)
+-- categorias que contam. Por isso o bloco 1 ABORTA se qualquer configuracao VIGENTE/agendada/recalculavel
 -- ou campanha tiver token `modo:` ou `familia:indicador`. O operador volta as listas para "So as marcadas"
 -- pela tela (e tira o indicador das campanhas) ANTES de desfazer. Nada e apagado por este script.
 --
@@ -11,14 +13,20 @@
 
 DO $$
 BEGIN
+    -- Configuracao que ainda pode CALCULAR com a lista: a vigente de cada empresa (regra de hub_adiantamento_config_vigente),
+    -- qualquer versao agendada (vigente_desde > now()) e a referenciada por solicitacao ainda recalculavel
+    -- (AGUARDANDO_CORTE / AGUARDANDO_PRODUCAO: hub_adiantamento_recalcular e o worker releem a configuracao dela).
     IF EXISTS (
         SELECT 1 FROM "AdiantamentoConfiguracao" c
-        WHERE c.versao = (SELECT max(v.versao) FROM "AdiantamentoConfiguracao" v WHERE v.id_empresa = c.id_empresa)
+        WHERE (c.id IN (SELECT DISTINCT ON (v.id_empresa) v.id FROM "AdiantamentoConfiguracao" v
+                        WHERE v.vigente_desde <= now() ORDER BY v.id_empresa, v.vigente_desde DESC, v.versao DESC)
+               OR c.vigente_desde > now()
+               OR c.id IN (SELECT s.configuracao_id FROM "AdiantamentoSolicitacao" s WHERE s.status IN ('AGUARDANDO_CORTE', 'AGUARDANDO_PRODUCAO')))
           AND EXISTS (SELECT 1 FROM unnest(COALESCE(c.categorias_producao, '{}') || COALESCE(c.categorias_extrato, '{}')
                                            || COALESCE(c.categorias_nota, '{}')) x
                       WHERE x LIKE 'modo:%' OR x = 'familia:indicador')
     ) THEN
-        RAISE EXCEPTION 'ROLLBACK_0131_RECUSADO: ha configuracao vigente com modo:todas/familia:indicador — volte a lista para "So as marcadas" pela tela';
+        RAISE EXCEPTION 'ROLLBACK_0131_RECUSADO: ha configuracao vigente, agendada ou de solicitacao recalculavel com modo:todas/familia:indicador — volte a lista para "So as marcadas" pela tela';
     END IF;
     IF EXISTS (SELECT 1 FROM "Campanha" k
                WHERE k.categorias IS NOT NULL
@@ -463,3 +471,5 @@ $$;
 
 DROP FUNCTION IF EXISTS hub_adiantamento_categorias_tokens_ok(text[]);
 DROP FUNCTION IF EXISTS hub_adiantamento_familias();
+
+COMMIT;

@@ -22,13 +22,24 @@ export const modoDaLista = (lista: string[]): ModoCategorias => (lista.includes(
 /** A lista sem o token de modo: o que o operador de fato marca. */
 export const semTokenModo = (lista: string[]): string[] => lista.filter((x) => x !== TOKEN_MODO_TODAS);
 
-/** Troca o modo. Os itens marcados mudam de sentido (inclusão vira exceção), então a
- *  seleção é LIMPA em vez de reinterpretada — o seletor avisa isso no texto de ajuda.
- *  Para "todas", Indicadores já vem como exceção (decisão Y1/C3), se existir. */
-export function trocarModo(novo: ModoCategorias, disponiveis: CategoriaProducao[]): string[] {
-  if (novo === 'marcadas') return [];
-  const temIndicador = disponiveis.some((c) => c.familia === 'familia:indicador');
-  return temIndicador ? [TOKEN_MODO_TODAS, 'familia:indicador'] : [TOKEN_MODO_TODAS];
+/** Troca o modo.
+ *  - Para "todas": a seleção anterior é descartada (inclusão virou exceção) e Indicadores
+ *    entra SEMPRE como exceção (Y1/C3), mesmo com a lista de categorias ainda carregando.
+ *  - Para "marcadas": converte para a seleção EQUIVALENTE ao que entrava no momento, para
+ *    o dinheiro não mudar na troca: família que não era exceção vira o token; família com
+ *    membro excetuado por nome vira os membros que entravam; avulsa que entrava vira o nome. */
+export function trocarModo(novo: ModoCategorias, disponiveis: CategoriaProducao[], atual: string[] = []): string[] {
+  if (novo === 'todas') return [TOKEN_MODO_TODAS, 'familia:indicador'];
+  const entrando = (c: CategoriaProducao) => casaCategoria(c.descricao, c.familia, atual);
+  const out: string[] = [];
+  for (const fam of Object.keys(ROTULO_FAMILIA)) {
+    if (atual.includes(fam)) continue;
+    const membros = disponiveis.filter((c) => c.familia === fam);
+    if (membros.every(entrando)) out.push(fam);
+    else out.push(...membros.filter(entrando).map((c) => c.descricao));
+  }
+  out.push(...disponiveis.filter((c) => c.familia === null && entrando(c)).map((c) => c.descricao));
+  return out;
 }
 
 /** Espelho TS de `hub_adiantamento_categoria_casa` (migration 0131). Os casos de

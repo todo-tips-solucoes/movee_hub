@@ -16,7 +16,8 @@
 --    familias(); sem NULL. Usada em CHECK das 3 listas e no salvar (erro DADOS_INVALIDOS_CATEGORIAS).
 --  * Campanha: aceita as familias de familias() (inclui indicador) e RECUSA `modo:` (VALIDACAO/categorias).
 --  * hub_adiantamento_categorias(text) e hub_campanha_categorias() ganham a coluna `primeira date`
---    (min data_referencia da janela de 90 dias) -> DROP + CREATE com os mesmos GRANTs e a mesma checagem de escopo.
+--    (DATA DE CHEGADA: min(criado_em em America/Sao_Paulo) das linhas da janela de 90 dias por data_referencia;
+--    nao min(data_referencia), senao a importacao D-1 nunca dispara o aviso de categoria nova) -> DROP + CREATE com os mesmos GRANTs e a mesma checagem de escopo.
 --
 -- ATENCAO NO CORPO DA casa(): `NOT (a OR b)` com `b` NULL (categoria avulsa tem familia NULL) daria NULL e a categoria
 -- SUMIRIA do modo "todas". Por isso cada comparacao e embrulhada em COALESCE(.., false).
@@ -220,7 +221,7 @@ LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
     SELECT f.descricao, count(*), bool_or(f.entregador_id IS NULL),
-           hub_adiantamento_categoria_familia(f.descricao), min(f.data_referencia)
+           hub_adiantamento_categoria_familia(f.descricao), (min(f.criado_em) AT TIME ZONE 'America/Sao_Paulo')::date
     FROM "FaturamentoLancamento" f
     WHERE f.id_empresa = ANY (hub_jwt_escopo_ids())
       AND f.tipo = 'Credito'
@@ -245,7 +246,7 @@ BEGIN
     PERFORM hub_campanha_autoriza(v_emp, 'campanhas.gerir');
     RETURN QUERY
     SELECT f.descricao, count(*), bool_or(f.entregador_id IS NULL),
-           hub_adiantamento_categoria_familia(f.descricao), min(f.data_referencia)
+           hub_adiantamento_categoria_familia(f.descricao), (min(f.criado_em) AT TIME ZONE 'America/Sao_Paulo')::date
     FROM "FaturamentoLancamento" f
     WHERE f.id_empresa = v_emp
       AND f.tipo = 'Credito'

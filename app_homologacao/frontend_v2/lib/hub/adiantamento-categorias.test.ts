@@ -116,10 +116,25 @@ describe('modo "todas"', () => {
     expect(r).toHaveLength(DISPONIVEIS.length - 1);
     expect(r).not.toContain('Gorjeta');
   });
-  it('trocarModo: para todas pré-marca Indicadores só se existir; para marcadas limpa', () => {
-    expect(trocarModo('todas', DISPONIVEIS)).toEqual(['modo:todas']);
-    expect(trocarModo('todas', [...DISPONIVEIS, cat('Percentual atingido de x', 1, 'familia:indicador')])).toEqual(['modo:todas', 'familia:indicador']);
-    expect(trocarModo('marcadas', DISPONIVEIS)).toEqual([]);
+  it('trocarModo para todas: Indicadores SEMPRE, mesmo com a lista vazia (carregando/falhou)', () => {
+    expect(trocarModo('todas', [])).toEqual(['modo:todas', 'familia:indicador']);
+    expect(trocarModo('todas', DISPONIVEIS)).toEqual(['modo:todas', 'familia:indicador']);
+  });
+  it('trocarModo para marcadas preserva o que entrava', () => {
+    const disp = [...DISPONIVEIS, cat('Percentual atingido de x', 1, 'familia:indicador')];
+    const r = trocarModo('marcadas', disp, ['modo:todas', 'familia:indicador', 'Gorjeta']);
+    expect(r).toEqual(expect.arrayContaining(['familia:promocao', 'familia:missoes', 'Corridas concluidas', 'Promocao entregador']));
+    expect(r).not.toContain('familia:indicador');
+    expect(r).not.toContain('Gorjeta');
+    // equivalência: o que casava antes casa depois
+    for (const c of disp) expect(casaCategoria(c.descricao, c.familia, r)).toBe(casaCategoria(c.descricao, c.familia, ['modo:todas', 'familia:indicador', 'Gorjeta']));
+  });
+  it('trocarModo para marcadas: membro de família excetuado por nome sai e os demais entram por nome', () => {
+    const atual = ['modo:todas', 'Promocao - Dias Produtivos Franquias'];
+    const r = trocarModo('marcadas', DISPONIVEIS, atual);
+    expect(r).not.toContain('familia:promocao');
+    expect(r).toContain('Promocao - Destravou_Ganhou Elite w97 Franquias');
+    for (const c of DISPONIVEIS) expect(casaCategoria(c.descricao, c.familia, r)).toBe(casaCategoria(c.descricao, c.familia, atual));
   });
   it('validarTokensCategorias recusa modo/família desconhecidos e modo duplicado', () => {
     expect(validarTokensCategorias(['modo:todas', 'familia:indicador', 'Gorjeta'])).toBeNull();

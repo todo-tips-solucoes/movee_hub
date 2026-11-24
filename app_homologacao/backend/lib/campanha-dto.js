@@ -84,7 +84,7 @@ function lerLista(v) {
 const INDICADORES = ['aceitacao', 'conclusao', 'tempo', 'pedidos'];
 
 /** Categorias do extrato: 1..60 strings de 1..200 caracteres, SEM trim/upper (nome exato ou `familia:*`); repetição some. */
-const lerCategorias = (v) => lerTokens(v, { min: 1, max: 60 }); // sem `modo:` (campanha não tem o modo)
+const lerCategorias = (v) => lerTokens(v, { min: 1, max: 60, maxNome: 200 }); // sem `modo:` (campanha não tem o modo)
 
 /**
  * @param {object} corpo formulário camelCase (§7). Só os campos conhecidos são lidos

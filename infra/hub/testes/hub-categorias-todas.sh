@@ -26,6 +26,7 @@ psql_t() { dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@
 psql_r() { dc exec -T db psql -U "$DB_USER" -d "$DB_NAME" "$@"; }
 MIG="$HUB_DIR/migrations/0131_categorias_modo_todas.sql"
 ROLL="$HUB_DIR/testes/sql/0131-rollback.sql"
+ROLL_DENTRO() { grep -vE '^(\\set ON_ERROR_STOP on|BEGIN;|COMMIT;)$' "$ROLL"; }   # versao sem transacao propria, para rodar dentro do BEGIN..ROLLBACK do driver
 TESTE="$HUB_DIR/testes/sql/0131-categorias-todas.test.sql"
 fails=0; passes=0
 check() { if [ "$2" = "$3" ]; then echo "PASS: $1"; passes=$((passes+1)); else echo "FAIL: $1 (obtido='$2' esperado='$3')"; fails=$((fails+1)); fi; }
@@ -73,14 +74,14 @@ if [ -z "${CAT_NEG:-}" ]; then
   OUT="$({ echo 'BEGIN;'; cat <<'SQL'
 INSERT INTO "AdiantamentoConfiguracao" SELECT (jsonb_populate_record(NULL::"AdiantamentoConfiguracao", to_jsonb(c) || jsonb_build_object('id', nextval(pg_get_serial_sequence('"AdiantamentoConfiguracao"','id')), 'versao', c.versao + 1, 'fonte_producao','financeiro_lancamento','categorias_producao', ARRAY['modo:todas','Gorjeta']))).* FROM "AdiantamentoConfiguracao" c WHERE id_empresa = 6 ORDER BY versao DESC LIMIT 1;
 SQL
-  cat "$ROLL"; echo 'ROLLBACK;'; } | psql_r -q 2>&1)"
+  ROLL_DENTRO; echo 'ROLLBACK;'; } | psql_r -q 2>&1)"
   check "rollback RECUSA com config vigente em modo:todas" "$(echo "$OUT" | grep -c 'ROLLBACK_0131_RECUSADO: ha configuracao')" "1"
   OUT="$({ echo 'BEGIN;'; cat <<'SQL'
 INSERT INTO "AdiantamentoConfiguracao" SELECT (jsonb_populate_record(NULL::"AdiantamentoConfiguracao", to_jsonb(c) || jsonb_build_object('id', nextval(pg_get_serial_sequence('"AdiantamentoConfiguracao"','id')), 'versao', c.versao + 1, 'categorias_extrato', ARRAY['familia:indicador']))).* FROM "AdiantamentoConfiguracao" c WHERE id_empresa = 6 ORDER BY versao DESC LIMIT 1;
 SQL
-  cat "$ROLL"; echo 'ROLLBACK;'; } | psql_r -q 2>&1)"
+  ROLL_DENTRO; echo 'ROLLBACK;'; } | psql_r -q 2>&1)"
   check "rollback RECUSA com config vigente em familia:indicador" "$(echo "$OUT" | grep -c 'ROLLBACK_0131_RECUSADO: ha configuracao')" "1"
-  OUT="$({ echo 'BEGIN;'; cat "$ROLL"; cat <<'SQL'
+  OUT="$({ echo 'BEGIN;'; ROLL_DENTRO; cat <<'SQL'
 DO $$ BEGIN
   RAISE NOTICE 'R: tokens_ok=% familias=%', COALESCE(to_regprocedure('hub_adiantamento_categorias_tokens_ok(text[])')::text,'NULL'), COALESCE(to_regprocedure('hub_adiantamento_familias()')::text,'NULL');
   RAISE NOTICE 'R: casa_antiga=%', hub_adiantamento_categoria_casa('Gorjeta', ARRAY['modo:todas']);
@@ -106,6 +107,52 @@ SQL
   check "rollback: salvar sem a validacao" "$(echo "$OUT" | grep -c 'R: salvar_valida=f')" "1"
   check "rollback: campanha_ok volta ao corpo da 0129 (sem a regra de modo:)" "$(echo "$OUT" | grep -c 'R: campanha_ok_modo=t')" "1"
   check "rollback + reaplicar 0131 volta ao estado novo" "$(echo "$OUT" | grep -c 'R2: reaplicada: familias={familia:promocao,familia:missoes,familia:indicador} casa_todas=t')" "1"
+fi
+
+
+if [ -z "${CAT_NEG:-}" ]; then
+  echo "--- rollback CRU (psql -f puro, sem -v ON_ERROR_STOP e sem transacao externa) ---"
+  CASA_OK() { psql_t -tAc "SELECT hub_adiantamento_categoria_casa('x', ARRAY['modo:todas'])"; }
+  # semeia: v1 existe; cria v2 (todas) e v3 (marcadas, vigente), com solicitacao AGUARDANDO_PRODUCAO presa a v2
+  psql_t -q >/dev/null <<'SQL'
+INSERT INTO "AdiantamentoConfiguracao" SELECT (jsonb_populate_record(NULL::"AdiantamentoConfiguracao", to_jsonb(c) || jsonb_build_object('id', 90001, 'versao', c.versao + 100, 'vigente_desde', now() - interval '2 seconds', 'fonte_producao','financeiro_lancamento','categorias_producao', ARRAY['modo:todas','Gorjeta']))).* FROM "AdiantamentoConfiguracao" c WHERE id_empresa = 6 ORDER BY versao DESC LIMIT 1;
+INSERT INTO "AdiantamentoConfiguracao" SELECT (jsonb_populate_record(NULL::"AdiantamentoConfiguracao", to_jsonb(c) || jsonb_build_object('id', 90002, 'versao', c.versao + 1, 'vigente_desde', now() - interval '1 second', 'categorias_producao', ARRAY['Gorjeta']))).* FROM "AdiantamentoConfiguracao" c WHERE c.id = 90001;
+SQL
+  rc() { psql_r -f - < "$ROLL" 2>&1; }
+  # (1) vigente (v3) em marcadas, v2 em todas SEM solicitacao: nada impede -> NAO e o caso; aqui provamos o caso com solicitacao pendente
+  psql_t -q >/dev/null <<'SQL'
+INSERT INTO "ContaMotorista" (cnpj_prestador, nome) VALUES ('88888888000188', 'Guarda Teste');
+INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id) VALUES (6, gen_random_uuid(), 'Guarda Teste', (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='88888888000188'));
+INSERT INTO "AdiantamentoSolicitacao" (id, id_empresa, conta_motorista_id, cnpj_prestador, entregador_id, configuracao_id, data_solicitacao, data_producao, aceite_texto_sha256, status, chave_idempotencia)
+SELECT 90003, 6, (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador='88888888000188'), '88888888000188', (SELECT id FROM "Entregador" WHERE nome='Guarda Teste'), 90001,
+       CURRENT_DATE, CURRENT_DATE - 1, repeat('a',64), 'AGUARDANDO_PRODUCAO', gen_random_uuid();
+SQL
+  OUT="$(rc)"
+  check "rollback cru: v29 em todas com solicitacao pendente + v30 vigente em marcadas -> ABORTA" "$(echo "$OUT" | grep -c 'ROLLBACK_0131_RECUSADO')" "1"
+  check "rollback cru: nada foi desfeito (casa('x',['modo:todas']) segue true)" "$(CASA_OK)" "t"
+  check "rollback cru: funcoes novas seguem la" "$(psql_t -tAc "SELECT to_regprocedure('hub_adiantamento_familias()') IS NOT NULL")" "t"
+  # (2) solicitacao ja final: so a vigente (v3, marcadas) conta -> o rollback roda
+  psql_t -q -c "UPDATE \"AdiantamentoSolicitacao\" SET status='CANCELADA', motivo_status='teste' WHERE id=90003" >/dev/null 2>&1 || psql_t -q -c "DELETE FROM \"AdiantamentoSolicitacao\" WHERE id=90003" >/dev/null
+  # (3) versao AGENDADA (futuro) em todas: aborta mesmo sem ser a vigente
+  psql_t -q >/dev/null <<'SQL'
+DELETE FROM "AdiantamentoSolicitacao" WHERE id=90003;
+UPDATE "AdiantamentoConfiguracao" SET vigente_desde = now() + interval '1 day' WHERE id = 90001;
+SQL
+  OUT="$(rc)"
+  check "rollback cru: versao AGENDADA (vigente_desde futuro) em modo todas -> ABORTA" "$(echo "$OUT" | grep -c 'ROLLBACK_0131_RECUSADO')" "1"
+  check "rollback cru: nada desfeito (agendada)" "$(CASA_OK)" "t"
+  # (4) sem solicitacao pendente e sem agendada: so a vigente (marcadas) -> roda e desfaz
+  psql_t -q -c "UPDATE \"AdiantamentoConfiguracao\" SET vigente_desde = now() - interval '1 hour' WHERE id = 90001" >/dev/null
+  OUT="$(rc)"
+  check "rollback cru: so versao ANTIGA em todas (vigente em marcadas, sem solicitacao pendente) -> roda sem erro" "$(echo "$OUT" | grep -c 'ERROR')" "0"
+  check "rollback cru: desfez (casa() antiga: modo:todas e nome)" "$(CASA_OK)" "f"
+  # (5) guarda de configuracao de PROPRIA vigente em todas aborta e NAO desfaz parcialmente (reaplica a 0131 antes)
+  psql_r -q -f - < "$MIG" >/dev/null 2>&1
+  psql_t -q -c "UPDATE \"AdiantamentoConfiguracao\" SET categorias_extrato = ARRAY['modo:todas'] WHERE id = 90002" >/dev/null
+  OUT="$(rc)"
+  check "rollback cru: vigente em modo todas -> ABORTA, sem -v ON_ERROR_STOP e sem transacao externa" "$(echo "$OUT" | grep -c 'ROLLBACK_0131_RECUSADO')" "1"
+  check "rollback cru: nada desfeito (vigente)" "$(CASA_OK)" "t"
+  psql_t -q -c 'DELETE FROM "AdiantamentoConfiguracao" WHERE id IN (90001, 90002)' >/dev/null
 fi
 
 echo "===================================================================="

@@ -328,6 +328,9 @@ END $$;
 -- ═════════ 8. Seletores: coluna primeira ═════════
 INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
 SELECT 6, c.imp, c.eid, (now() AT TIME ZONE 'America/Sao_Paulo')::date - 3, (now() AT TIME ZONE 'America/Sao_Paulo')::date - 3, 'Credito', 1, 'Categoria Recente Q', md5('rec') || md5('rec2') FROM _ctx c;
+-- chegada: a linha de data_referencia -3 CHEGOU so ontem (importacao D-1); a de -2 chegou hoje. primeira = chegada, nao referencia.
+UPDATE "FaturamentoLancamento" SET criado_em = (((now() AT TIME ZONE 'America/Sao_Paulo')::date - 1) + time '12:00') AT TIME ZONE 'America/Sao_Paulo'
+ WHERE descricao = 'Categoria Recente Q' AND data_referencia = (now() AT TIME ZONE 'America/Sao_Paulo')::date - 3;
 INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
 SELECT 6, c.imp, c.eid, (now() AT TIME ZONE 'America/Sao_Paulo')::date - 2, (now() AT TIME ZONE 'America/Sao_Paulo')::date - 2, 'Credito', 1, 'Categoria Recente Q', md5('rec3') || md5('rec4') FROM _ctx c;
 INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, tipo, valor, descricao, hash_linha)
@@ -339,7 +342,7 @@ BEGIN
   SELECT primeira, familia INTO v_prim, v_fam FROM hub_adiantamento_categorias() WHERE descricao = 'Categoria Recente Q';
   SELECT count(*) INTO v_cols FROM hub_adiantamento_categorias();
   RESET ROLE;
-  PERFORM pg_temp.chk('hub_adiantamento_categorias: primeira = menor data_referencia da janela', v_prim = (now() AT TIME ZONE 'America/Sao_Paulo')::date - 3);
+  PERFORM pg_temp.chk('hub_adiantamento_categorias: primeira = data de CHEGADA (criado_em), nao data_referencia (-3 chegou ontem)', v_prim = (now() AT TIME ZONE 'America/Sao_Paulo')::date - 1);
   PERFORM pg_temp.chk('hub_adiantamento_categorias: authenticated executa (GRANT mantido)', v_cols >= 1);
   SET LOCAL ROLE authenticated;
   SELECT familia INTO v_fam FROM hub_adiantamento_categorias() WHERE descricao = 'Percentual atingido de hora online';
