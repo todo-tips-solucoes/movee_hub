@@ -87,10 +87,10 @@ describe('SeletorCategorias com modo', () => {
   const lista = () => JSON.parse(screen.getByTestId('lista').textContent ?? '[]');
 
   it('trocar para todas insere o token e pré-marca Indicadores; contagem e chip sem token', () => {
-    render(<HostM />);
+    render(<HostM inicial={['Corridas concluidas']} />);
     fireEvent.click(screen.getByRole('radio', { name: 'Todas, exceto as marcadas' }));
-    expect(lista()).toEqual(['modo:todas', 'familia:indicador']);
-    expect(screen.getByText('1 exceção · 2 de 3 categorias entram')).toBeInTheDocument();
+    expect(lista()).toEqual(['modo:todas', 'familia:indicador', 'Gorjeta']);
+    expect(screen.getByText('2 exceções · 1 de 3 categorias entram')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /modo:todas/ })).not.toBeInTheDocument();
     const ind = screen.getByRole('button', { name: /Indicadores/ });
     expect(ind).toHaveAttribute('aria-pressed', 'true');
@@ -105,19 +105,24 @@ describe('SeletorCategorias com modo', () => {
     expect(lista()).toEqual(['familia:promocao', 'familia:missoes', 'familia:indicador', 'Corridas concluidas']);
   });
 
-  it('carregamento vazio + todas: lista tem familia:indicador, chip visível e "Só as marcadas" desabilitado', () => {
-    let ultima: string[] = [];
-    render(<SeletorCategorias titulo="L" textoVazio="x" disponiveis={[]} selecionadas={[]} onChange={(l) => { ultima = l; }} modo={{ valor: 'marcadas' }} />);
+  it('carregamento vazio: as duas opções do modo ficam desabilitadas, com texto curto', () => {
+    render(<SeletorCategorias titulo="L" textoVazio="x" disponiveis={[]} selecionadas={[]} onChange={() => {}} modo={{ valor: 'marcadas' }} />);
     expect(screen.getByRole('radio', { name: 'Só as marcadas' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('radio', { name: 'Todas, exceto as marcadas' }));
-    expect(ultima).toEqual(['modo:todas', 'familia:indicador']);
+    expect(screen.getByRole('radio', { name: 'Todas, exceto as marcadas' })).toBeDisabled();
+    expect(screen.getByText(/troca de modo fica indisponível/)).toBeInTheDocument();
   });
 
-  it('modo todas sem indicador na janela: chip Indicadores aparece como "nenhuma nos últimos 90 dias · fora"', () => {
+  it('trocar para todas preserva o que estava fora: Gorjeta vira exceção', () => {
+    render(<HostM inicial={['Corridas concluidas']} />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Todas, exceto as marcadas' }));
+    expect(lista()).toEqual(['modo:todas', 'familia:indicador', 'Gorjeta']);
+  });
+
+  it('modo todas sem indicador na janela: chip Indicadores aparece como "fora · não são dinheiro do entregador"', () => {
     render(<SeletorCategorias titulo="L" textoVazio="x" disponiveis={[CATS_M[0]]} selecionadas={['modo:todas', 'familia:indicador']} onChange={() => {}} modo={{ valor: 'todas' }} />);
     const chip = screen.getByRole('button', { name: /Indicadores/ });
     expect(chip).toHaveAttribute('aria-pressed', 'true');
-    expect(chip).toHaveTextContent('nenhuma nos últimos 90 dias · fora');
+    expect(chip).toHaveTextContent('fora · não são dinheiro do entregador');
   });
 
   it('aviso azul no modo todas: novas já entram', () => {

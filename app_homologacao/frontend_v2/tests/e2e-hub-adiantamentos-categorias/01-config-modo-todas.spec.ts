@@ -1,6 +1,6 @@
 // Fase 1 (itens 1, 2 e 4 do plano): Configurações > seletor de produção, contra backend e banco reais.
 //  - aviso âmbar em "Só as marcadas" (categoria nova está FORA) e azul em "Todas, exceto";
-//  - trocar para "Todas, exceto" pré-marca Indicadores como exceção; marca mais uma; salva; reabre.
+//  - trocar para "Todas, exceto" mantém fora o que estava fora (vem marcado); libera uma; salva; reabre.
 // O driver confere o banco (modo:todas na lista) e o valor da produção depois desta fase.
 import { test, expect } from '@playwright/test';
 import { HUB, abrirConfiguracoes, chip, chipsProducao, comoContarProducao, env, loginHub } from './_comum';
@@ -26,23 +26,27 @@ test('config: aviso (âmbar/azul), modo todas, exceção extra, salvar e reabrir
   // as categorias antigas não são "novas"
   await expect(ambar).not.toContainText('Corrida E2E');
 
-  // (1) troca para "Todas, exceto": Indicadores já vem marcada como exceção.
+  // (1) troca para "Todas, exceto": o que estava FORA continua fora (vem marcado como exceção) —
+  // Indicadores, a avulsa e a categoria nova; só o que já entrava (Corrida) segue desmarcado.
   await radioTodas.check();
   await expect(radioTodas).toBeChecked();
   await expect(chip(page, /^Indicadores/)).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip(page, new RegExp(`^${EXCECAO}`))).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip(page, new RegExp(`^${NOVA}`))).toHaveAttribute('aria-pressed', 'true');
   await expect(chip(page, /^Corrida E2E/)).toHaveAttribute('aria-pressed', 'false');
-  await expect(chip(page, new RegExp(`^${EXCECAO}`))).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByText('3 exceções · 1 de 4 categorias entram').first()).toBeVisible();
 
-  // (2) modo todas: o mesmo aviso vira azul ("já estão entrando").
+  // a nova segue fora na troca: nem aviso âmbar, nem azul
   await expect(ambar).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'já estão entrando' })).toHaveCount(0);
+
+  // (2) o operador libera a nova (desmarca a exceção): ela entra e o aviso azul aparece
+  await chip(page, new RegExp(`^${NOVA}`)).click();
+  await expect(chip(page, new RegExp(`^${NOVA}`))).toHaveAttribute('aria-pressed', 'false');
   const azul = page.getByRole('status').filter({ hasText: 'já estão entrando' });
   await expect(azul).toHaveCount(1);
   await expect(azul).toContainText(NOVA);
   await expect(azul).toHaveClass(/blue/);
-
-  // marca mais uma exceção
-  await chip(page, new RegExp(`^${EXCECAO}`)).click();
-  await expect(chip(page, new RegExp(`^${EXCECAO}`))).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('2 exceções · 2 de 4 categorias entram').first()).toBeVisible();
   // nenhum token cru na tela
   await expect(page.locator('body')).not.toContainText(/modo:todas|familia:/);

@@ -23,14 +23,26 @@ export const modoDaLista = (lista: string[]): ModoCategorias => (lista.includes(
 export const semTokenModo = (lista: string[]): string[] => lista.filter((x) => x !== TOKEN_MODO_TODAS);
 
 /** Troca o modo.
- *  - Para "todas": a seleção anterior é descartada (inclusão virou exceção) e Indicadores
- *    entra SEMPRE como exceção (Y1/C3), mesmo com a lista de categorias ainda carregando.
+ *  - Para "todas": o que NÃO entrava vira exceção (família → token; família parcial → os
+ *    membros que não entravam; avulsa → nome), então nada que estava fora passa a entrar na
+ *    troca. Indicadores entra SEMPRE como exceção (Y1/C3), mesmo marcado antes.
  *  - Para "marcadas": converte para a seleção EQUIVALENTE ao que entrava no momento, para
  *    o dinheiro não mudar na troca: família que não era exceção vira o token; família com
  *    membro excetuado por nome vira os membros que entravam; avulsa que entrava vira o nome. */
 export function trocarModo(novo: ModoCategorias, disponiveis: CategoriaProducao[], atual: string[] = []): string[] {
-  if (novo === 'todas') return [TOKEN_MODO_TODAS, 'familia:indicador'];
   const entrando = (c: CategoriaProducao) => casaCategoria(c.descricao, c.familia, atual);
+  if (novo === 'todas') {
+    const fora = (c: CategoriaProducao) => !entrando(c);
+    const excecoes: string[] = [];
+    for (const fam of Object.keys(ROTULO_FAMILIA)) {
+      if (fam === 'familia:indicador') continue;
+      const membros = disponiveis.filter((c) => c.familia === fam);
+      if (membros.length > 0 && membros.every(fora)) excecoes.push(fam);
+      else excecoes.push(...membros.filter(fora).map((c) => c.descricao));
+    }
+    excecoes.push(...disponiveis.filter((c) => c.familia === null && fora(c)).map((c) => c.descricao));
+    return [TOKEN_MODO_TODAS, 'familia:indicador', ...excecoes];
+  }
   const out: string[] = [];
   for (const fam of Object.keys(ROTULO_FAMILIA)) {
     if (atual.includes(fam)) continue;
