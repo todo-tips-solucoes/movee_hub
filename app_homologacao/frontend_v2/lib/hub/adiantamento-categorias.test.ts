@@ -118,7 +118,30 @@ describe('modo "todas"', () => {
   });
   it('trocarModo para todas: Indicadores SEMPRE, mesmo com a lista vazia (carregando/falhou)', () => {
     expect(trocarModo('todas', [])).toEqual(['modo:todas', 'familia:indicador']);
-    expect(trocarModo('todas', DISPONIVEIS)).toEqual(['modo:todas', 'familia:indicador']);
+  });
+  it('trocarModo para todas: o que estava fora vira exceção (família, membro parcial, avulsa)', () => {
+    const disp = [...DISPONIVEIS, cat('Percentual atingido de x', 1, 'familia:indicador')];
+    // Promoção só por um membro; Missões fora; Corridas dentro; Promocao entregador e Gorjeta fora; Indicadores marcado
+    const atual = ['Corridas concluidas', 'Promocao - Dias Produtivos Franquias', 'familia:indicador'];
+    const r = trocarModo('todas', disp, atual);
+    expect(r.slice(0, 2)).toEqual(['modo:todas', 'familia:indicador']);
+    expect(r).toEqual(expect.arrayContaining(['familia:missoes', 'Promocao - Destravou_Ganhou Elite w97 Franquias', 'Promocao entregador', 'Gorjeta']));
+    expect(r).not.toContain('Corridas concluidas');
+    expect(r).not.toContain('familia:promocao');
+    expect(r.filter((x) => x === 'familia:indicador')).toHaveLength(1);
+    for (const c of disp.filter((c) => c.familia !== 'familia:indicador')) {
+      expect(casaCategoria(c.descricao, c.familia, r)).toBe(casaCategoria(c.descricao, c.familia, atual));
+    }
+  });
+  it('trocarModo ida e volta (marcadas → todas → marcadas) preserva o que entra, menos Indicadores', () => {
+    const disp = [...DISPONIVEIS, cat('Percentual atingido de x', 1, 'familia:indicador')];
+    for (const atual of [[], ['familia:promocao'], ['Corridas concluidas', 'Promocao - Dias Produtivos Franquias'], ['familia:missoes', 'Gorjeta', 'familia:indicador']]) {
+      const volta = trocarModo('marcadas', disp, trocarModo('todas', disp, atual));
+      for (const c of disp.filter((c) => c.familia !== 'familia:indicador')) {
+        expect(casaCategoria(c.descricao, c.familia, volta)).toBe(casaCategoria(c.descricao, c.familia, atual));
+      }
+      expect(disp.filter((c) => c.familia === 'familia:indicador').some((c) => casaCategoria(c.descricao, c.familia, volta))).toBe(false);
+    }
   });
   it('trocarModo para marcadas preserva o que entrava', () => {
     const disp = [...DISPONIVEIS, cat('Percentual atingido de x', 1, 'familia:indicador')];

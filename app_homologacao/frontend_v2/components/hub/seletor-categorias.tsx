@@ -47,7 +47,8 @@ export function toggleItem<T>(lista: T[], item: T): T[] {
 
 const numero = new Intl.NumberFormat('pt-BR');
 
-function detalheCategoria(i: ItemCategoria): string {
+function detalheCategoria(i: ItemCategoria, todas: boolean): string {
+  if (i.ausente === 'sem_lancamentos' && todas && i.chave === 'familia:indicador') return 'fora · não são dinheiro do entregador';
   if (i.ausente === 'sem_lancamentos') return i.familia ? 'nenhuma nos últimos 90 dias' : 'sem lançamentos em 90 dias';
   if (i.ausente === 'dentro_de_familia') return `já incluída em ${i.rotuloFamilia}`;
   const qtd = numero.format(i.lancamentos);
@@ -136,13 +137,13 @@ export function SeletorCategorias({ titulo, textoVazio, disponiveis, selecionada
           <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
             {([['marcadas', 'Só as marcadas'], ['todas', 'Todas, exceto as marcadas']] as const).map(([v, rotulo]) => (
               <label key={v} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-input px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5 sm:min-h-9">
-                <input type="radio" name={nomeRadio} checked={modo.valor === v} disabled={v === 'marcadas' && disponiveis.length === 0} onChange={() => trocar(v)} />
+                <input type="radio" name={nomeRadio} checked={modo.valor === v} disabled={disponiveis.length === 0} onChange={() => trocar(v)} />
                 {rotulo}
               </label>
             ))}
           </div>
-          {disponiveis.length === 0 && <p className="text-xs text-muted-foreground">“Só as marcadas” fica indisponível até as categorias carregarem.</p>}
-          <p className="text-xs text-muted-foreground">{AJUDA_MODO[modo.valor]} Ao trocar para “Todas, exceto”, as marcações atuais são descartadas e só Indicadores vem marcado; ao voltar para “Só as marcadas”, fica marcado tudo o que estava entrando.</p>
+          {disponiveis.length === 0 && <p className="text-xs text-muted-foreground">A troca de modo fica indisponível até as categorias carregarem.</p>}
+          <p className="text-xs text-muted-foreground">{AJUDA_MODO[modo.valor]} Ao trocar para “Todas, exceto”, o que hoje está fora continua fora (vem marcado) e só as categorias novas passam a entrar sozinhas; ao voltar para “Só as marcadas”, fica marcado tudo o que estava entrando.</p>
         </fieldset>
       )}
       {novasAviso.length > 0 && (
@@ -188,7 +189,7 @@ export function SeletorCategorias({ titulo, textoVazio, disponiveis, selecionada
                 <Chip key={i.chave} ativo={selecionadas.includes(i.chave)} excecao={todas} onClick={() => emit(toggleItem(selecionadas, i.chave))}>
                   {i.rotulo}
                   <span className="ml-1.5 text-xs font-normal opacity-75 tabular-nums">
-                    {detalheCategoria(i)}{todas && selecionadas.includes(i.chave) ? ' · fora' : ''}
+                    {detalheCategoria(i, todas)}{todas && selecionadas.includes(i.chave) && !(i.ausente === 'sem_lancamentos' && i.chave === 'familia:indicador') ? ' · fora' : ''}
                   </span>
                 </Chip>
               ))}

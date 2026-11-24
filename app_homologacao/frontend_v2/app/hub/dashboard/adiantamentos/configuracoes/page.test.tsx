@@ -179,7 +179,7 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     expect(mockSalvarConfiguracao).not.toHaveBeenCalled();
   });
 
-  it('0131: trocar a produção para "Todas, exceto" salva o token modo:todas + Indicadores', async () => {
+  it('0131: trocar a produção para "Todas, exceto" salva o token, Indicadores e o que estava fora como exceção', async () => {
     mockListarCategoriasProducao.mockResolvedValue({
       itens: [
         { descricao: 'Corridas', lancamentos: 5, semMotoristaIdentificado: false, familia: null, primeira: '2026-01-01' },
@@ -194,7 +194,7 @@ describe('ConfiguracoesAdiantamentoPage', () => {
     fireEvent.click(screen.getAllByRole('radio', { name: 'Todas, exceto as marcadas' })[0]);
     fireEvent.click(screen.getByRole('button', { name: /Salvar versão/ }));
     await waitFor(() => expect(mockSalvarConfiguracao).toHaveBeenCalledWith(
-      expect.objectContaining({ categoriasProducao: ['modo:todas', 'familia:indicador'] })
+      expect.objectContaining({ categoriasProducao: ['modo:todas', 'familia:indicador', 'Corridas'] })
     ));
   });
 
