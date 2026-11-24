@@ -22,6 +22,7 @@
 #   CAMP_NEG=extrato_fecha   -> (0129) extrato volta a fechar em fim+1 (prova: a secao de fechamento deve FALHAR)
 #   CAMP_NEG=extrato_corte   -> (0129/M2) turnos voltam a ver faturamento pos-fechamento (prova: os checks M2 devem FALHAR)
 #   CAMP_NEG=extrato_privado -> (0129) top10 do extrato vaza campo de valor (prova: a secao de privacidade deve FALHAR)
+#   CAMP_NEG=tempo_leitura -> (0130) tempo sem leitura volta a valer 100% (prova: os checks 0130 (a)/(b) devem FALHAR)
 #   CAMP_NEG=escopo    -> remove a policy de escopo de "Campanha" (prova (b): a leitura direta vaza)
 #   CAMP_NEG=excluir   -> (so na secao 0128) remove a checagem de lancada_em de hub_campanha_excluir E desliga o gatilho de DELETE
 #                         (0128: sem os DOIS, a lancada nao e apagada; so a RPC sem o gatilho daria o mesmo token)
@@ -153,6 +154,7 @@ case "${CAMP_NEG:-}" in
     patch_fn 'hub_motorista_campanha(integer)' "s/'nomeAbreviado', hub_nome_abreviado(t.nome)/'nomeAbreviado', hub_nome_abreviado(t.nome), 'valorCentavos', t.posicao/"
     own "SELECT pg_get_functiondef('hub_motorista_campanha(integer)'::regprocedure) ~ 'valorCentavos., t.posicao'" | grep -q t || { echo "ABORTA: reversao extrato_privado nao esta no corpo vivo"; exit 1; }
     echo "NEG extrato_privado: top10 do extrato agora vaza um campo de valor (conferido)";;
+  tempo_leitura) : ;;  # aplicado na secao 0130 (a 0129 e reaplicada antes dela e desfaria a reversao)
   escopo)
     psql_t -q -c 'DROP POLICY campanha_select_por_escopo ON "Campanha"; CREATE POLICY campanha_select_por_escopo ON "Campanha" FOR SELECT USING (true);'
     own "SELECT count(*) FROM pg_policies WHERE policyname='campanha_select_por_escopo' AND qual='true'" | grep -q 1 || { echo "ABORTA: policy nao revertida"; exit 1; }
@@ -872,6 +874,47 @@ for i in 1 2; do
   R4="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0129_campanhas_extrato.sql" 2>&1 | grep -c ERROR)"
   check "migration 0129 reaplicada ($i) sem erro" "$R4" "0"
 done
+
+echo "--- 0130: campanha de NOTA sem leitura de tempo (tempo NULL, nao 100%) ---"
+for i in 1 2; do
+  R5="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0130_campanha_nota_tempo_sem_leitura.sql" 2>&1 | grep -c ERROR)"
+  check "migration 0130 aplicada ($i) sem erro (apos reaplicar a 0129, que traz o corpo antigo)" "$R5" "0"
+done
+check "0130: hub_campanha_recalcular_interno nao e executavel por PUBLIC nem authenticated" "$(own "SELECT has_function_privilege('public','hub_campanha_recalcular_interno(int)','EXECUTE')::text||has_function_privilege('authenticated','hub_campanha_recalcular_interno(int)','EXECUTE')::text")" "falsefalse"
+check "0130: corpo vivo tem a guarda de leitura (nao o LEAST com NULLIF)" "$(own "SELECT pg_get_functiondef('hub_campanha_recalcular_interno(integer)'::regprocedure) ~ 'periodo_epoch = 0 THEN NULL'")" "t"
+psql_t -q <<'SQL' >"$TMP/seed130.log" 2>&1 || { echo "FAIL: seed 0130"; cat "$TMP/seed130.log"; exit 1; }
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status) VALUES (9006,'performance',repeat('6',64),'completed'),(9007,'performance',repeat('7',64),'completed');
+INSERT INTO "Entregador" (id_empresa, id_externo, nome, dados_entrego_json)
+  SELECT e, gen_random_uuid(), n, '{"informacoesEntrega":{"modal":"MOTO"}}'::jsonb
+  FROM (VALUES (9006),(9007)) em(e) CROSS JOIN (VALUES ('Sem Leitura'),('Com Leitura')) nm(n);
+-- 2 turnos por motorista: 90% de aceitacao; "Sem Leitura" com tempo_disponivel NULL (online_epoch NULL), "Com Leitura" 4h de 4h
+INSERT INTO "PerformanceTurno" (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca,
+       corridas_ofertadas, corridas_aceitas, corridas_completadas, pedidos_concluidos, tempo_disponivel, hash_linha)
+SELECT e.id_empresa, (SELECT id FROM "ImportacaoArquivo" WHERE id_empresa=e.id_empresa AND tipo='performance'), e.id, d::date,
+       'JANTAR 18H-22H', interval '4 hours', 'SAO PAULO', 10, 9, 9, 5,
+       CASE WHEN e.nome = 'Sem Leitura' THEN NULL ELSE interval '4 hours' END,
+       md5(e.id::text||d::text||'t130')||md5(d::text||e.id::text||'t130')
+FROM "Entregador" e CROSS JOIN generate_series('2026-12-01'::date,'2026-12-02'::date,'1 day') d
+WHERE e.id_empresa IN (9006,9007);
+REFRESH MATERIALIZED VIEW mv_performance_dia;
+-- (a) peso de tempo 50 + corte de tempo 50%; (b) peso de tempo 50, SEM corte de tempo
+INSERT INTO "Campanha" (id_empresa, nome, data_inicio, data_fim, min_turnos, peso_aceitacao, peso_tempo, corte_tempo, criada_por, lancada_por, lancada_em)
+VALUES (9006,'Tempo Sem Leitura A','2026-12-01','2026-12-02',1,50,50,0.5,(SELECT id FROM "Usuario" WHERE email='adm@example.com'),(SELECT id FROM "Usuario" WHERE email='adm@example.com'),now()),
+       (9007,'Tempo Sem Leitura B','2026-12-01','2026-12-02',1,50,50,NULL,(SELECT id FROM "Usuario" WHERE email='adm@example.com'),(SELECT id FROM "Usuario" WHERE email='adm@example.com'),now());
+SQL
+hoje 2026-12-03
+if [ "${CAMP_NEG:-}" = tempo_leitura ]; then
+  patch_fn 'hub_campanha_recalcular_interno(integer)' 's/ent\.periodo_epoch = 0 THEN NULL/ent.periodo_epoch = 0 THEN 1/'
+  own "SELECT pg_get_functiondef('hub_campanha_recalcular_interno(integer)'::regprocedure) ~ 'periodo_epoch = 0 THEN 1'" | grep -q t || { echo "ABORTA: reversao tempo_leitura nao esta no corpo vivo — controle OCO"; exit 1; }
+  echo "NEG tempo_leitura: tempo sem leitura volta a 100% no corpo vivo (conferido)"
+fi
+IDA130="$(own "SELECT id FROM \"Campanha\" WHERE nome='Tempo Sem Leitura A'")"; IDB130="$(own "SELECT id FROM \"Campanha\" WHERE nome='Tempo Sem Leitura B'")"
+own "SELECT hub_campanha_recalcular_interno($IDA130); SELECT hub_campanha_recalcular_interno($IDB130);" >/dev/null
+RK130() { own "SELECT r.situacao||'|'||COALESCE(array_to_string(r.motivo_corte,','),'')||'|'||COALESCE(r.tempo::text,'NULL')||'|'||COALESCE(r.nota::text,'NULL')||'|'||COALESCE(r.nota_hipotetica::text,'NULL') FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$1 AND e.nome='$2'"; }
+check "0130/a: sem leitura de tempo + corte de tempo -> abaixo_corte, motivo tempo, tempo NULL, nota hipotetica so da aceitacao (45)" "$(RK130 $IDA130 'Sem Leitura')" "abaixo_corte|tempo|NULL|NULL|45.00"
+check "0130/a: com leitura (4h de 4h) segue classificado, tempo 1, nota 95" "$(RK130 $IDA130 'Com Leitura')" "classificado||1.000000|95.00|NULL"
+check "0130/b: sem leitura de tempo e SEM corte -> classificado, tempo NULL, parcela de tempo 0 (nota 45, nao 95)" "$(RK130 $IDB130 'Sem Leitura')" "classificado||NULL|45.00|NULL"
+check "0130/b: com leitura -> nota 95 (parcela de tempo cheia)" "$(RK130 $IDB130 'Com Leitura')" "classificado||1.000000|95.00|NULL"
 
 # 0127 NAO e mais reaplicavel por cima da 0129: a 0129 muda o retorno de hub_campanha_ranking (CREATE OR REPLACE
 # da 0127 falharia) e o migrate.sh nunca reaplica migration registrada. A idempotencia valida agora e a da 0129 (acima).
