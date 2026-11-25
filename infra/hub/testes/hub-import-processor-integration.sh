@@ -253,11 +253,13 @@ async function main() {
   out.fatdup_status = rFatDup.status;
   out.fatdup_id = rFatDup.body && rFatDup.body.id;
 
-  // (c) cabeçalho errado -> failed, zero linhas
+  // (c) cabeçalho errado -> barrado no UPLOAD (422 layout_invalido), nada gravado.
+  // A validação do processor segue valendo (defesa em profundidade; coberta nos
+  // testes unitários e no reprocessar) mas deixou de ser alcançável por upload.
   const csvCabecalhoErrado = ['praca;recebedor;valor', 'SP;Fulano;100,00', ''].join('\n');
   const rCabecalho = await upload(jar, { tipo: 'faturamento', nomeArquivo: 'cabecalho-errado.csv', conteudo: csvCabecalhoErrado });
   out.cabecalho_status = rCabecalho.status;
-  out.cabecalho_id = rCabecalho.body && rCabecalho.body.id;
+  out.cabecalho_id = rCabecalho.body && rCabecalho.body.motivo; // motivo do 422 (mantém a posição no TSV)
 
   // (d) cancelamento entre lotes — 550 linhas (2 lotes: 500 + 50). Empresa
   // DEDICADA (empresaOp2): o mutex (Decision 5 ADENDO) serializa por
@@ -295,7 +297,7 @@ IFS=$'\t' read -r FAT_STATUS_UPLOAD FAT_ID PERF_STATUS_UPLOAD PERF_ID FATDUP_STA
 check "upload faturamento (a) -> 201" "$FAT_STATUS_UPLOAD" "201"
 check "upload performance (a) -> 201" "$PERF_STATUS_UPLOAD" "201"
 check "upload faturamento duplicado por linha (b) -> 201 (hash de ARQUIVO difere)" "$FATDUP_STATUS_UPLOAD" "201"
-check "upload cabeçalho errado (c) -> 201 (validação de header é do PROCESSOR, não do upload)" "$CABECALHO_STATUS_UPLOAD" "201"
+check "upload cabeçalho errado (c) -> 422 (layout barrado no upload)" "$CABECALHO_STATUS_UPLOAD" "422"
 check "upload arquivo grande p/ cancelamento (d) -> 201" "$GRANDE_STATUS_UPLOAD" "201"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -357,15 +359,9 @@ check "(b) ZERO fatos novos p/ hash_linha idêntico (dedupe por linha, US2)" "$N
 N_TOTAL_EMPRESA_FAT="$(psql_t -tAc "SELECT count(*) FROM \"FaturamentoLancamento\" WHERE id_empresa=$E_OP" | tr -d '[:space:]')"
 check "(b) total de fatos da empresa NÃO cresceu com a reimportação" "$N_TOTAL_EMPRESA_FAT" "5"
 
-ST_CABECALHO="$(aguardar_status "$CABECALHO_ID" 30)"
-check "(c) cabeçalho errado -> failed" "$ST_CABECALHO" "failed"
-N_CABECALHO="$(psql_t -tAc "SELECT count(*) FROM \"FaturamentoLancamento\" WHERE importacao_id=$CABECALHO_ID" | tr -d '[:space:]')"
-check "(c) ZERO linhas persistidas com cabeçalho errado" "$N_CABECALHO" "0"
-ERRO_RESUMO="$(psql_t -tAc "SELECT erro_resumo FROM \"ImportacaoArquivo\" WHERE id=$CABECALHO_ID" | tr -d '\n')"
-case "$ERRO_RESUMO" in
-  *cabeçalho*|*cabecalho*) echo "PASS: (c) erro_resumo explica o motivo (cabeçalho)";;
-  *) echo "FAIL: (c) erro_resumo não menciona cabeçalho (obtido: $ERRO_RESUMO)"; fails=$((fails + 1));;
-esac
+check "(c) cabeçalho errado -> motivo layout_invalido" "$CABECALHO_ID" "layout_invalido"
+N_CABECALHO="$(psql_t -tAc "SELECT count(*) FROM \"ImportacaoArquivo\" WHERE nome_arquivo='cabecalho-errado.csv'" | tr -d '[:space:]')"
+check "(c) NENHUM ImportacaoArquivo criado com cabeçalho errado" "$N_CABECALHO" "0"
 
 # ── (d) cancelamento entre lotes — o DISPARO já ocorreu logo acima (antes
 # das checagens de (a)/(b)/(c)); aqui só aguarda o status terminal refletir

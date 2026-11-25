@@ -216,6 +216,16 @@ async function main() {
   jarLeitura = await trocarEntidade(jarLeitura, empresaLeitura);
 
   const csvValido = 'nome_completo;praca\nJoao;SP\n';
+  // Desde o bloqueio de layout no upload, o cabeçalho é conferido na rota:
+  // fixtures que chegam ao 201 usam o HEADER real (mesma técnica do fase5).
+  const HEADER_FATURAMENTO = [
+    'data_do_lancamento_financeiro', 'data_do_periodo_de_referencia', 'data_do_repasse',
+    'periodo', 'praca', 'subpraca', 'origem', 'id_da_pessoa_entregadora', 'recebedor',
+    'tipo', 'valor', 'descricao', 'atingido', 'percentual_de_tempo_disponivel',
+    'percentual_de_aceitacao', 'percentual_de_conclusao', 'criterio_tempo_disponivel',
+    'criterio_rotas_aceitas', 'criterio_rotas_concluidas', 'margem_fee_porcentagem',
+  ].join(';');
+  const csvComHeader = (linha) => `${HEADER_FATURAMENTO}\n${linha}\n`;
 
   // (a) validações imediatas
   const rExtInvalida = await upload(jarOp, { tipo: 'faturamento', nomeArquivo: 'dados.txt', conteudo: csvValido, mime: 'text/plain' });
@@ -250,8 +260,17 @@ async function main() {
   out.sem_permissao_status = rSemPermissao.status;
   out.sem_permissao_erro = rSemPermissao.body && rSemPermissao.body.erro;
 
+  // (b.2) bloqueio de layout no upload: nada é gravado (422 antes do INSERT)
+  const modeloEnvioMassa = 'uuid;number;nome;valor;mensagem1;mensagem2;enviado;retorno_envio_msg_1;retorno_envio_msg_2;tribnac;cnpj_tomador;cnpj_prestador;gorjeta\n1;2;a;3;;;;;;;;;\n';
+  const rLayoutInvalido = await upload(jarOp, { tipo: 'performance', nomeArquivo: 'modelo.csv', conteudo: modeloEnvioMassa });
+  out.layout_invalido_status = rLayoutInvalido.status;
+  out.layout_invalido_motivo = rLayoutInvalido.body && rLayoutInvalido.body.motivo;
+  const rOutroTipo = await upload(jarOp, { tipo: 'performance', nomeArquivo: 'fat.csv', conteudo: csvComHeader('x') });
+  out.layout_outro_tipo_status = rOutroTipo.status;
+  out.layout_outro_tipo_motivo = rOutroTipo.body && rOutroTipo.body.motivo;
+
   // (c) happy path CSV
-  const conteudoUnico = `nome_completo;praca\nFulano-${Date.now()};SP\n`;
+  const conteudoUnico = csvComHeader(`Fulano-${Date.now()};SP`);
   const rOk = await upload(jarOp, { tipo: 'faturamento', nomeArquivo: 'faturamento.csv', conteudo: conteudoUnico });
   out.ok_status = rOk.status;
   out.ok_tem_id = rOk.body && Number.isInteger(rOk.body.id) ? 'true' : 'false';
@@ -274,7 +293,7 @@ async function main() {
   out.entidade_diferente_status = rEntidadeDiferente.status;
 
   // (f) upload via ZIP de 1 entrada válido -> 201
-  const csvZip = `nome_completo;praca\nZipado-${Date.now()};RJ\n`;
+  const csvZip = csvComHeader(`Zipado-${Date.now()};RJ`);
   const zipValido = construirZipUmaEntrada('faturamento.csv', csvZip);
   const rZipOk = await upload(jarOp, { tipo: 'faturamento', nomeArquivo: 'lote.zip', conteudo: zipValido, mime: 'application/zip' });
   out.zip_ok_status = rZipOk.status;
@@ -327,6 +346,10 @@ check "conteúdo vazio -> 422" "$(jget conteudo_vazio_status)" "422"
 check "conteúdo vazio -> motivo arquivo_vazio" "$(jget conteudo_vazio_motivo)" "arquivo_vazio"
 check "ZIP com >1 entrada -> 422" "$(jget zip_multiplo_status)" "422"
 check "ZIP com >1 entrada -> motivo zip_multiplas_entradas" "$(jget zip_multiplo_motivo)" "zip_multiplas_entradas"
+check "layout de outro módulo -> 422" "$(jget layout_invalido_status)" "422"
+check "layout de outro módulo -> motivo layout_invalido" "$(jget layout_invalido_motivo)" "layout_invalido"
+check "layout do outro tipo -> 422" "$(jget layout_outro_tipo_status)" "422"
+check "layout do outro tipo -> motivo layout_de_outro_tipo" "$(jget layout_outro_tipo_motivo)" "layout_de_outro_tipo"
 check "sem permissão importacoes.criar (papel leitura) -> 403" "$(jget sem_permissao_status)" "403"
 check "sem permissão -> erro PERMISSAO_NEGADA" "$(jget sem_permissao_erro)" "PERMISSAO_NEGADA"
 check "happy path CSV -> 201" "$(jget ok_status)" "201"
@@ -335,7 +358,9 @@ check "happy path -> status=pending" "$(jget ok_status_pending)" "pending"
 check "reenvio do mesmo arquivo -> 409 CONFLITO" "$(jget dup_status)" "409"
 check "reenvio -> error=CONFLITO" "$(jget dup_erro)" "CONFLITO"
 check "reenvio -> importacaoOriginalId = id original" "$(jget dup_id_correto)" "true"
-check "mesmo hash, tipo diferente -> 201 (dedupe por id_empresa+tipo+hash)" "$(jget tipo_diferente_status)" "201"
+# O layout agora trava o tipo: o mesmo arquivo com OUTRO tipo é recusado no upload
+# (a chave de dedupe id_empresa+tipo+hash segue em vigor para o tipo correto).
+check "mesmo arquivo, tipo diferente -> 422 (layout trava o tipo)" "$(jget tipo_diferente_status)" "422"
 check "mesmo hash, entidade diferente -> 201" "$(jget entidade_diferente_status)" "201"
 check "upload via ZIP de 1 entrada -> 201" "$(jget zip_ok_status)" "201"
 
@@ -346,26 +371,27 @@ OK_ID="$(jget ok_id)"
 N_REGISTROS_OK="$(psql_t -tAc "SELECT count(*) FROM \"ImportacaoArquivo\" WHERE id=$OK_ID" | tr -d '[:space:]')"
 check "DB: exatamente 1 registro ImportacaoArquivo para o id retornado" "$N_REGISTROS_OK" "1"
 
-# Atualizado na S10: este teste nasceu na FASE 3 (sem processador) e assertava
-# status=pending; desde a FASE 4/5 o worker consome o 'pending' em background.
-# Worker VIVO faz parte do contrato: aguarda o estado TERMINAL (até 30s) e
-# exige 'failed' — o CSV deste cenário tem header estruturalmente inválido de
-# propósito. 'pending' eterno (worker morto/parado) agora é FAIL, não passe
-# silencioso. A resposta HTTP do upload continua assertada como 'pending'
-# acima (essa É síncrona).
+# Atualizado na S10: o worker VIVO faz parte do contrato — aguarda o estado
+# TERMINAL (até 30s). 'pending' eterno (worker morto/parado) é FAIL. O CSV deste
+# cenário tem o cabeçalho real (a rota o exige) e uma linha sintética, então o
+# desfecho exato (failed/completed_with_errors) depende das regras de linha —
+# o que se prova aqui é que o worker consumiu o 'pending'. A resposta HTTP do
+# upload continua assertada como 'pending' acima (essa É síncrona).
 STATUS_DB=""
 for _ in $(seq 1 30); do
   STATUS_DB="$(psql_t -tAc "SELECT status FROM \"ImportacaoArquivo\" WHERE id=$OK_ID" | tr -d '[:space:]')"
   case "$STATUS_DB" in completed|completed_with_errors|failed|cancelled) break ;; esac
   sleep 1
 done
-if [ "$STATUS_DB" != "failed" ]; then
+TERMINAL="nao"
+case "$STATUS_DB" in completed|completed_with_errors|failed|cancelled) TERMINAL="sim" ;; esac
+if [ "$TERMINAL" != "sim" ]; then
   echo "DEBUG: status final inesperado='$STATUS_DB' para id=$OK_ID — erro_resumo:"
   psql_t -tAc "SELECT erro_resumo FROM \"ImportacaoArquivo\" WHERE id=$OK_ID"
   echo "DEBUG: logs do backend (últimas 40 linhas):"
   dc logs --tail 40 backend
 fi
-check "DB: worker processou o CSV inválido até o estado terminal 'failed'" "$STATUS_DB" "failed"
+check "DB: worker consumiu o upload até um estado terminal" "$TERMINAL" "sim"
 echo "erro_resumo registrado: $(psql_t -tAc "SELECT left(COALESCE(erro_resumo, '(vazio)'), 120) FROM \"ImportacaoArquivo\" WHERE id=$OK_ID")"
 
 # Conta só pelo MESMO hash do upload original (não pelo total empresa+tipo —

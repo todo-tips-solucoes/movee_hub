@@ -34,6 +34,10 @@ const MENSAGENS_MOTIVO: Record<string, string> = {
   conteudo_invalido: 'Não foi possível ler o conteúdo do arquivo. Confira o formato.',
   conteudo_vazio: 'O arquivo não contém nenhuma linha legível.',
   upload_invalido: 'Falha ao enviar o arquivo. Tente novamente.',
+  layout_invalido:
+    'O arquivo não está no layout do relatório de Performance ou de Faturamento. Envie o CSV exportado do portal, sem alterar as colunas. Planilhas de outros módulos, como o modelo de envio em massa, não são aceitas aqui.',
+  layout_de_outro_tipo:
+    'Este arquivo é do outro tipo de relatório. Troque o tipo selecionado (Performance ou Faturamento) e envie de novo.',
 };
 
 const MENSAGENS_CODIGO: Record<string, string> = {
