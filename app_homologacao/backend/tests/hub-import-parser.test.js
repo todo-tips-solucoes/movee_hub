@@ -337,6 +337,10 @@ describe('lerPrimeiraLinha', () => {
     assert.deepEqual(await lerPrimeiraLinha(Buffer.from('\r\nh1;h2;h3\r\n1;2;3\r\n'), { nomeArquivo: 'a.csv' }), esperado);
   });
 
+  test('CSV com fim de linha só CR (paridade com o processor)', async () => {
+    assert.deepEqual(await lerPrimeiraLinha(Buffer.from('h1;h2;h3\r1;2;3\r'), { nomeArquivo: 'a.csv' }), esperado);
+  });
+
   test('CSV vazio -> conteudo_vazio', async () => {
     await assert.rejects(
       () => lerPrimeiraLinha(Buffer.from('\n\n'), { nomeArquivo: 'a.csv' }),

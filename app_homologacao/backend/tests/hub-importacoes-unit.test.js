@@ -182,6 +182,11 @@ describe('validarConteudo', () => {
 describe('validarConteudo — layout (bloqueio no upload)', () => {
   const MODELO_ENVIO_MASSA = 'uuid;number;nome;valor;mensagem1;mensagem2;enviado;retorno_envio_msg_1;retorno_envio_msg_2;tribnac;cnpj_tomador;cnpj_prestador;gorjeta\n1;2;a;3;;;;;;;;;\n';
 
+  test('CSV com fim de linha só CR e cabeçalho correto -> aceito', async () => {
+    const buf = Buffer.from(`${HEADER_PERFORMANCE.join(';')}\rx;y\r`);
+    assert.equal((await validarConteudo(buf, 'cr.csv', 'performance')).length, buf.length);
+  });
+
   test('modelo de envio em massa -> layout_invalido', async () => {
     await assert.rejects(
       () => validarConteudo(Buffer.from(MODELO_ENVIO_MASSA), 'modelo.csv', 'performance'),

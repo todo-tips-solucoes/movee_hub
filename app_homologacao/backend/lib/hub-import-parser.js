@@ -206,21 +206,6 @@ function bufferParaStream(buffer) {
 
 const MAX_PRIMEIRA_LINHA_BYTES = 64 * 1024;
 
-/** Primeira linha NÃO vazia de um prefixo de bytes (mesma regra de
- * `iterarLinhas`, que pula linhas vazias). `fechada` = terminou em `\n`, ou
- * seja, não há mais o que ler. */
-function extrairPrimeiraLinha(prefixo) {
-  let ini = 0;
-  for (;;) {
-    const nl = prefixo.indexOf(0x0a, ini);
-    const fim = nl === -1 ? prefixo.length : nl;
-    const linha = stripBom(prefixo.toString('utf8', ini, fim)).replace(/\r$/, '');
-    if (linha !== '') return { linha, fechada: nl !== -1 };
-    if (nl === -1) return { linha: '', fechada: false };
-    ini = nl + 1;
-  }
-}
-
 /**
  * Lê SÓ a primeira linha (cabeçalho) de um CSV ou ZIP de 1 entrada, olhando no
  * máximo `maxBytes` do conteúdo (descomprimido). Feita para a rota de upload:
@@ -259,7 +244,7 @@ async function lerPrimeiraLinha(buffer, { nomeArquivo, maxBytes = MAX_PRIMEIRA_L
         inflate.on('data', (chunk) => {
           partes.push(chunk);
           total += chunk.length;
-          if (total >= maxBytes || extrairPrimeiraLinha(Buffer.concat(partes)).fechada) fim();
+          if (total >= maxBytes || chunk.includes(0x0a) || chunk.includes(0x0d)) fim();
         });
         inflate.on('end', fim);
         inflate.on('error', (err) => {
@@ -271,9 +256,15 @@ async function lerPrimeiraLinha(buffer, { nomeArquivo, maxBytes = MAX_PRIMEIRA_L
       });
     }
   }
-  const { linha } = extrairPrimeiraLinha(prefixo);
-  if (linha === '') throw new HubImportParseError('Nenhuma linha decodificável no conteúdo', 'conteudo_vazio');
-  return splitLinhaCsv(linha);
+  // Mesma função do processor (readline: \n, \r\n e \r; pula linhas vazias).
+  const it = iterarLinhas(bufferParaStream(prefixo));
+  try {
+    const { value, done } = await it.next();
+    if (done) throw new HubImportParseError('Nenhuma linha decodificável no conteúdo', 'conteudo_vazio');
+    return value.campos;
+  } finally {
+    await it.return();
+  }
 }
 
 function validarTipo(tipo) {

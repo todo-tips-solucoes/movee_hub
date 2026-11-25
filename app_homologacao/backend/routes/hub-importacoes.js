@@ -40,7 +40,6 @@ const ORDENAVEIS_IMPORTACOES = [
 const { classificarLayout } = require('../lib/hub-import-normalizer');
 const {
   HubImportParseError,
-  validarZipLeve,
   lerPrimeiraLinha,
   validarTipo,
   ehZip,
@@ -140,8 +139,9 @@ function uploadSingle(req, res, next) {
  *   `layout_de_outro_tipo`
  */
 async function validarConteudo(buffer, nomeArquivo, tipo) {
-  if (ehZip(nomeArquivo)) validarZipLeve(buffer, { nomeArquivo });
-  else if (!buffer || buffer.length === 0) {
+  // ZIP: a inspeção estrutural (1 entrada, nome seguro, tamanho declarado) já
+  // roda dentro de `lerPrimeiraLinha`, com os mesmos motivos de erro.
+  if (!ehZip(nomeArquivo) && (!buffer || buffer.length === 0)) {
     throw new HubImportParseError('Conteúdo vazio após resolução', 'conteudo_vazio');
   }
   const campos = await lerPrimeiraLinha(buffer, { nomeArquivo });
