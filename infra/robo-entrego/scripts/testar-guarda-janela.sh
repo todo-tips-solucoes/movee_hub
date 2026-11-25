@@ -65,6 +65,11 @@ echo "--- meia-noite e horarios sem guarda nenhuma ---"
 caso 00:00 LIBERA   "madrugada: nenhum import por perto"
 caso 03:30 LIBERA   "madrugada"
 echo
+echo "--- horas/minutos com zero a esquerda (08/09 eram octal invalido no bash) ---"
+caso 08:00 LIBERA   "hora 08: regressao do octal (keep-alive morto 08h-09h)"
+caso 09:59 LIBERA   "hora 09 e minuto 59"
+caso 10:08 LIBERA   "minuto 08: octal invalido (fora da guarda, 32 min antes das 11h)"
+echo
 echo "--- valvula de escape: ROBO_ENTREGO_GUARDA_ANTES_MIN=0 desliga a guarda ---"
 saida=$(ROBO_ENTREGO_AGORA_HHMM=10:59 ROBO_ENTREGO_GUARDA_ANTES_MIN=0 ROBO_ENTREGO_DRY_RUN=1 "$WRAPPER" sob-demanda 2>&1)
 if printf '%s' "$saida" | grep -q 'janela do import'; then

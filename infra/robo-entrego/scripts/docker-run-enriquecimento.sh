@@ -90,11 +90,10 @@ CONFIG_IMPORT="${SCRIPT_DIR}/config.json"
 # `ROBO_ENTREGO_AGORA_HHMM` e `ROBO_ENTREGO_DRY_RUN` existem SÓ para o teste
 # (scripts/testar-guarda-janela.sh): sem eles a guarda só poderia ser exercitada
 # esperando as 11h, e cada caso exigiria subir o container Playwright.
-if [ -n "${ROBO_ENTREGO_AGORA_HHMM:-}" ]; then
-  AGORA_MIN=$(( 10#${ROBO_ENTREGO_AGORA_HHMM%%:*} * 60 + 10#${ROBO_ENTREGO_AGORA_HHMM##*:} ))
-else
-  AGORA_MIN=$(( $(date +%H) * 60 + $(date +%M) ))
-fi
+# `10#` força base 10: hora/minuto "08" e "09" seriam octal inválido no bash e
+# abortariam o script (keep-alive morto às 08h–09h; minutos :08/:09 também).
+AGORA_HHMM="${ROBO_ENTREGO_AGORA_HHMM:-$(date +%H:%M)}"
+AGORA_MIN=$(( 10#${AGORA_HHMM%%:*} * 60 + 10#${AGORA_HHMM##*:} ))
 
 if [ "$GUARDA_ANTES_MIN" != "0" ] && [ -r "$CONFIG_IMPORT" ]; then
   # `grep -o` em vez de jq: este wrapper não assume nada além de Docker no host.
