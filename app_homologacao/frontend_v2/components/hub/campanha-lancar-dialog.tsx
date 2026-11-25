@@ -129,6 +129,16 @@ function Conteudo({ form, alcance, onLancar, onOpenChange }: Omit<Props, 'open'>
             )
             .join(' · ')}
         </Linha>
+        <Linha rotulo="Visibilidade no app">
+          {form.visivelApp ? (
+            'Visível no app'
+          ) : (
+            <span role="note" className="flex items-start gap-1.5 font-medium text-warning-strong">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              Oculta: os motoristas não veem a campanha nem recebem aviso até você ligar o interruptor no detalhe.
+            </span>
+          )}
+        </Linha>
         {alcance && (
           <Linha rotulo="Alcance hoje">
             {alcance.rodaram} motoristas rodaram nesses turnos nos últimos 30 dias

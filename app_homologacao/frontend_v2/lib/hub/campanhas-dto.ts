@@ -23,6 +23,9 @@ export const SITUACOES: SituacaoCampanha[] = [
   'cancelada',
 ];
 
+/** Rascunho e cancelada nunca aparecem no app: o selo só mostraria a posição do interruptor. */
+export const mostraSeloVisibilidade = (s: SituacaoCampanha) => s !== 'rascunho' && s !== 'cancelada';
+
 export const SITUACAO_LABELS: Record<SituacaoCampanha, string> = {
   rascunho: 'Rascunho',
   agendada: 'Agendada',

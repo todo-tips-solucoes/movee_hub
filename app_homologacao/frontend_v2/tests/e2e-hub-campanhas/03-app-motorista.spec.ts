@@ -18,7 +18,7 @@ test('d) classificada: card na Início, tela da campanha, pódio, top 10 abrevia
   const card = page.getByRole('link', { name: /Rei do Jantar E2E/ });
   await expect(card).toBeVisible();
   await expect(card).toContainText('4º');
-  await expect(card).toContainText('de 4 motoristas');
+  await expect(card).not.toContainText(/\bde 4\b/); // só a posição, sem o total
   await expect(card).toContainText('Ver ranking');
   expect(await card.getAttribute('href')).toBe(`/campanhas/${id}`);
   await card.click();
@@ -28,6 +28,7 @@ test('d) classificada: card na Início, tela da campanha, pódio, top 10 abrevia
   const minha = page.getByRole('region', { name: 'Minha posição' });
   await expect(minha).toBeVisible();
   await expect(minha).toContainText('4º');
+  await expect(minha).not.toContainText(/\bde 4\b/);
 
   // pódio (1º–3º) e top 10 com nome + inicial
   const podio = page.getByRole('region', { name: 'Pódio' });
@@ -45,6 +46,7 @@ test('d) classificada: card na Início, tela da campanha, pódio, top 10 abrevia
   // PRIVACIDADE: nenhum sobrenome completo de terceiro no texto, no HTML nem no JSON da API
   const html = await page.content();
   const texto = await page.locator('body').innerText();
+  expect(texto).not.toMatch(/entre \d+ motoristas/); // a frase da nota perdeu o total
   for (const s of SOBRENOMES_DE_TERCEIROS) {
     expect(texto, `sobrenome "${s}" no texto visível`).not.toContain(s);
     expect(html, `sobrenome "${s}" no HTML`).not.toContain(s);

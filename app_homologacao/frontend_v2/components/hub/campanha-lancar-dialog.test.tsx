@@ -109,4 +109,13 @@ describe('CampanhaLancarDialog', () => {
     expect(screen.getByText(/Todos os turnos/)).toBeInTheDocument();
     expect(screen.getByText(/Todos os modais/)).toBeInTheDocument();
   });
+
+  it('linha de visibilidade: alerta quando oculta, "Visível no app" quando ligada', () => {
+    const { unmount } = render(<CampanhaLancarDialog open onOpenChange={() => {}} form={FORM} alcance={ALCANCE} onLancar={vi.fn()} />);
+    expect(screen.getByText(/Oculta: os motoristas não veem a campanha nem recebem aviso/)).toBeInTheDocument();
+    unmount();
+    render(<CampanhaLancarDialog open onOpenChange={() => {}} form={{ ...FORM, visivelApp: true }} alcance={ALCANCE} onLancar={vi.fn()} />);
+    expect(screen.getByText('Visível no app')).toBeInTheDocument();
+    expect(screen.queryByText(/Oculta: os motoristas/)).not.toBeInTheDocument();
+  });
 });

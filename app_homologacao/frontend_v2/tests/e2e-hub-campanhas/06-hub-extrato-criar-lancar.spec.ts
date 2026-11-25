@@ -3,7 +3,7 @@
 // rascunho, reabre para conferir que tudo foi gravado e lança. O driver confere o banco depois.
 import { test, expect, type Page } from '@playwright/test';
 import { ROTULO_INDICADOR_CAMPANHA } from '../../lib/hub/campanhas-dto';
-import { HUB, NOME_EXTRATO, apiHub, campanhaIdPorNome, env, loginHub, somaDias } from './_comum';
+import { HUB, NOME_EXTRATO, apiHub, campanhaIdPorNome, definirVisibilidade, env, loginHub, somaDias } from './_comum';
 
 const R = ROTULO_INDICADOR_CAMPANHA;
 
@@ -95,4 +95,7 @@ test('extrato: rascunho -> reabrir -> lançar', async ({ page }, testInfo) => {
   expect(det.tipo).toBe('extrato');
   expect(det.minTurnosBase).toBe('validos');
   expect(det.categorias).toEqual(['Corridas', 'familia:promocao']);
+  expect(det.visivelApp).toBe(false); // nasce oculta
+  await definirVisibilidade(page, true); // o app só a vê depois do interruptor (pela tela do hub)
+  expect(JSON.parse((await apiHub(page, 'GET', `/hub/campanhas/${id}`)).texto).visivelApp).toBe(true);
 });

@@ -38,6 +38,7 @@ import {
 import { ROTULO_FAMILIA } from '@/lib/hub/adiantamento-categorias';
 import {
   diasAte,
+  mostraSeloVisibilidade,
   type CampanhaDetalhe,
   type LinhaRanking,
   type SituacaoRanking,
@@ -531,7 +532,7 @@ export default function CampanhaDetalhePage() {
             <h1 className="font-heading text-xl font-semibold sm:text-2xl">{c.nome}</h1>
             <CampanhaSituacaoBadge situacao={c.situacao} />
             <CampanhaTipoBadge tipo={c.tipo} />
-            <CampanhaVisibilidadeBadge visivel={c.visivelApp} />
+            {mostraSeloVisibilidade(c.situacao) && <CampanhaVisibilidadeBadge visivel={c.visivelApp} />}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{sub}</p>
           {c.descricao && <p className="mt-2 max-w-3xl text-sm">{c.descricao}</p>}

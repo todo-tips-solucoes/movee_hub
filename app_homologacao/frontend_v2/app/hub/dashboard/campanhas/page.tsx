@@ -17,7 +17,7 @@ import { CampanhaSituacaoBadge, CampanhaTipoBadge, CampanhaVisibilidadeBadge } f
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { CampanhaApiError, listarCampanhas } from '@/lib/hub/campanhas-api';
-import { SITUACAO_LABELS, type CampanhaItem, type SituacaoCampanha } from '@/lib/hub/campanhas-dto';
+import { SITUACAO_LABELS, mostraSeloVisibilidade, type CampanhaItem, type SituacaoCampanha } from '@/lib/hub/campanhas-dto';
 import {
   acaoDaSituacao,
   escopoTexto,
@@ -166,7 +166,7 @@ export default function CampanhasPage() {
                       <CampanhaSituacaoBadge situacao={c.situacao} />
                     </TableCell>
                     <TableCell>
-                      <CampanhaVisibilidadeBadge visivel={c.visivelApp} />
+                      {mostraSeloVisibilidade(c.situacao) ? <CampanhaVisibilidadeBadge visivel={c.visivelApp} /> : <span aria-label="não se aplica">—</span>}
                     </TableCell>
                     <TableCell className="text-right">
                       {podeGerir && c.situacao === 'rascunho' && (

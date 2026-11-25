@@ -17,6 +17,20 @@
 
 ALTER TABLE "Campanha" ADD COLUMN IF NOT EXISTS visivel_app boolean NOT NULL DEFAULT false;
 
+-- Auditoria da troca de visibilidade: UM so ponto (RPC do interruptor e salvar do formulario). Interna.
+CREATE OR REPLACE FUNCTION hub_campanha_auditar_visibilidade(p_id int, p_de boolean, p_para boolean)
+RETURNS void
+LANGUAGE sql SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+    INSERT INTO "Auditoria" (id_empresa, usuario_id, acao, recurso, recurso_id, detalhes)
+    SELECT c.id_empresa, NULLIF(hub_jwt_claims() ->> 'sub', '')::int, 'campanha.visibilidade', 'Campanha', c.id::text,
+           jsonb_build_object('de', p_de, 'para', p_para, 'nome', c.nome)
+    FROM "Campanha" c WHERE c.id = p_id;
+$$;
+
+REVOKE ALL ON FUNCTION hub_campanha_auditar_visibilidade(int, boolean, boolean) FROM PUBLIC;
+
 CREATE OR REPLACE FUNCTION hub_campanha_imutavel_trg()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -335,6 +349,7 @@ BEGIN
             v_pa, v_pc, v_pt, v_pp, v_ca, v_cc, v_ct, v_cp, v_avisar, v_sub,
             v_tipo, v_cats, v_base, v_visivel)
         RETURNING id INTO v_id;
+        IF v_visivel THEN PERFORM hub_campanha_auditar_visibilidade(v_id, false, true); END IF;
     ELSE
         v_id := p_id;
         UPDATE "Campanha" SET
@@ -345,6 +360,9 @@ BEGIN
             avisar = v_avisar, tipo = v_tipo, categorias = v_cats, min_turnos_base = v_base,
             visivel_app = v_visivel
         WHERE id = v_id;
+        IF v_visivel IS DISTINCT FROM c.visivel_app THEN
+            PERFORM hub_campanha_auditar_visibilidade(v_id, c.visivel_app, v_visivel);
+        END IF;
     END IF;
 
     -- Prêmios: o que veio com `id` desta campanha é ATUALIZADO (a foto sobrevive); o resto é criado;
@@ -571,9 +589,7 @@ BEGIN
     END IF;
     IF c.visivel_app IS DISTINCT FROM p_visivel THEN
         UPDATE "Campanha" SET visivel_app = p_visivel WHERE id = c.id;
-        INSERT INTO "Auditoria" (id_empresa, usuario_id, acao, recurso, recurso_id, detalhes)
-        VALUES (c.id_empresa, NULLIF(hub_jwt_claims() ->> 'sub', '')::int, 'campanha_visibilidade', 'Campanha', c.id::text,
-                jsonb_build_object('de', c.visivel_app, 'para', p_visivel, 'nome', c.nome));
+        PERFORM hub_campanha_auditar_visibilidade(c.id, c.visivel_app, p_visivel);
     END IF;
 END;
 $$;

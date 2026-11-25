@@ -44,6 +44,8 @@ check "migrate.sh 2x: 0131 pulada na 2a corrida" "$(grep -c 'pulada (já aplicad
 for i in 1 2; do
   check "0131 reaplicada a mao ($i) sem erro" "$(psql_r -q -f - < "$MIG" 2>&1 | grep -c 'ERROR')" "0"
 done
+# a 0131 reaplicada a mao desfaz hub_campanha_salvar (a 0132 o redefine): repor a 0132, como o hub-campanhas-db.sh
+psql_r -q -f - < "$HUB_DIR/migrations/0132_campanhas_visibilidade_app.sql" >/dev/null 2>&1
 
 if [ "${CAT_NEG:-}" = modo ]; then
   psql_t -tA -c "SELECT pg_get_functiondef('hub_adiantamento_categoria_casa(text,text[])'::regprocedure);" > "$TMP/fn.sql"
@@ -148,6 +150,7 @@ SQL
   check "rollback cru: desfez (casa() antiga: modo:todas e nome)" "$(CASA_OK)" "f"
   # (5) guarda de configuracao de PROPRIA vigente em todas aborta e NAO desfaz parcialmente (reaplica a 0131 antes)
   psql_r -q -f - < "$MIG" >/dev/null 2>&1
+  psql_r -q -f - < "$HUB_DIR/migrations/0132_campanhas_visibilidade_app.sql" >/dev/null 2>&1
   psql_t -q -c "UPDATE \"AdiantamentoConfiguracao\" SET categorias_extrato = ARRAY['modo:todas'] WHERE id = 90002" >/dev/null
   OUT="$(rc)"
   check "rollback cru: vigente em modo todas -> ABORTA, sem -v ON_ERROR_STOP e sem transacao externa" "$(echo "$OUT" | grep -c 'ROLLBACK_0131_RECUSADO')" "1"

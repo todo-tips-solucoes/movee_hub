@@ -170,7 +170,9 @@ describe('detalhe — visibilidade no app', () => {
   it('cancelada: sem interruptor', async () => {
     mockCampanha.mockResolvedValue(parseCampanhaDetalhe({ ...EXTRATO, situacao: 'cancelada', motivoCancelamento: 'x' }));
     render(<CampanhaDetalhePage />);
-    await screen.findByText('Oculta no app');
+    await screen.findByText(/Motivo: x/);
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    expect(screen.queryByText('Oculta no app')).not.toBeInTheDocument();
+    expect(screen.queryByText('Visível no app')).not.toBeInTheDocument();
   });
 });

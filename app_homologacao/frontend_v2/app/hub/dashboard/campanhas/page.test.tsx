@@ -31,4 +31,16 @@ describe('lista de campanhas — coluna App', () => {
     expect(screen.getByText('Visível no app')).toBeInTheDocument();
     expect(screen.getByText('Oculta no app')).toBeInTheDocument();
   });
+
+  it('rascunho e cancelada mostram "—" em vez do selo', async () => {
+    mockListar.mockResolvedValue([
+      parseCampanhaItem({ ...BASE, id: 3, nome: 'R', situacao: 'rascunho', visivelApp: true }),
+      parseCampanhaItem({ ...BASE, id: 4, nome: 'C', situacao: 'cancelada', visivelApp: true }),
+    ]);
+    render(<CampanhasPage />);
+    await screen.findByRole('columnheader', { name: 'App' });
+    expect(screen.queryByText('Visível no app')).not.toBeInTheDocument();
+    expect(screen.queryByText('Oculta no app')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('não se aplica')).toHaveLength(2);
+  });
 });

@@ -940,6 +940,8 @@ check "0132/salvar: editar rascunho visivel SEM a chave mantem true" "$(own "SEL
 sal9 $VF "$(nbody 'Vis nota fim visivel editada' | jq -c '.visivelApp=false')" >/dev/null
 check "0132/salvar: editar rascunho com visivelApp=false desliga" "$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VF")" "f"
 sal9 $VF "$(nbody 'Vis nota fim visivel editada' | jq -c '.visivelApp=true')" >/dev/null
+check "0132/auditoria via salvar: criar com true + (true->false) + (false->true) = 3 registros; editar sem mudar nao grava" "$(own "SELECT string_agg((detalhes->>'de')||'>'||(detalhes->>'para'), ' ' ORDER BY id) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$VF'")" "false>true true>false false>true"
+check "0132/auditoria: funcao interna nao e executavel por authenticated nem PUBLIC" "$(own "SELECT has_function_privilege('public','hub_campanha_auditar_visibilidade(int,boolean,boolean)','EXECUTE')::text||has_function_privilege('authenticated','hub_campanha_auditar_visibilidade(int,boolean,boolean)','EXECUTE')::text")" "falsefalse"
 # premios com foto para o caso da foto
 PNV="$(own "SELECT id FROM \"CampanhaPremio\" WHERE campanha_id=$VN LIMIT 1")"
 rpc $ADM9 $E9008 9008 "SELECT hub_campanha_premio_foto_salvar($VN,$PNV,'image/png','$PNG');" >/dev/null
@@ -998,11 +1000,11 @@ check "0132/push fim: visivel fechada enfileira o aviso (+2 motoristas) e marca 
 check "0132/push fim: oculta fechada NAO enfileira, mas marca aviso_fim_em" "$(own "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE link='/campanhas/$VC'")|$(own "SELECT aviso_fim_em IS NOT NULL AND fechada_em IS NOT NULL FROM \"Campanha\" WHERE id=$VC")" "0|t"
 # ---- seguranca ----
 hoje 2027-06-02
-VA="$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha_visibilidade' AND recurso='Campanha' AND recurso_id='$VX'")"
+VA="$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso='Campanha' AND recurso_id='$VX'")"
 check "0132/auditoria: 3 trocas de VX (liga, desliga, liga) gravadas" "$VA" "3"
-check "0132/auditoria: quem e de->para" "$(own "SELECT usuario_id||'|'||id_empresa||'|'||(detalhes->>'de')||'>'||(detalhes->>'para') FROM \"Auditoria\" WHERE acao='campanha_visibilidade' AND recurso_id='$VX' ORDER BY id LIMIT 1")" "$(AID $ADM9)|9008|false>true"
+check "0132/auditoria: quem e de->para" "$(own "SELECT usuario_id||'|'||id_empresa||'|'||(detalhes->>'de')||'>'||(detalhes->>'para') FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$VX' ORDER BY id LIMIT 1")" "$(AID $ADM9)|9008|false>true"
 rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VX, true);" >/dev/null
-check "0132/auditoria: trocar para o mesmo valor nao grava de novo" "$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha_visibilidade' AND recurso_id='$VX'")" "3"
+check "0132/auditoria: trocar para o mesmo valor nao grava de novo" "$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$VX'")" "3"
 check "0132/seguranca: usuario de OUTRA empresa -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_visibilidade($VX, false);")")" "CAMPANHA_NAO_ENCONTRADA"
 check "0132/seguranca: empresa ativa diferente da da campanha -> FORA_DE_ESCOPO" "$(tok "$(rpc $ADM9 '[9008,9001]' 9001 "SELECT hub_campanha_visibilidade($VX, false);")")" "FORA_DE_ESCOPO"
 check "0132/seguranca: sem campanhas.gerir (operador) -> PERMISSAO_NEGADA" "$(tok "$(rpc $OP9 $E9008 9008 "SELECT hub_campanha_visibilidade($VX, false);")")" "PERMISSAO_NEGADA"
