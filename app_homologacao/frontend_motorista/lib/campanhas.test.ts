@@ -70,7 +70,6 @@ const tela = (o: Partial<CampanhaTela> = {}): CampanhaTela => ({
   eu: eu(),
   lider: { pedidos: 412 },
   top10: [{ posicao: 1, nome: 'Marcos V.', nota: 97.3, souEu: false }],
-  totalClassificados: 184,
   ...o,
 });
 
@@ -78,7 +77,7 @@ const AGORA = Date.parse('2026-11-22T10:00:00-03:00');
 
 const item = (o: Partial<CampanhaItem> = {}): CampanhaItem => ({
   id: 1, nome: 'x', situacao: 'em_andamento', dataInicio: '2026-11-01', dataFim: '2026-11-30',
-  minhaPosicao: null, total: 10, minhaSituacao: null, naZonaPremio: false, ...o,
+  minhaPosicao: null, minhaSituacao: null, naZonaPremio: false, ...o,
 });
 
 test('rótulos iguais aos da Performance', () => {
@@ -328,4 +327,12 @@ test('textoTurnoValido: lista só os cortes definidos', () => {
   assert.equal(textoTurnoValido({ aceitacao: 0.9, conclusao: null, tempo: 0.7, pedidos: null }), 'Turno válido: tempo online ≥ 70% e aceitação ≥ 90% no turno.');
   assert.match(textoTurnoValido({ aceitacao: null, conclusao: null, tempo: null, pedidos: 5 }), /pedidos ≥ 5/);
   assert.match(textoTurnoValido({ aceitacao: null, conclusao: null, tempo: null, pedidos: null }), /soma o valor/);
+});
+
+test('app não cita o total de motoristas (guarda no fonte, P6/P7)', () => {
+  for (const f of ['../app/(app)/campanhas/[id]/page.tsx', '../components/campanha-extrato.tsx', '../components/card-campanha.tsx']) {
+    const src = readFileSync(new URL(f, import.meta.url), 'utf8');
+    assert.ok(src.includes('ordinal('), `guarda anti-oco: ${f} lido`);
+    assert.ok(!/totalClassificados|item\.total/.test(src), f);
+  }
 });

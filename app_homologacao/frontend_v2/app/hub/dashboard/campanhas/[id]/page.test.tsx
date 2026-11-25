@@ -6,16 +6,20 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CampanhaDetalhePage from './page';
 import { parseCampanhaDetalhe, parseRanking } from '@/lib/hub/campanhas-dto';
+import { toast } from 'sonner';
 
+// Router estável: um objeto novo a cada render refaria o `carregar` e desfaria a troca otimista.
+const router = { push: vi.fn(), replace: vi.fn() };
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: '9' }),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => router,
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 vi.mock('@/contexts/hub-auth-context', () => ({ useHubAuth: () => ({ permissoes: ['campanhas.gerir'] }) }));
 
 const mockCampanha = vi.fn();
 const mockRanking = vi.fn();
+const mockVis = vi.fn();
 vi.mock('@/lib/hub/campanhas-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/hub/campanhas-api')>('@/lib/hub/campanhas-api');
   return {
@@ -24,6 +28,7 @@ vi.mock('@/lib/hub/campanhas-api', async () => {
     obterRanking: (...a: unknown[]) => mockRanking(...a),
     obterVencedores: vi.fn().mockResolvedValue([]),
     baixarRankingCsv: vi.fn(),
+    atualizarVisibilidadeCampanha: (...a: unknown[]) => mockVis(...a),
   };
 });
 
@@ -68,6 +73,7 @@ const RANKING = {
 beforeEach(() => {
   mockCampanha.mockReset();
   mockRanking.mockReset();
+  mockVis.mockReset();
   mockRanking.mockImplementation((_id: number, situacao: keyof typeof RANKING) =>
     Promise.resolve(
       parseRanking({ itens: RANKING[situacao] ?? [], contagem: EXTRATO.contagem, pagina: 1, porPagina: 50 })
@@ -133,5 +139,40 @@ describe('detalhe — nota ponderada', () => {
     expect(await screen.findByText('Nota de corte do top 10')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Abaixo do corte/ })).toBeInTheDocument();
     expect(screen.getByText('Nota ponderada')).toBeInTheDocument();
+  });
+});
+
+describe('detalhe — visibilidade no app', () => {
+  const SW = { name: 'Motoristas veem esta campanha no app' };
+
+  it('selo "Oculta no app" e liga o interruptor chamando a API', async () => {
+    mockCampanha.mockResolvedValue(parseCampanhaDetalhe(EXTRATO));
+    mockVis.mockResolvedValue({ id: 9, visivelApp: true });
+    render(<CampanhaDetalhePage />);
+    expect(await screen.findByText('Oculta no app')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('switch', SW));
+    await waitFor(() => expect(screen.getByRole('switch', SW)).toHaveAttribute('aria-checked', 'true'));
+    expect(mockVis.mock.calls).toEqual([[9, true]]);
+    expect(await screen.findByText('Visível no app')).toBeInTheDocument();
+  });
+
+  it('API falha: reverte o interruptor e mostra toast de erro', async () => {
+    mockCampanha.mockResolvedValue(parseCampanhaDetalhe(EXTRATO));
+    mockVis.mockRejectedValue(new Error('boom'));
+    render(<CampanhaDetalhePage />);
+    await screen.findByText('Oculta no app');
+    fireEvent.click(screen.getByRole('switch', SW));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByRole('switch', SW)).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByText('Oculta no app')).toBeInTheDocument();
+  });
+
+  it('cancelada: sem interruptor', async () => {
+    mockCampanha.mockResolvedValue(parseCampanhaDetalhe({ ...EXTRATO, situacao: 'cancelada', motivoCancelamento: 'x' }));
+    render(<CampanhaDetalhePage />);
+    await screen.findByText(/Motivo: x/);
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    expect(screen.queryByText('Oculta no app')).not.toBeInTheDocument();
+    expect(screen.queryByText('Visível no app')).not.toBeInTheDocument();
   });
 });

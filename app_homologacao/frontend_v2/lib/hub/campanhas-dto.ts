@@ -23,6 +23,9 @@ export const SITUACOES: SituacaoCampanha[] = [
   'cancelada',
 ];
 
+/** Rascunho e cancelada nunca aparecem no app: o selo só mostraria a posição do interruptor. */
+export const mostraSeloVisibilidade = (s: SituacaoCampanha) => s !== 'rascunho' && s !== 'cancelada';
+
 export const SITUACAO_LABELS: Record<SituacaoCampanha, string> = {
   rascunho: 'Rascunho',
   agendada: 'Agendada',
@@ -88,6 +91,8 @@ export interface CampanhaItem {
   contagem: Contagem;
   premiosPendentes: number;
   dadosAte: string | null;
+  /** Interruptor de visibilidade no app do motorista (padrão: oculta). */
+  visivelApp: boolean;
 }
 
 export interface PremioDetalhe {
@@ -235,6 +240,7 @@ export function parseCampanhaItem(raw: unknown): CampanhaItem {
     contagem: parseContagem(r.contagem),
     premiosPendentes: num(r.premiosPendentes),
     dadosAte: strOuNull(r.dadosAte),
+    visivelApp: r.visivelApp === true,
   };
 }
 

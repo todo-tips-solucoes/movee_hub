@@ -11,7 +11,7 @@ test('e) app: card "Resultado final" e a tela do resultado', async ({ page }) =>
   await expect(card).toContainText('Resultado final');
   await expect(card).toContainText('Você ficou em');
   await expect(card).toContainText('4º');
-  await expect(card).toContainText('de 4');
+  await expect(card).not.toContainText(/\bde 4\b/); // só a posição, sem o total
   await card.click();
   await page.waitForURL(`**/campanhas/${id}`);
   await expect(page.getByText('Resultado final', { exact: true })).toBeVisible();

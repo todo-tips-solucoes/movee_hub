@@ -19,6 +19,8 @@ import {
   Layers,
   Link2,
   Link2Off,
+  Eye,
+  EyeOff,
   MailWarning,
   RotateCw,
   Scale,
@@ -312,6 +314,19 @@ export function CampanhaTipoBadge({ tipo }: { tipo: TipoCampanha }) {
   return (
     <StatusBadge variant="outline" icon={tipo === 'extrato' ? Wallet : Scale}>
       {TIPO_CAMPANHA_LABELS[tipo] ?? tipo}
+    </StatusBadge>
+  );
+}
+
+/** Selo de visibilidade no app do motorista (lista e detalhe). */
+export function CampanhaVisibilidadeBadge({ visivel }: { visivel: boolean }) {
+  return visivel ? (
+    <StatusBadge variant="success" icon={Eye}>
+      Visível no app
+    </StatusBadge>
+  ) : (
+    <StatusBadge variant="outline" icon={EyeOff}>
+      Oculta no app
     </StatusBadge>
   );
 }

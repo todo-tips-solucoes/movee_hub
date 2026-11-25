@@ -49,7 +49,7 @@ function responderErro(res, rotulo, e) {
 router.get('/campanhas', limiter, async (req, res) => {
   try {
     const itens = await rpc('hub_motorista_campanhas', {}, req);
-    return res.status(200).json({ itens: dto.camelizar(Array.isArray(itens) ? itens : []) });
+    return res.status(200).json({ itens: dto.appLista(itens) });
   } catch (e) {
     return responderErro(res, 'GET /campanhas', e);
   }

@@ -41,7 +41,7 @@ test('A) classificada: "Seu extrato na campanha", ranking sem valor alheio, turn
   const meu = page.getByRole('region', { name: 'Meu extrato' });
   await expect(meu).toBeVisible();
   await expect(meu).toContainText('3º');
-  await expect(meu).toContainText('de 4');
+  await expect(meu).not.toContainText(/\bde 4\b/); // só a posição, sem o total
   await expect(meu).toContainText('Seu extrato na campanha');
   await expect(meu).toContainText('R$ 70,00');
   await expect(meu).toContainText('2 turnos válidos');

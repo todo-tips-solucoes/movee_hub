@@ -72,6 +72,7 @@ export class CampanhaApiError extends HubApiError {
 const CAMPO_EXTRATO: Record<string, string> = {
   cortes: 'Marque ao menos 1 critério do turno e informe o mínimo.',
   categorias: 'Marque ao menos 1 categoria para compor o valor do turno.',
+  visivel: 'Valor de visibilidade inválido. Atualize a página e tente de novo.',
 };
 
 /** Mensagem acionável para o corpo de erro `{ erro, campo? }`. */
@@ -143,6 +144,15 @@ export async function atualizarCampanha(id: number, f: FormularioCampanha): Prom
   return parseIdCriado(
     await request<unknown>(`${BASE}/${id}`, { method: 'PUT', body: JSON.stringify(formularioParaCorpo(f)) })
   );
+}
+
+/** Liga/desliga a campanha no app do motorista (auditado no banco). */
+export async function atualizarVisibilidadeCampanha(id: number, visivel: boolean): Promise<{ id: number; visivelApp: boolean }> {
+  const r = await request<{ id?: unknown; visivelApp?: unknown }>(`${BASE}/${id}/visibilidade`, {
+    method: 'PATCH',
+    body: JSON.stringify({ visivel }),
+  });
+  return { id: typeof r?.id === 'number' ? r.id : id, visivelApp: r?.visivelApp === true };
 }
 
 export async function lancarCampanha(id: number): Promise<void> {

@@ -6,6 +6,7 @@ import {
   CampanhaApiError,
   MENSAGENS_CAMPANHA,
   cancelarCampanha,
+  atualizarVisibilidadeCampanha,
   criarCampanha,
   enviarFotoPremio,
   lancarCampanha,
@@ -172,5 +173,20 @@ describe('extrato', () => {
   it('VALIDACAO de cortes/categorias vira mensagem do extrato, não "(campo: …)"', () => {
     expect(mensagemCampanha({ erro: 'VALIDACAO', campo: 'cortes' }, 422)).toMatch(/ao menos 1 critério/);
     expect(mensagemCampanha({ erro: 'VALIDACAO', campo: 'categorias' }, 422)).toMatch(/ao menos 1 categoria/);
+  });
+});
+
+describe('visibilidade', () => {
+  it('PATCH /hub/campanhas/:id/visibilidade com { visivel }', async () => {
+    const f = stubFetch({ id: 7, visivelApp: true }, 200);
+    expect(await atualizarVisibilidadeCampanha(7, true)).toEqual({ id: 7, visivelApp: true });
+    expect(f.mock.calls[0][0]).toMatch(/\/hub\/campanhas\/7\/visibilidade$/);
+    expect(f.mock.calls[0][1]?.method).toBe('PATCH');
+    expect(JSON.parse(String(f.mock.calls[0][1]?.body))).toEqual({ visivel: true });
+  });
+  it('erros da rota viram mensagem acionável', () => {
+    expect(mensagemCampanha({ erro: 'VALIDACAO', campo: 'visivel' }, 422)).toMatch(/visibilidade inválido/);
+    expect(mensagemCampanha({ erro: 'CAMPANHA_SITUACAO_INVALIDA' }, 409)).toMatch(/Atualize a página/);
+    expect(mensagemCampanha({ erro: 'PERMISSAO_NEGADA' }, 403)).toMatch(/permissão/);
   });
 });

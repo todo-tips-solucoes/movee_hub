@@ -69,6 +69,8 @@ export interface FormularioCampanha {
   cortes: Cortes;
   premios: PremioForm[];
   avisar: boolean;
+  /** Visível no app do motorista; toda campanha nasce oculta. */
+  visivelApp: boolean;
 }
 
 export function formularioVazio(): FormularioCampanha {
@@ -88,6 +90,7 @@ export function formularioVazio(): FormularioCampanha {
     cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null },
     premios: [],
     avisar: true,
+    visivelApp: false,
   };
 }
 
@@ -136,6 +139,7 @@ export function formularioDeDetalhe(d: CampanhaDetalhe): FormularioCampanha {
       temFoto: p.temFoto,
     })),
     avisar: d.avisar,
+    visivelApp: d.visivelApp,
   };
 }
 
@@ -165,6 +169,7 @@ export function formularioParaCorpo(f: FormularioCampanha) {
       valorCentavos: p.valorCentavos,
     })),
     avisar: f.avisar,
+    visivelApp: f.visivelApp,
   };
 }
 

@@ -264,8 +264,7 @@ function MinhaPosicao({ t, eu }: { t: CampanhaTela; eu: MinhaLinha }) {
           style={{ background: `conic-gradient(var(--warning) 0 ${Math.min(100, nota)}%, var(--muted) ${Math.min(100, nota)}% 100%)` }}
         >
           <div className="flex h-[70px] w-[70px] flex-col items-center justify-center rounded-full bg-card">
-            <span className="tabular text-[28px] font-extrabold leading-none">{ordinal(pos)}</span>
-            <span className="text-[10px] font-bold text-muted-foreground">de {t.totalClassificados}</span>
+            <span className="tabular text-[32px] font-extrabold leading-none">{ordinal(pos)}</span>
           </div>
         </div>
         <div className="flex min-w-0 flex-col gap-1">
@@ -688,7 +687,7 @@ function Encerrada({ t }: { t: CampanhaTela }) {
               Você ficou em {ordinal(eu.posicao as number)} lugar{premio ? '!' : ''}
             </h1>
             <p className="text-[15px] leading-relaxed opacity-85">
-              Nota {fmt1(eu.nota ?? 0)} entre {t.totalClassificados} motoristas.
+              Nota {fmt1(eu.nota ?? 0)}.
               {!premio && ' Obrigado por rodar com a gente nesta campanha.'}
             </p>
           </>

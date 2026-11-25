@@ -15,7 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PaginationControls } from '@/components/pagination-controls';
 import { CampanhaCancelarDialog } from '@/components/hub/campanha-cancelar-dialog';
 import { CampanhaEntregaDialog } from '@/components/hub/campanha-entrega-dialog';
-import { CampanhaSituacaoBadge, CampanhaTipoBadge } from '@/components/hub/status-badge';
+import { CampanhaVisibilidade } from '@/components/hub/campanha-visibilidade';
+import { CampanhaSituacaoBadge, CampanhaTipoBadge, CampanhaVisibilidadeBadge } from '@/components/hub/status-badge';
 import { EmptyState } from '@/components/hub/empty-state';
 import { KpiCard } from '@/components/hub/kpi-card';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
@@ -32,10 +33,12 @@ import {
   obterRanking,
   obterVencedores,
   registrarEntrega,
+  atualizarVisibilidadeCampanha,
 } from '@/lib/hub/campanhas-api';
 import { ROTULO_FAMILIA } from '@/lib/hub/adiantamento-categorias';
 import {
   diasAte,
+  mostraSeloVisibilidade,
   type CampanhaDetalhe,
   type LinhaRanking,
   type SituacaoRanking,
@@ -439,6 +442,7 @@ export default function CampanhaDetalhePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [acaoErro, setAcaoErro] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState(false);
+  const [salvandoVis, setSalvandoVis] = useState(false);
   // Gerar a planilha carimba `exportado_em`; a seção de vencedores busca a própria lista e só
   // reagia ao id da campanha (achado do E2E W4). Mudar a key a remonta e recarrega.
   const [versaoVencedores, setVersaoVencedores] = useState(0);
@@ -464,6 +468,21 @@ export default function CampanhaDetalhePage() {
       await fn();
     } catch (e) {
       setAcaoErro(e instanceof CampanhaApiError ? e.message : 'Não foi possível concluir a ação.');
+    }
+  }
+
+  // Otimista: troca na hora e reverte (com toast) se a API recusar.
+  async function alternarVisibilidade(visivel: boolean) {
+    setSalvandoVis(true);
+    setC((x) => (x ? { ...x, visivelApp: visivel } : x));
+    try {
+      const r = await atualizarVisibilidadeCampanha(id, visivel);
+      setC((x) => (x ? { ...x, visivelApp: r.visivelApp } : x));
+    } catch (e) {
+      setC((x) => (x ? { ...x, visivelApp: !visivel } : x));
+      toast.error(e instanceof CampanhaApiError ? e.message : 'Não foi possível alterar a visibilidade no app.');
+    } finally {
+      setSalvandoVis(false);
     }
   }
 
@@ -513,6 +532,7 @@ export default function CampanhaDetalhePage() {
             <h1 className="font-heading text-xl font-semibold sm:text-2xl">{c.nome}</h1>
             <CampanhaSituacaoBadge situacao={c.situacao} />
             <CampanhaTipoBadge tipo={c.tipo} />
+            {mostraSeloVisibilidade(c.situacao) && <CampanhaVisibilidadeBadge visivel={c.visivelApp} />}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{sub}</p>
           {c.descricao && <p className="mt-2 max-w-3xl text-sm">{c.descricao}</p>}
@@ -574,6 +594,12 @@ export default function CampanhaDetalhePage() {
         <p className="text-sm text-muted-foreground" role="status">
           A campanha começa em {formatDiaMes(c.dataInicio, true)}. O ranking aparece depois da primeira importação de dados.
         </p>
+      )}
+
+      {podeGerir && c.situacao !== 'cancelada' && (
+        <section aria-label="Visibilidade no app" className="rounded-lg border bg-card p-4">
+          <CampanhaVisibilidade visivel={c.visivelApp} onChange={(v) => void alternarVisibilidade(v)} disabled={salvandoVis} />
+        </section>
       )}
 
       {(ativa || c.situacao === 'encerrada') && c.tipo === 'extrato' && <KpisExtrato c={c} />}

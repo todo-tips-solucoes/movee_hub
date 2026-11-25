@@ -60,6 +60,7 @@ function valido(parcial: Partial<FormularioCampanha> = {}): FormularioCampanha {
     cortes: { aceitacao: 0.8, conclusao: 0.9, tempo: null, pedidos: null },
     premios: [premio()],
     avisar: true,
+    visivelApp: false,
     ...parcial,
   };
 }
@@ -262,7 +263,7 @@ describe('corpo do POST/PUT (CONTRATOS §7)', () => {
   it('só os campos do contrato: sem chave/id/foto da UI nos prêmios; textos aparados', () => {
     const corpo = formularioParaCorpo(valido({ nome: '  Rei do Jantar  ' }));
     expect(Object.keys(corpo).sort()).toEqual(
-      ['avisar', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'tipo', 'turnos']
+      ['avisar', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'tipo', 'turnos', 'visivelApp']
     );
     expect(corpo.nome).toBe('Rei do Jantar');
     expect(Object.keys(corpo.premios[0]).sort()).toEqual(['descricao', 'posicaoAte', 'posicaoDe', 'tipo', 'valorCentavos']);

@@ -3,7 +3,7 @@
 // edição na UI e PUT direto na API devolve 409 CAMPANHA_IMUTAVEL. O driver confere o banco depois.
 import { test, expect, type Page } from '@playwright/test';
 import { ROTULO_INDICADOR_CAMPANHA } from '../../lib/hub/campanhas-dto';
-import { HUB, NOME_CAMPANHA, apiHub, campanhaIdPorNome, env, loginHub, somaDias } from './_comum';
+import { HUB, NOME_CAMPANHA, apiHub, campanhaIdPorNome, definirVisibilidade, env, loginHub, somaDias } from './_comum';
 
 const R = ROTULO_INDICADOR_CAMPANHA;
 const NOME_RASCUNHO_EXCLUIR = 'Rascunho para excluir E2E';
@@ -106,6 +106,9 @@ test.describe.serial('campanhas — hub: criar, editar, lançar, imutável', () 
     await expect(page.getByText('Imutável desde então.')).toBeVisible();
     const id = await campanhaIdPorNome(page, NOME_CAMPANHA);
     expect(id).toBeGreaterThan(0);
+    // toda campanha nasce OCULTA; o app só a vê depois do interruptor (ligado aqui, pela tela do hub)
+    await expect(page.getByText('Oculta no app', { exact: true })).toBeVisible();
+    await definirVisibilidade(page, true);
   });
 
   test('b) lançada: sem caminho de edição na UI; PUT direto na API -> 409 CAMPANHA_IMUTAVEL', async ({ page }) => {

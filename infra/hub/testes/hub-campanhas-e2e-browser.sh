@@ -46,7 +46,7 @@ PLAYWRIGHT_IMAGE="mcr.microsoft.com/playwright:v1.61.1-jammy"
 EVID_DIR="$REPO_DIR/docs/specs/envioMassa_homologacao/evidencias/campanhas"
 mkdir -p "$EVID_DIR"
 RUN_LOG="$EVID_DIR/campanhas-e2e-browser-run-$(date -u +%Y%m%dT%H%M%SZ).log"
-PHASES="${CAMP_PHASES:-1 2 3 4 5 6 7 8}"
+PHASES="${CAMP_PHASES:-1 2 3 4 5 6 7 8 9}"
 
 . "$HUB_DIR/scripts/lib.sh"
 DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"; DB_NAME="$(get_var HUB_DB_NAME "$ENV_FILE")"
@@ -150,7 +150,8 @@ if [ -z "${CAMP_REUSE:-}" ]; then
   "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/migrate.log" 2>&1 || { echo "FAIL: migrate"; tail -40 "$TMP/migrate.log"; exit 1; }
   grep -q "0127_campanhas.sql" "$TMP/migrate.log" || { echo "FAIL: 0127 não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
   grep -q "0129_campanhas_extrato.sql" "$TMP/migrate.log" || { echo "FAIL: 0129 não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
-  echo "PASS: série de migrations aplicada do zero, com a 0127 e a 0129"
+  grep -q "0132_" "$TMP/migrate.log" || { echo "FAIL: 0132 (visibilidade no app) não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
+  echo "PASS: série de migrations aplicada do zero, com a 0127, a 0129 e a 0132"
   # recarrega o schema cache do PostgREST (RPCs novas)
   dc kill -s SIGUSR1 postgrest >/dev/null 2>&1 || true
 
@@ -290,6 +291,8 @@ if tem_fase 1; then
     "1-1:objeto:Bag térmica Movee:- | 2-3:dinheiro:R\$ 100 no repasse:10000"
   check "a/banco: descrição EDITADA (o rascunho foi atualizado antes de lançar)" "$(own "SELECT descricao FROM \"Campanha\" WHERE id=$CAMP_ID")" "Quem mais pontuar no jantar leva o prêmio (editado)."
   check "a/banco: o rascunho foi escrito pelo admin e lançado por ele (auditável)" "$(own "SELECT (criada_por = lancada_por AND criada_por = (SELECT id FROM \"Usuario\" WHERE email='$ADMIN_EMAIL'))::text FROM \"Campanha\" WHERE id=$CAMP_ID")" "true"
+  check "w4/banco: a campanha NASCEU oculta e foi ligada pela tela do hub (visivel_app=true; 1 troca auditada de oculta->visível)" \
+    "$(own "SELECT c.visivel_app::text||' '||(SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$CAMP_ID' AND detalhes->>'de'='false' AND detalhes->>'para'='true') FROM \"Campanha\" c WHERE c.id=$CAMP_ID")" "true 1"
   check "a/auditoria: criar/lançar registrados" "$(own "SELECT count(*)>0 FROM \"Auditoria\" WHERE acao LIKE 'campanha.%'")" "t"
   # gatilho: UPDATE/DELETE direto (até como dono das tabelas) recusado
   R="$(ownx "UPDATE \"Campanha\" SET nome='hack', peso_aceitacao=100, peso_conclusao=0, peso_tempo=0, peso_pedidos=0 WHERE id=$CAMP_ID")"
@@ -513,13 +516,26 @@ if tem_fase 8; then
   roda_fase 8 08-app-extrato CAMP_X_ID="$CAMP_X_ID"
 fi
 
+# ============================ fase 9: interruptor de visibilidade no app (W4 da frente visibilidade) ============================
+if tem_fase 9; then
+  [ -n "${CAMP_X_ID:-}" ] || CAMP_X_ID="$(campanha_extrato_id)"
+  roda_fase 9 09-visibilidade-app CAMP_X_ID="$CAMP_X_ID"
+  echo "--- banco depois da fase 9 (extrato #$CAMP_X_ID) ---"
+  check "w4/banco: terminou OCULTA (a fase desligou por último)" "$(own "SELECT visivel_app::text FROM \"Campanha\" WHERE id=$CAMP_X_ID")" "false"
+  check "w4/auditoria: 4 trocas do extrato na ordem (ligou na fase 6; desligou, ligou, desligou na fase 9)" \
+    "$(own "SELECT string_agg((detalhes->>'de')||'>'||(detalhes->>'para'), ' ' ORDER BY id) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso='Campanha' AND recurso_id='$CAMP_X_ID'")" \
+    "false>true true>false false>true true>false"
+  check "w4/auditoria: troca tem quem fez (usuario = admin) e o nome" \
+    "$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$CAMP_X_ID' AND usuario_id=(SELECT id FROM \"Usuario\" WHERE email='$ADMIN_EMAIL') AND detalhes->>'nome'='$NOME_EXTRATO'")" "4"
+fi
+
 # ------------------------------ relatório ------------------------------
 echo
 echo "=== log completo: $RUN_LOG ==="
 echo "Checagens de banco/driver: $passes PASS, $fails FAIL"
 echo "Playwright (soma das fases): $PW_PASSED passed, $PW_FAILED failed, $PW_FLAKY flaky"
 if [ "$fails" = "0" ] && [ "$PW_EXIT_ALL" = "0" ] && [ "$PW_FAILED" = "0" ]; then
-  echo "HUB-CAMPANHAS-E2E-BROWSER: OK — a) b) c) d) e) f) g) verdes"
+  echo "HUB-CAMPANHAS-E2E-BROWSER: OK — a) b) c) d) e) f) g) w4-visibilidade verdes"
   exit 0
 fi
 echo "HUB-CAMPANHAS-E2E-BROWSER: FALHOU (checagens=$fails, playwright_exit=$PW_EXIT_ALL, failed=$PW_FAILED)" >&2

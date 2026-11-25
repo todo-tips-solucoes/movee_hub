@@ -74,8 +74,8 @@ describe('motorista-campanhas', () => {
     assert.equal(r.status, 200);
     assert.deepEqual(r.body.itens[0], {
       id: 12, nome: 'Rei do Jantar', situacao: 'em_andamento', dataInicio: '2026-11-10', dataFim: '2026-11-30',
-      minhaPosicao: 7, total: 184, minhaSituacao: 'classificado', naZonaPremio: true,
-    });
+      minhaPosicao: 7, minhaSituacao: 'classificado', naZonaPremio: true,
+    }); // `total` do banco NÃO passa (V4)
     assert.deepEqual(chamadas[0].claims, { motoristaCnpj: '22222222000191' });
     assert.deepEqual(chamadas[0].body, {}, 'nada da query vai para a RPC');
   });
@@ -97,7 +97,7 @@ describe('motorista-campanhas', () => {
     assert.equal(r.body.campanha.minTurnos, 5);
     assert.equal(r.body.premios[0].temFoto, true);
     assert.equal(r.body.top10[0].souEu, false);
-    assert.equal(r.body.totalClassificados, 184);
+    assert.equal('totalClassificados' in r.body, false, 'total fora do payload do app (V4)');
     assert.deepEqual(chamadas[0].body, { p_id: 12 });
   });
 

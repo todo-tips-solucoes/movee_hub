@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { SelectFiltro } from '@/components/hub/select-filtro';
 import { SeletorCategorias } from '@/components/hub/seletor-categorias';
+import { CampanhaVisibilidade } from '@/components/hub/campanha-visibilidade';
 import { CampanhaLancarDialog } from '@/components/hub/campanha-lancar-dialog';
 import {
   CampanhaApiError,
@@ -665,6 +666,10 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
           ))}
         </ul>
         <Erro id={`${baseId}-pre-e`} texto={erros.premios} />
+      </Secao>
+
+      <Secao id={`${baseId}-vis`} titulo={`${n(5)}. Visibilidade no app`}>
+        <CampanhaVisibilidade visivel={form.visivelApp} onChange={(v) => set({ visivelApp: v })} />
       </Secao>
 
       {erroGeral && (

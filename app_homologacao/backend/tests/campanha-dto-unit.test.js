@@ -40,7 +40,7 @@ describe('validarFormulario — caminho feliz e canonização', () => {
     assert.equal(r.dados.cortes.tempo, null);
     assert.equal(r.dados.minTurnos, 5);
     assert.equal(r.dados.premios[0].posicaoDe, 1);
-    assert.deepEqual(Object.keys(r.dados).sort(), ['avisar', 'categorias', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'minTurnosBase', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'tipo', 'turnos']);
+    assert.deepEqual(Object.keys(r.dados).sort(), ['avisar', 'categorias', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'minTurnosBase', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'tipo', 'turnos']); // visivelApp ausente não vai em p_dados
   });
   test('deduplica itens canônicos da lista', () => {
     assert.deepEqual(dto.validarFormulario(form({ pracas: ['a', ' A ', 'b'] })).dados.pracas, ['A', 'B']);
@@ -49,6 +49,22 @@ describe('validarFormulario — caminho feliz e canonização', () => {
     const { avisar, ...resto } = form();
     assert.equal(dto.validarFormulario(resto).dados.avisar, true);
     assert.equal(erro(form({ avisar: 'sim' })).campo, 'avisar');
+  });
+});
+
+describe('visivelApp e payload do app', () => {
+  test('visivelApp: ausente/null = chave fora de p_dados; boolean passa; outro tipo = VALIDACAO', () => {
+    const { visivelApp, ...resto } = form();
+    assert.equal('visivelApp' in dto.validarFormulario(resto).dados, false);
+    assert.equal('visivelApp' in dto.validarFormulario(form({ visivelApp: null })).dados, false);
+    assert.equal(dto.validarFormulario(form({ visivelApp: false })).dados.visivelApp, false);
+    assert.equal(dto.validarFormulario(form({ visivelApp: true })).dados.visivelApp, true);
+    assert.equal(erro(form({ visivelApp: 'true' })).campo, 'visivelApp');
+  });
+  test('appCampanha/appLista descartam totais, mesmo que o banco mande', () => {
+    assert.equal('totalClassificados' in dto.appCampanha({ total_classificados: 9, eu: null }), false);
+    assert.deepEqual(dto.appLista([{ id: 1, total: 9, minha_posicao: 2 }]), [{ id: 1, minhaPosicao: 2 }]);
+    assert.deepEqual(dto.appLista(null), []);
   });
 });
 

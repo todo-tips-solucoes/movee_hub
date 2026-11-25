@@ -90,7 +90,7 @@ export function CardCampanha() {
           <>
             <p className="flex flex-wrap items-baseline gap-x-2">
               <span className="tabular text-lg font-extrabold">
-                Você ficou em <span className="text-warning">{ordinal(item.minhaPosicao as number)}</span> de {item.total}
+                Você ficou em <span className="text-warning">{ordinal(item.minhaPosicao as number)}</span>
               </span>
             </p>
             {item.naZonaPremio && <span className={cn(seloZonaClasse, 'mt-3 inline-block')}>Ganhou prêmio</span>}
@@ -106,7 +106,6 @@ export function CardCampanha() {
           <>
             <p className="flex flex-wrap items-baseline gap-x-2">
               <span className="tabular text-5xl font-extrabold leading-none text-warning">{ordinal(item.minhaPosicao as number)}</span>
-              <span className={cn(sub, 'font-semibold')}>de {item.total} motoristas</span>
             </p>
             <p className="mt-3 flex flex-wrap items-center gap-2 text-[13px] font-semibold">
               {item.naZonaPremio && <span className={seloZonaClasse}>Na zona de prêmio</span>}

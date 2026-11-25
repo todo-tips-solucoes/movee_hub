@@ -244,7 +244,7 @@ EID() { own "SELECT id FROM \"Entregador\" WHERE nome='$1'"; }
 PREMIOS_PADRAO='[{"posicaoDe":1,"posicaoAte":1,"tipo":"objeto","descricao":"Bag","valorCentavos":null},{"posicaoDe":2,"posicaoAte":3,"tipo":"dinheiro","descricao":"R$ 100","valorCentavos":10000}]'
 body() { # body <nome> <ini> <fim> <pracas-json> <turnos-json> <modais-json> <min> <pa> <pc> <pt> <pp> <cortes-json> [premios-json]
   local pr="${13:-$PREMIOS_PADRAO}"
-  printf '{"nome":"%s","descricao":"d","dataInicio":"%s","dataFim":"%s","pracas":%s,"turnos":%s,"modais":%s,"minTurnos":%s,"pesos":{"aceitacao":%s,"conclusao":%s,"tempo":%s,"pedidos":%s},"cortes":%s,"premios":%s,"avisar":true}' \
+  printf '{"nome":"%s","descricao":"d","dataInicio":"%s","dataFim":"%s","pracas":%s,"turnos":%s,"modais":%s,"minTurnos":%s,"pesos":{"aceitacao":%s,"conclusao":%s,"tempo":%s,"pedidos":%s},"cortes":%s,"premios":%s,"avisar":true,"visivelApp":true}' \
     "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}" "${12}" "$pr"
 }
 NOCUT='{"aceitacao":null,"conclusao":null,"tempo":null,"pedidos":null}'
@@ -486,7 +486,7 @@ check "app: Ana ve a propria posicao 2 (anterior 2), nota 91, 5 turnos" "$(print
 check "app: 'acima' = Bruno abreviado, nota 93" "$(printf '%s' "$J1" | jq -c '.eu.acima')" '{"nome":"Bruno S.","nota":93.00}'
 check "app: top10 so com nome ABREVIADO, na ordem" "$(printf '%s' "$J1" | jq -c '[.top10[]|[.posicao,.nome,.souEu]]')" '[[1,"Bruno S.",false],[2,"Ana L.",true],[3,"Carla D.",false]]'
 check "app: NENHUM sobrenome/nome completo de terceiro no JSON (Souza, Dias, Pires, Melo, Nunes)" "$(printf '%s' "$J1" | grep -cE 'Souza|Dias|Pires|Melo|Nunes|Costa|Rocha')" "0"
-check "app: leituras e notas por indicador (pedidos 40/50 = 80)" "$(printf '%s' "$J1" | jq -c '[.eu.leituras.aceitacao,.eu.leituras.conclusao,.eu.leituras.tempo,.eu.leituras.pedidos,.eu.notas.aceitacao,.eu.notas.pedidos,.lider.pedidos,.totalClassificados]')" '[0.9000,1.0000,0.9000,40,90.00,80.00,50,3]'
+check "app: leituras e notas por indicador (pedidos 40/50 = 80)" "$(printf '%s' "$J1" | jq -c '[.eu.leituras.aceitacao,.eu.leituras.conclusao,.eu.leituras.tempo,.eu.leituras.pedidos,.eu.notas.aceitacao,.eu.notas.pedidos,.lider.pedidos]')" '[0.9000,1.0000,0.9000,40,90.00,80.00,50]'
 check "app: premio da faixa 2-3 (dinheiro) + ofertadas/aceitas/completadas" "$(printf '%s' "$J1" | jq -c '[.eu.premio.tipo,.eu.ofertadas,.eu.aceitas,.eu.completadas,.eu.entregueEm]')" '["dinheiro",50,45,45,null]'
 check "app: campanha: regras visiveis (pesos/cortes/dadosAte)" "$(printf '%s' "$J1" | jq -c '[.campanha.pesos.tempo,.campanha.cortes.aceitacao,.campanha.dadosAte,.campanha.fechadaEm,.campanha.modais]')" '[20,0.8000,"2026-12-06",null,["MOTO"]]'
 J4="$(app $M4 "SELECT hub_motorista_campanha($ID_A);")"
@@ -496,7 +496,7 @@ check "app: Gil (modal CARRO fora da campanha): eu = null, ainda ve a campanha" 
 check "app: lista da Ana: A, A3, F (encerrada <30d) e G — NAO a de Campinas (A10)" "$(app $M1 "SELECT hub_motorista_campanhas();" | jq -c '[.[].id] | sort')" "$(printf '%s\n' $ID_A $ID_A3 $ID_F $ID_G | sort -n | jq -Rn -c '[inputs|tonumber]')"
 check "app: lista da Carla (Campinas): ve tambem A2" "$(app $M3 "SELECT hub_motorista_campanhas();" | jq -c '[.[].id] | sort')" "$(printf '%s\n' $ID_A $ID_A2 $ID_A3 $ID_F $ID_G | sort -n | jq -Rn -c '[inputs|tonumber]')"
 check "app: Ana pedindo a campanha de Campinas por id -> 404 (A10)" "$(tok "$(app $M1 "SELECT hub_motorista_campanha($ID_A2);")")" "CAMPANHA_NAO_ENCONTRADA"
-check "app: item da lista traz dataInicio e os campos do contrato" "$(app $M1 "SELECT hub_motorista_campanhas();" | jq -c --argjson id $ID_A '.[]|select(.id==$id)|[.dataInicio,.dataFim,.minhaPosicao,.total,.minhaSituacao,.naZonaPremio,.situacao]')" '["2026-12-01","2026-12-07",2,3,"classificado",true,"em_andamento"]'
+check "app: item da lista traz dataInicio e os campos do contrato" "$(app $M1 "SELECT hub_motorista_campanhas();" | jq -c --argjson id $ID_A '.[]|select(.id==$id)|[.dataInicio,.dataFim,.minhaPosicao,.minhaSituacao,.naZonaPremio,.situacao]')" '["2026-12-01","2026-12-07",2,"classificado",true,"em_andamento"]'
 check "app: campanha CANCELADA some do app (D)" "$(app $M1 "SELECT hub_motorista_campanhas();" | jq -c --argjson id $ID_D '[.[]|select(.id==$id)]|length')" "0"
 check "app: pedir a cancelada por id -> 404" "$(tok "$(app $M1 "SELECT hub_motorista_campanha($ID_D);")")" "CAMPANHA_NAO_ENCONTRADA"
 check "app: motorista de OUTRA empresa pedindo a campanha de 9001 -> 404" "$(tok "$(app 90000000000101 "SELECT hub_motorista_campanha($ID_A);")")" "CAMPANHA_NAO_ENCONTRADA"
@@ -713,7 +713,7 @@ SQL
 ADM5='adm5@example.com'; E9005='[9005]'
 xbody() { # xbody <nome> <ini> <fim> <categorias-json> <base> <cortes-json> <min> <modais-json>
   jq -nc --arg nome "$1" --arg ini "$2" --arg fim "$3" --argjson cats "$4" --arg base "$5" --argjson cortes "$6" --argjson min "$7" --argjson modais "$8" --argjson prem "$PREMIOS_PADRAO" \
-    '{nome:$nome,descricao:"d",dataInicio:$ini,dataFim:$fim,pracas:null,turnos:null,modais:$modais,minTurnos:$min,pesos:{aceitacao:0,conclusao:0,tempo:0,pedidos:0},cortes:$cortes,premios:$prem,avisar:true,tipo:"extrato",categorias:$cats,minTurnosBase:$base}'; }
+    '{nome:$nome,descricao:"d",dataInicio:$ini,dataFim:$fim,pracas:null,turnos:null,modais:$modais,minTurnos:$min,pesos:{aceitacao:0,conclusao:0,tempo:0,pedidos:0},cortes:$cortes,premios:$prem,avisar:true,visivelApp:true,tipo:"extrato",categorias:$cats,minTurnosBase:$base}'; }
 XC='{"aceitacao":0.8,"conclusao":null,"tempo":0.7,"pedidos":null}'
 XCATS='["Corridas","familia:promocao"]'
 sal5() { salvar $ADM5 $E9005 9005 "$1" "$2"; }
@@ -899,6 +899,123 @@ check "0129/M2: ... e o d1 continua em 6000 (sem o +9900)" "$(TURNOS $ID_X1 'Ali
 check "0129/fecha: vencedores do extrato = posicoes 1..3 (Alice, Davi, Cida)" "$(own "SELECT string_agg(v.posicao||'='||e.nome, ',' ORDER BY v.posicao) FROM \"CampanhaVencedor\" v JOIN \"Entregador\" e ON e.id=v.entregador_id WHERE v.campanha_id=$ID_X1")" "1=Alice Extrato,2=Davi Extrato,3=Cida Extrato"
 # (a nota segue fechando em fim+1: coberto pelo teste M1 desta suite, que roda sobre a funcao ja redefinida pela 0129)
 
+echo "--- 0132: interruptor de visibilidade no app + so a posicao (sem total) ---"
+psql_t -q <<'SQL' >"$TMP/seed132.log" 2>&1 || { echo "FAIL: seed 0132"; cat "$TMP/seed132.log"; exit 1; }
+INSERT INTO "Usuario" (email, senha_hash, nome) VALUES ('adm9@example.com','x','Adm 9008'),('op9@example.com','x','Op 9008');
+INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
+  ((SELECT id FROM "Usuario" WHERE email='adm9@example.com'), 9008, (SELECT id FROM "Papel" WHERE nome='admin_entidade'), true),
+  ((SELECT id FROM "Usuario" WHERE email='op9@example.com'),  9008, (SELECT id FROM "Papel" WHERE nome='operador'), true);
+INSERT INTO "ModuloEntidade" (modulo_id, empresa_id, ativo) SELECT m.id, 9008, true FROM "Modulo" m WHERE m.codigo = 'campanhas';
+INSERT INTO "ContaMotorista" (cnpj_prestador, nome) VALUES ('90800000000001','Vera Visivel'),('90800000000002','Caio Visivel');
+INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id, dados_entrego_json)
+  SELECT 9008, gen_random_uuid(), cm.nome, cm.id, '{"informacoesEntrega":{"modal":"MOTO"}}'::jsonb
+  FROM "ContaMotorista" cm WHERE cm.cnpj_prestador IN ('90800000000001','90800000000002');
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status) VALUES (9008,'performance',repeat('8',64),'completed');
+INSERT INTO "PerformanceTurno" (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca,
+       corridas_ofertadas, corridas_aceitas, corridas_completadas, pedidos_concluidos, tempo_disponivel, hash_linha)
+SELECT 9008, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('8',64)), e.id, d::date, 'JANTAR 18H-22H', interval '4 hours', 'SAO PAULO',
+       10, CASE WHEN e.nome='Vera Visivel' THEN 9 ELSE 8 END, 8, 5, interval '3 hours', md5(e.id::text||d::text||'v132')||md5(d::text||e.id::text||'v132')
+FROM "Entregador" e CROSS JOIN generate_series('2027-06-01'::date,'2027-06-03'::date,'1 day') d WHERE e.id_empresa=9008;
+REFRESH MATERIALIZED VIEW mv_performance_dia;
+SQL
+ADM9='adm9@example.com'; OP9='op9@example.com'; E9008='[9008]'; V1=90800000000001
+sal9() { salvar $ADM9 $E9008 9008 "$1" "$2"; }
+sem_vis() { jq -c 'del(.visivelApp)'; }       # corpo SEM a chave: o padrao do banco
+nbody() { body "$1" 2027-06-01 2027-06-03 null null null 1 100 0 0 0 "$NOCUT" | sem_vis; }
+hoje 2027-05-25; hora 09:00
+VN="$(sal9 NULL "$(nbody 'Vis nota oculta')")"
+VX="$(sal9 NULL "$(xbody 'Vis extrato oculta' 2027-06-01 2027-06-03 '["familia:promocao"]' trabalhados "$XC" 1 'null' | sem_vis)")"
+VF="$(sal9 NULL "$(nbody 'Vis nota fim visivel' | jq -c '.visivelApp=true')")"
+VC="$(sal9 NULL "$(nbody 'Vis nota fim oculta')")"
+VK="$(sal9 NULL "$(nbody 'Vis nota cancelar')")"
+VR="$(sal9 NULL "$(nbody 'Vis rascunho')")"
+check "0132: seed criou 6 campanhas (ids numericos)" "$(printf '%s\n' $VN $VX $VF $VC $VK $VR | grep -cE '^[0-9]+$')" "6"
+check "0132/oculta: salvar sem visivelApp -> nasce oculta (DEFAULT false), nota e extrato" "$(own "SELECT string_agg(visivel_app::text, ',' ORDER BY id) FROM \"Campanha\" WHERE id IN ($VN,$VX)")" "false,false"
+check "0132/oculta: salvar com visivelApp=true grava true" "$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VF")" "t"
+check "0132/salvar: visivelApp nao-boolean -> VALIDACAO" "$(tok "$(sal9 $VR "$(nbody 'Vis rascunho' | jq -c '.visivelApp="sim"')")")" "VALIDACAO"
+check "0132/salvar: item json do hub traz visivelApp" "$(rpc $ADM9 $E9008 9008 "SELECT item FROM hub_campanha_listar(9008, NULL);" | jq -c --argjson id $VF 'select(.id==$id)|.visivelApp')" "true"
+# edicao do rascunho: sem a chave MANTEM o valor atual
+sal9 $VF "$(nbody 'Vis nota fim visivel editada')" >/dev/null
+check "0132/salvar: editar rascunho visivel SEM a chave mantem true" "$(own "SELECT visivel_app||'|'||nome FROM \"Campanha\" WHERE id=$VF")" "true|Vis nota fim visivel editada"
+sal9 $VF "$(nbody 'Vis nota fim visivel editada' | jq -c '.visivelApp=false')" >/dev/null
+check "0132/salvar: editar rascunho com visivelApp=false desliga" "$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VF")" "f"
+sal9 $VF "$(nbody 'Vis nota fim visivel editada' | jq -c '.visivelApp=true')" >/dev/null
+check "0132/auditoria via salvar: criar com true + (true->false) + (false->true) = 3 registros; editar sem mudar nao grava" "$(own "SELECT string_agg((detalhes->>'de')||'>'||(detalhes->>'para'), ' ' ORDER BY id) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$VF'")" "false>true true>false false>true"
+check "0132/auditoria: funcao interna nao e executavel por authenticated nem PUBLIC" "$(own "SELECT has_function_privilege('public','hub_campanha_auditar_visibilidade(int,boolean,boolean)','EXECUTE')::text||has_function_privilege('authenticated','hub_campanha_auditar_visibilidade(int,boolean,boolean)','EXECUTE')::text")" "falsefalse"
+# premios com foto para o caso da foto
+PNV="$(own "SELECT id FROM \"CampanhaPremio\" WHERE campanha_id=$VN LIMIT 1")"
+rpc $ADM9 $E9008 9008 "SELECT hub_campanha_premio_foto_salvar($VN,$PNV,'image/png','$PNG');" >/dev/null
+for i in $VN $VX $VF $VC $VK; do rpc $ADM9 $E9008 9008 "SELECT hub_campanha_lancar($i);" >/dev/null; done
+check "0132: as 5 campanhas lancaram" "$(own "SELECT count(*) FROM \"Campanha\" WHERE id IN ($VN,$VX,$VF,$VC,$VK) AND lancada_em IS NOT NULL")" "5"
+hoje 2027-06-02
+own "SELECT hub_campanha_recalcular_interno(i) FROM unnest(ARRAY[$VN,$VX,$VF,$VC,$VK]) i" >/dev/null
+
+# ---- oculta some do app inteiro ----
+if [ "${CAMP_NEG:-}" = visibilidade ]; then
+  patch_fn 'hub_campanha_visivel("Campanha",integer)' 's/AND c\.visivel_app//'
+  own "SELECT pg_get_functiondef('hub_campanha_visivel(\"Campanha\",integer)'::regprocedure) ~ 'c[.]visivel_app'" | grep -q f || { echo "ABORTA: reversao visibilidade nao esta no corpo vivo — controle OCO"; exit 1; }
+  echo "NEG visibilidade: AND c.visivel_app removido do corpo vivo (conferido)"
+fi
+check "0132/oculta: lista do app NAO traz as ocultas (nota e extrato)" "$(app $V1 "SELECT hub_motorista_campanhas();" | jq -c --argjson a $VN --argjson b $VX '[.[]|select(.id==$a or .id==$b)]|length')" "0"
+check "0132/oculta: a lista traz so a visivel (VF) e a cancelavel oculta nao" "$(app $V1 "SELECT hub_motorista_campanhas();" | jq -c '[.[].id]')" "[$VF]"
+check "0132/oculta: detalhe da nota oculta -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(app $V1 "SELECT hub_motorista_campanha($VN);")")" "CAMPANHA_NAO_ENCONTRADA"
+check "0132/oculta: detalhe do extrato oculto -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(app $V1 "SELECT hub_motorista_campanha($VX);")")" "CAMPANHA_NAO_ENCONTRADA"
+check "0132/oculta: turnos do extrato oculto -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(app $V1 "SELECT hub_motorista_campanha_turnos($VX);")")" "CAMPANHA_NAO_ENCONTRADA"
+check "0132/oculta: foto do premio de campanha oculta -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(app $V1 "SELECT * FROM hub_motorista_campanha_foto($VN,$PNV);")")" "CAMPANHA_NAO_ENCONTRADA"
+# ---- push de inicio ----
+hoje 2027-06-02; hora 09:00
+check "0132/push inicio: oculta no periodo -> a varredura NAO notifica (so a visivel VF: 1)" "$(worker "SELECT hub_campanhas_avisar_inicio();")" "1"
+check "0132/push inicio: oculta continua com aviso_inicio_em NULL" "$(own "SELECT count(*) FROM \"Campanha\" WHERE id IN ($VN,$VX,$VC,$VK) AND aviso_inicio_em IS NULL")" "4"
+check "0132/push inicio: nenhuma notificacao das ocultas" "$(own "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE link IN ('/campanhas/$VN','/campanhas/$VX','/campanhas/$VC','/campanhas/$VK')")" "0"
+# ---- interruptor depois de lancar ----
+check "0132/interruptor: ligar a nota (lancada, em andamento) funciona sem CAMPANHA_IMUTAVEL" "$(tok "$(rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VN, true);")")|$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VN")" "|t"
+check "0132/interruptor: ligar o extrato tambem" "$(tok "$(rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VX, true);")")|$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VX")" "|t"
+check "0132/interruptor: as outras colunas seguem imutaveis (nome)" "$(tok "$(ownx "UPDATE \"Campanha\" SET nome='x' WHERE id=$VN")")" "CAMPANHA_IMUTAVEL"
+check "0132/interruptor: as outras colunas seguem imutaveis (avisar)" "$(tok "$(ownx "UPDATE \"Campanha\" SET avisar=NOT avisar WHERE id=$VN")")" "CAMPANHA_IMUTAVEL"
+check "0132/interruptor: UPDATE direto de visivel_app depois de lancar passa (v_livres)" "$(tok "$(ownx "UPDATE \"Campanha\" SET visivel_app=visivel_app WHERE id=$VN")")" ""
+# ---- ligar muda tudo ----
+check "0132/ligar: a lista do app agora traz VN, VX e VF" "$(app $V1 "SELECT hub_motorista_campanhas();" | jq -c '[.[].id]|sort')" "$(printf '%s\n' $VN $VX $VF | sort -n | jq -Rn -c '[inputs|tonumber]')"
+check "0132/ligar: detalhe da nota aparece" "$(app $V1 "SELECT hub_motorista_campanha($VN);" | jq -r '.campanha.id')" "$VN"
+check "0132/ligar: detalhe do extrato aparece" "$(app $V1 "SELECT hub_motorista_campanha($VX);" | jq -r '.campanha.id')" "$VX"
+check "0132/ligar: turnos do extrato aparecem (sem erro)" "$(tok "$(app $V1 "SELECT hub_motorista_campanha_turnos($VX);")")" ""
+check "0132/ligar: foto do premio volta o PNG" "$(app $V1 "SELECT mime||'|'||base64 FROM hub_motorista_campanha_foto($VN,$PNV);")" "image/png|$PNG"
+check "0132/push inicio: depois de ligar, a varredura seguinte gera 1 (nota VN e extrato VX avisam: 2 campanhas)" "$(worker "SELECT hub_campanhas_avisar_inicio();")" "2"
+check "0132/push inicio: notificacao de VN criada 1x e aviso_inicio_em carimbado" "$(own "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE cnpj_prestador='$V1' AND link='/campanhas/$VN'")|$(own "SELECT aviso_inicio_em IS NOT NULL FROM \"Campanha\" WHERE id=$VN")" "1|t"
+check "0132/push inicio: a varredura seguinte nao gera nada" "$(worker "SELECT hub_campanhas_avisar_inicio();")" "0"
+# ---- desligar tira do app de novo ----
+rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VX, false);" >/dev/null
+check "0132/desligar: o extrato some do app de novo" "$(tok "$(app $V1 "SELECT hub_motorista_campanha($VX);")")" "CAMPANHA_NAO_ENCONTRADA"
+rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VX, true);" >/dev/null
+# ---- payload sem total ----
+JN="$(app $V1 "SELECT hub_motorista_campanha($VN);")"; JX="$(app $V1 "SELECT hub_motorista_campanha($VX);")"
+check "0132/payload: detalhe da NOTA sem totalClassificados" "$(printf '%s' "$JN" | jq -c 'has("totalClassificados")')" "false"
+check "0132/payload: detalhe do EXTRATO sem totalClassificados" "$(printf '%s' "$JX" | jq -c 'has("totalClassificados")')" "false"
+check "0132/payload: continua trazendo eu.posicao (nota) e top10" "$(printf '%s' "$JN" | jq -c '[(.eu.posicao!=null),(.top10|length>0)]')" "[true,true]"
+check "0132/payload: itens da lista sem total e com minhaPosicao/naZonaPremio" "$(app $V1 "SELECT hub_motorista_campanhas();" | jq -c '[.[]|(has("total")), has("minhaPosicao"), has("naZonaPremio")]|unique')" "[false,true]"
+# ---- push de fim ----
+hoje 2027-06-05
+NF0="$(own "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE link='/campanhas/$VF'")"
+own "SELECT hub_campanha_fechar_interno($VF); SELECT hub_campanha_fechar_interno($VC);" >/dev/null
+check "0132/push fim: visivel fechada enfileira o aviso (+2 motoristas) e marca aviso_fim_em" "$(( $(own "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE link='/campanhas/$VF'") - NF0 ))|$(own "SELECT aviso_fim_em IS NOT NULL FROM \"Campanha\" WHERE id=$VF")" "2|t"
+check "0132/push fim: oculta fechada NAO enfileira, mas marca aviso_fim_em" "$(own "SELECT count(*) FROM \"NotificacaoMotorista\" WHERE link='/campanhas/$VC'")|$(own "SELECT aviso_fim_em IS NOT NULL AND fechada_em IS NOT NULL FROM \"Campanha\" WHERE id=$VC")" "0|t"
+# ---- seguranca ----
+hoje 2027-06-02
+VA="$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso='Campanha' AND recurso_id='$VX'")"
+check "0132/auditoria: 3 trocas de VX (liga, desliga, liga) gravadas" "$VA" "3"
+check "0132/auditoria: quem e de->para" "$(own "SELECT usuario_id||'|'||id_empresa||'|'||(detalhes->>'de')||'>'||(detalhes->>'para') FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$VX' ORDER BY id LIMIT 1")" "$(AID $ADM9)|9008|false>true"
+rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VX, true);" >/dev/null
+check "0132/auditoria: trocar para o mesmo valor nao grava de novo" "$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$VX'")" "3"
+check "0132/seguranca: usuario de OUTRA empresa -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_visibilidade($VX, false);")")" "CAMPANHA_NAO_ENCONTRADA"
+check "0132/seguranca: empresa ativa diferente da da campanha -> FORA_DE_ESCOPO" "$(tok "$(rpc $ADM9 '[9008,9001]' 9001 "SELECT hub_campanha_visibilidade($VX, false);")")" "FORA_DE_ESCOPO"
+check "0132/seguranca: sem campanhas.gerir (operador) -> PERMISSAO_NEGADA" "$(tok "$(rpc $OP9 $E9008 9008 "SELECT hub_campanha_visibilidade($VX, false);")")" "PERMISSAO_NEGADA"
+check "0132/seguranca: motorista (sem escopo) nao altera -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(app $V1 "SELECT hub_campanha_visibilidade($VX, false);")")" "CAMPANHA_NAO_ENCONTRADA"
+check "0132/seguranca: a recusa nao mudou nada" "$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VX")" "t"
+check "0132/seguranca: sem EXECUTE para PUBLIC" "$(own "SELECT has_function_privilege('public','hub_campanha_visibilidade(int,boolean)','EXECUTE')::text||has_function_privilege('authenticated','hub_campanha_visibilidade(int,boolean)','EXECUTE')::text")" "falsetrue"
+check "0132/seguranca: hub_campanha_visivel segue sem EXECUTE para authenticated" "$(own "SELECT has_function_privilege('authenticated','hub_campanha_visivel(\"Campanha\",int)','EXECUTE')::text")" "false"
+check "0132/seguranca: valor NULL -> VALIDACAO" "$(tok "$(rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VX, NULL);")")" "VALIDACAO"
+rpc $ADM9 $E9008 9008 "SELECT hub_campanha_cancelar($VK, 'motivo do teste');" >/dev/null
+check "0132/seguranca: cancelada recusa o interruptor -> CAMPANHA_SITUACAO_INVALIDA" "$(tok "$(rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VK, true);")")|$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VK")" "CAMPANHA_SITUACAO_INVALIDA|f"
+
 echo "--- idempotencia da migration (0129 duas vezes, com dados de extrato presentes) ---"
 for i in 1 2; do
   R4="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0131_categorias_modo_todas.sql" 2>&1 | grep -c ERROR)"
@@ -951,6 +1068,13 @@ check "0130/b: com leitura -> nota 95 (parcela de tempo cheia)" "$(RK130 $IDB130
 echo "--- idempotencia da 0128 ---"
 R3="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0128_campanhas_excluir_admin.sql" 2>&1 | grep -c ERROR)"
 check "migration 0128 reaplicada sem erro" "$R3" "0"
+
+echo "--- idempotencia da 0132 (reaplica por cima das reaplicacoes de 0131/0130, que trazem corpos antigos) ---"
+for i in 1 2; do
+  R6="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0132_campanhas_visibilidade_app.sql" 2>&1 | grep -c ERROR)"
+  check "migration 0132 reaplicada ($i) sem erro" "$R6" "0"
+done
+check "0132: depois de reaplicar, os dados (visivel_app) e o corpo vivo seguem corretos" "$(own "SELECT pg_get_functiondef('hub_campanha_visivel(\"Campanha\",integer)'::regprocedure) ~ 'c[.]visivel_app'")|$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VX")" "t|t"
 
 echo "===================================================================="
 echo "CAMPANHAS-DB${CAMP_NEG:+ (controle negativo: $CAMP_NEG)}: PASS=$passes FAIL=$fails"

@@ -19,6 +19,7 @@ import { INDICADORES_META } from './performance-metas-api';
 const ITEM = {
   id: 12,
   nome: 'Rei do Jantar — Novembro',
+  visivelApp: false,
   situacao: 'em_andamento',
   dataInicio: '2026-11-10',
   dataFim: '2026-11-30',
@@ -141,5 +142,12 @@ describe('extrato no contrato', () => {
     const r = parseRanking({ itens: [{ ...LINHA, nota: null, turnosValidos: 14, valorCentavos: 203140 }], contagem: {} });
     expect(r.itens[0]).toMatchObject({ turnosValidos: 14, turnos: 19, valorCentavos: 203140, nota: null });
     expect(parseRanking({ itens: [LINHA], contagem: {} }).itens[0]).toMatchObject({ turnosValidos: null, valorCentavos: null });
+  });
+});
+
+describe('visivelApp', () => {
+  it('lista e detalhe trazem o flag; ausente = oculta', () => {
+    expect(parseCampanhaItem({ ...ITEM, visivelApp: true }).visivelApp).toBe(true);
+    expect(parseCampanhaItem(ITEM).visivelApp).toBe(false);
   });
 });

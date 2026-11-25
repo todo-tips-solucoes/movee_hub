@@ -61,3 +61,17 @@ export async function campanhaIdPorNome(page: Page, nome: string): Promise<numbe
   expect(achadas.length, `campanha lançada "${nome}" na lista`).toBeGreaterThanOrEqual(1);
   return Math.max(...achadas.map((c) => c.id));
 }
+
+/** Interruptor "Motoristas veem esta campanha no app" do detalhe do hub; espera o selo mudar. */
+export function interruptorVisibilidade(page: Page) {
+  return page.getByRole('switch', { name: 'Motoristas veem esta campanha no app' });
+}
+
+export async function definirVisibilidade(page: Page, visivel: boolean) {
+  const sw = interruptorVisibilidade(page);
+  await expect(sw).toBeVisible();
+  if ((await sw.getAttribute('aria-checked')) === String(visivel)) return;
+  await sw.click();
+  await expect(page.getByText(visivel ? 'Visível no app' : 'Oculta no app', { exact: true })).toBeVisible();
+  await expect(sw).toHaveAttribute('aria-checked', String(visivel));
+}

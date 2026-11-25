@@ -24,6 +24,7 @@ const FORM: FormularioCampanha = {
   cortes: { aceitacao: 0.8, conclusao: 0.9, tempo: null, pedidos: null },
   premios: [{ ...premioVazio(1), descricao: 'Moto Honda CG 160' }],
   avisar: true,
+  visivelApp: false,
 };
 const ALCANCE = { rodaram: 212, semModal: 12 };
 
@@ -107,5 +108,14 @@ describe('CampanhaLancarDialog', () => {
     expect(screen.getByText('Todas as praças')).toBeInTheDocument();
     expect(screen.getByText(/Todos os turnos/)).toBeInTheDocument();
     expect(screen.getByText(/Todos os modais/)).toBeInTheDocument();
+  });
+
+  it('linha de visibilidade: alerta quando oculta, "Visível no app" quando ligada', () => {
+    const { unmount } = render(<CampanhaLancarDialog open onOpenChange={() => {}} form={FORM} alcance={ALCANCE} onLancar={vi.fn()} />);
+    expect(screen.getByText(/Oculta: os motoristas não veem a campanha nem recebem aviso/)).toBeInTheDocument();
+    unmount();
+    render(<CampanhaLancarDialog open onOpenChange={() => {}} form={{ ...FORM, visivelApp: true }} alcance={ALCANCE} onLancar={vi.fn()} />);
+    expect(screen.getByText('Visível no app')).toBeInTheDocument();
+    expect(screen.queryByText(/Oculta: os motoristas/)).not.toBeInTheDocument();
   });
 });
