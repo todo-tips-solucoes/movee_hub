@@ -9,6 +9,8 @@
  *   - split de linha por `;` (2.1.1)
  *   - iteração por streaming linha-a-linha (2.1.2)
  *   - seleção de dialeto por `tipo` vindo do multipart, SEM sniffing (2.1.3)
+ *   - leitura barata SÓ da 1ª linha (`lerPrimeiraLinha`), usada pela rota de
+ *     upload para barrar layout errado sem inflar o ZIP inteiro
  *   - extração seguro de ZIP de 1 entrada (2.1.4, delega a hub-import-zip.js)
  *
  * Nota sobre "streaming" e ZIP: a extração de ZIP (2.1.4) exige acesso ao
@@ -27,6 +29,7 @@
 'use strict';
 
 const readline = require('readline');
+const zlib = require('zlib');
 const { Readable } = require('stream');
 const {
   extractSingleEntryZip,
@@ -201,6 +204,78 @@ function bufferParaStream(buffer) {
   return Readable.from([chunk]);
 }
 
+const MAX_PRIMEIRA_LINHA_BYTES = 64 * 1024;
+
+/** Primeira linha NÃO vazia de um prefixo de bytes (mesma regra de
+ * `iterarLinhas`, que pula linhas vazias). `fechada` = terminou em `\n`, ou
+ * seja, não há mais o que ler. */
+function extrairPrimeiraLinha(prefixo) {
+  let ini = 0;
+  for (;;) {
+    const nl = prefixo.indexOf(0x0a, ini);
+    const fim = nl === -1 ? prefixo.length : nl;
+    const linha = stripBom(prefixo.toString('utf8', ini, fim)).replace(/\r$/, '');
+    if (linha !== '') return { linha, fechada: nl !== -1 };
+    if (nl === -1) return { linha: '', fechada: false };
+    ini = nl + 1;
+  }
+}
+
+/**
+ * Lê SÓ a primeira linha (cabeçalho) de um CSV ou ZIP de 1 entrada, olhando no
+ * máximo `maxBytes` do conteúdo (descomprimido). Feita para a rota de upload:
+ * NUNCA infla o ZIP inteiro — o DEFLATE roda em streaming e é destruído assim
+ * que a linha fecha ou passa de `maxBytes`. Sem `\n` em `maxBytes`, devolve a
+ * linha truncada (o classificador de layout a recusará).
+ * @returns {Promise<string[]>} campos já splitados
+ * @throws {HubImportParseError} conteudo_vazio | motivos de ZIP
+ */
+async function lerPrimeiraLinha(buffer, { nomeArquivo, maxBytes = MAX_PRIMEIRA_LINHA_BYTES } = {}) {
+  let prefixo;
+  if (!ehZip(nomeArquivo)) {
+    prefixo = (buffer || Buffer.alloc(0)).subarray(0, maxBytes);
+  } else {
+    let info;
+    try {
+      info = inspecionarEntrada(buffer, { maxUncompressedBytes: MAX_ZIP_DESCOMPRIMIDO_BYTES });
+    } catch (err) {
+      if (err instanceof HubImportZipError) throw new HubImportParseError(err.message, err.motivo);
+      throw err;
+    }
+    if (info.metodoCompressao === 0) {
+      prefixo = info.dadosComprimidos.subarray(0, maxBytes);
+    } else {
+      prefixo = await new Promise((resolve, reject) => {
+        const inflate = zlib.createInflateRaw();
+        const partes = [];
+        let total = 0;
+        let pronto = false;
+        const fim = () => {
+          if (pronto) return;
+          pronto = true;
+          inflate.destroy();
+          resolve(Buffer.concat(partes).subarray(0, maxBytes));
+        };
+        inflate.on('data', (chunk) => {
+          partes.push(chunk);
+          total += chunk.length;
+          if (total >= maxBytes || extrairPrimeiraLinha(Buffer.concat(partes)).fechada) fim();
+        });
+        inflate.on('end', fim);
+        inflate.on('error', (err) => {
+          if (pronto) return;
+          pronto = true;
+          reject(new HubImportParseError(`Falha ao descomprimir ZIP: ${err.message}`, 'zip_invalido'));
+        });
+        inflate.end(info.dadosComprimidos);
+      });
+    }
+  }
+  const { linha } = extrairPrimeiraLinha(prefixo);
+  if (linha === '') throw new HubImportParseError('Nenhuma linha decodificável no conteúdo', 'conteudo_vazio');
+  return splitLinhaCsv(linha);
+}
+
 function validarTipo(tipo) {
   if (!TIPOS_SUPORTADOS.includes(tipo)) {
     throw new HubImportParseError(`Tipo de importação desconhecido: ${JSON.stringify(tipo)}`, 'tipo_invalido');
@@ -215,6 +290,7 @@ module.exports = {
   resolverConteudoCsv,
   resolverConteudoCsvAsync,
   validarZipLeve,
+  lerPrimeiraLinha,
   iterarLinhas,
   bufferParaStream,
   validarTipo,

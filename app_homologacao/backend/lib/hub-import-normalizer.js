@@ -153,6 +153,18 @@ function validarHeader(camposHeader, tipo) {
   return { valido, esperado, recebido };
 }
 
+/**
+ * Classifica o cabeçalho de um upload (rota, antes de gravar nada): `ok` se bate
+ * com o tipo escolhido; `outro_tipo` se bate com o OUTRO tipo suportado;
+ * `invalido` caso contrário (ex.: planilha de outro módulo). Só reusa
+ * `validarHeader` — as listas HEADER_* continuam únicas.
+ */
+function classificarLayout(camposHeader, tipo) {
+  if (validarHeader(camposHeader, tipo).valido) return 'ok';
+  const outro = tipo === 'faturamento' ? 'performance' : 'faturamento';
+  return validarHeader(camposHeader, outro).valido ? 'outro_tipo' : 'invalido';
+}
+
 function valorCampo(campos, idx, nomeHeader) {
   const i = idx[nomeHeader];
   if (i === undefined || i >= campos.length || campos[i] === undefined) return '';
@@ -522,6 +534,7 @@ module.exports = {
   TIPOS_LANCAMENTO_CONHECIDOS,
   indiceHeader,
   validarHeader,
+  classificarLayout,
   normalizarDecimalVirgula,
   normalizarDecimalPonto,
   extrairZonaDePraca,

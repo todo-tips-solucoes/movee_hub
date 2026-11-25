@@ -20,6 +20,7 @@ const {
   HEADER_PERFORMANCE,
   indiceHeader,
   validarHeader,
+  classificarLayout,
   normalizarDecimalVirgula,
   normalizarDecimalPonto,
   extrairZonaDePraca,
@@ -496,5 +497,19 @@ describe('texto em campo numérico é gravado como 0, sem perder a linha', () =>
     assert.equal(valores.corridas_rejeitadas, 0);
     assert.equal(erros.filter((e) => e.campo === 'corridas_rejeitadas').length, 0,
       'zero legítimo não é anomalia — não deve poluir ImportacaoLinhaErro');
+  });
+});
+
+describe('classificarLayout', () => {
+  test('ok / outro_tipo (nos dois sentidos) / invalido', () => {
+    assert.equal(classificarLayout(HEADER_FATURAMENTO, 'faturamento'), 'ok');
+    assert.equal(classificarLayout(HEADER_PERFORMANCE, 'performance'), 'ok');
+    assert.equal(classificarLayout(HEADER_PERFORMANCE, 'faturamento'), 'outro_tipo');
+    assert.equal(classificarLayout(HEADER_FATURAMENTO, 'performance'), 'outro_tipo');
+    // colunas reais de docs/documentos_apoio/modelo_upload_envio_em_massa_movee (2).xlsx
+    const modelo = ['uuid', 'number', 'nome', 'valor', 'mensagem1', 'mensagem2', 'enviado',
+      'retorno_envio_msg_1', 'retorno_envio_msg_2', 'tribnac', 'cnpj_tomador', 'cnpj_prestador', 'gorjeta'];
+    assert.equal(classificarLayout(modelo, 'performance'), 'invalido');
+    assert.equal(classificarLayout([], 'faturamento'), 'invalido');
   });
 });

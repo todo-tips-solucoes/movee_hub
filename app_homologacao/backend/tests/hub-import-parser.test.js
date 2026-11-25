@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { test, describe } = require('node:test');
+const { test, describe, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const zlib = require('zlib');
 const { PassThrough } = require('stream');
@@ -31,6 +31,7 @@ const {
   iterarLinhas,
   bufferParaStream,
   validarTipo,
+  lerPrimeiraLinha,
   ehZip,
   HubImportParseError,
 } = require('../lib/hub-import-parser');
@@ -99,15 +100,15 @@ function construirEocd({ totalEntradas, tamanhoDiretorioCentral, offsetDiretorio
 }
 
 /** ZIP de 1 entrada válida (DEFLATE real). */
-function construirZipUmaEntrada({ nome = 'dados.csv', conteudo = 'a;b\n1;2\n', tamanhoDescomprimidoForjado } = {}) {
+function construirZipUmaEntrada({ nome = 'dados.csv', conteudo = 'a;b\n1;2\n', tamanhoDescomprimidoForjado, metodo = 8 } = {}) {
   const dadosOriginais = Buffer.isBuffer(conteudo) ? conteudo : Buffer.from(conteudo, 'utf8');
-  const comprimido = zlib.deflateRawSync(dadosOriginais);
+  const comprimido = metodo === 0 ? dadosOriginais : zlib.deflateRawSync(dadosOriginais);
   const localHeader = construirLocalHeader({
-    nome, metodo: 8, tamanhoComprimido: comprimido.length, tamanhoDescomprimido: dadosOriginais.length,
+    nome, metodo, tamanhoComprimido: comprimido.length, tamanhoDescomprimido: dadosOriginais.length,
   });
   const localBloco = Buffer.concat([localHeader, comprimido]);
   const centralEntry = construirCentralDirEntry({
-    nome, metodo: 8, tamanhoComprimido: comprimido.length, tamanhoDescomprimido: dadosOriginais.length,
+    nome, metodo, tamanhoComprimido: comprimido.length, tamanhoDescomprimido: dadosOriginais.length,
     offsetLocal: 0, tamanhoDescomprimidoForjado,
   });
   const eocd = construirEocd({
@@ -321,5 +322,70 @@ describe('hub-import-parser — extração de ZIP segura (2.1.4)', () => {
     for await (const linha of iterarLinhas(stream)) linhas.push(linha);
     assert.equal(linhas.length, 2);
     assert.deepEqual(linhas[0].campos, ['col1', 'col2']);
+  });
+});
+
+describe('lerPrimeiraLinha', () => {
+  const CSV = 'h1;h2;h3\n1;2;3\n';
+  const esperado = ['h1', 'h2', 'h3'];
+
+  test('CSV com BOM', async () => {
+    assert.deepEqual(await lerPrimeiraLinha(Buffer.from(`\uFEFF${CSV}`), { nomeArquivo: 'a.csv' }), esperado);
+  });
+
+  test('CSV com CRLF e linhas vazias iniciais', async () => {
+    assert.deepEqual(await lerPrimeiraLinha(Buffer.from('\r\nh1;h2;h3\r\n1;2;3\r\n'), { nomeArquivo: 'a.csv' }), esperado);
+  });
+
+  test('CSV vazio -> conteudo_vazio', async () => {
+    await assert.rejects(
+      () => lerPrimeiraLinha(Buffer.from('\n\n'), { nomeArquivo: 'a.csv' }),
+      (err) => err instanceof HubImportParseError && err.motivo === 'conteudo_vazio'
+    );
+  });
+
+  test('ZIP STORE', async () => {
+    const zip = construirZipUmaEntrada({ conteudo: CSV, metodo: 0 });
+    assert.deepEqual(await lerPrimeiraLinha(zip, { nomeArquivo: 'a.zip' }), esperado);
+  });
+
+  test('ZIP DEFLATE', async () => {
+    const zip = construirZipUmaEntrada({ conteudo: CSV });
+    assert.deepEqual(await lerPrimeiraLinha(zip, { nomeArquivo: 'a.zip' }), esperado);
+  });
+
+  test('ZIP DEFLATE com 1ª linha gigante: não infla tudo, devolve truncada em <= maxBytes', async () => {
+    // 8 MB sem \n; comprime para poucos KB, então inflar tudo seria o caminho errado.
+    const zip = construirZipUmaEntrada({ conteudo: Buffer.alloc(8 * 1024 * 1024, 'a') });
+    const original = zlib.createInflateRaw;
+    let emitido = 0;
+    const m = mock.method(zlib, 'createInflateRaw', (...args) => {
+      const st = original.apply(zlib, args);
+      st.on('data', (c) => { emitido += c.length; });
+      return st;
+    });
+    try {
+      const campos = await lerPrimeiraLinha(zip, { nomeArquivo: 'a.zip', maxBytes: 1024 });
+      assert.equal(campos.length, 1);
+      assert.ok(campos[0].length <= 1024);
+    } finally {
+      m.mock.restore();
+    }
+    assert.ok(emitido < 8 * 1024 * 1024, `inflou ${emitido} bytes — deveria ter parado cedo`);
+  });
+
+  test('ZIP corrompido -> zip_invalido', async () => {
+    await assert.rejects(
+      () => lerPrimeiraLinha(Buffer.from('nao e zip'), { nomeArquivo: 'a.zip' }),
+      (err) => err instanceof HubImportParseError && err.motivo === 'zip_invalido'
+    );
+    // estrutura ok, DEFLATE corrompido
+    const zip = construirZipUmaEntrada({ conteudo: CSV });
+    const ini = 30 + 'dados.csv'.length;
+    zip.fill(0xff, ini, ini + 4);
+    await assert.rejects(
+      () => lerPrimeiraLinha(zip, { nomeArquivo: 'a.zip' }),
+      (err) => err instanceof HubImportParseError && err.motivo === 'zip_invalido'
+    );
   });
 });

@@ -37,11 +37,11 @@ const ORDENAVEIS_IMPORTACOES = [
   'total_linhas',
   'data_referencia',
 ];
+const { classificarLayout } = require('../lib/hub-import-normalizer');
 const {
   HubImportParseError,
   validarZipLeve,
-  iterarLinhas,
-  bufferParaStream,
+  lerPrimeiraLinha,
   validarTipo,
   ehZip,
   TIPOS_SUPORTADOS,
@@ -127,40 +127,27 @@ function uploadSingle(req, res, next) {
 }
 
 /**
- * F2 (pós-review PR #57) — validação BARATA do conteúdo, pensada para
- * devolver 201 rápido: para `.zip`, confirma SÓ a estrutura (EOCD, 1
- * entrada, nome seguro, tamanho DECLARADO dentro do limite) via
- * `validarZipLeve` — NUNCA infla o conteúdo aqui (o inflate de até 100MB é
- * síncrono/pesado e bloquearia a thread de request; fica reservado para o
- * processor, fire-and-forget, `lib/hub-import-processor.js`). Para CSV
- * puro (sem custo de descompressão), mantém a checagem original de "ao
- * menos 1 linha decodificável" — é barata (não envolve zlib) e dá feedback
- * de erro imediato ao usuário em vez de um 201 seguido de `failed`
- * silencioso. NÃO valida o header aqui (isso é responsabilidade do
- * processamento — FASE 4, contracts/importacoes-api.md "cabeçalho errado
- * -> failed"); e, para `.zip`, também não confirma "tem linha
- * decodificável" (exigiria inflar) — um ZIP estruturalmente válido mas com
- * conteúdo vazio só é pego no processor (`arquivo vazio`, 4.1).
+ * Validação BARATA do conteúdo, pensada para devolver 201 rápido e para NÃO
+ * deixar lixo (registro `failed` + original em disco) quando o arquivo é de
+ * outro módulo: confere a estrutura (ZIP: EOCD, 1 entrada, nome seguro,
+ * tamanho declarado) e o CABEÇALHO da 1ª linha contra o tipo escolhido via
+ * `lerPrimeiraLinha` — que lê só um prefixo e NUNCA infla o ZIP inteiro (o
+ * inflate de até 100MB fica reservado ao processor, fire-and-forget).
+ * O processor segue validando o cabeçalho (defesa em profundidade; cobre o
+ * reprocessar).
  * @returns {Promise<Buffer>} o buffer recebido (sem transformação)
- * @throws {HubImportParseError}
+ * @throws {HubImportParseError} motivos de conteúdo/ZIP, `layout_invalido`,
+ *   `layout_de_outro_tipo`
  */
-async function validarConteudo(buffer, nomeArquivo) {
-  if (ehZip(nomeArquivo)) {
-    validarZipLeve(buffer, { nomeArquivo });
-    return buffer;
-  }
-  if (!buffer || buffer.length === 0) {
+async function validarConteudo(buffer, nomeArquivo, tipo) {
+  if (ehZip(nomeArquivo)) validarZipLeve(buffer, { nomeArquivo });
+  else if (!buffer || buffer.length === 0) {
     throw new HubImportParseError('Conteúdo vazio após resolução', 'conteudo_vazio');
   }
-  const stream = bufferParaStream(buffer);
-  let temLinha = false;
-  // eslint-disable-next-line no-unused-vars
-  for await (const _linha of iterarLinhas(stream)) {
-    temLinha = true;
-    break;
-  }
-  if (!temLinha) {
-    throw new HubImportParseError('Nenhuma linha decodificável no conteúdo', 'conteudo_vazio');
+  const campos = await lerPrimeiraLinha(buffer, { nomeArquivo });
+  const layout = classificarLayout(campos, tipo);
+  if (layout !== 'ok') {
+    throw new HubImportParseError(`Cabeçalho fora do layout de ${tipo}`, layout === 'outro_tipo' ? 'layout_de_outro_tipo' : 'layout_invalido');
   }
   return buffer;
 }
@@ -279,7 +266,7 @@ router.post('/', requirePermission('importacoes.criar'), uploadSingle, async (re
     // 2.1.4). Delega toda a defesa de zip-bomb/path-traversal/múltiplas
     // entradas para hub-import-zip.js via resolverConteudoCsv.
     try {
-      await validarConteudo(req.file.buffer, nomeOriginal);
+      await validarConteudo(req.file.buffer, nomeOriginal, tipo);
     } catch (err) {
       if (err instanceof HubImportParseError) {
         return res.status(422).json({ error: 'INVALIDO', motivo: err.motivo || 'conteudo_invalido' });

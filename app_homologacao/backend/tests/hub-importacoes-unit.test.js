@@ -32,6 +32,9 @@ const {
   UPLOADS_DIR,
 } = require('../routes/hub-importacoes');
 const { HubImportParseError } = require('../lib/hub-import-parser');
+const { HEADER_PERFORMANCE } = require('../lib/hub-import-normalizer');
+
+const CSV_PERF = `${HEADER_PERFORMANCE.join(';')}\nx\n`;
 
 describe('extensaoDe', () => {
   test('extrai extensão em minúsculas', () => {
@@ -89,28 +92,28 @@ describe('caminhoArmazenamento', () => {
 
 describe('validarConteudo', () => {
   test('CSV simples com header + 1 linha -> resolve sem lançar', async () => {
-    const buf = Buffer.from('col_a;col_b\nvalor1;valor2\n', 'utf8');
-    const out = await validarConteudo(buf, 'dados.csv');
+    const buf = Buffer.from(CSV_PERF, 'utf8');
+    const out = await validarConteudo(buf, 'dados.csv', 'performance');
     assert.equal(out.toString('utf8'), buf.toString('utf8'));
   });
 
   test('conteúdo vazio -> HubImportParseError motivo conteudo_vazio', async () => {
     await assert.rejects(
-      () => validarConteudo(Buffer.alloc(0), 'dados.csv'),
+      () => validarConteudo(Buffer.alloc(0), 'dados.csv', 'performance'),
       (err) => err instanceof HubImportParseError && err.motivo === 'conteudo_vazio'
     );
   });
 
   test('CSV só com quebra de linha (sem linha decodificável) -> conteudo_vazio', async () => {
     await assert.rejects(
-      () => validarConteudo(Buffer.from('\n\n', 'utf8'), 'dados.csv'),
+      () => validarConteudo(Buffer.from('\n\n', 'utf8'), 'dados.csv', 'performance'),
       (err) => err instanceof HubImportParseError && err.motivo === 'conteudo_vazio'
     );
   });
 
   test('ZIP inválido (sem EOCD) -> HubImportParseError motivo zip_invalido', async () => {
     await assert.rejects(
-      () => validarConteudo(Buffer.from('não é um zip de verdade'), 'dados.zip'),
+      () => validarConteudo(Buffer.from('não é um zip de verdade'), 'dados.zip', 'performance'),
       (err) => err instanceof HubImportParseError && err.motivo === 'zip_invalido'
     );
   });
@@ -122,7 +125,7 @@ describe('validarConteudo', () => {
   // comportamento antigo (que devolvia o CSV já descomprimido).
   test('F2: ZIP estruturalmente válido -> resolve sem lançar e SEM inflar (devolve o buffer ORIGINAL do upload, não o CSV extraído)', async () => {
     const zlib = require('zlib');
-    const csvOriginal = 'col1;col2\nval1;val2\n';
+    const csvOriginal = CSV_PERF;
     const comprimido = zlib.deflateRawSync(Buffer.from(csvOriginal, 'utf8'));
     const nome = Buffer.from('dados.csv', 'utf8');
     const localHeader = Buffer.alloc(30 + nome.length);
@@ -155,7 +158,7 @@ describe('validarConteudo', () => {
 
     const zip = Buffer.concat([localBloco, centralEntry, eocd]);
 
-    const out = await validarConteudo(zip, 'dados.zip');
+    const out = await validarConteudo(zip, 'dados.zip', 'performance');
     assert.equal(Buffer.compare(out, zip), 0, 'validarConteudo NÃO deve transformar o buffer — a rota não infla');
   });
 
@@ -170,8 +173,26 @@ describe('validarConteudo', () => {
     eocdFalsoDuasEntradas.writeUInt32LE(0, 12);
     eocdFalsoDuasEntradas.writeUInt32LE(0, 16);
     await assert.rejects(
-      () => validarConteudo(eocdFalsoDuasEntradas, 'duas.zip'),
+      () => validarConteudo(eocdFalsoDuasEntradas, 'duas.zip', 'performance'),
       (err) => err instanceof HubImportParseError && err.motivo === 'zip_multiplas_entradas'
+    );
+  });
+});
+
+describe('validarConteudo — layout (bloqueio no upload)', () => {
+  const MODELO_ENVIO_MASSA = 'uuid;number;nome;valor;mensagem1;mensagem2;enviado;retorno_envio_msg_1;retorno_envio_msg_2;tribnac;cnpj_tomador;cnpj_prestador;gorjeta\n1;2;a;3;;;;;;;;;\n';
+
+  test('modelo de envio em massa -> layout_invalido', async () => {
+    await assert.rejects(
+      () => validarConteudo(Buffer.from(MODELO_ENVIO_MASSA), 'modelo.csv', 'performance'),
+      (err) => err instanceof HubImportParseError && err.motivo === 'layout_invalido'
+    );
+  });
+
+  test('cabeçalho de performance enviado como faturamento -> layout_de_outro_tipo', async () => {
+    await assert.rejects(
+      () => validarConteudo(Buffer.from(CSV_PERF), 'perf.csv', 'faturamento'),
+      (err) => err instanceof HubImportParseError && err.motivo === 'layout_de_outro_tipo'
     );
   });
 });
