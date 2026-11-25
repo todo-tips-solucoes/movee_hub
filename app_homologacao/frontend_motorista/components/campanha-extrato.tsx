@@ -108,8 +108,7 @@ function PosicaoEExtrato({ t }: { t: ExtratoTela }) {
   return (
     <div className="flex items-center gap-4">
       <div className="flex h-[84px] w-[84px] shrink-0 flex-col items-center justify-center rounded-full bg-muted">
-        <span className="tabular text-[28px] font-extrabold leading-none">{ordinal(pos)}</span>
-        <span className="text-[10px] font-bold text-muted-foreground">de {t.totalClassificados}</span>
+        <span className="tabular text-[32px] font-extrabold leading-none">{ordinal(pos)}</span>
       </div>
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-xs font-bold text-muted-foreground">Seu extrato na campanha</span>

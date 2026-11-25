@@ -24,6 +24,7 @@ const FORM: FormularioCampanha = {
   cortes: { aceitacao: 0.8, conclusao: 0.9, tempo: null, pedidos: null },
   premios: [{ ...premioVazio(1), descricao: 'Moto Honda CG 160' }],
   avisar: true,
+  visivelApp: false,
 };
 const ALCANCE = { rodaram: 212, semModal: 12 };
 

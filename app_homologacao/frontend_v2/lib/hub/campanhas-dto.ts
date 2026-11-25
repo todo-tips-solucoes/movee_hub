@@ -88,6 +88,8 @@ export interface CampanhaItem {
   contagem: Contagem;
   premiosPendentes: number;
   dadosAte: string | null;
+  /** Interruptor de visibilidade no app do motorista (padrão: oculta). */
+  visivelApp: boolean;
 }
 
 export interface PremioDetalhe {
@@ -235,6 +237,7 @@ export function parseCampanhaItem(raw: unknown): CampanhaItem {
     contagem: parseContagem(r.contagem),
     premiosPendentes: num(r.premiosPendentes),
     dadosAte: strOuNull(r.dadosAte),
+    visivelApp: r.visivelApp === true,
   };
 }
 

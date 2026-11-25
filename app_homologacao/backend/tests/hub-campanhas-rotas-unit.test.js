@@ -199,6 +199,46 @@ describe('criar / editar / transições', () => {
     assert.equal(auditorias.length, 0);
   });
 
+  test('PUT sem visivelApp não envia a chave; com boolean envia', async () => {
+    respostas['rpc/hub_campanha_salvar'] = 5;
+    const base = FORM;
+    await req('PUT', '/api/v1/hub/campanhas/5', { json: base });
+    assert.equal('visivelApp' in chamadas[0].body.p_dados, false);
+    await req('PUT', '/api/v1/hub/campanhas/5', { json: { ...base, visivelApp: true } });
+    assert.equal(chamadas[1].body.p_dados.visivelApp, true);
+  });
+
+  test('visibilidade: 200 {id,visivelApp}, RPC com p_id/p_visivel, claims da entidade do token', async () => {
+    for (const visivel of [true, false]) {
+      chamadas = [];
+      const r = await req('PATCH', '/api/v1/hub/campanhas/5/visibilidade', { json: { visivel, idEmpresa: 999 } });
+      assert.deepEqual([r.status, r.body], [200, { id: 5, visivelApp: visivel }]);
+      assert.deepEqual(chamadas.map((c) => [c.endpoint, c.body]), [['rpc/hub_campanha_visibilidade', { p_id: 5, p_visivel: visivel }]]);
+      assert.deepEqual(chamadas[0].claims.escopo, [6]);
+    }
+  });
+
+  test('visibilidade: visivel não-boolean -> 422 sem RPC; id malformado -> 404; sem campanhas.gerir -> 403', async () => {
+    for (const visivel of [undefined, 'true', 1, null]) {
+      const r = await req('PATCH', '/api/v1/hub/campanhas/5/visibilidade', { json: visivel === undefined ? {} : { visivel } });
+      assert.deepEqual([r.status, r.body], [422, { erro: 'VALIDACAO', campo: 'visivel' }]);
+    }
+    assert.equal((await req('PATCH', '/api/v1/hub/campanhas/abc/visibilidade', { json: { visivel: true } })).status, 404);
+    permissoes = new Set(['campanhas.consultar']);
+    assert.equal((await req('PATCH', '/api/v1/hub/campanhas/5/visibilidade', { json: { visivel: true } })).status, 403);
+    assert.equal(chamadas.length, 0);
+  });
+
+  test('visibilidade: tokens do banco mapeados (404 e 409 cancelada); infra -> 500', async () => {
+    for (const [token, status] of [['CAMPANHA_NAO_ENCONTRADA', 404], ['CAMPANHA_SITUACAO_INVALIDA', 409], ['PERMISSAO_NEGADA', 403]]) {
+      respostas['rpc/hub_campanha_visibilidade'] = rpcErr(token);
+      const r = await req('PATCH', '/api/v1/hub/campanhas/5/visibilidade', { json: { visivel: true } });
+      assert.deepEqual([r.status, r.body], [status, { erro: token }]);
+    }
+    respostas['rpc/hub_campanha_visibilidade'] = Object.assign(new Error('x'), { body: 'upstream' });
+    assert.equal((await req('PATCH', '/api/v1/hub/campanhas/5/visibilidade', { json: { visivel: true } })).status, 500);
+  });
+
   const esperado = {
     CAMPANHA_NAO_ENCONTRADA: 404, CAMPANHA_IMUTAVEL: 409, CAMPANHA_SITUACAO_INVALIDA: 409, TETO_CAMPANHAS_ATIVAS: 409,
     PEDIDOS_SEM_COBERTURA: 422, INICIO_NO_PASSADO: 422, FAIXAS_SOBREPOSTAS: 422, PESOS_INVALIDOS: 422, CORTE_SEM_PESO: 422,

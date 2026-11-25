@@ -29,7 +29,6 @@ export interface CampanhaItem {
   dataInicio: string;
   dataFim: string;
   minhaPosicao: number | null;
-  total: number;
   minhaSituacao: SituacaoMotorista | null;
   naZonaPremio: boolean;
 }
@@ -112,7 +111,6 @@ export interface CampanhaTela {
   eu: MinhaLinha | null;
   lider: { pedidos: number } | null;
   top10: LinhaTop[];
-  totalClassificados: number;
 }
 
 /** Extrato (X2/E7): ranking só com posição + nome abreviado; o valor é só o do próprio motorista. */
@@ -138,7 +136,6 @@ export interface ExtratoTela {
   eu: MinhaLinhaExtrato | null;
   lider: null;
   top10: LinhaTopExtrato[];
-  totalClassificados: number;
 }
 
 export interface MotivoTurno {

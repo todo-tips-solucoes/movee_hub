@@ -47,6 +47,7 @@ psql_t() { dc exec -T db psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@
 "$HUB_DIR/scripts/migrate.sh" -f "$COMPOSE" -p "$PROJECT" -e "$ENV_FILE" >"$TMP/m.log" 2>&1 || { echo "FAIL: migrate"; tail -20 "$TMP/m.log"; exit 1; }
 grep -q "0127_campanhas.sql" "$TMP/m.log" || { echo "FAIL: 0127 nao aplicada"; exit 1; }
 grep -q "0129_campanhas_extrato.sql" "$TMP/m.log" || { echo "FAIL: 0129 nao aplicada"; exit 1; }
+grep -q "0132_campanhas_visibilidade_app.sql" "$TMP/m.log" || { echo "FAIL: 0132 nao aplicada"; exit 1; }
 
 DIAS=150; ENT=2000
 [ "${PERF_FULL:-1}" = "0" ] && { DIAS=15; ENT=2000; }
@@ -114,6 +115,8 @@ FROM (VALUES ('X1 extrato 30d', '2026-06-01'::date, NULL::text[], NULL::text[], 
              ('X2 extrato 30d filtros', '2026-06-01'::date, ARRAY['PRACA 1','PRACA 2','PRACA 3'], ARRAY['JANTAR 18H-22H'], ARRAY['MOTO']),
              ('X3 extrato 91d', '2026-04-01'::date, NULL, NULL, NULL)) v(nome, ini, pracas, turnos, modais);
 SQL
+# 0132: toda campanha nasce oculta e o app (hub_motorista_*) so enxerga as visiveis; as campanhas do volume sao ligadas aqui
+psql_t -q -c 'UPDATE "Campanha" SET visivel_app = true WHERE id_empresa = 9001' >/dev/null
 X1="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='X1 extrato 30d'")"; X2="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='X2 extrato 30d filtros'")"; X3="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='X3 extrato 91d'")"
 V1="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='V1 sem praca'")"; V2="$(psql_t -tAc "SELECT id FROM \"Campanha\" WHERE nome='V2 com praca'")"
 CNPJ=90000000000003  # entregador 3 (PRACA 3, MOTO) esta nas duas

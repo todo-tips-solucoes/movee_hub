@@ -31,6 +31,8 @@ const TOKENS_HTTP = {
   CONFIRMACAO_AUSENTE: 422,
   SEM_VINCULO: 404,
   VALIDACAO: 422,
+  PERMISSAO_NEGADA: 403,
+  FORA_DE_ESCOPO: 403,
 };
 
 /**
@@ -214,6 +216,13 @@ function validarFormulario(corpo) {
     avisar = b.avisar;
   }
 
+  // Ausente = chave fora de `p_dados`: o banco mantém o valor atual no UPDATE e usa false no INSERT.
+  let visivelApp;
+  if (b.visivelApp !== undefined && b.visivelApp !== null) {
+    if (typeof b.visivelApp !== 'boolean') return falha('visivelApp');
+    visivelApp = b.visivelApp;
+  }
+
   // `dados` = `p_dados` de `hub_campanha_salvar` (0127 lê camelCase e revalida tudo).
   return {
     ok: true,
@@ -222,6 +231,7 @@ function validarFormulario(corpo) {
       pracas: listas.pracas, turnos: listas.turnos, modais: listas.modais, minTurnos: b.minTurnos,
       pesos: { aceitacao: pesos.aceitacao, conclusao: pesos.conclusao, tempo: pesos.tempo, pedidos: pesos.pedidos },
       cortes, premios, avisar, tipo, categorias, minTurnosBase,
+      ...(visivelApp === undefined ? {} : { visivelApp }),
     },
   };
 }
@@ -231,12 +241,20 @@ function validarFormulario(corpo) {
 const soPosicaoNome = (l) => (Array.isArray(l) ? l.map((x) => ({ posicao: x && x.posicao, nomeAbreviado: x && x.nomeAbreviado })) : l);
 function appCampanha(r) {
   const out = camelizar(r);
+  if (out && typeof out === 'object') delete out.totalClassificados; // V4: o app só vê a posição, mesmo que o banco ainda mande o total
   if (out && out.campanha && out.campanha.tipo === 'extrato') {
     for (const k of ['top10', 'podio']) if (k in out) out[k] = soPosicaoNome(out[k]);
     if ('lider' in out) out.lider = null;
   }
   return out;
 }
+
+/** Lista do app: nenhum `total` por item (V4), mesmo que o banco ainda mande. */
+const appLista = (itens) => camelizar(Array.isArray(itens) ? itens : []).map((i) => {
+  if (!i || typeof i !== 'object') return i;
+  const { total, ...resto } = i; // eslint-disable-line no-unused-vars
+  return resto;
+});
 
 /** Lista CSV de query (`?pracas=A,B`) → array canonizado (≤50) ou `null`; `undefined` se malformada. */
 function lerListaQuery(raw) {
@@ -369,5 +387,5 @@ module.exports = {
   IMAGEM_MAX_BYTES, SITUACOES_CAMPANHA, SITUACOES_RANKING, POR_PAGINA, MIMES_IMAGEM, TOKENS_HTTP,
   TETO_CENTAVOS, CABECALHO_ESPERADO,
   mapearErroRpc, canonizar, validarFormulario, lerListaQuery, detectarImagem,
-  camelizar, appCampanha, contarAdiados, itemLista, detalhe, linhaRanking, linhaVencedor, linhaCategoria, linhasPlanilhaPremios, planilhaPremiosBuffer,
+  camelizar, appCampanha, appLista, contarAdiados, itemLista, detalhe, linhaRanking, linhaVencedor, linhaCategoria, linhasPlanilhaPremios, planilhaPremiosBuffer,
 };

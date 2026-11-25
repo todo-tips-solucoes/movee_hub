@@ -189,6 +189,15 @@ router.post('/:id/cancelar', ...rota('POST /:id/cancelar', 'campanhas.gerir', as
   return res.status(204).end();
 }, { escrita: true }));
 
+// Interruptor de visibilidade no app (mutável mesmo depois de lançar; a RPC recusa cancelada e audita).
+router.patch('/:id/visibilidade', ...rota('PATCH /:id/visibilidade', 'campanhas.gerir', async (ctx, req, res) => {
+  if (!idValido(req.params.id)) return naoEncontrada(res);
+  if (!req.body || typeof req.body.visivel !== 'boolean') return validacao(res, 'visivel');
+  const id = Number(req.params.id);
+  await rpc('hub_campanha_visibilidade', { p_id: id, p_visivel: req.body.visivel }, ctx.claims);
+  return res.status(200).json({ id, visivelApp: req.body.visivel });
+}, { escrita: true }));
+
 router.delete('/:id', ...rota('DELETE /:id', 'campanhas.gerir', async (ctx, req, res) => {
   if (!idValido(req.params.id)) return naoEncontrada(res);
   const id = Number(req.params.id);

@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/hub/empty-state';
 import { PageHeader } from '@/components/hub/page-header';
 import { ListSkeleton } from '@/components/hub/table-skeleton';
 import { CampanhaExcluirRascunho } from '@/components/hub/campanha-excluir-dialog';
-import { CampanhaSituacaoBadge, CampanhaTipoBadge } from '@/components/hub/status-badge';
+import { CampanhaSituacaoBadge, CampanhaTipoBadge, CampanhaVisibilidadeBadge } from '@/components/hub/status-badge';
 import { useHubAuth } from '@/contexts/hub-auth-context';
 import { LARGURA_LISTA } from '@/lib/hub/larguras';
 import { CampanhaApiError, listarCampanhas } from '@/lib/hub/campanhas-api';
@@ -140,6 +140,7 @@ export default function CampanhasPage() {
                 <TableHead>Indicadores</TableHead>
                 <TableHead>Participantes</TableHead>
                 <TableHead>Situação</TableHead>
+                <TableHead>App</TableHead>
                 <TableHead className="text-right">
                   <span className="sr-only">Ações</span>
                 </TableHead>
@@ -163,6 +164,9 @@ export default function CampanhasPage() {
                     <TableCell className="max-w-[220px] whitespace-normal text-xs">{participantesTexto(c, hoje)}</TableCell>
                     <TableCell>
                       <CampanhaSituacaoBadge situacao={c.situacao} />
+                    </TableCell>
+                    <TableCell>
+                      <CampanhaVisibilidadeBadge visivel={c.visivelApp} />
                     </TableCell>
                     <TableCell className="text-right">
                       {podeGerir && c.situacao === 'rascunho' && (

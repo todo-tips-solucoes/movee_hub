@@ -54,6 +54,7 @@ const COMPLETO: FormularioCampanha = {
   cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null },
   premios: [{ ...premioVazio(1), descricao: 'Bag térmica' }],
   avisar: true,
+  visivelApp: false,
 };
 
 const CATEGORIAS = [
@@ -141,6 +142,20 @@ describe('CampanhaFormulario', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/hub/dashboard/campanhas'));
     expect(screen.queryByRole('button', { name: 'Lançar campanha' })).not.toBeInTheDocument();
+  });
+
+  it('interruptor de visibilidade começa desligado e vai no corpo ao ligar', async () => {
+    mockOpcoes.mockResolvedValue(OPCOES_OK);
+    mockCriar.mockResolvedValue(55);
+    render(<CampanhaFormulario campanhaId={null} inicial={COMPLETO} />);
+    await screen.findByText(/Cobertura/);
+    const sw = screen.getByRole('switch', { name: 'Motoristas veem esta campanha no app' });
+    expect(sw).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(sw);
+    expect(sw).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+    await waitFor(() => expect(mockCriar).toHaveBeenCalledTimes(1));
+    expect(mockCriar.mock.calls[0][0]).toMatchObject({ visivelApp: true });
   });
 
   it('erro do servidor ao gravar aparece como mensagem acionável', async () => {
