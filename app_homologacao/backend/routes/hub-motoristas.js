@@ -465,7 +465,7 @@ async function buscarAtividadesMotorista(id, idExterno, contaMotorista, entidade
   );
   const perfRows = await hubPostgrestRequest(
     `PerformanceTurno?entregador_id=eq.${id}&id_empresa=eq.${entidadeAtiva}`
-    + `&select=data_periodo,periodo,subpraca&order=data_periodo.desc&limit=${janela}`,
+    + `&select=data_periodo,periodo,subpraca:subpraca_efetiva&order=data_periodo.desc&limit=${janela}`,
     'GET', null, claims
   );
   const validRows = cnpjPrestadorVinculo

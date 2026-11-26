@@ -21,7 +21,7 @@ const TOKENS_HTTP = {
   CAMPANHA_SITUACAO_INVALIDA: 409,
   TETO_CAMPANHAS_ATIVAS: 409,
   PEDIDOS_SEM_COBERTURA: 422,
-  INICIO_NO_PASSADO: 422,
+  FIM_NO_PASSADO: 422,
   FAIXAS_SOBREPOSTAS: 422,
   PESOS_INVALIDOS: 422,
   CORTE_SEM_PESO: 422,
@@ -67,6 +67,14 @@ function dataReal(s) {
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const dt = new Date(Date.UTC(y, mo - 1, d));
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d ? dt.getTime() : null;
+}
+
+/** Data do prêmio: ≥ início e ≤ fim + 365 dias (inclusive). `ini`/`fim` = YYYY-MM-DD já validados. */
+function dataPremioNaFaixa(data, ini, fim) {
+  const d = dataReal(data);
+  const i = dataReal(ini);
+  const f = dataReal(fim);
+  return d !== null && i !== null && f !== null && d >= i && d <= f + 365 * 86400000;
 }
 
 /** null/undefined = todos; senão 1..50 itens de 1..120 caracteres, canonizados e sem repetição. */
@@ -130,8 +138,8 @@ function validarFormulario(corpo) {
   if (!extrato && minTurnosBase !== 'trabalhados') return falha('minTurnosBase');
   let categorias = null;
   if (b.categorias !== undefined && b.categorias !== null) {
-    categorias = lerCategorias(b.categorias);
-    if (!categorias || !extrato) return falha('categorias');
+    categorias = lerCategorias(b.categorias); // nota: opcional (0133); extrato: obrigatório
+    if (!categorias) return falha('categorias');
   } else if (extrato) {
     return falha('categorias');
   }
@@ -223,6 +231,21 @@ function validarFormulario(corpo) {
     visivelApp = b.visivelApp;
   }
 
+  // 0133: ausente = chave fora de `p_dados` (INSERT: 5; edição: mantém). Descarte do turno curto zerado, em minutos.
+  let descarteTurnoMin;
+  if (b.descarteTurnoMin !== undefined && b.descarteTurnoMin !== null) {
+    if (!ehInt(b.descarteTurnoMin, 0, 60)) return falha('descarteTurnoMin');
+    descarteTurnoMin = b.descarteTurnoMin;
+  }
+  // 0133: data do prêmio. Ausente = mantém; null = limpa; senão dentro da faixa [início, fim + 365 dias].
+  let dataPremio;
+  if (b.dataPremio === null) {
+    dataPremio = null;
+  } else if (b.dataPremio !== undefined) {
+    if (!dataPremioNaFaixa(b.dataPremio, b.dataInicio, b.dataFim)) return falha('dataPremio');
+    dataPremio = b.dataPremio;
+  }
+
   // `dados` = `p_dados` de `hub_campanha_salvar` (0127 lê camelCase e revalida tudo).
   return {
     ok: true,
@@ -232,6 +255,8 @@ function validarFormulario(corpo) {
       pesos: { aceitacao: pesos.aceitacao, conclusao: pesos.conclusao, tempo: pesos.tempo, pedidos: pesos.pedidos },
       cortes, premios, avisar, tipo, categorias, minTurnosBase,
       ...(visivelApp === undefined ? {} : { visivelApp }),
+      ...(descarteTurnoMin === undefined ? {} : { descarteTurnoMin }),
+      ...(dataPremio === undefined ? {} : { dataPremio }),
     },
   };
 }
@@ -337,6 +362,7 @@ function linhaVencedor(r, rankingPorEntregador) {
     entreguePor: r.entregue_por_nome ?? null,
     observacao: r.observacao ?? null,
     exportadoEm: r.exportado_em ?? null,
+    dataPagamento: r.data_pagamento ?? null,
     semCnpj: !r.cnpj,
   };
 }
@@ -386,6 +412,6 @@ module.exports = {
   enviarFoto,
   IMAGEM_MAX_BYTES, SITUACOES_CAMPANHA, SITUACOES_RANKING, POR_PAGINA, MIMES_IMAGEM, TOKENS_HTTP,
   TETO_CENTAVOS, CABECALHO_ESPERADO,
-  mapearErroRpc, canonizar, validarFormulario, lerListaQuery, detectarImagem,
+  mapearErroRpc, canonizar, validarFormulario, dataPremioNaFaixa, lerListaQuery, detectarImagem,
   camelizar, appCampanha, appLista, contarAdiados, itemLista, detalhe, linhaRanking, linhaVencedor, linhaCategoria, linhasPlanilhaPremios, planilhaPremiosBuffer,
 };

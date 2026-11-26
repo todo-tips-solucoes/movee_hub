@@ -208,6 +208,47 @@ describe('criar / editar / transições', () => {
     assert.equal(chamadas[1].body.p_dados.visivelApp, true);
   });
 
+  describe('PATCH /:id/data-premio', () => {
+    const URL_ = '/api/v1/hub/campanhas/5/data-premio';
+    const det = { dataInicio: '2026-11-10', dataFim: '2026-11-30' };
+    test('403 sem campanhas.gerir; nenhuma RPC, nenhuma auditoria', async () => {
+      permissoes = new Set(['campanhas.consultar']);
+      const r = await req('PATCH', URL_, { json: { dataPremio: '2026-12-05' } });
+      assert.equal(r.status, 403);
+      assert.equal(chamadas.length, 0);
+      assert.equal(auditorias.length, 0);
+    });
+    test('422 fora da faixa ou malformada: não chama a RPC de alterar nem audita', async () => {
+      respostas['rpc/hub_campanha_detalhe'] = det;
+      for (const v of ['2026-11-09', '2027-12-01', 'x']) {
+        const r = await req('PATCH', URL_, { json: { dataPremio: v } });
+        assert.deepEqual([r.status, r.body], [422, { erro: 'VALIDACAO', campo: 'dataPremio' }]);
+      }
+      assert.equal((await req('PATCH', URL_, { json: {} })).status, 422);
+      assert.equal(chamadas.some((c) => c.endpoint === 'rpc/hub_campanha_alterar_data_premio'), false);
+      assert.equal(auditorias.length, 0);
+    });
+    test('200: RPC com a entidade do token, auditoria antes/depois', async () => {
+      respostas['rpc/hub_campanha_detalhe'] = det;
+      respostas['rpc/hub_campanha_alterar_data_premio'] = { campanhaId: 5, antes: '2026-12-01', depois: '2026-12-05', alterada: true };
+      const r = await req('PATCH', URL_, { json: { dataPremio: '2026-12-05', idEmpresa: 999 } });
+      assert.deepEqual([r.status, r.body], [200, { id: 5, dataPremio: '2026-12-05' }]);
+      const c = chamadas.find((x) => x.endpoint === 'rpc/hub_campanha_alterar_data_premio');
+      assert.deepEqual(c.body, { p_id_empresa: 6, p_campanha_id: 5, p_data: '2026-12-05' });
+      assert.equal(auditorias.length, 1);
+      assert.equal(auditorias[0].acao, 'campanha.data_premio_alterada');
+      assert.deepEqual(auditorias[0].detalhes, { antes: '2026-12-01', depois: '2026-12-05' });
+    });
+    test('null limpa sem consultar o detalhe; token da RPC vira HTTP', async () => {
+      respostas['rpc/hub_campanha_alterar_data_premio'] = { antes: '2026-12-01' };
+      const r = await req('PATCH', URL_, { json: { dataPremio: null } });
+      assert.equal(r.status, 200);
+      assert.equal(chamadas.some((c) => c.endpoint === 'rpc/hub_campanha_detalhe'), false);
+      respostas['rpc/hub_campanha_alterar_data_premio'] = rpcErr('CAMPANHA_SITUACAO_INVALIDA');
+      assert.equal((await req('PATCH', URL_, { json: { dataPremio: null } })).status, 409);
+    });
+  });
+
   test('visibilidade: 200 {id,visivelApp}, RPC com p_id/p_visivel, claims da entidade do token', async () => {
     for (const visivel of [true, false]) {
       chamadas = [];
@@ -241,7 +282,7 @@ describe('criar / editar / transições', () => {
 
   const esperado = {
     CAMPANHA_NAO_ENCONTRADA: 404, CAMPANHA_IMUTAVEL: 409, CAMPANHA_SITUACAO_INVALIDA: 409, TETO_CAMPANHAS_ATIVAS: 409,
-    PEDIDOS_SEM_COBERTURA: 422, INICIO_NO_PASSADO: 422, FAIXAS_SOBREPOSTAS: 422, PESOS_INVALIDOS: 422, CORTE_SEM_PESO: 422,
+    PEDIDOS_SEM_COBERTURA: 422, FIM_NO_PASSADO: 422, FAIXAS_SOBREPOSTAS: 422, PESOS_INVALIDOS: 422, CORTE_SEM_PESO: 422,
     OPCAO_DESCONHECIDA: 422, FECHAMENTO_ANTECIPADO: 409, FOTO_INVALIDA: 422,
   };
   for (const [token, status] of Object.entries(esperado)) {
@@ -330,7 +371,7 @@ describe('leituras', () => {
   test('vencedores: shape do contrato', async () => {
     respostas['rpc/hub_campanha_vencedores'] = [{ posicao: 1, nome: 'Ana', cnpj: null, nota: 95, premio_tipo: 'objeto', premio_descricao: 'Moto', valor_centavos: null, entregue_em: null, entregue_por_nome: null, observacao: null, exportado_em: null }];
     const r = await req('GET', '/api/v1/hub/campanhas/9/vencedores');
-    assert.deepEqual(r.body.itens[0], { posicao: 1, nome: 'Ana', nota: 95, premio: { tipo: 'objeto', descricao: 'Moto', valorCentavos: null }, entregueEm: null, entreguePor: null, observacao: null, exportadoEm: null, semCnpj: true, turnosValidos: null, valorSomadoCentavos: null });
+    assert.deepEqual(r.body.itens[0], { posicao: 1, nome: 'Ana', nota: 95, premio: { tipo: 'objeto', descricao: 'Moto', valorCentavos: null }, entregueEm: null, entreguePor: null, observacao: null, exportadoEm: null, dataPagamento: null, semCnpj: true, turnosValidos: null, valorSomadoCentavos: null });
   });
 
   test('vencedores do extrato: nota NULL na RPC -> valor somado e turnos válidos vêm do ranking', async () => {

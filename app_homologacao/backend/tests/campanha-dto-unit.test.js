@@ -183,13 +183,33 @@ describe('validarFormulario — extrato (0129)', () => {
     assert.equal(erro(ext({ minTurnosBase: 'outra' })).campo, 'minTurnosBase');
     assert.equal(erro(form({ tipo: 'outro' })).campo, 'tipo');
   });
-  test('nota: categorias ou base ≠ trabalhados recusadas; padrão nota/trabalhados/null', () => {
-    assert.equal(erro(form({ categorias: ['x'] })).campo, 'categorias');
+  test('nota: base ≠ trabalhados recusada; categorias opcionais (0133); padrão nota/trabalhados/null', () => {
+    assert.deepEqual(dto.validarFormulario(form({ categorias: ['x', 'familia:indicador'] })).dados.categorias, ['x', 'familia:indicador']);
+    assert.equal(erro(form({ categorias: [] })).campo, 'categorias');
     assert.equal(erro(form({ minTurnosBase: 'validos' })).campo, 'minTurnosBase');
     const r = dto.validarFormulario(form());
     assert.equal(r.dados.tipo, 'nota');
     assert.equal(r.dados.categorias, null);
     assert.equal(r.dados.minTurnosBase, 'trabalhados');
+  });
+  test('descarteTurnoMin: ausente fica fora de p_dados; 0..60 inteiro; fora disso recusa', () => {
+    assert.equal('descarteTurnoMin' in dto.validarFormulario(form()).dados, false);
+    for (const v of [0, 5, 60]) assert.equal(dto.validarFormulario(form({ descarteTurnoMin: v })).dados.descarteTurnoMin, v);
+    for (const v of [-1, 61, 2.5, '5']) assert.equal(erro(form({ descarteTurnoMin: v })).campo, 'descarteTurnoMin');
+  });
+  test('dataPremio: ausente mantém; null limpa; faixa [início, fim+365]', () => {
+    assert.equal('dataPremio' in dto.validarFormulario(form()).dados, false);
+    assert.equal(dto.validarFormulario(form({ dataPremio: null })).dados.dataPremio, null);
+    for (const v of ['2026-11-10', '2026-12-05', '2027-11-30']) assert.equal(dto.validarFormulario(form({ dataPremio: v })).dados.dataPremio, v);
+    for (const v of ['2026-11-09', '2027-12-01', '2026-02-30', 'x', 20261201]) assert.equal(erro(form({ dataPremio: v })).campo, 'dataPremio');
+  });
+  test('FIM_NO_PASSADO → 422; INICIO_NO_PASSADO não é mais token', () => {
+    assert.deepEqual(dto.mapearErroRpc({ body: JSON.stringify({ message: 'FIM_NO_PASSADO' }) }), { status: 422, erro: 'FIM_NO_PASSADO' });
+    assert.equal(dto.mapearErroRpc({ body: JSON.stringify({ message: 'INICIO_NO_PASSADO' }) }), null);
+  });
+  test('linhaVencedor: dataPagamento', () => {
+    assert.equal(dto.linhaVencedor({ posicao: 1, data_pagamento: '2026-12-05' }).dataPagamento, '2026-12-05');
+    assert.equal(dto.linhaVencedor({ posicao: 1 }).dataPagamento, null);
   });
   test('linhaRanking e linhaVencedor carregam turnosValidos/valorCentavos', () => {
     const l = dto.linhaRanking({ turnos_validos: '3', valor_centavos: '1500' });
@@ -225,7 +245,7 @@ describe('detectarImagem (A9)', () => {
 describe('mapearErroRpc (§5)', () => {
   const esperado = {
     CAMPANHA_NAO_ENCONTRADA: 404, CAMPANHA_IMUTAVEL: 409, CAMPANHA_SITUACAO_INVALIDA: 409, TETO_CAMPANHAS_ATIVAS: 409,
-    PEDIDOS_SEM_COBERTURA: 422, INICIO_NO_PASSADO: 422, FAIXAS_SOBREPOSTAS: 422, PESOS_INVALIDOS: 422, CORTE_SEM_PESO: 422,
+    PEDIDOS_SEM_COBERTURA: 422, FIM_NO_PASSADO: 422, FAIXAS_SOBREPOSTAS: 422, PESOS_INVALIDOS: 422, CORTE_SEM_PESO: 422,
     OPCAO_DESCONHECIDA: 422, FECHAMENTO_ANTECIPADO: 409, FOTO_INVALIDA: 422, CONFIRMACAO_AUSENTE: 422, SEM_VINCULO: 404, VALIDACAO: 422,
   };
   for (const [token, status] of Object.entries(esperado)) {

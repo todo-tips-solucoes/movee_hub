@@ -198,6 +198,24 @@ router.patch('/:id/visibilidade', ...rota('PATCH /:id/visibilidade', 'campanhas.
   return res.status(200).json({ id, visivelApp: req.body.visivel });
 }, { escrita: true }));
 
+// Data do prêmio (mutável depois de lançar; a RPC recusa cancelada/tudo pago). `null` limpa a data.
+router.patch('/:id/data-premio', ...rota('PATCH /:id/data-premio', 'campanhas.gerir', async (ctx, req, res) => {
+  if (!idValido(req.params.id)) return naoEncontrada(res);
+  const data = req.body ? req.body.dataPremio : undefined;
+  if (data === undefined || (data !== null && typeof data !== 'string')) return validacao(res, 'dataPremio');
+  const id = Number(req.params.id);
+  if (data !== null) {
+    const det = await rpc('hub_campanha_detalhe', { p_id: id }, ctx.claims);
+    if (!det) return naoEncontrada(res);
+    if (!dto.dataPremioNaFaixa(data, String(det.dataInicio || det.data_inicio), String(det.dataFim || det.data_fim))) {
+      return validacao(res, 'dataPremio');
+    }
+  }
+  const r = await rpc('hub_campanha_alterar_data_premio', { p_id_empresa: ctx.entidadeAtiva, p_campanha_id: id, p_data: data }, ctx.claims);
+  await auditar(ctx, 'campanha.data_premio_alterada', id, { antes: r ? r.antes : null, depois: data });
+  return res.status(200).json({ id, dataPremio: data });
+}, { escrita: true }));
+
 router.delete('/:id', ...rota('DELETE /:id', 'campanhas.gerir', async (ctx, req, res) => {
   if (!idValido(req.params.id)) return naoEncontrada(res);
   const id = Number(req.params.id);

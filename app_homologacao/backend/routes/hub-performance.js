@@ -148,7 +148,7 @@ function montarFiltrosQuery(entidadeAtiva, f) {
     `data_periodo=lte.${f.ate}`,
   ];
   if (f.periodo) filtros.push(`periodo=eq.${encodeURIComponent(f.periodo)}`);
-  if (f.subpraca) filtros.push(`subpraca=eq.${encodeURIComponent(f.subpraca)}`);
+  if (f.subpraca) filtros.push(`subpraca_efetiva=eq.${encodeURIComponent(f.subpraca)}`);
   if (f.entregadorId !== null) filtros.push(`entregador_id=eq.${f.entregadorId}`);
   return filtros;
 }
@@ -259,7 +259,7 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f, grao) {
   const filtrosBase = montarFiltrosQuery(entidadeAtiva, f);
   filtrosBase.push('order=data_periodo.desc,id.desc');
   filtrosBase.push(
-    'select=data_periodo,periodo,subpraca,praca,corridas_ofertadas,corridas_aceitas,'
+    'select=data_periodo,periodo,subpraca:subpraca_efetiva,praca,corridas_ofertadas,corridas_aceitas,'
     + 'corridas_rejeitadas,corridas_completadas,corridas_canceladas,pedidos_concluidos,'
     + 'tempo_disponivel_periodo_pct,taxas_centavos,entregador:Entregador(nome)'
   );
@@ -402,7 +402,7 @@ router.get('/', requireModuloAtivo('performance'), requirePermission('performanc
     const filtros = montarFiltrosQuery(entidadeAtiva, f);
     filtros.push('order=data_periodo.desc,id.desc');
     filtros.push(
-      'select=id,data_periodo,periodo,entregador_id,subpraca,praca,corridas_ofertadas,'
+      'select=id,data_periodo,periodo,entregador_id,subpraca:subpraca_efetiva,praca,corridas_ofertadas,'
       + 'corridas_aceitas,corridas_rejeitadas,corridas_completadas,corridas_canceladas,'
       + 'pedidos_concluidos,tempo_disponivel_periodo_pct,taxas_centavos,entregador:Entregador(nome)'
     );

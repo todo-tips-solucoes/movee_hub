@@ -109,7 +109,7 @@ function montarFiltrosQuery(entidadeAtiva, f) {
   ];
   if (f.categoria) filtros.push(`descricao=eq.${encodeURIComponent(f.categoria)}`);
   if (f.entregadorId !== null) filtros.push(`entregador_id=eq.${f.entregadorId}`);
-  if (f.subpraca) filtros.push(`subpraca=eq.${encodeURIComponent(f.subpraca)}`);
+  if (f.subpraca) filtros.push(`subpraca_efetiva=eq.${encodeURIComponent(f.subpraca)}`);
   if (f.comEntregador === true) filtros.push('entregador_id=not.is.null');
   else if (f.comEntregador === false) filtros.push('entregador_id=is.null');
   return filtros;
@@ -151,7 +151,7 @@ async function exportarCsv(req, res, entidadeAtiva, claims, payload, f) {
   const filtrosBase = montarFiltrosQuery(entidadeAtiva, f);
   filtrosBase.push('order=data_lancamento.desc,data_referencia.desc,id.desc');
   filtrosBase.push(
-    'select=data_lancamento,data_referencia,descricao,valor::text,entregador_id,recebedor_agregado,subpraca,praca,periodo,entregador:Entregador(nome)'
+    'select=data_lancamento,data_referencia,descricao,valor::text,entregador_id,recebedor_agregado,subpraca:subpraca_efetiva,praca,periodo,entregador:Entregador(nome)'
   );
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -253,7 +253,7 @@ router.get('/', requirePermission('faturamento.listar'), async (req, res) => {
     filtros.push('order=data_lancamento.desc,data_referencia.desc,id.desc');
     filtros.push(
       'select=id,data_referencia,data_lancamento,data_repasse,descricao,valor::text,'
-      + 'entregador_id,recebedor_agregado,subpraca,praca,periodo,entregador:Entregador(nome)'
+      + 'entregador_id,recebedor_agregado,subpraca:subpraca_efetiva,praca,periodo,entregador:Entregador(nome)'
     );
 
     // FR-012 (tratado de forma idêntica ao filtro vazio de importações/
