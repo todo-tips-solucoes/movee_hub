@@ -59,6 +59,8 @@ function valido(parcial: Partial<FormularioCampanha> = {}): FormularioCampanha {
     pesos: { aceitacao: 30, conclusao: 30, tempo: 20, pedidos: 20 },
     cortes: { aceitacao: 0.8, conclusao: 0.9, tempo: null, pedidos: null },
     premios: [premio()],
+    descarteTurnoMin: 5,
+    dataPremio: '',
     avisar: true,
     visivelApp: false,
     ...parcial,
@@ -141,11 +143,26 @@ describe('validarFormulario', () => {
     expect(validarFormulario(valido({ dataInicio: '', dataFim: '' }), CTX).dataInicio).toBeDefined();
   });
 
-  it('início no passado: só recusa ao lançar, não ao salvar rascunho', () => {
-    const f = valido({ dataInicio: '2026-11-09' });
-    expect(validarFormulario(f, CTX).dataInicio).toMatch(/hoje ou depois/);
-    expect(validarFormulario(f, { ...CTX, paraLancar: false }).dataInicio).toBeUndefined();
-    expect(validarFormulario(valido({ dataInicio: HOJE }), CTX).dataInicio).toBeUndefined();
+  it('lançar: início no passado é aceito (0133); só o fim no passado recusa, e só ao lançar', () => {
+    expect(validarFormulario(valido({ dataInicio: '2026-11-09' }), CTX).dataInicio).toBeUndefined();
+    const f = valido({ dataInicio: '2026-11-01', dataFim: '2026-11-09' });
+    expect(validarFormulario(f, CTX).dataFim).toMatch(/fim precisa ser hoje ou depois/);
+    expect(validarFormulario(f, { ...CTX, paraLancar: false }).dataFim).toBeUndefined();
+    expect(validarFormulario(valido({ dataFim: HOJE }), CTX).dataFim).toBeUndefined();
+  });
+
+  it('descarte 0..60 inteiro; data do prêmio entre o início e fim + 365 dias (vazio vale)', () => {
+    for (const v of [0, 5, 60]) expect(validarFormulario(valido({ descarteTurnoMin: v }), CTX).descarteTurnoMin).toBeUndefined();
+    for (const v of [-1, 61, 2.5, Number.NaN]) expect(validarFormulario(valido({ descarteTurnoMin: v }), CTX).descarteTurnoMin).toBeDefined();
+    for (const v of ['', '2026-11-10', '2026-12-05', '2027-11-30']) expect(validarFormulario(valido({ dataPremio: v }), CTX).dataPremio).toBeUndefined();
+    for (const v of ['2026-11-09', '2027-12-01']) expect(validarFormulario(valido({ dataPremio: v }), CTX).dataPremio).toBeDefined();
+  });
+
+  it('nota aceita categorias (opcionais); extrato continua exigindo', () => {
+    expect(validarFormulario(valido({ categorias: ['Bônus X'] }), CTX).categorias).toBeUndefined();
+    const corpo = formularioParaCorpo(valido({ categorias: ['Bônus X'] }));
+    expect(corpo.categorias).toEqual(['Bônus X']);
+    expect(formularioParaCorpo(valido()).categorias).toBeNull();
   });
 
   it('mínimo de turnos 1..200', () => {
@@ -263,7 +280,7 @@ describe('corpo do POST/PUT (CONTRATOS §7)', () => {
   it('só os campos do contrato: sem chave/id/foto da UI nos prêmios; textos aparados', () => {
     const corpo = formularioParaCorpo(valido({ nome: '  Rei do Jantar  ' }));
     expect(Object.keys(corpo).sort()).toEqual(
-      ['avisar', 'cortes', 'dataFim', 'dataInicio', 'descricao', 'minTurnos', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'tipo', 'turnos', 'visivelApp']
+      ['avisar', 'categorias', 'cortes', 'dataFim', 'dataInicio', 'dataPremio', 'descarteTurnoMin', 'descricao', 'minTurnos', 'modais', 'nome', 'pesos', 'pracas', 'premios', 'tipo', 'turnos', 'visivelApp']
     );
     expect(corpo.nome).toBe('Rei do Jantar');
     expect(Object.keys(corpo.premios[0]).sort()).toEqual(['descricao', 'posicaoAte', 'posicaoDe', 'tipo', 'valorCentavos']);
@@ -366,7 +383,7 @@ describe('tipo "Melhor extrato"', () => {
     expect(c).toMatchObject({ tipo: 'extrato', categorias: ['Corridas concluidas'], minTurnosBase: 'validos', pesos: { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 } });
     const n = formularioParaCorpo(valido());
     expect(n.tipo).toBe('nota');
-    expect(n).not.toHaveProperty('categorias');
+    expect(n.categorias).toBeNull();
     expect(n).not.toHaveProperty('minTurnosBase');
   });
   it('fecha sozinha 3 dias depois do fim; textos de critério e escopo', () => {

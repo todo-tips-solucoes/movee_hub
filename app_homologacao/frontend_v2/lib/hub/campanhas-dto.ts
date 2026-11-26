@@ -93,6 +93,10 @@ export interface CampanhaItem {
   dadosAte: string | null;
   /** Interruptor de visibilidade no app do motorista (padrão: oculta). */
   visivelApp: boolean;
+  /** Turno de até N min sem nenhuma corrida não conta (0 = não descarta). */
+  descarteTurnoMin: number;
+  /** Data combinada de pagamento/entrega do prêmio (YYYY-MM-DD) ou null. */
+  dataPremio: string | null;
 }
 
 export interface PremioDetalhe {
@@ -160,6 +164,8 @@ export interface Vencedor {
   entreguePor: string | null;
   observacao: string | null;
   exportadoEm: string | null;
+  /** Dinheiro: data de pagamento gravada na exportação (YYYY-MM-DD). */
+  dataPagamento: string | null;
   semCnpj: boolean;
 }
 
@@ -241,6 +247,8 @@ export function parseCampanhaItem(raw: unknown): CampanhaItem {
     premiosPendentes: num(r.premiosPendentes),
     dadosAte: strOuNull(r.dadosAte),
     visivelApp: r.visivelApp === true,
+    descarteTurnoMin: num(r.descarteTurnoMin, 5),
+    dataPremio: strOuNull(r.dataPremio),
   };
 }
 
@@ -337,6 +345,7 @@ function parseVencedor(raw: unknown): Vencedor {
     entreguePor: strOuNull(r.entreguePor),
     observacao: strOuNull(r.observacao),
     exportadoEm: strOuNull(r.exportadoEm),
+    dataPagamento: strOuNull(r.dataPagamento),
     semCnpj: r.semCnpj === true,
   };
 }

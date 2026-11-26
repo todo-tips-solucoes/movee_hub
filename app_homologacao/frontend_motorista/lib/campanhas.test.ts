@@ -9,6 +9,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   faltamPontos,
+  textoStatusPremio,
+  textoRodapePremio,
   ondeGanharMais,
   textoOndeGanhar,
   corridasParaVoltar,
@@ -62,7 +64,7 @@ const eu = (o: Partial<MinhaLinha> = {}): MinhaLinha => ({
 const tela = (o: Partial<CampanhaTela> = {}): CampanhaTela => ({
   campanha: {
     id: 12, nome: 'Rei do Jantar', descricao: 'd', situacao: 'em_andamento',
-    dataInicio: '2026-11-10', dataFim: '2026-11-30', pracas: ['SAO PAULO'], turnos: ['JANTAR'], modais: ['MOTO'],
+    dataInicio: '2026-11-10', dataFim: '2026-11-30', dataPremio: null, pracas: ['SAO PAULO'], turnos: ['JANTAR'], modais: ['MOTO'],
     minTurnos: 5, pesos: { aceitacao: 30, conclusao: 30, tempo: 20, pedidos: 20 },
     cortes: { aceitacao: 0.8, conclusao: 0.9, tempo: null, pedidos: null }, dadosAte: '2026-11-21', fechadaEm: null,
   },
@@ -335,4 +337,15 @@ test('app não cita o total de motoristas (guarda no fonte, P6/P7)', () => {
     assert.ok(src.includes('ordinal('), `guarda anti-oco: ${f} lido`);
     assert.ok(!/totalClassificados|item\.total/.test(src), f);
   }
+});
+
+test('0133: status e rodapé do prêmio com e sem data', () => {
+  const f = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+  assert.equal(textoStatusPremio('dinheiro', null, '2026-12-05', f), 'Pagamento previsto em 05/12');
+  assert.equal(textoStatusPremio('objeto', null, '2026-12-05', f), 'Entrega prevista em 05/12');
+  assert.equal(textoStatusPremio('dinheiro', null, null, f), 'Aparece no seu repasse');
+  assert.equal(textoStatusPremio('objeto', null, null, f), 'A equipe Movee combina a entrega com você');
+  assert.equal(textoStatusPremio('objeto', '2026-12-01', '2026-12-05', f), 'Entregue em 01/12');
+  assert.match(textoRodapePremio('2026-12-05'), /entrega prevista em 05\/12.*pagamento previsto em 05\/12/);
+  assert.match(textoRodapePremio(null), /combina a entrega/);
 });

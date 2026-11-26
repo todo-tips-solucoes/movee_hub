@@ -53,6 +53,8 @@ const COMPLETO: FormularioCampanha = {
   pesos: { aceitacao: 50, conclusao: 50, tempo: 0, pedidos: 0 },
   cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null },
   premios: [{ ...premioVazio(1), descricao: 'Bag térmica' }],
+  descarteTurnoMin: 5,
+  dataPremio: '',
   avisar: true,
   visivelApp: false,
 };
@@ -169,14 +171,16 @@ describe('CampanhaFormulario', () => {
   });
 
   describe('tipo "Melhor extrato"', () => {
-    it('nota (padrão): sem bloco de valor do turno e sem pedir categorias', async () => {
+    it('nota (padrão): categorias opcionais (0133), descarte e data do prêmio presentes; sem bloco de valor do turno', async () => {
       mockOpcoes.mockResolvedValue(OPCOES_OK);
       render(<CampanhaFormulario campanhaId={null} inicial={COMPLETO} />);
       await screen.findByText(/Cobertura/);
       expect(screen.getByRole('radio', { name: /Nota ponderada/ })).toBeChecked();
       expect(screen.getByText('Soma dos pesos: 100%')).toBeInTheDocument();
       expect(screen.queryByText(/Valor do turno/)).not.toBeInTheDocument();
-      expect(mockCategorias).not.toHaveBeenCalled();
+      expect(await screen.findByText(/Opcional: conta só os turnos que tiveram estes lançamentos/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Descartar turnos de até/)).toHaveValue(5);
+      expect(screen.getByLabelText(/Data de pagamento\/entrega do prêmio/)).toBeInTheDocument();
     });
 
     it('trocar para extrato troca os blocos: sem peso, "Mínimo no turno", seletor de categorias, base do mínimo', async () => {

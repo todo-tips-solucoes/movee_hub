@@ -58,6 +58,8 @@ export interface CampanhaDados {
   situacao: SituacaoCampanha;
   dataInicio: string;
   dataFim: string;
+  /** Data combinada de pagamento/entrega do prêmio (YYYY-MM-DD); null = sem data. */
+  dataPremio: string | null;
   pracas: string[] | null;
   turnos: string[] | null;
   modais: string[] | null;

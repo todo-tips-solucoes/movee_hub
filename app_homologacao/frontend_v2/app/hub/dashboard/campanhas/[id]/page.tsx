@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PaginationControls } from '@/components/pagination-controls';
 import { CampanhaCancelarDialog } from '@/components/hub/campanha-cancelar-dialog';
+import { CampanhaDataPremioDialog } from '@/components/hub/campanha-data-premio-dialog';
 import { CampanhaEntregaDialog } from '@/components/hub/campanha-entrega-dialog';
 import { CampanhaVisibilidade } from '@/components/hub/campanha-visibilidade';
 import { CampanhaSituacaoBadge, CampanhaTipoBadge, CampanhaVisibilidadeBadge } from '@/components/hub/status-badge';
@@ -31,6 +32,7 @@ import {
   mensagemAdiados,
   obterCampanha,
   obterRanking,
+  alterarDataPremio,
   obterVencedores,
   registrarEntrega,
   atualizarVisibilidadeCampanha,
@@ -314,6 +316,7 @@ function VencedoresSecao({
     if (v.semCnpj) return 'Sem CNPJ: fora da planilha';
     return v.exportadoEm ? `Na planilha de ${formatDiaMes(v.exportadoEm)}` : 'Aguardando a planilha';
   }
+  const temPagamento = (itens ?? []).some((v) => v.premio.tipo === 'dinheiro' && v.dataPagamento);
   const ok = (v: Vencedor) => (v.premio.tipo === 'objeto' ? !!v.entregueEm : !v.semCnpj && !!v.exportadoEm);
 
   return (
@@ -337,6 +340,7 @@ function VencedoresSecao({
               {campanha.tipo === 'nota' && <TableHead scope="col" className="text-right">Nota</TableHead>}
               <TableHead scope="col">Prêmio</TableHead>
               <TableHead scope="col">Entrega</TableHead>
+              {temPagamento && <TableHead scope="col">Pagamento em</TableHead>}
               <TableHead scope="col"><span className="sr-only">Ação</span></TableHead>
             </TableRow>
           </TableHeader>
@@ -354,6 +358,11 @@ function VencedoresSecao({
                   <span className={cn('text-sm font-medium', ok(v) ? 'text-success' : 'text-warning-strong')}>{statusDe(v)}</span>
                   {v.observacao && <span className="block text-xs text-muted-foreground">{v.observacao}</span>}
                 </TableCell>
+                {temPagamento && (
+                  <TableCell className="whitespace-nowrap">
+                    {v.premio.tipo === 'dinheiro' && v.dataPagamento ? formatDiaMes(v.dataPagamento, true) : '—'}
+                  </TableCell>
+                )}
                 <TableCell className="text-right">
                   {podeEntregar && v.premio.tipo === 'objeto' && !v.entregueEm && (
                     <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => setEntregando(v)}>
@@ -384,7 +393,7 @@ function VencedoresSecao({
   );
 }
 
-function RegrasTravadas({ c }: { c: CampanhaDetalhe }) {
+function RegrasTravadas({ c, onAlterarData }: { c: CampanhaDetalhe; onAlterarData?: () => void }) {
   const publico = [
     c.pracas === null ? 'Todas as praças' : c.pracas.join(', '),
     c.turnos === null ? 'todos os turnos' : `${c.turnos.join(', ')}`,
@@ -418,9 +427,34 @@ function RegrasTravadas({ c }: { c: CampanhaDetalhe }) {
         ) : (
           <>
             <div><dt className="text-xs font-medium text-muted-foreground">Nota</dt><dd>{resumoPesos(c.pesos, c.cortes)}</dd></div>
+            {(c.categorias ?? []).length > 0 && (
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Lançamentos exigidos no turno</dt>
+                <dd>{(c.categorias ?? []).map((x) => ROTULO_FAMILIA[x] ?? x).join(', ')}</dd>
+              </div>
+            )}
             <div><dt className="text-xs font-medium text-muted-foreground">Desempate</dt><dd>Pedidos concluídos, depois tempo disponível</dd></div>
           </>
         )}
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">Turnos curtos</dt>
+          <dd>
+            {c.descarteTurnoMin > 0
+              ? `Turnos de até ${c.descarteTurnoMin} min sem corridas não contam`
+              : 'Nenhum turno descartado'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-muted-foreground">Data do prêmio</dt>
+          <dd className="flex flex-wrap items-center gap-2">
+            {c.dataPremio ? formatDiaMes(c.dataPremio, true) : 'Não definida'}
+            {onAlterarData && (
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={onAlterarData}>
+                Alterar data
+              </Button>
+            )}
+          </dd>
+        </div>
         <div>
           <dt className="text-xs font-medium text-muted-foreground">Prêmios</dt>
           <dd>{c.premios.map((p) => `${rotuloFaixa(p.posicaoDe, p.posicaoAte)} ${p.descricao}`).join(' · ') || '—'}</dd>
@@ -442,6 +476,7 @@ export default function CampanhaDetalhePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [acaoErro, setAcaoErro] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState(false);
+  const [alterandoData, setAlterandoData] = useState(false);
   const [salvandoVis, setSalvandoVis] = useState(false);
   // Gerar a planilha carimba `exportado_em`; a seção de vencedores busca a própria lista e só
   // reagia ao id da campanha (achado do E2E W4). Mudar a key a remonta e recarrega.
@@ -621,8 +656,21 @@ export default function CampanhaDetalhePage() {
           {c.situacao === 'encerrada' && <VencedoresSecao key={versaoVencedores} campanha={c} podeEntregar={podeEntregar} onMudou={carregar} />}
           {ativa && <RankingSecao campanha={c} />}
         </div>
-        <RegrasTravadas c={c} />
+        <RegrasTravadas c={c} onAlterarData={podeGerir && c.situacao !== 'cancelada' ? () => setAlterandoData(true) : undefined} />
       </div>
+
+      <CampanhaDataPremioDialog
+        open={alterandoData}
+        onOpenChange={setAlterandoData}
+        atual={c.dataPremio}
+        onSalvar={async (data) => {
+          await alterarDataPremio(c.id, data);
+          toast.success('Data do prêmio alterada.');
+          setAlterandoData(false);
+          setVersaoVencedores((v) => v + 1);
+          carregar();
+        }}
+      />
 
       <CampanhaCancelarDialog
         open={cancelando}

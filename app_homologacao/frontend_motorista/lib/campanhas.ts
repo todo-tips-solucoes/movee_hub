@@ -52,6 +52,27 @@ export function ddmm(iso: string | null | undefined): string {
   return m ? `${m[2]}/${m[1]}` : '';
 }
 
+/** Status do prêmio do motorista (0133/D5): com `dataPremio` vira "Pagamento/Entrega prevista em DD/MM"; sem, o texto de antes. */
+export function textoStatusPremio(
+  tipo: 'dinheiro' | 'objeto',
+  entregueEm: string | null | undefined,
+  dataPremio: string | null | undefined,
+  formatarData: (iso: string) => string
+): string {
+  if (tipo === 'objeto' && entregueEm) return `Entregue em ${formatarData(entregueEm)}`;
+  const d = ddmm(dataPremio);
+  if (tipo === 'dinheiro') return d ? `Pagamento previsto em ${d}` : 'Aparece no seu repasse';
+  return d ? `Entrega prevista em ${d}` : 'A equipe Movee combina a entrega com você';
+}
+
+/** Rodapé do resultado final: mesma regra, para os dois tipos de prêmio. */
+export function textoRodapePremio(dataPremio: string | null | undefined): string {
+  const d = ddmm(dataPremio);
+  return d
+    ? `Prêmio em objeto: entrega prevista em ${d}. Prêmio em dinheiro: pagamento previsto em ${d}.`
+    : 'Prêmio em objeto: a equipe Movee combina a entrega com você. Prêmio em dinheiro aparece no seu repasse.';
+}
+
 /** Pontos que faltam para passar quem está acima (1 casa; empate → 0). null = ninguém acima. */
 export function faltamPontos(eu: Pick<MinhaLinha, 'nota' | 'acima'>): number | null {
   if (!eu.acima || eu.nota == null) return null;

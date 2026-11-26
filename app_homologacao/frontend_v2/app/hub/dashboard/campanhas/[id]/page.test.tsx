@@ -20,6 +20,7 @@ vi.mock('@/contexts/hub-auth-context', () => ({ useHubAuth: () => ({ permissoes:
 const mockCampanha = vi.fn();
 const mockRanking = vi.fn();
 const mockVis = vi.fn();
+const mockData = vi.fn();
 vi.mock('@/lib/hub/campanhas-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/hub/campanhas-api')>('@/lib/hub/campanhas-api');
   return {
@@ -29,6 +30,7 @@ vi.mock('@/lib/hub/campanhas-api', async () => {
     obterVencedores: vi.fn().mockResolvedValue([]),
     baixarRankingCsv: vi.fn(),
     atualizarVisibilidadeCampanha: (...a: unknown[]) => mockVis(...a),
+    alterarDataPremio: (...a: unknown[]) => mockData(...a),
   };
 });
 
@@ -74,6 +76,7 @@ beforeEach(() => {
   mockCampanha.mockReset();
   mockRanking.mockReset();
   mockVis.mockReset();
+  mockData.mockReset();
   mockRanking.mockImplementation((_id: number, situacao: keyof typeof RANKING) =>
     Promise.resolve(
       parseRanking({ itens: RANKING[situacao] ?? [], contagem: EXTRATO.contagem, pagina: 1, porPagina: 50 })
@@ -174,5 +177,37 @@ describe('detalhe — visibilidade no app', () => {
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(screen.queryByText('Oculta no app')).not.toBeInTheDocument();
     expect(screen.queryByText('Visível no app')).not.toBeInTheDocument();
+  });
+});
+
+describe('detalhe — 0133: descarte, data do prêmio e categorias da nota', () => {
+  const NOTA = {
+    ...BASE, tipo: 'nota', pesos: { aceitacao: 50, conclusao: 50, tempo: 0, pedidos: 0 },
+    cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null },
+    contagem: { classificado: 0, abaixoCorte: 0, semMinimo: 0, semModal: 0 }, notaCorteTop10: null,
+    descarteTurnoMin: 5, dataPremio: null, categorias: ['Bônus X'],
+  };
+
+  it('mostra descarte, categorias da nota e "Não definida"; Alterar data chama a API com a data nova', async () => {
+    mockCampanha.mockResolvedValue(parseCampanhaDetalhe(NOTA));
+    mockRanking.mockResolvedValue(parseRanking({ itens: [], contagem: {}, pagina: 1, porPagina: 50 }));
+    mockData.mockResolvedValue(undefined);
+    render(<CampanhaDetalhePage />);
+    expect(await screen.findByText('Turnos de até 5 min sem corridas não contam')).toBeInTheDocument();
+    expect(screen.getByText('Não definida')).toBeInTheDocument();
+    expect(screen.getByText('Lançamentos exigidos no turno')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Alterar data' }));
+    fireEvent.change(await screen.findByLabelText('Nova data'), { target: { value: '2099-12-05' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(mockData).toHaveBeenCalledWith(9, '2099-12-05'));
+  });
+
+  it('descarte 0 = "Nenhum turno descartado"; cancelada não tem "Alterar data"', async () => {
+    mockCampanha.mockResolvedValue(parseCampanhaDetalhe({ ...NOTA, descarteTurnoMin: 0, dataPremio: '2099-12-05', situacao: 'cancelada' }));
+    mockRanking.mockResolvedValue(parseRanking({ itens: [], contagem: {}, pagina: 1, porPagina: 50 }));
+    render(<CampanhaDetalhePage />);
+    expect(await screen.findByText('Nenhum turno descartado')).toBeInTheDocument();
+    expect(screen.getByText('05/12/2099')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Alterar data' })).not.toBeInTheDocument();
   });
 });

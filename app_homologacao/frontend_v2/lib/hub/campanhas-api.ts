@@ -40,7 +40,7 @@ export const MENSAGENS_CAMPANHA: Record<string, string> = {
     'Esta entidade já tem 10 campanhas lançadas e não encerradas. Cancele ou aguarde o fim de uma delas para lançar outra.',
   PEDIDOS_SEM_COBERTURA:
     'Menos de 95% dos turnos deste público têm pedidos concluídos. Volte ao formulário e use peso 0 em Pedidos concluídos (ou amplie o público).',
-  INICIO_NO_PASSADO: 'O início já passou. Volte ao formulário e escolha como início hoje ou uma data futura.',
+  FIM_NO_PASSADO: 'A campanha já terminou. Para lançar, o fim precisa ser hoje ou depois.',
   FAIXAS_SOBREPOSTAS: 'Há faixas de prêmio sobrepostas. Ajuste para que cada posição tenha um só prêmio.',
   PESOS_INVALIDOS: 'Os pesos precisam ser inteiros de 0 a 100, somar 100 e ter ao menos um indicador acima de 0.',
   CORTE_SEM_PESO: 'Há corte mínimo em um indicador com peso 0. Tire o corte ou dê peso ao indicador.',
@@ -72,6 +72,8 @@ export class CampanhaApiError extends HubApiError {
 const CAMPO_EXTRATO: Record<string, string> = {
   cortes: 'Marque ao menos 1 critério do turno e informe o mínimo.',
   categorias: 'Marque ao menos 1 categoria para compor o valor do turno.',
+  dataPremio: 'A data do prêmio precisa estar entre o início da campanha e 365 dias depois do fim.',
+  descarteTurnoMin: 'O descarte vai de 0 a 60 minutos (0 = não descarta).',
   visivel: 'Valor de visibilidade inválido. Atualize a página e tente de novo.',
 };
 
@@ -153,6 +155,11 @@ export async function atualizarVisibilidadeCampanha(id: number, visivel: boolean
     body: JSON.stringify({ visivel }),
   });
   return { id: typeof r?.id === 'number' ? r.id : id, visivelApp: r?.visivelApp === true };
+}
+
+/** Troca (ou limpa, com null) a data de pagamento/entrega do prêmio; vale também depois de lançar. */
+export async function alterarDataPremio(id: number, dataPremio: string | null): Promise<void> {
+  await request<unknown>(`${BASE}/${id}/data-premio`, { method: 'PATCH', body: JSON.stringify({ dataPremio }) });
 }
 
 export async function lancarCampanha(id: number): Promise<void> {

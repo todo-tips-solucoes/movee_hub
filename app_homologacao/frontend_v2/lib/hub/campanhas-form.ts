@@ -23,6 +23,9 @@ export const LIMITES = {
   nomeMax: 120,
   descricaoMax: 1000,
   duracaoMaxDias: 92,
+  descarteMax: 60,
+  /** Mesma folga do backend: data do prêmio até fim + 365 dias. */
+  dataPremioFolgaDias: 365,
   minTurnosMin: 1,
   minTurnosMax: 200,
   corteMaxPedidos: 100000,
@@ -53,7 +56,7 @@ export interface PremioForm {
 
 export interface FormularioCampanha {
   tipo: TipoCampanha;
-  /** Só no extrato: nomes exatos ou tokens de família. Vazio na nota. */
+  /** Nomes exatos ou tokens de família. Obrigatório no extrato; opcional na nota (vazio = todos os turnos). */
   categorias: string[];
   minTurnosBase: MinTurnosBase;
   nome: string;
@@ -68,6 +71,10 @@ export interface FormularioCampanha {
   pesos: Pesos;
   cortes: Cortes;
   premios: PremioForm[];
+  /** Turnos de até N min sem nenhuma corrida são descartados (0 = não descarta; padrão 5). */
+  descarteTurnoMin: number;
+  /** Data de pagamento/entrega do prêmio (YYYY-MM-DD); vazio = sem data. */
+  dataPremio: string;
   avisar: boolean;
   /** Visível no app do motorista; toda campanha nasce oculta. */
   visivelApp: boolean;
@@ -89,6 +96,8 @@ export function formularioVazio(): FormularioCampanha {
     pesos: { aceitacao: 0, conclusao: 0, tempo: 0, pedidos: 0 },
     cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null },
     premios: [],
+    descarteTurnoMin: 5,
+    dataPremio: '',
     avisar: true,
     visivelApp: false,
   };
@@ -138,6 +147,8 @@ export function formularioDeDetalhe(d: CampanhaDetalhe): FormularioCampanha {
       valorCentavos: p.valorCentavos,
       temFoto: p.temFoto,
     })),
+    descarteTurnoMin: d.descarteTurnoMin,
+    dataPremio: d.dataPremio ?? '',
     avisar: d.avisar,
     visivelApp: d.visivelApp,
   };
@@ -147,8 +158,9 @@ export function formularioDeDetalhe(d: CampanhaDetalhe): FormularioCampanha {
 export function formularioParaCorpo(f: FormularioCampanha) {
   return {
     tipo: f.tipo,
-    // Nota: sem categorias (o banco exige NULL); extrato: pesos todos 0.
-    ...(f.tipo === 'extrato' ? { categorias: f.categorias, minTurnosBase: f.minTurnosBase } : {}),
+    // Nota: categorias opcionais (vazio = null = todos os turnos); extrato: obrigatórias e pesos todos 0.
+    categorias: f.categorias.length > 0 ? f.categorias : null,
+    ...(f.tipo === 'extrato' ? { minTurnosBase: f.minTurnosBase } : {}),
     nome: f.nome.trim(),
     descricao: f.descricao.trim(),
     dataInicio: f.dataInicio,
@@ -168,6 +180,8 @@ export function formularioParaCorpo(f: FormularioCampanha) {
       descricao: p.descricao.trim(),
       valorCentavos: p.valorCentavos,
     })),
+    descarteTurnoMin: f.descarteTurnoMin,
+    dataPremio: f.dataPremio || null,
     avisar: f.avisar,
     visivelApp: f.visivelApp,
   };
@@ -196,7 +210,7 @@ export interface ContextoValidacao {
   hoje: string;
   /** Fração 0..1, ou null quando o público não tem dado nenhum. */
   coberturaPedidos: number | null;
-  /** true = checagens exclusivas do lançamento (início no passado). */
+  /** true = checagens exclusivas do lançamento (fim no passado). */
   paraLancar: boolean;
 }
 
@@ -246,8 +260,19 @@ export function validarFormulario(f: FormularioCampanha, ctx: ContextoValidacao)
       e.dataFim = `A campanha pode durar no máximo ${LIMITES.duracaoMaxDias} dias (esta tem ${dur}).`;
     }
   }
-  if (ctx.paraLancar && !e.dataInicio && f.dataInicio < ctx.hoje) {
-    e.dataInicio = 'Para lançar, o início precisa ser hoje ou depois.';
+  if (ctx.paraLancar && !e.dataFim && f.dataFim < ctx.hoje) {
+    e.dataFim = 'Para lançar, o fim precisa ser hoje ou depois.';
+  }
+  if (f.dataPremio !== '') {
+    if (!DATA_RE.test(f.dataPremio)) e.dataPremio = 'Data do prêmio inválida.';
+    else if (!e.dataInicio && f.dataPremio < f.dataInicio) {
+      e.dataPremio = 'A data do prêmio não pode ser antes do início da campanha.';
+    } else if (!e.dataFim && diasEntre(f.dataFim, f.dataPremio) > LIMITES.dataPremioFolgaDias) {
+      e.dataPremio = `A data do prêmio pode ir até ${LIMITES.dataPremioFolgaDias} dias depois do fim.`;
+    }
+  }
+  if (!inteiro(f.descarteTurnoMin) || f.descarteTurnoMin < 0 || f.descarteTurnoMin > LIMITES.descarteMax) {
+    e.descarteTurnoMin = `O descarte vai de 0 a ${LIMITES.descarteMax} minutos (0 = não descarta).`;
   }
 
   // público (listas vazias não existem: "todas" é null)
@@ -290,9 +315,9 @@ export function validarFormulario(f: FormularioCampanha, ctx: ContextoValidacao)
       e.cortes = 'Marque ao menos 1 critério e informe o mínimo no turno.';
     }
     if (f.categorias.length < 1) e.categorias = 'Marque ao menos 1 categoria para compor o valor do turno.';
-    else if (f.categorias.length > LIMITES.categoriasMax) {
-      e.categorias = `Marque no máximo ${LIMITES.categoriasMax} categorias.`;
-    }
+  }
+  if (f.categorias.length > LIMITES.categoriasMax) {
+    e.categorias = `Marque no máximo ${LIMITES.categoriasMax} categorias.`;
   }
 
   // pedidos exige cobertura (só na nota: no extrato turno sem a leitura simplesmente não vale)
