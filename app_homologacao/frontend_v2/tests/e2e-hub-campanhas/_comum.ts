@@ -1,5 +1,6 @@
 // Helpers e env do cenário campanhas (compartilhado pelas fases). Seeds vêm do driver por env var.
-import { expect, type Page } from '@playwright/test';
+import { expect, type Download, type Page } from '@playwright/test';
+import { writeFileSync } from 'node:fs';
 
 export const HUB = process.env.HUB_E2E_BASE_URL || 'http://127.0.0.1:3005';
 export const APP = process.env.MOTORISTA_E2E_BASE_URL || 'http://127.0.0.1:3006';
@@ -74,4 +75,39 @@ export async function definirVisibilidade(page: Page, visivel: boolean) {
   await sw.click();
   await expect(page.getByText(visivel ? 'Visível no app' : 'Oculta no app', { exact: true })).toBeVisible();
   await expect(sw).toHaveAttribute('aria-checked', String(visivel));
+}
+
+// Parametrização (0133): campanhas e turno da seed da fase 10 (o driver semeia a subpraça efetiva e o turno curto).
+export const NOME_PARAM_LIVRE = 'Praça LIVRE E2E';
+export const NOME_PARAM_DESC0 = 'Descarte zero E2E';
+export const NOME_PARAM_CATS = 'Nota com lançamentos E2E';
+export const TURNO_PARAM = 'MADRUGADA 02H-06H';
+
+/** Id da campanha lançada cujo nome começa com `nome` (o retry do Playwright acrescenta " rN"). */
+export async function campanhaIdPorPrefixo(page: Page, nome: string): Promise<number> {
+  const r = await apiHub(page, 'GET', '/hub/campanhas');
+  expect(r.status).toBe(200);
+  const itens = (JSON.parse(r.texto).itens ?? []) as { id: number; nome: string; situacao: string }[];
+  const achadas = itens.filter((c) => c.nome.startsWith(nome) && c.situacao !== 'rascunho');
+  expect(achadas.length, `campanha lançada "${nome}*" na lista`).toBeGreaterThanOrEqual(1);
+  return Math.max(...achadas.map((c) => c.id));
+}
+
+/** "YYYY-MM-DD" -> "DD/MM" (como o hub e o app exibem). */
+export const ddmm = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+// o blob é revogado logo após o clique; se o artefato sumir, pega os MESMOS bytes pelo POST idempotente
+export async function baixar(page: Page, dl: Download, id: number, destino: string) {
+  try {
+    await dl.saveAs(destino);
+  } catch {
+    const b64 = await page.evaluate(async (cid) => {
+      const r = await fetch(`/api/v1/hub/campanhas/${cid}/premios-dinheiro.xlsx`, { method: 'POST', credentials: 'include' });
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let bin = '';
+      for (const b of buf) bin += String.fromCharCode(b);
+      return btoa(bin);
+    }, id);
+    writeFileSync(destino, Buffer.from(b64, 'base64'));
+  }
 }

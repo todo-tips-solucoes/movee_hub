@@ -484,10 +484,15 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
               <Erro id={`${baseId}-fim-e`} texto={erros.dataFim} />
             </div>
           </div>
-          {extrato || form.categorias.length > 0 ? (
+          {extrato ? (
             <p className="text-xs text-muted-foreground">
               O faturamento chega com 1 a 2 dias de atraso. O resultado final fecha sozinho{' '}
               <strong>3 dias depois do fim</strong>{fechaEm ? ` (${fechaEm})` : ''}, quando ~97% do valor já entrou.
+            </p>
+          ) : form.categorias.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Com lançamentos selecionados, a apuração termina <strong>3 dias depois do fim</strong>
+              {fechaEm ? ` (${fechaEm})` : ''}, para o faturamento dos últimos dias entrar.
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">

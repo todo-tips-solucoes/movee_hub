@@ -200,6 +200,14 @@ describe('CampanhaFormulario', () => {
       expect(screen.getByRole('button', { name: /Promoção/ })).toBeInTheDocument();
     });
 
+    it('nota com lançamentos selecionados: frase própria (sem a medição de ~97% do extrato)', async () => {
+      mockOpcoes.mockResolvedValue(OPCOES_OK);
+      render(<CampanhaFormulario campanhaId={null} inicial={{ ...COMPLETO, categorias: ['Corridas'] }} />);
+      await screen.findByText(/Cobertura/);
+      expect(screen.getByText(/para o faturamento dos últimos dias entrar\./)).toBeInTheDocument();
+      expect(screen.queryByText(/97% do valor/)).not.toBeInTheDocument();
+    });
+
     it('extrato sem critério ou sem categoria: erro do cliente e nada é gravado', async () => {
       mockOpcoes.mockResolvedValue(OPCOES_OK);
       render(<CampanhaFormulario campanhaId={null} inicial={{ ...EXTRATO, cortes: { aceitacao: null, conclusao: null, tempo: null, pedidos: null }, categorias: [] }} />);
