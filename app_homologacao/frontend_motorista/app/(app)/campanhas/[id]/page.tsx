@@ -644,7 +644,7 @@ function Confete() {
 
 function statusPremio(eu: MinhaLinha, dataPremio: string | null): string {
   if (!eu.premio) return '';
-  return textoStatusPremio(eu.premio.tipo, eu.entregueEm, dataPremio, formatDate);
+  return textoStatusPremio(eu.premio.tipo, eu.entregueEm, dataPremio, formatDate, eu.dataPagamento ?? null);
 }
 
 function Encerrada({ t }: { t: CampanhaTela }) {

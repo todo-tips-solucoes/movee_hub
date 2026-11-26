@@ -349,3 +349,11 @@ test('0133: status e rodapé do prêmio com e sem data', () => {
   assert.match(textoRodapePremio('2026-12-05'), /entrega prevista em 05\/12.*pagamento previsto em 05\/12/);
   assert.match(textoRodapePremio(null), /combina a entrega/);
 });
+
+test('0133/C7: texto de dinheiro usa dataPagamento ?? dataPremio; objeto ignora dataPagamento', () => {
+  const f = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+  assert.equal(textoStatusPremio('dinheiro', null, '2026-12-05', f, '2026-12-06'), 'Pagamento previsto em 06/12');
+  assert.equal(textoStatusPremio('dinheiro', null, '2026-12-05', f, null), 'Pagamento previsto em 05/12');
+  assert.equal(textoStatusPremio('dinheiro', null, null, f, '2026-12-06'), 'Pagamento previsto em 06/12');
+  assert.equal(textoStatusPremio('objeto', null, '2026-12-05', f, '2026-12-06'), 'Entrega prevista em 05/12');
+});

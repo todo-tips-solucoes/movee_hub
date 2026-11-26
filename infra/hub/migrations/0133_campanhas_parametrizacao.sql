@@ -40,6 +40,9 @@
 -- acima (DROP de hub_campanha_turnos_extrato_q de 14 args e hub_campanha_creditos_turno antes) e, se preciso, DROP das colunas
 -- descarte_turno_min/data_premio/data_pagamento e dos indices/funcoes novos. Nenhum dado de produto depende deles antes do uso.
 
+-- migrate.sh aplica a migration em transacao unica: nao esperar lock indefinidamente (DDL em tabelas de fato).
+SET LOCAL lock_timeout = '10s';
+
 -- ═══════════════════════════════════════════════════════════════════════
 -- 1. D1 — subpraca efetiva (UMA regra, no banco)
 -- ═══════════════════════════════════════════════════════════════════════
@@ -80,14 +83,18 @@ CREATE INDEX IF NOT EXISTS idx_faturamento_empresa_subpraca_ef_data
     ON "FaturamentoLancamento" (id_empresa, hub_subpraca_efetiva(subpraca, origem), data_lancamento);
 
 -- View de areas (Faturamento + Performance + motoristas): a coluna continua `subpraca`, agora o valor efetivo (nunca NULL).
+-- SEGURANCA: a view roda com o privilegio do DONO (sem security_invoker no PG13) e as tabelas nao tem FORCE RLS; o predicado de escopo
+-- (o mesmo das policies de 0015) fica na propria view, senao `authenticated` leria subpracas de outras empresas.
 CREATE OR REPLACE VIEW hub_areas_por_entregador AS
 SELECT entregador_id, subpraca, MAX(data) AS data_mais_recente
 FROM (
     SELECT entregador_id, hub_subpraca_efetiva(subpraca, origem) AS subpraca, data_referencia AS data
     FROM "FaturamentoLancamento"
+    WHERE id_empresa = ANY (hub_jwt_escopo_ids())
     UNION ALL
     SELECT entregador_id, hub_subpraca_efetiva(subpraca, origem) AS subpraca, data_periodo AS data
     FROM "PerformanceTurno"
+    WHERE id_empresa = ANY (hub_jwt_escopo_ids())
 ) t
 GROUP BY entregador_id, subpraca;
 
@@ -95,8 +102,22 @@ GROUP BY entregador_id, subpraca;
 -- 2. Colunas e CHECKs (D2, D3, D5)
 -- ═══════════════════════════════════════════════════════════════════════
 
--- D2: DEFAULT 5 preenche as existentes sem UPDATE (fast default, nenhum gatilho de linha dispara).
-ALTER TABLE "Campanha" ADD COLUMN IF NOT EXISTS descarte_turno_min smallint NOT NULL DEFAULT 5;
+-- D2: DEFAULT 5 preenche as lancadas em andamento sem UPDATE (fast default, nenhum gatilho de linha dispara).
+-- Campanhas JA FECHADAS antes da 0133 foram apuradas SEM descarte: ficam com 0 (desligado) para que a lista de turnos do app
+-- (recalculada na leitura) nao divirja do ranking congelado. MIGRACAO DE DADO CONTROLADA: o gatilho de imutabilidade e desabilitado
+-- SO para este UPDATE e reabilitado em seguida, dentro do bloco e apenas na 1a aplicacao (coluna ainda inexistente): reaplicar a
+-- migration depois nunca zera campanhas fechadas depois da 0133.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'public' AND table_name = 'Campanha' AND column_name = 'descarte_turno_min') THEN
+        ALTER TABLE "Campanha" ADD COLUMN descarte_turno_min smallint NOT NULL DEFAULT 5;
+        ALTER TABLE "Campanha" DISABLE TRIGGER trg_campanha_imutavel;
+        UPDATE "Campanha" SET descarte_turno_min = 0 WHERE fechada_em IS NOT NULL;
+        ALTER TABLE "Campanha" ENABLE TRIGGER trg_campanha_imutavel;
+    END IF;
+END
+$$;
 ALTER TABLE "Campanha" DROP CONSTRAINT IF EXISTS campanha_descarte_chk;
 ALTER TABLE "Campanha" ADD CONSTRAINT campanha_descarte_chk CHECK (descarte_turno_min BETWEEN 0 AND 60);
 
@@ -1084,6 +1105,7 @@ DECLARE
     v_sub    int := NULLIF(hub_jwt_claims() ->> 'sub', '')::int;
     v_op     jsonb;
     v_ativas int;
+    v_max    date;
 BEGIN
     c := hub_campanha_carregar(p_id, 'campanhas.gerir', true);
     IF hub_campanha_situacao(c) <> 'rascunho' THEN
@@ -1138,8 +1160,10 @@ BEGIN
 
     UPDATE "Campanha" SET lancada_em = now(), lancada_por = v_sub WHERE id = c.id;
 
-    -- 0133 (D4): ja comecou => o ranking nasce pronto (na mesma transacao), nao so na proxima importacao
-    IF c.data_inicio <= hub_hoje_sp() THEN
+    -- 0133 (D4): ja comecou E ja ha dado do periodo => o ranking nasce pronto (mesma transacao). Mesma regra de
+    -- hub_campanhas_recalcular_ativas (data_inicio <= ultimo dia com dado): inicio = hoje sem dado do dia nao grava dados_ate < inicio.
+    SELECT max(mv.data_periodo) INTO v_max FROM mv_performance_dia mv WHERE mv.id_empresa = c.id_empresa;
+    IF c.data_inicio <= hub_hoje_sp() AND c.data_inicio <= v_max THEN
         PERFORM hub_campanha_recalcular_interno(c.id);
     END IF;
 END;
@@ -1241,6 +1265,8 @@ BEGIN
                 'situacao', r.situacao, 'posicao', r.posicao, 'posicaoAnterior', r.posicao_anterior,
                 'turnos', r.turnos, 'turnosValidos', r.turnos_validos, 'valorCentavos', r.valor_centavos,
                 'premio', v_prem,
+                'dataPagamento', (SELECT COALESCE(v.data_pagamento, (v.exportado_em AT TIME ZONE 'America/Sao_Paulo')::date)
+                              FROM "CampanhaVencedor" v WHERE v.campanha_id = c.id AND v.entregador_id = v_ent),
                 'entregueEm', (SELECT v.entregue_em FROM "CampanhaVencedor" v
                                WHERE v.campanha_id = c.id AND v.entregador_id = v_ent));
         ELSE
@@ -1257,7 +1283,9 @@ BEGIN
             'notaHipotetica', r.nota_hipotetica, 'posicaoHipotetica', r.posicao_hipotetica,
             'ofertadas', r.ofertadas, 'aceitas', r.aceitas, 'completadas', r.completadas,
             'acima', v_acima, 'premio', v_prem,
-            'entregueEm', (SELECT v.entregue_em FROM "CampanhaVencedor" v
+            'dataPagamento', (SELECT COALESCE(v.data_pagamento, (v.exportado_em AT TIME ZONE 'America/Sao_Paulo')::date)
+                              FROM "CampanhaVencedor" v WHERE v.campanha_id = c.id AND v.entregador_id = v_ent),
+                'entregueEm', (SELECT v.entregue_em FROM "CampanhaVencedor" v
                            WHERE v.campanha_id = c.id AND v.entregador_id = v_ent));
         END IF;
     END IF;
@@ -1384,8 +1412,8 @@ GRANT EXECUTE ON FUNCTION hub_campanha_alterar_data_premio(int, int, date) TO au
 -- A1: `data_pagamento` e GRAVADA em "CampanhaVencedor" na 1a exportacao = GREATEST(data_premio, hoje SP) (sem data_premio: hoje SP);
 --     baixar de novo reproduz a MESMA data mesmo que data_premio mude depois. Linha exportada antes da 0133 (sem a coluna
 --     gravada) cai no dia SP do exportado_em.
--- A2: vencedor cujo CNPJ ja tem outro premio de dinheiro exportado na MESMA data efetiva (qualquer campanha da empresa) NAO e
---     carimbado: volta com adiado = true e data_pagamento NULL, e fica pendente para a proxima exportacao.
+-- A2: vencedor cujo CNPJ ja tem outro premio de dinheiro exportado na MESMA data efetiva (qualquer campanha da empresa) e carimbado
+--     no proximo dia livre (+1, +2... ate 31 dias); so se nao houver dia livre volta com adiado = true e data_pagamento NULL.
 --     O lock por empresa serializa duas exportacoes simultaneas (senao as duas passariam pela checagem).
 CREATE OR REPLACE FUNCTION hub_campanha_marcar_exportado(p_id int)
 RETURNS TABLE (cnpj text, nome text, valor_centavos int, posicao int, data_pagamento date, adiado boolean)
@@ -1401,6 +1429,8 @@ DECLARE
     v_conflito boolean;
     v_em       timestamptz;
     v_dpg      date;
+    v_dia      date;
+    i          int;
 BEGIN
     c := hub_campanha_carregar(p_id, 'campanhas.entregar', true);
     IF c.cancelada_em IS NOT NULL THEN
@@ -1423,20 +1453,28 @@ BEGIN
         v_em := r.em;
         v_dpg := r.dpg;
         IF v_em IS NULL THEN
-            SELECT EXISTS (
-                SELECT 1 FROM "CampanhaVencedor" x
-                JOIN "CampanhaPremio" xp ON xp.id = x.premio_id AND xp.tipo = 'dinheiro'
-                JOIN "Entregador" xe ON xe.id = x.entregador_id
-                JOIN "ContaMotorista" xc ON xc.id = xe.motorista_id
-                WHERE x.id_empresa = c.id_empresa AND xc.cnpj_prestador = r.cnpj
-                  AND x.exportado_em IS NOT NULL
-                  AND COALESCE(x.data_pagamento, (x.exportado_em AT TIME ZONE 'America/Sao_Paulo')::date) = v_data
-            ) INTO v_conflito;
-            IF v_conflito THEN
+            -- colisao de CNPJ na data efetiva: carimba no PROXIMO DIA LIVRE (+1, +2, ... ate 31 dias); esgotado => adiado
+            v_dia := NULL;
+            FOR i IN 0..31 LOOP
+                SELECT EXISTS (
+                    SELECT 1 FROM "CampanhaVencedor" x
+                    JOIN "CampanhaPremio" xp ON xp.id = x.premio_id AND xp.tipo = 'dinheiro'
+                    JOIN "Entregador" xe ON xe.id = x.entregador_id
+                    JOIN "ContaMotorista" xc ON xc.id = xe.motorista_id
+                    WHERE x.id_empresa = c.id_empresa AND xc.cnpj_prestador = r.cnpj
+                      AND x.exportado_em IS NOT NULL
+                      AND COALESCE(x.data_pagamento, (x.exportado_em AT TIME ZONE 'America/Sao_Paulo')::date) = v_data + i
+                ) INTO v_conflito;
+                IF NOT v_conflito THEN
+                    v_dia := v_data + i;
+                    EXIT;
+                END IF;
+            END LOOP;
+            IF v_dia IS NULL THEN
                 RETURN QUERY SELECT r.cnpj, r.nome, r.valor, r.pos, NULL::date, true;
                 CONTINUE;
             END IF;
-            UPDATE "CampanhaVencedor" SET exportado_em = now(), data_pagamento = v_data
+            UPDATE "CampanhaVencedor" SET exportado_em = now(), data_pagamento = v_dia
             WHERE campanha_id = c.id AND posicao = r.pos
             RETURNING exportado_em, data_pagamento INTO v_em, v_dpg;
         END IF;
@@ -1853,3 +1891,19 @@ REVOKE ALL ON FUNCTION hub_campanha_recalcular_interno(int)            FROM PUBL
 REVOKE ALL ON FUNCTION hub_campanha_item_json("Campanha")              FROM PUBLIC;
 REVOKE ALL ON FUNCTION hub_campanha_publico_cnpjs("Campanha")          FROM PUBLIC;
 REVOKE ALL ON FUNCTION hub_campanha_visivel("Campanha", int)           FROM PUBLIC;
+-- ═══════════════════════════════════════════════════════════════════════
+-- 14. Recalculo das campanhas em andamento (a regra de descarte/praca mudou: ranking e lista do app nao divergem ate a proxima importacao)
+-- ═══════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN SELECT id FROM "Campanha" WHERE lancada_em IS NOT NULL AND cancelada_em IS NULL AND fechada_em IS NULL ORDER BY id LOOP
+        BEGIN
+            PERFORM hub_campanha_recalcular_interno(r.id);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING '0133: recalculo da campanha % falhou: %', r.id, SQLERRM;
+        END;
+    END LOOP;
+END
+$$;

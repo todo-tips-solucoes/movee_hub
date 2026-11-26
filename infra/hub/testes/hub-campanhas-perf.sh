@@ -203,6 +203,14 @@ echo "--- 0133: RPCs de performance com p_subpraca (filtro pela efetiva) ---"
 mede "hub_performance_totais p_subpraca='PRACA 3' (30 dias)" 500 "hub_performance_totais(9001,'2026-06-01','2026-06-30',NULL,'PRACA 3',NULL)" "$CLAIM_ADM"
 mede "hub_performance_turnos p_subpraca='PRACA 7' (efetiva: subpraca vazia -> origem; pagina 50)" 500 "(SELECT count(*) FROM hub_performance_turnos(9001,'2026-06-01','2026-06-30',NULL,'PRACA 7',NULL,50,0))" "$CLAIM_ADM"
 
+echo "--- 0133/C6: listas por PostgREST filtradas por subpraca_efetiva=eq.X (como authenticated, sob RLS; filtros e ordem das rotas) ---"
+FPT="pt.id_empresa = 9001 AND pt.data_periodo >= '2026-06-01' AND pt.data_periodo <= '2026-06-30' AND subpraca_efetiva(pt) = 'PRACA 3'"
+FFL="fl.id_empresa = 9001 AND fl.data_lancamento >= '2026-06-01' AND fl.data_lancamento <= '2026-07-01' AND subpraca_efetiva(fl) = 'LIVRE'"
+mede "C6 performance: pagina 50 (order data_periodo desc, id desc) com subpraca_efetiva=eq" 500 "(SELECT count(*) FROM (SELECT pt.id, subpraca_efetiva(pt) FROM \"PerformanceTurno\" pt WHERE $FPT ORDER BY pt.data_periodo DESC, pt.id DESC LIMIT 50) x)" "$CLAIM_ADM"
+mede "C6 performance: contagem exata do filtro (30 dias, PRACA 3)" 500 "(SELECT count(*) FROM \"PerformanceTurno\" pt WHERE $FPT)" "$CLAIM_ADM"
+mede "C6 faturamento: pagina 50 (order data_lancamento desc, data_referencia desc, id desc) com subpraca_efetiva=eq" 500 "(SELECT count(*) FROM (SELECT fl.id, subpraca_efetiva(fl) FROM \"FaturamentoLancamento\" fl WHERE $FFL ORDER BY fl.data_lancamento DESC, fl.data_referencia DESC, fl.id DESC LIMIT 50) x)" "$CLAIM_ADM"
+mede "C6 faturamento: contagem exata do filtro (LIVRE, 30 dias)" 500 "(SELECT count(*) FROM \"FaturamentoLancamento\" fl WHERE $FFL)" "$CLAIM_ADM"
+
 echo "--- EXPLAIN (ANALYZE) dos comandos internos via auto_explain aninhado (uma sessao por cenario: secoes deterministicas) ---"
 plano() { # plano <rotulo> <comandos SQL>
   psql_t -tA >"$TMP/plan-$1.out" 2>&1 <<SQL

@@ -57,10 +57,12 @@ export function textoStatusPremio(
   tipo: 'dinheiro' | 'objeto',
   entregueEm: string | null | undefined,
   dataPremio: string | null | undefined,
-  formatarData: (iso: string) => string
+  formatarData: (iso: string) => string,
+  dataPagamento?: string | null
 ): string {
   if (tipo === 'objeto' && entregueEm) return `Entregue em ${formatarData(entregueEm)}`;
-  const d = ddmm(dataPremio);
+  // dinheiro: a data GRAVADA na exportação (pode ter sido adiada por colisão de CNPJ) vale mais que a data da campanha
+  const d = ddmm(tipo === 'dinheiro' ? (dataPagamento ?? dataPremio) : dataPremio);
   if (tipo === 'dinheiro') return d ? `Pagamento previsto em ${d}` : 'Aparece no seu repasse';
   return d ? `Entrega prevista em ${d}` : 'A equipe Movee combina a entrega com você';
 }
