@@ -212,7 +212,10 @@ router.patch('/:id/data-premio', ...rota('PATCH /:id/data-premio', 'campanhas.ge
     }
   }
   const r = await rpc('hub_campanha_alterar_data_premio', { p_id_empresa: ctx.entidadeAtiva, p_campanha_id: id, p_data: data }, ctx.claims);
-  await auditar(ctx, 'campanha.data_premio_alterada', id, { antes: r ? r.antes : null, depois: data });
+  // Mesma data = nada mudou: sem trilha de auditoria falsa. `antes`/`depois` são os que a RPC gravou.
+  if (!r || r.alterada !== false) {
+    await auditar(ctx, 'campanha.data_premio_alterada', id, { antes: r ? r.antes : null, depois: r && 'depois' in r ? r.depois : data });
+  }
   return res.status(200).json({ id, dataPremio: data });
 }, { escrita: true }));
 

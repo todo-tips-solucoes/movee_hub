@@ -17,6 +17,7 @@ import {
   type TipoPremio,
 } from './campanhas-dto';
 import { TETO_CENTAVOS } from './lancamento-externo';
+import { ROTULO_FAMILIA } from './adiantamento-categorias';
 
 export const LIMITES = {
   nomeMin: 3,
@@ -361,6 +362,16 @@ export function fechamentoExtrato(dataFim: string): string | null {
   if (!DATA_RE.test(dataFim)) return null;
   const d = new Date(Date.UTC(+dataFim.slice(0, 4), +dataFim.slice(5, 7) - 1, +dataFim.slice(8, 10) + 3));
   return formatDiaMes(d.toISOString().slice(0, 10));
+}
+
+/** Descarte de turno curto, no mesmo texto do detalhe e do resumo de lançar. */
+export function textoDescarte(min: number): string {
+  return min > 0 ? `Turnos de até ${min} min sem corridas não contam` : 'Nenhum turno descartado';
+}
+
+/** Categorias/famílias escolhidas, com o rótulo amigável das famílias. */
+export function textoCategorias(categorias: string[] | null): string {
+  return (categorias ?? []).map((x) => ROTULO_FAMILIA[x] ?? x).join(', ');
 }
 
 // ── formatação ──────────────────────────────────────────────────────────────

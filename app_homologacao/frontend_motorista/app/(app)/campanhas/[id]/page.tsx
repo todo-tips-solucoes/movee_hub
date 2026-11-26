@@ -642,9 +642,8 @@ function Confete() {
   );
 }
 
-function statusPremio(eu: MinhaLinha, dataPremio: string | null): string {
-  if (!eu.premio) return '';
-  return textoStatusPremio(eu.premio.tipo, eu.entregueEm, dataPremio, formatDate, eu.dataPagamento ?? null);
+function dadosPremio(eu: MinhaLinha & { premio: NonNullable<MinhaLinha['premio']> }, dataPremio: string | null) {
+  return { tipo: eu.premio.tipo, entregueEm: eu.entregueEm, dataPremio, dataPagamento: eu.dataPagamento ?? null };
 }
 
 function Encerrada({ t }: { t: CampanhaTela }) {
@@ -724,7 +723,7 @@ function Encerrada({ t }: { t: CampanhaTela }) {
               <span className="break-words text-lg font-extrabold leading-tight">{premio.descricao}</span>
               <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-warm-2">
                 {premio.tipo === 'objeto' && eu.entregueEm && <Check className="h-3.5 w-3.5" />}
-                {statusPremio(eu, c.dataPremio ?? null)}
+                {textoStatusPremio(dadosPremio({ ...eu, premio }, c.dataPremio ?? null), formatDate)}
               </span>
             </div>
           </div>
@@ -750,7 +749,7 @@ function Encerrada({ t }: { t: CampanhaTela }) {
         )}
         {premio && (
           <p className="text-xs opacity-75">
-            {textoRodapePremio(c.dataPremio ?? null)}
+            {textoRodapePremio(dadosPremio({ ...eu!, premio }, c.dataPremio ?? null))}
           </p>
         )}
       </div>

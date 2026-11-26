@@ -649,6 +649,7 @@ fi
 if tem_fase 13; then
   rm -f "$DL"/param-2.xlsx
   roda_fase 13 13-hub-alterar-data-exportada CAMP_ADMIN_EMAIL="$ADMIN2_EMAIL" CAMP_T="$T"
+  roda_fase 13 14-app-data-exportada CAMP_ID="$P1" CAMP_T="$T" "$C_BRUNO_ENV" "$C_CARLA_ENV"
   check "e/banco: data do prêmio virou T+8 mas a data_pagamento já exportada segue T+6" "$(own "SELECT c.data_premio||'|'||(SELECT v.data_pagamento FROM \"CampanhaVencedor\" v WHERE v.campanha_id=c.id AND v.posicao=2) FROM \"Campanha\" c WHERE c.id=$P1")" "$T8|$T6"
   check "e/auditoria: as duas trocas, na ordem (T+5>T+6, T+6>T+8)" "$(own "SELECT string_agg((detalhes->>'antes')||'>'||(detalhes->>'depois'), ' ' ORDER BY id) FROM \"Auditoria\" WHERE acao='campanha.data_premio_alterada' AND recurso_id='$P1'")" "$(date -u -d "$T + 5 day" +%F)>$T6 $T6>$T8"
   if [ -s "$DL/param-1.xlsx" ] && [ -s "$DL/param-2.xlsx" ]; then

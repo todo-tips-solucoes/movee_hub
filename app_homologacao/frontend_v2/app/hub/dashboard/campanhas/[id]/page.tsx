@@ -37,7 +37,6 @@ import {
   registrarEntrega,
   atualizarVisibilidadeCampanha,
 } from '@/lib/hub/campanhas-api';
-import { ROTULO_FAMILIA } from '@/lib/hub/adiantamento-categorias';
 import {
   diasAte,
   mostraSeloVisibilidade,
@@ -59,6 +58,8 @@ import {
   resumoCriterios,
   resumoPesos,
   rotuloFaixa,
+  textoCategorias,
+  textoDescarte,
 } from '@/lib/hub/campanhas-form';
 import { cn } from '@/lib/utils';
 
@@ -420,7 +421,7 @@ function RegrasTravadas({ c, onAlterarData }: { c: CampanhaDetalhe; onAlterarDat
             <div><dt className="text-xs font-medium text-muted-foreground">Critério do turno</dt><dd>{resumoCriterios(c.cortes)}</dd></div>
             <div>
               <dt className="text-xs font-medium text-muted-foreground">Valor do turno</dt>
-              <dd>{(c.categorias ?? []).map((x) => ROTULO_FAMILIA[x] ?? x).join(', ') || '—'}</dd>
+              <dd>{textoCategorias(c.categorias) || '—'}</dd>
             </div>
             <div><dt className="text-xs font-medium text-muted-foreground">Desempate</dt><dd>Maior valor somado, depois mais turnos válidos</dd></div>
           </>
@@ -430,7 +431,7 @@ function RegrasTravadas({ c, onAlterarData }: { c: CampanhaDetalhe; onAlterarDat
             {(c.categorias ?? []).length > 0 && (
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">Lançamentos exigidos no turno</dt>
-                <dd>{(c.categorias ?? []).map((x) => ROTULO_FAMILIA[x] ?? x).join(', ')}</dd>
+                <dd>{textoCategorias(c.categorias)}</dd>
               </div>
             )}
             <div><dt className="text-xs font-medium text-muted-foreground">Desempate</dt><dd>Pedidos concluídos, depois tempo disponível</dd></div>
@@ -439,9 +440,7 @@ function RegrasTravadas({ c, onAlterarData }: { c: CampanhaDetalhe; onAlterarDat
         <div>
           <dt className="text-xs font-medium text-muted-foreground">Turnos curtos</dt>
           <dd>
-            {c.descarteTurnoMin > 0
-              ? `Turnos de até ${c.descarteTurnoMin} min sem corridas não contam`
-              : 'Nenhum turno descartado'}
+            {textoDescarte(c.descarteTurnoMin)}
           </dd>
         </div>
         <div>
@@ -656,7 +655,7 @@ export default function CampanhaDetalhePage() {
           {c.situacao === 'encerrada' && <VencedoresSecao key={versaoVencedores} campanha={c} podeEntregar={podeEntregar} onMudou={carregar} />}
           {ativa && <RankingSecao campanha={c} />}
         </div>
-        <RegrasTravadas c={c} onAlterarData={podeGerir && c.situacao !== 'cancelada' ? () => setAlterandoData(true) : undefined} />
+        <RegrasTravadas c={c} onAlterarData={podeGerir && c.situacao !== 'cancelada' && !(c.situacao === 'encerrada' && c.premiosPendentes === 0) ? () => setAlterandoData(true) : undefined} />
       </div>
 
       <CampanhaDataPremioDialog

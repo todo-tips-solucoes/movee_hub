@@ -56,6 +56,18 @@ describe('CampanhaLancarDialog', () => {
     expect(screen.getByText(/Esta campanha começou em 05\/01\. O ranking já considera os dias desde então\./)).toBeInTheDocument();
   });
 
+  it('resumo lista o descarte e, na nota, as categorias escolhidas (R4)', () => {
+    abrir(undefined, { ...FORM, descarteTurnoMin: 5, categorias: ['Bônus X', 'familia:promocao'] });
+    expect(screen.getByText('Turnos de até 5 min sem corridas não contam')).toBeInTheDocument();
+    expect(screen.getByText(/Bônus X, Promoção/)).toBeInTheDocument();
+  });
+
+  it('descarte 0 e sem categorias: "Nenhum turno descartado", sem linha de lançamentos', () => {
+    abrir(undefined, { ...FORM, descarteTurnoMin: 0, categorias: [] });
+    expect(screen.getByText('Nenhum turno descartado')).toBeInTheDocument();
+    expect(screen.queryByText('Lançamentos')).not.toBeInTheDocument();
+  });
+
   it('início futuro: sem o aviso de campanha em andamento', () => {
     abrir(undefined, { ...FORM, dataInicio: '2099-01-10', dataFim: '2099-01-20' });
     expect(screen.queryByText(/Esta campanha começou em/)).not.toBeInTheDocument();

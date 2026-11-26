@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CampanhaApiError } from '@/lib/hub/campanhas-api';
-import { formatCentavos, formatDiaMes, hojeSP, resumoCriterios, resumoPesos, rotuloFaixa, type FormularioCampanha } from '@/lib/hub/campanhas-form';
+import { formatCentavos, formatDiaMes, hojeSP, resumoCriterios, resumoPesos, rotuloFaixa, textoCategorias, textoDescarte, type FormularioCampanha } from '@/lib/hub/campanhas-form';
 
 export interface AlcanceLancamento {
   rodaram: number;
@@ -126,8 +126,14 @@ function Conteudo({ form, alcance, onLancar, onOpenChange }: Omit<Props, 'open'>
             <Linha rotulo="Valor do turno">{form.categorias.length} categorias do faturamento · soma só dos turnos válidos</Linha>
           </>
         ) : (
-          <Linha rotulo="Nota">{resumoPesos(form.pesos, form.cortes)}</Linha>
+          <>
+            <Linha rotulo="Nota">{resumoPesos(form.pesos, form.cortes)}</Linha>
+            {form.categorias.length > 0 && (
+              <Linha rotulo="Lançamentos">{textoCategorias(form.categorias)}</Linha>
+            )}
+          </>
         )}
+        <Linha rotulo="Turnos curtos">{textoDescarte(form.descarteTurnoMin)}</Linha>
         <Linha rotulo="Prêmios">
           {form.premios
             .map(

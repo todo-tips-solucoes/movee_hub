@@ -210,4 +210,17 @@ describe('detalhe — 0133: descarte, data do prêmio e categorias da nota', () 
     expect(screen.getByText('05/12/2099')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Alterar data' })).not.toBeInTheDocument();
   });
+
+  it('encerrada com todos os prêmios pagos/entregues: sem "Alterar data" (R5)', async () => {
+    mockCampanha.mockResolvedValue(parseCampanhaDetalhe({ ...NOTA, situacao: 'encerrada', premiosPendentes: 0 }));
+    render(<CampanhaDetalhePage />);
+    await screen.findByText('Turnos de até 5 min sem corridas não contam');
+    expect(screen.queryByRole('button', { name: 'Alterar data' })).not.toBeInTheDocument();
+  });
+
+  it('encerrada com prêmio pendente: "Alterar data" continua', async () => {
+    mockCampanha.mockResolvedValue(parseCampanhaDetalhe({ ...NOTA, situacao: 'encerrada', premiosPendentes: 2 }));
+    render(<CampanhaDetalhePage />);
+    expect(await screen.findByRole('button', { name: 'Alterar data' })).toBeInTheDocument();
+  });
 });

@@ -52,27 +52,47 @@ export function ddmm(iso: string | null | undefined): string {
   return m ? `${m[2]}/${m[1]}` : '';
 }
 
-/** Status do prêmio do motorista (0133/D5): com `dataPremio` vira "Pagamento/Entrega prevista em DD/MM"; sem, o texto de antes. */
-export function textoStatusPremio(
-  tipo: 'dinheiro' | 'objeto',
-  entregueEm: string | null | undefined,
-  dataPremio: string | null | undefined,
-  formatarData: (iso: string) => string,
-  dataPagamento?: string | null
-): string {
-  if (tipo === 'objeto' && entregueEm) return `Entregue em ${formatarData(entregueEm)}`;
-  // dinheiro: a data GRAVADA na exportação (pode ter sido adiada por colisão de CNPJ) vale mais que a data da campanha
-  const d = ddmm(tipo === 'dinheiro' ? (dataPagamento ?? dataPremio) : dataPremio);
-  if (tipo === 'dinheiro') return d ? `Pagamento previsto em ${d}` : 'Aparece no seu repasse';
+export interface DadosPremio {
+  tipo: 'dinheiro' | 'objeto';
+  entregueEm?: string | null;
+  /** Data da campanha (`Campanha.data_premio`). */
+  dataPremio?: string | null;
+  /** Data GRAVADA na exportação do próprio prêmio em dinheiro (pode diferir da campanha). */
+  dataPagamento?: string | null;
+}
+
+/**
+ * UMA regra para a data de prêmio exibida (status e rodapé): dinheiro = `dataPagamento ?? dataPremio`.
+ * `dataPagamento` gravado vale sempre (é a data real da planilha). Sem ele (ou objeto não entregue),
+ * data anterior a hoje (SP) não é promessa: volta a null (texto sem data).
+ */
+export function dataPremioExibida(p: DadosPremio, hoje: string = hojeSP()): string | null {
+  if (p.tipo === 'dinheiro' && p.dataPagamento) return p.dataPagamento;
+  const d = (p.tipo === 'dinheiro' ? p.dataPagamento ?? p.dataPremio : p.dataPremio) ?? null;
+  if (!d || ddmm(d) === '') return null;
+  const pendente = p.tipo === 'dinheiro' || !p.entregueEm;
+  return pendente && d.slice(0, 10) < hoje ? null : d;
+}
+
+/** Status do prêmio do motorista: "Pagamento/Entrega prevista em DD/MM" quando há data a exibir; senão o texto de antes. */
+export function textoStatusPremio(p: DadosPremio, formatarData: (iso: string) => string, hoje: string = hojeSP()): string {
+  if (p.tipo === 'objeto' && p.entregueEm) return `Entregue em ${formatarData(p.entregueEm)}`;
+  const d = ddmm(dataPremioExibida(p, hoje));
+  if (p.tipo === 'dinheiro') return d ? `Pagamento previsto em ${d}` : 'Aparece no seu repasse';
   return d ? `Entrega prevista em ${d}` : 'A equipe Movee combina a entrega com você';
 }
 
-/** Rodapé do resultado final: mesma regra, para os dois tipos de prêmio. */
-export function textoRodapePremio(dataPremio: string | null | undefined): string {
-  const d = ddmm(dataPremio);
-  return d
-    ? `Prêmio em objeto: entrega prevista em ${d}. Prêmio em dinheiro: pagamento previsto em ${d}.`
-    : 'Prêmio em objeto: a equipe Movee combina a entrega com você. Prêmio em dinheiro aparece no seu repasse.';
+/**
+ * Rodapé do resultado final. Cada lado usa a MESMA regra de data do status; `eu` (o prêmio do motorista)
+ * entra no seu lado, o outro tipo só enxerga a data da campanha.
+ */
+export function textoRodapePremio(eu: DadosPremio, hoje: string = hojeSP()): string {
+  const lado = (tipo: 'dinheiro' | 'objeto') =>
+    ddmm(dataPremioExibida(eu.tipo === tipo ? eu : { tipo, dataPremio: eu.dataPremio }, hoje));
+  const o = lado('objeto');
+  const d = lado('dinheiro');
+  return `Prêmio em objeto: ${o ? `entrega prevista em ${o}` : 'a equipe Movee combina a entrega com você'}. `
+    + `Prêmio em dinheiro: ${d ? `pagamento previsto em ${d}` : 'aparece no seu repasse'}.`;
 }
 
 /** Pontos que faltam para passar quem está acima (1 casa; empate → 0). null = ninguém acima. */

@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import {
   faltamPontos,
   textoStatusPremio,
+  dataPremioExibida,
   textoRodapePremio,
   ondeGanharMais,
   textoOndeGanhar,
@@ -339,21 +340,33 @@ test('app não cita o total de motoristas (guarda no fonte, P6/P7)', () => {
   }
 });
 
-test('0133: status e rodapé do prêmio com e sem data', () => {
-  const f = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
-  assert.equal(textoStatusPremio('dinheiro', null, '2026-12-05', f), 'Pagamento previsto em 05/12');
-  assert.equal(textoStatusPremio('objeto', null, '2026-12-05', f), 'Entrega prevista em 05/12');
-  assert.equal(textoStatusPremio('dinheiro', null, null, f), 'Aparece no seu repasse');
-  assert.equal(textoStatusPremio('objeto', null, null, f), 'A equipe Movee combina a entrega com você');
-  assert.equal(textoStatusPremio('objeto', '2026-12-01', '2026-12-05', f), 'Entregue em 01/12');
-  assert.match(textoRodapePremio('2026-12-05'), /entrega prevista em 05\/12.*pagamento previsto em 05\/12/);
-  assert.match(textoRodapePremio(null), /combina a entrega/);
+const fd = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+const HOJE = '2026-12-01';
+
+test('0133: status e rodapé do prêmio com e sem data (futura)', () => {
+  assert.equal(textoStatusPremio({ tipo: 'dinheiro', dataPremio: '2026-12-05' }, fd, HOJE), 'Pagamento previsto em 05/12');
+  assert.equal(textoStatusPremio({ tipo: 'objeto', dataPremio: '2026-12-05' }, fd, HOJE), 'Entrega prevista em 05/12');
+  assert.equal(textoStatusPremio({ tipo: 'dinheiro' }, fd, HOJE), 'Aparece no seu repasse');
+  assert.equal(textoStatusPremio({ tipo: 'objeto' }, fd, HOJE), 'A equipe Movee combina a entrega com você');
+  assert.equal(textoStatusPremio({ tipo: 'objeto', entregueEm: '2026-12-01', dataPremio: '2026-12-05' }, fd, HOJE), 'Entregue em 01/12');
+  assert.match(textoRodapePremio({ tipo: 'dinheiro', dataPremio: '2026-12-05' }, HOJE), /entrega prevista em 05\/12.*pagamento previsto em 05\/12/);
+  assert.match(textoRodapePremio({ tipo: 'objeto' }, HOJE), /combina a entrega.*aparece no seu repasse/);
 });
 
-test('0133/C7: texto de dinheiro usa dataPagamento ?? dataPremio; objeto ignora dataPagamento', () => {
-  const f = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
-  assert.equal(textoStatusPremio('dinheiro', null, '2026-12-05', f, '2026-12-06'), 'Pagamento previsto em 06/12');
-  assert.equal(textoStatusPremio('dinheiro', null, '2026-12-05', f, null), 'Pagamento previsto em 05/12');
-  assert.equal(textoStatusPremio('dinheiro', null, null, f, '2026-12-06'), 'Pagamento previsto em 06/12');
-  assert.equal(textoStatusPremio('objeto', null, '2026-12-05', f, '2026-12-06'), 'Entrega prevista em 05/12');
+test('M1: status e rodapé usam a MESMA data (dataPagamento gravada vence a da campanha)', () => {
+  const p = { tipo: 'dinheiro', dataPremio: '2026-12-08', dataPagamento: '2026-12-06' } as const;
+  assert.equal(dataPremioExibida(p, HOJE), '2026-12-06');
+  assert.equal(textoStatusPremio(p, fd, HOJE), 'Pagamento previsto em 06/12');
+  assert.match(textoRodapePremio(p, HOJE), /pagamento previsto em 06\/12/);
+  assert.doesNotMatch(textoRodapePremio(p, HOJE), /dinheiro: pagamento previsto em 08\/12/);
+  // objeto ignora dataPagamento
+  assert.equal(textoStatusPremio({ tipo: 'objeto', dataPremio: '2026-12-05', dataPagamento: '2026-12-06' }, fd, HOJE), 'Entrega prevista em 05/12');
+});
+
+test('M3: data passada sem exportar/entregar volta ao texto sem data; dataPagamento gravado sempre aparece', () => {
+  assert.equal(textoStatusPremio({ tipo: 'dinheiro', dataPremio: '2026-11-20' }, fd, HOJE), 'Aparece no seu repasse');
+  assert.equal(textoStatusPremio({ tipo: 'objeto', dataPremio: '2026-11-20' }, fd, HOJE), 'A equipe Movee combina a entrega com você');
+  assert.equal(textoStatusPremio({ tipo: 'dinheiro', dataPremio: '2026-12-08', dataPagamento: '2026-11-20' }, fd, HOJE), 'Pagamento previsto em 20/11');
+  assert.match(textoRodapePremio({ tipo: 'dinheiro', dataPremio: '2026-11-20' }, HOJE), /combina a entrega.*aparece no seu repasse/);
+  assert.equal(dataPremioExibida({ tipo: 'dinheiro', dataPremio: HOJE }, HOJE), HOJE); // hoje ainda vale
 });

@@ -239,6 +239,16 @@ describe('criar / editar / transições', () => {
       assert.equal(auditorias[0].acao, 'campanha.data_premio_alterada');
       assert.deepEqual(auditorias[0].detalhes, { antes: '2026-12-01', depois: '2026-12-05' });
     });
+    test('RPC diz alterada=false: 200 sem auditoria; depois da auditoria vem da RPC, não do corpo', async () => {
+      respostas['rpc/hub_campanha_detalhe'] = det;
+      respostas['rpc/hub_campanha_alterar_data_premio'] = { antes: '2026-12-05', depois: '2026-12-05', alterada: false };
+      const r = await req('PATCH', URL_, { json: { dataPremio: '2026-12-05' } });
+      assert.equal(r.status, 200);
+      assert.equal(auditorias.length, 0);
+      respostas['rpc/hub_campanha_alterar_data_premio'] = { antes: '2026-12-01', depois: '2026-12-07', alterada: true };
+      await req('PATCH', URL_, { json: { dataPremio: '2026-12-05' } });
+      assert.deepEqual(auditorias[0].detalhes, { antes: '2026-12-01', depois: '2026-12-07' });
+    });
     test('null limpa sem consultar o detalhe; token da RPC vira HTTP', async () => {
       respostas['rpc/hub_campanha_alterar_data_premio'] = { antes: '2026-12-01' };
       const r = await req('PATCH', URL_, { json: { dataPremio: null } });
