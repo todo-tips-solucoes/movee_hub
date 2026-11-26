@@ -18,6 +18,10 @@
 #       critérios, categorias nome+família, base "válidos") -> rascunho -> lança; semeia Performance +
 #       faturamento (turnos válidos/inválidos/pendentes, 5 motoristas) e recalcula -> cards, tabela e CSV
 #       do hub; app: "Seu extrato na campanha", ✓/✕/… em "Seus turnos", NENHUM valor de terceiro
+#   (h) parametrização 0133 (fases 10-13): subpraça efetiva (origem + LIVRE) nas opções da campanha e na Performance
+#       do hub; descarte de turno curto (5 min / 0); nota com categorias; lançar em andamento (ranking nasce pronto);
+#       FIM_NO_PASSADO; data do prêmio (formulário, "Alterar data" + auditoria, quem só consulta não vê o botão, app
+#       "Pagamento/Entrega prevista em", planilha com a data gravada e re-download idêntico depois de alterar a data)
 #
 # Ambiente: stack efêmero hub-test-<runid> (db + postgrest + backend, série de migrations completa).
 # UM container oficial do Playwright fica de pé com os DOIS frontends (hub :3005 e app motorista
@@ -46,7 +50,7 @@ PLAYWRIGHT_IMAGE="mcr.microsoft.com/playwright:v1.61.1-jammy"
 EVID_DIR="$REPO_DIR/docs/specs/envioMassa_homologacao/evidencias/campanhas"
 mkdir -p "$EVID_DIR"
 RUN_LOG="$EVID_DIR/campanhas-e2e-browser-run-$(date -u +%Y%m%dT%H%M%SZ).log"
-PHASES="${CAMP_PHASES:-1 2 3 4 5 6 7 8 9}"
+PHASES="${CAMP_PHASES:-1 2 3 4 5 6 7 8 9 10 11 12 13}"
 
 . "$HUB_DIR/scripts/lib.sh"
 DB_USER="$(get_var HUB_DB_USER "$ENV_FILE")"; DB_NAME="$(get_var HUB_DB_NAME "$ENV_FILE")"
@@ -151,7 +155,8 @@ if [ -z "${CAMP_REUSE:-}" ]; then
   grep -q "0127_campanhas.sql" "$TMP/migrate.log" || { echo "FAIL: 0127 não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
   grep -q "0129_campanhas_extrato.sql" "$TMP/migrate.log" || { echo "FAIL: 0129 não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
   grep -q "0132_" "$TMP/migrate.log" || { echo "FAIL: 0132 (visibilidade no app) não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
-  echo "PASS: série de migrations aplicada do zero, com a 0127, a 0129 e a 0132"
+  grep -q "0133_" "$TMP/migrate.log" || { echo "FAIL: 0133 (parametrização) não aplicada"; tail -40 "$TMP/migrate.log"; exit 1; }
+  echo "PASS: série de migrations aplicada do zero, com a 0127, a 0129, a 0132 e a 0133"
   # recarrega o schema cache do PostgREST (RPCs novas)
   dc kill -s SIGUSR1 postgrest >/dev/null 2>&1 || true
 
@@ -173,7 +178,7 @@ INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
   ((SELECT id FROM "Usuario" WHERE email='$ADMIN_EMAIL'), $EMP, (SELECT id FROM "Papel" WHERE nome='admin_entidade'), true),
   ((SELECT id FROM "Usuario" WHERE email='$FIN_EMAIL'),   $EMP, (SELECT id FROM "Papel" WHERE nome='financeiro'), true);
 INSERT INTO "ModuloEntidade" (modulo_id, empresa_id, ativo)
-  SELECT m.id, $EMP, true FROM "Modulo" m WHERE m.codigo = 'campanhas'
+  SELECT m.id, $EMP, true FROM "Modulo" m WHERE m.codigo IN ('campanhas', 'performance')  -- performance: fase 10 (o backend cacheia os módulos da entidade; ligar depois do login não vale)
   ON CONFLICT DO NOTHING;
 SQL
   # --- elenco: PerformanceTurno de HOJE (jantar, SP), MV, modal no dados_entrego_json, conta + legado ---
@@ -529,13 +534,136 @@ if tem_fase 9; then
     "$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha.visibilidade' AND recurso_id='$CAMP_X_ID' AND usuario_id=(SELECT id FROM \"Usuario\" WHERE email='$ADMIN_EMAIL') AND detalhes->>'nome'='$NOME_EXTRATO'")" "4"
 fi
 
+
+# ============================ fases 10-13: parametrização 0133 (h) ============================
+# "hoje" volta a ser o REAL (as fases 4/6 o fixaram para frente) para casar com a data do browser; T = hoje.
+# Seed: turno MADRUGADA 02H-06H em T-2, T-1 e T:
+#   Aline  subpraça '' + origem 'ZONA SUL E2E'      -> efetiva 'ZONA SUL E2E'     (3 turnos)
+#   Bruno  subpraça NULL, origem NULL               -> 'LIVRE'                    (3 turnos, aceitação 100%)
+#   Carla  subpraça '  ' (espaços), origem NULL     -> 'LIVRE'; T-1 = turno de 3 min zerado (descartado com N=5)
+#   Eva    subpraça 'SAO PAULO' (origem 'ZZ' ignorada: a subpraça vem primeiro)
+#   crédito "Corridas" só do Bruno em T-2 (nota com categorias: só 1 turno casa)
+T10='MADRUGADA 02H-06H'
+RO_EMAIL="camp-ro@example.test"
+# 2º admin só para as fases 10-13: o limitador de login do hub é 10/15 min por (IP, e-mail) e as fases 1-9 já gastam o do 1º
+ADMIN2_EMAIL="camp-admin2@example.test"
+if tem_fase 10 || tem_fase 11 || tem_fase 12 || tem_fase 13; then
+  C_BRUNO_ENV="CAMP_MOT_BRUNO_CNPJ=$C_BRUNO"; C_CARLA_ENV="CAMP_MOT_CARLA_CNPJ=$C_CARLA"
+fi
+pid() { own "SELECT id FROM \"Campanha\" WHERE nome LIKE '$1%' AND lancada_em IS NOT NULL ORDER BY id DESC LIMIT 1"; }
+rank_str() { own "SELECT COALESCE(string_agg(e.nome||'='||r.turnos, ' ' ORDER BY r.posicao), '(vazio)') FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$1"; }
+xlsx_json() { node_e "const XLSX=require('xlsx');const wb=XLSX.read(Buffer.from(process.argv[1],'base64'),{type:'buffer'});console.log(JSON.stringify(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true})));" "$(base64 -w0 "$1")" 2>&1 | tail -1; }
+
+if tem_fase 10; then
+  psql_t -q -c "CREATE OR REPLACE FUNCTION hub_hoje_sp() RETURNS date LANGUAGE sql STABLE AS \$\$ SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date; \$\$;" >/dev/null
+  T="$(own "SELECT hub_hoje_sp()")"
+  echo "--- parametrização: hoje real do banco T=$T; semeando subpraça efetiva, turno curto, crédito e usuário só-consulta ---"
+  HASH_RO="$(node_e "require('bcrypt').hash(process.argv[1],10).then(h=>{process.stdout.write(h);process.exit(0);});" "$SENHA_ADMIN" 2>/dev/null | tr -d '[:space:]')"
+  [ -n "$HASH_RO" ] || { echo "FAIL: hash bcrypt do usuário só-consulta"; exit 1; }
+  psql_t -q <<SQL >"$TMP/seed10.log" 2>&1 || { echo "FAIL: seed da fase 10"; cat "$TMP/seed10.log"; exit 1; }
+CREATE TEMP TABLE s10 (nome text, d int, sub text, ori text, o int, a int, c int, p int, t numeric);
+INSERT INTO s10 VALUES
+ ('Aline Ribeiro Santos',-2,'','ZONA SUL E2E',10,9,9,9,3.5),('Aline Ribeiro Santos',-1,'','ZONA SUL E2E',10,9,9,9,3.5),('Aline Ribeiro Santos',0,'','ZONA SUL E2E',10,9,9,9,3.5),
+ ('Bruno Teixeira Souza',-2,NULL,NULL,10,10,10,10,3.8),('Bruno Teixeira Souza',-1,NULL,NULL,10,10,10,10,3.8),('Bruno Teixeira Souza',0,NULL,NULL,10,10,10,10,3.8),
+ ('Carla Dias Moreira',-2,'  ',NULL,10,9,9,9,3.5),('Carla Dias Moreira',-1,'  ',NULL,0,0,0,0,0.05),('Carla Dias Moreira',0,'  ',NULL,10,9,9,9,3.5),
+ ('Eva Costa Lima',-2,'SAO PAULO','ZZ',10,8,8,8,3.5),('Eva Costa Lima',-1,'SAO PAULO','ZZ',10,8,8,8,3.5),('Eva Costa Lima',0,'SAO PAULO','ZZ',10,8,8,8,3.5);
+INSERT INTO "PerformanceTurno" (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, origem,
+       corridas_ofertadas, corridas_aceitas, corridas_completadas, pedidos_concluidos, tempo_disponivel, hash_linha)
+SELECT $EMP, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('a',64)), e.id, ('$T'::date + s.d), '$T10', interval '4 hours', s.sub, s.ori,
+       s.o, s.a, s.c, s.p, make_interval(secs => (s.t * 3600)::float8), md5('p10'||e.id::text||s.d::text)||md5(s.d::text||e.id::text||'p10')
+FROM s10 s JOIN "Entregador" e ON e.nome = s.nome AND e.id_empresa = $EMP;
+REFRESH MATERIALIZED VIEW mv_performance_dia;
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status)
+  SELECT $EMP,'faturamento',repeat('e',64),'completed' WHERE NOT EXISTS (SELECT 1 FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('e',64));
+INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, hash_linha)
+SELECT $EMP, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('e',64)), e.id, ('$T'::date - 1), ('$T'::date - 2), '$T10', 'Credito', 70, 'Corridas',
+       md5('f10'||e.id::text)||md5('f10b'||e.id::text)
+FROM "Entregador" e WHERE e.nome = 'Bruno Teixeira Souza' AND e.id_empresa = $EMP;
+-- Performance do hub precisa do módulo ligado para a entidade (a seed só ligou o de campanhas)
+INSERT INTO "ModuloEntidade" (modulo_id, empresa_id, ativo)
+  SELECT m.id, $EMP, true FROM "Modulo" m WHERE m.codigo = 'performance' ON CONFLICT DO NOTHING;
+-- usuário que SÓ consulta campanhas (sem campanhas.gerir)
+INSERT INTO "Papel" (nome, escopo, is_sistema) VALUES ('camp_consulta_e2e','entidade',false);
+INSERT INTO "PapelPermissao" (papel_id, permissao_id)
+  SELECT p.id, perm.id FROM "Papel" p, "Permissao" perm WHERE p.nome='camp_consulta_e2e' AND perm.codigo='campanhas.consultar';
+INSERT INTO "Usuario" (email, senha_hash, nome, ativo) VALUES ('$RO_EMAIL','$HASH_RO','E2E Campanhas Consulta',true),('$ADMIN2_EMAIL','$HASH_RO','E2E Campanhas Admin 2',true);
+INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo)
+  VALUES ((SELECT id FROM "Usuario" WHERE email='$ADMIN2_EMAIL'), $EMP, (SELECT id FROM "Papel" WHERE nome='admin_entidade'), true);
+INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo)
+  VALUES ((SELECT id FROM "Usuario" WHERE email='$RO_EMAIL'), $EMP, (SELECT id FROM "Papel" WHERE nome='camp_consulta_e2e'), true);
+SQL
+  check "h/seed: 12 turnos novos e o crédito Corridas do Bruno" "$(own "SELECT (SELECT count(*) FROM \"PerformanceTurno\" WHERE id_empresa=$EMP AND periodo='$T10')||'/'||(SELECT count(*) FROM \"FaturamentoLancamento\" WHERE id_empresa=$EMP AND periodo='$T10')")" "12/1"
+  check "h/banco: papel só-consulta tem consultar e NÃO tem gerir" "$(own "SELECT string_agg(perm.codigo, ',') FROM \"PapelPermissao\" pp JOIN \"Papel\" p ON p.id=pp.papel_id JOIN \"Permissao\" perm ON perm.id=pp.permissao_id WHERE p.nome='camp_consulta_e2e'")" "campanhas.consultar"
+  check "h/banco: subpraça efetiva (regra única): origem, LIVRE (NULL e só espaços) e a própria subpraça" \
+    "$(own "SELECT string_agg(e.nome||'='||hub_subpraca_efetiva(pt.subpraca, pt.origem), ' ; ' ORDER BY e.nome) FROM (SELECT DISTINCT ON (entregador_id) * FROM \"PerformanceTurno\" WHERE periodo='$T10' ORDER BY entregador_id, data_periodo) pt JOIN \"Entregador\" e ON e.id=pt.entregador_id")" \
+    "Aline Ribeiro Santos=ZONA SUL E2E ; Bruno Teixeira Souza=LIVRE ; Carla Dias Moreira=LIVRE ; Eva Costa Lima=SAO PAULO"
+  R="$(rpc $ADM $E6 $EMP "SELECT hub_campanha_opcoes($EMP, NULL, NULL, NULL);")"
+  check "a/banco: opções de praça da campanha trazem a origem e LIVRE" "$(printf '%s' "$R" | jq -r '.pracas | (index("LIVRE") != null) and (index("ZONA SUL E2E") != null)' 2>/dev/null)" "true"
+  T6="$(date -u -d "$T + 6 day" +%F)"; T5="$(date -u -d "$T + 5 day" +%F)"
+  roda_fase 10 10-hub-parametrizacao CAMP_ADMIN_EMAIL="$ADMIN2_EMAIL" CAMP_T="$T" CAMP_RO_EMAIL="$RO_EMAIL"
+  P1="$(pid 'Praça LIVRE E2E')"; P2="$(pid 'Descarte zero E2E')"; P3="$(pid 'Nota com lançamentos E2E')"
+  echo "--- banco depois da fase 10 (LIVRE #$P1, descarte0 #$P2, categorias #$P3) ---"
+  check "b/banco: campanha LIVRE com descarte 5, praça LIVRE e data do prêmio alterada para T+6" "$(own "SELECT descarte_turno_min||'|'||pracas::text||'|'||data_premio FROM \"Campanha\" WHERE id=$P1")" "5|{LIVRE}|$T6"
+  check "a,b,d/banco: ranking LIVRE (descarte 5): Bruno 3 turnos, Carla 2 (o de 3 min não conta); Aline e Eva fora" "$(rank_str "$P1")" "Bruno Teixeira Souza=3 Carla Dias Moreira=2"
+  check "b/banco: descarte 0 gravado e o turno curto conta (Carla 3)" "$(own "SELECT descarte_turno_min FROM \"Campanha\" WHERE id=$P2")|$(rank_str "$P2")" "0|Bruno Teixeira Souza=3 Carla Dias Moreira=3"
+  check "c/banco: nota com categorias gravada (tipo nota, Corridas) e só o turno com lançamento casado conta" "$(own "SELECT tipo||'|'||array_to_string(categorias,',') FROM \"Campanha\" WHERE id=$P3")|$(rank_str "$P3")" "nota|Corridas|Bruno Teixeira Souza=1"
+  check "d/banco: as 3 nasceram com dados_ate preenchido (ranking pronto, sem importação nova); a LIVRE (fim = T) em T" "$(own "SELECT (SELECT dados_ate::text FROM \"Campanha\" WHERE id=$P1)||'|'||(SELECT count(*) FROM \"Campanha\" WHERE id IN ($P1,$P2,$P3) AND dados_ate IS NOT NULL)")" "$T|3"
+  check "e/auditoria: troca da data do prêmio registrada com antes/depois (T+5 > T+6)" "$(own "SELECT string_agg((detalhes->>'antes')||'>'||(detalhes->>'depois'), ' ' ORDER BY id) FROM \"Auditoria\" WHERE acao='campanha.data_premio_alterada' AND recurso='Campanha' AND recurso_id='$P1'")" "$T5>$T6"
+  check "e/auditoria: quem trocou foi o admin" "$(own "SELECT count(*) FROM \"Auditoria\" WHERE acao='campanha.data_premio_alterada' AND recurso_id='$P1' AND usuario_id=(SELECT id FROM \"Usuario\" WHERE email='$ADMIN2_EMAIL')")" "1"
+  R="$(ownx "UPDATE \"Campanha\" SET descarte_turno_min=1 WHERE id=$P1")"
+  check_match "b/banco: depois de lançada, o descarte é imutável (CAMPANHA_IMUTAVEL)" "$R" 'CAMPANHA_IMUTAVEL'
+fi
+
+if tem_fase 11 || tem_fase 12 || tem_fase 13; then
+  T="$(own "SELECT hub_hoje_sp()")"; P1="$(pid 'Praça LIVRE E2E')"
+  if [ "$(own "SELECT (fechada_em IS NOT NULL)::text FROM \"Campanha\" WHERE id=$P1")" != "true" ]; then
+    T1="$(date -u -d "$T + 1 day" +%F)"
+    echo "--- fechar a campanha LIVRE (fim = T=$T): hoje fixado em $T1 neste stack efêmero + recalcular_ativas ---"
+    psql_t -q -c "CREATE OR REPLACE FUNCTION hub_hoje_sp() RETURNS date LANGUAGE sql STABLE AS \$\$ SELECT '$T1'::date; \$\$;" >/dev/null
+    rpc $ADM $E6 $EMP "SELECT hub_campanhas_recalcular_ativas($EMP);" >/dev/null
+    check "h/banco: campanha LIVRE fechou; a de descarte 0 (fim T+3) segue ativa" "$(own "SELECT (SELECT (fechada_em IS NOT NULL)::text FROM \"Campanha\" WHERE id=$P1)||'/'||(SELECT (fechada_em IS NULL)::text FROM \"Campanha\" WHERE id=$(pid 'Descarte zero E2E'))")" "true/true"
+    check "h/banco: vencedores (Bruno 1º objeto; Carla 2ª dinheiro), sem data de pagamento antes da planilha" \
+      "$(own "SELECT string_agg(v.posicao||':'||e.nome||':'||p.tipo||':'||COALESCE(v.data_pagamento::text,'-'), ' | ' ORDER BY v.posicao) FROM \"CampanhaVencedor\" v JOIN \"Entregador\" e ON e.id=v.entregador_id JOIN \"CampanhaPremio\" p ON p.id=v.premio_id WHERE v.campanha_id=$P1")" \
+      "1:Bruno Teixeira Souza:objeto:- | 2:Carla Dias Moreira:dinheiro:-"
+  fi
+  T6="$(date -u -d "$T + 6 day" +%F)"; T8="$(date -u -d "$T + 8 day" +%F)"
+fi
+
+if tem_fase 11; then
+  rm -f "$DL"/param-1.xlsx
+  roda_fase 11 11-hub-premio-exportar CAMP_ADMIN_EMAIL="$ADMIN2_EMAIL" CAMP_T="$T"
+  check "d/banco: a campanha de fim no passado continua RASCUNHO (nada lançado)" "$(own "SELECT count(*) FROM \"Campanha\" WHERE nome LIKE 'Fim no passado E2E%' AND lancada_em IS NOT NULL")" "0"
+  check "e/banco: data_pagamento gravada no vencedor do dinheiro = data do prêmio (T+6); objeto sem data" \
+    "$(own "SELECT string_agg(v.posicao||':'||COALESCE(v.data_pagamento::text,'-')||':'||(v.exportado_em IS NOT NULL)::text, ' | ' ORDER BY v.posicao) FROM \"CampanhaVencedor\" v WHERE v.campanha_id=$P1")" \
+    "1:-:false | 2:$T6:true"
+  if [ -s "$DL/param-1.xlsx" ]; then
+    PL1="$(xlsx_json "$DL/param-1.xlsx")"; echo "planilha 1: $PL1"
+    check "e/planilha: 1 linha (Carla) com a Data do pagamento = T+6 (a data do prêmio, não a da exportação)" "$(printf '%s' "$PL1" | jq -r '[.[1:][]|(.[0]|tostring)+"|"+(.[1]|tostring)]|join(";")' 2>/dev/null)" "$C_CARLA|$T6"
+  else echo "FAIL: planilha param-1.xlsx não baixada"; fails=$((fails + 1)); fi
+fi
+
+if tem_fase 12; then
+  roda_fase 12 12-app-data-premio CAMP_ID="$P1" CAMP_T="$T" "$C_BRUNO_ENV" "$C_CARLA_ENV"
+fi
+
+if tem_fase 13; then
+  rm -f "$DL"/param-2.xlsx
+  roda_fase 13 13-hub-alterar-data-exportada CAMP_ADMIN_EMAIL="$ADMIN2_EMAIL" CAMP_T="$T"
+  roda_fase 13 14-app-data-exportada CAMP_ID="$P1" CAMP_T="$T" "$C_BRUNO_ENV" "$C_CARLA_ENV"
+  check "e/banco: data do prêmio virou T+8 mas a data_pagamento já exportada segue T+6" "$(own "SELECT c.data_premio||'|'||(SELECT v.data_pagamento FROM \"CampanhaVencedor\" v WHERE v.campanha_id=c.id AND v.posicao=2) FROM \"Campanha\" c WHERE c.id=$P1")" "$T8|$T6"
+  check "e/auditoria: as duas trocas, na ordem (T+5>T+6, T+6>T+8)" "$(own "SELECT string_agg((detalhes->>'antes')||'>'||(detalhes->>'depois'), ' ' ORDER BY id) FROM \"Auditoria\" WHERE acao='campanha.data_premio_alterada' AND recurso_id='$P1'")" "$(date -u -d "$T + 5 day" +%F)>$T6 $T6>$T8"
+  if [ -s "$DL/param-1.xlsx" ] && [ -s "$DL/param-2.xlsx" ]; then
+    check "e/planilha: o re-download depois de alterar a data é IDÊNTICO (mesmas linhas e datas)" "$(xlsx_json "$DL/param-2.xlsx")" "$(xlsx_json "$DL/param-1.xlsx")"
+  else echo "FAIL: planilhas param-1/param-2 ausentes para comparar"; fails=$((fails + 1)); fi
+fi
+
 # ------------------------------ relatório ------------------------------
 echo
 echo "=== log completo: $RUN_LOG ==="
 echo "Checagens de banco/driver: $passes PASS, $fails FAIL"
 echo "Playwright (soma das fases): $PW_PASSED passed, $PW_FAILED failed, $PW_FLAKY flaky"
 if [ "$fails" = "0" ] && [ "$PW_EXIT_ALL" = "0" ] && [ "$PW_FAILED" = "0" ]; then
-  echo "HUB-CAMPANHAS-E2E-BROWSER: OK — a) b) c) d) e) f) g) w4-visibilidade verdes"
+  echo "HUB-CAMPANHAS-E2E-BROWSER: OK — a) b) c) d) e) f) g) w4-visibilidade h) parametrização verdes"
   exit 0
 fi
 echo "HUB-CAMPANHAS-E2E-BROWSER: FALHOU (checagens=$fails, playwright_exit=$PW_EXIT_ALL, failed=$PW_FAILED)" >&2

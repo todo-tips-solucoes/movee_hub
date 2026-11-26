@@ -59,7 +59,7 @@ describe('faturamento — a janela de datas filtra `data_lancamento` (0055)', ()
     });
     assert.ok(filtros.includes('descricao=eq.Corridas%20concluidas'));
     assert.ok(filtros.includes('entregador_id=eq.42'));
-    assert.ok(filtros.includes('subpraca=eq.PANAMBY%20E%20VILA%20SONIA%20-%20SP'));
+    assert.ok(filtros.includes('subpraca_efetiva=eq.PANAMBY%20E%20VILA%20SONIA%20-%20SP'));
     assert.ok(filtros.includes('entregador_id=not.is.null'));
   });
 });

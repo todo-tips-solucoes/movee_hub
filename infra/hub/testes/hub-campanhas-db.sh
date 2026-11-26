@@ -24,6 +24,11 @@
 #   CAMP_NEG=extrato_privado -> (0129) top10 do extrato vaza campo de valor (prova: a secao de privacidade deve FALHAR)
 #   CAMP_NEG=tempo_leitura -> (0130) tempo sem leitura volta a valer 100% (prova: os checks 0130 (a)/(b) devem FALHAR)
 #   CAMP_NEG=familias  -> (0131) familias() sem indicador (prova: os checks 0131/campanha de familia:indicador devem FALHAR)
+#   CAMP_NEG=descarte  -> (0133/D2) predicado de descarte de turno curto zerado SEMPRE falso (prova: os checks de descarte devem FALHAR)
+#   CAMP_NEG=semijoin  -> (0133/D1) semi-join de praca da nota e do extrato volta a upper(btrim(subpraca)) (prova: os checks de subpraca efetiva devem FALHAR)
+#   CAMP_NEG=data_premio -> (0133/D5) gatilho de imutabilidade deixa de liberar data_premio (prova: alterar a data apos lancar deve FALHAR)
+#   CAMP_NEG=view_escopo -> (0133/C2) hub_areas_por_entregador sem o WHERE de escopo (prova: o check de isolamento entre empresas deve FALHAR)
+#   CAMP_NEG=c1        -> (0133/C1) a coluna descarte_turno_min e recriada SEM a migracao de dado das fechadas (prova: o check C1 da 1a aplicacao deve FALHAR)
 #   CAMP_NEG=escopo    -> remove a policy de escopo de "Campanha" (prova (b): a leitura direta vaza)
 #   CAMP_NEG=excluir   -> (so na secao 0128) remove a checagem de lancada_em de hub_campanha_excluir E desliga o gatilho de DELETE
 #                         (0128: sem os DOIS, a lancada nao e apagada; so a RPC sem o gatilho daria o mesmo token)
@@ -127,13 +132,17 @@ case "${CAMP_NEG:-}" in
     own "SELECT pg_get_functiondef('hub_adiantamento_familias()'::regprocedure) ~ 'indicador'" | grep -q f || { echo "ABORTA: reversao familias nao esta no corpo vivo — controle OCO"; exit 1; }
     echo "NEG familias: familias() volta a ter so promocao/missoes (conferido; os checks 0131/campanha de indicador devem FALHAR)";;
   a1)
-    patch_fn 'hub_campanha_marcar_exportado(integer)' "s/(v_em AT TIME ZONE 'America\/Sao_Paulo')::date, false/v_hoje, false/"
+    patch_fn 'hub_campanha_marcar_exportado(integer)' "s/v_dpg, false/v_hoje, false/"
     own "SELECT pg_get_functiondef('hub_campanha_marcar_exportado(integer)'::regprocedure) ~ 'v_hoje, false'" | grep -q t || { echo "ABORTA: reversao A1 nao esta no corpo vivo"; exit 1; }
     echo "NEG a1: data_pagamento agora = hoje (nao o dia do carimbo) (conferido)";;
   a2)
-    patch_fn 'hub_campanha_marcar_exportado(integer)' 's/IF v_conflito THEN/IF false THEN/'
-    own "SELECT pg_get_functiondef('hub_campanha_marcar_exportado(integer)'::regprocedure) ~ 'IF false THEN'" | grep -q t || { echo "ABORTA: reversao A2 nao esta no corpo vivo"; exit 1; }
+    patch_fn 'hub_campanha_marcar_exportado(integer)' 's/IF NOT v_conflito THEN/IF true THEN/'
+    own "SELECT pg_get_functiondef('hub_campanha_marcar_exportado(integer)'::regprocedure) !~ 'IF NOT v_conflito THEN'" | grep -q t || { echo "ABORTA: reversao A2 nao esta no corpo vivo"; exit 1; }
     echo "NEG a2: checagem de CNPJ ja exportado no dia REMOVIDA (conferido)";;
+  view_escopo)
+    psql_t -q -c 'CREATE OR REPLACE VIEW hub_areas_por_entregador AS SELECT entregador_id, subpraca, MAX(data) AS data_mais_recente FROM (SELECT entregador_id, hub_subpraca_efetiva(subpraca, origem) AS subpraca, data_referencia AS data FROM "FaturamentoLancamento" UNION ALL SELECT entregador_id, hub_subpraca_efetiva(subpraca, origem) AS subpraca, data_periodo AS data FROM "PerformanceTurno") t GROUP BY entregador_id, subpraca;'
+    own "SELECT pg_get_viewdef('hub_areas_por_entregador'::regclass) !~ 'hub_jwt_escopo_ids'" | grep -q t || { echo "ABORTA: reversao view_escopo nao esta na view viva — controle OCO"; exit 1; }
+    echo "NEG view_escopo: view de areas sem o predicado de escopo (conferido na definicao viva)";;
   m1)
     patch_fn 'hub_campanhas_recalcular_ativas(integer)' 's/IF v_max >= r.data_fim AND hub_hoje_sp() > r.data_fim THEN/IF v_max >= r.data_fim THEN/'
     own "SELECT pg_get_functiondef('hub_campanhas_recalcular_ativas(integer)'::regprocedure) ~ 'hub_hoje_sp[(][)] > r.data_fim'" | grep -q t && { echo "ABORTA: a guarda M1 ainda esta no corpo vivo"; exit 1; }
@@ -152,13 +161,26 @@ case "${CAMP_NEG:-}" in
     own "SELECT pg_get_functiondef('hub_campanhas_recalcular_ativas(integer)'::regprocedure) ~ '::int [*] 0 THEN'" | grep -q t || { echo "ABORTA: reversao extrato_fecha nao esta no corpo vivo"; exit 1; }
     echo "NEG extrato_fecha: extrato volta a fechar em fim+1 (conferido)";;
   extrato_corte)
-    patch_fn 'hub_campanha_turnos_extrato_q(integer,date,date,integer,text[],text[],text[],text[],numeric,numeric,numeric,integer,timestamp with time zone)' 's/(v_corte IS NULL OR f\.criado_em <= v_corte)/true/'
-    own "SELECT pg_get_functiondef('hub_campanha_turnos_extrato_q(integer,date,date,integer,text[],text[],text[],text[],numeric,numeric,numeric,integer,timestamp with time zone)'::regprocedure) !~ 'v_corte IS NULL'" | grep -q t || { echo "ABORTA: reversao extrato_corte nao esta no corpo vivo"; exit 1; }
+    patch_fn 'hub_campanha_creditos_turno(integer,date,date,integer,text[],timestamp with time zone)' 's/(v_corte IS NULL OR f\.criado_em <= v_corte)/true/'
+    own "SELECT pg_get_functiondef('hub_campanha_creditos_turno(integer,date,date,integer,text[],timestamp with time zone)'::regprocedure) !~ 'v_corte IS NULL'" | grep -q t || { echo "ABORTA: reversao extrato_corte nao esta no corpo vivo"; exit 1; }
     echo "NEG extrato_corte: lista de turnos volta a ver faturamento posterior ao fechamento (conferido)";;
   extrato_privado)
     patch_fn 'hub_motorista_campanha(integer)' "s/'nomeAbreviado', hub_nome_abreviado(t.nome)/'nomeAbreviado', hub_nome_abreviado(t.nome), 'valorCentavos', t.posicao/"
     own "SELECT pg_get_functiondef('hub_motorista_campanha(integer)'::regprocedure) ~ 'valorCentavos., t.posicao'" | grep -q t || { echo "ABORTA: reversao extrato_privado nao esta no corpo vivo"; exit 1; }
     echo "NEG extrato_privado: top10 do extrato agora vaza um campo de valor (conferido)";;
+  descarte)
+    patch_fn 'hub_campanha_turno_descartado(double precision,bigint,bigint,bigint,bigint,integer)' 's/p_min > 0 AND/false AND/'
+    own "SELECT pg_get_functiondef('hub_campanha_turno_descartado(double precision,bigint,bigint,bigint,bigint,integer)'::regprocedure) !~ 'p_min > 0'" | grep -q t || { echo "ABORTA: reversao descarte nao esta no corpo vivo — controle OCO"; exit 1; }
+    echo "NEG descarte: predicado de descarte agora SEMPRE falso (conferido no corpo vivo)";;
+  semijoin)
+    patch_fn 'hub_campanha_recalcular_interno(integer)' 's/upper(hub_subpraca_efetiva(pt\.subpraca, pt\.origem))/upper(btrim(pt.subpraca))/'
+    patch_fn 'hub_campanha_turnos_extrato_q(integer,date,date,integer,text[],text[],text[],text[],numeric,numeric,numeric,integer,timestamp with time zone,integer)' 's/upper(hub_subpraca_efetiva(pt\.subpraca, pt\.origem))/upper(btrim(pt.subpraca))/'
+    own "SELECT NOT (pg_get_functiondef('hub_campanha_recalcular_interno(integer)'::regprocedure) ~ 'hub_subpraca_efetiva') AND NOT (pg_get_functiondef('hub_campanha_turnos_extrato_q(integer,date,date,integer,text[],text[],text[],text[],numeric,numeric,numeric,integer,timestamp with time zone,integer)'::regprocedure) ~ 'hub_subpraca_efetiva')" | grep -q t || { echo "ABORTA: reversao semijoin nao esta nos corpos vivos — controle OCO"; exit 1; }
+    echo "NEG semijoin: semi-join da nota e do extrato sem hub_subpraca_efetiva (conferido nos corpos vivos)";;
+  data_premio)
+    patch_fn 'hub_campanha_imutavel_trg()' "s/'data_premio'\];/'visivel_app'];/"
+    own "SELECT pg_get_functiondef('hub_campanha_imutavel_trg()'::regprocedure) !~ '''data_premio'''" | grep -q t || { echo "ABORTA: reversao data_premio nao esta no corpo vivo — controle OCO"; exit 1; }
+    echo "NEG data_premio: gatilho de imutabilidade sem 'data_premio' em v_livres (conferido no corpo vivo)";;
   tempo_leitura) : ;;  # aplicado na secao 0130 (a 0129 e reaplicada antes dela e desfaria a reversao)
   escopo)
     psql_t -q -c 'DROP POLICY campanha_select_por_escopo ON "Campanha"; CREATE POLICY campanha_select_por_escopo ON "Campanha" FOR SELECT USING (true);'
@@ -316,10 +338,10 @@ check "B2: premio de A com o id de campanha de OUTRO tenant -> CAMPANHA_NAO_ENCO
 check "foto: PUT do rascunho preserva a foto (premio com id)" "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_salvar(9001,$ID_D,(SELECT jsonb_set('$(body 'Com Foto' 2026-12-01 2026-12-07 null null null 1 100 0 0 0 "$NOCUT" '[]')'::jsonb,'{premios}',jsonb_build_array(jsonb_build_object('id',$PID_D,'posicaoDe',1,'posicaoAte',1,'tipo','objeto','descricao','Bag nova','valorCentavos',null)))));" >/dev/null; own "SELECT descricao||':'||(foto IS NOT NULL) FROM \"CampanhaPremio\" WHERE id=$PID_D")" "Bag nova:true"
 
 echo "--- (e) lancar: inicio no passado, opcao desconhecida, cobertura de pedidos ---"
-ID_P="$(salvar $ADM $E9001 9001 NULL "$(body 'No Passado' 2026-11-29 2026-12-07 null null null 1 100 0 0 0 "$NOCUT")")"
-check "e: data_inicio < hoje -> INICIO_NO_PASSADO" "$(tok "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_lancar($ID_P);")")" "INICIO_NO_PASSADO"
+ID_P="$(salvar $ADM $E9001 9001 NULL "$(body 'No Passado' 2026-11-20 2026-11-29 null null null 1 100 0 0 0 "$NOCUT")")"
+check "e/0133: data_fim < hoje -> FIM_NO_PASSADO (o inicio no passado, com fim futuro, passou a ser permitido: secao 0133)" "$(tok "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_lancar($ID_P);")")" "FIM_NO_PASSADO"
 PID_P="$(own "SELECT min(id) FROM \"CampanhaPremio\" WHERE campanha_id=$ID_P")"
-check "B6: id de premio repetido no corpo -> VALIDACAO" "$(tok "$(salvar $ADM $E9001 9001 "$ID_P" "$(body 'No Passado' 2026-11-29 2026-12-07 null null null 1 100 0 0 0 "$NOCUT" "[{\"id\":$PID_P,\"posicaoDe\":1,\"posicaoAte\":1,\"tipo\":\"objeto\",\"descricao\":\"a\"},{\"id\":$PID_P,\"posicaoDe\":2,\"posicaoAte\":2,\"tipo\":\"objeto\",\"descricao\":\"b\"}]")")")" "VALIDACAO"
+check "B6: id de premio repetido no corpo -> VALIDACAO" "$(tok "$(salvar $ADM $E9001 9001 "$ID_P" "$(body 'No Passado' 2026-11-20 2026-11-29 null null null 1 100 0 0 0 "$NOCUT" "[{\"id\":$PID_P,\"posicaoDe\":1,\"posicaoAte\":1,\"tipo\":\"objeto\",\"descricao\":\"a\"},{\"id\":$PID_P,\"posicaoDe\":2,\"posicaoAte\":2,\"tipo\":\"objeto\",\"descricao\":\"b\"}]")")")" "VALIDACAO"
 ID_O="$(salvar $ADM $E9001 9001 NULL "$(body 'Praca Fantasma' 2026-12-01 2026-12-07 '["NAOEXISTE"]' null null 1 100 0 0 0 "$NOCUT")")"
 check "e: praca fora das opcoes -> OPCAO_DESCONHECIDA" "$(tok "$(rpc $ADM $E9001 9001 "SELECT hub_campanha_lancar($ID_O);")")" "OPCAO_DESCONHECIDA"
 ID_P3="$(salvar adm3@example.com '[9003]' 9003 NULL "$(body 'Sem Cobertura' 2026-12-01 2026-12-07 null null null 1 80 0 0 20 "$NOCUT")")"
@@ -590,6 +612,7 @@ check "Vencedor: campo de exportacao muda (permitido)" "$(ownx "UPDATE \"Campanh
 own "UPDATE \"Entregador\" SET motorista_id=NULL WHERE nome='Carla Dias'" >/dev/null
 EXP() { echo "SELECT cnpj||'|'||nome||'|'||valor_centavos||'|'||posicao||'|'||COALESCE(data_pagamento::text,'-')||'|'||adiado FROM hub_campanha_marcar_exportado($1);"; }
 TODAY="$(own "SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date")"
+TOM="$(own "SELECT '$TODAY'::date + 1")"; TOM2="$(own "SELECT '$TODAY'::date + 2")"
 # A2 + corrida: a sessao 1 exporta A e SEGURA a transacao 3 s (lock por empresa); a sessao 2 exporta F
 # (a Ana e vencedora de dinheiro nas duas) no meio. Com o lock a 2a espera e ve o carimbo => Ana adiada.
 ( rpc fin@example.com $E9001 9001 "$(EXP $ID_A) SELECT pg_sleep(3);" > "$TMP/ex1.out" ) &
@@ -598,26 +621,26 @@ rpc fin@example.com $E9001 9001 "$(EXP $ID_F)" > "$TMP/ex2.out"
 wait
 check "exportar (A): so dinheiro COM CNPJ volta (Ana, data = dia SP do carimbo); Carla sem CNPJ nao volta" "$(cat "$TMP/ex1.out")" "$M1|Ana Lima|10000|2|$TODAY|false"
 check "exportar: carimba exportado_em so de quem saiu" "$(own "SELECT string_agg(posicao||'='||(exportado_em IS NOT NULL), ',' ORDER BY posicao) FROM \"CampanhaVencedor\" WHERE campanha_id=$ID_A")" "1=false,2=true,3=false"
-check "A2/corrida: F exportada ENQUANTO A segura a transacao: a Ana volta ADIADA (sem data) — o lock por empresa serializa" "$(grep -cE "^$M1\|Ana Lima\|10000\|[0-9]+\|-\|true$" "$TMP/ex2.out")" "1"
-check "A2/corrida: ... e a Ana NAO foi carimbada em F" "$(own "SELECT count(*) FROM \"CampanhaVencedor\" v JOIN \"Entregador\" e ON e.id=v.entregador_id WHERE v.campanha_id=$ID_F AND e.nome='Ana Lima' AND v.exportado_em IS NOT NULL")" "0"
+check "A2/corrida (0133/C3): F exportada ENQUANTO A segura a transacao: a Ana colide hoje e e carimbada no PROXIMO DIA LIVRE ($TOM) — o lock por empresa serializa" "$(grep -cE "^$M1\|Ana Lima\|10000\|[0-9]+\|$TOM\|false$" "$TMP/ex2.out")" "1"
+check "A2/corrida: ... e a Ana foi carimbada em F com data_pagamento = $TOM" "$(own "SELECT count(*) FROM \"CampanhaVencedor\" v JOIN \"Entregador\" e ON e.id=v.entregador_id WHERE v.campanha_id=$ID_F AND e.nome='Ana Lima' AND v.exportado_em IS NOT NULL AND v.data_pagamento='$TOM'")" "1"
 check "A2/corrida: F carimbou os OUTROS vencedores de dinheiro com CNPJ (adiado=false)" "$([ "$(grep -c '|false$' "$TMP/ex2.out")" -ge 1 ] && echo sim || echo nao)" "sim"
 R="$(rpc fin@example.com $E9001 9001 "$(EXP $ID_G)")"
-check "A2: G no mesmo dia: Gil carimbado hoje; Ana (CNPJ ja exportado hoje em A) ADIADA; Carla (sem CNPJ) fora" "$R" "90000000000007|Gil Rocha|10000|1|$TODAY|false
-$M1|Ana Lima|10000|2|-|true"
-check "A2: o vencedor adiado NAO e carimbado (continua pendente)" "$(own "SELECT exportado_em IS NULL FROM \"CampanhaVencedor\" WHERE campanha_id=$ID_G AND posicao=2")" "t"
+check "A2 (0133/C3): G no mesmo dia: Gil carimbado hoje; Ana (CNPJ com carimbo hoje em A e amanha em F) vai para $TOM2; Carla (sem CNPJ) fora" "$R" "90000000000007|Gil Rocha|10000|1|$TODAY|false
+$M1|Ana Lima|10000|2|$TOM2|false"
+check "A2: o vencedor que colidiu fica carimbado no dia livre (data gravada = $TOM2)" "$(own "SELECT data_pagamento FROM \"CampanhaVencedor\" WHERE campanha_id=$ID_G AND posicao=2")" "$TOM2"
 T1="$(own "SELECT exportado_em FROM \"CampanhaVencedor\" WHERE campanha_id=$ID_A AND posicao=2")"
 R="$(rpc fin@example.com $E9001 9001 "$(EXP $ID_A)")"
 check "exportar de novo reproduz a MESMA linha e mantem o 1o carimbo (nao reescreve)" "$R|$(own "SELECT exportado_em FROM \"CampanhaVencedor\" WHERE campanha_id=$ID_A AND posicao=2")" "$M1|Ana Lima|10000|2|$TODAY|false|$T1"
 # A1: o carimbo e de 3 dias atras => a data da planilha tem de ser a do carimbo, NAO a de hoje
-own "UPDATE \"CampanhaVencedor\" SET exportado_em = exportado_em - interval '3 days' WHERE campanha_id=$ID_A AND posicao=2" >/dev/null
+own "UPDATE \"CampanhaVencedor\" SET exportado_em = exportado_em - interval '3 days', data_pagamento = data_pagamento - 3 WHERE campanha_id=$ID_A AND posicao=2" >/dev/null
 D3="$(own "SELECT (exportado_em AT TIME ZONE 'America/Sao_Paulo')::date FROM \"CampanhaVencedor\" WHERE campanha_id=$ID_A AND posicao=2")"
 check "A1: re-download depois de dias traz a data ORIGINAL do carimbo (nao a de hoje)" "$(rpc fin@example.com $E9001 9001 "$(EXP $ID_A)")" "$M1|Ana Lima|10000|2|$D3|false"
 check "A1: ... e a data original difere de hoje" "$([ "$D3" != "$TODAY" ] && echo sim || echo nao)" "sim"
 # "dia seguinte": a Ana ja nao tem carimbo HOJE => G agora a carimba (hoje)
 R="$(rpc fin@example.com $E9001 9001 "$(EXP $ID_G)")"
-check "A2: no dia seguinte (sem carimbo da Ana hoje) o vencedor pendente e carimbado com a data de hoje" "$R" "90000000000007|Gil Rocha|10000|1|$TODAY|false
-$M1|Ana Lima|10000|2|$TODAY|false"
-check "A2: F, com a Ana agora carimbada hoje em G, volta a adia-la (qualquer campanha da empresa)" "$(rpc fin@example.com $E9001 9001 "$(EXP $ID_F)" | grep -cE "^$M1\|Ana Lima\|10000\|[0-9]+\|-\|true$")" "1"
+check "A2: re-download de G reproduz as MESMAS datas (Gil hoje, Ana $TOM2)" "$R" "90000000000007|Gil Rocha|10000|1|$TODAY|false
+$M1|Ana Lima|10000|2|$TOM2|false"
+check "A2: re-download de F reproduz a data da Ana ($TOM)" "$(rpc fin@example.com $E9001 9001 "$(EXP $ID_F)" | grep -cE "^$M1\|Ana Lima\|10000\|[0-9]+\|$TOM\|false$")" "1"
 check "exportar: operador sem 'entregar' -> PERMISSAO_NEGADA" "$(tok "$(rpc op@example.com $E9001 9001 "SELECT * FROM hub_campanha_marcar_exportado($ID_A);")")" "PERMISSAO_NEGADA"
 check "tipo de lancamento externo PREMIO_CAMPANHA existe com sinal +1" "$(own "SELECT sinal FROM \"LancamentoExternoTipo\" WHERE codigo='PREMIO_CAMPANHA'")" "1"
 
@@ -728,14 +751,14 @@ check "0129/v: base do minimo invalida -> VALIDACAO" "$(tok "$(sal5 NULL "$(xbod
 check "0129/v: tipo desconhecido -> VALIDACAO" "$(tok "$(sal5 NULL "$(xbody X1x 2027-03-01 2027-03-03 "$XCATS" trabalhados "$XC" 2 '["moto"]' | jq -c '.tipo="outro"')")")" "VALIDACAO"
 check "0129/v: 61 categorias -> VALIDACAO" "$(tok "$(sal5 NULL "$(xbody X1x 2027-03-01 2027-03-03 "$(seq 1 61 | jq -Rn '[inputs]' -c)" trabalhados "$XC" 2 '["moto"]')")")" "VALIDACAO"
 check "0129/v: categoria de 201 caracteres -> VALIDACAO" "$(tok "$(sal5 NULL "$(xbody X1x 2027-03-01 2027-03-03 "[\"$(head -c 201 < /dev/zero | tr '\0' 'a')\"]" trabalhados "$XC" 2 '["moto"]')")")" "VALIDACAO"
-check "0129/v: nota com categorias -> VALIDACAO" "$(tok "$(sal5 NULL "$(body Nx1 2027-03-01 2027-03-03 null null null 2 100 0 0 0 "$NOCUT" | jq -c '.categorias=["Corridas"]')")")" "VALIDACAO"
+check "0129/v (0133/D3): nota com categorias INVALIDAS (modo:todas) -> VALIDACAO; categorias validas passam" "$(tok "$(sal5 NULL "$(body Nx1 2027-03-01 2027-03-03 null null null 2 100 0 0 0 "$NOCUT" | jq -c '.categorias=["modo:todas"]')")")|$(tok "$(sal5 NULL "$(body Nx2 2027-03-01 2027-03-03 null null null 2 100 0 0 0 "$NOCUT" | jq -c '.categorias=["Corridas"]')")")" "VALIDACAO|"
 check "0129/v: nota com minTurnosBase=validos -> VALIDACAO" "$(tok "$(sal5 NULL "$(body Nx1 2027-03-01 2027-03-03 null null null 2 100 0 0 0 "$NOCUT" | jq -c '.minTurnosBase="validos"')")")" "VALIDACAO"
 ID_N5="$(sal5 NULL "$(body Nota9005 2027-03-01 2027-03-03 null null null 2 100 0 0 0 '{"aceitacao":0.5,"conclusao":null,"tempo":null,"pedidos":null}')")"
 check "0129/v: nota sem os campos novos continua salvando (retrocompativel) com tipo=nota" "$(own "SELECT tipo||'|'||COALESCE(categorias::text,'NULL')||'|'||min_turnos_base FROM \"Campanha\" WHERE id=$ID_N5")" "nota|NULL|trabalhados"
 DBINS() { ownx "INSERT INTO \"Campanha\"(id_empresa,nome,data_inicio,data_fim,min_turnos,peso_aceitacao,peso_conclusao,peso_tempo,peso_pedidos,corte_aceitacao,criada_por,tipo,categorias,min_turnos_base) VALUES (9005,'abc','2027-03-01','2027-03-02',1,$1,$2,0,0,$3,1,'$4',$5,'$6')"; }
 check "0129/db: extrato sem categorias -> campanha_categorias_chk" "$(tok "$(DBINS 0 0 0.5 extrato NULL trabalhados)")" 'violates check constraint "campanha_categorias_chk"'
 check "0129/db: extrato com categoria vazia '' -> campanha_categorias_chk" "$(tok "$(DBINS 0 0 0.5 extrato "ARRAY['']" trabalhados)")" 'violates check constraint "campanha_categorias_chk"'
-check "0129/db: nota com categorias -> campanha_categorias_chk" "$(tok "$(DBINS 50 50 0.5 nota "ARRAY['x']" trabalhados)")" 'violates check constraint "campanha_categorias_chk"'
+check "0129/db (0133/D3): nota com categorias invalidas ('' ) -> campanha_categorias_chk; nota com categorias validas passa" "$(tok "$(DBINS 50 50 0.5 nota "ARRAY['']" trabalhados)")|$(tok "$(DBINS 50 50 0.5 nota "ARRAY['x']" trabalhados)")" 'violates check constraint "campanha_categorias_chk"|'
 check "0129/db: extrato com peso -> campanha_pesos_chk" "$(tok "$(DBINS 50 50 0.5 extrato "ARRAY['x']" trabalhados)")" 'violates check constraint "campanha_pesos_chk"'
 check "0129/db: extrato sem nenhum corte -> campanha_cortes_chk" "$(tok "$(DBINS 0 0 NULL extrato "ARRAY['x']" trabalhados)")" 'violates check constraint "campanha_cortes_chk"'
 check "0129/db: nota com base=validos -> campanha_min_turnos_base_chk" "$(tok "$(DBINS 50 50 0.5 nota NULL validos)")" 'violates check constraint "campanha_min_turnos_base_chk"'
@@ -1016,6 +1039,200 @@ check "0132/seguranca: valor NULL -> VALIDACAO" "$(tok "$(rpc $ADM9 $E9008 9008 
 rpc $ADM9 $E9008 9008 "SELECT hub_campanha_cancelar($VK, 'motivo do teste');" >/dev/null
 check "0132/seguranca: cancelada recusa o interruptor -> CAMPANHA_SITUACAO_INVALIDA" "$(tok "$(rpc $ADM9 $E9008 9008 "SELECT hub_campanha_visibilidade($VK, true);")")|$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VK")" "CAMPANHA_SITUACAO_INVALIDA|f"
 
+echo "--- 0133: parametrizacao (D1 subpraca efetiva · D2 descarte · D3 nota com categorias · D4 lancar em andamento · D5 data do premio) ---"
+# Empresas 9010 (D1-D4) e 9011 (D5). Nomes terminam em 'Param'. "Hoje" fixado em 2027-09-03; janela das campanhas 01-03/09.
+# Subpraca/origem por entregador (efetiva): Ana LIVRE (ambas vazias) · Beto ORIGEM B (subpraca '' -> origem) · Caio e Dora..Hana ZONA SUL
+# (subpraca vence a origem 'IGN') · Iva 'origem c' (subpraca so espacos; origem com espacos nas pontas).
+# Turnos JANTAR 18H-22H (4 h), dias 1..3. Ana/Beto/Caio/Iva: normais (aceitas 9/8/7/5 de 10; 3,6 h online). Dora..Hana: dias 1 e 3 normais
+# (5/10) e o dia 2 especial: Dora 300 s zerado · Edu 301 s zerado · Fran 120 s com 1 ofertada · Gil zerado SEM leitura de online · Hana 60 s zerado com 2 pedidos.
+seed_param() { # <empresa> <base-cnpj> <hash-perf> <hash-fat> <completo 0|1> <n-usuarios>
+  local EMP="$1" CB="$2" HC="$3" HF="$4" FULL="$5" U="$6"
+  psql_t -q <<SQL >"$TMP/seed133-$EMP.log" 2>&1 || { echo "FAIL: seed 0133 ($EMP)"; cat "$TMP/seed133-$EMP.log"; exit 1; }
+INSERT INTO "Usuario" (email, senha_hash, nome) VALUES ('adm$U@example.com','x','Adm $EMP'),('fin$U@example.com','x','Fin $EMP'),('op$U@example.com','x','Op $EMP');
+INSERT INTO "UsuarioEntidade" (usuario_id, empresa_id, papel_id, ativo) VALUES
+  ((SELECT id FROM "Usuario" WHERE email='adm$U@example.com'), $EMP, (SELECT id FROM "Papel" WHERE nome='admin_entidade'), true),
+  ((SELECT id FROM "Usuario" WHERE email='fin$U@example.com'), $EMP, (SELECT id FROM "Papel" WHERE nome='financeiro'), true),
+  ((SELECT id FROM "Usuario" WHERE email='op$U@example.com'),  $EMP, (SELECT id FROM "Papel" WHERE nome='operador'), true);
+INSERT INTO "ModuloEntidade" (modulo_id, empresa_id, ativo) SELECT m.id, $EMP, true FROM "Modulo" m WHERE m.codigo = 'campanhas';
+CREATE TEMP TABLE spp (k int, nome text, sub text, ori text);
+INSERT INTO spp VALUES (1,'Ana Param',NULL,NULL),(2,'Beto Param','','ORIGEM B'),(3,'Caio Param','ZONA SUL',NULL),
+  (4,'Dora Param','ZONA SUL','IGN'),(5,'Edu Param','ZONA SUL','IGN'),(6,'Fran Param','ZONA SUL','IGN'),(7,'Gil Param','ZONA SUL','IGN'),
+  (8,'Hana Param','ZONA SUL','IGN'),(9,'Iva Param','  ','  origem c  ');
+DELETE FROM spp WHERE $FULL = 0 AND k > 3;
+INSERT INTO "ContaMotorista" (cnpj_prestador, nome) SELECT lpad(($CB + k)::text, 14, '0'), nome FROM spp;
+INSERT INTO "Entregador" (id_empresa, id_externo, nome, motorista_id)
+  SELECT $EMP, gen_random_uuid(), s.nome, (SELECT id FROM "ContaMotorista" WHERE cnpj_prestador = lpad(($CB + s.k)::text, 14, '0')) FROM spp s ORDER BY s.k;
+INSERT INTO "ImportacaoArquivo" (id_empresa, tipo, hash_sha256, status) VALUES ($EMP,'performance',repeat('$HC',64),'completed'),($EMP,'faturamento',repeat('$HF',64),'completed');
+CREATE TEMP TABLE pxp (nome text, d int, o int, a int, c int, p int, sec numeric);
+INSERT INTO pxp SELECT s.nome, d, 10, s.a, s.a, 8, 12960 FROM (VALUES ('Ana Param',9),('Beto Param',8),('Caio Param',7),('Iva Param',5)) s(nome,a) CROSS JOIN generate_series(1,3) d;
+INSERT INTO pxp SELECT n, v.d, 10, 5, 5, 8, 12960 FROM unnest(ARRAY['Dora Param','Edu Param','Fran Param','Gil Param','Hana Param']) n CROSS JOIN (VALUES (1),(3)) v(d);
+INSERT INTO pxp VALUES ('Dora Param',2,0,0,0,0,300),('Edu Param',2,0,0,0,0,301),('Fran Param',2,1,0,0,0,120),('Gil Param',2,0,0,0,0,NULL),('Hana Param',2,0,0,0,2,60);
+INSERT INTO "PerformanceTurno" (id_empresa, importacao_id, entregador_id, data_periodo, periodo, duracao, subpraca, origem,
+       corridas_ofertadas, corridas_aceitas, corridas_completadas, pedidos_concluidos, tempo_disponivel, hash_linha)
+SELECT $EMP, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('$HC',64)), e.id, ('2027-09-01'::date + p.d - 1), 'JANTAR 18H-22H', interval '4 hours', s.sub, s.ori,
+       p.o, p.a, p.c, p.p, CASE WHEN p.sec IS NULL THEN NULL ELSE make_interval(secs => p.sec::float8) END,
+       md5(e.id::text||p.d::text||'param')||md5(p.d::text||e.id::text||'param2')
+FROM pxp p JOIN spp s ON s.nome = p.nome JOIN "Entregador" e ON e.nome = p.nome AND e.id_empresa = $EMP;
+REFRESH MATERIALIZED VIEW mv_performance_dia;
+-- faturamento (so na empresa completa): (nome, dia, categoria, valor, turno, subpraca, origem)
+CREATE TEMP TABLE fxp (nome text, d int, cat text, v numeric, per text, sub text, ori text);
+INSERT INTO fxp SELECT 'Ana Param', d, 'Corridas', 20, 'JANTAR 18H-22H', NULL, NULL FROM generate_series(1,3) d;
+INSERT INTO fxp SELECT 'Beto Param', d, 'Outra', 10, 'JANTAR 18H-22H', '', 'ORIGEM B' FROM generate_series(1,3) d;
+INSERT INTO fxp VALUES ('Caio Param',1,'Corridas',20,'JANTAR 18H-22H','ZONA SUL',NULL),('Caio Param',2,'Corridas',20,'ALMOCO 11H-14H','ZONA SUL',NULL);
+INSERT INTO fxp SELECT n, d, 'Corridas', 10, 'JANTAR 18H-22H', 'ZONA SUL', NULL FROM unnest(ARRAY['Dora Param','Edu Param']) n CROSS JOIN generate_series(1,3) d;
+INSERT INTO "FaturamentoLancamento" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, subpraca, origem, hash_linha)
+SELECT $EMP, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256=repeat('$HF',64)), e.id, ('2027-09-01'::date + f.d), ('2027-09-01'::date + f.d - 1),
+       f.per, 'Credito', f.v, f.cat, f.sub, f.ori, md5(f.nome||f.d||f.cat||f.per||'$EMP')||md5(f.v||f.nome||'fx')
+FROM fxp f JOIN "Entregador" e ON e.nome = f.nome AND e.id_empresa = $EMP WHERE $FULL = 1;
+SQL
+}
+seed_param 9010 91000000000000 k l 1 10
+seed_param 9011 91100000000000 m n 0 11
+ADM10='adm10@example.com'; E9010='[9010]'; ADM11='adm11@example.com'; FIN11='fin11@example.com'; OP11='op11@example.com'; E9011='[9011]'
+ENT10() { own "SELECT id FROM \"Entregador\" WHERE nome='$1' AND id_empresa=9010"; }
+hoje 2027-09-03
+
+echo "  D1: regra unica no banco"
+check "0133/D1: subpraca efetiva (vazia/espacos -> origem; ambas vazias -> LIVRE; subpraca vence a origem; aparou as pontas)" "$(own "SELECT concat_ws(',', hub_subpraca_efetiva(NULL,NULL), hub_subpraca_efetiva('  ','  '), hub_subpraca_efetiva('',' b '), hub_subpraca_efetiva(' x ','y'), hub_subpraca_efetiva(NULL,'origem'))")" "LIVRE,LIVRE,b,x,origem"
+check "0133/D1: opcoes de praca = efetivas (LIVRE e origem entram; canonicas em upper; sem linha 'sem praca' sumindo)" "$(rpc $ADM10 $E9010 9010 "SELECT hub_campanha_opcoes(9010,NULL,NULL,NULL)->'pracas';")" '["LIVRE", "ORIGEM B", "ORIGEM C", "ZONA SUL"]'
+check "0133/D1: alcance (estimativa nas opcoes) casa pela efetiva: 'livre' = 1 entregador, 'origem b' = 1, 'origem c' = 1, 'zona sul' = 6" "$(for p in livre 'origem b' 'origem c' 'zona sul'; do rpc $ADM10 $E9010 9010 "SELECT hub_campanha_opcoes(9010,ARRAY['$p'],NULL,NULL)->'alcance'->>'rodaram';"; done | paste -sd,)" "1,1,1,6"
+check "0133/D1: coluna computada subpraca_efetiva (PostgREST) = a funcao; filtravel pelo authenticated" "$(rpc $ADM10 $E9010 9010 "SELECT count(*) FROM \"PerformanceTurno\" pt WHERE pt.subpraca_efetiva = 'LIVRE';")" "3"
+check "0133/D1: view de areas: Ana=LIVRE, Beto=ORIGEM B, Dora=ZONA SUL (a origem IGN nao vira area), Iva=origem c" "$(rpc $ADM10 $E9010 9010 "SELECT string_agg(e.nome||'='||a.subpraca, ',' ORDER BY e.nome) FROM hub_areas_por_entregador a JOIN \"Entregador\" e ON e.id=a.entregador_id WHERE e.id_empresa=9010 AND e.nome IN ('Ana Param','Beto Param','Dora Param','Iva Param');")" "Ana Param=LIVRE,Beto Param=ORIGEM B,Dora Param=ZONA SUL,Iva Param=origem c"
+check "0133/D1: performance totais filtra pela efetiva (LIVRE=27 completadas, ORIGEM B=24, origem c=15, ZONA SUL=71)" "$(for p in LIVRE 'ORIGEM B' 'origem c' 'ZONA SUL'; do rpc $ADM10 $E9010 9010 "SELECT corridas_completadas FROM hub_performance_totais(9010,'2027-09-01','2027-09-03',NULL,'$p',NULL);"; done | paste -sd,)" "27,24,15,71"
+check "0133/D1: performance turnos (lista paginada): 3 turnos da LIVRE e a praca do detalhe sai efetiva" "$(rpc $ADM10 $E9010 9010 "SELECT count(*)||'|'||min(pracas->0->>'subpraca') FROM hub_performance_turnos(9010,'2027-09-01','2027-09-03',NULL,'LIVRE',NULL,50,0);")" "3|LIVRE"
+check "0133/D1: performance agrupado por dia filtra pela efetiva (LIVRE: 3 dias)" "$(rpc $ADM10 $E9010 9010 "SELECT count(*) FROM hub_performance_agrupado(9010,'2027-09-01','2027-09-03',NULL,'LIVRE',NULL,'dia');")" "3"
+check "0133/D1: faturamento totais filtra pela efetiva (LIVRE = 60.00 da Ana; ORIGEM B = 30.00 do Beto)" "$(for p in LIVRE 'ORIGEM B'; do rpc $ADM10 $E9010 9010 "SELECT total_geral FROM hub_faturamento_totais(9010,'2027-09-02','2027-09-10',NULL,NULL,'$p',NULL);"; done | paste -sd,)" "60.00,30.00"
+check "0133/D1: faturamento agrupado por dia filtra pela efetiva (LIVRE: 3 dias)" "$(rpc $ADM10 $E9010 9010 "SELECT count(*) FROM hub_faturamento_agrupado(9010,'2027-09-02','2027-09-10',NULL,NULL,'LIVRE',NULL,'dia');")" "3"
+
+check "0133/C2 (seguranca): a view de areas respeita o escopo do token: a 9011 so ve as areas dela (LIVRE,ORIGEM B,ZONA SUL — sem 'origem c', que e da 9010); a 9010 ve as dela" "$(rpc $ADM11 $E9011 9011 "SELECT string_agg(DISTINCT subpraca, ',' ORDER BY subpraca) FROM hub_areas_por_entregador;")|$(rpc $ADM10 $E9010 9010 "SELECT string_agg(DISTINCT subpraca, ',' ORDER BY subpraca) FROM hub_areas_por_entregador;")" "LIVRE,ORIGEM B,ZONA SUL|LIVRE,ORIGEM B,origem c,ZONA SUL"
+check "0133/C2: sem claim de escopo a view devolve 0 linhas (fail-closed)" "$(own "SELECT count(*) FROM hub_areas_por_entregador")" "0"
+echo "  D2/D3/D1: salvar (descarteTurnoMin, dataPremio, categorias na nota)"
+NOTA_T() { body "$1" "${2:-2027-09-01}" "${3:-2027-09-03}" null null null 1 0 0 100 0 "$NOCUT"; }   # nota so de tempo (isola o indicador)
+check "0133/D2: descarteTurnoMin fora de 0..60 / nao numerico -> VALIDACAO" "$(for v in 61 -1 '"x"' 2.5; do tok "$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T Dx1 | jq -c ".descarteTurnoMin=$v")")"; done | paste -sd,)" "VALIDACAO,VALIDACAO,VALIDACAO,VALIDACAO"
+check "0133/D5: dataPremio invalida -> VALIDACAO" "$(tok "$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T Dx2 | jq -c '.dataPremio="31/12/2027"')")")|$(tok "$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T Dx3 | jq -c '.dataPremio=5')")")" "VALIDACAO|VALIDACAO"
+ND5="$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T 'Nota D5 min')")"
+ND0="$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T 'Nota D0 sem descarte' | jq -c '.descarteTurnoMin=0')")"
+check "0133/D2: padrao 5 quando o campo nao vem; 0 desliga; 60 aceito" "$(own "SELECT descarte_turno_min FROM \"Campanha\" WHERE id=$ND5")|$(own "SELECT descarte_turno_min FROM \"Campanha\" WHERE id=$ND0")|$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T 'Nota D60' | jq -c '.descarteTurnoMin=60')" | grep -cE '^[0-9]+$')" "5|0|1"
+check "0133/D2: editar o rascunho SEM o campo mantem o valor (0); com o campo troca" "$(salvar $ADM10 $E9010 9010 "$ND0" "$(NOTA_T 'Nota D0 sem descarte')" >/dev/null; own "SELECT descarte_turno_min FROM \"Campanha\" WHERE id=$ND0")|$(salvar $ADM10 $E9010 9010 "$ND0" "$(NOTA_T 'Nota D0 sem descarte' | jq -c '.descarteTurnoMin=7')" >/dev/null; own "SELECT descarte_turno_min FROM \"Campanha\" WHERE id=$ND0")" "0|7"
+salvar $ADM10 $E9010 9010 "$ND0" "$(NOTA_T 'Nota D0 sem descarte' | jq -c '.descarteTurnoMin=0')" >/dev/null
+XC_T='{"aceitacao":null,"conclusao":null,"tempo":0.7,"pedidos":null}'
+XD5="$(salvar $ADM10 $E9010 9010 NULL "$(xbody 'Extrato D5 min' 2027-09-01 2027-09-03 '["Corridas"]' trabalhados "$XC_T" 3 null)")"
+XD0="$(salvar $ADM10 $E9010 9010 NULL "$(xbody 'Extrato D0 sem descarte' 2027-09-01 2027-09-03 '["Corridas"]' trabalhados "$XC_T" 3 null | jq -c '.descarteTurnoMin=0')")"
+XL="$(salvar $ADM10 $E9010 9010 NULL "$(xbody 'Extrato LIVRE' 2027-09-01 2027-09-03 '["Corridas"]' trabalhados "$XC_T" 1 null | jq -c '.pracas=["livre"]')")"
+NC="$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T 'Nota com categorias' | jq -c '.categorias=["Corridas"]')")"
+NL="$(salvar $ADM10 $E9010 9010 NULL "$(body 'Nota praca LIVRE' 2027-09-01 2027-09-03 '["livre"]' null null 1 0 0 100 0 "$NOCUT")")"
+NB="$(salvar $ADM10 $E9010 9010 NULL "$(body 'Nota praca ORIGEM B' 2027-09-01 2027-09-03 '["origem b"]' null null 1 0 0 100 0 "$NOCUT")")"
+VF="$(salvar $ADM10 $E9010 9010 NULL "$(body 'Futura ORIGEM B' 2027-09-10 2027-09-14 '["ORIGEM B"]' null null 1 100 0 0 0 "$NOCUT")")"
+check "0133/D3: nota com categorias salva (categorias gravadas)" "$(own "SELECT categorias::text FROM \"Campanha\" WHERE id=$NC")" "{Corridas}"
+NCF="$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T 'Nota categoria fantasma' | jq -c '.categorias=["Categoria Fantasma"]')")"
+check "0133/D3: lancar valida as categorias da NOTA como as do extrato (categoria sem turno -> OPCAO_DESCONHECIDA)" "$(tok "$(rpc $ADM10 $E9010 9010 "SELECT hub_campanha_lancar($NCF);")")" "OPCAO_DESCONHECIDA"
+PAS="$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T 'Passada' 2027-08-25 2027-09-02)")"
+check "0133/D4: lancar com data_fim < hoje -> FIM_NO_PASSADO" "$(tok "$(rpc $ADM10 $E9010 9010 "SELECT hub_campanha_lancar($PAS);")")" "FIM_NO_PASSADO"
+
+echo "  lancar em andamento (hoje 03/09, inicio 01/09): o ranking nasce pronto na mesma transacao (D4)"
+for i in $ND5 $ND0 $XD5 $XD0 $XL $NC $NL $NB $VF; do
+  check "0133/D4: lancar campanha $i (inicio no passado ou futuro, fim >= hoje)" "$(tok "$(rpc $ADM10 $E9010 9010 "SELECT hub_campanha_lancar($i);")")" ""
+done
+check "0133/D4: ND5 lancada em andamento JA tem ranking (sem esperar a importacao)" "$(own "SELECT count(*) > 0 FROM \"CampanhaRanking\" WHERE campanha_id=$ND5")|$(own "SELECT dados_ate FROM \"Campanha\" WHERE id=$ND5")" "t|2027-09-03"
+check "0133/D4: campanha AGENDADA (inicio futuro) lancada nao calcula nada" "$(own "SELECT count(*) FROM \"CampanhaRanking\" WHERE campanha_id=$VF")" "0"
+rkn() { own "SELECT r.turnos||'|'||COALESCE(r.nota::text,'-')||'|'||r.situacao FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$1 AND e.nome='$2' AND e.id_empresa=9010"; }
+xrk() { own "SELECT r.situacao||'|'||r.turnos||'|'||COALESCE(r.turnos_validos::text,'-')||'|'||COALESCE(r.valor_centavos::text,'-') FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$1 AND e.nome='$2' AND e.id_empresa=9010"; }
+
+echo "  D2: descarte do turno curto zerado — nota (indicador = tempo)"
+check "0133/D2 nota: Dora (300 s zerado) descartada: 2 turnos e tempo SO dos normais (90.00)" "$(rkn $ND5 'Dora Param')" "2|90.00|classificado"
+check "0133/D2 nota: BORDA 301 s (Edu) NAO descarta: 3 turnos, o turno entra no tempo (60.70)" "$(rkn $ND5 'Edu Param')" "3|60.70|classificado"
+check "0133/D2 nota: 1 ofertada (Fran, 120 s) NAO descarta (60.28)" "$(rkn $ND5 'Fran Param')" "3|60.28|classificado"
+check "0133/D2 nota: online SEM leitura (Gil) NAO descarta: 3 turnos, tempo 90.00 (o turno sem leitura nao pesa)" "$(rkn $ND5 'Gil Param')" "3|90.00|classificado"
+check "0133/D2 nota: pedidos > 0 (Hana, 60 s zerado) NAO descarta (60.14)" "$(rkn $ND5 'Hana Param')" "3|60.14|classificado"
+check "0133/D2 nota: min = 0 DESLIGA: Dora volta a 3 turnos e o turno de 300 s pesa (60.69)" "$(rkn $ND0 'Dora Param')" "3|60.69|classificado"
+check "0133/D2: o gatilho recusa mudar descarte_turno_min depois de lancar (congela como as demais regras)" "$(tok "$(ownx "UPDATE \"Campanha\" SET descarte_turno_min=0 WHERE id=$ND5")")" "CAMPANHA_IMUTAVEL"
+check "0133/D2: campanha com DEFAULT 5 (as lancadas antes da 0133 ganham 5 sem UPDATE: provado abaixo, na reaplicacao com a coluna recriada)" "$(own "SELECT count(*) FROM \"Campanha\" WHERE descarte_turno_min <> 5 AND id_empresa NOT IN (9010,9011)")" "0"
+echo "  D2: descarte — extrato (turnos trabalhados / validos / valor; credito R\$ 10 por dia, criterio: tempo >= 0.7)"
+check "0133/D2 extrato: min=5 descarta o turno de 300 s: Dora fica com 2 turnos < minimo 3 -> sem_minimo (valor so dos 2 turnos normais)" "$(xrk $XD5 'Dora Param')" "sem_minimo|2|2|2000"
+check "0133/D2 extrato: min=0 desliga: Dora 3 turnos (classificado), 2 validos, valor 2000 (turno curto conta nos trabalhados, nao no valor)" "$(xrk $XD0 'Dora Param')" "classificado|3|2|2000"
+check "0133/D2 extrato: BORDA 301 s (Edu) NAO descarta: 3 turnos, 2 validos, valor 2000" "$(xrk $XD5 'Edu Param')" "classificado|3|2|2000"
+
+echo "  D1: praca = subpraca efetiva (nota, extrato, visibilidade, publico)"
+check "0133/D1 nota: praca LIVRE (subpraca e origem vazias) so tem a Ana" "$(own "SELECT string_agg(e.nome||'='||r.turnos, ',' ORDER BY e.nome) FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$NL")" "Ana Param=3"
+check "0133/D1 nota: praca ORIGEM B (subpraca vazia -> origem) so tem o Beto" "$(own "SELECT string_agg(e.nome||'='||r.turnos, ',' ORDER BY e.nome) FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$NB")" "Beto Param=3"
+check "0133/D1 extrato: praca LIVRE so tem a Ana (valor 6000 = 3 x R\$ 20)" "$(own "SELECT string_agg(e.nome||'='||r.valor_centavos, ',' ORDER BY e.nome) FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$XL")" "Ana Param=6000"
+check "0133/D1 visibilidade (app): campanha da praca ORIGEM B e visivel para o Beto (turno em ORIGEM B via origem) e NAO para o Caio" "$(app 91000000000002 "SELECT count(*) FROM jsonb_array_elements(hub_motorista_campanhas()) x WHERE x->>'nome'='Futura ORIGEM B';")|$(app 91000000000003 "SELECT count(*) FROM jsonb_array_elements(hub_motorista_campanhas()) x WHERE x->>'nome'='Futura ORIGEM B';")" "1|0"
+check "0133/D1 publico do aviso: praca ORIGEM B = so o CNPJ do Beto" "$(own "SELECT hub_campanha_publico_cnpjs(c)::text FROM \"Campanha\" c WHERE id=$NB")" "{91000000000002}"
+check "0133/D1: campanha lancada com praca gravada continua casando (valor nao vazio nao mudou): ZONA SUL" "$(own "SELECT count(*) FROM \"PerformanceTurno\" pt WHERE pt.id_empresa=9010 AND upper(hub_subpraca_efetiva(pt.subpraca, pt.origem)) = 'ZONA SUL'")" "$(own "SELECT count(*) FROM \"PerformanceTurno\" pt WHERE pt.id_empresa=9010 AND upper(btrim(pt.subpraca)) = 'ZONA SUL'")"
+
+echo "  D3: nota com categorias (credito que casa em (entregador, dia, turno)) e fechamento fim+3"
+check "0133/D3: so conta turno com credito da categoria: Ana 3 · Caio 1 (credito do dia 2 e de OUTRO turno) · Dora 2 (turno curto descartado) · Edu 3 · sem Beto ('Outra') nem Iva (sem credito)" "$(own "SELECT string_agg(e.nome||'='||r.turnos, ',' ORDER BY e.nome) FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$NC")" "Ana Param=3,Caio Param=1,Dora Param=2,Edu Param=3"
+check "0133/D3: a mesma janela SEM categorias conta todos os turnos (Beto e Iva aparecem; Caio 3)" "$(own "SELECT count(*)||'|'||(SELECT r2.turnos FROM \"CampanhaRanking\" r2 JOIN \"Entregador\" e2 ON e2.id=r2.entregador_id WHERE r2.campanha_id=$ND5 AND e2.nome='Caio Param')||'|'||bool_or(e.nome='Beto Param') FROM \"CampanhaRanking\" r JOIN \"Entregador\" e ON e.id=r.entregador_id WHERE r.campanha_id=$ND5")" "9|3|true"
+check "0133/D3: congelamento criado_em <= fechada_em (a mesma funcao do extrato): corte antigo = 0 creditos, sem corte = tem" "$(own "SELECT (SELECT count(*) FROM hub_campanha_creditos_turno(9010,'2027-09-01','2027-09-03',NULL,ARRAY['Corridas'],'2000-01-01'::timestamptz))||'|'||(SELECT count(*) > 0 FROM hub_campanha_creditos_turno(9010,'2027-09-01','2027-09-03',NULL,ARRAY['Corridas'],NULL))")" "0|true"
+hoje 2027-09-04
+R="$(rpc $ADM10 $E9010 9010 "SELECT hub_campanhas_recalcular_ativas(9010);")"
+IH="$(salvar $ADM10 $E9010 9010 NULL "$(NOTA_T 'Inicia hoje sem dado' 2027-09-04 2027-09-08)")"
+check "0133/C4: lancar com inicio = hoje e SEM dado do dia (ultimo dado 03/09) lanca sem calcular: sem ranking e dados_ate nulo (nunca anterior ao inicio)" "$(tok "$(rpc $ADM10 $E9010 9010 "SELECT hub_campanha_lancar($IH);")")|$(own "SELECT count(*) FROM \"CampanhaRanking\" WHERE campanha_id=$IH")|$(own "SELECT dados_ate IS NULL FROM \"Campanha\" WHERE id=$IH")" "|0|t"
+check "0133/D3 fechamento em fim+1 (hoje 04/09): fecham so as campanhas SEM categorias (ND5, ND0, NL, NB); NC e os 3 extratos so recalculam" "$(printf '%s' "$R" | jq -c '[.recalculadas,.fechadas,(.erros|length)]')" "[4,4,0]"
+check "0133/D3: NC (nota com categorias) segue aberta; ND5 fechada" "$(own "SELECT (SELECT fechada_em IS NULL FROM \"Campanha\" WHERE id=$NC)||'|'||(SELECT fechada_em IS NOT NULL FROM \"Campanha\" WHERE id=$ND5)")" "true|true"
+hoje 2027-09-06
+R="$(rpc $ADM10 $E9010 9010 "SELECT hub_campanhas_recalcular_ativas(9010);")"
+check "0133/D3 fim+3 SEM faturamento importado desde fim+3: a nota com categorias NAO fecha (so recalcula)" "$(printf '%s' "$R" | jq -c '[.recalculadas,.fechadas]')|$(own "SELECT fechada_em IS NULL FROM \"Campanha\" WHERE id=$NC")" "[4,0]|t"
+own "INSERT INTO \"FaturamentoLancamento\" (id_empresa, importacao_id, entregador_id, data_lancamento, data_referencia, periodo, tipo, valor, descricao, hash_linha, criado_em)
+     SELECT 9010, (SELECT id FROM \"ImportacaoArquivo\" WHERE hash_sha256=repeat('l',64)), id, '2027-09-06', '2027-09-03', 'JANTAR 18H-22H', 'Credito', 1, 'Corridas', md5('fat06')||md5('fat06b'), '2027-09-06 15:00:00+00'
+     FROM \"Entregador\" WHERE nome='Ana Param' AND id_empresa=9010" >/dev/null
+R="$(rpc $ADM10 $E9010 9010 "SELECT hub_campanhas_recalcular_ativas(9010);")"
+check "0133/D3 fim+3 COM faturamento importado desde fim+3: a nota com categorias fecha junto dos extratos (0 recalculadas, 4 fechadas)" "$(printf '%s' "$R" | jq -c '[.recalculadas,.fechadas]')|$(own "SELECT fechada_em IS NOT NULL FROM \"Campanha\" WHERE id=$NC")" "[0,4]|t"
+
+echo "  D5: data do premio (empresa 9011: Ana 1o, Beto 2o, Caio 3o; nota de aceitacao)"
+hoje 2027-09-03
+T5="$(own "SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date + 5")"; T6="$(own "SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date + 6")"
+T7="$(own "SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date + 7")"; T9="$(own "SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date + 9")"
+TM3="$(own "SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date - 3")"; TODAY="$(own "SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date")"
+PD_MIX='[{"posicaoDe":1,"posicaoAte":1,"tipo":"dinheiro","descricao":"R$ 100","valorCentavos":10000},{"posicaoDe":2,"posicaoAte":2,"tipo":"dinheiro","descricao":"R$ 50","valorCentavos":5000},{"posicaoDe":3,"posicaoAte":3,"tipo":"objeto","descricao":"Bag"}]'
+PD_DIN='[{"posicaoDe":1,"posicaoAte":3,"tipo":"dinheiro","descricao":"R$ 30","valorCentavos":3000}]'
+PBODY() { body "$1" 2027-09-01 2027-09-03 null null null 1 100 0 0 0 "$NOCUT" "$2" | jq -c --arg d "$3" 'if $d == "" then . else .dataPremio=$d end'; }
+P1="$(salvar $ADM11 $E9011 9011 NULL "$(PBODY 'Premio 1 misto' "$PD_MIX" "$T5")")"
+P2="$(salvar $ADM11 $E9011 9011 NULL "$(PBODY 'Premio 2 passado' "$PD_DIN" "$TM3")")"
+P3="$(salvar $ADM11 $E9011 9011 NULL "$(PBODY 'Premio 3 mesma data' "$PD_DIN" "$T5")")"
+P4="$(salvar $ADM11 $E9011 9011 NULL "$(PBODY 'Premio 4 outra data' "$PD_DIN" "$T6")")"
+P5="$(salvar $ADM11 $E9011 9011 NULL "$(PBODY 'Premio 5 a cancelar' "$PD_DIN" "")")"
+check "0133/D5: salvar grava data_premio (rascunho); sem a chave: NULL; editar sem a chave mantem; null limpa" "$(own "SELECT data_premio FROM \"Campanha\" WHERE id=$P1")|$(own "SELECT data_premio IS NULL FROM \"Campanha\" WHERE id=$P5")|$(salvar $ADM11 $E9011 9011 "$P1" "$(PBODY 'Premio 1 misto' "$PD_MIX" "")" >/dev/null; own "SELECT data_premio FROM \"Campanha\" WHERE id=$P1")|$(salvar $ADM11 $E9011 9011 "$P1" "$(PBODY 'Premio 1 misto' "$PD_MIX" "" | jq -c '.dataPremio=null')" >/dev/null; own "SELECT data_premio IS NULL FROM \"Campanha\" WHERE id=$P1")" "$T5|t|$T5|t"
+salvar $ADM11 $E9011 9011 "$P1" "$(PBODY 'Premio 1 misto' "$PD_MIX" "$T5")" >/dev/null
+for i in $P1 $P2 $P3 $P4 $P5; do rpc $ADM11 $E9011 9011 "SELECT hub_campanha_lancar($i);" >/dev/null; done
+rpc $ADM11 $E9011 9011 "SELECT hub_campanha_cancelar($P5,'cancelada no teste 0133');" >/dev/null
+hoje 2027-09-04
+R="$(rpc $ADM11 $E9011 9011 "SELECT hub_campanhas_recalcular_ativas(9011);")"
+check "0133/D5: 4 campanhas (nota, sem categorias) fecham em fim+1; vencedores: Ana 1o, Beto 2o, Caio 3o" "$(printf '%s' "$R" | jq -c '[.recalculadas,.fechadas]')|$(own "SELECT string_agg(e.nome, ',' ORDER BY v.posicao) FROM \"CampanhaVencedor\" v JOIN \"Entregador\" e ON e.id=v.entregador_id WHERE v.campanha_id=$P1")" "[0,4]|Ana Param,Beto Param,Caio Param"
+C1=91100000000001; C2=91100000000002; C3=91100000000003
+check "0133/D5: 1a exportacao com data_premio futura grava data_pagamento = data_premio (Ana e Beto; o objeto do Caio nao exporta)" "$(rpc $FIN11 $E9011 9011 "$(EXP $P1)")" "$C1|Ana Param|10000|1|$T5|false
+$C2|Beto Param|5000|2|$T5|false"
+check "0133/D5: a data fica GRAVADA em CampanhaVencedor.data_pagamento" "$(own "SELECT string_agg(posicao||'='||COALESCE(data_pagamento::text,'-'), ',' ORDER BY posicao) FROM \"CampanhaVencedor\" WHERE campanha_id=$P1")" "1=$T5,2=$T5,3=-"
+check "0133/D5: hub_campanha_vencedores expoe data_pagamento" "$(rpc $ADM11 $E9011 9011 "SELECT string_agg(posicao||'='||COALESCE(data_pagamento::text,'-'), ',' ORDER BY posicao) FROM hub_campanha_vencedores($P1);")" "1=$T5,2=$T5,3=-"
+check "0133/D5: alterar a data APOS lancar e fechar (objeto pendente): permitido, devolve antes/depois" "$(rpc $ADM11 $E9011 9011 "SELECT hub_campanha_alterar_data_premio(9011,$P1,'$T9');" | jq -c '[.antes,.depois,.alterada]')" "[\"$T5\",\"$T9\",true]"
+check "0133/D5: a data gravada NAO muda com data_premio (re-download reproduz $T5)" "$(rpc $FIN11 $E9011 9011 "$(EXP $P1)" | cut -d'|' -f5 | paste -sd,)" "$T5,$T5"
+check "0133/D5: alterar para o mesmo valor: alterada=false; limpar (NULL) e permitido" "$(rpc $ADM11 $E9011 9011 "SELECT hub_campanha_alterar_data_premio(9011,$P1,'$T9');" | jq -c '.alterada')|$(rpc $ADM11 $E9011 9011 "SELECT hub_campanha_alterar_data_premio(9011,$P1,NULL);" | jq -c '[.antes,.depois]')" "false|[\"$T9\",null]"
+rpc $ADM11 $E9011 9011 "SELECT hub_campanha_alterar_data_premio(9011,$P1,'$T9');" >/dev/null
+check "0133/D5: o app mostra a data (hub_motorista_campanha.campanha.dataPremio) e nao expoe data_pagamento" "$(app $C1 "SELECT (hub_motorista_campanha($P1)->'campanha'->>'dataPremio')||'|'||(hub_motorista_campanha($P1)::text LIKE '%data_pagamento%' OR hub_motorista_campanha($P1)->'campanha' ? 'dataPagamento');")" "$T9|false"
+check "0133/C7: o app devolve dataPagamento so do PROPRIO premio: Ana (dinheiro exportado) = $T5; Caio (objeto) = null" "$(app $C1 "SELECT hub_motorista_campanha($P1)->'eu'->>'dataPagamento';")|$(app $C3 "SELECT COALESCE(hub_motorista_campanha($P1)->'eu'->>'dataPagamento','NULO');")" "$T5|NULO"
+check "0133/D5: hub (detalhe/lista) expoe dataPremio e descarteTurnoMin" "$(rpc $ADM11 $E9011 9011 "SELECT (hub_campanha_detalhe($P1)->>'dataPremio')||'|'||(hub_campanha_detalhe($P1)->>'descarteTurnoMin')||'|'||(SELECT item->>'dataPremio' FROM hub_campanha_listar(9011,NULL) WHERE (item->>'id')::int=$P1);")" "$T9|5|$T9"
+check "0133/D5: data_premio no PASSADO -> paga ja (hoje): P2 exporta os 3 com data = hoje" "$(rpc $FIN11 $E9011 9011 "$(EXP $P2)" | cut -d'|' -f5 | paste -sd,)" "$TODAY,$TODAY,$TODAY"
+check "0133/D5: alterar recusa se TODOS os premios ja foram pagos/entregues (P2) -> CAMPANHA_SITUACAO_INVALIDA" "$(tok "$(rpc $ADM11 $E9011 9011 "SELECT hub_campanha_alterar_data_premio(9011,$P2,'$T9');")")" "CAMPANHA_SITUACAO_INVALIDA"
+R="$(rpc $FIN11 $E9011 9011 "$(EXP $P3)")"
+check "0133/D5 (C3) colisao de CNPJ na data futura (P3 = P1, $T5): Ana e Beto vao para o PROXIMO DIA LIVRE ($T6); Caio sem colisao fica em $T5" "$R" "$C1|Ana Param|3000|1|$T6|false
+$C2|Beto Param|3000|2|$T6|false
+$C3|Caio Param|3000|3|$T5|false"
+check "0133/D5 (C3): re-download de P3 e IDENTICO (datas gravadas)" "$(rpc $FIN11 $E9011 9011 "$(EXP $P3)")" "$R"
+check "0133/D5 (C3): P4 ($T6) encontra Ana/Beto ja em $T6 (P3) e vai para $T7; Caio ($T6 livre) fica em $T6" "$(rpc $FIN11 $E9011 9011 "$(EXP $P4)" | cut -d'|' -f5,6 | paste -sd,)" "$T7|false,$T7|false,$T6|false"
+echo "  D5: seguranca e gatilhos"
+check "0133/D5 seguranca: operador (sem campanhas.gerir) -> PERMISSAO_NEGADA" "$(tok "$(rpc $OP11 $E9011 9011 "SELECT hub_campanha_alterar_data_premio(9011,$P1,'$T9');")")" "PERMISSAO_NEGADA"
+check "0133/D5 seguranca: usuario de OUTRA empresa -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(rpc $ADM10 $E9010 9010 "SELECT hub_campanha_alterar_data_premio(9010,$P1,'$T9');")")" "CAMPANHA_NAO_ENCONTRADA"
+check "0133/D5 seguranca: empresa informada diferente da ativa -> FORA_DE_ESCOPO" "$(tok "$(rpc $ADM11 '[9011,9010]' 9010 "SELECT hub_campanha_alterar_data_premio(9011,$P1,'$T9');")")" "FORA_DE_ESCOPO"
+check "0133/D5 seguranca: id de outra empresa com a propria empresa informada -> CAMPANHA_NAO_ENCONTRADA" "$(tok "$(rpc $ADM11 $E9011 9011 "SELECT hub_campanha_alterar_data_premio(9011,$ND5,'$T9');")")" "CAMPANHA_NAO_ENCONTRADA"
+check "0133/D5 seguranca: campanha cancelada recusa -> CAMPANHA_SITUACAO_INVALIDA" "$(tok "$(rpc $ADM11 $E9011 9011 "SELECT hub_campanha_alterar_data_premio(9011,$P5,'$T9');")")" "CAMPANHA_SITUACAO_INVALIDA"
+check "0133/D5 seguranca: motorista (sem escopo) nao altera" "$(tok "$(app $C1 "SELECT hub_campanha_alterar_data_premio(9011,$P1,'$T9');")")" "FORA_DE_ESCOPO"
+check "0133/D5 seguranca: sem EXECUTE para PUBLIC; authenticated tem" "$(own "SELECT has_function_privilege('public','hub_campanha_alterar_data_premio(int,int,date)','EXECUTE')::text||has_function_privilege('authenticated','hub_campanha_alterar_data_premio(int,int,date)','EXECUTE')::text")" "falsetrue"
+check "0133/D5 gatilho: data_premio pode mudar depois de lancar (como dono do banco)" "$(ownx "UPDATE \"Campanha\" SET data_premio = data_premio + 1 WHERE id=$P1" | grep -c ERROR)" "0"
+own "UPDATE \"Campanha\" SET data_premio = '$T9' WHERE id=$P1" >/dev/null
+check "0133/D5 gatilho: qualquer OUTRA coluna segue imutavel (nome, descricao, premio)" "$(tok "$(ownx "UPDATE \"Campanha\" SET nome='Outro' WHERE id=$P1")")|$(tok "$(ownx "UPDATE \"Campanha\" SET descricao='x' WHERE id=$P1")")|$(tok "$(ownx "UPDATE \"CampanhaPremio\" SET descricao='x' WHERE campanha_id=$P1")")" "CAMPANHA_IMUTAVEL|CAMPANHA_IMUTAVEL|CAMPANHA_IMUTAVEL"
+check "0133/D5 gatilho do vencedor: data_pagamento liberada (junto de exportado_em); outra coluna segue imutavel" "$(ownx "UPDATE \"CampanhaVencedor\" SET data_pagamento = data_pagamento WHERE campanha_id=$P1 AND posicao=1" | grep -c ERROR)|$(tok "$(ownx "UPDATE \"CampanhaVencedor\" SET premio_id = premio_id + 0, posicao = posicao + 100 WHERE campanha_id=$P1 AND posicao=1")")" "0|CAMPANHA_IMUTAVEL"
+check "0133: funcoes internas novas NAO executaveis por authenticated (descartado, creditos, subpraca_efetiva e executavel por ser pura)" "$(own "SELECT has_function_privilege('authenticated','hub_campanha_creditos_turno(int,date,date,int,text[],timestamptz)','EXECUTE')::text||has_function_privilege('public','hub_campanha_turno_descartado(double precision,bigint,bigint,bigint,bigint,int)','EXECUTE')::text||has_function_privilege('authenticated','hub_subpraca_efetiva(text,text)','EXECUTE')::text")" "falsefalsetrue"
+
 echo "--- idempotencia da migration (0129 duas vezes, com dados de extrato presentes) ---"
 for i in 1 2; do
   R4="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0131_categorias_modo_todas.sql" 2>&1 | grep -c ERROR)"
@@ -1075,6 +1292,29 @@ for i in 1 2; do
   check "migration 0132 reaplicada ($i) sem erro" "$R6" "0"
 done
 check "0132: depois de reaplicar, os dados (visivel_app) e o corpo vivo seguem corretos" "$(own "SELECT pg_get_functiondef('hub_campanha_visivel(\"Campanha\",integer)'::regprocedure) ~ 'c[.]visivel_app'")|$(own "SELECT visivel_app FROM \"Campanha\" WHERE id=$VX")" "t|t"
+
+echo "--- idempotencia da 0133 (reaplica por cima das reaplicacoes de 0131/0130/0132, que trazem corpos antigos; coluna descarte recriada COM campanha lancada presente) ---"
+N_LANC="$(own "SELECT count(*) FROM \"Campanha\" WHERE lancada_em IS NOT NULL")"
+N_FECH="$(own "SELECT count(*) FROM \"Campanha\" WHERE fechada_em IS NOT NULL")"; N_ABER="$(own "SELECT count(*) FROM \"Campanha\" WHERE lancada_em IS NOT NULL AND fechada_em IS NULL")"
+own "ALTER TABLE \"Campanha\" DROP CONSTRAINT campanha_descarte_chk; ALTER TABLE \"Campanha\" DROP COLUMN descarte_turno_min;" >/dev/null
+if [ "${CAMP_NEG:-}" = "c1" ]; then   # controle negativo C1: a coluna nasce SEM a migracao de dado (o bloco da migration nao roda)
+  own "ALTER TABLE \"Campanha\" ADD COLUMN descarte_turno_min smallint NOT NULL DEFAULT 5;" >/dev/null
+  [ "$(own "SELECT count(*) FROM \"Campanha\" WHERE fechada_em IS NOT NULL AND descarte_turno_min = 5")" = "$N_FECH" ] || { echo "ABORTA: controle c1 OCO (fechadas nao ficaram com 5)"; exit 1; }
+  echo "NEG c1: coluna recriada SEM zerar as fechadas (conferido: $N_FECH fechadas com 5)"
+fi
+check "0133: coluna descarte_turno_min removida para provar o ADD COLUMN DEFAULT sobre campanhas LANCADAS" "$(own "SELECT count(*) FROM information_schema.columns WHERE table_name='Campanha' AND column_name='descarte_turno_min'")" "0"
+for i in 1 2; do
+  R7="$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0133_campanhas_parametrizacao.sql" 2>&1 | grep -c ERROR)"
+  check "migration 0133 reaplicada ($i) sem erro" "$R7" "0"
+done
+check "0133/C1: 1a aplicacao com $N_LANC campanhas lancadas: as $N_FECH FECHADAS ficam com 0 (apuradas sem descarte) e as $N_ABER em andamento com 5 — sem erro de gatilho" "$(own "SELECT count(*) FILTER (WHERE fechada_em IS NOT NULL AND descarte_turno_min = 0)||'|'||count(*) FILTER (WHERE lancada_em IS NOT NULL AND fechada_em IS NULL AND descarte_turno_min = 5) FROM \"Campanha\"")" "$N_FECH|$N_ABER"
+check "0133/C1: o gatilho de imutabilidade voltou HABILITADO depois da migracao de dado" "$(own "SELECT tgenabled FROM pg_trigger WHERE tgname='trg_campanha_imutavel'")" "O"
+FX="$(own "SELECT id FROM \"Campanha\" WHERE fechada_em IS NOT NULL ORDER BY id LIMIT 1")"
+own "ALTER TABLE \"Campanha\" DISABLE TRIGGER trg_campanha_imutavel; UPDATE \"Campanha\" SET descarte_turno_min = 5 WHERE id=$FX; ALTER TABLE \"Campanha\" ENABLE TRIGGER trg_campanha_imutavel;" >/dev/null
+check "0133/C1: reaplicar a migration NAO zera campanha fechada depois da 0133 (idempotencia real: bloco so na 1a aplicacao)" "$(psql_relaxed -v ON_ERROR_STOP=1 -q -f - < "$HUB_DIR/migrations/0133_campanhas_parametrizacao.sql" 2>&1 | grep -c ERROR)|$(own "SELECT descarte_turno_min FROM \"Campanha\" WHERE id=$FX")" "0|5"
+check "0133/C1: o recalculo final da migration manteve o ranking das campanhas em andamento (ND5 = 9 linhas)" "$(own "SELECT count(*) FROM \"CampanhaRanking\" WHERE campanha_id=$ND5")" "9"
+check "0133: depois de reaplicar, os corpos vivos sao os da 0133 (lancar FIM_NO_PASSADO, gatilho com data_premio, nota com descarte, _q de 14 args unico)" "$(own "SELECT (pg_get_functiondef('hub_campanha_lancar(integer)'::regprocedure) ~ 'FIM_NO_PASSADO')::text||(pg_get_functiondef('hub_campanha_imutavel_trg()'::regprocedure) ~ '''data_premio''')::text||(pg_get_functiondef('hub_campanha_recalcular_interno(integer)'::regprocedure) ~ 'hub_campanha_turno_descartado')::text||(SELECT count(*) FROM pg_proc WHERE proname='hub_campanha_turnos_extrato_q')::text")" "truetruetrue1"
+check "0133: reaplicar nao mexeu nos dados (ND5 ainda com 9 no ranking; P1 com a data $T9)" "$(own "SELECT (SELECT count(*) FROM \"CampanhaRanking\" WHERE campanha_id=$ND5)||'|'||(SELECT data_premio FROM \"Campanha\" WHERE id=$P1)")" "9|$T9"
 
 echo "===================================================================="
 echo "CAMPANHAS-DB${CAMP_NEG:+ (controle negativo: $CAMP_NEG)}: PASS=$passes FAIL=$fails"

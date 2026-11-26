@@ -58,6 +58,8 @@ export interface CampanhaDados {
   situacao: SituacaoCampanha;
   dataInicio: string;
   dataFim: string;
+  /** Data combinada de pagamento/entrega do prêmio (YYYY-MM-DD); null = sem data. */
+  dataPremio: string | null;
   pracas: string[] | null;
   turnos: string[] | null;
   modais: string[] | null;
@@ -96,6 +98,8 @@ export interface MinhaLinha {
   acima: { nome: string; nota: number } | null;
   premio: { tipo: 'objeto' | 'dinheiro'; descricao: string } | null;
   entregueEm: string | null;
+  /** 0133/C7: data de pagamento GRAVADA do prêmio em dinheiro do PRÓPRIO motorista (null até exportar). */
+  dataPagamento?: string | null;
 }
 
 export interface LinhaTop {
@@ -128,6 +132,8 @@ export interface MinhaLinhaExtrato {
   valorCentavos: number;
   premio: { tipo: 'objeto' | 'dinheiro'; descricao: string } | null;
   entregueEm: string | null;
+  /** 0133/C7: data de pagamento GRAVADA do prêmio em dinheiro do PRÓPRIO motorista (null até exportar). */
+  dataPagamento?: string | null;
 }
 
 export interface ExtratoTela {

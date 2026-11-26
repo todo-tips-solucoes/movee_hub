@@ -1,0 +1,95 @@
+
+Running 3 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/01-hub-criar-lancar.spec.ts:23:7 › campanhas — hub: criar, editar, lançar, imutável › a) rascunho -> editar -> revisar e lançar (caixa obrigatória) (4.5s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/01-hub-criar-lancar.spec.ts:114:7 › campanhas — hub: criar, editar, lançar, imutável › b) lançada: sem caminho de edição na UI; PUT direto na API -> 409 CAMPANHA_IMUTAVEL (1.3s)
+  ✓  3 [chromium] › tests/e2e-hub-campanhas/01-hub-criar-lancar.spec.ts:160:7 › campanhas — hub: criar, editar, lançar, imutável › c) excluir rascunho pela UI: confirma, some da lista e da API; lançada não ganha o botão (1.8s)
+
+  3 passed (8.8s)
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/02-hub-ranking.spec.ts:57:5 › c) admin_entidade: detalhe com ranking, abas e contagens (1.4s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/02-hub-ranking.spec.ts:62:5 › c) financeiro (papel com as permissões): enxerga o mesmo ranking (1.7s)
+
+  2 passed (3.8s)
+
+Running 3 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/03-app-motorista.spec.ts:12:5 › d) classificada: card na Início, tela da campanha, pódio, top 10 abreviado, indicadores (3.1s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/03-app-motorista.spec.ts:64:5 › d) abaixo do corte: "fora do ranking" com nota hipotética e o que fazer (2.1s)
+  ✓  3 [chromium] › tests/e2e-hub-campanhas/03-app-motorista.spec.ts:85:5 › f) notificação de início na central, com link /campanhas/<id> clicável (1.8s)
+
+  3 passed (7.9s)
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/04-hub-fechar-vencedores.spec.ts:8:5 › e) vencedores, entrega do objeto e planilha de prêmios em dinheiro (2.0s)
+
+  1 passed (2.9s)
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/05-app-resultado-final.spec.ts:5:5 › e) app: card "Resultado final" e a tela do resultado (2.3s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/05-app-resultado-final.spec.ts:26:5 › e) app: o vencedor (1º, objeto) vê o prêmio e a entrega registrada (1.2s)
+
+  2 passed (4.2s)
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/06-hub-extrato-criar-lancar.spec.ts:15:5 › extrato: rascunho -> reabrir -> lançar (3.3s)
+
+  1 passed (4.0s)
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/07-hub-extrato-ranking.spec.ts:13:5 › extrato: detalhe do hub com cards, tabela e CSV (1.6s)
+
+  1 passed (2.3s)
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/08-app-extrato.spec.ts:31:5 › A) classificada: "Seu extrato na campanha", ranking sem valor alheio, turnos só dela (1.6s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/08-app-extrato.spec.ts:107:5 › B) turnos ✓ / ✕ / …: o que não valeu mostra o motivo e o valor que deixou de somar (1.2s)
+
+  2 passed (3.6s)
+
+Running 5 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/09-visibilidade-app.spec.ts:16:7 › campanhas — interruptor de visibilidade no app › hub: desliga (selo Oculta no detalhe e na lista) (1.3s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/09-visibilidade-app.spec.ts:28:7 › campanhas — interruptor de visibilidade no app › app: oculta, a campanha some (Início, detalhe por URL, API) (1.8s)
+  ✓  3 [chromium] › tests/e2e-hub-campanhas/09-visibilidade-app.spec.ts:43:7 › campanhas — interruptor de visibilidade no app › hub: liga pelo interruptor (selo vira Visível no app) (1.1s)
+  ✓  4 [chromium] › tests/e2e-hub-campanhas/09-visibilidade-app.spec.ts:54:7 › campanhas — interruptor de visibilidade no app › app: visível, só a posição (topo e card) e payload sem total (1.9s)
+  ✓  5 [chromium] › tests/e2e-hub-campanhas/09-visibilidade-app.spec.ts:78:7 › campanhas — interruptor de visibilidade no app › hub: desliga de novo e a campanha some do app (2.9s)
+
+  5 passed (9.9s)
+
+Running 5 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/10-hub-parametrizacao.spec.ts:66:7 › campanhas — parametrização (0133) › a) Performance do hub mostra e filtra a subpraça efetiva (origem e LIVRE) (3.3s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/10-hub-parametrizacao.spec.ts:93:7 › campanhas — parametrização (0133) › a, b, d, e) campanha na praça LIVRE: descarte 5, data do prêmio, lançar em andamento, ranking pronto (3.9s)
+  ✓  3 [chromium] › tests/e2e-hub-campanhas/10-hub-parametrizacao.spec.ts:149:7 › campanhas — parametrização (0133) › b) descarte 0: o turno de 3 min zerado passa a contar (2.1s)
+  ✓  4 [chromium] › tests/e2e-hub-campanhas/10-hub-parametrizacao.spec.ts:166:7 › campanhas — parametrização (0133) › c) nota com categorias: só conta o turno com lançamento casado (2.9s)
+  ✓  5 [chromium] › tests/e2e-hub-campanhas/10-hub-parametrizacao.spec.ts:197:7 › campanhas — parametrização (0133) › e) quem só consulta não vê "Alterar data" (936ms)
+
+  5 passed (14.1s)
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/11-hub-premio-exportar.spec.ts:9:5 › d) lançar campanha cujo fim já passou -> mensagem de FIM_NO_PASSADO; nada é lançado (2.0s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/11-hub-premio-exportar.spec.ts:35:5 › e) vencedores: "Pagamento em" aparece com a planilha, na data do prêmio (1.2s)
+
+  2 passed (3.9s)
+
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/12-app-data-premio.spec.ts:10:7 › e) app: Bruno (objeto) vê a data prevista do prêmio (1.8s)
+  ✓  2 [chromium] › tests/e2e-hub-campanhas/12-app-data-premio.spec.ts:10:7 › e) app: Carla (dinheiro) vê a data prevista do prêmio (1.2s)
+
+  2 passed (3.7s)
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-hub-campanhas/13-hub-alterar-data-exportada.spec.ts:6:5 › e) alterar a data depois de exportar: a data gravada não muda e o re-download é igual (1.7s)
+
+  1 passed (2.5s)

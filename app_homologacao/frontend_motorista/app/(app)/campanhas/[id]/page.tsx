@@ -62,6 +62,8 @@ import {
   textoVariacao,
   turnosFaltantes,
   variacaoPosicao,
+  textoStatusPremio,
+  textoRodapePremio,
 } from '@/lib/campanhas';
 
 type Carga =
@@ -640,10 +642,8 @@ function Confete() {
   );
 }
 
-function statusPremio(eu: MinhaLinha): string {
-  if (!eu.premio) return '';
-  if (eu.premio.tipo === 'dinheiro') return 'Aparece no seu repasse';
-  return eu.entregueEm ? `Entregue em ${formatDate(eu.entregueEm)}` : 'A equipe Movee combina a entrega com você';
+function dadosPremio(eu: MinhaLinha & { premio: NonNullable<MinhaLinha['premio']> }, dataPremio: string | null) {
+  return { tipo: eu.premio.tipo, entregueEm: eu.entregueEm, dataPremio, dataPagamento: eu.dataPagamento ?? null };
 }
 
 function Encerrada({ t }: { t: CampanhaTela }) {
@@ -723,7 +723,7 @@ function Encerrada({ t }: { t: CampanhaTela }) {
               <span className="break-words text-lg font-extrabold leading-tight">{premio.descricao}</span>
               <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-warm-2">
                 {premio.tipo === 'objeto' && eu.entregueEm && <Check className="h-3.5 w-3.5" />}
-                {statusPremio(eu)}
+                {textoStatusPremio(dadosPremio({ ...eu, premio }, c.dataPremio ?? null), formatDate)}
               </span>
             </div>
           </div>
@@ -749,7 +749,7 @@ function Encerrada({ t }: { t: CampanhaTela }) {
         )}
         {premio && (
           <p className="text-xs opacity-75">
-            Prêmio em objeto: a equipe Movee combina a entrega com você. Prêmio em dinheiro aparece no seu repasse.
+            {textoRodapePremio(dadosPremio({ ...eu!, premio }, c.dataPremio ?? null))}
           </p>
         )}
       </div>

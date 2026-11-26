@@ -20,6 +20,8 @@ const ITEM = {
   id: 12,
   nome: 'Rei do Jantar — Novembro',
   visivelApp: false,
+  descarteTurnoMin: 5,
+  dataPremio: null,
   situacao: 'em_andamento',
   dataInicio: '2026-11-10',
   dataFim: '2026-11-30',
@@ -113,10 +115,11 @@ describe('parse do ranking, vencedores e opções', () => {
   it('vencedores', () => {
     const v = parseVencedores({
       itens: [{ posicao: 1, nome: 'Rafael', nota: 98.9, premio: { tipo: 'objeto', descricao: 'Moto', valorCentavos: null },
-        entregueEm: null, entreguePor: null, observacao: null, exportadoEm: null, semCnpj: false }],
+        entregueEm: null, entreguePor: null, observacao: null, exportadoEm: null, dataPagamento: '2026-12-05', semCnpj: false }],
     });
     expect(v[0].premio.tipo).toBe('objeto');
     expect(v[0].semCnpj).toBe(false);
+    expect(v[0].dataPagamento).toBe('2026-12-05');
   });
   it('opções', () => {
     const o = parseOpcoes({ pracas: ['A'], turnos: ['T'], modais: ['MOTO'], coberturaPedidos: 0.98, alcance: { rodaram: 212, semModal: 12 } });
@@ -142,6 +145,14 @@ describe('extrato no contrato', () => {
     const r = parseRanking({ itens: [{ ...LINHA, nota: null, turnosValidos: 14, valorCentavos: 203140 }], contagem: {} });
     expect(r.itens[0]).toMatchObject({ turnosValidos: 14, turnos: 19, valorCentavos: 203140, nota: null });
     expect(parseRanking({ itens: [LINHA], contagem: {} }).itens[0]).toMatchObject({ turnosValidos: null, valorCentavos: null });
+  });
+});
+
+describe('0133: descarte e data do prêmio', () => {
+  it('lê os campos; ausentes = 5 min e sem data', () => {
+    expect(parseCampanhaItem({ ...ITEM, descarteTurnoMin: 0, dataPremio: '2026-12-05' })).toMatchObject({ descarteTurnoMin: 0, dataPremio: '2026-12-05' });
+    const { descarteTurnoMin: _d, dataPremio: _p, ...sem } = ITEM; // eslint-disable-line @typescript-eslint/no-unused-vars
+    expect(parseCampanhaItem(sem)).toMatchObject({ descarteTurnoMin: 5, dataPremio: null });
   });
 });
 

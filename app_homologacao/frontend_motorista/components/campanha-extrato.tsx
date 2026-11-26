@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { AlertCircle, ArrowDown, ArrowUp, Gift, RefreshCw, Trophy } from '@/components/ui/icons';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { buscarTurnos, type ExtratoTela, type TurnoExtrato } from '@/lib/campanhas-api';
 import {
   fmtReais,
@@ -18,6 +18,7 @@ import {
   linhaTurno,
   ordinal,
   rankingExtrato,
+  textoStatusPremio,
   textoTurnoValido,
   textoVariacao,
   variacaoPosicao,
@@ -57,6 +58,10 @@ export function TelaExtrato({ t, hero }: { t: ExtratoTela; hero: ReactNode }) {
                 {eu.premio && (
                   <>
                     <strong>Na zona de prêmio: {eu.premio.descricao}.</strong>{' '}
+                    {textoStatusPremio(
+                      { tipo: eu.premio.tipo, entregueEm: eu.entregueEm, dataPremio: c.dataPremio ?? null, dataPagamento: eu.dataPagamento ?? null },
+                      formatDate
+                    )}.{' '}
                   </>
                 )}
                 Cada turno válido a mais soma o valor dele no seu extrato.

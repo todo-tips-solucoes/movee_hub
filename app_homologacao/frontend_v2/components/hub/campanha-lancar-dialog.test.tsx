@@ -23,6 +23,8 @@ const FORM: FormularioCampanha = {
   pesos: { aceitacao: 30, conclusao: 30, tempo: 20, pedidos: 20 },
   cortes: { aceitacao: 0.8, conclusao: 0.9, tempo: null, pedidos: null },
   premios: [{ ...premioVazio(1), descricao: 'Moto Honda CG 160' }],
+  descarteTurnoMin: 5,
+  dataPremio: '',
   avisar: true,
   visivelApp: false,
 };
@@ -47,6 +49,28 @@ describe('CampanhaLancarDialog', () => {
     expect(screen.getByText(/Taxa de aceitação 30% \(corte 80%\)/)).toBeInTheDocument();
     expect(screen.getByText(/1º lugar Moto Honda CG 160/)).toBeInTheDocument();
     expect(screen.getByText(/212 motoristas rodaram/)).toBeInTheDocument();
+  });
+
+  it('início no passado: aviso de que o ranking já considera os dias; início futuro: sem aviso', () => {
+    abrir(undefined, { ...FORM, dataInicio: '2020-01-05', dataFim: '2099-01-20' });
+    expect(screen.getByText(/Esta campanha começou em 05\/01\. O ranking já considera os dias desde então\./)).toBeInTheDocument();
+  });
+
+  it('resumo lista o descarte e, na nota, as categorias escolhidas (R4)', () => {
+    abrir(undefined, { ...FORM, descarteTurnoMin: 5, categorias: ['Bônus X', 'familia:promocao'] });
+    expect(screen.getByText('Turnos de até 5 min sem corridas não contam')).toBeInTheDocument();
+    expect(screen.getByText(/Bônus X, Promoção/)).toBeInTheDocument();
+  });
+
+  it('descarte 0 e sem categorias: "Nenhum turno descartado", sem linha de lançamentos', () => {
+    abrir(undefined, { ...FORM, descarteTurnoMin: 0, categorias: [] });
+    expect(screen.getByText('Nenhum turno descartado')).toBeInTheDocument();
+    expect(screen.queryByText('Lançamentos')).not.toBeInTheDocument();
+  });
+
+  it('início futuro: sem o aviso de campanha em andamento', () => {
+    abrir(undefined, { ...FORM, dataInicio: '2099-01-10', dataFim: '2099-01-20' });
+    expect(screen.queryByText(/Esta campanha começou em/)).not.toBeInTheDocument();
   });
 
   it('"Lançar campanha" fica desabilitado até marcar "Revisei tudo…"', () => {

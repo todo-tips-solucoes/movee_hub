@@ -292,9 +292,9 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
 
   const extrato = form.tipo === 'extrato';
 
-  // Categorias só importam (e só são pedidas) no extrato.
+  // Categorias: obrigatórias no extrato, opcionais na nota (0133): a lista vale para os dois.
   useEffect(() => {
-    if (!extrato || categorias !== null) return;
+    if (categorias !== null) return;
     let vivo = true;
     listarCategoriasCampanha()
       .then((c) => {
@@ -306,7 +306,7 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
     return () => {
       vivo = false;
     };
-  }, [extrato, categorias]);
+  }, [categorias]);
 
   const cobertura = opcoes?.coberturaPedidos ?? null;
   const pedidosOff = !extrato && opcoes !== null && pedidosBloqueado(cobertura);
@@ -424,7 +424,7 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
     pedidos: 'Pedidos do turno. Turno sem a leitura não vale (zero inventado nunca conta).',
   };
   const fechaEm = fechamentoExtrato(form.dataFim);
-  const n = (base: number) => (extrato ? base + 1 : base);
+  const n = (base: number) => base + 1; // a seção de categorias existe nos dois tipos
 
   return (
     <>
@@ -489,6 +489,11 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
               O faturamento chega com 1 a 2 dias de atraso. O resultado final fecha sozinho{' '}
               <strong>3 dias depois do fim</strong>{fechaEm ? ` (${fechaEm})` : ''}, quando ~97% do valor já entrou.
             </p>
+          ) : form.categorias.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Com lançamentos selecionados, a apuração termina <strong>3 dias depois do fim</strong>
+              {fechaEm ? ` (${fechaEm})` : ''}, para o faturamento dos últimos dias entrar.
+            </p>
           ) : (
             <p className="text-xs text-muted-foreground">
               Os dados chegam com 1 dia de atraso (importação diária da EntreGô). O resultado final fecha sozinho quando a
@@ -538,6 +543,17 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
               <p className="text-xs text-muted-foreground">Impede que quem fez um turno só apareça com 100%.</p>
             )}
             <Erro id={`${baseId}-min-e`} texto={erros.minTurnos} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`${baseId}-desc-min`} className="text-sm font-medium">
+              Descartar turnos de até [N] minutos sem nenhuma corrida
+            </label>
+            <Input id={`${baseId}-desc-min`} type="number" inputMode="numeric" min={0} max={LIMITES.descarteMax}
+              className={cn(CLASSE_INPUT, 'sm:w-32')} value={Number.isNaN(form.descarteTurnoMin) ? '' : form.descarteTurnoMin}
+              aria-invalid={!!erros.descarteTurnoMin}
+              onChange={(e) => set({ descarteTurnoMin: e.target.value === '' ? Number.NaN : Number(e.target.value) })} />
+            <p className="text-xs text-muted-foreground">Minutos online (0 = não descarta). Turno descartado não conta em nada.</p>
+            <Erro id={`${baseId}-desc-min-e`} texto={erros.descarteTurnoMin} />
           </div>
         </Secao>
       </div>
@@ -621,26 +637,25 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
         <Erro id={`${baseId}-cortes-e`} texto={erros.cortes} />
       </Secao>
 
-      {extrato && (
-        <Secao id={`${baseId}-cat`} titulo="4. Valor do turno: categorias do faturamento">
-          <p className="text-sm text-muted-foreground">
-            Soma dos créditos do Financeiro do motorista naquele dia (data de referência) e turno, nas categorias marcadas.
-            Mesmo seletor das Configurações do adiantamento.
-          </p>
-          <SeletorCategorias
-            titulo="Categorias do faturamento"
-            textoVazio={categoriasErro ?? (categorias === null ? 'Carregando categorias…' : 'Nenhuma categoria com turno encontrada nos últimos 90 dias.')}
-            disponiveis={categorias ?? []}
-            selecionadas={form.categorias}
-            onChange={(c) => set({ categorias: c })}
-            aviso="Nenhuma categoria marcada: o valor do turno ficaria zerado."
-          />
-          <p className="text-xs text-muted-foreground">
-            Só aparecem categorias que têm turno no faturamento. Gorjeta, por exemplo, vem sem turno e não pode ser atribuída a um.
-          </p>
-          <Erro id={`${baseId}-cat-e`} texto={erros.categorias} />
-        </Secao>
-      )}
+      <Secao id={`${baseId}-cat`} titulo={extrato ? '4. Valor do turno: categorias do faturamento' : '4. Lançamentos exigidos no turno (opcional)'}>
+        <p className="text-sm text-muted-foreground">
+          {extrato
+            ? 'Soma dos créditos do Financeiro do motorista naquele dia (data de referência) e turno, nas categorias marcadas. Mesmo seletor das Configurações do adiantamento.'
+            : 'Opcional: conta só os turnos que tiveram estes lançamentos no faturamento. Com lançamentos selecionados, a apuração termina 3 dias após o fim.'}
+        </p>
+        <SeletorCategorias
+          titulo="Categorias do faturamento"
+          textoVazio={categoriasErro ?? (categorias === null ? 'Carregando categorias…' : 'Nenhuma categoria com turno encontrada nos últimos 90 dias.')}
+          disponiveis={categorias ?? []}
+          selecionadas={form.categorias}
+          onChange={(c) => set({ categorias: c })}
+          aviso={extrato ? 'Nenhuma categoria marcada: o valor do turno ficaria zerado.' : undefined}
+        />
+        <p className="text-xs text-muted-foreground">
+          Só aparecem categorias que têm turno no faturamento. Gorjeta, por exemplo, vem sem turno e não pode ser atribuída a um.
+        </p>
+        <Erro id={`${baseId}-cat-e`} texto={erros.categorias} />
+      </Secao>
 
       <Secao
         id={`${baseId}-pre`}
@@ -666,6 +681,13 @@ export function CampanhaFormulario({ campanhaId, inicial }: Props) {
           ))}
         </ul>
         <Erro id={`${baseId}-pre-e`} texto={erros.premios} />
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${baseId}-dpremio`} className="text-sm font-medium">Data de pagamento/entrega do prêmio (opcional)</label>
+          <Input id={`${baseId}-dpremio`} type="date" className={cn(CLASSE_INPUT, 'sm:w-48')} value={form.dataPremio}
+            aria-invalid={!!erros.dataPremio} onChange={(e) => set({ dataPremio: e.target.value })} />
+          <p className="text-xs text-muted-foreground">Sem data, o dinheiro sai na primeira exportação da planilha e o objeto, quando a equipe registrar a entrega.</p>
+          <Erro id={`${baseId}-dpremio-e`} texto={erros.dataPremio} />
+        </div>
       </Secao>
 
       <Secao id={`${baseId}-vis`} titulo={`${n(5)}. Visibilidade no app`}>

@@ -133,6 +133,24 @@ VIEW_COUNT="$(psql_t -tAc "SELECT count(*) FROM hub_areas_por_entregador" 2>"$TM
 [ "$VIEW_COUNT" = "0" ] || { echo "FAIL: view hub_areas_por_entregador não respondeu 0 (obtido='$VIEW_COUNT')"; cat "$TMP/view-check.log"; exit 1; }
 echo "PASS: view hub_areas_por_entregador existe e retorna 0 linhas sem erro"
 
+# 0133/C2: a view roda com o privilegio do dono; sem o predicado de escopo, authenticated leria areas de OUTRA empresa.
+# Transacao descartavel (ROLLBACK): duas empresas com uma area cada; o token de uma so ve a propria.
+ISO="$(psql_t -tAq 2>"$TMP/iso.log" <<'SQL' | tail -1
+BEGIN;
+INSERT INTO "ImportacaoArquivo"(id_empresa,tipo,hash_sha256,status) VALUES (9901,'performance',repeat('7',64),'completed'),(9902,'performance',repeat('8',64),'completed');
+INSERT INTO "Entregador"(id_empresa,id_externo,nome) VALUES (9901,gen_random_uuid(),'Iso A'),(9902,gen_random_uuid(),'Iso B');
+INSERT INTO "PerformanceTurno"(id_empresa,importacao_id,entregador_id,data_periodo,periodo,subpraca,hash_linha)
+  SELECT e.id_empresa, (SELECT id FROM "ImportacaoArquivo" WHERE hash_sha256 = repeat(CASE e.id_empresa WHEN 9901 THEN '7' ELSE '8' END, 64)),
+         e.id, '2027-01-01', 'JANTAR', CASE e.id_empresa WHEN 9901 THEN 'AREA A' ELSE 'AREA B' END, md5(e.id::text)||md5(e.nome)
+  FROM "Entregador" e WHERE e.id_empresa IN (9901,9902);
+SELECT set_config('request.jwt.claims', '{"sub":"1","escopo":[9901]}', true);
+SET LOCAL ROLE authenticated;
+SELECT COALESCE(string_agg(subpraca, ',' ORDER BY subpraca), 'VAZIO') FROM hub_areas_por_entregador;
+ROLLBACK;
+SQL
+)"
+if [ "$ISO" = "AREA A" ]; then echo "PASS: view hub_areas_por_entregador isola por empresa (token da 9901 ve so 'AREA A')"; else echo "FAIL: view hub_areas_por_entregador vazou/zerou areas entre empresas (obtido='$ISO' esperado='AREA A')"; cat "$TMP/iso.log"; exit 1; fi
+
 # --- Seed: 2 Usuarios (leitura com motoristas.listar/consultar; papel SEM
 # essas permissões, para o teste bônus de 403) ---------------------------
 SENHA_OK='SenhaSinteticaMotoristas#1'

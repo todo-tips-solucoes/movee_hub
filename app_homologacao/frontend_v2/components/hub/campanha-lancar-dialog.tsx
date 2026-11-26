@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CampanhaApiError } from '@/lib/hub/campanhas-api';
-import { formatCentavos, formatDiaMes, resumoCriterios, resumoPesos, rotuloFaixa, type FormularioCampanha } from '@/lib/hub/campanhas-form';
+import { formatCentavos, formatDiaMes, hojeSP, resumoCriterios, resumoPesos, rotuloFaixa, textoCategorias, textoDescarte, type FormularioCampanha } from '@/lib/hub/campanhas-form';
 
 export interface AlcanceLancamento {
   rodaram: number;
@@ -96,6 +96,13 @@ function Conteudo({ form, alcance, onLancar, onOpenChange }: Omit<Props, 'open'>
         </p>
       </div>
 
+      {form.dataInicio !== '' && form.dataInicio < hojeSP() && (
+        <p role="note" className="flex items-start gap-2 text-sm font-medium text-warning-strong">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          Esta campanha começou em {formatDiaMes(form.dataInicio)}. O ranking já considera os dias desde então.
+        </p>
+      )}
+
       <dl className="flex max-h-[40vh] flex-col gap-2 overflow-y-auto">
         <Linha rotulo="Período">
           {formatDiaMes(form.dataInicio)} a {fimFmt} ({diasDe(form.dataInicio, form.dataFim)} dias)
@@ -119,8 +126,14 @@ function Conteudo({ form, alcance, onLancar, onOpenChange }: Omit<Props, 'open'>
             <Linha rotulo="Valor do turno">{form.categorias.length} categorias do faturamento · soma só dos turnos válidos</Linha>
           </>
         ) : (
-          <Linha rotulo="Nota">{resumoPesos(form.pesos, form.cortes)}</Linha>
+          <>
+            <Linha rotulo="Nota">{resumoPesos(form.pesos, form.cortes)}</Linha>
+            {form.categorias.length > 0 && (
+              <Linha rotulo="Lançamentos">{textoCategorias(form.categorias)}</Linha>
+            )}
+          </>
         )}
+        <Linha rotulo="Turnos curtos">{textoDescarte(form.descarteTurnoMin)}</Linha>
         <Linha rotulo="Prêmios">
           {form.premios
             .map(
